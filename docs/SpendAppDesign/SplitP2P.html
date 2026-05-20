@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<title>SplitP2P · Sistema de diseño + wireframes</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="stylesheet" href="tokens.css"/>
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; }
+  body { font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif; }
+  /* Global reset inside design canvas */
+  button { font-family: inherit; }
+  * { box-sizing: border-box; }
+</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="app"></div>
+
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel" src="components.jsx"></script>
+<script type="text/babel" src="system.jsx"></script>
+<script type="text/babel" src="screens-onboarding.jsx"></script>
+<script type="text/babel" src="screens-tabs.jsx"></script>
+<script type="text/babel" src="screens-groups.jsx"></script>
+<script type="text/babel" src="screens-expenses.jsx"></script>
+<script type="text/babel" src="screens-settle-delete.jsx"></script>
+<script type="text/babel" src="screens-settings.jsx"></script>
+<script type="text/babel" src="screens-states.jsx"></script>
+
+<script type="text/babel">
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "dark": false,
+  "iconStyle": "filled",
+  "density": "regular"
+}/*EDITMODE-END*/;
+
+function App() {
+  const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+
+  // Apply theme/density at the canvas level so DS showcase artboards
+  // (not wrapped in PhoneFrame) also flip.
+  React.useEffect(() => {
+    document.documentElement.setAttribute('data-theme', t.dark ? 'dark' : 'light');
+    document.documentElement.setAttribute('data-density', t.density);
+    document.documentElement.setAttribute('data-icon-style', t.iconStyle);
+  }, [t.dark, t.density, t.iconStyle]);
+
+  // Helper to wrap each phone screen artboard in a PhoneFrame with shared
+  // tweak settings. Saves a ton of repetition.
+  const Phone = (props) => (
+    <PhoneFrame dark={t.dark} density={t.density} iconStyle={t.iconStyle} {...props}/>
+  );
+  window.Phone = Phone;
+
+  // Artboard dimensions for phone screens
+  const PW = 390 + 24; // iphone width + margin
+  const PH = 844 + 24;
+
+  return (
+    <>
+      <DesignCanvas>
+
+        {/* ─────────────────  DESIGN SYSTEM  ───────────────── */}
+        <DCSection id="system" title="Sistema de diseño" subtitle="Tokens listos para React Native StyleSheet · light/dark via tweak global">
+          <DCArtboard id="ds-colors" label="01 · Colores" width={1240} height={1180}>
+            <DSColors dark={t.dark}/>
+          </DCArtboard>
+          <DCArtboard id="ds-type" label="02 · Tipografía" width={1240} height={1100}>
+            <DSType dark={t.dark}/>
+          </DCArtboard>
+          <DCArtboard id="ds-spacing" label="03 · Espaciado & radio" width={1240} height={920}>
+            <DSSpacing dark={t.dark}/>
+          </DCArtboard>
+          <DCArtboard id="ds-components" label="04 · Componentes" width={1240} height={1000}>
+            <DSComponents dark={t.dark}/>
+          </DCArtboard>
+        </DCSection>
+
+        {/* ─────────────────  ONBOARDING  ───────────────── */}
+        <DCSection id="onboarding" title="Onboarding & Auth" subtitle="A1 · Splash / Welcome · single-screen onboarding">
+          <DCArtboard id="A1" label="A1 · Welcome" width={PW} height={PH}>
+            <Phone><ScreenWelcome/></Phone>
+          </DCArtboard>
+          <DCArtboard id="A1b" label="A1b · Privacy detail" width={PW} height={PH}>
+            <Phone><ScreenWelcomeDetail/></Phone>
+          </DCArtboard>
+        </DCSection>
+
+        {/* ─────────────────  MAIN TABS  ───────────────── */}
+        <DCSection id="tabs" title="Tabs principales" subtitle="B1 Dashboard · B2 Grupos · B3 Actividad">
+          <DCArtboard id="B1" label="B1 · Dashboard" width={PW} height={PH}>
+            <Phone><ScreenDashboard/></Phone>
+          </DCArtboard>
+          <DCArtboard id="B2" label="B2 · Grupos" width={PW} height={PH}>
+            <Phone><ScreenGroups/></Phone>
+          </DCArtboard>
+          <DCArtboard id="B3" label="B3 · Actividad" width={PW} height={PH}>
+            <Phone><ScreenActivity/></Phone>
+          </DCArtboard>
+        </DCSection>
+
+        {/* ─────────────────  GROUP FLOW  ───────────────── */}
+        <DCSection id="groups" title="Flujo de grupos" subtitle="C1 detalle · C2 crear · C3 invitar miembros">
+          <DCArtboard id="C1" label="C1 · Detalle de grupo" width={PW} height={PH}>
+            <Phone><ScreenGroupDetail/></Phone>
+          </DCArtboard>
+          <DCArtboard id="C1b" label="C1b · Multi-moneda" width={PW} height={PH}>
+            <Phone><ScreenGroupDetailMulti/></Phone>
+          </DCArtboard>
+          <DCArtboard id="C2" label="C2 · Crear grupo" width={PW} height={PH}>
+            <Phone><ScreenCreateGroup/></Phone>
+          </DCArtboard>
+          <DCArtboard id="C3-qr" label="C3 · Invitar (QR)" width={PW} height={PH}>
+            <Phone><ScreenInviteQR/></Phone>
+          </DCArtboard>
+          <DCArtboard id="C3-link" label="C3 · Invitar (Link)" width={PW} height={PH}>
+            <Phone><ScreenInviteLink/></Phone>
+          </DCArtboard>
+          <DCArtboard id="C3-user" label="C3 · Invitar (Username)" width={PW} height={PH}>
+            <Phone><ScreenInviteUsername/></Phone>
+          </DCArtboard>
+        </DCSection>
+
+        {/* ─────────────────  EXPENSE FLOW  ───────────────── */}
+        <DCSection id="expenses" title="Flujo de gastos" subtitle="D1 crear · D2 detalle · D3 escanear ticket (Pro)">
+          <DCArtboard id="D1" label="D1 · Crear gasto" width={PW} height={PH}>
+            <Phone><ScreenCreateExpense/></Phone>
+          </DCArtboard>
+          <DCArtboard id="D1b" label="D1b · División exacta" width={PW} height={PH}>
+            <Phone><ScreenCreateExpenseExact/></Phone>
+          </DCArtboard>
+          <DCArtboard id="D1c" label="D1c · Selector categoría" width={PW} height={PH}>
+            <Phone><ScreenCreateExpenseCategory/></Phone>
+          </DCArtboard>
+          <DCArtboard id="D2" label="D2 · Detalle de gasto" width={PW} height={PH}>
+            <Phone><ScreenExpenseDetail/></Phone>
+          </DCArtboard>
+          <DCArtboard id="D3" label="D3 · Escanear ticket" width={PW} height={PH}>
+            <Phone><ScreenScanTicket/></Phone>
+          </DCArtboard>
+          <DCArtboard id="D3b" label="D3b · Confirmar OCR" width={PW} height={PH}>
+            <Phone><ScreenScanTicketConfirm/></Phone>
+          </DCArtboard>
+        </DCSection>
+
+        {/* ─────────────────  SETTLE & DELETE  ───────────────── */}
+        <DCSection id="settle" title="Liquidación + borrado consensuado" subtitle="E1 registrar pago · F1 solicitar borrado · F2 banner objeción">
+          <DCArtboard id="E1" label="E1 · Registrar pago" width={PW} height={PH}>
+            <Phone><ScreenSettleUp/></Phone>
+          </DCArtboard>
+          <DCArtboard id="E1b" label="E1b · Pago multi-moneda" width={PW} height={PH}>
+            <Phone><ScreenSettleUpFX/></Phone>
+          </DCArtboard>
+          <DCArtboard id="F1" label="F1 · Solicitar borrado" width={PW} height={PH}>
+            <Phone><ScreenRequestDelete/></Phone>
+          </DCArtboard>
+          <DCArtboard id="F2" label="F2 · Banner objeción" width={PW} height={PH}>
+            <Phone><ScreenObjectDelete/></Phone>
+          </DCArtboard>
+        </DCSection>
+
+        {/* ─────────────────  SETTINGS & PRO  ───────────────── */}
+        <DCSection id="settings" title="Configuración + Pro" subtitle="G1 ajustes · G2 upgrade · G3 ad gate">
+          <DCArtboard id="G1" label="G1 · Ajustes" width={PW} height={PH}>
+            <Phone><ScreenSettings/></Phone>
+          </DCArtboard>
+          <DCArtboard id="G2" label="G2 · Upgrade a Pro" width={PW} height={PH}>
+            <Phone><ScreenUpgrade/></Phone>
+          </DCArtboard>
+          <DCArtboard id="G3" label="G3 · Rewarded Ad Gate" width={PW} height={PH}>
+            <Phone><ScreenAdGate/></Phone>
+          </DCArtboard>
+        </DCSection>
+
+        {/* ─────────────────  STATES  ───────────────── */}
+        <DCSection id="states" title="Estados especiales" subtitle="Empty · Error · Loading · SyncStatus · Multi-currency">
+          <DCArtboard id="S1" label="Empty · Grupos" width={PW} height={PH}>
+            <Phone><ScreenEmptyGroups/></Phone>
+          </DCArtboard>
+          <DCArtboard id="S2" label="Empty · Actividad" width={PW} height={PH}>
+            <Phone><ScreenEmptyActivity/></Phone>
+          </DCArtboard>
+          <DCArtboard id="S3" label="Loading · skeletons" width={PW} height={PH}>
+            <Phone><ScreenLoadingSkeleton/></Phone>
+          </DCArtboard>
+          <DCArtboard id="S4" label="Error · sin conexión" width={PW} height={PH}>
+            <Phone><ScreenErrorOffline/></Phone>
+          </DCArtboard>
+          <DCArtboard id="S5" label="Estados de sync" width={PW} height={PH}>
+            <Phone><ScreenSyncStates/></Phone>
+          </DCArtboard>
+        </DCSection>
+
+      </DesignCanvas>
+
+      {/* ── Tweaks panel ── */}
+      <TweaksPanel title="Tweaks">
+        <TweakToggle label="Modo oscuro" value={t.dark} onChange={(v) => setTweak('dark', v)}/>
+        <TweakRadio label="Estilo íconos categoría" value={t.iconStyle}
+          options={[{value: 'filled', label: 'Filled'}, {value: 'outlined', label: 'Outlined'}]}
+          onChange={(v) => setTweak('iconStyle', v)}/>
+        <TweakRadio label="Densidad" value={t.density}
+          options={[{value: 'compact', label: 'Compacta'}, {value: 'regular', label: 'Regular'}, {value: 'comfy', label: 'Cómoda'}]}
+          onChange={(v) => setTweak('density', v)}/>
+      </TweaksPanel>
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('app')).render(<App/>);
+</script>
+</body>
+</html>

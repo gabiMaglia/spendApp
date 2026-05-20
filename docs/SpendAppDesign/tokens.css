@@ -1,0 +1,243 @@
+/* ─────────────────────────────────────────────────────────────
+   SplitP2P · Design Tokens
+   Maps to React Native StyleSheet tokens like:
+     Colors.brand.primary, Colors.semantic.positive, Colors.surface.elev
+     Typography.bodyL, Spacing.lg, Radius.md
+   ───────────────────────────────────────────────────────────── */
+
+:root {
+  /* ── Brand ── */
+  --sp-brand-primary: #0A6E8F;        /* petróleo profundo — Colors.brand.primary */
+  --sp-brand-primary-strong: #08597A; /* hover/pressed */
+  --sp-brand-primary-soft: #E4F0F4;   /* tinted backgrounds */
+  --sp-brand-primary-onSoft: #0A4D66; /* text on soft */
+
+  --sp-brand-accent: #8FBC94;         /* salvia — Colors.brand.accent */
+  --sp-brand-accent-strong: #6FA075;
+  --sp-brand-accent-soft: #E8F0E5;
+  --sp-brand-accent-onSoft: #3D6644;
+
+  /* ── Semantic (money) ── */
+  --sp-positive: #2E8B57;        /* te deben — verde profundo lectura financiera */
+  --sp-positive-soft: #E3F0E8;
+  --sp-positive-onSoft: #1F6740;
+
+  --sp-negative: #C45447;        /* debés — coral cálido (NO rojo bancario) */
+  --sp-negative-soft: #FBE7E3;
+  --sp-negative-onSoft: #8E382E;
+
+  --sp-neutral: #8B8275;         /* settled / sin movimiento */
+  --sp-warning: #D4A24A;
+  --sp-warning-soft: #FBF1DD;
+  --sp-error: #B83A2F;
+  --sp-error-soft: #FBE0DC;
+
+  /* ── Backgrounds & surfaces ── */
+  --sp-bg: #FAF7F2;              /* cream, fondo de pantalla */
+  --sp-bg-grouped: #F2EEE6;      /* grupo iOS (settings, lists) */
+  --sp-surface: #FFFFFF;         /* tarjetas elevadas */
+  --sp-surface-warm: #F7F2EA;    /* surface secundaria, beige cálida */
+  --sp-surface-sunken: #EDE7DC;  /* tracks, inputs apagados */
+  --sp-overlay: rgba(31, 26, 20, 0.42); /* scrim modales */
+
+  /* ── Borders ── */
+  --sp-border-hair: rgba(60, 50, 40, 0.10);   /* divider muy fino */
+  --sp-border: rgba(60, 50, 40, 0.14);        /* default */
+  --sp-border-strong: rgba(60, 50, 40, 0.24);
+  --sp-border-focus: var(--sp-brand-primary);
+
+  /* ── Text ── */
+  --sp-text: #1F1A14;            /* primario, alto contraste cálido */
+  --sp-text-secondary: #5C5246;
+  --sp-text-tertiary: #8B8275;
+  --sp-text-disabled: #C2BAAC;
+  --sp-text-onBrand: #FFFFFF;
+  --sp-text-onAccent: #1F1A14;
+
+  /* ── Scale de grises (cálidos) ── */
+  --sp-gray-50:  #FAF7F2;
+  --sp-gray-100: #F2EEE6;
+  --sp-gray-200: #E5DED1;
+  --sp-gray-300: #D1C7B5;
+  --sp-gray-400: #ADA193;
+  --sp-gray-500: #8B8275;
+  --sp-gray-600: #6B6358;
+  --sp-gray-700: #4D4740;
+  --sp-gray-800: #2F2B25;
+  --sp-gray-900: #1F1A14;
+
+  /* ── Categorías (chip backgrounds) ── */
+  --sp-cat-food: #E8965A;
+  --sp-cat-transport: #4D9FD6;
+  --sp-cat-accommodation: #8B7CC4;
+  --sp-cat-entertainment: #D4729C;
+  --sp-cat-utilities: #D4A848;
+  --sp-cat-health: #D45E72;
+  --sp-cat-shopping: #4DAA9E;
+  --sp-cat-other: #8B8275;
+
+  /* ── Sombra ── */
+  --sp-shadow-1: 0 1px 2px rgba(31, 26, 20, 0.06), 0 1px 3px rgba(31, 26, 20, 0.04);
+  --sp-shadow-2: 0 2px 6px rgba(31, 26, 20, 0.08), 0 4px 12px rgba(31, 26, 20, 0.06);
+  --sp-shadow-3: 0 8px 24px rgba(31, 26, 20, 0.10), 0 16px 48px rgba(31, 26, 20, 0.08);
+  --sp-shadow-modal: 0 20px 60px rgba(31, 26, 20, 0.22);
+
+  /* ── Type scale ── */
+  --sp-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, "Segoe UI", Roboto, sans-serif;
+  --sp-font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  /* Sizing / line height (mobile) */
+  --sp-fs-display: 34px;  --sp-lh-display: 41px;  /* Display */
+  --sp-fs-h1: 28px;       --sp-lh-h1: 34px;       /* H1 */
+  --sp-fs-h2: 22px;       --sp-lh-h2: 28px;       /* H2 */
+  --sp-fs-h3: 18px;       --sp-lh-h3: 24px;       /* H3 */
+  --sp-fs-bodyL: 17px;    --sp-lh-bodyL: 22px;
+  --sp-fs-bodyM: 15px;    --sp-lh-bodyM: 20px;
+  --sp-fs-bodyS: 13px;    --sp-lh-bodyS: 18px;
+  --sp-fs-caption: 12px;  --sp-lh-caption: 16px;
+  --sp-fs-label: 11px;    --sp-lh-label: 14px;
+
+  /* Amount sizes (always tabular-nums + 700) */
+  --sp-fs-amountXL: 48px; --sp-lh-amountXL: 52px;
+  --sp-fs-amountL: 28px;  --sp-lh-amountL: 32px;
+  --sp-fs-amountM: 17px;  --sp-lh-amountM: 20px;
+  --sp-fs-amountS: 14px;  --sp-lh-amountS: 18px;
+
+  /* ── Spacing (4px base) ── */
+  --sp-space-0: 0;
+  --sp-space-1: 4px;
+  --sp-space-2: 8px;
+  --sp-space-3: 12px;
+  --sp-space-4: 16px;
+  --sp-space-5: 20px;
+  --sp-space-6: 24px;
+  --sp-space-7: 32px;
+  --sp-space-8: 40px;
+  --sp-space-9: 48px;
+  --sp-space-10: 64px;
+
+  /* Pantalla + card */
+  --sp-screen-pad: 20px;
+  --sp-card-pad: 16px;
+  --sp-card-gap: 10px;
+
+  /* ── Radius ── */
+  --sp-r-xs: 6px;
+  --sp-r-sm: 10px;
+  --sp-r-md: 14px;
+  --sp-r-lg: 18px;
+  --sp-r-xl: 22px;
+  --sp-r-2xl: 28px;
+  --sp-r-full: 9999px;
+
+  /* Tap target */
+  --sp-tap: 44px;
+}
+
+/* ── Dark mode ── */
+[data-theme="dark"] {
+  --sp-brand-primary: #4DB0CC;
+  --sp-brand-primary-strong: #6BC2DA;
+  --sp-brand-primary-soft: rgba(77, 176, 204, 0.16);
+  --sp-brand-primary-onSoft: #9BD3E2;
+
+  --sp-brand-accent: #A7CFAB;
+  --sp-brand-accent-strong: #B8DCB9;
+  --sp-brand-accent-soft: rgba(167, 207, 171, 0.16);
+  --sp-brand-accent-onSoft: #C4DEC6;
+
+  --sp-positive: #67BA81;
+  --sp-positive-soft: rgba(103, 186, 129, 0.16);
+  --sp-positive-onSoft: #8FD0A3;
+
+  --sp-negative: #E5816F;
+  --sp-negative-soft: rgba(229, 129, 111, 0.18);
+  --sp-negative-onSoft: #F0A294;
+
+  --sp-neutral: #968D80;
+  --sp-warning: #E0B765;
+  --sp-warning-soft: rgba(224, 183, 101, 0.18);
+  --sp-error: #D85C50;
+  --sp-error-soft: rgba(216, 92, 80, 0.18);
+
+  --sp-bg: #14110D;
+  --sp-bg-grouped: #1A1611;
+  --sp-surface: #221E17;
+  --sp-surface-warm: #2A2520;
+  --sp-surface-sunken: #1A1611;
+  --sp-overlay: rgba(0, 0, 0, 0.6);
+
+  --sp-border-hair: rgba(255, 250, 240, 0.06);
+  --sp-border: rgba(255, 250, 240, 0.10);
+  --sp-border-strong: rgba(255, 250, 240, 0.18);
+
+  --sp-text: #F5F1EA;
+  --sp-text-secondary: #B8AFA1;
+  --sp-text-tertiary: #8B8275;
+  --sp-text-disabled: #5C5246;
+  --sp-text-onBrand: #0F2C36;
+  --sp-text-onAccent: #1F1A14;
+
+  --sp-gray-50:  #1A1611;
+  --sp-gray-100: #221E17;
+  --sp-gray-200: #2F2B25;
+  --sp-gray-300: #4D4740;
+  --sp-gray-400: #6B6358;
+  --sp-gray-500: #8B8275;
+  --sp-gray-600: #ADA193;
+  --sp-gray-700: #C2BAAC;
+  --sp-gray-800: #D1C7B5;
+  --sp-gray-900: #F5F1EA;
+
+  --sp-cat-food: #E8965A;
+  --sp-cat-transport: #5FB0DE;
+  --sp-cat-accommodation: #9C8FD0;
+  --sp-cat-entertainment: #DD83AA;
+  --sp-cat-utilities: #DDB45A;
+  --sp-cat-health: #DD7281;
+  --sp-cat-shopping: #5FBCB0;
+  --sp-cat-other: #968D80;
+
+  --sp-shadow-1: 0 1px 2px rgba(0,0,0,0.30);
+  --sp-shadow-2: 0 4px 12px rgba(0,0,0,0.40);
+  --sp-shadow-3: 0 12px 32px rgba(0,0,0,0.50);
+  --sp-shadow-modal: 0 24px 60px rgba(0,0,0,0.55);
+}
+
+/* ── Density variants ── (modifies card padding / row height) */
+[data-density="compact"] {
+  --sp-card-pad: 12px;
+  --sp-card-gap: 8px;
+  --sp-screen-pad: 16px;
+}
+[data-density="comfy"] {
+  --sp-card-pad: 18px;
+  --sp-card-gap: 14px;
+  --sp-screen-pad: 22px;
+}
+
+/* ── Defaults for everything inside the iPhone frame ── */
+.sp-screen {
+  font-family: var(--sp-font);
+  color: var(--sp-text);
+  background: var(--sp-bg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Utility text classes */
+.sp-display { font-size: var(--sp-fs-display); line-height: var(--sp-lh-display); font-weight: 700; letter-spacing: -0.4px; }
+.sp-h1 { font-size: var(--sp-fs-h1); line-height: var(--sp-lh-h1); font-weight: 700; letter-spacing: -0.3px; }
+.sp-h2 { font-size: var(--sp-fs-h2); line-height: var(--sp-lh-h2); font-weight: 600; letter-spacing: -0.2px; }
+.sp-h3 { font-size: var(--sp-fs-h3); line-height: var(--sp-lh-h3); font-weight: 600; letter-spacing: -0.1px; }
+.sp-bodyL { font-size: var(--sp-fs-bodyL); line-height: var(--sp-lh-bodyL); font-weight: 400; }
+.sp-bodyM { font-size: var(--sp-fs-bodyM); line-height: var(--sp-lh-bodyM); font-weight: 400; }
+.sp-bodyS { font-size: var(--sp-fs-bodyS); line-height: var(--sp-lh-bodyS); font-weight: 400; }
+.sp-caption { font-size: var(--sp-fs-caption); line-height: var(--sp-lh-caption); font-weight: 500; color: var(--sp-text-tertiary); }
+.sp-label { font-size: var(--sp-fs-label); line-height: var(--sp-lh-label); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--sp-text-tertiary); }
+
+.sp-amount { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; font-weight: 700; }
+.sp-amount-xl { font-size: var(--sp-fs-amountXL); line-height: var(--sp-lh-amountXL); }
+.sp-amount-l { font-size: var(--sp-fs-amountL); line-height: var(--sp-lh-amountL); }
+.sp-amount-m { font-size: var(--sp-fs-amountM); line-height: var(--sp-lh-amountM); }
+.sp-amount-s { font-size: var(--sp-fs-amountS); line-height: var(--sp-lh-amountS); }
