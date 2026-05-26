@@ -1,0 +1,10 @@
+[
+  { "id": "u0", "name": "Lucas Rivera",  "email": "lucas@example.com", "authProvider": "google", "updatedAt": 1748131200000, "isDeleted": false, "createdAt": 1710000000000 },
+  { "id": "u1", "name": "Ana López",     "email": "ana@example.com",   "authProvider": "google", "updatedAt": 1748131200000, "isDeleted": false, "createdAt": 1710000000000 },
+  { "id": "u2", "name": "Bob Pérez",     "email": "bob@example.com",   "authProvider": "google", "updatedAt": 1748131200000, "isDeleted": false, "createdAt": 1710000000000 },
+  { "id": "u3", "name": "Carla Suarez",  "email": "carla@example.com", "authProvider": "google", "updatedAt": 1748131200000, "isDeleted": false, "createdAt": 1710000000000 },
+  { "id": "u4", "name": "Diego Martín",  "email": "diego@example.com", "authProvider": "google", "updatedAt": 1748131200000, "isDeleted": false, "createdAt": 1710000000000 },
+  { "id": "u5", "name": "Eli Vega",      "email": "eli@example.com",   "authProvider": "apple",  "updatedAt": 1748131200000, "isDeleted": false, "createdAt": 1710000000000 },
+  { "id": "u6", "name": "Sofi Ríos",     "email": "sofi@example.com",  "authProvider": "apple",  "updatedAt": 1748131200000, "isDeleted": false, "createdAt": 1710000000000 },
+  { "id": "u7", "name": "Tom Soto",      "email": "tom@example.com",   "authProvider": "google", "updatedAt": 1748131200000, "isDeleted": false, "createdAt": 1710000000000 }
+]

@@ -1,0 +1,212 @@
+import { useMemo } from 'react';
+import type { CurrencyCode } from '@/src/constants/currencies';
+import type { Expense, Payment } from '@/src/types/models';
+import { calculateBalancesByCurrency } from '@/src/algorithms/calculateBalances';
+import { simplifyDebts } from '@/src/algorithms/simplifyDebts';
+import { useGroupStore } from './groupStore';
+import { useExpenseStore } from './expenseStore';
+import { usePaymentStore } from './paymentStore';
+import { useUserStore } from './userStore';
+
+// ── Balance de un grupo específico para un usuario ───────────────────────────
+
+export interface GroupBalanceEntry {
+  currency: CurrencyCode;
+  amount: number; // positivo = me deben, negativo = debo
+}
+
+export function useGroupBalance(groupId: string, userId: string): GroupBalanceEntry[] {
+  const group       = useGroupStore(s => s.groups.find(g => g.id === groupId));
+  const allExpenses = useExpenseStore(s => s.expenses);
+  const allPayments = usePaymentStore(s => s.payments);
+
+  return useMemo(() => {
+    if (!group) return [];
+    const expenses = allExpenses.filter(e => e.groupId === groupId);
+    const payments = allPayments.filter(p => p.groupId === groupId);
+    const balances = calculateBalancesByCurrency(expenses, payments, group.memberIds);
+    return balances.find(b => b.userId === userId)?.balances ?? [];
+  }, [group, allExpenses, allPayments, groupId, userId]);
+}
+
+// ── Conteo de gastos activos de un grupo (para subtítulo) ────────────────────
+
+export function useGroupExpenseCount(groupId: string): number {
+  return useExpenseStore(s => s.expenses.filter(e => e.groupId === groupId && !e.isDeleted).length);
+}
+
+// ── Suma de balances de todos los grupos del usuario (sin simplificar) ───────
+// Consistente con lo que muestra cada GroupCard individualmente.
+
+export interface GroupsTotalBalance {
+  currency: CurrencyCode;
+  owedToYou: number;
+  youOwe: number;
+}
+
+export function useGroupsTotalBalance(userId: string): GroupsTotalBalance[] {
+  const groups   = useGroupStore(s => s.groups);
+  const expenses = useExpenseStore(s => s.expenses);
+  const payments = usePaymentStore(s => s.payments);
+
+  return useMemo(() => {
+    const totals = new Map<CurrencyCode, { owedToYou: number; youOwe: number }>();
+
+    for (const group of groups) {
+      if (group.isDeleted) continue;
+      const gExpenses = expenses.filter(e => e.groupId === group.id);
+      const gPayments = payments.filter(p => p.groupId === group.id);
+      const balances  = calculateBalancesByCurrency(gExpenses, gPayments, group.memberIds);
+      const entry     = balances.find(b => b.userId === userId);
+      if (!entry) continue;
+
+      for (const { currency, amount } of entry.balances) {
+        const prev = totals.get(currency) ?? { owedToYou: 0, youOwe: 0 };
+        if (amount > 0) totals.set(currency, { ...prev, owedToYou: prev.owedToYou + amount });
+        else if (amount < 0) totals.set(currency, { ...prev, youOwe: prev.youOwe + Math.abs(amount) });
+      }
+    }
+
+    return Array.from(totals.entries()).map(([currency, vals]) => ({ currency, ...vals }));
+  }, [groups, expenses, payments, userId]);
+}
+
+// ── Balances globales entre el usuario actual y cada otro usuario ────────────
+// Aplica simplifyDebts a todos los grupos consolidados y filtra las
+// transacciones donde aparece currentUserId.
+
+export interface PersonBalance {
+  userId: string;
+  currency: CurrencyCode;
+  amount: number; // positivo = esa persona me debe, negativo = le debo yo
+}
+
+export function useGlobalPersonBalances(currentUserId: string): PersonBalance[] {
+  const groups   = useGroupStore(s => s.groups);
+  const expenses = useExpenseStore(s => s.expenses);
+  const payments = usePaymentStore(s => s.payments);
+
+  return useMemo(() => {
+    // Acumula todos los balances globales por (userId, currency) sumando cada grupo
+    const globalMap = new Map<string, Map<CurrencyCode, number>>();
+
+    const addToGlobal = (userId: string, currency: CurrencyCode, delta: number) => {
+      if (!globalMap.has(userId)) globalMap.set(userId, new Map());
+      const m = globalMap.get(userId)!;
+      m.set(currency, (m.get(currency) ?? 0) + delta);
+    };
+
+    for (const group of groups) {
+      const gExpenses = expenses.filter(e => e.groupId === group.id);
+      const gPayments = payments.filter(p => p.groupId === group.id);
+      const balances  = calculateBalancesByCurrency(gExpenses, gPayments, group.memberIds);
+
+      for (const { userId, balances: bals } of balances) {
+        for (const { currency, amount } of bals) {
+          addToGlobal(userId, currency, amount);
+        }
+      }
+    }
+
+    // Por cada moneda, corre simplifyDebts y extrae las transacciones del currentUser
+    const currencies = new Set<CurrencyCode>();
+    for (const m of globalMap.values()) {
+      for (const cur of m.keys()) currencies.add(cur);
+    }
+
+    const result: PersonBalance[] = [];
+
+    for (const currency of currencies) {
+      const balancesForCurrency = Array.from(globalMap.entries())
+        .map(([userId, m]) => ({ userId, amount: m.get(currency) ?? 0 }))
+        .filter(b => Math.abs(b.amount) >= 0.01);
+
+      const transactions = simplifyDebts(balancesForCurrency, currency);
+
+      for (const tx of transactions) {
+        if (tx.toUserId === currentUserId) {
+          // Alguien me debe
+          result.push({ userId: tx.fromUserId, currency, amount: tx.amount });
+        } else if (tx.fromUserId === currentUserId) {
+          // Le debo a alguien
+          result.push({ userId: tx.toUserId, currency, amount: -tx.amount });
+        }
+      }
+    }
+
+    // Agrupa por (userId, currency) por si hay múltiples entradas
+    const merged = new Map<string, PersonBalance>();
+    for (const entry of result) {
+      const key = `${entry.userId}:${entry.currency}`;
+      const prev = merged.get(key);
+      merged.set(key, prev
+        ? { ...prev, amount: prev.amount + entry.amount }
+        : entry,
+      );
+    }
+
+    return Array.from(merged.values()).sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount));
+  }, [groups, expenses, payments, currentUserId]);
+}
+
+// ── Feed de actividad derivado de gastos y pagos ────────────────────────────
+
+export type ActivityKind =
+  | { kind: 'expense_added';          expense: Expense; groupName: string }
+  | { kind: 'expense_delete_request'; expense: Expense; groupName: string; requestedByName: string }
+  | { kind: 'payment_made';           payment: Payment; groupName: string };
+
+export function useActivityFeed(currentUserId: string): ActivityKind[] {
+  const groups   = useGroupStore(s => s.groups);
+  const expenses = useExpenseStore(s => s.expenses);
+  const payments = usePaymentStore(s => s.payments);
+  const { getUserName } = useUserStore();
+
+  return useMemo(() => {
+    // Solo grupos donde participa el usuario
+    const myGroupIds = new Set(
+      groups.filter(g => g.memberIds.includes(currentUserId)).map(g => g.id),
+    );
+
+    const groupName = (id: string) => groups.find(g => g.id === id)?.name ?? id;
+
+    const events: (ActivityKind & { _ts: number })[] = [];
+
+    for (const expense of expenses) {
+      if (!myGroupIds.has(expense.groupId) || expense.isDeleted) continue;
+
+      // Solicitudes de borrado pendientes
+      const pendingDelete = expense.deletionVotes.find(v => v.action === 'delete');
+      if (pendingDelete) {
+        events.push({
+          kind: 'expense_delete_request',
+          expense,
+          groupName: groupName(expense.groupId),
+          requestedByName: getUserName(pendingDelete.userId),
+          _ts: pendingDelete.votedAt,
+        });
+      }
+
+      events.push({
+        kind: 'expense_added',
+        expense,
+        groupName: groupName(expense.groupId),
+        _ts: expense.date,
+      });
+    }
+
+    for (const payment of payments) {
+      if (!myGroupIds.has(payment.groupId) || payment.isDeleted) continue;
+      events.push({
+        kind: 'payment_made',
+        payment,
+        groupName: groupName(payment.groupId),
+        _ts: payment.date,
+      });
+    }
+
+    return events
+      .sort((a, b) => b._ts - a._ts)
+      .map(({ _ts: _ignored, ...rest }) => rest as ActivityKind);
+  }, [groups, expenses, payments, currentUserId]);
+}
