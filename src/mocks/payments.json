@@ -1,0 +1,15 @@
+[
+  {
+    "id": "pay1",
+    "groupId": "g1",
+    "fromUserId": "u2",
+    "toUserId": "u0",
+    "amount": 4200,
+    "currency": "ARS",
+    "date": 1748044800000,
+    "createdAt": 1748044800000,
+    "createdById": "u2",
+    "updatedAt": 1748044800000,
+    "isDeleted": false
+  }
+]

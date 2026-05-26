@@ -1,0 +1,46 @@
+[
+  {
+    "id": "g1",
+    "name": "Mar del Plata 2026",
+    "memberIds": ["u0", "u1", "u2", "u3", "u4"],
+    "currency": "ARS",
+    "createdAt": 1747526400000,
+    "createdById": "u1",
+    "deletionVotes": [],
+    "updatedAt": 1748131200000,
+    "isDeleted": false
+  },
+  {
+    "id": "g2",
+    "name": "Roomates",
+    "memberIds": ["u0", "u6", "u7"],
+    "currency": "ARS",
+    "createdAt": 1740000000000,
+    "createdById": "u0",
+    "deletionVotes": [],
+    "updatedAt": 1748131200000,
+    "isDeleted": false
+  },
+  {
+    "id": "g3",
+    "name": "Cumple Sofi",
+    "memberIds": ["u0", "u6", "u1", "u5"],
+    "currency": "ARS",
+    "createdAt": 1747440000000,
+    "createdById": "u6",
+    "deletionVotes": [],
+    "updatedAt": 1748131200000,
+    "isDeleted": false
+  },
+  {
+    "id": "g4",
+    "name": "Asado mensual",
+    "memberIds": ["u0", "u1", "u2", "u3", "u6"],
+    "currency": "ARS",
+    "createdAt": 1745366400000,
+    "createdById": "u0",
+    "deletionVotes": [],
+    "updatedAt": 1748131200000,
+    "isDeleted": false
+  }
+]

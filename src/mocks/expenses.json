@@ -1,0 +1,228 @@
+[
+  {
+    "id": "e1",
+    "groupId": "g1",
+    "description": "Airbnb Mar del Plata",
+    "amount": 60000,
+    "currency": "ARS",
+    "paidById": "u1",
+    "splits": [
+      { "userId": "u0", "amount": 12000, "isPaid": false },
+      { "userId": "u1", "amount": 12000, "isPaid": true  },
+      { "userId": "u2", "amount": 12000, "isPaid": false },
+      { "userId": "u3", "amount": 12000, "isPaid": false },
+      { "userId": "u4", "amount": 12000, "isPaid": false }
+    ],
+    "splitMode": "equal",
+    "category": "accommodation",
+    "date": 1748084880000,
+    "createdAt": 1748084880000,
+    "createdById": "u1",
+    "deletionVotes": [],
+    "updatedAt": 1748084880000,
+    "isDeleted": false
+  },
+  {
+    "id": "e2",
+    "groupId": "g1",
+    "description": "Cena La Cantina",
+    "amount": 12480,
+    "currency": "ARS",
+    "paidById": "u0",
+    "splits": [
+      { "userId": "u0", "amount": 2496, "isPaid": true  },
+      { "userId": "u1", "amount": 2496, "isPaid": false },
+      { "userId": "u2", "amount": 2496, "isPaid": false },
+      { "userId": "u3", "amount": 2496, "isPaid": false },
+      { "userId": "u4", "amount": 2496, "isPaid": false }
+    ],
+    "splitMode": "equal",
+    "category": "food",
+    "date": 1748129040000,
+    "createdAt": 1748129040000,
+    "createdById": "u0",
+    "deletionVotes": [],
+    "updatedAt": 1748129040000,
+    "isDeleted": false
+  },
+  {
+    "id": "e3",
+    "groupId": "g1",
+    "description": "Bebidas extras",
+    "amount": 12000,
+    "currency": "ARS",
+    "paidById": "u2",
+    "splits": [
+      { "userId": "u0", "amount": 2400, "isPaid": false },
+      { "userId": "u1", "amount": 2400, "isPaid": false },
+      { "userId": "u2", "amount": 2400, "isPaid": true  },
+      { "userId": "u3", "amount": 2400, "isPaid": false },
+      { "userId": "u4", "amount": 2400, "isPaid": false }
+    ],
+    "splitMode": "equal",
+    "category": "food",
+    "date": 1748122800000,
+    "createdAt": 1748122800000,
+    "createdById": "u2",
+    "deletionVotes": [
+      { "userId": "u2", "votedAt": 1748122800000, "action": "delete" }
+    ],
+    "updatedAt": 1748122800000,
+    "isDeleted": false
+  },
+  {
+    "id": "e4",
+    "groupId": "g1",
+    "description": "Nafta vuelta",
+    "amount": 20000,
+    "currency": "ARS",
+    "paidById": "u4",
+    "splits": [
+      { "userId": "u0", "amount": 4000, "isPaid": false },
+      { "userId": "u1", "amount": 4000, "isPaid": false },
+      { "userId": "u2", "amount": 4000, "isPaid": false },
+      { "userId": "u3", "amount": 4000, "isPaid": false },
+      { "userId": "u4", "amount": 4000, "isPaid": true  }
+    ],
+    "splitMode": "equal",
+    "category": "transport",
+    "date": 1748114640000,
+    "createdAt": 1748114640000,
+    "createdById": "u4",
+    "deletionVotes": [],
+    "updatedAt": 1748114640000,
+    "isDeleted": false
+  },
+  {
+    "id": "e5",
+    "groupId": "g2",
+    "description": "Alquiler Enero",
+    "amount": 120000,
+    "currency": "ARS",
+    "paidById": "u0",
+    "splits": [
+      { "userId": "u0", "amount": 40000, "isPaid": true  },
+      { "userId": "u6", "amount": 40000, "isPaid": false },
+      { "userId": "u7", "amount": 40000, "isPaid": false }
+    ],
+    "splitMode": "equal",
+    "category": "utilities",
+    "date": 1745366400000,
+    "createdAt": 1745366400000,
+    "createdById": "u0",
+    "deletionVotes": [],
+    "updatedAt": 1745366400000,
+    "isDeleted": false
+  },
+  {
+    "id": "e6",
+    "groupId": "g2",
+    "description": "Gas y expensas",
+    "amount": 9000,
+    "currency": "ARS",
+    "paidById": "u6",
+    "splits": [
+      { "userId": "u0", "amount": 3000, "isPaid": false },
+      { "userId": "u6", "amount": 3000, "isPaid": true  },
+      { "userId": "u7", "amount": 3000, "isPaid": false }
+    ],
+    "splitMode": "equal",
+    "category": "utilities",
+    "date": 1747526400000,
+    "createdAt": 1747526400000,
+    "createdById": "u6",
+    "deletionVotes": [],
+    "updatedAt": 1747526400000,
+    "isDeleted": false
+  },
+  {
+    "id": "e7",
+    "groupId": "g3",
+    "description": "Catering del cumple",
+    "amount": 48000,
+    "currency": "ARS",
+    "paidById": "u6",
+    "splits": [
+      { "userId": "u0", "amount": 12000, "isPaid": false },
+      { "userId": "u6", "amount": 12000, "isPaid": true  },
+      { "userId": "u1", "amount": 12000, "isPaid": false },
+      { "userId": "u5", "amount": 12000, "isPaid": false }
+    ],
+    "splitMode": "equal",
+    "category": "food",
+    "date": 1747440000000,
+    "createdAt": 1747440000000,
+    "createdById": "u6",
+    "deletionVotes": [],
+    "updatedAt": 1747440000000,
+    "isDeleted": false
+  },
+  {
+    "id": "e8",
+    "groupId": "g3",
+    "description": "Torta y velas",
+    "amount": 8000,
+    "currency": "ARS",
+    "paidById": "u0",
+    "splits": [
+      { "userId": "u0", "amount": 2000, "isPaid": true  },
+      { "userId": "u6", "amount": 2000, "isPaid": false },
+      { "userId": "u1", "amount": 2000, "isPaid": false },
+      { "userId": "u5", "amount": 2000, "isPaid": false }
+    ],
+    "splitMode": "equal",
+    "category": "food",
+    "date": 1748080200000,
+    "createdAt": 1748080200000,
+    "createdById": "u0",
+    "deletionVotes": [],
+    "updatedAt": 1748080200000,
+    "isDeleted": false
+  },
+  {
+    "id": "e9",
+    "groupId": "g4",
+    "description": "Carne y carbón",
+    "amount": 32000,
+    "currency": "ARS",
+    "paidById": "u0",
+    "splits": [
+      { "userId": "u0", "amount": 6400, "isPaid": true  },
+      { "userId": "u1", "amount": 6400, "isPaid": false },
+      { "userId": "u2", "amount": 6400, "isPaid": false },
+      { "userId": "u3", "amount": 6400, "isPaid": false },
+      { "userId": "u6", "amount": 6400, "isPaid": false }
+    ],
+    "splitMode": "equal",
+    "category": "food",
+    "date": 1747872000000,
+    "createdAt": 1747872000000,
+    "createdById": "u0",
+    "deletionVotes": [],
+    "updatedAt": 1747872000000,
+    "isDeleted": false
+  },
+  {
+    "id": "e10",
+    "groupId": "g4",
+    "description": "Vinos y gaseosas",
+    "amount": 15000,
+    "currency": "ARS",
+    "paidById": "u1",
+    "splits": [
+      { "userId": "u0", "amount": 3000, "isPaid": false },
+      { "userId": "u1", "amount": 3000, "isPaid": true  },
+      { "userId": "u2", "amount": 3000, "isPaid": false },
+      { "userId": "u3", "amount": 3000, "isPaid": false },
+      { "userId": "u6", "amount": 3000, "isPaid": false }
+    ],
+    "splitMode": "equal",
+    "category": "food",
+    "date": 1747958400000,
+    "createdAt": 1747958400000,
+    "createdById": "u1",
+    "deletionVotes": [],
+    "updatedAt": 1747958400000,
+    "isDeleted": false
+  }
+]
