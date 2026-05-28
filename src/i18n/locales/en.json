@@ -19,7 +19,9 @@
     "loading": "Loading…",
     "error": "Something went wrong",
     "retry": "Retry",
-    "optional": "Optional"
+    "optional": "Optional",
+    "you": "You",
+    "go_back": "Go back"
   },
   "auth": {
     "welcome_title": "Split expenses\nwith friends.",
@@ -147,7 +149,23 @@
     "detail_edited": "{{name}} edited the amount · {{date}}",
     "detail_created": "{{name}} created the expense · {{date}}",
     "owed_to_you": "You're owed {{amount}}",
-    "n_people": "{{count}} people"
+    "n_people": "{{count}} people",
+    "not_found": "Expense not found",
+    "detail_title": "Expense detail",
+    "your_balance": "Your balance",
+    "paid_by": "Paid by",
+    "your_share": "Your share",
+    "net": "Net",
+    "split_detail": "Split detail",
+    "paid_label": "paid",
+    "note": "Note",
+    "delete_title": "Delete expense",
+    "delete_body_creator": "You're about to delete this expense. Other members will see the change on the next sync.",
+    "delete_body_member": "Your request will be sent to other members. If no one objects within 72h, the expense is deleted.",
+    "delete_pending_title": "Deletion requested",
+    "delete_pending_body": "This expense was proposed for deletion. You have up to 72h to object.",
+    "cancel_delete_vote": "Cancel delete request",
+    "request_delete": "Request deletion"
   },
   "settle": {
     "title": "Register payment",

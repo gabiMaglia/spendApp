@@ -22,7 +22,7 @@
       "^@/(.*)$": "<rootDir>/$1"
     },
     "transformIgnorePatterns": [
-      "node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|sentry-expo|native-base|react-native-svg|i18next|react-i18next|@nozbe/watermelondb|react-native-mmkv|zustand|uuid|react-native-get-random-values)"
+      "node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|sentry-expo|native-base|react-native-svg|i18next|react-i18next|react-native-mmkv|zustand|uuid|react-native-get-random-values)"
     ],
     "collectCoverageFrom": [
       "src/**/*.{ts,tsx}",
@@ -33,13 +33,11 @@
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
-    "@nozbe/watermelondb": "^0.28.0",
-    "@react-native-ml-kit/text-recognition": "^2.0.0",
     "@react-navigation/bottom-tabs": "^7.4.0",
     "@react-navigation/elements": "^2.6.3",
     "@react-navigation/native": "^7.1.8",
-    "@tanstack/react-query": "^5.100.11",
     "expo": "~54.0.33",
+    "expo-apple-authentication": "~8.0.8",
     "expo-auth-session": "~7.0.11",
     "expo-camera": "~17.0.10",
     "expo-constants": "~18.0.13",
@@ -56,7 +54,6 @@
     "expo-notifications": "~0.32.17",
     "expo-router": "~6.0.23",
     "expo-secure-store": "~15.0.8",
-    "expo-sharing": "~14.0.8",
     "expo-splash-screen": "~31.0.13",
     "expo-status-bar": "~3.0.9",
     "expo-symbols": "~1.0.8",
@@ -69,22 +66,19 @@
     "react-native": "0.81.5",
     "react-native-gesture-handler": "~2.28.0",
     "react-native-get-random-values": "^2.0.0",
-    "react-native-google-mobile-ads": "^16.3.3",
     "react-native-mmkv": "^4.3.1",
-    "react-native-purchases": "^10.1.1",
     "react-native-qrcode-svg": "^6.3.21",
     "react-native-reanimated": "~4.1.1",
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0",
     "react-native-svg": "^15.15.5",
     "react-native-web": "~0.21.0",
-    "react-native-webrtc": "^124.0.7",
-    "react-native-worklets": "0.5.1",
     "uuid": "^14.0.0",
     "zustand": "^5.0.13"
   },
   "devDependencies": {
     "@testing-library/react-native": "^13.3.3",
+    "@types/jest": "^30.0.0",
     "@types/react": "~19.1.0",
     "@types/uuid": "^10.0.0",
     "eslint": "^9.25.0",

@@ -19,7 +19,9 @@
     "loading": "Carregando…",
     "error": "Algo deu errado",
     "retry": "Tentar novamente",
-    "optional": "Opcional"
+    "optional": "Opcional",
+    "you": "Você",
+    "go_back": "Voltar"
   },
   "auth": {
     "welcome_title": "Divida gastos\ncom amigos.",
@@ -147,7 +149,23 @@
     "detail_edited": "{{name}} editaste el monto · {{date}}",
     "detail_created": "{{name}} creaste el gasto · {{date}}",
     "owed_to_you": "Te deben {{amount}}",
-    "n_people": "{{count}} personas"
+    "n_people": "{{count}} personas",
+    "not_found": "Gasto não encontrado",
+    "detail_title": "Detalhe do gasto",
+    "your_balance": "Seu saldo",
+    "paid_by": "Pagou",
+    "your_share": "Sua parte",
+    "net": "Líquido",
+    "split_detail": "Divisão",
+    "paid_label": "pagou",
+    "note": "Nota",
+    "delete_title": "Excluir gasto",
+    "delete_body_creator": "Você está prestes a excluir este gasto. Os outros membros verão a mudança na próxima sincronização.",
+    "delete_body_member": "Sua solicitação será enviada aos outros membros. Se ninguém contestar em 72h, o gasto será excluído.",
+    "delete_pending_title": "Exclusão solicitada",
+    "delete_pending_body": "Este gasto foi proposto para exclusão. Você tem até 72h para contestar.",
+    "cancel_delete_vote": "Cancelar solicitação de exclusão",
+    "request_delete": "Solicitar exclusão"
   },
   "settle": {
     "title": "Registrar pago",

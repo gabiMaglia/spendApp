@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { createStorage } from '@/src/utils/createStorage';
 import type { User } from '@/src/types/models';
+import { useUserStore } from './userStore';
 
 const storage = createStorage('auth');
 
@@ -29,6 +30,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   setUser: (user) => {
     if (user) {
       storage.set(KEYS.USER, JSON.stringify(user));
+      useUserStore.getState().addOrUpdateUser(user);
     } else {
       storage.delete(KEYS.USER);
     }

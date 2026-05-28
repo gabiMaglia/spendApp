@@ -15,7 +15,20 @@
         "NSCameraUsageDescription": "Necesitamos acceso a la cámara para escanear tickets y compartir códigos QR.",
         "NSPhotoLibraryUsageDescription": "Necesitamos acceso a tus fotos para adjuntar imágenes de tickets.",
         "NSMicrophoneUsageDescription": "Requerido por el módulo de WebRTC para conexión P2P.",
-        "GADApplicationIdentifier": "ca-app-pub-3940256099942544~1458002511"
+        "GADApplicationIdentifier": "ca-app-pub-3940256099942544~1458002511",
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": [
+              "com.googleusercontent.apps.918898015438-vd4uat4b7q7jj7k6g770hl7rc0tqa1l6"
+            ]
+          },
+          {
+            "CFBundleURLSchemes": [
+              "com.googleusercontent.apps.918898015438-vd4uat4b7q7jj7k6g770hl7rc0tqa1l6"
+            ]
+          }
+        ],
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -43,6 +56,7 @@
     },
     "plugins": [
       "expo-router",
+      "expo-apple-authentication",
       [
         "expo-splash-screen",
         {
@@ -75,11 +89,17 @@
           "icon": "./assets/images/icon.png",
           "color": "#0a7ea4"
         }
-      ],
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "88d3c8b4-b5e6-4a6e-babb-10ce779746e2"
+      }
     }
   }
 }

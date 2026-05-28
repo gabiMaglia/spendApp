@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -15,6 +17,8 @@ import { useGroupStore } from '@/src/store/groupStore';
 import { useActivityFeed } from '@/src/store/selectors';
 import type { ActivityKind } from '@/src/store/selectors';
 import { SyncStatusBadge } from '@/src/components/SyncStatusBadge';
+import { EmptyState } from '@/src/components/EmptyState';
+import { hapticSelection } from '@/src/utils/haptics';
 
 function relativeTime(ts: number): string {
   const diffMs  = Date.now() - ts;
@@ -22,9 +26,10 @@ function relativeTime(ts: number): string {
   const diffH   = Math.floor(diffMs / 3600000);
   const diffD   = Math.floor(diffMs / 86400000);
 
-  if (diffMin < 60)  return `hace ${diffMin} min`;
-  if (diffH   < 24)  return `hace ${diffH} h`;
-  if (diffD   === 1) return `ayer`;
+  if (diffMin < 1)  return 'ahora';
+  if (diffMin < 60) return `hace ${diffMin} min`;
+  if (diffH   < 24) return `hace ${diffH} h`;
+  if (diffD   === 1) return 'ayer';
   return `hace ${diffD} días`;
 }
 
@@ -38,17 +43,13 @@ export default function ActivityScreen() {
   const groups   = useGroupStore(s => s.groups);
   const feed     = useActivityFeed(currentUser?.id ?? '');
 
-  const allGroupNames = ['Todos', ...groups.map(g => g.name)];
+  const allGroupNames = ['Todos', ...groups.filter(g => !g.isDeleted).map(g => g.name)];
   const [activeFilter, setActiveFilter] = useState('Todos');
 
   const filteredFeed = activeFilter === 'Todos'
     ? feed
-    : feed.filter(ev => {
-        const gName = ev.kind === 'payment_made' ? ev.groupName : ev.groupName;
-        return gName === activeFilter;
-      });
+    : feed.filter(ev => ev.groupName === activeFilter);
 
-  // Agrupa por sección temporal
   const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
   const yesterdayStart = new Date(todayStart); yesterdayStart.setDate(yesterdayStart.getDate() - 1);
 
@@ -85,7 +86,7 @@ export default function ActivityScreen() {
           {allGroupNames.map(f => (
             <Pressable
               key={f}
-              onPress={() => setActiveFilter(f)}
+              onPress={() => { hapticSelection(); setActiveFilter(f); }}
               style={[
                 styles.chip,
                 activeFilter === f
@@ -100,24 +101,39 @@ export default function ActivityScreen() {
           ))}
         </ScrollView>
 
-        {/* Sections */}
-        {sections.map(({ label, events }) => (
-          <View key={label}>
-            <View style={styles.sectionHeader}>
-              <Text style={[Typography.label, { color: c.textTertiary }]}>{label}</Text>
-              {label === t('activity.section_today') && todayNewCount > 0 && (
-                <View style={[styles.unseenBadge, { backgroundColor: c.brand.primary }]}>
-                  <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>
-                    {t('activity.unseen_count', { count: todayNewCount })}
-                  </Text>
-                </View>
-              )}
-            </View>
-            {events.map((ev, i) => (
-              <EventRow key={i} event={ev} getUserName={getUserName} currentUserId={currentUser?.id ?? ''} />
-            ))}
+        {/* Empty state */}
+        {feed.length === 0 ? (
+          <EmptyState
+            iconName="time-outline"
+            title="Sin actividad aún"
+            body="Aquí vas a ver los gastos y pagos de tus grupos en orden cronológico."
+          />
+        ) : filteredFeed.length === 0 ? (
+          <View style={styles.emptyFilter}>
+            <Text style={[Typography.bodyM, { color: c.textTertiary, textAlign: 'center' }]}>
+              Sin actividad para "{activeFilter}"
+            </Text>
           </View>
-        ))}
+        ) : (
+          /* Sections */
+          sections.map(({ label, events }) => (
+            <View key={label}>
+              <View style={styles.sectionHeader}>
+                <Text style={[Typography.label, { color: c.textTertiary }]}>{label}</Text>
+                {label === t('activity.section_today') && todayNewCount > 0 && (
+                  <View style={[styles.unseenBadge, { backgroundColor: c.brand.primary }]}>
+                    <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>
+                      {t('activity.unseen_count', { count: todayNewCount })}
+                    </Text>
+                  </View>
+                )}
+              </View>
+              {events.map((ev, i) => (
+                <EventRow key={i} event={ev} getUserName={getUserName} currentUserId={currentUser?.id ?? ''} />
+              ))}
+            </View>
+          ))
+        )}
 
         <View style={{ height: Spacing[9] }} />
       </ScrollView>
@@ -148,7 +164,10 @@ function EventRow({
     const ts     = relativeTime(expense.date);
 
     return (
-      <View style={[styles.row, { paddingHorizontal: Spacing.screenPad }]}>
+      <Pressable
+        onPress={() => router.push(`/expense/${expense.id}` as any)}
+        style={({ pressed }) => [styles.row, { paddingHorizontal: Spacing.screenPad, opacity: pressed ? 0.75 : 1 }]}
+      >
         <View style={[styles.rowIcon, { backgroundColor: '#0A6E8F' }]}>
           <Ionicons name="add-outline" size={18} color="#fff" />
         </View>
@@ -163,7 +182,7 @@ function EventRow({
         <Text style={[Typography.amountM, { color: c.text }]}>
           {formatMoney(expense.amount, expense.currency)}
         </Text>
-      </View>
+      </Pressable>
     );
   }
 
@@ -232,12 +251,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.screenPad, paddingTop: Spacing[2], paddingBottom: Spacing[1],
   },
   unseenBadge:   { paddingHorizontal: 8, paddingVertical: 2, borderRadius: Radius.full },
-  row:           {
-    flexDirection: 'row', gap: 12, alignItems: 'flex-start',
-    paddingVertical: 12,
-  },
-  rowIcon:       {
-    width: 36, height: 36, borderRadius: 18,
-    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-  },
+  row:           { flexDirection: 'row', gap: 12, alignItems: 'flex-start', paddingVertical: 12 },
+  rowIcon:       { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  emptyFilter:   { paddingVertical: Spacing[8], paddingHorizontal: Spacing.screenPad },
 });

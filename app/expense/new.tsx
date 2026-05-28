@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { v4 as uuidv4 } from 'uuid';
+import { hapticSelection, hapticSuccess } from '@/src/utils/haptics';
 
 import { Colors } from '@/src/constants/colors';
 import { Radius, Spacing } from '@/src/constants/spacing';
@@ -20,6 +21,7 @@ import { useTierStore } from '@/src/store/tierStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
+import { usePersonalStore, toMonthKey } from '@/src/store/personalStore';
 import { hueForUser } from '@/src/utils/hueForUser';
 import { Avatar } from '@/src/components/Avatar';
 import { BottomSheet, SheetOption, SheetOptionAvatar } from '@/src/components/Sheet';
@@ -38,8 +40,8 @@ const CATEGORIES: { id: ExpenseCategory; icon: React.ComponentProps<typeof Ionic
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-type SplitMode     = 'equal' | 'percentage';
-type PercentSub    = 'same'  | 'custom';
+type SplitMode  = 'equal' | 'percentage';
+type PercentSub = 'same'  | 'custom';
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
@@ -62,28 +64,58 @@ export default function NewExpenseScreen() {
 
   const { currentUser, isPro } = useAuthStore();
   const { requiresRewardedAd, getDailyCount, incrementCount } = useTierStore();
-  const { addExpense } = useExpenseStore();
+  const { addExpense, updateExpense } = useExpenseStore();
+  const { addEntry: addPersonalEntry, updateReplicatedEntry } = usePersonalStore();
   const { getUserName } = useUserStore();
   const allGroups = useGroupStore(s => s.groups);
   const groups = useMemo(() => allGroups.filter(g => !g.isDeleted), [allGroups]);
 
-  const { groupId: paramGroupId } = useLocalSearchParams<{ groupId?: string }>();
+  const { groupId: paramGroupId, expenseId } = useLocalSearchParams<{ groupId?: string; expenseId?: string }>();
+
+  // In edit mode: load existing expense to pre-fill form
+  const existingExpense = useExpenseStore(s =>
+    expenseId ? s.expenses.find(e => e.id === expenseId) : undefined,
+  );
+  const isEditMode = Boolean(expenseId);
+
+  // Pre-compute initial percentage state from existing expense splits (before useState)
+  let initSplitMode: SplitMode = 'equal';
+  let initPercentSub: PercentSub = 'same';
+  let initSamePercent = '';
+  let initCustomPercents: string[] = [];
+
+  if (existingExpense && existingExpense.splitMode === 'percentage' && existingExpense.amount > 0) {
+    initSplitMode = 'percentage';
+    const { amount, splits } = existingExpense;
+    const firstPct = round2((splits[0]?.amount / amount) * 100);
+    const percents = splits.slice(0, -1).map(s => String(round2((s.amount / amount) * 100)));
+    const allEqual = percents.every(p => parseFloat(p) === firstPct);
+    initPercentSub    = allEqual ? 'same' : 'custom';
+    initSamePercent   = String(firstPct);
+    initCustomPercents = percents;
+  }
 
   // ── Core inputs ────────────────────────────────────────────────────────────
-  const [description,    setDescription]    = useState('');
-  const [amountStr,      setAmountStr]      = useState('');
-  const [groupId,        setGroupId]        = useState(paramGroupId ?? groups[0]?.id ?? '');
-  const [payerId,        setPayerId]        = useState(currentUser?.id ?? '');
-  const [date,           setDate]           = useState(new Date());
-  const [note,           setNote]           = useState('');
-  const [category,       setCategory]       = useState<ExpenseCategory>('other');
-  const [receiptUri,     setReceiptUri]     = useState<string | undefined>();
+  const [description,    setDescription]    = useState(existingExpense?.description ?? '');
+  const [amountStr,      setAmountStr]      = useState(existingExpense ? String(existingExpense.amount) : '');
+  const [groupId,        setGroupId]        = useState(
+    existingExpense?.groupId ?? paramGroupId ?? groups[0]?.id ?? '',
+  );
+  const [payerId,        setPayerId]        = useState(
+    existingExpense?.paidById ?? currentUser?.id ?? '',
+  );
+  const [date,           setDate]           = useState(
+    existingExpense ? new Date(existingExpense.date) : new Date(),
+  );
+  const [note,           setNote]           = useState(existingExpense?.note ?? '');
+  const [category,       setCategory]       = useState<ExpenseCategory>(existingExpense?.category ?? 'other');
+  const [receiptUri,     setReceiptUri]     = useState<string | undefined>(existingExpense?.receiptImageUri);
 
   // ── Split ──────────────────────────────────────────────────────────────────
-  const [splitMode,      setSplitMode]      = useState<SplitMode>('equal');
-  const [percentSub,     setPercentSub]     = useState<PercentSub>('same');
-  const [samePercent,    setSamePercent]    = useState('');
-  const [customPercents, setCustomPercents] = useState<string[]>([]);
+  const [splitMode,      setSplitMode]      = useState<SplitMode>(initSplitMode);
+  const [percentSub,     setPercentSub]     = useState<PercentSub>(initPercentSub);
+  const [samePercent,    setSamePercent]    = useState(initSamePercent);
+  const [customPercents, setCustomPercents] = useState<string[]>(initCustomPercents);
 
   // ── Modals ─────────────────────────────────────────────────────────────────
   const [showGroup,  setShowGroup]  = useState(false);
@@ -97,7 +129,7 @@ export default function NewExpenseScreen() {
   const currency: CurrencyCode = group?.currency ?? 'ARS';
   const amount   = parseFloat(amountStr.replace(',', '.')) || 0;
   const dailyCount = currentUser ? getDailyCount(currentUser.id) : 0;
-  const needsAd    = currentUser ? requiresRewardedAd(currentUser.id, isPro) : false;
+  const needsAd    = !isEditMode && currentUser ? requiresRewardedAd(currentUser.id, isPro) : false;
 
   // ── Computed splits ────────────────────────────────────────────────────────
   const splits = useMemo(() => {
@@ -120,8 +152,8 @@ export default function NewExpenseScreen() {
         ? parseFloat(samePercent.replace(',', '.')) || 0
         : parseFloat(customPercents[i]?.replace(',', '.') ?? '') || 0,
     );
-    const sumFirst     = firstPercents.reduce((a, b) => a + b, 0);
-    const lastPercent  = round2(100 - sumFirst);
+    const sumFirst    = firstPercents.reduce((a, b) => a + b, 0);
+    const lastPercent = round2(100 - sumFirst);
 
     return members.map((userId, i) => {
       const isLast = i === members.length - 1;
@@ -169,29 +201,82 @@ export default function NewExpenseScreen() {
 
   function handleSave() {
     if (!canSave || !currentUser) return;
-    if (needsAd) return; // TODO: rewarded ad gate
+    if (needsAd) return;
+    hapticSuccess(); // TODO: rewarded ad gate
 
-    addExpense({
-      id:             uuidv4(),
-      groupId,
-      description:    description.trim(),
-      amount,
-      currency,
-      paidById:       payerId || currentUser.id,
-      splits:         splits.map(s => ({ userId: s.userId, amount: s.amount, isPaid: s.userId === (payerId || currentUser.id) })),
-      splitMode:      splitMode,
-      category,
-      date:           date.getTime(),
-      createdAt:      Date.now(),
-      createdById:    currentUser.id,
-      note:            note || undefined,
-      receiptImageUri: receiptUri,
-      deletionVotes:   [],
-      updatedAt:      Date.now(),
-      isDeleted:      false,
-    });
+    const splitPayload = splits.map(s => ({
+      userId: s.userId,
+      amount: s.amount,
+      isPaid: s.userId === (payerId || currentUser.id),
+    }));
 
-    incrementCount(currentUser.id);
+    const myShare = splitPayload.find(s => s.userId === currentUser.id)?.amount ?? 0;
+    const groupName = group?.name ?? '';
+
+    if (isEditMode && expenseId) {
+      updateExpense(expenseId, {
+        description:     description.trim(),
+        amount,
+        paidById:        payerId || currentUser.id,
+        splits:          splitPayload,
+        splitMode,
+        category,
+        date:            date.getTime(),
+        note:            note || undefined,
+        receiptImageUri: receiptUri,
+      });
+      // Keep personal replica in sync with edited values
+      if (myShare > 0) {
+        updateReplicatedEntry(expenseId, {
+          description:     description.trim(),
+          amount:          myShare,
+          category,
+          date:            date.getTime(),
+          sourceGroupName: groupName,
+        });
+      }
+    } else {
+      const newId = uuidv4();
+      addExpense({
+        id:              newId,
+        groupId,
+        description:     description.trim(),
+        amount,
+        currency,
+        paidById:        payerId || currentUser.id,
+        splits:          splitPayload,
+        splitMode,
+        category,
+        date:            date.getTime(),
+        createdAt:       Date.now(),
+        createdById:     currentUser.id,
+        note:            note || undefined,
+        receiptImageUri: receiptUri,
+        deletionVotes:   [],
+        updatedAt:       Date.now(),
+        isDeleted:       false,
+      });
+      // Replicate my share to personal expenses
+      if (myShare > 0) {
+        addPersonalEntry({
+          id:                   uuidv4(),
+          kind:                 'group_replicated',
+          description:          description.trim(),
+          amount:               myShare,
+          currency,
+          category,
+          date:                 date.getTime(),
+          createdAt:            Date.now(),
+          updatedAt:            Date.now(),
+          isDeleted:            false,
+          sourceGroupExpenseId: newId,
+          sourceGroupId:        groupId,
+          sourceGroupName:      groupName,
+        });
+      }
+      incrementCount(currentUser.id);
+    }
+
     router.back();
   }
 
@@ -257,7 +342,9 @@ export default function NewExpenseScreen() {
           <Pressable onPress={() => router.back()} hitSlop={12} style={styles.headerBtn}>
             <Ionicons name="close" size={24} color={c.text} />
           </Pressable>
-          <Text style={[Typography.h3, { color: c.text }]}>Nuevo gasto</Text>
+          <Text style={[Typography.h3, { color: c.text }]}>
+            {isEditMode ? 'Editar gasto' : 'Nuevo gasto'}
+          </Text>
           <View style={styles.headerBtn} />
         </View>
 
@@ -292,7 +379,7 @@ export default function NewExpenseScreen() {
               return (
                 <Pressable
                   key={cat.id}
-                  onPress={() => setCategory(cat.id)}
+                  onPress={() => { hapticSelection(); setCategory(cat.id); }}
                   style={[
                     styles.categoryChip,
                     {
@@ -301,11 +388,7 @@ export default function NewExpenseScreen() {
                     },
                   ]}
                 >
-                  <Ionicons
-                    name={cat.icon}
-                    size={16}
-                    color={active ? '#fff' : c.textSecondary}
-                  />
+                  <Ionicons name={cat.icon} size={16} color={active ? '#fff' : c.textSecondary} />
                   <Text style={[Typography.bodyS, {
                     color:      active ? '#fff' : c.textSecondary,
                     fontWeight: active ? '700' : '500',
@@ -385,7 +468,6 @@ export default function NewExpenseScreen() {
                   />
                 </View>
 
-                {/* Single % input for "todos igual" */}
                 {percentSub === 'same' && (
                   <View style={styles.samePercentRow}>
                     <View style={[styles.samePercentBox, { backgroundColor: c.surfaceSunken, borderColor: c.border }]}>
@@ -427,7 +509,6 @@ export default function NewExpenseScreen() {
                       {name}
                     </Text>
 
-                    {/* Per-person % input */}
                     {splitMode === 'percentage' && percentSub === 'custom' && !isLast && (
                       <View style={styles.percentBox}>
                         <TextInput
@@ -446,7 +527,6 @@ export default function NewExpenseScreen() {
                       </View>
                     )}
 
-                    {/* Amount column */}
                     {showRest ? (
                       <View style={{ alignItems: 'flex-end' }}>
                         <Text style={[Typography.caption, { color: c.brand.primaryOnSoft }]}>
@@ -474,7 +554,6 @@ export default function NewExpenseScreen() {
                 );
               })}
 
-              {/* Percentage overflow warning */}
               {percentError && (
                 <View style={[styles.errorRow, { backgroundColor: c.semantic.errorSoft }]}>
                   <Ionicons name="warning-outline" size={16} color={c.semantic.error} />
@@ -486,8 +565,8 @@ export default function NewExpenseScreen() {
             </View>
           </View>
 
-          {/* Free tier notice */}
-          {!isPro && (
+          {/* Free tier notice — only shown when creating */}
+          {!isEditMode && !isPro && (
             <View style={[styles.tierRow, { backgroundColor: c.semantic.warningSoft }]}>
               <Ionicons name="information-circle-outline" size={16} color={c.semantic.warning} />
               <Text style={[Typography.bodyS, { color: '#8A6420', flex: 1 }]}>
@@ -504,7 +583,7 @@ export default function NewExpenseScreen() {
             style={[styles.saveBtn, { backgroundColor: canSave ? c.brand.primary : c.surfaceSunken }]}
           >
             <Text style={[Typography.bodyL, { color: canSave ? '#fff' : c.textDisabled, fontWeight: '700' }]}>
-              {needsAd ? 'Ver anuncio y guardar' : 'Guardar'}
+              {!isEditMode && needsAd ? 'Ver anuncio y guardar' : 'Guardar'}
             </Text>
           </Pressable>
 
@@ -536,8 +615,11 @@ export default function NewExpenseScreen() {
 
           <View style={[styles.vDivider, { backgroundColor: c.border }]} />
 
-          {/* Center: group */}
-          <Pressable onPress={() => setShowGroup(true)} style={styles.bottomGroup}>
+          {/* Center: group — locked in edit mode */}
+          <Pressable
+            onPress={isEditMode ? undefined : () => setShowGroup(true)}
+            style={styles.bottomGroup}
+          >
             <Ionicons name="people-outline" size={14} color={c.textSecondary} />
             <Text
               style={[Typography.bodyS, { color: c.text, fontWeight: '600', flex: 1 }]}
@@ -545,7 +627,7 @@ export default function NewExpenseScreen() {
             >
               {groupName}
             </Text>
-            <Ionicons name="chevron-up" size={14} color={c.textTertiary} />
+            {!isEditMode && <Ionicons name="chevron-up" size={14} color={c.textTertiary} />}
           </Pressable>
 
           <View style={[styles.vDivider, { backgroundColor: c.border }]} />
@@ -563,19 +645,21 @@ export default function NewExpenseScreen() {
 
       {/* ── Modals ─────────────────────────────────────────────────────────── */}
 
-      {/* Group picker */}
-      <BottomSheet visible={showGroup} onClose={() => setShowGroup(false)}>
-        <Text style={[Typography.h3, { color: c.text, marginBottom: 16 }]}>Seleccionar grupo</Text>
-        {groups.map(g => (
-          <SheetOption
-            key={g.id}
-            icon="people-outline"
-            label={g.name}
-            selected={g.id === groupId}
-            onPress={() => handleGroupChange(g.id)}
-          />
-        ))}
-      </BottomSheet>
+      {/* Group picker — only shown in create mode */}
+      {!isEditMode && (
+        <BottomSheet visible={showGroup} onClose={() => setShowGroup(false)}>
+          <Text style={[Typography.h3, { color: c.text, marginBottom: 16 }]}>Seleccionar grupo</Text>
+          {groups.map(g => (
+            <SheetOption
+              key={g.id}
+              icon="people-outline"
+              label={g.name}
+              selected={g.id === groupId}
+              onPress={() => handleGroupChange(g.id)}
+            />
+          ))}
+        </BottomSheet>
+      )}
 
       {/* Payer picker */}
       <BottomSheet visible={showPayer} onClose={() => setShowPayer(false)}>
@@ -671,7 +755,6 @@ const styles = StyleSheet.create({
   headerBtn:    { width: 28, alignItems: 'center' },
   scroll:       { paddingHorizontal: Spacing.screenPad, paddingTop: Spacing[4], gap: Spacing[3] },
 
-  // No-groups state
   noGroupsState: {
     flex: 1, alignItems: 'center', justifyContent: 'center',
     paddingHorizontal: Spacing[8], gap: Spacing[4],
@@ -681,7 +764,6 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', marginBottom: Spacing[2],
   },
 
-  // Category
   categoryScroll: { gap: 8, paddingVertical: 2 },
   categoryChip:   {
     flexDirection: 'row', alignItems: 'center', gap: 6,
@@ -689,7 +771,6 @@ const styles = StyleSheet.create({
     borderRadius: Radius.full, borderWidth: 1,
   },
 
-  // Inputs
   inputCard:    {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     borderRadius: Radius.lg, borderWidth: 1,
@@ -703,7 +784,6 @@ const styles = StyleSheet.create({
   amountRow:    { flexDirection: 'row', alignItems: 'flex-end', gap: 6 },
   currencySymbol: { fontSize: 28, fontWeight: '400', lineHeight: 48, paddingBottom: 6, color: '#8B8275' },
 
-  // Payer row
   row:          {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     borderRadius: Radius.lg, borderWidth: 1,
@@ -711,7 +791,6 @@ const styles = StyleSheet.create({
   },
   rowRight:     { flexDirection: 'row', alignItems: 'center', gap: 8 },
 
-  // Split
   splitSection: { gap: Spacing[2] },
   segmented:    { flexDirection: 'row', padding: 3, borderRadius: Radius.md, gap: 2 },
   subSegmented: { flexDirection: 'row', padding: 3, borderRadius: Radius.md, gap: 2 },
@@ -728,10 +807,8 @@ const styles = StyleSheet.create({
   errorRow:     { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: Radius.md },
   tierRow:      { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: Radius.md },
 
-  // Save
   saveBtn:      { borderRadius: Radius.lg, paddingVertical: 16, alignItems: 'center' },
 
-  // Bottom bar
   bottomBar:    {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 12, height: 52,

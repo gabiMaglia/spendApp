@@ -1,9 +1,12 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
-  Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View,
+  Alert, KeyboardAvoidingView, Modal, Platform,
+  Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { v4 as uuidv4 } from 'uuid';
+import { hapticLight, hapticSuccess } from '@/src/utils/haptics';
 
 import { Colors } from '@/src/constants/colors';
 import { Radius, Spacing } from '@/src/constants/spacing';
@@ -13,12 +16,17 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
+import { usePaymentStore } from '@/src/store/paymentStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useGroupBalance } from '@/src/store/selectors';
 import { hueForUser } from '@/src/utils/hueForUser';
 import { Avatar } from '@/src/components/Avatar';
 import { BalancePill } from '@/src/components/BalancePill';
-import type { Expense } from '@/src/types/models';
+import type { Expense, Payment } from '@/src/types/models';
+
+type TimelineItem =
+  | { type: 'expense'; data: Expense; ts: number }
+  | { type: 'payment'; data: Payment; ts: number };
 
 export default function GroupDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -26,19 +34,53 @@ export default function GroupDetailScreen() {
   const c = Colors[scheme];
 
   const { currentUser } = useAuthStore();
-  const group       = useGroupStore(s => s.groups.find(g => g.id === id));
-  const allExpenses = useExpenseStore(s => s.expenses);
-  const { getUserName } = useUserStore();
+  const group        = useGroupStore(s => s.groups.find(g => g.id === id));
+  const updateGroup  = useGroupStore(s => s.updateGroup);
+  const allExpenses  = useExpenseStore(s => s.expenses);
+  const allPayments  = usePaymentStore(s => s.payments);
+  const { getUserName, addOrUpdateUser } = useUserStore();
 
-  const expenses = useMemo(
-    () => allExpenses
-      .filter(e => e.groupId === id && !e.isDeleted)
-      .sort((a, b) => b.date - a.date),
-    [allExpenses, id],
-  );
+  const [inviteVisible, setInviteVisible] = useState(false);
+  const [inviteName, setInviteName] = useState('');
+
+  const timeline = useMemo<TimelineItem[]>(() => {
+    const items: TimelineItem[] = [];
+    for (const e of allExpenses) {
+      if (e.groupId === id && !e.isDeleted) items.push({ type: 'expense', data: e, ts: e.date });
+    }
+    for (const p of allPayments) {
+      if (p.groupId === id && !p.isDeleted) items.push({ type: 'payment', data: p, ts: p.date });
+    }
+    return items.sort((a, b) => b.ts - a.ts);
+  }, [allExpenses, allPayments, id]);
 
   const balances    = useGroupBalance(id ?? '', currentUser?.id ?? '');
   const mainBalance = balances.find(b => b.currency === group?.currency)?.amount ?? 0;
+
+  function handleAddMember() {
+    const name = inviteName.trim();
+    if (!name || !group) return;
+
+    const newUser = {
+      id:           uuidv4(),
+      name,
+      email:        '',
+      authProvider: 'google' as const,
+      updatedAt:    Date.now(),
+      isDeleted:    false,
+      createdAt:    Date.now(),
+    };
+
+    addOrUpdateUser(newUser);
+    updateGroup(group.id, { memberIds: [...group.memberIds, newUser.id] });
+    hapticSuccess();
+    setInviteName('');
+    setInviteVisible(false);
+    Alert.alert(
+      'Miembro agregado',
+      `${name} fue agregado al grupo. Cuando sincronicen por QR, la app va a vincular automáticamente su cuenta.`,
+    );
+  }
 
   if (!group) {
     return (
@@ -82,59 +124,122 @@ export default function GroupDetailScreen() {
           </View>
         </View>
 
-        {/* Members row */}
-        <View style={styles.membersRow}>
-          {group.memberIds.map(uid => (
-            <View key={uid} style={{ alignItems: 'center', gap: 4 }}>
-              <Avatar name={getUserName(uid)} hue={hueForUser(uid)} size={36} />
-              <Text style={[Typography.caption, { color: c.textTertiary }]} numberOfLines={1}>
-                {getUserName(uid).split(' ')[0]}
+        {/* Members */}
+        <View style={styles.membersSection}>
+          <View style={styles.membersHeader}>
+            <Text style={[Typography.label, { color: c.textTertiary }]}>
+              MIEMBROS ({group.memberIds.length})
+            </Text>
+            <Pressable
+              onPress={() => setInviteVisible(true)}
+              style={[styles.addMemberBtn, { backgroundColor: c.brand.primarySoft }]}
+            >
+              <Ionicons name="person-add-outline" size={14} color={c.brand.primary} />
+              <Text style={[Typography.caption, { color: c.brand.primary, fontWeight: '600' }]}>
+                Agregar
               </Text>
-            </View>
-          ))}
+            </Pressable>
+          </View>
+          <View style={styles.membersRow}>
+            {group.memberIds.map(uid => (
+              <View key={uid} style={{ alignItems: 'center', gap: 4 }}>
+                <Avatar name={getUserName(uid)} hue={hueForUser(uid)} size={40} />
+                <Text style={[Typography.caption, { color: c.textTertiary }]} numberOfLines={1}>
+                  {getUserName(uid).split(' ')[0]}
+                </Text>
+              </View>
+            ))}
+          </View>
         </View>
 
-        {/* Expenses */}
+        {/* Timeline: expenses + payments */}
         <Text style={[Typography.label, styles.sectionLabel, { color: c.textTertiary }]}>
-          GASTOS ({expenses.length})
+          ACTIVIDAD ({timeline.length})
         </Text>
 
-        {expenses.length === 0 ? (
+        {timeline.length === 0 ? (
           <View style={[styles.emptyBox, { backgroundColor: c.surface, borderColor: c.borderHair }]}>
             <Ionicons name="receipt-outline" size={28} color={c.textTertiary} />
             <Text style={[Typography.bodyM, { color: c.textTertiary, marginTop: 8 }]}>
-              Sin gastos aún
+              Sin actividad aún
             </Text>
           </View>
         ) : (
           <View style={{ gap: Spacing.cardGap }}>
-            {expenses.map(e => (
-              <ExpenseRow
-                key={e.id}
-                expense={e}
-                currentUserId={currentUser?.id ?? ''}
-                getUserName={getUserName}
-              />
-            ))}
+            {timeline.map(item =>
+              item.type === 'expense' ? (
+                <ExpenseRow
+                  key={item.data.id}
+                  expense={item.data}
+                  currentUserId={currentUser?.id ?? ''}
+                  getUserName={getUserName}
+                />
+              ) : (
+                <PaymentRow
+                  key={item.data.id}
+                  payment={item.data}
+                  currentUserId={currentUser?.id ?? ''}
+                  getUserName={getUserName}
+                />
+              ),
+            )}
           </View>
         )}
 
-        <View style={{ height: Spacing[9] }} />
+        <View style={{ height: 120 }} />
       </ScrollView>
 
       {/* FAB */}
       <Pressable
-        onPress={() => router.push({
-          pathname: '/expense/new',
-          params: { groupId: id },
-        } as any)}
+        onPress={() => { hapticLight(); router.push({ pathname: '/expense/new', params: { groupId: id } } as any); }}
         style={[styles.fab, { backgroundColor: c.brand.primary }]}
       >
         <Ionicons name="add" size={24} color="#fff" />
-        <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>
-          Agregar gasto
-        </Text>
+        <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>Agregar gasto</Text>
       </Pressable>
+
+      {/* Modal — Invitar miembro */}
+      <Modal
+        visible={inviteVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setInviteVisible(false)}
+      >
+        <View style={styles.modalRoot}>
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setInviteVisible(false)} />
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            <View style={[styles.sheet, { backgroundColor: c.surface }]}>
+              <View style={[styles.handle, { backgroundColor: c.borderHair }]} />
+
+              <Text style={[Typography.h3, { color: c.text, marginBottom: 6 }]}>
+                Agregar miembro
+              </Text>
+              <Text style={[Typography.bodyS, { color: c.textSecondary, marginBottom: 20 }]}>
+                Ingresá el nombre de la persona. Cuando sincronicen por QR su cuenta quedará vinculada.
+              </Text>
+
+              <TextInput
+                value={inviteName}
+                onChangeText={setInviteName}
+                placeholder="Nombre y apellido"
+                placeholderTextColor={c.textTertiary}
+                style={[styles.input, { backgroundColor: c.surfaceSunken, color: c.text, borderColor: c.border }]}
+                returnKeyType="done"
+                onSubmitEditing={handleAddMember}
+              />
+
+              <Pressable
+                onPress={handleAddMember}
+                style={[styles.confirmBtn, { backgroundColor: inviteName.trim() ? c.brand.primary : c.surfaceSunken }]}
+              >
+                <Text style={[Typography.bodyM, { color: inviteName.trim() ? '#fff' : c.textTertiary, fontWeight: '600' }]}>
+                  Agregar al grupo
+                </Text>
+              </Pressable>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -152,13 +257,18 @@ function ExpenseRow({
   const myShare   = expense.splits.find(s => s.userId === currentUserId);
   const isPayer   = expense.paidById === currentUserId;
   const dateLabel = new Date(expense.date).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' });
-
-  const netForMe = isPayer
+  const netForMe  = isPayer
     ? expense.amount - (myShare?.amount ?? 0)
     : -(myShare?.amount ?? 0);
 
   return (
-    <Pressable style={[styles.expenseRow, { backgroundColor: c.surface, borderColor: c.borderHair }]}>
+    <Pressable
+      onPress={() => router.push(`/expense/${expense.id}` as any)}
+      style={({ pressed }) => [
+        styles.expenseRow,
+        { backgroundColor: c.surface, borderColor: c.borderHair, opacity: pressed ? 0.85 : 1 },
+      ]}
+    >
       <View style={[styles.expenseIcon, { backgroundColor: c.surfaceSunken }]}>
         <Ionicons name="receipt-outline" size={18} color={c.textSecondary} />
       </View>
@@ -184,47 +294,83 @@ function ExpenseRow({
   );
 }
 
+function PaymentRow({
+  payment, currentUserId, getUserName,
+}: {
+  payment: Payment;
+  currentUserId: string;
+  getUserName: (id: string) => string;
+}) {
+  const scheme = useColorScheme() ?? 'light';
+  const c = Colors[scheme];
+
+  const fromName  = payment.fromUserId === currentUserId ? 'Vos' : getUserName(payment.fromUserId);
+  const toName    = payment.toUserId   === currentUserId ? 'Vos' : getUserName(payment.toUserId);
+  const dateLabel = new Date(payment.date).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' });
+
+  return (
+    <View style={[styles.expenseRow, { backgroundColor: c.semantic.positiveSoft, borderColor: c.semantic.positive + '33' }]}>
+      <View style={[styles.expenseIcon, { backgroundColor: c.semantic.positive + '22' }]}>
+        <Ionicons name="checkmark-circle-outline" size={18} color={c.semantic.positive} />
+      </View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={[Typography.bodyM, { color: c.text, fontWeight: '600' }]} numberOfLines={1}>
+          {fromName} pagó a {toName}
+        </Text>
+        <Text style={[Typography.bodyS, { color: c.textTertiary }]}>
+          Pago · {dateLabel}
+        </Text>
+      </View>
+      <Text style={[Typography.amountS, { color: c.semantic.positive }]}>
+        {formatMoney(payment.amount, payment.currency)}
+      </Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  safe:         { flex: 1 },
-  header:       {
+  safe:           { flex: 1 },
+  header:         {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: Spacing.screenPad, paddingVertical: 14,
     borderBottomWidth: StyleSheet.hairlineWidth, gap: 12,
   },
-  scroll:       { paddingTop: Spacing[4] },
-  balanceCard:  {
+  scroll:         { paddingTop: Spacing[4] },
+  balanceCard:    {
     marginHorizontal: Spacing.screenPad, marginBottom: Spacing[4],
     padding: Spacing[4], borderRadius: Radius.lg, borderWidth: 1, gap: 8,
   },
-  balanceRow:   { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  membersRow:   {
-    flexDirection: 'row', flexWrap: 'wrap', gap: 14,
-    paddingHorizontal: Spacing.screenPad, marginBottom: Spacing[4],
-  },
-  sectionLabel: {
-    paddingHorizontal: Spacing.screenPad, marginBottom: Spacing[2],
-  },
-  emptyBox:     {
+  balanceRow:     { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  membersSection: { paddingHorizontal: Spacing.screenPad, marginBottom: Spacing[4] },
+  membersHeader:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  addMemberBtn:   { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: Radius.full },
+  membersRow:     { flexDirection: 'row', flexWrap: 'wrap', gap: 14 },
+  sectionLabel:   { paddingHorizontal: Spacing.screenPad, marginBottom: Spacing[2] },
+  emptyBox:       {
     marginHorizontal: Spacing.screenPad,
     alignItems: 'center', justifyContent: 'center',
     padding: Spacing[6], borderRadius: Radius.lg, borderWidth: 1,
   },
-  expenseRow:   {
+  expenseRow:     {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     marginHorizontal: Spacing.screenPad,
     padding: Spacing.cardPad, borderRadius: Radius.lg, borderWidth: 1,
   },
-  expenseIcon:  {
-    width: 40, height: 40, borderRadius: Radius.md,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  fab:          {
+  expenseIcon:    { width: 40, height: 40, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
+  fab:            {
     position: 'absolute', right: 20, bottom: 24,
     height: 56, paddingHorizontal: 20,
     borderRadius: Radius.full,
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    shadowColor: '#0A6E8F', shadowOpacity: 0.35,
-    shadowRadius: 12, shadowOffset: { width: 0, height: 8 },
-    elevation: 8,
+    boxShadow: '0 8px 24px rgba(10,110,143,0.35)',
   },
+  // Modal
+  modalRoot:   { flex: 1, justifyContent: 'flex-end' },
+  sheet:       { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
+  handle:      { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
+  input:       {
+    height: 50, borderRadius: Radius.md, borderWidth: 1,
+    paddingHorizontal: 14, fontSize: 16, marginBottom: 14,
+  },
+  confirmBtn:  { height: 50, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
 });
