@@ -2,12 +2,18 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
+import * as Linking from 'expo-linking';
 import 'react-native-reanimated';
 import 'react-native-get-random-values';
 
 import '@/src/i18n'; // inicializar i18next antes de cualquier render
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuthStore } from '@/src/store/authStore';
+import { useGroupStore } from '@/src/store/groupStore';
+import { useExpenseStore } from '@/src/store/expenseStore';
+import { usePaymentStore } from '@/src/store/paymentStore';
+import { useUserStore } from '@/src/store/userStore';
+import { usePersonalStore } from '@/src/store/personalStore';
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -17,8 +23,21 @@ function AuthGuard() {
   const segments = useSegments();
   const router = useRouter();
   const { currentUser, isLoading, hydrate } = useAuthStore();
+  const hydrateGroups   = useGroupStore(s => s.hydrate);
+  const hydrateExpenses = useExpenseStore(s => s.hydrate);
+  const hydratePayments = usePaymentStore(s => s.hydrate);
+  const hydrateUsers    = useUserStore(s => s.hydrate);
+  const addOrUpdateUser = useUserStore(s => s.addOrUpdateUser);
+  const hydratePersonal = usePersonalStore(s => s.hydrate);
 
-  useEffect(() => { hydrate(); }, []);
+  useEffect(() => {
+    hydrate();
+    hydrateGroups();
+    hydrateExpenses();
+    hydratePayments();
+    hydrateUsers();
+    hydratePersonal();
+  }, []);
 
   useEffect(() => {
     if (isLoading) return;
@@ -29,6 +48,33 @@ function AuthGuard() {
       router.replace('/(tabs)');
     }
   }, [currentUser, isLoading, segments]);
+
+  // Deep link handler for contact/add?id=...&name=...&email=...
+  useEffect(() => {
+    function handleUrl({ url }: { url: string }) {
+      try {
+        const parsed = Linking.parse(url);
+        if (parsed.path === 'contact/add' && parsed.queryParams) {
+          const { id, name, email } = parsed.queryParams as Record<string, string>;
+          if (id && name && currentUser && id !== currentUser.id) {
+            addOrUpdateUser({
+              id,
+              name,
+              email: email ?? '',
+              authProvider: 'google',
+              createdAt: Date.now(),
+              updatedAt: Date.now(),
+              isDeleted: false,
+            });
+          }
+        }
+      } catch {}
+    }
+
+    const sub = Linking.addEventListener('url', handleUrl);
+    Linking.getInitialURL().then(url => { if (url) handleUrl({ url }); });
+    return () => sub.remove();
+  }, [currentUser]);
 
   return null;
 }
@@ -47,7 +93,10 @@ export default function RootLayout() {
         <Stack.Screen name="expense/new"  options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="expense/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="settle/new"   options={{ presentation: 'modal', headerShown: false }} />
+        <Stack.Screen name="contact/add"   options={{ presentation: 'modal', headerShown: false }} />
+        <Stack.Screen name="personal/new"  options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="settings"     options={{ presentation: 'modal', headerShown: false }} />
+        <Stack.Screen name="sync/index"   options={{ presentation: 'modal', headerShown: false }} />
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>

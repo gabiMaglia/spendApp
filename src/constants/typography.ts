@@ -19,8 +19,9 @@ export const Typography = {
   label:   { fontSize: 11, lineHeight: 14, fontWeight: '600' as const, letterSpacing: 0.6 },
 
   // Montos — tabular nums, siempre bold
-  amountXL: { fontSize: 48, lineHeight: 52, fontWeight: '700' as const, letterSpacing: -1.5 },
-  amountL:  { fontSize: 28, lineHeight: 32, fontWeight: '700' as const, letterSpacing: -0.8 },
-  amountM:  { fontSize: 17, lineHeight: 20, fontWeight: '700' as const },
-  amountS:  { fontSize: 14, lineHeight: 18, fontWeight: '700' as const },
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  amountXL: { fontSize: 48, lineHeight: 52, fontWeight: '700' as const, letterSpacing: -1.5, fontVariant: ['tabular-nums'] as any },
+  amountL:  { fontSize: 28, lineHeight: 32, fontWeight: '700' as const, letterSpacing: -0.8, fontVariant: ['tabular-nums'] as any },
+  amountM:  { fontSize: 17, lineHeight: 20, fontWeight: '700' as const, fontVariant: ['tabular-nums'] as any },
+  amountS:  { fontSize: 14, lineHeight: 18, fontWeight: '700' as const, fontVariant: ['tabular-nums'] as any },
 } as const;

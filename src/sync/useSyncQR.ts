@@ -1,0 +1,56 @@
+import { useGroupStore } from '@/src/store/groupStore';
+import { useExpenseStore } from '@/src/store/expenseStore';
+import { usePaymentStore } from '@/src/store/paymentStore';
+import { useUserStore } from '@/src/store/userStore';
+
+export interface SyncDelta {
+  version: 1;
+  fromUserId: string;
+  timestamp: number;
+  groups: ReturnType<typeof useGroupStore.getState>['groups'];
+  expenses: ReturnType<typeof useExpenseStore.getState>['expenses'];
+  payments: ReturnType<typeof usePaymentStore.getState>['payments'];
+  users: ReturnType<typeof useUserStore.getState>['users'];
+}
+
+/** Genera el delta completo del dispositivo actual para compartir por QR. */
+export function buildDelta(currentUserId: string): SyncDelta {
+  return {
+    version:     1,
+    fromUserId:  currentUserId,
+    timestamp:   Date.now(),
+    groups:      useGroupStore.getState().groups,
+    expenses:    useExpenseStore.getState().expenses,
+    payments:    usePaymentStore.getState().payments,
+    users:       useUserStore.getState().users,
+  };
+}
+
+/**
+ * Aplica un delta recibido del otro dispositivo.
+ * Usa LWW (Last-Write-Wins) por updatedAt en cada store.
+ * También vincula usuarios placeholder con la cuenta real del remitente.
+ */
+export function applyDelta(delta: SyncDelta, currentUserId: string): void {
+  if (delta.version !== 1) return;
+
+  useGroupStore.getState().mergeGroups(delta.groups);
+  useExpenseStore.getState().mergeExpenses(delta.expenses);
+  usePaymentStore.getState().mergePayments(delta.payments);
+
+  // Merge usuarios — filtra el propio currentUser para no pisarlo
+  const externalUsers = delta.users.filter(u => u.id !== currentUserId);
+  useUserStore.getState().mergeUsers(externalUsers);
+}
+
+/** Serializa el delta a string JSON comprimido para el QR. */
+export function deltaToQRString(delta: SyncDelta): string {
+  return JSON.stringify(delta);
+}
+
+/** Parsea el string del QR a un SyncDelta. Lanza si el formato es inválido. */
+export function parseDeltaFromQR(raw: string): SyncDelta {
+  const data = JSON.parse(raw) as SyncDelta;
+  if (data.version !== 1) throw new Error('Versión de sync no soportada');
+  return data;
+}

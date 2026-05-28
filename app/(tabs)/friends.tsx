@@ -1,8 +1,13 @@
-import React, { useMemo } from 'react';
-import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useMemo, useRef, useState } from 'react';
+import {
+  Alert, KeyboardAvoidingView, Platform, Pressable,
+  ScrollView, StyleSheet, Text, TextInput, View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
+import { v4 as uuidv4 } from 'uuid';
 
 import { Colors } from '@/src/constants/colors';
 import { Radius, Spacing } from '@/src/constants/spacing';
@@ -14,9 +19,11 @@ import { useSyncStore } from '@/src/store/syncStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useGlobalPersonBalances } from '@/src/store/selectors';
 import { hueForUser } from '@/src/utils/hueForUser';
+import { hapticLight, hapticSuccess, hapticWarning } from '@/src/utils/haptics';
 import { Avatar } from '@/src/components/Avatar';
 import { SyncStatusBadge } from '@/src/components/SyncStatusBadge';
 import { EmptyState } from '@/src/components/EmptyState';
+import { BottomSheet } from '@/src/components/Sheet';
 
 export default function FriendsScreen() {
   const { t } = useTranslation();
@@ -24,9 +31,18 @@ export default function FriendsScreen() {
   const c = Colors[scheme];
   const { state: syncState } = useSyncStore();
   const { currentUser } = useAuthStore();
-  const { getUserName } = useUserStore();
+  const { users, addOrUpdateUser, removeUser } = useUserStore();
 
   const personBalances = useGlobalPersonBalances(currentUser?.id ?? '');
+
+  const [showAdd, setShowAdd] = useState(false);
+  const [newName, setNewName] = useState('');
+  const inputRef = useRef<TextInput>(null);
+
+  const contacts = useMemo(
+    () => users.filter(u => !u.isDeleted && u.id !== currentUser?.id),
+    [users, currentUser],
+  );
 
   const owedToYou = personBalances
     .filter(p => p.currency === 'ARS' && p.amount > 0)
@@ -36,7 +52,35 @@ export default function FriendsScreen() {
       .filter(p => p.currency === 'ARS' && p.amount < 0)
       .reduce((s, p) => s + p.amount, 0),
   );
-  const net = owedToYou - youOwe;
+
+  function handleAddContact() {
+    const name = newName.trim();
+    if (!name) return;
+    hapticSuccess();
+    addOrUpdateUser({
+      id:           uuidv4(),
+      name,
+      email:        '',
+      authProvider: 'google',
+      updatedAt:    Date.now(),
+      isDeleted:    false,
+      createdAt:    Date.now(),
+    });
+    setNewName('');
+    setShowAdd(false);
+  }
+
+  function handleRemove(id: string, name: string) {
+    hapticWarning();
+    Alert.alert(
+      'Eliminar contacto',
+      `¿Eliminar a ${name}? Si tiene gastos en grupos activos, el historial se conserva.`,
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        { text: 'Eliminar', style: 'destructive', onPress: () => removeUser(id) },
+      ],
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: c.bg }]}>
@@ -45,132 +89,214 @@ export default function FriendsScreen() {
         {/* Header */}
         <View style={styles.header}>
           <SyncStatusBadge state={syncState} />
-          <Pressable style={[styles.iconBtn, { backgroundColor: c.surfaceSunken }]}>
-            <Ionicons name="search-outline" size={18} color={c.text} />
+          <Pressable
+            onPress={() => { hapticLight(); setShowAdd(true); }}
+            style={[styles.iconBtn, { backgroundColor: c.surfaceSunken }]}
+          >
+            <Ionicons name="person-add-outline" size={18} color={c.text} />
           </Pressable>
         </View>
 
-        <Text style={[Typography.display, styles.title, { color: c.text }]}>Amigos</Text>
+        {/* QR button */}
+        <Pressable
+          onPress={() => { hapticLight(); router.push('/contact/add' as any); }}
+          style={[styles.qrBanner, { backgroundColor: c.surface, borderColor: c.borderHair }]}
+        >
+          <Ionicons name="qr-code-outline" size={22} color={c.brand.primary} />
+          <View style={{ flex: 1 }}>
+            <Text style={[Typography.bodyM, { color: c.text, fontWeight: '700' }]}>
+              Agregar por QR
+            </Text>
+            <Text style={[Typography.bodyS, { color: c.textSecondary }]}>
+              Mostrá tu QR o escaneá el de otra persona
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={c.textTertiary} />
+        </Pressable>
 
-        {/* Balance summary */}
-        <View style={[styles.summaryCard, { backgroundColor: c.surface, borderColor: c.borderHair }]}>
-          <View style={styles.summaryRow}>
-            <View style={styles.summaryCol}>
-              <Text style={[Typography.caption, { color: c.textTertiary, textTransform: 'uppercase' }]}>
-                Te deben
-              </Text>
-              <Text style={[Typography.amountM, { color: c.semantic.positive, marginTop: 2 }]}>
-                {formatMoney(owedToYou, 'ARS')}
-              </Text>
-            </View>
-            <View style={[styles.summaryDivider, { backgroundColor: c.borderHair }]} />
-            <View style={styles.summaryCol}>
-              <Text style={[Typography.caption, { color: c.textTertiary, textTransform: 'uppercase' }]}>
-                Debés
-              </Text>
-              <Text style={[Typography.amountM, { color: c.semantic.negative, marginTop: 2 }]}>
-                {formatMoney(youOwe, 'ARS')}
-              </Text>
-            </View>
-            <View style={[styles.summaryDivider, { backgroundColor: c.borderHair }]} />
-            <View style={styles.summaryCol}>
-              <Text style={[Typography.caption, { color: c.textTertiary, textTransform: 'uppercase' }]}>
-                Balance
-              </Text>
-              <Text style={[Typography.amountM, {
-                color: net >= 0 ? c.semantic.positive : c.semantic.negative, marginTop: 2,
-              }]}>
-                {net >= 0 ? '+' : ''}{formatMoney(net, 'ARS')}
-              </Text>
+        <Text style={[Typography.display, styles.title, { color: c.text }]}>Contactos</Text>
+
+        {/* Balance summary — solo si hay deudas */}
+        {(owedToYou > 0 || youOwe > 0) && (
+          <View style={[styles.summaryCard, { backgroundColor: c.surface, borderColor: c.borderHair }]}>
+            <View style={styles.summaryRow}>
+              <View style={styles.summaryCol}>
+                <Text style={[Typography.caption, { color: c.textTertiary, textTransform: 'uppercase' }]}>
+                  Te deben
+                </Text>
+                <Text style={[Typography.amountM, { color: c.semantic.positive, marginTop: 2 }]}>
+                  {formatMoney(owedToYou, 'ARS')}
+                </Text>
+              </View>
+              <View style={[styles.summaryDivider, { backgroundColor: c.borderHair }]} />
+              <View style={styles.summaryCol}>
+                <Text style={[Typography.caption, { color: c.textTertiary, textTransform: 'uppercase' }]}>
+                  Debés
+                </Text>
+                <Text style={[Typography.amountM, { color: c.semantic.negative, marginTop: 2 }]}>
+                  {formatMoney(youOwe, 'ARS')}
+                </Text>
+              </View>
             </View>
           </View>
-        </View>
+        )}
 
-        {/* Section label */}
-        <View style={styles.sectionHeader}>
-          <Text style={[Typography.label, { color: c.textTertiary }]}>POR PERSONA</Text>
-        </View>
-
-        {/* Friends list */}
-        {personBalances.length === 0 ? (
+        {/* Contacts list */}
+        {contacts.length === 0 ? (
           <EmptyState
-            iconName="checkmark-circle-outline"
-            title={t('dashboard.empty_title')}
-            body={t('dashboard.empty_body')}
+            iconName="people-outline"
+            title="Sin contactos aún"
+            body="Agregá personas para poder armar grupos y dividir gastos con ellas."
+            action={
+              <Pressable
+                onPress={() => { hapticLight(); router.push('/contact/add' as any); }}
+                style={[styles.addBtn, { backgroundColor: c.brand.primary }]}
+              >
+                <Ionicons name="qr-code-outline" size={16} color="#fff" />
+                <Text style={[Typography.bodyM, { color: '#fff', fontWeight: '700' }]}>
+                  Agregar por QR
+                </Text>
+              </Pressable>
+            }
           />
         ) : (
           <View style={styles.list}>
-            {personBalances.map(p => (
-              <PersonRow
-                key={`${p.userId}:${p.currency}`}
-                userId={p.userId}
-                name={getUserName(p.userId)}
-                amount={p.amount}
-                currency={p.currency}
-              />
-            ))}
+            {contacts.map(contact => {
+              const balance = personBalances.find(b => b.userId === contact.id);
+              return (
+                <ContactRow
+                  key={contact.id}
+                  userId={contact.id}
+                  name={contact.name}
+                  amount={balance?.amount}
+                  currency={balance?.currency ?? 'ARS'}
+                  onRemove={() => handleRemove(contact.id, contact.name)}
+                  onSettle={() => router.push({
+                    pathname: '/settle/new',
+                    params: {
+                      toId:      contact.id,
+                      maxAmount: String(Math.abs(balance?.amount ?? 0)),
+                      currency:  balance?.currency ?? 'ARS',
+                    },
+                  } as any)}
+                />
+              );
+            })}
           </View>
         )}
 
         <View style={{ height: Spacing[9] }} />
       </ScrollView>
 
-      {/* FAB */}
+      {/* FAB — agregar contacto por QR */}
       <Pressable
-        onPress={() => router.push('/expense/new')}
+        onPress={() => { hapticLight(); router.push('/contact/add' as any); }}
         style={[styles.fab, { backgroundColor: c.brand.primary }]}
       >
-        <Ionicons name="add" size={24} color="#fff" />
+        <Ionicons name="qr-code-outline" size={20} color="#fff" />
         <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>
-          {t('dashboard.add_expense')}
+          Agregar por QR
         </Text>
       </Pressable>
+
+      {/* Sheet — nuevo contacto */}
+      <BottomSheet
+        visible={showAdd}
+        onClose={() => { setShowAdd(false); setNewName(''); }}
+      >
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <Text style={[Typography.h3, { color: c.text, marginBottom: 6 }]}>
+            Nuevo contacto
+          </Text>
+          <Text style={[Typography.bodyS, { color: c.textSecondary, marginBottom: 20 }]}>
+            Ingresá el nombre. Cuando sincronicen por QR, la cuenta se vincula automáticamente.
+          </Text>
+          <View style={[styles.inputRow, { backgroundColor: c.surfaceSunken, borderColor: c.border }]}>
+            <Ionicons name="person-outline" size={18} color={c.textTertiary} />
+            <TextInput
+              ref={inputRef}
+              value={newName}
+              onChangeText={setNewName}
+              placeholder="Nombre y apellido"
+              placeholderTextColor={c.textTertiary}
+              style={[Typography.bodyL, { flex: 1, color: c.text, padding: 0 }]}
+              returnKeyType="done"
+              onSubmitEditing={handleAddContact}
+              autoFocus
+            />
+          </View>
+          <Pressable
+            onPress={handleAddContact}
+            disabled={!newName.trim()}
+            style={[styles.confirmBtn, {
+              backgroundColor: newName.trim() ? c.brand.primary : c.surfaceSunken,
+              marginTop: 14,
+            }]}
+          >
+            <Text style={[Typography.bodyM, {
+              color: newName.trim() ? '#fff' : c.textTertiary,
+              fontWeight: '700',
+            }]}>
+              Agregar
+            </Text>
+          </Pressable>
+        </KeyboardAvoidingView>
+      </BottomSheet>
     </SafeAreaView>
   );
 }
 
-function PersonRow({
-  userId, name, amount, currency,
+function ContactRow({
+  userId, name, amount, currency, onRemove, onSettle,
 }: {
-  userId: string; name: string; amount: number; currency: string;
+  userId: string; name: string;
+  amount?: number; currency: string;
+  onRemove: () => void; onSettle: () => void;
 }) {
   const { t } = useTranslation();
   const scheme = useColorScheme() ?? 'light';
   const c = Colors[scheme];
-  const positive = amount > 0;
-  const settled  = amount === 0;
+  const hasBalance = amount !== undefined && amount !== 0;
+  const positive   = (amount ?? 0) > 0;
+  const canSettle  = amount !== undefined && amount < 0;
 
   return (
-    <Pressable style={[styles.personRow, { backgroundColor: c.surface, borderColor: c.borderHair }]}>
+    <View style={[styles.contactRow, { backgroundColor: c.surface, borderColor: c.borderHair }]}>
       <Avatar name={name} hue={hueForUser(userId)} size={44} />
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={[Typography.bodyL, { color: c.text, fontWeight: '600' }]}>{name}</Text>
-        <Text style={[Typography.bodyS, { color: c.textTertiary }]} numberOfLines={1}>
-          {currency}
+        <Text style={[Typography.bodyL, { color: c.text, fontWeight: '600' }]} numberOfLines={1}>
+          {name}
         </Text>
-      </View>
-      {settled ? (
-        <View style={[styles.settledBadge, { backgroundColor: c.surfaceSunken }]}>
-          <Text style={[Typography.caption, { color: c.textTertiary, fontWeight: '600' }]}>
+        {hasBalance ? (
+          <Text style={[Typography.bodyS, {
+            color: positive ? c.semantic.positive : c.semantic.negative,
+            fontWeight: '600',
+          }]}>
+            {positive ? 'Te debe ' : 'Le debés '}
+            {formatMoney(Math.abs(amount!), currency as any)}
+          </Text>
+        ) : (
+          <Text style={[Typography.bodyS, { color: c.textTertiary }]}>
             {t('common.settled')}
           </Text>
-        </View>
-      ) : (
-        <View style={{ alignItems: 'flex-end' }}>
-          <Text style={[Typography.caption, {
-            fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase',
-            color: positive ? c.semantic.positive : c.semantic.negative,
-          }]}>
-            {positive ? t('dashboard.owes_you') : t('dashboard.you_owe_person')}
-          </Text>
-          <Text style={[Typography.amountM, {
-            color: positive ? c.semantic.positive : c.semantic.negative,
-          }]}>
-            {formatMoney(Math.abs(amount), currency as any)}
-          </Text>
-        </View>
-      )}
-    </Pressable>
+        )}
+      </View>
+      <View style={styles.rowActions}>
+        {canSettle && (
+          <Pressable
+            onPress={onSettle}
+            style={[styles.actionChip, { backgroundColor: c.brand.primarySoft }]}
+          >
+            <Text style={[Typography.caption, { color: c.brand.primary, fontWeight: '700' }]}>
+              Saldar
+            </Text>
+          </Pressable>
+        )}
+        <Pressable onPress={onRemove} hitSlop={8} style={styles.removeBtn}>
+          <Ionicons name="trash-outline" size={18} color={c.textTertiary} />
+        </Pressable>
+      </View>
+    </View>
   );
 }
 
@@ -185,29 +311,41 @@ const styles = StyleSheet.create({
   title:         { paddingHorizontal: Spacing.screenPad, marginBottom: Spacing[4] },
   summaryCard:   {
     marginHorizontal: Spacing.screenPad, marginBottom: Spacing[4],
-    borderRadius: Radius.lg, borderWidth: 1,
-    padding: Spacing[4],
+    borderRadius: Radius.lg, borderWidth: 1, padding: Spacing[4],
   },
   summaryRow:    { flexDirection: 'row', alignItems: 'center' },
   summaryCol:    { flex: 1, alignItems: 'center' },
   summaryDivider:{ width: 1, height: 36, marginHorizontal: 4 },
-  sectionHeader: {
-    paddingHorizontal: Spacing.screenPad,
-    marginBottom: Spacing[2],
-  },
   list:          { paddingHorizontal: Spacing.screenPad, gap: Spacing.cardGap },
-  personRow:     {
+  contactRow:    {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     padding: Spacing.cardPad, borderRadius: Radius.lg, borderWidth: 1,
   },
-  settledBadge:  { paddingHorizontal: 10, paddingVertical: 4, borderRadius: Radius.full },
+  rowActions:    { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  actionChip:    { paddingHorizontal: 10, paddingVertical: 5, borderRadius: Radius.full },
+  removeBtn:     { padding: 4 },
+  addBtn:        {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 20, paddingVertical: 12, borderRadius: Radius.full,
+  },
   fab:           {
     position: 'absolute', right: 20, bottom: 90,
     height: 56, paddingHorizontal: 20,
     borderRadius: Radius.full,
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    shadowColor: '#0A6E8F', shadowOpacity: 0.35,
-    shadowRadius: 12, shadowOffset: { width: 0, height: 8 },
-    elevation: 8,
+    boxShadow: '0 8px 24px rgba(10,110,143,0.35)',
   },
+  qrBanner:      {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    marginHorizontal: Spacing.screenPad, marginBottom: Spacing[4],
+    padding: Spacing[4], borderRadius: Radius.lg, borderWidth: 1,
+  },
+  // Sheet
+  inputRow:      {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    borderRadius: Radius.lg, borderWidth: 1,
+    paddingHorizontal: 14, paddingVertical: 13,
+    marginBottom: 4,
+  },
+  confirmBtn:    { borderRadius: Radius.md, paddingVertical: 14, alignItems: 'center' },
 });

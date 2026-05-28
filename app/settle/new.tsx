@@ -3,18 +3,21 @@ import {
   KeyboardAvoidingView, Platform, Pressable, SafeAreaView,
   ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { v4 as uuidv4 } from 'uuid';
 
 import { Colors } from '@/src/constants/colors';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
+import { formatMoney } from '@/src/constants/currencies';
+import type { CurrencyCode } from '@/src/constants/currencies';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useUserStore } from '@/src/store/userStore';
 import { usePaymentStore } from '@/src/store/paymentStore';
+import { hapticSuccess, hapticWarning, hapticSelection } from '@/src/utils/haptics';
 import { hueForUser } from '@/src/utils/hueForUser';
 import { Avatar } from '@/src/components/Avatar';
 import { BottomSheet, SheetOption, SheetOptionAvatar } from '@/src/components/Sheet';
@@ -36,18 +39,42 @@ export default function SettleNewScreen() {
   const { addPayment } = usePaymentStore();
   const { getUserName } = useUserStore();
   const allGroups = useGroupStore(s => s.groups);
-  const groups = useMemo(() => allGroups.filter(g => !g.isDeleted), [allGroups]);
 
-  const initialGroup = groups[0];
-  const initialFromId = currentUser && initialGroup?.memberIds.includes(currentUser.id)
-    ? currentUser.id
-    : (initialGroup?.memberIds[0] ?? '');
-  const initialToId = initialGroup?.memberIds.filter(uid => uid !== initialFromId)[0] ?? '';
+  // Params from friends tab: pre-fill who you're paying and how much
+  const {
+    toId:      paramToId,
+    maxAmount: paramMaxStr,
+    currency:  paramCurrency,
+  } = useLocalSearchParams<{ toId?: string; maxAmount?: string; currency?: string }>();
 
-  const [groupId,   setGroupId]   = useState(initialGroup?.id ?? '');
-  const [fromId,    setFromId]    = useState(initialFromId);
-  const [toId,      setToId]      = useState(initialToId);
-  const [amountStr, setAmountStr] = useState('');
+  const isPrefilled  = Boolean(paramToId);
+  const maxAmount    = paramMaxStr ? parseFloat(paramMaxStr) : undefined;
+  const paramCur     = (paramCurrency ?? 'ARS') as CurrencyCode;
+
+  // Only show groups relevant to the settle: both users must be members
+  const groups = useMemo(() => {
+    const active = allGroups.filter(g => !g.isDeleted);
+    if (!isPrefilled || !currentUser || !paramToId) return active;
+    const relevant = active.filter(g =>
+      g.memberIds.includes(currentUser.id) && g.memberIds.includes(paramToId),
+    );
+    return relevant.length > 0 ? relevant : active;
+  }, [allGroups, isPrefilled, currentUser, paramToId]);
+
+  // Auto-select first group that matches currency when prefilled
+  const defaultGroup = useMemo(() => {
+    if (!isPrefilled) return groups[0];
+    return groups.find(g => g.currency === paramCur) ?? groups[0];
+  }, [groups, isPrefilled, paramCur]);
+
+  const [groupId,   setGroupId]   = useState(defaultGroup?.id ?? '');
+  const [fromId,    setFromId]    = useState(
+    isPrefilled && currentUser ? currentUser.id : (defaultGroup?.memberIds[0] ?? ''),
+  );
+  const [toId, setToId] = useState(
+    isPrefilled && paramToId ? paramToId : (defaultGroup?.memberIds.filter(uid => uid !== fromId)[0] ?? ''),
+  );
+  const [amountStr, setAmountStr] = useState(maxAmount ? String(maxAmount) : '');
   const [date,      setDate]      = useState(new Date());
 
   const [showGroup, setShowGroup] = useState(false);
@@ -57,23 +84,29 @@ export default function SettleNewScreen() {
 
   const group    = groups.find(g => g.id === groupId);
   const members  = group?.memberIds ?? [];
-  const currency = group?.currency ?? 'ARS';
+  const currency = group?.currency ?? paramCur;
   const amount   = parseFloat(amountStr.replace(',', '.')) || 0;
   const toOptions = members.filter(uid => uid !== fromId);
-  const canSave   = amount > 0 && fromId.length > 0 && toId.length > 0 && fromId !== toId && groupId.length > 0;
+
+  const exceedsMax  = maxAmount !== undefined && amount > maxAmount;
+  const canSave     = amount > 0 && !exceedsMax && fromId.length > 0 && toId.length > 0 && fromId !== toId && groupId.length > 0;
 
   function handleGroupChange(id: string) {
+    hapticSelection();
     const g = groups.find(x => x.id === id);
     const mems = g?.memberIds ?? [];
     setGroupId(id);
-    const newFrom = currentUser && mems.includes(currentUser.id) ? currentUser.id : (mems[0] ?? '');
-    const newTo   = mems.filter(uid => uid !== newFrom)[0] ?? '';
-    setFromId(newFrom);
-    setToId(newTo);
+    if (!isPrefilled) {
+      const newFrom = currentUser && mems.includes(currentUser.id) ? currentUser.id : (mems[0] ?? '');
+      const newTo   = mems.filter(uid => uid !== newFrom)[0] ?? '';
+      setFromId(newFrom);
+      setToId(newTo);
+    }
     setShowGroup(false);
   }
 
   function handleFromChange(id: string) {
+    hapticSelection();
     setFromId(id);
     if (toId === id) setToId(members.filter(uid => uid !== id)[0] ?? '');
     setShowFrom(false);
@@ -81,6 +114,8 @@ export default function SettleNewScreen() {
 
   function handleSave() {
     if (!canSave || !currentUser) return;
+    if (exceedsMax) { hapticWarning(); return; }
+    hapticSuccess();
     addPayment({
       id:          uuidv4(),
       groupId,
@@ -113,7 +148,7 @@ export default function SettleNewScreen() {
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
 
           {/* Amount */}
-          <View style={[styles.amountCard, { backgroundColor: c.surface, borderColor: c.borderHair }]}>
+          <View style={[styles.amountCard, { backgroundColor: c.surface, borderColor: exceedsMax ? c.semantic.negative : c.borderHair }]}>
             <Text style={[Typography.label, { color: c.textTertiary, textTransform: 'uppercase' }]}>
               {currency}
             </Text>
@@ -125,15 +160,33 @@ export default function SettleNewScreen() {
                 keyboardType="decimal-pad"
                 placeholder="0"
                 placeholderTextColor={c.textTertiary}
-                style={[Typography.amountXL, { color: c.text }]}
+                style={[Typography.amountXL, { color: exceedsMax ? c.semantic.negative : c.text }]}
                 returnKeyType="done"
               />
             </View>
+            {maxAmount !== undefined && (
+              <View style={[styles.maxHint, { backgroundColor: exceedsMax ? c.semantic.negativeSoft : c.surfaceSunken }]}>
+                <Ionicons
+                  name={exceedsMax ? 'warning-outline' : 'information-circle-outline'}
+                  size={13}
+                  color={exceedsMax ? c.semantic.negative : c.textTertiary}
+                />
+                <Text style={[Typography.caption, { color: exceedsMax ? c.semantic.negative : c.textTertiary }]}>
+                  {exceedsMax
+                    ? `No podés saldar más de ${formatMoney(maxAmount, currency)}`
+                    : `Saldo pendiente: ${formatMoney(maxAmount, currency)}`
+                  }
+                </Text>
+              </View>
+            )}
           </View>
 
           {/* From → To */}
           <View style={[styles.transferCard, { backgroundColor: c.surface, borderColor: c.borderHair }]}>
-            <Pressable onPress={() => setShowFrom(true)} style={styles.transferSide}>
+            <Pressable
+              onPress={isPrefilled ? undefined : () => setShowFrom(true)}
+              style={styles.transferSide}
+            >
               <Text style={[Typography.caption, { color: c.textTertiary, textTransform: 'uppercase', marginBottom: 8 }]}>
                 De
               </Text>
@@ -141,7 +194,7 @@ export default function SettleNewScreen() {
                 <View style={styles.transferUser}>
                   <Avatar name={getUserName(fromId)} hue={hueForUser(fromId)} size={36} />
                   <Text style={[Typography.bodyS, { color: c.text, fontWeight: '600', textAlign: 'center' }]} numberOfLines={2}>
-                    {getUserName(fromId)}
+                    {fromId === currentUser?.id ? 'Vos' : getUserName(fromId)}
                   </Text>
                 </View>
               ) : (
@@ -153,7 +206,10 @@ export default function SettleNewScreen() {
               <Ionicons name="arrow-forward" size={18} color={c.textSecondary} />
             </View>
 
-            <Pressable onPress={() => setShowTo(true)} style={styles.transferSide}>
+            <Pressable
+              onPress={isPrefilled ? undefined : () => setShowTo(true)}
+              style={styles.transferSide}
+            >
               <Text style={[Typography.caption, { color: c.textTertiary, textTransform: 'uppercase', marginBottom: 8 }]}>
                 A
               </Text>
@@ -173,7 +229,7 @@ export default function SettleNewScreen() {
           {/* Group & date row */}
           <View style={styles.metaRow}>
             <Pressable
-              onPress={() => setShowGroup(true)}
+              onPress={() => { hapticSelection(); setShowGroup(true); }}
               style={[styles.metaChip, { backgroundColor: c.surface, borderColor: c.borderHair, flex: 1 }]}
             >
               <Ionicons name="people-outline" size={14} color={c.textSecondary} />
@@ -184,7 +240,7 @@ export default function SettleNewScreen() {
             </Pressable>
 
             <Pressable
-              onPress={() => setShowDate(true)}
+              onPress={() => { hapticSelection(); setShowDate(true); }}
               style={[styles.metaChip, { backgroundColor: c.surface, borderColor: c.borderHair }]}
             >
               <Ionicons name="calendar-outline" size={14} color={c.textSecondary} />
@@ -223,33 +279,37 @@ export default function SettleNewScreen() {
         ))}
       </BottomSheet>
 
-      {/* From picker */}
-      <BottomSheet visible={showFrom} onClose={() => setShowFrom(false)}>
-        <Text style={[Typography.h3, { color: c.text, marginBottom: 16 }]}>¿Quién pagó?</Text>
-        {members.map(uid => (
-          <SheetOptionAvatar
-            key={uid}
-            userId={uid}
-            name={getUserName(uid)}
-            selected={uid === fromId}
-            onPress={() => handleFromChange(uid)}
-          />
-        ))}
-      </BottomSheet>
+      {/* From picker — only when not prefilled */}
+      {!isPrefilled && (
+        <BottomSheet visible={showFrom} onClose={() => setShowFrom(false)}>
+          <Text style={[Typography.h3, { color: c.text, marginBottom: 16 }]}>¿Quién pagó?</Text>
+          {members.map(uid => (
+            <SheetOptionAvatar
+              key={uid}
+              userId={uid}
+              name={getUserName(uid)}
+              selected={uid === fromId}
+              onPress={() => handleFromChange(uid)}
+            />
+          ))}
+        </BottomSheet>
+      )}
 
-      {/* To picker */}
-      <BottomSheet visible={showTo} onClose={() => setShowTo(false)}>
-        <Text style={[Typography.h3, { color: c.text, marginBottom: 16 }]}>¿A quién le pagó?</Text>
-        {toOptions.map(uid => (
-          <SheetOptionAvatar
-            key={uid}
-            userId={uid}
-            name={getUserName(uid)}
-            selected={uid === toId}
-            onPress={() => { setToId(uid); setShowTo(false); }}
-          />
-        ))}
-      </BottomSheet>
+      {/* To picker — only when not prefilled */}
+      {!isPrefilled && (
+        <BottomSheet visible={showTo} onClose={() => setShowTo(false)}>
+          <Text style={[Typography.h3, { color: c.text, marginBottom: 16 }]}>¿A quién le pagó?</Text>
+          {toOptions.map(uid => (
+            <SheetOptionAvatar
+              key={uid}
+              userId={uid}
+              name={getUserName(uid)}
+              selected={uid === toId}
+              onPress={() => { hapticSelection(); setToId(uid); setShowTo(false); }}
+            />
+          ))}
+        </BottomSheet>
+      )}
 
       {/* Date picker */}
       <BottomSheet visible={showDate} onClose={() => setShowDate(false)}>
@@ -269,7 +329,7 @@ export default function SettleNewScreen() {
               label={label}
               sublabel={longFmt}
               selected={formatDate(date) === label}
-              onPress={() => { setDate(d); setShowDate(false); }}
+              onPress={() => { hapticSelection(); setDate(d); setShowDate(false); }}
             />
           );
         })}
@@ -293,6 +353,10 @@ const styles = StyleSheet.create({
   },
   amountRow:      { flexDirection: 'row', alignItems: 'flex-end', gap: 6 },
   currencySymbol: { fontSize: 28, fontWeight: '400', lineHeight: 48, paddingBottom: 6 },
+  maxHint:        {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 12, paddingVertical: 5, borderRadius: Radius.full, marginTop: 4,
+  },
   transferCard:   {
     flexDirection: 'row', alignItems: 'center',
     borderRadius: Radius.lg, borderWidth: 1,

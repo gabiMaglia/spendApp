@@ -19,7 +19,9 @@
     "loading": "Cargando…",
     "error": "Algo salió mal",
     "retry": "Reintentar",
-    "optional": "Opcional"
+    "optional": "Opcional",
+    "you": "Vos",
+    "go_back": "Volver"
   },
 
   "auth": {
@@ -154,7 +156,23 @@
     "detail_edited": "{{name}} editaste el monto · {{date}}",
     "detail_created": "{{name}} creaste el gasto · {{date}}",
     "owed_to_you": "Te deben {{amount}}",
-    "n_people": "{{count}} personas"
+    "n_people": "{{count}} personas",
+    "not_found": "Gasto no encontrado",
+    "detail_title": "Detalle del gasto",
+    "your_balance": "Tu balance",
+    "paid_by": "Pagó",
+    "your_share": "Tu parte",
+    "net": "Neto",
+    "split_detail": "Desglose",
+    "paid_label": "pagó",
+    "note": "Nota",
+    "delete_title": "Eliminar gasto",
+    "delete_body_creator": "Vas a eliminar este gasto. Los demás miembros verán el cambio en la próxima sincronización.",
+    "delete_body_member": "Tu solicitud se enviará a los demás miembros. Si nadie objeta en 72 hs, el gasto se elimina.",
+    "delete_pending_title": "Eliminación solicitada",
+    "delete_pending_body": "Este gasto fue propuesto para eliminar. Tenés hasta 72 hs para objetar.",
+    "cancel_delete_vote": "Cancelar solicitud de borrado",
+    "request_delete": "Solicitar eliminación"
   },
 
   "settle": {

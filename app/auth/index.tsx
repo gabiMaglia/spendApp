@@ -1,8 +1,10 @@
-import React from 'react';
-import { SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
+import * as AppleAuthentication from 'expo-apple-authentication';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -21,15 +23,20 @@ export default function AuthScreen() {
   const c = Colors[scheme];
   const { setUser } = useAuthStore();
 
+  const [appleAvailable, setAppleAvailable] = useState(false);
+
+  useEffect(() => {
+    if (Platform.OS === 'ios') {
+      AppleAuthentication.isAvailableAsync().then(setAppleAvailable);
+    }
+  }, []);
+
   const googleIosId = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS ?? '';
   const googleConfigured = googleIosId.length > 0 && !googleIosId.startsWith('000000');
 
-  // El hook siempre necesita un string — pasamos el placeholder si no está configurado.
-  // El auth real solo se dispara cuando googleConfigured es true.
   const [, , promptGoogleAsync] = Google.useAuthRequest({
     iosClientId:     googleIosId || 'not-configured',
     androidClientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID ?? 'not-configured',
-    webClientId:     process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_WEB ?? 'not-configured',
   });
 
   async function handleGoogleLogin() {
@@ -58,7 +65,35 @@ export default function AuthScreen() {
   }
 
   async function handleAppleLogin() {
-    // TODO: implementar con expo-apple-authentication en dev build
+    try {
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+
+      // Apple solo envía name y email en el PRIMER login; después son null.
+      // Se guardan en el store (persistido en MMKV) para que no se pierdan.
+      const name = [
+        credential.fullName?.givenName,
+        credential.fullName?.familyName,
+      ].filter(Boolean).join(' ') || 'Usuario';
+
+      setUser({
+        id:           credential.user,
+        name,
+        email:        credential.email ?? '',
+        authProvider: 'apple',
+        updatedAt:    Date.now(),
+        isDeleted:    false,
+        createdAt:    Date.now(),
+      });
+    } catch (e: any) {
+      if (e.code !== 'ERR_REQUEST_CANCELED') {
+        alert('No se pudo iniciar sesión con Apple. Intentá de nuevo.');
+      }
+    }
   }
 
   function handleGuestLogin() {
@@ -101,12 +136,26 @@ export default function AuthScreen() {
 
         {/* CTAs */}
         <View style={styles.ctas}>
-          <Button variant="primary" size="lg" block onPress={handleAppleLogin}>
-            {t('auth.continue_apple')}
-          </Button>
-          <Button variant="secondary" size="lg" block onPress={handleGoogleLogin}>
+          {/* Apple — botón nativo (obligatorio para App Store) */}
+          {appleAvailable && (
+            <AppleAuthentication.AppleAuthenticationButton
+              buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+              buttonStyle={
+                scheme === 'dark'
+                  ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
+                  : AppleAuthentication.AppleAuthenticationButtonStyle.BLACK
+              }
+              cornerRadius={14}
+              style={styles.appleButton}
+              onPress={handleAppleLogin}
+            />
+          )}
+
+          {/* Google */}
+          <Button variant={appleAvailable ? 'secondary' : 'primary'} size="lg" block onPress={handleGoogleLogin}>
             {t('auth.continue_google')}
           </Button>
+
           <Text style={[Typography.bodyS, { color: c.textTertiary, textAlign: 'center' }]}>
             {t('auth.terms_prefix')}{' '}
             <Text style={{ color: c.brand.primary, fontWeight: '600' }}>{t('auth.terms_link')}</Text>
@@ -159,18 +208,19 @@ function DemoRow({ name, hue, amount }: { name: string; hue: number; amount: num
 }
 
 const styles = StyleSheet.create({
-  safe:     { flex: 1 },
-  scroll:   { flexGrow: 1, padding: Spacing.screenPad, paddingTop: Spacing[8] },
-  hero:     { flex: 1, alignItems: 'center', gap: 32, marginBottom: 32 },
-  heroText: { alignItems: 'center', gap: 8 },
-  demoCard: {
+  safe:        { flex: 1 },
+  scroll:      { flexGrow: 1, padding: Spacing.screenPad, paddingTop: Spacing[8] },
+  hero:        { flex: 1, alignItems: 'center', gap: 32, marginBottom: 32 },
+  heroText:    { alignItems: 'center', gap: 8 },
+  demoCard:    {
     width: '100%', maxWidth: 320,
     padding: Spacing[4],
     borderRadius: Radius.lg,
     borderWidth: 1,
     gap: 10,
   },
-  demoRow:  { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  divider:  { height: 1 },
-  ctas:     { gap: 10, paddingBottom: Spacing[8] },
+  demoRow:     { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  divider:     { height: 1 },
+  ctas:        { gap: 10, paddingBottom: Spacing[8] },
+  appleButton: { width: '100%', height: 50 },
 });

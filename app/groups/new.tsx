@@ -6,6 +6,7 @@ import {
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { v4 as uuidv4 } from 'uuid';
+import { hapticSelection, hapticSuccess } from '@/src/utils/haptics';
 
 import { Colors } from '@/src/constants/colors';
 import { Radius, Spacing } from '@/src/constants/spacing';
@@ -39,9 +40,11 @@ export default function NewGroupScreen() {
     [users, currentUser],
   );
 
-  const canSave = name.trim().length > 0;
+  const hasContact = selectedIds.some(id => id !== currentUser?.id);
+  const canSave    = name.trim().length > 0 && hasContact;
 
-  function toggleMember(id: string) {
+  function toggleContact(id: string) {
+    hapticSelection();
     setSelectedIds(prev =>
       prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id],
     );
@@ -49,6 +52,8 @@ export default function NewGroupScreen() {
 
   function handleSave() {
     if (!canSave || !currentUser) return;
+    hapticSuccess();
+
     const memberIds = selectedIds.includes(currentUser.id)
       ? selectedIds
       : [currentUser.id, ...selectedIds];
@@ -109,6 +114,7 @@ export default function NewGroupScreen() {
               onChangeText={setName}
               style={[Typography.bodyL, styles.nameInput, { color: c.text }]}
               returnKeyType="done"
+              autoFocus
             />
           </View>
 
@@ -120,7 +126,7 @@ export default function NewGroupScreen() {
             {PRIMARY_CURRENCIES.map(code => (
               <Pressable
                 key={code}
-                onPress={() => setCurrency(code)}
+                onPress={() => { hapticSelection(); setCurrency(code); }}
                 style={[
                   styles.currencyChip,
                   {
@@ -144,6 +150,7 @@ export default function NewGroupScreen() {
             PARTICIPANTES
           </Text>
 
+          {/* Yo — siempre fijo */}
           {currentUser && (
             <MemberRow
               id={currentUser.id}
@@ -154,16 +161,41 @@ export default function NewGroupScreen() {
             />
           )}
 
-          {contacts.map(u => (
-            <MemberRow
-              key={u.id}
-              id={u.id}
-              name={u.name}
-              selected={selectedIds.includes(u.id)}
-              locked={false}
-              onToggle={() => toggleMember(u.id)}
-            />
-          ))}
+          {/* Contactos existentes */}
+          {contacts.length === 0 ? (
+            <View style={[styles.noContacts, { backgroundColor: c.surfaceSunken, borderColor: c.borderHair }]}>
+              <Ionicons name="people-outline" size={24} color={c.textTertiary} />
+              <Text style={[Typography.bodyM, { color: c.textTertiary, textAlign: 'center' }]}>
+                Aún no tenés contactos guardados.
+              </Text>
+              <Pressable
+                onPress={() => router.back()}
+                style={[styles.goContactsBtn, { borderColor: c.brand.primary }]}
+              >
+                <Text style={[Typography.bodyS, { color: c.brand.primary, fontWeight: '700' }]}>
+                  Ir a Contactos para agregar
+                </Text>
+              </Pressable>
+            </View>
+          ) : (
+            contacts.map(u => (
+              <MemberRow
+                key={u.id}
+                id={u.id}
+                name={u.name}
+                selected={selectedIds.includes(u.id)}
+                locked={false}
+                onToggle={() => toggleContact(u.id)}
+              />
+            ))
+          )}
+
+          {/* Hint si no seleccionó nadie */}
+          {contacts.length > 0 && !hasContact && (
+            <Text style={[Typography.bodyS, styles.hint, { color: c.textTertiary }]}>
+              Seleccioná al menos un contacto para crear el grupo.
+            </Text>
+          )}
 
           <View style={{ height: Spacing[8] }} />
         </ScrollView>
@@ -183,7 +215,10 @@ function MemberRow({
   return (
     <Pressable
       onPress={locked ? undefined : onToggle}
-      style={[styles.memberRow, { backgroundColor: c.surface, borderColor: c.borderHair }]}
+      style={({ pressed }) => [
+        styles.memberRow,
+        { backgroundColor: c.surface, borderColor: c.borderHair, opacity: pressed && !locked ? 0.8 : 1 },
+      ]}
     >
       <Avatar name={name} hue={hueForUser(id)} size={38} />
       <Text style={[Typography.bodyM, { flex: 1, color: c.text, fontWeight: '600' }]}>
@@ -194,7 +229,7 @@ function MemberRow({
         {
           backgroundColor: selected ? c.brand.primary : 'transparent',
           borderColor:     selected ? c.brand.primary : c.border,
-          opacity:         locked ? 0.5 : 1,
+          opacity:         locked ? 0.4 : 1,
         },
       ]}>
         {selected && <Ionicons name="checkmark" size={14} color="#fff" />}
@@ -230,4 +265,11 @@ const styles = StyleSheet.create({
     width: 24, height: 24, borderRadius: 12, borderWidth: 2,
     alignItems: 'center', justifyContent: 'center',
   },
+  noContacts:   {
+    alignItems: 'center', gap: 10,
+    padding: Spacing[5], borderRadius: Radius.lg, borderWidth: 1,
+    marginBottom: 8,
+  },
+  goContactsBtn:{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: Radius.full, borderWidth: 1.5 },
+  hint:         { textAlign: 'center', marginTop: 4, marginBottom: 8 },
 });

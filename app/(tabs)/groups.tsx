@@ -18,6 +18,7 @@ import { hueForUser } from '@/src/utils/hueForUser';
 import { GroupCard } from '@/src/components/GroupCard';
 import { SyncStatusBadge } from '@/src/components/SyncStatusBadge';
 import { EmptyState } from '@/src/components/EmptyState';
+import { hapticLight } from '@/src/utils/haptics';
 import { Button } from '@/src/components/Button';
 import type { Group } from '@/src/types/models';
 
@@ -46,12 +47,20 @@ export default function GroupsScreen() {
         {/* Header */}
         <View style={styles.header}>
           <SyncStatusBadge state={syncState} />
-          <Pressable
-            onPress={() => router.push('/groups/new' as any)}
-            style={[styles.addButton, { backgroundColor: c.surfaceSunken }]}
-          >
-            <Ionicons name="add" size={20} color={c.text} />
-          </Pressable>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <Pressable
+              onPress={() => router.push('/sync' as any)}
+              style={[styles.addButton, { backgroundColor: c.surfaceSunken }]}
+            >
+              <Ionicons name="sync-outline" size={18} color={c.text} />
+            </Pressable>
+            <Pressable
+              onPress={() => { hapticLight(); router.push('/groups/new' as any); }}
+              style={[styles.addButton, { backgroundColor: c.surfaceSunken }]}
+            >
+              <Ionicons name="add" size={20} color={c.text} />
+            </Pressable>
+          </View>
         </View>
         <View style={styles.titleRow}>
           <Text style={[Typography.display, { color: c.text }]}>{t('groups.title')}</Text>
@@ -148,7 +157,7 @@ export default function GroupsScreen() {
 
       {/* FAB */}
       <Pressable
-        onPress={() => router.push('/groups/new' as any)}
+        onPress={() => { hapticLight(); router.push('/groups/new' as any); }}
         style={[styles.fab, { backgroundColor: c.brand.primary }]}
       >
         <Ionicons name="add" size={24} color="#fff" />
@@ -219,8 +228,6 @@ const styles = StyleSheet.create({
     height: 56, paddingHorizontal: 20,
     borderRadius: Radius.full,
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    shadowColor: '#0A6E8F', shadowOpacity: 0.35,
-    shadowRadius: 12, shadowOffset: { width: 0, height: 8 },
-    elevation: 8,
+    boxShadow: '0 8px 24px rgba(10,110,143,0.35)',
   },
 });

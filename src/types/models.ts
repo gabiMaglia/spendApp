@@ -90,6 +90,31 @@ export interface Payment extends SyncMeta {
   note?: string;
 }
 
+// ── Gastos personales & presupuesto ──────────────────────────────────────────
+
+export type PersonalEntryKind = 'expense' | 'income' | 'group_replicated';
+
+export type PersonalCategory = ExpenseCategory | 'income' | 'salary' | 'freelance';
+
+export interface PersonalEntry extends SyncMeta {
+  kind: PersonalEntryKind;
+  description: string;
+  amount: number;          // siempre positivo
+  currency: CurrencyCode;
+  category: PersonalCategory;
+  date: number;
+  createdAt: number;
+  sourceGroupExpenseId?: string; // solo cuando kind === 'group_replicated'
+  sourceGroupId?: string;
+  sourceGroupName?: string;
+}
+
+export interface PersonalBudget {
+  currency: CurrencyCode;
+  monthlyAmount: number;    // 0 = sin presupuesto configurado
+  includeOwedToMe: boolean; // si lo que me deben cuenta como parte del presupuesto
+}
+
 // ── Balance ──────────────────────────────────────────────────────────────────
 export interface Balance {
   userId: string;

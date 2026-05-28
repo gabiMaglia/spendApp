@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next';
 
 export type SyncState = 'synced' | 'syncing' | 'pending' | 'offline';
 
-const SYNC_META: Record<SyncState, { key: string; iconName: keyof typeof Ionicons.glyphMap; getColor: (c: typeof Colors.light) => string }> = {
+const SYNC_META: Record<SyncState, { key: string; iconName: keyof typeof Ionicons.glyphMap; getColor: (c: typeof Colors.light | typeof Colors.dark) => string }> = {
   synced:  { key: 'sync.synced',  iconName: 'checkmark-outline',  getColor: c => c.semantic.positive },
   syncing: { key: 'sync.syncing', iconName: 'sync-outline',       getColor: c => c.brand.primary },
   pending: { key: 'sync.pending', iconName: 'ellipse',            getColor: c => c.semantic.warning },

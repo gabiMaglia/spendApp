@@ -1,20 +1,21 @@
-import React from 'react';
-import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { router } from 'expo-router';
-import { useTranslation } from 'react-i18next';
-import { Ionicons } from '@expo/vector-icons';
-
-import { Colors } from '@/src/constants/colors';
-import { Radius, Spacing } from '@/src/constants/spacing';
-import { Typography } from '@/src/constants/typography';
-import { formatMoney } from '@/src/constants/currencies';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useAuthStore } from '@/src/store/authStore';
-import { useSyncStore } from '@/src/store/syncStore';
-import { useGlobalPersonBalances } from '@/src/store/selectors';
-import { hueForUser } from '@/src/utils/hueForUser';
 import { Avatar } from '@/src/components/Avatar';
 import { SyncStatusBadge } from '@/src/components/SyncStatusBadge';
+import { Colors } from '@/src/constants/colors';
+import { formatMoney } from '@/src/constants/currencies';
+import { Radius, Spacing } from '@/src/constants/spacing';
+import { Typography } from '@/src/constants/typography';
+import { useAuthStore } from '@/src/store/authStore';
+import { useGlobalPersonBalances } from '@/src/store/selectors';
+import { useSyncStore } from '@/src/store/syncStore';
+import { usePersonalStore, toMonthKey } from '@/src/store/personalStore';
+import { hueForUser } from '@/src/utils/hueForUser';
+import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
+import React from 'react';
+import { hapticLight } from '@/src/utils/haptics';
+import { useTranslation } from 'react-i18next';
+import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 export default function AccountScreen() {
   const { t } = useTranslation();
@@ -25,6 +26,27 @@ export default function AccountScreen() {
 
   const personBalances = useGlobalPersonBalances(currentUser?.id ?? '');
   const firstName = currentUser?.name?.split(' ')[0] ?? 'vos';
+
+  // Personal budget summary for this month
+  const { entries: personalEntries, budget } = usePersonalStore();
+  const cur = budget.currency;
+  const thisMonth = toMonthKey(Date.now());
+  const monthEntries = personalEntries.filter(
+    e => !e.isDeleted && e.currency === cur && toMonthKey(e.date) === thisMonth,
+  );
+  const totalSpent = monthEntries
+    .filter(e => e.kind !== 'income')
+    .reduce((s, e) => s + e.amount, 0);
+  const totalIncome = monthEntries
+    .filter(e => e.kind === 'income')
+    .reduce((s, e) => s + e.amount, 0);
+  const owedToMeInCur = personBalances
+    .filter(b => b.currency === cur && b.amount > 0)
+    .reduce((s, b) => s + b.amount, 0);
+  const effectiveBudget =
+    budget.monthlyAmount + totalIncome + (budget.includeOwedToMe ? owedToMeInCur : 0);
+  const budgetPct = effectiveBudget > 0 ? Math.min(totalSpent / effectiveBudget, 1) : 0;
+  const hasBudget = budget.monthlyAmount > 0;
 
   const owedToYou = personBalances
     .filter(p => p.currency === 'ARS' && p.amount > 0)
@@ -60,34 +82,100 @@ export default function AccountScreen() {
           </Text>
         </View>
 
-        {/* Balance hero */}
-        <View style={[styles.heroCard, { backgroundColor: c.surface, borderColor: c.borderHair }]}>
-          <View style={styles.heroRow}>
-            <View style={styles.heroCol}>
-              <Text style={[Typography.caption, { color: c.textTertiary, textTransform: 'uppercase' }]}>
-                {t('dashboard.owed_to_you')}
-              </Text>
-              <Text style={[Typography.amountL, { color: c.semantic.positive, marginTop: 4 }]}>
-                {formatMoney(owedToYou, 'ARS')}
+        {/* Personal budget card */}
+        <Pressable
+          onPress={() => { hapticLight(); router.push('/(tabs)/personal' as any); }}
+          style={[styles.card, { backgroundColor: c.surface, borderColor: c.borderHair }]}
+        >
+          <View style={styles.cardHeader}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Ionicons name="analytics-outline" size={14} color={c.brand.primary} />
+              <Text style={[Typography.caption, { color: c.textTertiary, textTransform: 'uppercase', letterSpacing: 0.4 }]}>
+                Personal · {new Date().toLocaleString('es-AR', { month: 'long' })}
               </Text>
             </View>
-            <View style={[styles.heroDivider, { backgroundColor: c.borderHair }]} />
-            <View style={styles.heroCol}>
-              <Text style={[Typography.caption, { color: c.textTertiary, textTransform: 'uppercase' }]}>
-                {t('dashboard.you_owe')}
+            <Ionicons name="chevron-forward" size={14} color={c.textTertiary} />
+          </View>
+
+          <View style={styles.statRow}>
+            <View style={styles.stat}>
+              <Text style={[Typography.caption, { color: c.textTertiary }]}>Saldo a favor</Text>
+              <Text style={[Typography.amountM, { color: c.semantic.positive }]}>
+                {formatMoney(owedToMeInCur, cur)}
               </Text>
-              <Text style={[Typography.amountL, { color: c.semantic.negative, marginTop: 4 }]}>
-                {formatMoney(youOwe, 'ARS')}
+            </View>
+            <View style={[styles.statDivider, { backgroundColor: c.borderHair }]} />
+            <View style={styles.stat}>
+              <Text style={[Typography.caption, { color: c.textTertiary }]}>Gastado</Text>
+              <Text style={[Typography.amountM, { color: c.text }]}>
+                {formatMoney(totalSpent, cur)}
+              </Text>
+            </View>
+            {hasBudget && (
+              <>
+                <View style={[styles.statDivider, { backgroundColor: c.borderHair }]} />
+                <View style={styles.stat}>
+                  <Text style={[Typography.caption, { color: c.textTertiary }]}>Disponible</Text>
+                  <Text style={[Typography.amountM, {
+                    color: effectiveBudget - totalSpent >= 0 ? c.semantic.positive : c.semantic.negative,
+                  }]}>
+                    {formatMoney(Math.max(effectiveBudget - totalSpent, 0), cur)}
+                  </Text>
+                </View>
+              </>
+            )}
+          </View>
+
+          {hasBudget ? (
+            <View style={[styles.barTrack, { backgroundColor: c.surfaceSunken }]}>
+              <View style={[styles.barFill, {
+                width: `${Math.round(budgetPct * 100)}%` as any,
+                backgroundColor: budgetPct >= 1 ? c.semantic.negative
+                  : budgetPct >= 0.8 ? c.semantic.warning
+                  : c.semantic.positive,
+              }]} />
+            </View>
+          ) : (
+            <Text style={[Typography.caption, { color: c.brand.primary }]}>
+              Configurar presupuesto →
+            </Text>
+          )}
+        </Pressable>
+
+        {/* Grupos balance card */}
+        <View style={[styles.card, { backgroundColor: c.surface, borderColor: c.borderHair }]}>
+          <View style={styles.cardHeader}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Ionicons name="wallet-outline" size={14} color={c.brand.primary} />
+              <Text style={[Typography.caption, { color: c.textTertiary, textTransform: 'uppercase', letterSpacing: 0.4 }]}>
+                Grupos · Balance
               </Text>
             </View>
           </View>
-          <View style={[styles.netRow, { borderTopColor: c.borderHair }]}>
-            <Text style={[Typography.bodyS, { color: c.textTertiary }]}>Balance neto</Text>
-            <Text style={[Typography.amountM, {
-              color: net >= 0 ? c.semantic.positive : c.semantic.negative,
-            }]}>
-              {net >= 0 ? '+' : ''}{formatMoney(net, 'ARS')}
-            </Text>
+
+          <View style={styles.statRow}>
+            <View style={styles.stat}>
+              <Text style={[Typography.caption, { color: c.textTertiary }]}>{t('dashboard.owed_to_you')}</Text>
+              <Text style={[Typography.amountM, { color: c.semantic.positive }]}>
+                {formatMoney(owedToYou, 'ARS')}
+              </Text>
+            </View>
+            <View style={[styles.statDivider, { backgroundColor: c.borderHair }]} />
+            <View style={styles.stat}>
+              <Text style={[Typography.caption, { color: c.textTertiary }]}>{t('dashboard.you_owe')}</Text>
+              <Text style={[Typography.amountM, { color: c.semantic.negative }]}>
+                {formatMoney(youOwe, 'ARS')}
+              </Text>
+            </View>
+            <View style={[styles.statDivider, { backgroundColor: c.borderHair }]} />
+            <View style={styles.stat}>
+              <Text style={[Typography.caption, { color: c.textTertiary }]}>Neto</Text>
+              <Text style={[Typography.amountM, {
+                color: net >= 0 ? c.semantic.positive : c.semantic.negative,
+              }]}>
+                {net >= 0 ? '+' : ''}{formatMoney(net, 'ARS')}
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -116,7 +204,7 @@ export default function AccountScreen() {
 
       {/* FAB */}
       <Pressable
-        onPress={() => router.push('/expense/new')}
+        onPress={() => { hapticLight(); router.push('/expense/new'); }}
         style={[styles.fab, { backgroundColor: c.brand.primary }]}
       >
         <Ionicons name="add" size={24} color="#fff" />
@@ -140,8 +228,8 @@ function QuickAction({
   const c = Colors[scheme];
   return (
     <Pressable
-      onPress={onPress}
-      style={[styles.quickCard, { backgroundColor: c.surface, borderColor: c.borderHair }]}
+      onPress={() => { hapticLight(); onPress(); }}
+      style={({ pressed }) => [styles.quickCard, { backgroundColor: c.surface, borderColor: c.borderHair, opacity: pressed ? 0.8 : 1 }]}
     >
       <View style={[styles.quickIcon, { backgroundColor: iconBg }]}>
         <Ionicons name={iconName} size={20} color={iconColor} />
@@ -166,18 +254,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.screenPad, paddingBottom: Spacing[3],
   },
   greeting:  { paddingHorizontal: Spacing.screenPad, marginBottom: Spacing[5], gap: 2 },
-  heroCard:  {
+  card:        {
     marginHorizontal: Spacing.screenPad, marginBottom: Spacing[4],
-    borderRadius: Radius.xl, borderWidth: 1, overflow: 'hidden',
+    borderRadius: Radius.xl, borderWidth: 1,
+    padding: Spacing[4], gap: 12,
   },
-  heroRow:   { flexDirection: 'row', padding: Spacing[5] },
-  heroCol:   { flex: 1, alignItems: 'center' },
-  heroDivider: { width: 1, alignSelf: 'stretch', marginVertical: 4 },
-  netRow:    {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: Spacing[5], paddingVertical: Spacing[3],
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
+  cardHeader:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  statRow:     { flexDirection: 'row', alignItems: 'center' },
+  stat:        { flex: 1, alignItems: 'center', gap: 3 },
+  statDivider: { width: StyleSheet.hairlineWidth, height: 36, marginHorizontal: 4 },
   quickRow:  {
     flexDirection: 'row', gap: 10,
     paddingHorizontal: Spacing.screenPad, marginBottom: Spacing[4],
@@ -190,13 +275,13 @@ const styles = StyleSheet.create({
     width: 40, height: 40, borderRadius: Radius.md,
     alignItems: 'center', justifyContent: 'center',
   },
-  fab:       {
+  fab:          {
     position: 'absolute', right: 20, bottom: 90,
     height: 56, paddingHorizontal: 20,
     borderRadius: Radius.full,
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    shadowColor: '#0A6E8F', shadowOpacity: 0.35,
-    shadowRadius: 12, shadowOffset: { width: 0, height: 8 },
-    elevation: 8,
+    boxShadow: '0 8px 24px rgba(10,110,143,0.35)',
   },
+  barTrack:    { height: 8, borderRadius: 4, overflow: 'hidden' },
+  barFill:     { height: 8, borderRadius: 4 },
 });
