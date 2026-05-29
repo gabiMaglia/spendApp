@@ -92,7 +92,7 @@ export interface Payment extends SyncMeta {
 
 // ── Gastos personales & presupuesto ──────────────────────────────────────────
 
-export type PersonalEntryKind = 'expense' | 'income' | 'group_replicated';
+export type PersonalEntryKind = 'expense' | 'income' | 'group_replicated' | 'carryover';
 
 export type PersonalCategory = ExpenseCategory | 'income' | 'salary' | 'freelance';
 
@@ -107,6 +107,7 @@ export interface PersonalEntry extends SyncMeta {
   sourceGroupExpenseId?: string; // solo cuando kind === 'group_replicated'
   sourceGroupId?: string;
   sourceGroupName?: string;
+  isPositiveCarryover?: boolean; // solo cuando kind === 'carryover'
 }
 
 export interface PersonalBudget {

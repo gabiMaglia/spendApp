@@ -3,8 +3,9 @@ import { createStorage } from '@/src/utils/createStorage';
 import type { PersonalEntry, PersonalBudget } from '@/src/types/models';
 
 const storage = createStorage('personal');
-const ENTRIES_KEY = 'entries_v1';
-const BUDGET_KEY  = 'budget_v1';
+const ENTRIES_KEY   = 'entries_v1';
+const BUDGET_KEY    = 'budget_v1';
+const LAST_SEEN_KEY = 'lastSeen_v1';
 
 const DEFAULT_BUDGET: PersonalBudget = {
   currency:        'ARS',
@@ -13,12 +14,14 @@ const DEFAULT_BUDGET: PersonalBudget = {
 };
 
 interface PersonalStoreState {
-  entries: PersonalEntry[];
-  budget:  PersonalBudget;
+  entries:        PersonalEntry[];
+  budget:         PersonalBudget;
+  lastSeenMonth:  string;
   addEntry:               (entry: PersonalEntry) => void;
   removeEntry:            (id: string) => void;
   updateReplicatedEntry:  (sourceGroupExpenseId: string, patch: Partial<PersonalEntry>) => void;
   setBudget:              (budget: PersonalBudget) => void;
+  setLastSeenMonth:       (month: string) => void;
   hydrate:                () => void;
 }
 
@@ -27,6 +30,9 @@ function persistEntries(entries: PersonalEntry[]) {
 }
 function persistBudget(budget: PersonalBudget) {
   storage.set(BUDGET_KEY, JSON.stringify(budget));
+}
+function persistLastSeen(month: string) {
+  storage.set(LAST_SEEN_KEY, month);
 }
 
 /** "YYYY-MM" del timestamp dado, en hora local. */
@@ -41,8 +47,9 @@ export function currentMonthKey(): string {
 }
 
 export const usePersonalStore = create<PersonalStoreState>((set, get) => ({
-  entries: [],
-  budget:  DEFAULT_BUDGET,
+  entries:       [],
+  budget:        DEFAULT_BUDGET,
+  lastSeenMonth: currentMonthKey(),
 
   addEntry: (entry) => {
     const entries = [...get().entries, entry];
@@ -73,11 +80,18 @@ export const usePersonalStore = create<PersonalStoreState>((set, get) => ({
     set({ budget });
   },
 
+  setLastSeenMonth: (month) => {
+    persistLastSeen(month);
+    set({ lastSeenMonth: month });
+  },
+
   hydrate: () => {
-    const rawEntries = storage.getString(ENTRIES_KEY);
-    const rawBudget  = storage.getString(BUDGET_KEY);
-    const entries = rawEntries ? (JSON.parse(rawEntries) as PersonalEntry[]) : [];
-    const budget  = rawBudget  ? (JSON.parse(rawBudget)  as PersonalBudget)  : DEFAULT_BUDGET;
-    set({ entries, budget });
+    const rawEntries  = storage.getString(ENTRIES_KEY);
+    const rawBudget   = storage.getString(BUDGET_KEY);
+    const rawLastSeen = storage.getString(LAST_SEEN_KEY);
+    const entries      = rawEntries  ? (JSON.parse(rawEntries)  as PersonalEntry[]) : [];
+    const budget       = rawBudget   ? (JSON.parse(rawBudget)   as PersonalBudget)  : DEFAULT_BUDGET;
+    const lastSeenMonth = rawLastSeen ?? currentMonthKey();
+    set({ entries, budget, lastSeenMonth });
   },
 }));
