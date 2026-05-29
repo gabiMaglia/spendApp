@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
@@ -13,9 +13,10 @@ import { formatMoney } from '@/src/constants/currencies';
 import type { CurrencyCode } from '@/src/constants/currencies';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuthStore } from '@/src/store/authStore';
-import { usePersonalStore, toMonthKey } from '@/src/store/personalStore';
+import { usePersonalStore, toMonthKey, currentMonthKey } from '@/src/store/personalStore';
 import { useGlobalPersonBalances } from '@/src/store/selectors';
 import { hapticLight, hapticSelection, hapticWarning } from '@/src/utils/haptics';
+import { v4 as uuidv4 } from 'uuid';
 import { BottomSheet } from '@/src/components/Sheet';
 import type { PersonalBudget, PersonalEntry } from '@/src/types/models';
 
@@ -45,6 +46,7 @@ const ENTRY_KIND_META = {
   expense:         { icon: 'trending-down-outline' as const, label: 'Gasto personal' },
   income:          { icon: 'trending-up-outline'   as const, label: 'Ingreso' },
   group_replicated:{ icon: 'people-outline'        as const, label: 'Del grupo' },
+  carryover:       { icon: 'refresh-outline'       as const, label: 'Saldo anterior' },
 };
 
 export default function PersonalScreen() {
@@ -52,7 +54,7 @@ export default function PersonalScreen() {
   const c = Colors[scheme];
 
   const { currentUser } = useAuthStore();
-  const { entries, budget, removeEntry, setBudget } = usePersonalStore();
+  const { entries, budget, removeEntry, setBudget, addEntry, lastSeenMonth, setLastSeenMonth } = usePersonalStore();
   const personBalances = useGlobalPersonBalances(currentUser?.id ?? '');
 
   const today = toMonthKey(Date.now());
@@ -64,30 +66,94 @@ export default function PersonalScreen() {
 
   const cur = budget.currency as CurrencyCode;
 
-  // Entries for this month, not deleted, in budget currency
-  const monthEntries = useMemo(
-    () => entries.filter(e => !e.isDeleted && e.currency === cur && toMonthKey(e.date) === activeMonth),
-    [entries, cur, activeMonth],
-  );
-
-  const totalIncome   = monthEntries.filter(e => e.kind === 'income').reduce((s, e) => s + e.amount, 0);
-  const totalExpense  = monthEntries.filter(e => e.kind === 'expense').reduce((s, e) => s + e.amount, 0);
-  const totalGroup    = monthEntries.filter(e => e.kind === 'group_replicated').reduce((s, e) => s + e.amount, 0);
-  const totalSpent    = totalExpense + totalGroup;
-
-  // Money owed to me across all groups (positive balances in budget currency)
+  // Money owed to me and by me across all groups in budget currency
   const owedToMe = useMemo(
     () => personBalances
       .filter(b => b.currency === cur && b.amount > 0)
       .reduce((s, b) => s + b.amount, 0),
     [personBalances, cur],
   );
+  const youOwe = useMemo(
+    () => Math.abs(
+      personBalances
+        .filter(b => b.currency === cur && b.amount < 0)
+        .reduce((s, b) => s + b.amount, 0),
+    ),
+    [personBalances, cur],
+  );
 
-  const baseBudget     = budget.monthlyAmount;
-  const effectiveBudget = baseBudget + totalIncome + (budget.includeOwedToMe ? owedToMe : 0);
-  const remaining      = effectiveBudget - totalSpent;
-  const pct            = effectiveBudget > 0 ? Math.min(totalSpent / effectiveBudget, 1) : 0;
-  const hasBudget      = baseBudget > 0;
+  // Keep an up-to-date ref for owedToMe so the carryover effect can read it without re-triggering
+  const owedToMeRef = useRef(owedToMe);
+  useEffect(() => { owedToMeRef.current = owedToMe; }, [owedToMe]);
+
+  // Month-rollover: when a new month is detected, create a carryover entry from the prev month's balance
+  useEffect(() => {
+    const thisMonth = currentMonthKey();
+    if (!lastSeenMonth || lastSeenMonth >= thisMonth) return;
+
+    const { entries: allEntries, budget: curBudget, addEntry: add, setLastSeenMonth: setSeen } =
+      usePersonalStore.getState();
+    const c = curBudget.currency;
+
+    // Guard: don't create duplicate carryovers
+    const alreadyCarried = allEntries.some(
+      e => !e.isDeleted && e.kind === 'carryover' && toMonthKey(e.date) === thisMonth,
+    );
+    if (alreadyCarried) { setSeen(thisMonth); return; }
+
+    const prevEntries = allEntries.filter(
+      e => !e.isDeleted && e.currency === c && toMonthKey(e.date) === lastSeenMonth,
+    );
+
+    const prevIncome      = prevEntries.filter(e => e.kind === 'income').reduce((s, e) => s + e.amount, 0);
+    const prevExpense     = prevEntries.filter(e => e.kind === 'expense').reduce((s, e) => s + e.amount, 0);
+    const prevGroup       = prevEntries.filter(e => e.kind === 'group_replicated').reduce((s, e) => s + e.amount, 0);
+    const prevPosCarry    = prevEntries.filter(e => e.kind === 'carryover' && e.isPositiveCarryover).reduce((s, e) => s + e.amount, 0);
+    const prevNegCarry    = prevEntries.filter(e => e.kind === 'carryover' && !e.isPositiveCarryover).reduce((s, e) => s + e.amount, 0);
+
+    const prevEffective = curBudget.monthlyAmount + prevIncome + prevPosCarry +
+      (curBudget.includeOwedToMe ? owedToMeRef.current : 0);
+    const prevSpent     = prevExpense + prevGroup + prevNegCarry;
+    const prevRemaining = prevEffective - prevSpent;
+
+    if (Math.abs(prevRemaining) >= 0.01) {
+      const firstOfMonth = new Date(`${thisMonth}-01T12:00:00`).getTime();
+      add({
+        id:                 uuidv4(),
+        kind:               'carryover',
+        isPositiveCarryover: prevRemaining > 0,
+        description:        `Saldo de ${monthLabel(lastSeenMonth)}`,
+        amount:             Math.abs(prevRemaining),
+        currency:           c,
+        category:           'other',
+        date:               firstOfMonth,
+        createdAt:          Date.now(),
+        updatedAt:          Date.now(),
+        isDeleted:          false,
+      });
+    }
+
+    setSeen(thisMonth);
+  }, [lastSeenMonth]); // Only runs when lastSeenMonth changes (once per month)
+
+  // Entries for this month, not deleted, in budget currency
+  const monthEntries = useMemo(
+    () => entries.filter(e => !e.isDeleted && e.currency === cur && toMonthKey(e.date) === activeMonth),
+    [entries, cur, activeMonth],
+  );
+
+  const totalIncome      = monthEntries.filter(e => e.kind === 'income').reduce((s, e) => s + e.amount, 0);
+  const totalExpense     = monthEntries.filter(e => e.kind === 'expense').reduce((s, e) => s + e.amount, 0);
+  const totalGroup       = monthEntries.filter(e => e.kind === 'group_replicated').reduce((s, e) => s + e.amount, 0);
+  const positiveCarryover = monthEntries.filter(e => e.kind === 'carryover' && e.isPositiveCarryover).reduce((s, e) => s + e.amount, 0);
+  const negativeCarryover = monthEntries.filter(e => e.kind === 'carryover' && !e.isPositiveCarryover).reduce((s, e) => s + e.amount, 0);
+  const totalSpent       = totalExpense + totalGroup + negativeCarryover;
+
+  const baseBudget      = budget.monthlyAmount;
+  const effectiveBudget = baseBudget + totalIncome + positiveCarryover + (budget.includeOwedToMe ? owedToMe : 0);
+  const remaining       = effectiveBudget - totalSpent;
+  const pct             = effectiveBudget > 0 ? Math.min(totalSpent / effectiveBudget, 1) : 0;
+  const hasBudget       = baseBudget > 0;
 
   const barColor = pct >= 1 ? c.semantic.negative
     : pct >= 0.8 ? c.semantic.warning
@@ -174,6 +240,14 @@ export default function PersonalScreen() {
               {Math.round(pct * 100)}% de {formatMoney(effectiveBudget, cur)}
               {budget.includeOwedToMe && owedToMe > 0 ? ` (incluye ${formatMoney(owedToMe, cur)} que te deben)` : ''}
             </Text>
+            {youOwe > 0 && (
+              <View style={[styles.debtBadge, { backgroundColor: c.semantic.negativeSoft }]}>
+                <Ionicons name="warning-outline" size={12} color={c.semantic.negative} />
+                <Text style={[Typography.caption, { color: c.semantic.negative }]}>
+                  Debés {formatMoney(youOwe, cur)} en grupos (no incluido arriba)
+                </Text>
+              </View>
+            )}
           </View>
         ) : (
           <Pressable
@@ -192,9 +266,12 @@ export default function PersonalScreen() {
 
         {/* Summary chips */}
         <View style={styles.summaryRow}>
-          <SummaryChip label="Ingresos"   amount={totalIncome}  currency={cur} positive scheme={scheme} />
-          <SummaryChip label="Gastos prop" amount={totalExpense} currency={cur} scheme={scheme} />
-          <SummaryChip label="Del grupo"  amount={totalGroup}   currency={cur} scheme={scheme} />
+          <SummaryChip label="Ingresos"    amount={totalIncome}  currency={cur} positive scheme={scheme} />
+          <SummaryChip label="Personal"    amount={totalExpense} currency={cur} scheme={scheme} />
+          <SummaryChip label="Grupos"      amount={totalGroup}   currency={cur} scheme={scheme} />
+          {youOwe > 0 && (
+            <SummaryChip label="Debo" amount={youOwe} currency={cur} negative scheme={scheme} />
+          )}
         </View>
 
         {/* Entries list */}
@@ -298,20 +375,18 @@ export default function PersonalScreen() {
 }
 
 function SummaryChip({
-  label, amount, currency, positive, scheme,
+  label, amount, currency, positive, negative, scheme,
 }: {
   label: string; amount: number; currency: CurrencyCode;
-  positive?: boolean; scheme: 'light' | 'dark';
+  positive?: boolean; negative?: boolean; scheme: 'light' | 'dark';
 }) {
   const c = Colors[scheme];
+  const textColor = positive ? c.semantic.positive : negative ? c.semantic.negative : c.text;
   return (
     <View style={[summaryStyles.chip, { backgroundColor: c.surface, borderColor: c.borderHair }]}>
       <Text style={[Typography.caption, { color: c.textTertiary }]}>{label}</Text>
-      <Text style={[Typography.bodyS, {
-        color: positive ? c.semantic.positive : c.text,
-        fontWeight: '700',
-      }]}>
-        {positive ? '+' : ''}{formatMoney(amount, currency)}
+      <Text style={[Typography.bodyS, { color: textColor, fontWeight: '700' }]}>
+        {positive ? '+' : negative ? '-' : ''}{formatMoney(amount, currency)}
       </Text>
     </View>
   );
@@ -325,24 +400,26 @@ function EntryRow({ entry, onRemove }: { entry: PersonalEntry; onRemove: () => v
   const scheme = useColorScheme() ?? 'light';
   const c = Colors[scheme];
   const meta = ENTRY_KIND_META[entry.kind];
-  const isIncome = entry.kind === 'income';
-  const isReadOnly = entry.kind === 'group_replicated';
-  const dateLabel = new Date(entry.date).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' });
+  const isCarryover = entry.kind === 'carryover';
+  const isPositive  = entry.kind === 'income' || (isCarryover && entry.isPositiveCarryover === true);
+  const isReadOnly  = entry.kind === 'group_replicated' || isCarryover;
+  const dateLabel   = new Date(entry.date).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' });
+
+  const iconBg    = isPositive ? c.semantic.positiveSoft
+    : isReadOnly ? c.surfaceSunken : c.semantic.negativeSoft;
+  const iconColor = isPositive ? c.semantic.positive
+    : isReadOnly ? c.textTertiary : c.semantic.negative;
+  const amountColor = isPositive ? c.semantic.positive
+    : isCarryover ? c.semantic.negative : c.text;
 
   return (
     <View style={[
       entryStyles.row,
       { backgroundColor: c.surface, borderColor: c.borderHair },
-      isIncome && { borderColor: c.semantic.positive + '44' },
+      isPositive && { borderColor: c.semantic.positive + '44' },
     ]}>
-      <View style={[entryStyles.iconBox, {
-        backgroundColor: isIncome ? c.semantic.positiveSoft : isReadOnly ? c.surfaceSunken : c.semantic.negativeSoft,
-      }]}>
-        <Ionicons
-          name={meta.icon}
-          size={18}
-          color={isIncome ? c.semantic.positive : isReadOnly ? c.textTertiary : c.semantic.negative}
-        />
+      <View style={[entryStyles.iconBox, { backgroundColor: iconBg }]}>
+        <Ionicons name={meta.icon} size={18} color={iconColor} />
       </View>
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={[Typography.bodyM, { color: c.text, fontWeight: '600' }]} numberOfLines={1}>
@@ -355,10 +432,8 @@ function EntryRow({ entry, onRemove }: { entry: PersonalEntry; onRemove: () => v
         </Text>
       </View>
       <View style={{ alignItems: 'flex-end', gap: 4 }}>
-        <Text style={[Typography.amountS, {
-          color: isIncome ? c.semantic.positive : c.text,
-        }]}>
-          {isIncome ? '+' : '-'}{formatMoney(entry.amount, entry.currency)}
+        <Text style={[Typography.amountS, { color: amountColor }]}>
+          {isPositive ? '+' : '-'}{formatMoney(entry.amount, entry.currency)}
         </Text>
         {!isReadOnly && (
           <Pressable onPress={onRemove} hitSlop={8}>
@@ -401,6 +476,7 @@ const styles = StyleSheet.create({
   meterTop:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   barTrack:    { height: 10, borderRadius: 5, overflow: 'hidden' },
   barFill:     { height: 10, borderRadius: 5 },
+  debtBadge:   { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: Radius.sm, paddingHorizontal: 10, paddingVertical: 6 },
   summaryRow:  { flexDirection: 'row', gap: 8, paddingHorizontal: Spacing.screenPad, marginBottom: Spacing[4] },
   sectionLabel:{ paddingHorizontal: Spacing.screenPad, marginBottom: Spacing[2] },
   emptyBox:    {
