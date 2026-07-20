@@ -42,7 +42,7 @@ describe('parseMoney — casos §3(f) del ADR-002', () => {
     expect(parseMoney('150000,23', 'ARS', 'es')).toBe(15000023);
   });
 
-  it('es-AR 150,239 redondea a 15024 (decimales libres al tipear)', () => {
+  it('es-AR 150,239 redondea a 15024 (robustez de parseMoney como backstop de paste/programático — el input acotado ya impide tipear un 3er decimal, corrección PO 2026-07-20)', () => {
     expect(parseMoney('150,239', 'ARS', 'es')).toBe(15024);
   });
 
