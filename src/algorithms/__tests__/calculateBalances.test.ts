@@ -1,6 +1,8 @@
 import { calculateBalances } from '../calculateBalances';
 import type { Expense } from '@/src/types/models';
 
+// Montos en menor unidad (ADR-002) — ej. $100,00 ARS → 10000.
+
 function makeExpense(overrides: Partial<Expense> & Pick<Expense, 'paidById' | 'amount' | 'splits'>): Expense {
   return {
     id: 'exp-1',
@@ -31,27 +33,27 @@ describe('calculateBalances', () => {
   it('correctly calculates a simple equal split between 2 people', () => {
     const expense = makeExpense({
       paidById: 'u1',
-      amount: 100,
+      amount: 10000,
       splits: [
-        { userId: 'u1', amount: 50, isPaid: false },
-        { userId: 'u2', amount: 50, isPaid: false },
+        { userId: 'u1', amount: 5000, isPaid: false },
+        { userId: 'u2', amount: 5000, isPaid: false },
       ],
     });
     const result = calculateBalances([expense], ['u1', 'u2']);
     const u1 = result.find(b => b.userId === 'u1')!;
     const u2 = result.find(b => b.userId === 'u2')!;
 
-    expect(u1.amount).toBe(50);   // pagó 100, debe 50 → net +50
-    expect(u2.amount).toBe(-50);  // no pagó, debe 50 → net -50
+    expect(u1.amount).toBe(5000);   // pagó 10000, debe 5000 → net +5000
+    expect(u2.amount).toBe(-5000);  // no pagó, debe 5000 → net -5000
   });
 
   it('ignores expenses with isDeleted=true', () => {
     const expense = makeExpense({
       paidById: 'u1',
-      amount: 100,
+      amount: 10000,
       splits: [
-        { userId: 'u1', amount: 50, isPaid: false },
-        { userId: 'u2', amount: 50, isPaid: false },
+        { userId: 'u1', amount: 5000, isPaid: false },
+        { userId: 'u2', amount: 5000, isPaid: false },
       ],
       isDeleted: true,
     });
@@ -60,48 +62,48 @@ describe('calculateBalances', () => {
   });
 
   it('handles a group of 4 people correctly', () => {
-    // Ana paga $120, divided equally ($30 each)
+    // Ana paga $120,00, dividido en partes iguales ($30,00 c/u)
     const expense = makeExpense({
       id: 'exp-ana',
       paidById: 'ana',
-      amount: 120,
+      amount: 12000,
       splits: [
-        { userId: 'ana',   amount: 30, isPaid: false },
-        { userId: 'bob',   amount: 30, isPaid: false },
-        { userId: 'carla', amount: 30, isPaid: false },
-        { userId: 'diego', amount: 30, isPaid: false },
+        { userId: 'ana',   amount: 3000, isPaid: false },
+        { userId: 'bob',   amount: 3000, isPaid: false },
+        { userId: 'carla', amount: 3000, isPaid: false },
+        { userId: 'diego', amount: 3000, isPaid: false },
       ],
     });
     const result = calculateBalances([expense], ['ana', 'bob', 'carla', 'diego']);
     const get = (id: string) => result.find(b => b.userId === id)!.amount;
 
-    expect(get('ana')).toBe(90);   // pagó 120, debe 30
-    expect(get('bob')).toBe(-30);
-    expect(get('carla')).toBe(-30);
-    expect(get('diego')).toBe(-30);
+    expect(get('ana')).toBe(9000);   // pagó 12000, debe 3000
+    expect(get('bob')).toBe(-3000);
+    expect(get('carla')).toBe(-3000);
+    expect(get('diego')).toBe(-3000);
   });
 
-  it('balances sum to zero', () => {
-    const e1 = makeExpense({ id: 'e1', paidById: 'u1', amount: 90, splits: [
-      { userId: 'u1', amount: 30, isPaid: false },
-      { userId: 'u2', amount: 30, isPaid: false },
-      { userId: 'u3', amount: 30, isPaid: false },
+  it('balances sum to zero exactly (aritmética entera, sin epsilon)', () => {
+    const e1 = makeExpense({ id: 'e1', paidById: 'u1', amount: 9000, splits: [
+      { userId: 'u1', amount: 3000, isPaid: false },
+      { userId: 'u2', amount: 3000, isPaid: false },
+      { userId: 'u3', amount: 3000, isPaid: false },
     ]});
-    const e2 = makeExpense({ id: 'e2', paidById: 'u2', amount: 60, splits: [
-      { userId: 'u1', amount: 20, isPaid: false },
-      { userId: 'u2', amount: 20, isPaid: false },
-      { userId: 'u3', amount: 20, isPaid: false },
+    const e2 = makeExpense({ id: 'e2', paidById: 'u2', amount: 6000, splits: [
+      { userId: 'u1', amount: 2000, isPaid: false },
+      { userId: 'u2', amount: 2000, isPaid: false },
+      { userId: 'u3', amount: 2000, isPaid: false },
     ]});
     const result = calculateBalances([e1, e2], ['u1', 'u2', 'u3']);
     const total = result.reduce((sum, b) => sum + b.amount, 0);
-    expect(Math.abs(total)).toBeLessThan(0.01);
+    expect(total).toBe(0);
   });
 
   it('handles a single member group', () => {
     const expense = makeExpense({
       paidById: 'u1',
-      amount: 50,
-      splits: [{ userId: 'u1', amount: 50, isPaid: false }],
+      amount: 5000,
+      splits: [{ userId: 'u1', amount: 5000, isPaid: false }],
     });
     const result = calculateBalances([expense], ['u1']);
     expect(result[0]!.amount).toBe(0);
