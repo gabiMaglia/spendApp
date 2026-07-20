@@ -12,6 +12,7 @@ import { Typography } from '@/src/constants/typography';
 import { formatMoney } from '@/src/constants/currencies';
 import type { CurrencyCode } from '@/src/constants/currencies';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useAmountInput } from '@/src/hooks/useAmountInput';
 import { useAuthStore } from '@/src/store/authStore';
 import { usePersonalStore, toMonthKey, currentMonthKey } from '@/src/store/personalStore';
 import { useGlobalPersonBalances } from '@/src/store/selectors';
@@ -60,9 +61,14 @@ export default function PersonalScreen() {
   const today = toMonthKey(Date.now());
   const [activeMonth, setActiveMonth] = useState(today);
   const [showBudgetSheet, setShowBudgetSheet] = useState(false);
-  const [budgetInput, setBudgetInput] = useState(String(budget.monthlyAmount || ''));
   const [includeOwedToMe, setIncludeOwedToMe] = useState(budget.includeOwedToMe);
   const [budgetCurrency, setBudgetCurrency] = useState<CurrencyCode>(budget.currency);
+  const {
+    text: budgetInput,
+    minor: budgetAmount,
+    onChangeText: setBudgetInput,
+    onBlur: onBudgetInputBlur,
+  } = useAmountInput(budgetCurrency, budget.monthlyAmount);
 
   const cur = budget.currency as CurrencyCode;
 
@@ -160,8 +166,7 @@ export default function PersonalScreen() {
     : c.semantic.positive;
 
   function handleSaveBudget() {
-    const amount = parseFloat(budgetInput.replace(',', '.')) || 0;
-    setBudget({ currency: budgetCurrency, monthlyAmount: amount, includeOwedToMe });
+    setBudget({ currency: budgetCurrency, monthlyAmount: budgetAmount, includeOwedToMe });
     hapticLight();
     setShowBudgetSheet(false);
   }
@@ -334,6 +339,7 @@ export default function PersonalScreen() {
           <TextInput
             value={budgetInput}
             onChangeText={setBudgetInput}
+            onBlur={onBudgetInputBlur}
             keyboardType="decimal-pad"
             placeholder="0"
             placeholderTextColor={c.textTertiary}
