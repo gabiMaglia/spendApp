@@ -13,6 +13,7 @@ import { Typography } from '@/src/constants/typography';
 import { formatMoney } from '@/src/constants/currencies';
 import type { CurrencyCode } from '@/src/constants/currencies';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useAmountInput } from '@/src/hooks/useAmountInput';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useUserStore } from '@/src/store/userStore';
@@ -48,7 +49,10 @@ export default function SettleNewScreen() {
   } = useLocalSearchParams<{ toId?: string; maxAmount?: string; currency?: string }>();
 
   const isPrefilled  = Boolean(paramToId);
-  const maxAmount    = paramMaxStr ? parseFloat(paramMaxStr) : undefined;
+  // `paramMaxStr` viene de `friends.tsx` como `String(balance)` — ya es el
+  // entero en menor unidad (ADR-002), NO texto locale-formateado: no pasa
+  // por `parseMoney`.
+  const maxAmount    = paramMaxStr ? Math.round(Number(paramMaxStr)) : undefined;
   const paramCur     = (paramCurrency ?? 'ARS') as CurrencyCode;
 
   // Only show groups relevant to the settle: both users must be members
@@ -68,13 +72,23 @@ export default function SettleNewScreen() {
   }, [groups, isPrefilled, paramCur]);
 
   const [groupId,   setGroupId]   = useState(defaultGroup?.id ?? '');
+  // Moneda resuelta temprano — el input de monto (entero, menor unidad,
+  // ADR-002) la necesita para parsear/formatear correctamente.
+  const currencyForAmount: CurrencyCode =
+    groups.find(g => g.id === groupId)?.currency ?? paramCur;
+  const {
+    text: amountStr,
+    minor: amount,
+    onChangeText: setAmountStr,
+    onBlur: onAmountBlur,
+    setMinor: setAmountMinor,
+  } = useAmountInput(currencyForAmount, maxAmount ?? 0);
   const [fromId,    setFromId]    = useState(
     isPrefilled && currentUser ? currentUser.id : (defaultGroup?.memberIds[0] ?? ''),
   );
   const [toId, setToId] = useState(
     isPrefilled && paramToId ? paramToId : (defaultGroup?.memberIds.filter(uid => uid !== fromId)[0] ?? ''),
   );
-  const [amountStr, setAmountStr] = useState(maxAmount ? String(maxAmount) : '');
   const [date,      setDate]      = useState(new Date());
 
   const [showGroup, setShowGroup] = useState(false);
@@ -84,8 +98,7 @@ export default function SettleNewScreen() {
 
   const group    = groups.find(g => g.id === groupId);
   const members  = group?.memberIds ?? [];
-  const currency = group?.currency ?? paramCur;
-  const amount   = parseFloat(amountStr.replace(',', '.')) || 0;
+  const currency = currencyForAmount;
   const toOptions = members.filter(uid => uid !== fromId);
 
   const exceedsMax  = maxAmount !== undefined && amount > maxAmount;
@@ -102,6 +115,9 @@ export default function SettleNewScreen() {
       setFromId(newFrom);
       setToId(newTo);
     }
+    // Re-normaliza el texto del input a las reglas de decimales de la nueva
+    // moneda (p.ej. si el nuevo grupo es CLP/PYG, sin decimales).
+    setAmountMinor(amount);
     setShowGroup(false);
   }
 
@@ -157,6 +173,7 @@ export default function SettleNewScreen() {
               <TextInput
                 value={amountStr}
                 onChangeText={setAmountStr}
+                onBlur={onAmountBlur}
                 keyboardType="decimal-pad"
                 placeholder="0"
                 placeholderTextColor={c.textTertiary}

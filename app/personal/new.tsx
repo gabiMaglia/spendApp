@@ -12,6 +12,7 @@ import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import type { CurrencyCode } from '@/src/constants/currencies';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useAmountInput } from '@/src/hooks/useAmountInput';
 import { useAuthStore } from '@/src/store/authStore';
 import { usePersonalStore, toMonthKey } from '@/src/store/personalStore';
 import { hapticSelection, hapticSuccess } from '@/src/utils/haptics';
@@ -60,13 +61,17 @@ export default function PersonalNewScreen() {
 
   const [tab,         setTab]         = useState<EntryTab>(paramKind === 'income' ? 'income' : 'expense');
   const [description, setDescription] = useState('');
-  const [amountStr,   setAmountStr]   = useState('');
   const [category,    setCategory]    = useState<PersonalCategory>('other');
   const [date,        setDate]        = useState(new Date());
   const [showDate,    setShowDate]    = useState(false);
 
   const currency = budget.currency as CurrencyCode;
-  const amount   = parseFloat(amountStr.replace(',', '.')) || 0;
+  const {
+    text: amountStr,
+    minor: amount,
+    onChangeText: setAmountStr,
+    onBlur: onAmountBlur,
+  } = useAmountInput(currency);
   const canSave  = description.trim().length > 0 && amount > 0;
 
   const categories = tab === 'expense' ? EXPENSE_CATEGORIES : INCOME_CATEGORIES;
@@ -150,6 +155,7 @@ export default function PersonalNewScreen() {
               <TextInput
                 value={amountStr}
                 onChangeText={setAmountStr}
+                onBlur={onAmountBlur}
                 keyboardType="decimal-pad"
                 placeholder="0"
                 placeholderTextColor={c.textTertiary}

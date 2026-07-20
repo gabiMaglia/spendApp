@@ -16,6 +16,7 @@ import { Typography } from '@/src/constants/typography';
 import { formatMoney } from '@/src/constants/currencies';
 import type { CurrencyCode } from '@/src/constants/currencies';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useAmountInput } from '@/src/hooks/useAmountInput';
 import { useAuthStore } from '@/src/store/authStore';
 import { useTierStore } from '@/src/store/tierStore';
 import { useGroupStore } from '@/src/store/groupStore';
@@ -25,6 +26,7 @@ import { usePersonalStore, toMonthKey } from '@/src/store/personalStore';
 import { hueForUser } from '@/src/utils/hueForUser';
 import { Avatar } from '@/src/components/Avatar';
 import { BottomSheet, SheetOption, SheetOptionAvatar } from '@/src/components/Sheet';
+import { buildSplits } from '@/src/algorithms/buildSplits';
 import type { ExpenseCategory } from '@/src/types/models';
 
 const CATEGORIES: { id: ExpenseCategory; icon: React.ComponentProps<typeof Ionicons>['name']; label: string }[] = [
@@ -43,7 +45,9 @@ const CATEGORIES: { id: ExpenseCategory; icon: React.ComponentProps<typeof Ionic
 type SplitMode  = 'equal' | 'percentage';
 type PercentSub = 'same'  | 'custom';
 
-function round2(n: number): number {
+// Redondeo de PORCENTAJES para mostrar en UI (no es un monto — ADR-002 no
+// aplica acá; los splits reales se calculan en enteros vía buildSplits).
+function roundPct(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
@@ -87,8 +91,8 @@ export default function NewExpenseScreen() {
   if (existingExpense && existingExpense.splitMode === 'percentage' && existingExpense.amount > 0) {
     initSplitMode = 'percentage';
     const { amount, splits } = existingExpense;
-    const firstPct = round2((splits[0]?.amount / amount) * 100);
-    const percents = splits.slice(0, -1).map(s => String(round2((s.amount / amount) * 100)));
+    const firstPct = roundPct((splits[0]?.amount / amount) * 100);
+    const percents = splits.slice(0, -1).map(s => String(roundPct((s.amount / amount) * 100)));
     const allEqual = percents.every(p => parseFloat(p) === firstPct);
     initPercentSub    = allEqual ? 'same' : 'custom';
     initSamePercent   = String(firstPct);
@@ -97,10 +101,20 @@ export default function NewExpenseScreen() {
 
   // ── Core inputs ────────────────────────────────────────────────────────────
   const [description,    setDescription]    = useState(existingExpense?.description ?? '');
-  const [amountStr,      setAmountStr]      = useState(existingExpense ? String(existingExpense.amount) : '');
   const [groupId,        setGroupId]        = useState(
     existingExpense?.groupId ?? paramGroupId ?? groups[0]?.id ?? '',
   );
+  // Moneda del grupo activo, resuelta temprano — el input de monto (entero,
+  // menor unidad — ADR-002) la necesita para parsear/formatear correctamente.
+  const currencyForAmount: CurrencyCode =
+    groups.find(g => g.id === groupId)?.currency ?? 'ARS';
+  const {
+    text: amountStr,
+    minor: amount,
+    onChangeText: setAmountStr,
+    onBlur: onAmountBlur,
+    setMinor: setAmountMinor,
+  } = useAmountInput(currencyForAmount, existingExpense?.amount ?? 0);
   const [payerId,        setPayerId]        = useState(
     existingExpense?.paidById ?? currentUser?.id ?? '',
   );
@@ -126,39 +140,44 @@ export default function NewExpenseScreen() {
   // ── Derived ────────────────────────────────────────────────────────────────
   const group    = groups.find(g => g.id === groupId);
   const members  = group?.memberIds ?? [];
-  const currency: CurrencyCode = group?.currency ?? 'ARS';
-  const amount   = parseFloat(amountStr.replace(',', '.')) || 0;
+  const currency: CurrencyCode = currencyForAmount;
   const dailyCount = currentUser ? getDailyCount(currentUser.id) : 0;
   const needsAd    = !isEditMode && currentUser ? requiresRewardedAd(currentUser.id, isPro) : false;
 
   // ── Computed splits ────────────────────────────────────────────────────────
+  // Todos los montos de `splits` son ENTEROS en menor unidad (ADR-002),
+  // calculados vía `buildSplits` — única fuente de verdad del reparto, para
+  // que Σ splits === total EXACTO y sea reproducible entre dispositivos.
   const splits = useMemo(() => {
     if (members.length === 0) return [];
 
     if (splitMode === 'equal') {
-      const each     = round2(amount / members.length);
-      const sumFirst = each * (members.length - 1);
-      return members.map((userId, i) => ({
-        userId,
-        amount:  i === members.length - 1 ? round2(amount - sumFirst) : each,
-        percent: round2(100 / members.length),
-        isLast:  i === members.length - 1,
+      const built = buildSplits(amount, members, 'equal');
+      const evenPercent = roundPct(100 / members.length);
+      return built.map((s, i) => ({
+        ...s,
+        percent: evenPercent,
+        isLast: i === built.length - 1,
       }));
     }
 
-    // percentage mode
+    // percentage mode — el usuario tipea el % de todos menos el último, que
+    // recibe el resto (100 - Σ). Los montos de los "no-últimos" se redondean
+    // desde su %; el último se calcula con buildSplits('custom') para que
+    // cierre EXACTO contra el total (nunca deriva por acumulación de redondeo).
     const firstPercents = members.slice(0, -1).map((_, i) =>
       percentSub === 'same'
         ? parseFloat(samePercent.replace(',', '.')) || 0
         : parseFloat(customPercents[i]?.replace(',', '.') ?? '') || 0,
     );
     const sumFirst    = firstPercents.reduce((a, b) => a + b, 0);
-    const lastPercent = round2(100 - sumFirst);
+    const lastPercent = roundPct(100 - sumFirst);
+    const firstAmounts = firstPercents.map(pct => Math.round(amount * pct / 100));
 
-    return members.map((userId, i) => {
-      const isLast = i === members.length - 1;
-      const pct    = isLast ? lastPercent : (firstPercents[i] ?? 0);
-      return { userId, amount: round2(amount * pct / 100), percent: pct, isLast };
+    const built = buildSplits(amount, members, 'custom', firstAmounts);
+    return built.map((s, i) => {
+      const isLast = i === built.length - 1;
+      return { ...s, percent: isLast ? lastPercent : (firstPercents[i] ?? 0), isLast };
     });
   }, [amount, members, splitMode, percentSub, samePercent, customPercents]);
 
@@ -196,6 +215,9 @@ export default function NewExpenseScreen() {
         ? currentUser.id
         : (newMembers[0] ?? ''),
     );
+    // Re-normaliza el texto del input a las reglas de decimales de la nueva
+    // moneda (p.ej. si el nuevo grupo es CLP/PYG, sin decimales).
+    setAmountMinor(amount);
     setShowGroup(false);
   }
 
@@ -410,6 +432,7 @@ export default function NewExpenseScreen() {
               <TextInput
                 value={amountStr}
                 onChangeText={setAmountStr}
+                onBlur={onAmountBlur}
                 keyboardType="decimal-pad"
                 placeholder="0"
                 placeholderTextColor={c.textTertiary}
@@ -530,7 +553,7 @@ export default function NewExpenseScreen() {
                     {showRest ? (
                       <View style={{ alignItems: 'flex-end' }}>
                         <Text style={[Typography.caption, { color: c.brand.primaryOnSoft }]}>
-                          {lastPercent < 0 ? '⚠ excedido' : `${round2(lastPercent)}% · resto`}
+                          {lastPercent < 0 ? '⚠ excedido' : `${roundPct(lastPercent)}% · resto`}
                         </Text>
                         <Text style={[Typography.amountS, {
                           color: lastPercent >= 0 ? c.brand.primaryOnSoft : c.semantic.negative,
@@ -542,7 +565,7 @@ export default function NewExpenseScreen() {
                       <View style={{ alignItems: 'flex-end' }}>
                         {splitMode === 'percentage' && percentSub === 'same' && (
                           <Text style={[Typography.caption, { color: c.textTertiary }]}>
-                            {round2(parseFloat(samePercent) || 0)}%
+                            {roundPct(parseFloat(samePercent) || 0)}%
                           </Text>
                         )}
                         <Text style={[Typography.amountS, { color: c.text }]}>
