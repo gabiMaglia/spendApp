@@ -35,6 +35,16 @@ export function minorFactor(code: CurrencyCode): number {
   return 10 ** getCurrency(code).decimals;
 }
 
+/**
+ * Conversión ONE-SHOT de un monto FLOAT ya existente (unidad real, p.ej. datos
+ * guardados en MMKV antes de ADR-002) a entero en menor unidad. Distinto de
+ * `parseMoney`: no interpreta texto tipeado por el usuario, solo escala un
+ * `number` ya numérico. Usado por la migración de datos (ADR-002 §6).
+ */
+export function toMinorUnits(amount: number, code: CurrencyCode): number {
+  return Math.round(amount * minorFactor(code));
+}
+
 // Formatea un monto (ENTERO en menor unidad) con Intl.NumberFormat — SIEMPRE
 // usar esto, nunca .toFixed() ni división/multiplicación manual. Usa el `locale`
 // de la MONEDA (no el idioma de la app) — es de salida, no de entrada (F-16b.1).
