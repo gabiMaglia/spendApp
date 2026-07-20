@@ -14,6 +14,7 @@ import { useExpenseStore } from '@/src/store/expenseStore';
 import { usePaymentStore } from '@/src/store/paymentStore';
 import { useUserStore } from '@/src/store/userStore';
 import { usePersonalStore } from '@/src/store/personalStore';
+import { useThemeStore } from '@/src/store/themeStore';
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -29,6 +30,7 @@ function AuthGuard() {
   const hydrateUsers    = useUserStore(s => s.hydrate);
   const addOrUpdateUser = useUserStore(s => s.addOrUpdateUser);
   const hydratePersonal = usePersonalStore(s => s.hydrate);
+  const hydrateTheme    = useThemeStore(s => s.hydrate);
 
   useEffect(() => {
     hydrate();
@@ -37,6 +39,7 @@ function AuthGuard() {
     hydratePayments();
     hydrateUsers();
     hydratePersonal();
+    hydrateTheme();
   }, []);
 
   useEffect(() => {
