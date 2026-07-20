@@ -1,9 +1,12 @@
 import { create } from 'zustand';
 import { createStorage } from '@/src/utils/createStorage';
+import { migratePaymentAmounts } from './moneyMigration';
 import type { Payment } from '@/src/types/models';
 
 const storage = createStorage('payments');
 const KEY = 'data_v1';
+// Guard de idempotencia de la conversión float→entero de montos (ADR-002 §6).
+const MONEY_MIGRATION_KEY = 'money_int_v1_done';
 
 interface PaymentStoreState {
   payments: Payment[];
@@ -58,7 +61,15 @@ export const usePaymentStore = create<PaymentStoreState>((set, get) => ({
 
   hydrate: () => {
     const raw = storage.getString(KEY);
-    const payments = raw ? (JSON.parse(raw) as Payment[]) : [];
+    let payments = raw ? (JSON.parse(raw) as Payment[]) : [];
+
+    // Conversión one-shot de datos existentes (float → entero, ADR-002 §6).
+    if (!storage.getBoolean(MONEY_MIGRATION_KEY)) {
+      payments = migratePaymentAmounts(payments);
+      persist(payments);
+      storage.set(MONEY_MIGRATION_KEY, true);
+    }
+
     set({ payments, isLoading: false });
   },
 }));

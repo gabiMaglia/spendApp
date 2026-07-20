@@ -87,7 +87,7 @@ describe('parseMoney — edge cases', () => {
 });
 
 describe('invariante parseMoney(formatMoney(m, c), c, lang) === m', () => {
-  const cases: Array<{ m: number; c: 'ARS' | 'USD' | 'CLP' | 'BRL'; lang: 'es' | 'en' | 'pt' }> = [
+  const cases: { m: number; c: 'ARS' | 'USD' | 'CLP' | 'BRL'; lang: 'es' | 'en' | 'pt' }[] = [
     { m: 15000023, c: 'ARS', lang: 'es' },
     { m: 1500023,  c: 'ARS', lang: 'es' },
     { m: 100,      c: 'ARS', lang: 'es' },

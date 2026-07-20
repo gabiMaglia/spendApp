@@ -1,11 +1,15 @@
 import { create } from 'zustand';
 import { createStorage } from '@/src/utils/createStorage';
+import { migratePersonalBudgetAmount, migratePersonalEntryAmounts } from './moneyMigration';
 import type { PersonalEntry, PersonalBudget } from '@/src/types/models';
 
 const storage = createStorage('personal');
 const ENTRIES_KEY   = 'entries_v1';
 const BUDGET_KEY    = 'budget_v1';
 const LAST_SEEN_KEY = 'lastSeen_v1';
+// Guard de idempotencia de la conversión float→entero de montos (ADR-002 §6).
+// Cubre tanto `entries[].amount` como `budget.monthlyAmount`.
+const MONEY_MIGRATION_KEY = 'money_int_v1_done';
 
 const DEFAULT_BUDGET: PersonalBudget = {
   currency:        'ARS',
@@ -89,9 +93,25 @@ export const usePersonalStore = create<PersonalStoreState>((set, get) => ({
     const rawEntries  = storage.getString(ENTRIES_KEY);
     const rawBudget   = storage.getString(BUDGET_KEY);
     const rawLastSeen = storage.getString(LAST_SEEN_KEY);
-    const entries      = rawEntries  ? (JSON.parse(rawEntries)  as PersonalEntry[]) : [];
-    const budget       = rawBudget   ? (JSON.parse(rawBudget)   as PersonalBudget)  : DEFAULT_BUDGET;
+    let entries      = rawEntries  ? (JSON.parse(rawEntries)  as PersonalEntry[]) : [];
+    let budget       = rawBudget   ? (JSON.parse(rawBudget)   as PersonalBudget)  : DEFAULT_BUDGET;
     const lastSeenMonth = rawLastSeen ?? currentMonthKey();
+
+    // Conversión one-shot de datos existentes (float → entero, ADR-002 §6).
+    // Solo persiste lo que ya existía en storage — no crea un budget_v1
+    // nuevo en una instalación limpia que nunca configuró presupuesto.
+    if (!storage.getBoolean(MONEY_MIGRATION_KEY)) {
+      if (rawEntries) {
+        entries = migratePersonalEntryAmounts(entries);
+        persistEntries(entries);
+      }
+      if (rawBudget) {
+        budget = migratePersonalBudgetAmount(budget);
+        persistBudget(budget);
+      }
+      storage.set(MONEY_MIGRATION_KEY, true);
+    }
+
     set({ entries, budget, lastSeenMonth });
   },
 }));
