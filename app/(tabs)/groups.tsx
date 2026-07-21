@@ -15,6 +15,7 @@ import { useGroupStore } from '@/src/store/groupStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useGroupBalance, useGroupExpenseCount, useGroupsTotalBalance } from '@/src/store/selectors';
 import { hueForUser } from '@/src/utils/hueForUser';
+import { Fab, FabRow } from '@/src/components/Fab';
 import { GroupCard } from '@/src/components/GroupCard';
 import { SyncStatusBadge } from '@/src/components/SyncStatusBadge';
 import { EmptyState } from '@/src/components/EmptyState';
@@ -156,15 +157,14 @@ export default function GroupsScreen() {
       </ScrollView>
 
       {/* FAB */}
-      <Pressable
-        onPress={() => { hapticLight(); router.push('/groups/new' as any); }}
-        style={[styles.fab, { backgroundColor: c.brand.primary }]}
-      >
-        <Ionicons name="add" size={24} color="#fff" />
-        <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>
-          {t('groups.new_group')}
-        </Text>
-      </Pressable>
+      <FabRow>
+        <Fab
+          onPress={() => router.push('/groups/new' as any)}
+          icon="add"
+          label={t('groups.new_group')}
+          backgroundColor={c.brand.primary}
+        />
+      </FabRow>
     </SafeAreaView>
   );
 }
@@ -223,11 +223,4 @@ const styles = StyleSheet.create({
   list:      { gap: Spacing.cardGap },
   infoBanner:{ flexDirection: 'row', gap: 12, alignItems: 'flex-start', borderRadius: Radius.md, padding: 14 },
   infoIcon:  { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  fab:       {
-    position: 'absolute', right: 20, bottom: 90,
-    height: 56, paddingHorizontal: 20,
-    borderRadius: Radius.full,
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    boxShadow: '0 8px 24px rgba(10,110,143,0.35)',
-  },
 });
