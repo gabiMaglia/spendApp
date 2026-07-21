@@ -1,9 +1,13 @@
 import { create } from 'zustand';
 import { createStorage } from '@/src/utils/createStorage';
+import { migrateExpenseAmounts } from './moneyMigration';
 import type { Expense } from '@/src/types/models';
 
 const storage = createStorage('expenses');
 const KEY = 'data_v1';
+// Guard de idempotencia de la conversión float→entero de montos (ADR-002 §6).
+// Correrla dos veces multiplicaría los montos otra vez por el factor.
+const MONEY_MIGRATION_KEY = 'money_int_v1_done';
 
 interface ExpenseStoreState {
   expenses: Expense[];
@@ -58,7 +62,16 @@ export const useExpenseStore = create<ExpenseStoreState>((set, get) => ({
 
   hydrate: () => {
     const raw = storage.getString(KEY);
-    const expenses = raw ? (JSON.parse(raw) as Expense[]) : [];
+    let expenses = raw ? (JSON.parse(raw) as Expense[]) : [];
+
+    // Conversión one-shot de datos existentes (float → entero, ADR-002 §6).
+    // Debe correr ANTES de la migración WatermelonDB (T-003).
+    if (!storage.getBoolean(MONEY_MIGRATION_KEY)) {
+      expenses = migrateExpenseAmounts(expenses);
+      persist(expenses);
+      storage.set(MONEY_MIGRATION_KEY, true);
+    }
+
     set({ expenses, isLoading: false });
   },
 }));

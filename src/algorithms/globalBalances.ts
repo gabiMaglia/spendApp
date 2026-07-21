@@ -1,6 +1,7 @@
+import { minorFactor } from '@/src/constants/currencies';
 import type { CurrencyCode } from '@/src/constants/currencies';
 import type { Expense, Group, Payment, Transaction } from '@/src/types/models';
-import { calculateBalances } from './calculateBalances';
+import { calculateBalances, RATE_SCALE } from './calculateBalances';
 import { simplifyDebts } from './simplifyDebts';
 
 export interface PersonBalance {
@@ -26,7 +27,7 @@ export function calculateGlobalBalances(
     if (!netMap.has(userId)) netMap.set(userId, new Map());
     const m = netMap.get(userId)!;
     const prev = m.get(currency) ?? 0;
-    m.set(currency, Math.round((prev + delta) * 100) / 100);
+    m.set(currency, prev + delta);
   };
 
   for (const group of groups) {
@@ -55,7 +56,11 @@ export function calculateGlobalBalances(
     for (const payment of groupPayments) {
       const currency = payment.targetCurrency ?? payment.currency;
       const amount = payment.targetCurrency && payment.exchangeRate
-        ? Math.round(payment.amount * payment.exchangeRate * 100) / 100
+        ? Math.round(
+            (payment.amount / minorFactor(payment.currency))
+              * (payment.exchangeRate / RATE_SCALE)
+              * minorFactor(currency),
+          )
         : payment.amount;
 
       if (payment.fromUserId === currentUserId) {
@@ -71,7 +76,7 @@ export function calculateGlobalBalances(
       userId,
       byCurrency: Array.from(currencyMap.entries())
         .map(([currency, amount]) => ({ currency, amount }))
-        .filter(b => Math.abs(b.amount) >= 0.01),
+        .filter(b => b.amount !== 0),
     }))
     .filter(p => p.byCurrency.length > 0);
 }
