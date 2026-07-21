@@ -13,6 +13,7 @@ import { formatMoney } from '@/src/constants/currencies';
 import type { CurrencyCode } from '@/src/constants/currencies';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAmountInput } from '@/src/hooks/useAmountInput';
+import { Fab, FabRow } from '@/src/components/Fab';
 import { useAuthStore } from '@/src/store/authStore';
 import { usePersonalStore, toMonthKey, currentMonthKey } from '@/src/store/personalStore';
 import { useGlobalPersonBalances } from '@/src/store/selectors';
@@ -307,22 +308,24 @@ export default function PersonalScreen() {
       </ScrollView>
 
       {/* FAB — dos acciones */}
-      <View style={styles.fabGroup}>
-        <Pressable
-          onPress={() => { hapticLight(); router.push({ pathname: '/personal/new', params: { kind: 'income' } } as any); }}
-          style={[styles.fabSecondary, { backgroundColor: c.semantic.positiveSoft, borderColor: c.semantic.positive + '44' }]}
-        >
-          <Ionicons name="trending-up-outline" size={20} color={c.semantic.positive} />
-          <Text style={[Typography.bodyS, { color: c.semantic.positive, fontWeight: '700' }]}>Ingreso</Text>
-        </Pressable>
-        <Pressable
-          onPress={() => { hapticLight(); router.push('/personal/new' as any); }}
-          style={[styles.fab, { backgroundColor: c.brand.primary }]}
-        >
-          <Ionicons name="add" size={22} color="#fff" />
-          <Text style={[Typography.bodyM, { color: '#fff', fontWeight: '700' }]}>Gasto</Text>
-        </Pressable>
-      </View>
+      <FabRow>
+        <Fab
+          variant="secondary"
+          onPress={() => router.push({ pathname: '/personal/new', params: { kind: 'income' } } as any)}
+          icon="trending-up-outline"
+          label="Ingreso"
+          backgroundColor={c.semantic.positiveSoft}
+          borderColor={c.semantic.positive + '44'}
+          iconColor={c.semantic.positive}
+          textColor={c.semantic.positive}
+        />
+        <Fab
+          onPress={() => router.push('/personal/new' as any)}
+          icon="add"
+          label="Gasto"
+          backgroundColor={c.brand.primary}
+        />
+      </FabRow>
 
       {/* Budget settings sheet */}
       <BottomSheet visible={showBudgetSheet} onClose={() => setShowBudgetSheet(false)}>
@@ -489,19 +492,6 @@ const styles = StyleSheet.create({
     marginHorizontal: Spacing.screenPad,
     alignItems: 'center', justifyContent: 'center',
     padding: Spacing[6], borderRadius: Radius.lg, borderWidth: 1,
-  },
-  fabGroup:    {
-    position: 'absolute', right: 20, bottom: 90,
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-  },
-  fab:         {
-    height: 52, paddingHorizontal: 18,
-    borderRadius: Radius.full, flexDirection: 'row', alignItems: 'center', gap: 6,
-    boxShadow: '0 8px 24px rgba(10,110,143,0.35)',
-  },
-  fabSecondary:{
-    height: 44, paddingHorizontal: 14, borderRadius: Radius.full,
-    flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1,
   },
   budgetInput: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
