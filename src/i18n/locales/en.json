@@ -23,6 +23,10 @@
     "you": "You",
     "go_back": "Go back"
   },
+  "profile": {
+    "edit_name_title": "Edit name",
+    "edit_name_placeholder": "Your name"
+  },
   "auth": {
     "welcome_title": "Split expenses\nwith friends.",
     "welcome_subtitle": "No server. No cloud. P2P sync only between group members.",
