@@ -1,5 +1,6 @@
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Avatar } from '@/src/components/Avatar';
+import { Fab, FabRow } from '@/src/components/Fab';
 import { SyncStatusBadge } from '@/src/components/SyncStatusBadge';
 import { Colors } from '@/src/constants/colors';
 import { formatMoney } from '@/src/constants/currencies';
@@ -203,15 +204,14 @@ export default function AccountScreen() {
       </ScrollView>
 
       {/* FAB */}
-      <Pressable
-        onPress={() => { hapticLight(); router.push('/expense/new'); }}
-        style={[styles.fab, { backgroundColor: c.brand.primary }]}
-      >
-        <Ionicons name="add" size={24} color="#fff" />
-        <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>
-          {t('dashboard.add_expense')}
-        </Text>
-      </Pressable>
+      <FabRow>
+        <Fab
+          onPress={() => router.push('/expense/new')}
+          icon="add"
+          label={t('dashboard.add_expense')}
+          backgroundColor={c.brand.primary}
+        />
+      </FabRow>
     </SafeAreaView>
   );
 }
@@ -274,13 +274,6 @@ const styles = StyleSheet.create({
   quickIcon: {
     width: 40, height: 40, borderRadius: Radius.md,
     alignItems: 'center', justifyContent: 'center',
-  },
-  fab:          {
-    position: 'absolute', right: 20, bottom: 90,
-    height: 56, paddingHorizontal: 20,
-    borderRadius: Radius.full,
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    boxShadow: '0 8px 24px rgba(10,110,143,0.35)',
   },
   barTrack:    { height: 8, borderRadius: 4, overflow: 'hidden' },
   barFill:     { height: 8, borderRadius: 4 },

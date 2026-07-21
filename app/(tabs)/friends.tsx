@@ -21,6 +21,7 @@ import { useGlobalPersonBalances } from '@/src/store/selectors';
 import { hueForUser } from '@/src/utils/hueForUser';
 import { hapticLight, hapticSuccess, hapticWarning } from '@/src/utils/haptics';
 import { Avatar } from '@/src/components/Avatar';
+import { Fab, FabRow } from '@/src/components/Fab';
 import { SyncStatusBadge } from '@/src/components/SyncStatusBadge';
 import { EmptyState } from '@/src/components/EmptyState';
 import { BottomSheet } from '@/src/components/Sheet';
@@ -189,15 +190,14 @@ export default function FriendsScreen() {
       </ScrollView>
 
       {/* FAB — agregar contacto por QR */}
-      <Pressable
-        onPress={() => { hapticLight(); router.push('/contact/add' as any); }}
-        style={[styles.fab, { backgroundColor: c.brand.primary }]}
-      >
-        <Ionicons name="qr-code-outline" size={20} color="#fff" />
-        <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>
-          Agregar por QR
-        </Text>
-      </Pressable>
+      <FabRow>
+        <Fab
+          onPress={() => router.push('/contact/add' as any)}
+          icon="qr-code-outline"
+          label="Agregar por QR"
+          backgroundColor={c.brand.primary}
+        />
+      </FabRow>
 
       {/* Sheet — nuevo contacto */}
       <BottomSheet
@@ -327,13 +327,6 @@ const styles = StyleSheet.create({
   addBtn:        {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     paddingHorizontal: 20, paddingVertical: 12, borderRadius: Radius.full,
-  },
-  fab:           {
-    position: 'absolute', right: 20, bottom: 90,
-    height: 56, paddingHorizontal: 20,
-    borderRadius: Radius.full,
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    boxShadow: '0 8px 24px rgba(10,110,143,0.35)',
   },
   qrBanner:      {
     flexDirection: 'row', alignItems: 'center', gap: 12,
