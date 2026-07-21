@@ -24,6 +24,11 @@
     "go_back": "Volver"
   },
 
+  "profile": {
+    "edit_name_title": "Editar nombre",
+    "edit_name_placeholder": "Tu nombre"
+  },
+
   "auth": {
     "welcome_title": "Dividí gastos\nentre amigos.",
     "welcome_subtitle": "Sin servidor. Sin nube. Sincronización P2P solo entre los miembros del grupo.",
