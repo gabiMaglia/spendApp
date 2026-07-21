@@ -11,6 +11,7 @@ import { Typography } from '@/src/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuthStore } from '@/src/store/authStore';
 import { useThemeStore } from '@/src/store/themeStore';
+import { useSettingsStore } from '@/src/store/settingsStore';
 import { hueForUser } from '@/src/utils/hueForUser';
 import { Avatar } from '@/src/components/Avatar';
 
@@ -19,10 +20,14 @@ export default function UserScreen() {
   const c = Colors[scheme];
   const { currentUser, isPro, signOut } = useAuthStore();
 
-  // Notification preferences (persisted would use MMKV in production)
-  const [notifExpenses,  setNotifExpenses]  = useState(true);
-  const [notifDeletions, setNotifDeletions] = useState(true);
-  const [notifInvites,   setNotifInvites]   = useState(true);
+  // Notification preferences — persistidas en MMKV vía settingsStore.
+  // La ENTREGA de notificaciones se difiere a Sprint 3 (T-010); estos toggles
+  // solo guardan la preferencia para no mentirle al usuario.
+  const {
+    notifExpenses, setNotifExpenses,
+    notifDeletions, setNotifDeletions,
+    notifInvites, setNotifInvites,
+  } = useSettingsStore();
 
   // Appearance
   const { themeChoice, setThemeChoice } = useThemeStore();
