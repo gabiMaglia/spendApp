@@ -45,3 +45,6 @@ app-example
 
 # NERV tracking (fuera del repo público)
 engram/
+
+# NERV agent worktrees (temporales)
+.claude/worktrees/
