@@ -10,6 +10,7 @@ import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuthStore } from '@/src/store/authStore';
+import { useThemeStore } from '@/src/store/themeStore';
 import { hueForUser } from '@/src/utils/hueForUser';
 import { Avatar } from '@/src/components/Avatar';
 
@@ -24,7 +25,7 @@ export default function UserScreen() {
   const [notifInvites,   setNotifInvites]   = useState(true);
 
   // Appearance
-  const [themeChoice, setThemeChoice] = useState<'auto' | 'light' | 'dark'>('auto');
+  const { themeChoice, setThemeChoice } = useThemeStore();
 
   function handleSignOut() {
     Alert.alert(
