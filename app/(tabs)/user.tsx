@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import {
   Alert, Linking, Pressable, SafeAreaView, ScrollView,
-  StyleSheet, Switch, Text, View,
+  StyleSheet, Switch, Text, TextInput, View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 
 import { Colors } from '@/src/constants/colors';
 import { Radius, Spacing } from '@/src/constants/spacing';
@@ -13,12 +14,32 @@ import { useAuthStore } from '@/src/store/authStore';
 import { useThemeStore } from '@/src/store/themeStore';
 import { useSettingsStore } from '@/src/store/settingsStore';
 import { hueForUser } from '@/src/utils/hueForUser';
+import { sanitizeUserName } from '@/src/utils/sanitizeUserName';
 import { Avatar } from '@/src/components/Avatar';
+import { BottomSheet } from '@/src/components/Sheet';
 
 export default function UserScreen() {
   const scheme = useColorScheme() ?? 'light';
   const c = Colors[scheme];
+  const { t } = useTranslation();
   const { currentUser, isPro, signOut } = useAuthStore();
+
+  // Edición de nombre — sheet controlado, cross-platform (Alert.prompt no
+  // existe en Android). Prefill con el nombre actual al abrir.
+  const [editingName, setEditingName] = useState(false);
+  const [draftName, setDraftName] = useState('');
+
+  function openEditName() {
+    setDraftName(currentUser?.name ?? '');
+    setEditingName(true);
+  }
+
+  function handleSaveName() {
+    const clean = sanitizeUserName(draftName);
+    if (!clean || !currentUser) return;
+    useAuthStore.getState().setUser({ ...currentUser, name: clean, updatedAt: Date.now() });
+    setEditingName(false);
+  }
 
   // Notification preferences — persistidas en MMKV vía settingsStore.
   // La ENTREGA de notificaciones se difiere a Sprint 3 (T-010); estos toggles
@@ -68,10 +89,52 @@ export default function UserScreen() {
               {currentUser?.email ?? ''}
             </Text>
           </View>
-          <Pressable hitSlop={10}>
+          <Pressable hitSlop={10} onPress={openEditName}>
             <Ionicons name="pencil-outline" size={18} color={c.textTertiary} />
           </Pressable>
         </View>
+
+        <BottomSheet visible={editingName} onClose={() => setEditingName(false)}>
+          <Text style={[Typography.bodyL, { color: c.text, fontWeight: '700', marginBottom: Spacing[3] }]}>
+            {t('profile.edit_name_title')}
+          </Text>
+          <TextInput
+            value={draftName}
+            onChangeText={setDraftName}
+            placeholder={t('profile.edit_name_placeholder')}
+            placeholderTextColor={c.textTertiary}
+            style={[
+              styles.nameInput,
+              { color: c.text, borderColor: c.borderHair, backgroundColor: c.surfaceSunken },
+            ]}
+            autoFocus
+            maxLength={60}
+            returnKeyType="done"
+            onSubmitEditing={handleSaveName}
+          />
+          <View style={styles.sheetActions}>
+            <Pressable
+              style={[styles.sheetBtn, { backgroundColor: c.surfaceSunken }]}
+              onPress={() => setEditingName(false)}
+            >
+              <Text style={[Typography.bodyM, { color: c.text, fontWeight: '600' }]}>
+                {t('common.cancel')}
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[
+                styles.sheetBtn,
+                { backgroundColor: c.brand.primary, opacity: sanitizeUserName(draftName) ? 1 : 0.5 },
+              ]}
+              onPress={handleSaveName}
+              disabled={!sanitizeUserName(draftName)}
+            >
+              <Text style={[Typography.bodyM, { color: '#fff', fontWeight: '700' }]}>
+                {t('common.save')}
+              </Text>
+            </Pressable>
+          </View>
+        </BottomSheet>
 
         {/* ── Plan ─────────────────────────────────────────────────────── */}
         <SectionLabel label="PLAN" />
@@ -302,6 +365,15 @@ const styles = StyleSheet.create({
   themeSegment:  { flexDirection: 'row', padding: 3, borderRadius: Radius.md, gap: 2 },
   themeTab:      { paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radius.sm },
   soonBadge:     { paddingHorizontal: 10, paddingVertical: 4, borderRadius: Radius.full },
+  nameInput:     {
+    borderWidth: 1, borderRadius: Radius.md,
+    paddingHorizontal: Spacing[4], paddingVertical: 12,
+    fontSize: 16,
+  },
+  sheetActions:  { flexDirection: 'row', gap: Spacing[2], marginTop: Spacing[4] },
+  sheetBtn:      {
+    flex: 1, alignItems: 'center', paddingVertical: 12, borderRadius: Radius.md,
+  },
   signOutBtn:    {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     marginHorizontal: Spacing.screenPad, marginBottom: Spacing[3],

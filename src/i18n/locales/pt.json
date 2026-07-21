@@ -23,6 +23,10 @@
     "you": "Você",
     "go_back": "Voltar"
   },
+  "profile": {
+    "edit_name_title": "Editar nome",
+    "edit_name_placeholder": "Seu nome"
+  },
   "auth": {
     "welcome_title": "Divida gastos\ncom amigos.",
     "welcome_subtitle": "Sem servidor. Sem nuvem. Sincronização P2P só entre os membros do grupo.",
