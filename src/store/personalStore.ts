@@ -26,6 +26,7 @@ interface PersonalStoreState {
   updateReplicatedEntry:  (sourceGroupExpenseId: string, patch: Partial<PersonalEntry>) => void;
   setBudget:              (budget: PersonalBudget) => void;
   setLastSeenMonth:       (month: string) => void;
+  mergeEntries:           (incoming: PersonalEntry[]) => void;
   hydrate:                () => void;
 }
 
@@ -87,6 +88,23 @@ export const usePersonalStore = create<PersonalStoreState>((set, get) => ({
   setLastSeenMonth: (month) => {
     persistLastSeen(month);
     set({ lastSeenMonth: month });
+  },
+
+  // LWW merge por updatedAt (para import de backup / sync). Mismo patrón que
+  // expenseStore.mergeExpenses: gana el registro con mayor updatedAt.
+  mergeEntries: (incoming) => {
+    const current = get().entries;
+    const merged = [...current];
+    for (const inc of incoming) {
+      const idx = merged.findIndex(e => e.id === inc.id);
+      if (idx === -1) {
+        merged.push(inc);
+      } else if (inc.updatedAt > merged[idx].updatedAt) {
+        merged[idx] = inc;
+      }
+    }
+    persistEntries(merged);
+    set({ entries: merged });
   },
 
   hydrate: () => {
