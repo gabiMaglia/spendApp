@@ -65,4 +65,36 @@ describe('settingsStore', () => {
     expect(freshStore.getState().notifDeletions).toBe(true);
     expect(freshStore.getState().notifInvites).toBe(true);
   });
+
+  // QA (D-?): las pruebas de arriba plantaban el valor DIRECTO en storage
+  // (`createStorage('settings').set(...)`) en vez de pasar por el setter real,
+  // así que un setter que dejara de persistir (ej. `storage.set(...)` borrado
+  // por error) no rompía ningún test. Estas cierran el loop completo
+  // setter real -> storage -> lectura sincrónica en un store fresco, para
+  // los 3 flags.
+  describe('el setter real persiste de punta a punta (setter -> storage -> store fresco)', () => {
+    it('setNotifExpenses(false) sobrevive a un store fresco', () => {
+      useSettingsStore.getState().setNotifExpenses(false);
+
+      const freshStore = createSettingsStore();
+
+      expect(freshStore.getState().notifExpenses).toBe(false);
+    });
+
+    it('setNotifDeletions(false) sobrevive a un store fresco', () => {
+      useSettingsStore.getState().setNotifDeletions(false);
+
+      const freshStore = createSettingsStore();
+
+      expect(freshStore.getState().notifDeletions).toBe(false);
+    });
+
+    it('setNotifInvites(false) sobrevive a un store fresco', () => {
+      useSettingsStore.getState().setNotifInvites(false);
+
+      const freshStore = createSettingsStore();
+
+      expect(freshStore.getState().notifInvites).toBe(false);
+    });
+  });
 });
