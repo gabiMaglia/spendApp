@@ -313,7 +313,7 @@
     "import": "Import data",
     "export_error": "Couldn’t export your data.",
     "import_confirm_title": "Import data",
-    "import_confirm_body": "This will merge with your current data (most recent wins). Continue?",
+    "import_confirm_body": "This will replace your current data with the file’s (restore). Continue?",
     "import_success": "Data imported successfully.",
     "import_error_title": "Import failed",
     "error_invalid_json": "The file is not a valid backup.",
