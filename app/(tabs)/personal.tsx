@@ -311,7 +311,7 @@ export default function PersonalScreen() {
       <FabRow>
         <Fab
           variant="secondary"
-          onPress={() => router.push({ pathname: '/personal/new', params: { kind: 'income' } } as any)}
+          onPress={() => router.push({ pathname: '/expense/new', params: { allowIncome: '1', kind: 'income' } } as any)}
           icon="trending-up-outline"
           label="Ingreso"
           backgroundColor={c.semantic.positiveSoft}
@@ -320,7 +320,7 @@ export default function PersonalScreen() {
           textColor={c.semantic.positive}
         />
         <Fab
-          onPress={() => router.push('/expense/new' as any)}
+          onPress={() => router.push({ pathname: '/expense/new', params: { allowIncome: '1' } } as any)}
           icon="add"
           label="Gasto"
           backgroundColor={c.brand.primary}
