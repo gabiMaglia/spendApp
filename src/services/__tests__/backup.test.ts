@@ -7,6 +7,7 @@ import { useExpenseStore } from '@/src/store/expenseStore';
 import { usePaymentStore } from '@/src/store/paymentStore';
 import { useUserStore } from '@/src/store/userStore';
 import { usePersonalStore } from '@/src/store/personalStore';
+import { useAuthStore } from '@/src/store/authStore';
 import type {
   Group, Expense, Payment, User, PersonalEntry, PersonalBudget,
 } from '@/src/types/models';
@@ -53,6 +54,7 @@ function resetStores() {
   usePaymentStore.setState({ payments: [] });
   useUserStore.setState({ users: [] });
   usePersonalStore.setState({ entries: [], budget: { ...emptyBudget } });
+  useAuthStore.setState({ currentUser: null });
 }
 
 beforeEach(resetStores);
@@ -108,42 +110,36 @@ describe('parseBackup — validación', () => {
   });
 });
 
-describe('applyBackup — merge LWW (no clobber)', () => {
-  it('un registro entrante MÁS NUEVO gana', () => {
-    useExpenseStore.setState({ expenses: [expense('e1', 100, { description: 'viejo' })] });
-    applyBackup({
-      ...blank(), expenses: [expense('e1', 200, { description: 'nuevo' })],
+describe('applyBackup — RESTORE (reemplazo, decisión PO)', () => {
+  it('REEMPLAZA el estado: descarta lo local que no está en el backup', () => {
+    useExpenseStore.setState({ expenses: [expense('e1', 100), expense('eLocal', 999)] });
+    applyBackup({ ...blank(), expenses: [expense('e1', 100)] });
+    const ids = useExpenseStore.getState().expenses.map(e => e.id);
+    expect(ids).toEqual(['e1']); // eLocal desapareció (no estaba en el backup)
+  });
+
+  it('reemplaza aunque el registro del backup sea MÁS VIEJO (no es LWW)', () => {
+    useExpenseStore.setState({ expenses: [expense('e1', 100, { description: 'local nuevo' })] });
+    applyBackup({ ...blank(), expenses: [expense('e1', 50, { description: 'del backup' })] });
+    const e = useExpenseStore.getState().expenses.find(x => x.id === 'e1')!;
+    expect(e.description).toBe('del backup');
+    expect(e.updatedAt).toBe(50);
+  });
+
+  it('reemplaza entries personales y SIEMPRE restaura el budget (incluso vacío)', () => {
+    usePersonalStore.setState({
+      entries: [entry('viejo', 100)],
+      budget: { currency: 'ARS', monthlyAmount: 30000, includeOwedToMe: false },
     });
-    const e = useExpenseStore.getState().expenses.find(x => x.id === 'e1')!;
-    expect(e.updatedAt).toBe(200);
-    expect(e.description).toBe('nuevo');
+    applyBackup({ ...blank(), personalEntries: [entry('pe2', 10)], personalBudget: emptyBudget });
+    expect(usePersonalStore.getState().entries.map(e => e.id)).toEqual(['pe2']);
+    expect(usePersonalStore.getState().budget.monthlyAmount).toBe(0); // restaurado (vacío)
   });
 
-  it('un registro entrante MÁS VIEJO NO pisa al local', () => {
-    useExpenseStore.setState({ expenses: [expense('e1', 100, { description: 'local' })] });
-    applyBackup({ ...blank(), expenses: [expense('e1', 50, { description: 'backup viejo' })] });
-    const e = useExpenseStore.getState().expenses.find(x => x.id === 'e1')!;
-    expect(e.updatedAt).toBe(100);
-    expect(e.description).toBe('local');
-  });
-
-  it('registros nuevos se agregan; mergea entries personales también', () => {
-    usePersonalStore.setState({ entries: [entry('pe1', 100)], budget: { ...emptyBudget } });
-    applyBackup({ ...blank(), personalEntries: [entry('pe1', 200), entry('pe2', 10)] });
-    const ids = usePersonalStore.getState().entries.map(e => e.id).sort();
-    expect(ids).toEqual(['pe1', 'pe2']);
-    expect(usePersonalStore.getState().entries.find(e => e.id === 'pe1')!.updatedAt).toBe(200);
-  });
-
-  it('restaura el budget solo si trae monto > 0', () => {
-    usePersonalStore.setState({ entries: [], budget: { currency: 'ARS', monthlyAmount: 30000, includeOwedToMe: false } });
-    // budget vacío en el backup → NO pisa el local
-    applyBackup({ ...blank(), personalBudget: emptyBudget });
-    expect(usePersonalStore.getState().budget.monthlyAmount).toBe(30000);
-    // budget con monto → restaura
-    applyBackup({ ...blank(), personalBudget: { currency: 'USD', monthlyAmount: 99000, includeOwedToMe: true } });
-    expect(usePersonalStore.getState().budget.monthlyAmount).toBe(99000);
-    expect(usePersonalStore.getState().budget.currency).toBe('USD');
+  it('refresca el nombre del usuario de sesión (authStore) desde el backup', () => {
+    useAuthStore.setState({ currentUser: user('u1', 100, { name: 'Nombre viejo' }) });
+    applyBackup({ ...blank(), users: [user('u1', 200, { name: 'Nombre del backup' })] });
+    expect(useAuthStore.getState().currentUser?.name).toBe('Nombre del backup');
   });
 });
 

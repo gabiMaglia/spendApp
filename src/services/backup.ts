@@ -6,16 +6,16 @@ import { useExpenseStore } from '@/src/store/expenseStore';
 import { usePaymentStore } from '@/src/store/paymentStore';
 import { useUserStore } from '@/src/store/userStore';
 import { usePersonalStore } from '@/src/store/personalStore';
+import { useAuthStore } from '@/src/store/authStore';
 
 /**
  * Backup completo `.splitp2p`: exporta TODOS los datos locales a un archivo JSON
- * versionado y los re-importa con merge LWW (Last-Write-Wins por `updatedAt`),
- * sin pisar datos más nuevos. Reusa los `mergeXxx` de cada store (misma lógica
- * que el sync P2P por QR — ver `src/sync/useSyncQR.ts`).
+ * versionado y los re-importa con semántica **RESTORE (reemplazo)**: importar
+ * deja los datos EXACTAMENTE como en el archivo (revierte cambios, descarta lo
+ * agregado después del export). Decisión PO 2026-07-21.
  *
- * El presupuesto personal (`PersonalBudget`) NO es SyncMeta (no tiene
- * `updatedAt`), así que no participa del LWW: en import se restaura solo si el
- * backup trae uno con monto > 0, para no pisar un presupuesto local con uno vacío.
+ * También refresca `authStore.currentUser` (de donde sale el nombre del perfil)
+ * con el registro del usuario de sesión que venga en el backup.
  */
 
 export const BACKUP_FORMAT = 'splitp2p-backup' as const;
@@ -92,18 +92,34 @@ export function parseBackup(raw: string): BackupFile {
 }
 
 /**
- * Aplica un backup ya parseado a los stores, con merge LWW por `updatedAt`
- * (no clobber). El presupuesto se restaura solo si trae monto > 0.
+ * Restaura (REEMPLAZA) el estado de los stores con el contenido del backup.
+ * Técnica: vaciar cada colección y luego `mergeXxx` sobre `[]` ⇒ el resultado es
+ * exactamente el backup (el merge sobre vacío agrega todo). Así se descarta lo
+ * que no esté en el archivo, sin agregar métodos nuevos a los stores.
  */
 export function applyBackup(backup: BackupFile): void {
+  useGroupStore.setState({ groups: [] });
   useGroupStore.getState().mergeGroups(backup.groups);
-  useExpenseStore.getState().mergeExpenses(backup.expenses);
-  usePaymentStore.getState().mergePayments(backup.payments);
-  useUserStore.getState().mergeUsers(backup.users);
-  usePersonalStore.getState().mergeEntries(backup.personalEntries);
 
-  if (backup.personalBudget && backup.personalBudget.monthlyAmount > 0) {
-    usePersonalStore.getState().setBudget(backup.personalBudget);
+  useExpenseStore.setState({ expenses: [] });
+  useExpenseStore.getState().mergeExpenses(backup.expenses);
+
+  usePaymentStore.setState({ payments: [] });
+  usePaymentStore.getState().mergePayments(backup.payments);
+
+  useUserStore.setState({ users: [] });
+  useUserStore.getState().mergeUsers(backup.users);
+
+  usePersonalStore.setState({ entries: [] });
+  usePersonalStore.getState().mergeEntries(backup.personalEntries);
+  usePersonalStore.getState().setBudget(backup.personalBudget);
+
+  // El nombre del perfil sale de authStore (no de userStore): refrescar el
+  // usuario de sesión con su registro restaurado, si viene en el backup.
+  const current = useAuthStore.getState().currentUser;
+  if (current) {
+    const restored = backup.users.find(u => u.id === current.id);
+    if (restored) useAuthStore.getState().setUser(restored);
   }
 }
 
