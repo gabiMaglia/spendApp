@@ -17,6 +17,12 @@ import { hueForUser } from '@/src/utils/hueForUser';
 import { sanitizeUserName } from '@/src/utils/sanitizeUserName';
 import { Avatar } from '@/src/components/Avatar';
 import { BottomSheet } from '@/src/components/Sheet';
+import * as DocumentPicker from 'expo-document-picker';
+import * as Sharing from 'expo-sharing';
+import { File, Paths } from 'expo-file-system';
+import {
+  buildBackup, serializeBackup, parseBackup, applyBackup, backupFileName,
+} from '@/src/services/backup';
 
 export default function UserScreen() {
   const scheme = useColorScheme() ?? 'light';
@@ -66,6 +72,58 @@ export default function UserScreen() {
 
   function handleRateApp() {
     Linking.openURL('https://apps.apple.com/app/id000000000');
+  }
+
+  // ── Backup export/import .splitp2p (T-011) ──────────────────────────────
+  async function handleExport() {
+    try {
+      const file = new File(Paths.cache, backupFileName());
+      file.write(serializeBackup(buildBackup()));
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(file.uri, {
+          mimeType: 'application/json',
+          dialogTitle: t('backup.export'),
+        });
+      } else {
+        Alert.alert(t('backup.export'), file.uri);
+      }
+    } catch {
+      Alert.alert(t('backup.export_error'));
+    }
+  }
+
+  async function handleImport() {
+    try {
+      const res = await DocumentPicker.getDocumentAsync({
+        type: '*/*',
+        copyToCacheDirectory: true,
+      });
+      if (res.canceled || !res.assets?.[0]) return;
+      const raw = await new File(res.assets[0].uri).text();
+      const backup = parseBackup(raw); // valida antes de confirmar
+      Alert.alert(
+        t('backup.import_confirm_title'),
+        t('backup.import_confirm_body'),
+        [
+          { text: t('common.cancel'), style: 'cancel' },
+          {
+            text: t('common.save'),
+            onPress: () => {
+              try {
+                applyBackup(backup);
+                Alert.alert(t('backup.import_success'));
+              } catch {
+                Alert.alert(t('backup.import_error_title'));
+              }
+            },
+          },
+        ],
+      );
+    } catch (e: any) {
+      const msg: string = typeof e?.message === 'string' ? e.message : '';
+      const key = msg.startsWith('backup.') ? msg : 'backup.error_invalid_format';
+      Alert.alert(t('backup.import_error_title'), t(key));
+    }
   }
 
   return (
@@ -239,6 +297,14 @@ export default function UserScreen() {
             icon="chatbubble-outline"
             onPress={handleRateApp}
           />
+        </View>
+
+        {/* ── Copia de seguridad ───────────────────────────────────────── */}
+        <SectionLabel label={t('backup.section')} />
+        <View style={[styles.section, { borderColor: c.borderHair }]}>
+          <LinkRow label={t('backup.export')} icon="download-outline" onPress={handleExport} />
+          <Divider color={c.borderHair} />
+          <LinkRow label={t('backup.import')} icon="cloud-upload-outline" onPress={handleImport} />
         </View>
 
         {/* ── Seguridad ────────────────────────────────────────────────── */}
