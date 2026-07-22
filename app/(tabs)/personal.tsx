@@ -320,7 +320,7 @@ export default function PersonalScreen() {
           textColor={c.semantic.positive}
         />
         <Fab
-          onPress={() => router.push('/personal/new' as any)}
+          onPress={() => router.push('/expense/new' as any)}
           icon="add"
           label="Gasto"
           backgroundColor={c.brand.primary}
