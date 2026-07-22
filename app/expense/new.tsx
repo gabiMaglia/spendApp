@@ -101,8 +101,10 @@ export default function NewExpenseScreen() {
 
   // ── Core inputs ────────────────────────────────────────────────────────────
   const [description,    setDescription]    = useState(existingExpense?.description ?? '');
+  // Default: SIN grupo (gasto personal). Si viene por deep-link de un grupo
+  // (paramGroupId) o en edición, se pre-selecciona ese grupo. (F-G, decisión PO)
   const [groupId,        setGroupId]        = useState(
-    existingExpense?.groupId ?? paramGroupId ?? groups[0]?.id ?? '',
+    existingExpense?.groupId ?? paramGroupId ?? '',
   );
   // Moneda del grupo activo, resuelta temprano — el input de monto (entero,
   // menor unidad — ADR-002) la necesita para parsear/formatear correctamente.
@@ -183,7 +185,9 @@ export default function NewExpenseScreen() {
 
   const lastPercent  = splits[splits.length - 1]?.percent ?? 0;
   const percentError = splitMode === 'percentage' && amount > 0 && lastPercent < 0;
-  const canSave      = description.trim().length > 0 && amount > 0 && !percentError && members.length > 0;
+  // hasGroup=false ⇒ gasto PERSONAL (sin repartos, sin pagador). (F-G)
+  const hasGroup     = groupId !== '';
+  const canSave      = description.trim().length > 0 && amount > 0 && !percentError && (!hasGroup || members.length > 0);
 
   // ── Handlers ───────────────────────────────────────────────────────────────
 
@@ -223,6 +227,26 @@ export default function NewExpenseScreen() {
 
   function handleSave() {
     if (!canSave || !currentUser) return;
+
+    // Sin grupo → gasto PERSONAL (sin ad gate, sin splits ni pagador). (F-G)
+    if (!hasGroup) {
+      hapticSuccess();
+      addPersonalEntry({
+        id:          uuidv4(),
+        kind:        'expense',
+        description: description.trim(),
+        amount,
+        currency,
+        category,
+        date:        date.getTime(),
+        createdAt:   Date.now(),
+        updatedAt:   Date.now(),
+        isDeleted:   false,
+      });
+      router.back();
+      return;
+    }
+
     if (needsAd) return;
     hapticSuccess(); // TODO: rewarded ad gate
 
@@ -319,40 +343,6 @@ export default function NewExpenseScreen() {
   const groupName = group?.name ?? 'Sin grupo';
   const payerName = getUserName(payerId);
 
-  // ── Guard: no groups ────────────────────────────────────────────────────────
-  if (groups.length === 0) {
-    return (
-      <SafeAreaView style={[styles.safe, { backgroundColor: c.bg }]}>
-        <View style={[styles.header, { borderBottomColor: c.borderHair }]}>
-          <Pressable onPress={() => router.back()} hitSlop={12} style={styles.headerBtn}>
-            <Ionicons name="close" size={24} color={c.text} />
-          </Pressable>
-          <Text style={[Typography.h3, { color: c.text }]}>Nuevo gasto</Text>
-          <View style={styles.headerBtn} />
-        </View>
-        <View style={styles.noGroupsState}>
-          <View style={[styles.noGroupsIcon, { backgroundColor: c.surfaceSunken }]}>
-            <Ionicons name="people-outline" size={36} color={c.textTertiary} />
-          </View>
-          <Text style={[Typography.h3, { color: c.text, textAlign: 'center' }]}>
-            Primero creá un grupo
-          </Text>
-          <Text style={[Typography.bodyM, { color: c.textTertiary, textAlign: 'center', lineHeight: 22 }]}>
-            Para registrar un gasto necesitás al menos un grupo con participantes.
-          </Text>
-          <Pressable
-            onPress={() => { router.back(); router.push('/groups/new' as any); }}
-            style={[styles.saveBtn, { backgroundColor: c.brand.primary, paddingHorizontal: 32 }]}
-          >
-            <Text style={[Typography.bodyL, { color: '#fff', fontWeight: '700' }]}>
-              Crear grupo
-            </Text>
-          </Pressable>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
@@ -442,6 +432,8 @@ export default function NewExpenseScreen() {
             </View>
           </View>
 
+          {/* Payer + repartos: SOLO con grupo. Sin grupo = gasto personal. (F-G) */}
+          {hasGroup && (<>
           {/* Payer */}
           <Pressable
             onPress={() => setShowPayer(true)}
@@ -587,6 +579,7 @@ export default function NewExpenseScreen() {
               )}
             </View>
           </View>
+          </>)}
 
           {/* Free tier notice — only shown when creating */}
           {!isEditMode && !isPro && (
@@ -672,6 +665,12 @@ export default function NewExpenseScreen() {
       {!isEditMode && (
         <BottomSheet visible={showGroup} onClose={() => setShowGroup(false)}>
           <Text style={[Typography.h3, { color: c.text, marginBottom: 16 }]}>Seleccionar grupo</Text>
+          <SheetOption
+            icon="person-outline"
+            label="Sin grupo (personal)"
+            selected={groupId === ''}
+            onPress={() => handleGroupChange('')}
+          />
           {groups.map(g => (
             <SheetOption
               key={g.id}
