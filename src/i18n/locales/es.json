@@ -23,12 +23,10 @@
     "you": "Vos",
     "go_back": "Volver"
   },
-
   "profile": {
     "edit_name_title": "Editar nombre",
     "edit_name_placeholder": "Tu nombre"
   },
-
   "auth": {
     "welcome_title": "Dividí gastos\nentre amigos.",
     "welcome_subtitle": "Sin servidor. Sin nube. Sincronización P2P solo entre los miembros del grupo.",
@@ -50,7 +48,6 @@
     "privacy_tracking_body": "Sin analytics de terceros. Sin venta de datos.",
     "understood": "Entendido"
   },
-
   "dashboard": {
     "title": "Tus cuentas",
     "greeting": "Hola, {{name}}",
@@ -71,7 +68,6 @@
     "empty_title": "Todo saldado",
     "empty_body": "No tenés deudas pendientes con nadie."
   },
-
   "groups": {
     "title": "Grupos",
     "tab_active": "Activos",
@@ -93,7 +89,6 @@
     "create_icon_label": "Ícono e color",
     "create_icon_sub": "Opcional · podés cambiarlo después"
   },
-
   "group_detail": {
     "your_balance": "Tu balance acá",
     "owed_to_you": "Te deben en total",
@@ -107,7 +102,6 @@
     "currencies_count": "{{count}} monedas",
     "your_balance_currency": "Tu balance · {{currency}}"
   },
-
   "invite": {
     "title": "Invitar al grupo",
     "tab_qr": "QR",
@@ -130,7 +124,6 @@
     "groups_in_common": "{{count}} grupo en común",
     "groups_in_common_plural": "{{count}} grupos en común"
   },
-
   "expense": {
     "new_title": "Nuevo gasto",
     "edit_title": "Editar gasto",
@@ -153,7 +146,6 @@
     "category_search": "Buscar categoría…",
     "category_use": "Usar {{name}}",
     "payer_sub": "pagadora · saldo {{amount}}",
-
     "detail_paid_by": "{{name}} pagó · {{date}}",
     "detail_split_mode": "División · {{mode}}",
     "detail_notes": "Nota",
@@ -179,7 +171,6 @@
     "cancel_delete_vote": "Cancelar solicitud de borrado",
     "request_delete": "Solicitar eliminación"
   },
-
   "settle": {
     "title": "Registrar pago",
     "multicurrency_title": "Pago multi-moneda",
@@ -198,7 +189,6 @@
     "equivalent": "Equivale a",
     "manual_exchange": "Usar tipo de cambio manual"
   },
-
   "delete": {
     "sheet_title": "¿Eliminar este gasto?",
     "request_title": "Solicitar eliminación",
@@ -213,7 +203,6 @@
     "object_button": "Objetar",
     "see_agreements": "Ver acuerdos"
   },
-
   "activity": {
     "title": "Actividad",
     "filter_all": "Todos",
@@ -229,7 +218,6 @@
     "edited": "editó",
     "confirmed_delete": "confirmó el borrado de"
   },
-
   "settings": {
     "title": "Ajustes",
     "done": "Listo",
@@ -254,7 +242,6 @@
     "sign_out": "Cerrar sesión",
     "version": "SplitP2P v{{version}} · build {{build}}"
   },
-
   "upgrade": {
     "title": "Sin límites.\nSin ads. Sin fricción.",
     "subtitle": "7 días gratis · cancelás cuando quieras desde el App Store.",
@@ -284,7 +271,6 @@
     "cta_sub": "Renueva ${{price}}/año · cancelás en 1 toque",
     "restore": "Restaurar compra"
   },
-
   "ad_gate": {
     "title": "Usaste tus 4 gastos\ngratis de hoy",
     "subtitle": "Mañana tenés 4 más. O elegí cómo seguir hoy:",
@@ -295,14 +281,12 @@
     "watch_ad_badge": "+1 gasto",
     "wait": "o esperar a mañana · se renueva en {{time}}"
   },
-
   "sync": {
     "synced": "Sincronizado",
     "syncing": "Sincronizando…",
     "pending": "Cambios pendientes",
     "offline": "Sin conexión"
   },
-
   "categories": {
     "food": "Comida",
     "transport": "Transporte",
@@ -313,7 +297,6 @@
     "shopping": "Compras",
     "other": "Otros"
   },
-
   "ocr": {
     "scan_title": "Apuntá al ticket",
     "scan_subtitle": "Buena luz · todo dentro del recuadro",
@@ -323,5 +306,18 @@
     "detected_items": "Ítems detectados",
     "add_item": "+ Agregar",
     "continue": "Continuar a división"
+  },
+  "backup": {
+    "section": "COPIA DE SEGURIDAD",
+    "export": "Exportar datos",
+    "import": "Importar datos",
+    "export_error": "No se pudieron exportar los datos.",
+    "import_confirm_title": "Importar datos",
+    "import_confirm_body": "Se reemplazarán tus datos actuales por los del archivo (restaurar). ¿Continuar?",
+    "import_success": "Datos importados correctamente.",
+    "import_error_title": "No se pudo importar",
+    "error_invalid_json": "El archivo no es un backup válido.",
+    "error_invalid_format": "Formato de archivo no reconocido.",
+    "error_unsupported_version": "Versión de backup no soportada."
   }
 }
