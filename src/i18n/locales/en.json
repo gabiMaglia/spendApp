@@ -306,5 +306,18 @@
     "detected_items": "Detected items",
     "add_item": "+ Add",
     "continue": "Continue to split"
+  },
+  "backup": {
+    "section": "BACKUP",
+    "export": "Export data",
+    "import": "Import data",
+    "export_error": "Couldn’t export your data.",
+    "import_confirm_title": "Import data",
+    "import_confirm_body": "This will merge with your current data (most recent wins). Continue?",
+    "import_success": "Data imported successfully.",
+    "import_error_title": "Import failed",
+    "error_invalid_json": "The file is not a valid backup.",
+    "error_invalid_format": "Unrecognized file format.",
+    "error_unsupported_version": "Unsupported backup version."
   }
 }

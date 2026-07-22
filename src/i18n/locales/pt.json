@@ -306,5 +306,18 @@
     "detected_items": "Ítems detectados",
     "add_item": "+ Agregar",
     "continue": "Continuar a división"
+  },
+  "backup": {
+    "section": "CÓPIA DE SEGURANÇA",
+    "export": "Exportar dados",
+    "import": "Importar dados",
+    "export_error": "Não foi possível exportar os dados.",
+    "import_confirm_title": "Importar dados",
+    "import_confirm_body": "Serão mesclados com seus dados atuais (o mais recente vence). Continuar?",
+    "import_success": "Dados importados com sucesso.",
+    "import_error_title": "Falha ao importar",
+    "error_invalid_json": "O arquivo não é um backup válido.",
+    "error_invalid_format": "Formato de arquivo não reconhecido.",
+    "error_unsupported_version": "Versão de backup não suportada."
   }
 }
