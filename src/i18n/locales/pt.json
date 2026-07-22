@@ -66,7 +66,8 @@
     "join_group": "Unirme a",
     "join_group_sub": "um grupo",
     "empty_title": "Todo saldado",
-    "empty_body": "No tenés deudas pendientes con nadie."
+    "empty_body": "No tenés deudas pendientes con nadie.",
+    "go_to_profile": "Ir ao meu perfil"
   },
   "groups": {
     "title": "Grupos",
