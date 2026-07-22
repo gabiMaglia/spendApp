@@ -56,7 +56,6 @@
     },
     "plugins": [
       "expo-router",
-      "expo-apple-authentication",
       [
         "expo-splash-screen",
         {
@@ -81,13 +80,6 @@
         "expo-image-picker",
         {
           "photosPermission": "Necesitamos acceso a tus fotos para adjuntar imágenes de tickets."
-        }
-      ],
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/images/icon.png",
-          "color": "#0a7ea4"
         }
       ]
     ],
