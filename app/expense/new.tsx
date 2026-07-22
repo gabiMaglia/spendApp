@@ -27,9 +27,11 @@ import { hueForUser } from '@/src/utils/hueForUser';
 import { Avatar } from '@/src/components/Avatar';
 import { BottomSheet, SheetOption, SheetOptionAvatar } from '@/src/components/Sheet';
 import { buildSplits } from '@/src/algorithms/buildSplits';
-import type { ExpenseCategory } from '@/src/types/models';
+import type { ExpenseCategory, PersonalCategory } from '@/src/types/models';
 
-const CATEGORIES: { id: ExpenseCategory; icon: React.ComponentProps<typeof Ionicons>['name']; label: string }[] = [
+type CatMeta = { id: PersonalCategory; icon: React.ComponentProps<typeof Ionicons>['name']; label: string };
+
+const CATEGORIES: CatMeta[] = [
   { id: 'food',          icon: 'restaurant-outline',          label: 'Comida'        },
   { id: 'transport',     icon: 'car-outline',                 label: 'Transporte'    },
   { id: 'accommodation', icon: 'home-outline',                label: 'Alojamiento'   },
@@ -38,6 +40,13 @@ const CATEGORIES: { id: ExpenseCategory; icon: React.ComponentProps<typeof Ionic
   { id: 'health',        icon: 'medical-outline',             label: 'Salud'         },
   { id: 'shopping',      icon: 'bag-outline',                 label: 'Compras'       },
   { id: 'other',         icon: 'ellipsis-horizontal-outline', label: 'Otro'          },
+];
+
+// Categorías de ingreso — solo disponibles en modo Personal (F-G2).
+const INCOME_CATEGORIES: CatMeta[] = [
+  { id: 'salary',    icon: 'briefcase-outline', label: 'Sueldo'    },
+  { id: 'freelance', icon: 'laptop-outline',    label: 'Freelance' },
+  { id: 'income',    icon: 'cash-outline',      label: 'Otro'      },
 ];
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -74,7 +83,8 @@ export default function NewExpenseScreen() {
   const allGroups = useGroupStore(s => s.groups);
   const groups = useMemo(() => allGroups.filter(g => !g.isDeleted), [allGroups]);
 
-  const { groupId: paramGroupId, expenseId } = useLocalSearchParams<{ groupId?: string; expenseId?: string }>();
+  const { groupId: paramGroupId, expenseId, allowIncome, kind: paramKind } =
+    useLocalSearchParams<{ groupId?: string; expenseId?: string; allowIncome?: string; kind?: string }>();
 
   // In edit mode: load existing expense to pre-fill form
   const existingExpense = useExpenseStore(s =>
@@ -124,7 +134,13 @@ export default function NewExpenseScreen() {
     existingExpense ? new Date(existingExpense.date) : new Date(),
   );
   const [note,           setNote]           = useState(existingExpense?.note ?? '');
-  const [category,       setCategory]       = useState<ExpenseCategory>(existingExpense?.category ?? 'other');
+  const [category,       setCategory]       = useState<PersonalCategory>(existingExpense?.category ?? 'other');
+  // Modo Ingreso: SOLO habilitado cuando se abre desde Personal (allowIncome=1). (F-G2)
+  const incomeAllowed = allowIncome === '1' && !isEditMode;
+  const [entryKind, setEntryKind] = useState<'expense' | 'income'>(
+    incomeAllowed && paramKind === 'income' ? 'income' : 'expense',
+  );
+  const isIncome = incomeAllowed && entryKind === 'income';
   const [receiptUri,     setReceiptUri]     = useState<string | undefined>(existingExpense?.receiptImageUri);
 
   // ── Split ──────────────────────────────────────────────────────────────────
@@ -225,15 +241,22 @@ export default function NewExpenseScreen() {
     setShowGroup(false);
   }
 
+  function switchEntryKind(k: 'expense' | 'income') {
+    hapticSelection();
+    setEntryKind(k);
+    setCategory(k === 'income' ? 'income' : 'other');
+    if (k === 'income') setGroupId(''); // el ingreso no lleva grupo
+  }
+
   function handleSave() {
     if (!canSave || !currentUser) return;
 
-    // Sin grupo → gasto PERSONAL (sin ad gate, sin splits ni pagador). (F-G)
+    // Sin grupo → entrada PERSONAL (gasto o ingreso). Sin ad gate/splits/pagador. (F-G/F-G2)
     if (!hasGroup) {
       hapticSuccess();
       addPersonalEntry({
         id:          uuidv4(),
-        kind:        'expense',
+        kind:        isIncome ? 'income' : 'expense',
         description: description.trim(),
         amount,
         currency,
@@ -266,7 +289,7 @@ export default function NewExpenseScreen() {
         paidById:        payerId || currentUser.id,
         splits:          splitPayload,
         splitMode,
-        category,
+        category:        category as ExpenseCategory,
         date:            date.getTime(),
         note:            note || undefined,
         receiptImageUri: receiptUri,
@@ -292,7 +315,7 @@ export default function NewExpenseScreen() {
         paidById:        payerId || currentUser.id,
         splits:          splitPayload,
         splitMode,
-        category,
+        category:        category as ExpenseCategory,
         date:            date.getTime(),
         createdAt:       Date.now(),
         createdById:     currentUser.id,
@@ -355,7 +378,7 @@ export default function NewExpenseScreen() {
             <Ionicons name="close" size={24} color={c.text} />
           </Pressable>
           <Text style={[Typography.h3, { color: c.text }]}>
-            {isEditMode ? 'Editar gasto' : 'Nuevo gasto'}
+            {isEditMode ? 'Editar gasto' : isIncome ? 'Nuevo ingreso' : 'Nuevo gasto'}
           </Text>
           <View style={styles.headerBtn} />
         </View>
@@ -367,11 +390,19 @@ export default function NewExpenseScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
+          {/* Toggle Gasto/Ingreso — solo en modo Personal (F-G2) */}
+          {incomeAllowed && (
+            <View style={[styles.segmented, { backgroundColor: c.surfaceSunken, marginBottom: 12 }]}>
+              <SegTab label="Gasto"   active={!isIncome} onPress={() => switchEntryKind('expense')} />
+              <SegTab label="Ingreso" active={isIncome}  onPress={() => switchEntryKind('income')} />
+            </View>
+          )}
+
           {/* Description input */}
           <View style={[styles.inputCard, { backgroundColor: c.surface, borderColor: c.borderHair }]}>
             <Ionicons name="create-outline" size={18} color={c.textTertiary} style={{ marginTop: 1 }} />
             <TextInput
-              placeholder="¿En qué gastaron?"
+              placeholder={isIncome ? '¿De dónde?' : '¿En qué gastaron?'}
               placeholderTextColor={c.textTertiary}
               value={description}
               onChangeText={setDescription}
@@ -386,7 +417,7 @@ export default function NewExpenseScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.categoryScroll}
           >
-            {CATEGORIES.map(cat => {
+            {(isIncome ? INCOME_CATEGORIES : CATEGORIES).map(cat => {
               const active = category === cat.id;
               return (
                 <Pressable
@@ -631,6 +662,8 @@ export default function NewExpenseScreen() {
 
           <View style={[styles.vDivider, { backgroundColor: c.border }]} />
 
+          {/* Selector de grupo — oculto en modo Ingreso (F-G2) */}
+          {!isIncome && (<>
           {/* Center: group — locked in edit mode */}
           <Pressable
             onPress={isEditMode ? undefined : () => setShowGroup(true)}
@@ -647,6 +680,7 @@ export default function NewExpenseScreen() {
           </Pressable>
 
           <View style={[styles.vDivider, { backgroundColor: c.border }]} />
+          </>)}
 
           {/* Right: date */}
           <Pressable onPress={() => setShowDate(true)} style={styles.bottomDate}>
