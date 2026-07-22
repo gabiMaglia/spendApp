@@ -66,11 +66,19 @@ export default function AccountScreen() {
         {/* Header */}
         <View style={styles.header}>
           <SyncStatusBadge state={syncState} />
-          <Avatar
-            name={currentUser?.name ?? '?'}
-            hue={hueForUser(currentUser?.id ?? '')}
-            size={36}
-          />
+          {/* El avatar lleva al perfil "Yo" (decisión PO). */}
+          <Pressable
+            onPress={() => { hapticLight(); router.push('/(tabs)/user' as any); }}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={t('dashboard.go_to_profile')}
+          >
+            <Avatar
+              name={currentUser?.name ?? '?'}
+              hue={hueForUser(currentUser?.id ?? '')}
+              size={36}
+            />
+          </Pressable>
         </View>
 
         {/* Greeting */}
@@ -108,7 +116,10 @@ export default function AccountScreen() {
             <View style={[styles.statDivider, { backgroundColor: c.borderHair }]} />
             <View style={styles.stat}>
               <Text style={[Typography.caption, { color: c.textTertiary }]}>Gastado</Text>
-              <Text style={[Typography.amountM, { color: c.text }]}>
+              {/* Rojo si hay deuda (gastos > ingresos); negro si los ingresos alcanzan (decisión PO). */}
+              <Text style={[Typography.amountM, {
+                color: totalIncome >= totalSpent ? c.text : c.semantic.negative,
+              }]}>
                 {formatMoney(totalSpent, cur)}
               </Text>
             </View>
