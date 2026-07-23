@@ -22,18 +22,21 @@ import { hapticSuccess, hapticWarning, hapticSelection } from '@/src/utils/hapti
 import { hueForUser } from '@/src/utils/hueForUser';
 import { Avatar } from '@/src/components/Avatar';
 import { BottomSheet, SheetOption, SheetOptionAvatar } from '@/src/components/Sheet';
+import { useTranslation } from 'react-i18next';
+import i18n from '@/src/i18n';
 
 function formatDate(d: Date): string {
   const today     = new Date(); today.setHours(0, 0, 0, 0);
   const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
   const dMid      = new Date(d);    dMid.setHours(0, 0, 0, 0);
-  if (dMid.getTime() === today.getTime())     return 'Hoy';
-  if (dMid.getTime() === yesterday.getTime()) return 'Ayer';
-  return d.toLocaleDateString('es-AR', { day: 'numeric', month: 'short' });
+  if (dMid.getTime() === today.getTime())     return i18n.t('common.today');
+  if (dMid.getTime() === yesterday.getTime()) return i18n.t('common.yesterday');
+  return d.toLocaleDateString(i18n.language, { day: 'numeric', month: 'short' });
 }
 
 export default function SettleNewScreen() {
   const scheme = useColorScheme() ?? 'light';
+  const { t } = useTranslation();
   const c = Colors[scheme];
 
   const { currentUser } = useAuthStore();
@@ -157,7 +160,7 @@ export default function SettleNewScreen() {
           <Pressable onPress={() => router.back()} hitSlop={12} style={styles.headerBtn}>
             <Ionicons name="close" size={24} color={c.text} />
           </Pressable>
-          <Text style={[Typography.h3, { color: c.text }]}>Registrar pago</Text>
+          <Text style={[Typography.h3, { color: c.text }]}>{t('settle.title')}</Text>
           <View style={styles.headerBtn} />
         </View>
 
@@ -190,8 +193,8 @@ export default function SettleNewScreen() {
                 />
                 <Text style={[Typography.caption, { color: exceedsMax ? c.semantic.negative : c.textTertiary }]}>
                   {exceedsMax
-                    ? `No podés saldar más de ${formatMoney(maxAmount, currency)}`
-                    : `Saldo pendiente: ${formatMoney(maxAmount, currency)}`
+                    ? t('settle.max_exceeded', { amount: formatMoney(maxAmount, currency) })
+                    : t('settle.pending_balance', { amount: formatMoney(maxAmount, currency) })
                   }
                 </Text>
               </View>
@@ -205,17 +208,17 @@ export default function SettleNewScreen() {
               style={styles.transferSide}
             >
               <Text style={[Typography.caption, { color: c.textTertiary, textTransform: 'uppercase', marginBottom: 8 }]}>
-                De
+                {t('settle.from_label')}
               </Text>
               {fromId ? (
                 <View style={styles.transferUser}>
                   <Avatar name={getUserName(fromId)} hue={hueForUser(fromId)} size={36} />
                   <Text style={[Typography.bodyS, { color: c.text, fontWeight: '600', textAlign: 'center' }]} numberOfLines={2}>
-                    {fromId === currentUser?.id ? 'Vos' : getUserName(fromId)}
+                    {fromId === currentUser?.id ? t('common.you') : getUserName(fromId)}
                   </Text>
                 </View>
               ) : (
-                <Text style={[Typography.bodyM, { color: c.textTertiary }]}>Seleccionar</Text>
+                <Text style={[Typography.bodyM, { color: c.textTertiary }]}>{t('settle.select')}</Text>
               )}
             </Pressable>
 
@@ -228,7 +231,7 @@ export default function SettleNewScreen() {
               style={styles.transferSide}
             >
               <Text style={[Typography.caption, { color: c.textTertiary, textTransform: 'uppercase', marginBottom: 8 }]}>
-                A
+                {t('settle.to_label')}
               </Text>
               {toId ? (
                 <View style={styles.transferUser}>
@@ -238,7 +241,7 @@ export default function SettleNewScreen() {
                   </Text>
                 </View>
               ) : (
-                <Text style={[Typography.bodyM, { color: c.textTertiary }]}>Seleccionar</Text>
+                <Text style={[Typography.bodyM, { color: c.textTertiary }]}>{t('settle.select')}</Text>
               )}
             </Pressable>
           </View>
@@ -251,7 +254,7 @@ export default function SettleNewScreen() {
             >
               <Ionicons name="people-outline" size={14} color={c.textSecondary} />
               <Text style={[Typography.bodyS, { color: c.text, fontWeight: '600', flex: 1 }]} numberOfLines={1}>
-                {group?.name ?? 'Sin grupo'}
+                {group?.name ?? t('expense.no_group_short')}
               </Text>
               <Ionicons name="chevron-down" size={14} color={c.textTertiary} />
             </Pressable>
@@ -276,7 +279,7 @@ export default function SettleNewScreen() {
             <Text style={[Typography.bodyL, {
               color: canSave ? '#fff' : c.textDisabled, fontWeight: '700',
             }]}>
-              Registrar pago
+              {t('settle.title')}
             </Text>
           </Pressable>
         </ScrollView>
@@ -284,7 +287,7 @@ export default function SettleNewScreen() {
 
       {/* Group picker */}
       <BottomSheet visible={showGroup} onClose={() => setShowGroup(false)}>
-        <Text style={[Typography.h3, { color: c.text, marginBottom: 16 }]}>Seleccionar grupo</Text>
+        <Text style={[Typography.h3, { color: c.text, marginBottom: 16 }]}>{t('expense.select_group')}</Text>
         {groups.map(g => (
           <SheetOption
             key={g.id}
@@ -299,7 +302,7 @@ export default function SettleNewScreen() {
       {/* From picker — only when not prefilled */}
       {!isPrefilled && (
         <BottomSheet visible={showFrom} onClose={() => setShowFrom(false)}>
-          <Text style={[Typography.h3, { color: c.text, marginBottom: 16 }]}>¿Quién pagó?</Text>
+          <Text style={[Typography.h3, { color: c.text, marginBottom: 16 }]}>{t('expense.who_paid')}</Text>
           {members.map(uid => (
             <SheetOptionAvatar
               key={uid}
@@ -315,7 +318,7 @@ export default function SettleNewScreen() {
       {/* To picker — only when not prefilled */}
       {!isPrefilled && (
         <BottomSheet visible={showTo} onClose={() => setShowTo(false)}>
-          <Text style={[Typography.h3, { color: c.text, marginBottom: 16 }]}>¿A quién le pagó?</Text>
+          <Text style={[Typography.h3, { color: c.text, marginBottom: 16 }]}>{t('settle.who_received')}</Text>
           {toOptions.map(uid => (
             <SheetOptionAvatar
               key={uid}
@@ -330,14 +333,14 @@ export default function SettleNewScreen() {
 
       {/* Date picker */}
       <BottomSheet visible={showDate} onClose={() => setShowDate(false)}>
-        <Text style={[Typography.h3, { color: c.text, marginBottom: 16 }]}>Fecha del pago</Text>
+        <Text style={[Typography.h3, { color: c.text, marginBottom: 16 }]}>{t('settle.payment_date')}</Text>
         {Array.from({ length: 7 }, (_, i) => {
           const d = new Date();
           d.setDate(d.getDate() - i);
           d.setHours(12, 0, 0, 0);
           const label   = formatDate(d);
           const longFmt = i > 1
-            ? d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })
+            ? d.toLocaleDateString(i18n.language, { weekday: 'long', day: 'numeric', month: 'long' })
             : undefined;
           return (
             <SheetOption

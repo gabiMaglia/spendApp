@@ -16,11 +16,13 @@ import { useAuthStore } from '@/src/store/authStore';
 import { useUserStore } from '@/src/store/userStore';
 import { hapticLight, hapticSuccess, hapticWarning } from '@/src/utils/haptics';
 import { buildContactPayload, parseContactPayload, buildContactDeepLink } from '@/src/utils/contactLink';
+import { useTranslation } from 'react-i18next';
 
 type Mode = 'my_qr' | 'scan';
 
 export default function AddContactScreen() {
   const scheme = useColorScheme() ?? 'light';
+  const { t } = useTranslation();
   const c = Colors[scheme];
   const { currentUser } = useAuthStore();
   const { addOrUpdateUser, getUserById } = useUserStore();
@@ -45,16 +47,16 @@ export default function AddContactScreen() {
     const contact = parseContactPayload(data) ?? parseDeepLinkContact(data);
     if (!contact) {
       hapticWarning();
-      Alert.alert('QR no reconocido', 'Este código no corresponde a un contacto de SplitP2P.', [
-        { text: 'Volver a escanear', onPress: () => setScanned(false) },
-        { text: 'Cancelar', style: 'cancel', onPress: () => router.back() },
+      Alert.alert(t('contact.unknown_qr_title'), t('contact.unknown_qr_body'), [
+        { text: t('contact.rescan'), onPress: () => setScanned(false) },
+        { text: t('common.cancel'), style: 'cancel', onPress: () => router.back() },
       ]);
       return;
     }
 
     if (contact.id === currentUser?.id) {
       hapticWarning();
-      Alert.alert('Es tu propio código', 'Escaneaste tu propio QR.', [
+      Alert.alert(t('contact.own_qr_title'), t('contact.own_qr_body'), [
         { text: 'OK', onPress: () => setScanned(false) },
       ]);
       return;
@@ -62,7 +64,7 @@ export default function AddContactScreen() {
 
     if (getUserById(contact.id) && !getUserById(contact.id)?.isDeleted) {
       hapticLight();
-      Alert.alert('Contacto ya guardado', `${contact.name} ya está en tus contactos.`, [
+      Alert.alert(t('contact.already_title'), t('contact.already_body', { name: contact.name }), [
         { text: 'OK', onPress: () => router.back() },
       ]);
       return;
@@ -79,9 +81,9 @@ export default function AddContactScreen() {
       isDeleted:    false,
     });
     Alert.alert(
-      '¡Contacto agregado!',
-      `${contact.name} fue agregado a tus contactos.`,
-      [{ text: 'Listo', onPress: () => router.back() }],
+      t('contact.added_title'),
+      t('contact.added_body', { name: contact.name }),
+      [{ text: t('common.done'), onPress: () => router.back() }],
     );
   }, [scanned, currentUser]);
 
@@ -89,8 +91,8 @@ export default function AddContactScreen() {
     hapticLight();
     try {
       await Share.share({
-        message: `Agregame en SplitP2P para dividir gastos juntos 👇\n${deepLink}`,
-        title: 'Agregar contacto en SplitP2P',
+        message: t('contact.share_message', { link: deepLink }),
+        title: t('contact.share_title'),
       });
     } catch {
       // user cancelled
@@ -105,7 +107,7 @@ export default function AddContactScreen() {
         <Pressable onPress={() => router.back()} hitSlop={12} style={styles.headerBtn}>
           <Ionicons name="close" size={24} color={c.text} />
         </Pressable>
-        <Text style={[Typography.h3, { color: c.text }]}>Agregar contacto</Text>
+        <Text style={[Typography.h3, { color: c.text }]}>{t('contact.title')}</Text>
         <View style={styles.headerBtn} />
       </View>
 
@@ -117,7 +119,7 @@ export default function AddContactScreen() {
         >
           <Ionicons name="qr-code-outline" size={16} color={mode === 'my_qr' ? c.text : c.textSecondary} />
           <Text style={[Typography.bodyS, { color: mode === 'my_qr' ? c.text : c.textSecondary, fontWeight: '600' }]}>
-            Mi QR
+            {t('contact.tab_my_qr')}
           </Text>
         </Pressable>
         <Pressable
@@ -126,7 +128,7 @@ export default function AddContactScreen() {
         >
           <Ionicons name="scan-outline" size={16} color={mode === 'scan' ? c.text : c.textSecondary} />
           <Text style={[Typography.bodyS, { color: mode === 'scan' ? c.text : c.textSecondary, fontWeight: '600' }]}>
-            Escanear
+            {t('contact.tab_scan')}
           </Text>
         </Pressable>
       </View>
@@ -148,12 +150,12 @@ export default function AddContactScreen() {
                 {currentUser.name}
               </Text>
               <Text style={[Typography.bodyM, { color: c.textSecondary, marginTop: 4, textAlign: 'center' }]}>
-                Mostrá este QR a tus contactos{'\n'}para que te puedan agregar.
+                {t('contact.my_qr_hint')}
               </Text>
 
               <View style={styles.dividerRow}>
                 <View style={[styles.dividerLine, { backgroundColor: c.borderHair }]} />
-                <Text style={[Typography.caption, { color: c.textTertiary, paddingHorizontal: 10 }]}>o</Text>
+                <Text style={[Typography.caption, { color: c.textTertiary, paddingHorizontal: 10 }]}>{t('contact.or')}</Text>
                 <View style={[styles.dividerLine, { backgroundColor: c.borderHair }]} />
               </View>
 
@@ -163,12 +165,12 @@ export default function AddContactScreen() {
               >
                 <Ionicons name="share-outline" size={20} color={c.brand.primary} />
                 <Text style={[Typography.bodyM, { color: c.brand.primary, fontWeight: '700' }]}>
-                  Compartir link de contacto
+                  {t('contact.share_link')}
                 </Text>
               </Pressable>
             </>
           ) : (
-            <Text style={[Typography.bodyM, { color: c.textTertiary }]}>Cargando...</Text>
+            <Text style={[Typography.bodyM, { color: c.textTertiary }]}>{t('common.loading')}</Text>
           )}
         </View>
       ) : (
@@ -178,14 +180,14 @@ export default function AddContactScreen() {
             <View style={styles.permBox}>
               <Ionicons name="camera-outline" size={48} color={c.textTertiary} />
               <Text style={[Typography.bodyM, { color: c.textSecondary, textAlign: 'center' }]}>
-                Necesitamos acceso a la cámara para escanear el QR.
+                {t('contact.cam_permission')}
               </Text>
               <Pressable
                 onPress={requestPerm}
                 style={[styles.permBtn, { backgroundColor: c.brand.primary }]}
               >
                 <Text style={[Typography.bodyM, { color: '#fff', fontWeight: '700' }]}>
-                  Dar permiso
+                  {t('contact.grant_permission')}
                 </Text>
               </Pressable>
             </View>
@@ -201,7 +203,7 @@ export default function AddContactScreen() {
               <View style={styles.overlay}>
                 <View style={styles.frame} />
                 <Text style={[Typography.bodyM, { color: '#fff', marginTop: 24, textAlign: 'center' }]}>
-                  Apuntá al QR de tu contacto
+                  {t('contact.scan_hint')}
                 </Text>
               </View>
               {scanned && (
@@ -210,7 +212,7 @@ export default function AddContactScreen() {
                   style={[styles.rescanBtn, { backgroundColor: c.brand.primary }]}
                 >
                   <Text style={[Typography.bodyM, { color: '#fff', fontWeight: '700' }]}>
-                    Volver a escanear
+                    {t('contact.rescan')}
                   </Text>
                 </Pressable>
               )}
