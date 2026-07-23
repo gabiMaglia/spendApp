@@ -46,6 +46,7 @@ describe('money migration guard (D1) — expenseStore', () => {
       seed.set('data_v1', JSON.stringify([floatExpense]));
       expect(seed.getBoolean('money_int_v1_done')).toBeFalsy();
 
+      require('../authStore').useAuthStore.setState({ currentUser: { id: 'u1' } });
       const { useExpenseStore } = require('../expenseStore');
 
       useExpenseStore.getState().hydrate();
@@ -79,6 +80,7 @@ describe('money migration guard (D1) — paymentStore', () => {
       seed.set('data_v1', JSON.stringify([floatPayment]));
       expect(seed.getBoolean('money_int_v1_done')).toBeFalsy();
 
+      require('../authStore').useAuthStore.setState({ currentUser: { id: 'u1' } });
       const { usePaymentStore } = require('../paymentStore');
 
       usePaymentStore.getState().hydrate();
@@ -111,6 +113,7 @@ describe('money migration guard (D1) — personalStore', () => {
       seed.set('budget_v1', JSON.stringify(floatBudget));
       expect(seed.getBoolean('money_int_v1_done')).toBeFalsy();
 
+      require('../authStore').useAuthStore.setState({ currentUser: { id: 'u1' } });
       const { usePersonalStore } = require('../personalStore');
 
       usePersonalStore.getState().hydrate();

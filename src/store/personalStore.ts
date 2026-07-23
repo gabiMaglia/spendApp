@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
+import { readScoped, writeScoped } from './userScope';
 import { migratePersonalBudgetAmount, migratePersonalEntryAmounts } from './moneyMigration';
 import type { PersonalEntry, PersonalBudget } from '@/src/types/models';
 
@@ -31,13 +32,13 @@ interface PersonalStoreState {
 }
 
 function persistEntries(entries: PersonalEntry[]) {
-  storage.set(ENTRIES_KEY, JSON.stringify(entries));
+  writeScoped(storage, ENTRIES_KEY, JSON.stringify(entries));
 }
 function persistBudget(budget: PersonalBudget) {
-  storage.set(BUDGET_KEY, JSON.stringify(budget));
+  writeScoped(storage, BUDGET_KEY, JSON.stringify(budget));
 }
 function persistLastSeen(month: string) {
-  storage.set(LAST_SEEN_KEY, month);
+  writeScoped(storage, LAST_SEEN_KEY, month);
 }
 
 /** "YYYY-MM" del timestamp dado, en hora local. */
@@ -108,9 +109,9 @@ export const usePersonalStore = create<PersonalStoreState>((set, get) => ({
   },
 
   hydrate: () => {
-    const rawEntries  = storage.getString(ENTRIES_KEY);
-    const rawBudget   = storage.getString(BUDGET_KEY);
-    const rawLastSeen = storage.getString(LAST_SEEN_KEY);
+    const rawEntries  = readScoped(storage, ENTRIES_KEY);
+    const rawBudget   = readScoped(storage, BUDGET_KEY);
+    const rawLastSeen = readScoped(storage, LAST_SEEN_KEY);
     let entries      = rawEntries  ? (JSON.parse(rawEntries)  as PersonalEntry[]) : [];
     let budget       = rawBudget   ? (JSON.parse(rawBudget)   as PersonalBudget)  : DEFAULT_BUDGET;
     const lastSeenMonth = rawLastSeen ?? currentMonthKey();

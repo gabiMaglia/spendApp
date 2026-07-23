@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import type { User } from '@/src/types/models';
-import { useUserStore } from './userStore';
 
 const storage = createSecureStorage('auth');
 
@@ -9,6 +8,12 @@ const KEYS = {
   USER:   'current_user',
   IS_PRO: 'is_pro',
 } as const;
+
+// isPro es por-cuenta (la suscripción es de un usuario). La sesión (current_user)
+// es global (puntero a la cuenta activa); isPro se scopea por el id del usuario.
+function isProKey(uid: string): string {
+  return `${KEYS.IS_PRO}::u:${uid}`;
+}
 
 interface AuthState {
   currentUser: User | null;
@@ -22,23 +27,27 @@ interface AuthState {
   hydrate: () => void;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   currentUser: null,
   isPro: false,
   isLoading: true,
 
+  // Setea la cuenta activa. La (re)hidratación de los stores por-cuenta la
+  // dispara el coordinador de sesión (src/store/session.ts) al observar este
+  // cambio — por eso acá NO tocamos userStore (evita ciclos y orden incorrecto).
   setUser: (user) => {
     if (user) {
       storage.set(KEYS.USER, JSON.stringify(user));
-      useUserStore.getState().addOrUpdateUser(user);
     } else {
       storage.delete(KEYS.USER);
     }
-    set({ currentUser: user });
+    const isPro = user ? (storage.getBoolean(isProKey(user.id)) ?? false) : false;
+    set({ currentUser: user, isPro });
   },
 
   setIsPro: (isPro) => {
-    storage.set(KEYS.IS_PRO, isPro);
+    const uid = get().currentUser?.id;
+    if (uid) storage.set(isProKey(uid), isPro);
     set({ isPro });
   },
 
@@ -46,14 +55,14 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   signOut: () => {
     storage.delete(KEYS.USER);
-    storage.delete(KEYS.IS_PRO);
+    // El isPro scopeado del usuario NO se borra: queda para cuando vuelva a entrar.
     set({ currentUser: null, isPro: false });
   },
 
   hydrate: () => {
     const raw = storage.getString(KEYS.USER);
     const user = raw ? (JSON.parse(raw) as User) : null;
-    const isPro = storage.getBoolean(KEYS.IS_PRO) ?? false;
+    const isPro = user ? (storage.getBoolean(isProKey(user.id)) ?? false) : false;
     set({ currentUser: user, isPro, isLoading: false });
   },
 }));

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
+import { readScoped, writeScoped } from './userScope';
 import type { Group } from '@/src/types/models';
 
 const storage = createSecureStorage('groups');
@@ -16,7 +17,7 @@ interface GroupStoreState {
 }
 
 function persist(groups: Group[]) {
-  storage.set(KEY, JSON.stringify(groups));
+  writeScoped(storage, KEY, JSON.stringify(groups));
 }
 
 export const useGroupStore = create<GroupStoreState>((set, get) => ({
@@ -56,7 +57,7 @@ export const useGroupStore = create<GroupStoreState>((set, get) => ({
   },
 
   hydrate: () => {
-    const raw = storage.getString(KEY);
+    const raw = readScoped(storage, KEY);
     const groups = raw ? (JSON.parse(raw) as Group[]) : [];
     set({ groups, isLoading: false });
   },

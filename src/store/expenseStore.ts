@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
+import { readScoped, writeScoped } from './userScope';
 import { migrateExpenseAmounts } from './moneyMigration';
 import type { Expense } from '@/src/types/models';
 
@@ -20,7 +21,7 @@ interface ExpenseStoreState {
 }
 
 function persist(expenses: Expense[]) {
-  storage.set(KEY, JSON.stringify(expenses));
+  writeScoped(storage, KEY, JSON.stringify(expenses));
 }
 
 export const useExpenseStore = create<ExpenseStoreState>((set, get) => ({
@@ -61,7 +62,7 @@ export const useExpenseStore = create<ExpenseStoreState>((set, get) => ({
   },
 
   hydrate: () => {
-    const raw = storage.getString(KEY);
+    const raw = readScoped(storage, KEY);
     let expenses = raw ? (JSON.parse(raw) as Expense[]) : [];
 
     // Conversión one-shot de datos existentes (float → entero, ADR-002 §6).

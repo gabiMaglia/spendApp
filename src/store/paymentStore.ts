@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
+import { readScoped, writeScoped } from './userScope';
 import { migratePaymentAmounts } from './moneyMigration';
 import type { Payment } from '@/src/types/models';
 
@@ -19,7 +20,7 @@ interface PaymentStoreState {
 }
 
 function persist(payments: Payment[]) {
-  storage.set(KEY, JSON.stringify(payments));
+  writeScoped(storage, KEY, JSON.stringify(payments));
 }
 
 export const usePaymentStore = create<PaymentStoreState>((set, get) => ({
@@ -60,7 +61,7 @@ export const usePaymentStore = create<PaymentStoreState>((set, get) => ({
   },
 
   hydrate: () => {
-    const raw = storage.getString(KEY);
+    const raw = readScoped(storage, KEY);
     let payments = raw ? (JSON.parse(raw) as Payment[]) : [];
 
     // Conversión one-shot de datos existentes (float → entero, ADR-002 §6).

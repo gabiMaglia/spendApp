@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
+import { readScoped, writeScoped } from './userScope';
 import type { User } from '@/src/types/models';
 
 const storage = createSecureStorage('users');
@@ -16,7 +17,7 @@ interface UserStoreState {
 }
 
 function persist(users: User[]) {
-  storage.set(KEY, JSON.stringify(users));
+  writeScoped(storage, KEY, JSON.stringify(users));
 }
 
 export const useUserStore = create<UserStoreState>((set, get) => ({
@@ -61,7 +62,7 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
   },
 
   hydrate: () => {
-    const raw = storage.getString(KEY);
+    const raw = readScoped(storage, KEY);
     const users = raw ? (JSON.parse(raw) as User[]) : [];
     set({ users });
   },
