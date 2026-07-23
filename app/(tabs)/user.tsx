@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import {
-  Alert, Linking, Pressable, SafeAreaView, ScrollView,
-  StyleSheet, Switch, Text, TextInput, View,
+  Alert, Linking, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 
@@ -12,6 +12,8 @@ import { Typography } from '@/src/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuthStore } from '@/src/store/authStore';
 import { useThemeStore } from '@/src/store/themeStore';
+import { useLangStore, type LanguageChoice } from '@/src/store/langStore';
+import { SUPPORTED_LANGUAGES } from '@/src/i18n';
 import { useSettingsStore } from '@/src/store/settingsStore';
 import { hueForUser } from '@/src/utils/hueForUser';
 import { sanitizeUserName } from '@/src/utils/sanitizeUserName';
@@ -59,13 +61,19 @@ export default function UserScreen() {
   // Appearance
   const { themeChoice, setThemeChoice } = useThemeStore();
 
+  // Language — 'auto' sigue el idioma del dispositivo; el resto fija el idioma.
+  const { choice: langChoice, setLanguage } = useLangStore();
+  const langOptions: LanguageChoice[] = ['auto', ...SUPPORTED_LANGUAGES];
+  const langLabel = (opt: LanguageChoice) =>
+    opt === 'auto' ? t('profile.language_auto') : opt.toUpperCase();
+
   function handleSignOut() {
     Alert.alert(
-      'Cerrar sesión',
-      '¿Estás seguro? Tus datos locales se conservan en el dispositivo.',
+      t('profile.sign_out'),
+      t('profile.sign_out_confirm_body'),
       [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Cerrar sesión', style: 'destructive', onPress: signOut },
+        { text: t('common.cancel'), style: 'cancel' },
+        { text: t('profile.sign_out'), style: 'destructive', onPress: signOut },
       ],
     );
   }
@@ -130,7 +138,7 @@ export default function UserScreen() {
     <SafeAreaView style={[styles.safe, { backgroundColor: c.bg }]}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
 
-        <Text style={[Typography.display, styles.pageTitle, { color: c.text }]}>Yo</Text>
+        <Text style={[Typography.display, styles.pageTitle, { color: c.text }]}>{t('profile.title')}</Text>
 
         {/* ── Mi cuenta ────────────────────────────────────────────────── */}
         <View style={[styles.profileCard, { backgroundColor: c.surface, borderColor: c.borderHair }]}>
@@ -141,7 +149,7 @@ export default function UserScreen() {
           />
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={[Typography.bodyL, { color: c.text, fontWeight: '700' }]} numberOfLines={1}>
-              {currentUser?.name ?? 'Sin nombre'}
+              {currentUser?.name ?? t('profile.no_name')}
             </Text>
             <Text style={[Typography.bodyS, { color: c.textTertiary }]} numberOfLines={1}>
               {currentUser?.email ?? ''}
@@ -195,16 +203,16 @@ export default function UserScreen() {
         </BottomSheet>
 
         {/* ── Plan ─────────────────────────────────────────────────────── */}
-        <SectionLabel label="PLAN" />
+        <SectionLabel label={t('profile.section_plan')} />
         <View style={[styles.section, { borderColor: c.borderHair }]}>
           <View style={[styles.row, { backgroundColor: c.surface }]}>
             <View style={{ flex: 1 }}>
               <Text style={[Typography.bodyM, { color: c.text, fontWeight: '600' }]}>
-                {isPro ? 'Pro ✦' : 'Plan Free'}
+                {isPro ? t('profile.plan_pro') : t('profile.plan_free')}
               </Text>
               {!isPro && (
                 <Text style={[Typography.bodyS, { color: c.textTertiary }]}>
-                  4 gastos gratis por día
+                  {t('profile.free_daily')}
                 </Text>
               )}
             </View>
@@ -215,7 +223,7 @@ export default function UserScreen() {
             ) : (
               <Pressable style={[styles.upgradeBtn, { backgroundColor: c.brand.primary }]}>
                 <Text style={[Typography.bodyS, { color: '#fff', fontWeight: '700' }]}>
-                  Probar Pro gratis
+                  {t('profile.try_pro')}
                 </Text>
               </Pressable>
             )}
@@ -223,32 +231,32 @@ export default function UserScreen() {
         </View>
 
         {/* ── Notificaciones ───────────────────────────────────────────── */}
-        <SectionLabel label="NOTIFICACIONES" />
+        <SectionLabel label={t('profile.section_notifications')} />
         <View style={[styles.section, { borderColor: c.borderHair }]}>
           <ToggleRow
-            label="Nuevos gastos"
+            label={t('profile.notif_expenses')}
             value={notifExpenses}
             onChange={setNotifExpenses}
           />
           <Divider color={c.borderHair} />
           <ToggleRow
-            label="Solicitudes de borrado"
+            label={t('profile.notif_deletions')}
             value={notifDeletions}
             onChange={setNotifDeletions}
           />
           <Divider color={c.borderHair} />
           <ToggleRow
-            label="Invitaciones a grupos"
+            label={t('profile.notif_invites')}
             value={notifInvites}
             onChange={setNotifInvites}
           />
         </View>
 
         {/* ── Apariencia ───────────────────────────────────────────────── */}
-        <SectionLabel label="APARIENCIA" />
+        <SectionLabel label={t('profile.section_appearance')} />
         <View style={[styles.section, { borderColor: c.borderHair }]}>
           <View style={[styles.row, { backgroundColor: c.surface }]}>
-            <Text style={[Typography.bodyM, { color: c.text, fontWeight: '600' }]}>Tema</Text>
+            <Text style={[Typography.bodyM, { color: c.text, fontWeight: '600' }]}>{t('profile.theme')}</Text>
             <View style={[styles.themeSegment, { backgroundColor: c.surfaceSunken }]}>
               {(['auto', 'light', 'dark'] as const).map(opt => (
                 <Pressable
@@ -263,7 +271,7 @@ export default function UserScreen() {
                     color:      themeChoice === opt ? c.text : c.textTertiary,
                     fontWeight: themeChoice === opt ? '700' : '500',
                   }]}>
-                    {opt === 'auto' ? 'Auto' : opt === 'light' ? 'Claro' : 'Oscuro'}
+                    {opt === 'auto' ? t('profile.theme_auto') : opt === 'light' ? t('profile.theme_light') : t('profile.theme_dark')}
                   </Text>
                 </Pressable>
               ))}
@@ -272,8 +280,8 @@ export default function UserScreen() {
           <Divider color={c.borderHair} />
           <View style={[styles.row, { backgroundColor: c.surface }]}>
             <View style={{ flex: 1 }}>
-              <Text style={[Typography.bodyM, { color: c.text, fontWeight: '600' }]}>Skins</Text>
-              <Text style={[Typography.bodyS, { color: c.textTertiary }]}>Próximamente</Text>
+              <Text style={[Typography.bodyM, { color: c.text, fontWeight: '600' }]}>{t('profile.skins')}</Text>
+              <Text style={[Typography.bodyS, { color: c.textTertiary }]}>{t('profile.coming_soon')}</Text>
             </View>
             <View style={[styles.soonBadge, { backgroundColor: c.surfaceSunken }]}>
               <Text style={[Typography.caption, { color: c.textTertiary, fontWeight: '600' }]}>
@@ -283,17 +291,46 @@ export default function UserScreen() {
           </View>
         </View>
 
+        {/* ── Idioma ───────────────────────────────────────────────────── */}
+        <SectionLabel label={t('profile.section_language')} />
+        <View style={[styles.section, { borderColor: c.borderHair }]}>
+          <View style={[styles.row, { backgroundColor: c.surface }]}>
+            <Text style={[Typography.bodyM, { color: c.text, fontWeight: '600' }]}>
+              {t('profile.language')}
+            </Text>
+            <View style={[styles.themeSegment, { backgroundColor: c.surfaceSunken }]}>
+              {langOptions.map(opt => (
+                <Pressable
+                  key={opt}
+                  onPress={() => setLanguage(opt)}
+                  style={[
+                    styles.themeTab,
+                    langChoice === opt && { backgroundColor: c.surface },
+                  ]}
+                >
+                  <Text style={[Typography.caption, {
+                    color:      langChoice === opt ? c.text : c.textTertiary,
+                    fontWeight: langChoice === opt ? '700' : '500',
+                  }]}>
+                    {langLabel(opt)}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        </View>
+
         {/* ── Tienda ───────────────────────────────────────────────────── */}
-        <SectionLabel label="TIENDA" />
+        <SectionLabel label={t('profile.section_store')} />
         <View style={[styles.section, { borderColor: c.borderHair }]}>
           <LinkRow
-            label="Calificar la app"
+            label={t('profile.rate')}
             icon="star-outline"
             onPress={handleRateApp}
           />
           <Divider color={c.borderHair} />
           <LinkRow
-            label="Dejar un comentario"
+            label={t('profile.feedback')}
             icon="chatbubble-outline"
             onPress={handleRateApp}
           />
@@ -308,15 +345,15 @@ export default function UserScreen() {
         </View>
 
         {/* ── Seguridad ────────────────────────────────────────────────── */}
-        <SectionLabel label="SEGURIDAD" />
+        <SectionLabel label={t('profile.section_security')} />
         <View style={[styles.section, { borderColor: c.borderHair }]}>
           <View style={[styles.row, { backgroundColor: c.surface }]}>
             <View style={{ flex: 1 }}>
               <Text style={[Typography.bodyM, { color: c.text, fontWeight: '600' }]}>
-                Face ID / Touch ID
+                {t('profile.biometric')}
               </Text>
               <Text style={[Typography.bodyS, { color: c.textTertiary }]}>
-                Requerir biometría al abrir
+                {t('profile.biometric_sub')}
               </Text>
             </View>
             <View style={[styles.soonBadge, { backgroundColor: c.surfaceSunken }]}>
@@ -334,12 +371,12 @@ export default function UserScreen() {
         >
           <Ionicons name="log-out-outline" size={18} color={c.semantic.negative} />
           <Text style={[Typography.bodyM, { color: c.semantic.negative, fontWeight: '600' }]}>
-            Cerrar sesión
+            {t('profile.sign_out')}
           </Text>
         </Pressable>
 
         <Text style={[Typography.caption, styles.version, { color: c.textTertiary }]}>
-          SplitP2P v1.0.0 · P2P sin servidor
+          {t('profile.version', { version: '1.0.0' })}
         </Text>
 
         <View style={{ height: Spacing[6] }} />

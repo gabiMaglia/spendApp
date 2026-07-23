@@ -25,7 +25,38 @@
   },
   "profile": {
     "edit_name_title": "Editar nombre",
-    "edit_name_placeholder": "Tu nombre"
+    "edit_name_placeholder": "Tu nombre",
+    "title": "Yo",
+    "no_name": "Sin nombre",
+    "section_plan": "PLAN",
+    "section_notifications": "NOTIFICACIONES",
+    "section_appearance": "APARIENCIA",
+    "section_store": "TIENDA",
+    "section_security": "SEGURIDAD",
+    "section_language": "IDIOMA",
+    "plan_pro": "Pro ✦",
+    "plan_free": "Plan Free",
+    "free_daily": "4 gastos gratis por día",
+    "try_pro": "Probar Pro gratis",
+    "notif_expenses": "Nuevos gastos",
+    "notif_deletions": "Solicitudes de borrado",
+    "notif_invites": "Invitaciones a grupos",
+    "theme": "Tema",
+    "theme_auto": "Auto",
+    "theme_light": "Claro",
+    "theme_dark": "Oscuro",
+    "skins": "Skins",
+    "coming_soon": "Próximamente",
+    "soon": "SOON",
+    "rate": "Calificar la app",
+    "feedback": "Dejar un comentario",
+    "biometric": "Face ID / Touch ID",
+    "biometric_sub": "Requerir biometría al abrir",
+    "sign_out": "Cerrar sesión",
+    "sign_out_confirm_body": "¿Estás seguro? Tus datos locales se conservan en el dispositivo.",
+    "version": "SplitP2P v{{version}} · P2P sin servidor",
+    "language": "Idioma",
+    "language_auto": "Auto"
   },
   "auth": {
     "welcome_title": "Dividí gastos\nentre amigos.",
@@ -320,5 +351,13 @@
     "error_invalid_json": "El archivo no es un backup válido.",
     "error_invalid_format": "Formato de archivo no reconocido.",
     "error_unsupported_version": "Versión de backup no soportada."
+  },
+  "tabs": {
+    "account": "Cuenta",
+    "personal": "Personal",
+    "friends": "Amigos",
+    "groups": "Grupos",
+    "activity": "Actividad",
+    "me": "Yo"
   }
 }

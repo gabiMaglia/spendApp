@@ -1,7 +1,8 @@
 import React, { useMemo } from 'react';
 import {
-  Alert, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View,
+  Alert, Pressable, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { hapticLight, hapticWarning } from '@/src/utils/haptics';
 import { useTranslation } from 'react-i18next';
@@ -11,6 +12,7 @@ import { Colors } from '@/src/constants/colors';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { formatMoney } from '@/src/constants/currencies';
+import { MoneyText } from '@/src/components/MoneyText';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuthStore } from '@/src/store/authStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
@@ -138,9 +140,7 @@ export default function ExpenseDetailScreen() {
           <Text style={[Typography.h1, { color: c.text, textAlign: 'center', marginTop: 12 }]}>
             {expense.description}
           </Text>
-          <Text style={[Typography.amountL, { color: c.text, marginTop: 4 }]}>
-            {formatMoney(expense.amount, expense.currency)}
-          </Text>
+          <MoneyText minor={expense.amount} code={expense.currency} style={[Typography.amountL, { color: c.text, marginTop: 4 }]} />
           <Text style={[Typography.bodyS, { color: c.textTertiary, marginTop: 4 }]}>
             {dateStr}
           </Text>

@@ -3,8 +3,8 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Colors } from '@/src/constants/colors';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { formatMoney } from '@/src/constants/currencies';
 import type { CurrencyCode } from '@/src/constants/currencies';
+import { MoneyText } from '@/src/components/MoneyText';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTranslation } from 'react-i18next';
 
@@ -31,12 +31,15 @@ export function BalanceSummaryCard({ owedToYou = 0, youOwe = 0, currency = 'ARS'
         <Text style={[Typography.bodyS, { color: positive ? c.semantic.positive : c.semantic.negative, fontWeight: '600' }]}>
           {positive ? t('dashboard.balance_favor') : t('dashboard.balance_contra')}
         </Text>
-        <Text style={[
-          Typography.amountL,
-          { color: positive ? c.semantic.positive : c.semantic.negative, fontSize: 36 },
-        ]}>
-          {positive ? '+' : '−'}{formatMoney(Math.abs(net), currency)}
-        </Text>
+        <MoneyText
+          minor={Math.abs(net)}
+          code={currency}
+          prefix={positive ? '+' : '−'}
+          style={[
+            Typography.amountL,
+            { color: positive ? c.semantic.positive : c.semantic.negative, fontSize: 36, flexShrink: 1 },
+          ]}
+        />
       </View>
 
       <View style={styles.grid}>
@@ -44,17 +47,13 @@ export function BalanceSummaryCard({ owedToYou = 0, youOwe = 0, currency = 'ARS'
           <Text style={[Typography.label, { color: c.semantic.positiveOnSoft, fontSize: 11 }]}>
             {t('dashboard.owed_to_you')}
           </Text>
-          <Text style={[Typography.amountM, { color: c.semantic.positiveOnSoft, fontSize: 20, marginTop: 4 }]}>
-            {formatMoney(owedToYou, currency)}
-          </Text>
+          <MoneyText minor={owedToYou} code={currency} style={[Typography.amountM, { color: c.semantic.positiveOnSoft, fontSize: 20, marginTop: 4 }]} />
         </View>
         <View style={[styles.cell, { backgroundColor: c.semantic.negativeSoft }]}>
           <Text style={[Typography.label, { color: c.semantic.negativeOnSoft, fontSize: 11 }]}>
             {t('dashboard.you_owe')}
           </Text>
-          <Text style={[Typography.amountM, { color: c.semantic.negativeOnSoft, fontSize: 20, marginTop: 4 }]}>
-            {formatMoney(youOwe, currency)}
-          </Text>
+          <MoneyText minor={youOwe} code={currency} style={[Typography.amountM, { color: c.semantic.negativeOnSoft, fontSize: 20, marginTop: 4 }]} />
         </View>
       </View>
     </View>

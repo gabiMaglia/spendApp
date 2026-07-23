@@ -3,7 +3,7 @@ import { Avatar } from '@/src/components/Avatar';
 import { Fab, FabRow } from '@/src/components/Fab';
 import { SyncStatusBadge } from '@/src/components/SyncStatusBadge';
 import { Colors } from '@/src/constants/colors';
-import { formatMoney } from '@/src/constants/currencies';
+import { MoneyText } from '@/src/components/MoneyText';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { useAuthStore } from '@/src/store/authStore';
@@ -16,7 +16,10 @@ import { router } from 'expo-router';
 import React from 'react';
 import { hapticLight } from '@/src/utils/haptics';
 import { useTranslation } from 'react-i18next';
-import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  Pressable, ScrollView, StyleSheet, Text, View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function AccountScreen() {
   const { t } = useTranslation();
@@ -109,30 +112,24 @@ export default function AccountScreen() {
           <View style={styles.statRow}>
             <View style={styles.stat}>
               <Text style={[Typography.caption, { color: c.textTertiary }]}>Saldo a favor</Text>
-              <Text style={[Typography.amountM, { color: c.semantic.positive }]}>
-                {formatMoney(owedToMeInCur, cur)}
-              </Text>
+              <MoneyText minor={owedToMeInCur} code={cur} style={[Typography.amountM, { color: c.semantic.positive }]} />
             </View>
             <View style={[styles.statDivider, { backgroundColor: c.borderHair }]} />
             <View style={styles.stat}>
               <Text style={[Typography.caption, { color: c.textTertiary }]}>Gastado</Text>
               {/* Rojo si hay deuda (gastos > ingresos); negro si los ingresos alcanzan (decisión PO). */}
-              <Text style={[Typography.amountM, {
+              <MoneyText minor={totalSpent} code={cur} style={[Typography.amountM, {
                 color: totalIncome >= totalSpent ? c.text : c.semantic.negative,
-              }]}>
-                {formatMoney(totalSpent, cur)}
-              </Text>
+              }]} />
             </View>
             {hasBudget && (
               <>
                 <View style={[styles.statDivider, { backgroundColor: c.borderHair }]} />
                 <View style={styles.stat}>
                   <Text style={[Typography.caption, { color: c.textTertiary }]}>Disponible</Text>
-                  <Text style={[Typography.amountM, {
+                  <MoneyText minor={Math.max(effectiveBudget - totalSpent, 0)} code={cur} style={[Typography.amountM, {
                     color: effectiveBudget - totalSpent >= 0 ? c.semantic.positive : c.semantic.negative,
-                  }]}>
-                    {formatMoney(Math.max(effectiveBudget - totalSpent, 0), cur)}
-                  </Text>
+                  }]} />
                 </View>
               </>
             )}
@@ -168,25 +165,19 @@ export default function AccountScreen() {
           <View style={styles.statRow}>
             <View style={styles.stat}>
               <Text style={[Typography.caption, { color: c.textTertiary }]}>{t('dashboard.owed_to_you')}</Text>
-              <Text style={[Typography.amountM, { color: c.semantic.positive }]}>
-                {formatMoney(owedToYou, 'ARS')}
-              </Text>
+              <MoneyText minor={owedToYou} code="ARS" style={[Typography.amountM, { color: c.semantic.positive }]} />
             </View>
             <View style={[styles.statDivider, { backgroundColor: c.borderHair }]} />
             <View style={styles.stat}>
               <Text style={[Typography.caption, { color: c.textTertiary }]}>{t('dashboard.you_owe')}</Text>
-              <Text style={[Typography.amountM, { color: c.semantic.negative }]}>
-                {formatMoney(youOwe, 'ARS')}
-              </Text>
+              <MoneyText minor={youOwe} code="ARS" style={[Typography.amountM, { color: c.semantic.negative }]} />
             </View>
             <View style={[styles.statDivider, { backgroundColor: c.borderHair }]} />
             <View style={styles.stat}>
               <Text style={[Typography.caption, { color: c.textTertiary }]}>Neto</Text>
-              <Text style={[Typography.amountM, {
+              <MoneyText minor={net} code="ARS" prefix={net >= 0 ? '+' : ''} style={[Typography.amountM, {
                 color: net >= 0 ? c.semantic.positive : c.semantic.negative,
-              }]}>
-                {net >= 0 ? '+' : ''}{formatMoney(net, 'ARS')}
-              </Text>
+              }]} />
             </View>
           </View>
         </View>
