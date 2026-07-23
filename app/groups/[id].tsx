@@ -23,6 +23,8 @@ import { hueForUser } from '@/src/utils/hueForUser';
 import { Avatar } from '@/src/components/Avatar';
 import { BalancePill } from '@/src/components/BalancePill';
 import type { Expense, Payment } from '@/src/types/models';
+import { useTranslation } from 'react-i18next';
+import i18n from '@/src/i18n';
 
 type TimelineItem =
   | { type: 'expense'; data: Expense; ts: number }
@@ -31,6 +33,7 @@ type TimelineItem =
 export default function GroupDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const scheme = useColorScheme() ?? 'light';
+  const { t } = useTranslation();
   const c = Colors[scheme];
 
   const { currentUser } = useAuthStore();
@@ -77,8 +80,8 @@ export default function GroupDetailScreen() {
     setInviteName('');
     setInviteVisible(false);
     Alert.alert(
-      'Miembro agregado',
-      `${name} fue agregado al grupo. Cuando sincronicen por QR, la app va a vincular automáticamente su cuenta.`,
+      t('group_detail.member_added_title'),
+      t('group_detail.member_added_body', { name }),
     );
   }
 
@@ -91,7 +94,7 @@ export default function GroupDetailScreen() {
           </Pressable>
         </View>
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <Text style={[Typography.bodyM, { color: c.textTertiary }]}>Grupo no encontrado</Text>
+          <Text style={[Typography.bodyM, { color: c.textTertiary }]}>{t('group_detail.not_found')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -114,12 +117,12 @@ export default function GroupDetailScreen() {
         {/* Balance card */}
         <View style={[styles.balanceCard, { backgroundColor: c.surface, borderColor: c.borderHair }]}>
           <Text style={[Typography.label, { color: c.textTertiary, textTransform: 'uppercase' }]}>
-            Tu balance
+            {t('group_detail.balance_label')}
           </Text>
           <View style={styles.balanceRow}>
             <BalancePill amount={mainBalance} currency={group.currency} size="lg" />
             <Text style={[Typography.bodyS, { color: c.textTertiary }]}>
-              {mainBalance > 0 ? 'te deben' : mainBalance < 0 ? 'debés' : 'estás al día'}
+              {mainBalance > 0 ? t('group_detail.owe_you') : mainBalance < 0 ? t('group_detail.you_owe_short') : t('group_detail.settled_up')}
             </Text>
           </View>
         </View>
@@ -128,7 +131,7 @@ export default function GroupDetailScreen() {
         <View style={styles.membersSection}>
           <View style={styles.membersHeader}>
             <Text style={[Typography.label, { color: c.textTertiary }]}>
-              MIEMBROS ({group.memberIds.length})
+              {t('group_detail.members_label', { count: group.memberIds.length })}
             </Text>
             <Pressable
               onPress={() => setInviteVisible(true)}
@@ -136,7 +139,7 @@ export default function GroupDetailScreen() {
             >
               <Ionicons name="person-add-outline" size={14} color={c.brand.primary} />
               <Text style={[Typography.caption, { color: c.brand.primary, fontWeight: '600' }]}>
-                Agregar
+                {t('common.add')}
               </Text>
             </Pressable>
           </View>
@@ -154,14 +157,14 @@ export default function GroupDetailScreen() {
 
         {/* Timeline: expenses + payments */}
         <Text style={[Typography.label, styles.sectionLabel, { color: c.textTertiary }]}>
-          ACTIVIDAD ({timeline.length})
+          {t('group_detail.activity_label', { count: timeline.length })}
         </Text>
 
         {timeline.length === 0 ? (
           <View style={[styles.emptyBox, { backgroundColor: c.surface, borderColor: c.borderHair }]}>
             <Ionicons name="receipt-outline" size={28} color={c.textTertiary} />
             <Text style={[Typography.bodyM, { color: c.textTertiary, marginTop: 8 }]}>
-              Sin actividad aún
+              {t('group_detail.no_activity')}
             </Text>
           </View>
         ) : (
@@ -195,7 +198,7 @@ export default function GroupDetailScreen() {
         style={[styles.fab, { backgroundColor: c.brand.primary }]}
       >
         <Ionicons name="add" size={24} color="#fff" />
-        <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>Agregar gasto</Text>
+        <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>{t('group_detail.add_expense')}</Text>
       </Pressable>
 
       {/* Modal — Invitar miembro */}
@@ -212,16 +215,16 @@ export default function GroupDetailScreen() {
               <View style={[styles.handle, { backgroundColor: c.borderHair }]} />
 
               <Text style={[Typography.h3, { color: c.text, marginBottom: 6 }]}>
-                Agregar miembro
+                {t('group_detail.add_member_title')}
               </Text>
               <Text style={[Typography.bodyS, { color: c.textSecondary, marginBottom: 20 }]}>
-                Ingresá el nombre de la persona. Cuando sincronicen por QR su cuenta quedará vinculada.
+                {t('group_detail.add_member_body')}
               </Text>
 
               <TextInput
                 value={inviteName}
                 onChangeText={setInviteName}
-                placeholder="Nombre y apellido"
+                placeholder={t('group_detail.name_placeholder')}
                 placeholderTextColor={c.textTertiary}
                 style={[styles.input, { backgroundColor: c.surfaceSunken, color: c.text, borderColor: c.border }]}
                 returnKeyType="done"
@@ -233,7 +236,7 @@ export default function GroupDetailScreen() {
                 style={[styles.confirmBtn, { backgroundColor: inviteName.trim() ? c.brand.primary : c.surfaceSunken }]}
               >
                 <Text style={[Typography.bodyM, { color: inviteName.trim() ? '#fff' : c.textTertiary, fontWeight: '600' }]}>
-                  Agregar al grupo
+                  {t('group_detail.add_to_group')}
                 </Text>
               </Pressable>
             </View>
@@ -252,11 +255,12 @@ function ExpenseRow({
   getUserName: (id: string) => string;
 }) {
   const scheme = useColorScheme() ?? 'light';
+  const { t } = useTranslation();
   const c = Colors[scheme];
 
   const myShare   = expense.splits.find(s => s.userId === currentUserId);
   const isPayer   = expense.paidById === currentUserId;
-  const dateLabel = new Date(expense.date).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' });
+  const dateLabel = new Date(expense.date).toLocaleDateString(i18n.language, { day: 'numeric', month: 'short' });
   const netForMe  = isPayer
     ? expense.amount - (myShare?.amount ?? 0)
     : -(myShare?.amount ?? 0);
@@ -287,7 +291,7 @@ function ExpenseRow({
           {netForMe > 0 ? '+' : ''}{formatMoney(netForMe, expense.currency)}
         </Text>
         <Text style={[Typography.caption, { color: c.textTertiary }]}>
-          {formatMoney(expense.amount, expense.currency)} total
+          {t('group_detail.total_suffix', { amount: formatMoney(expense.amount, expense.currency) })}
         </Text>
       </View>
     </Pressable>
@@ -302,11 +306,12 @@ function PaymentRow({
   getUserName: (id: string) => string;
 }) {
   const scheme = useColorScheme() ?? 'light';
+  const { t } = useTranslation();
   const c = Colors[scheme];
 
-  const fromName  = payment.fromUserId === currentUserId ? 'Vos' : getUserName(payment.fromUserId);
-  const toName    = payment.toUserId   === currentUserId ? 'Vos' : getUserName(payment.toUserId);
-  const dateLabel = new Date(payment.date).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' });
+  const fromName  = payment.fromUserId === currentUserId ? t('common.you') : getUserName(payment.fromUserId);
+  const toName    = payment.toUserId   === currentUserId ? t('common.you') : getUserName(payment.toUserId);
+  const dateLabel = new Date(payment.date).toLocaleDateString(i18n.language, { day: 'numeric', month: 'short' });
 
   return (
     <View style={[styles.expenseRow, { backgroundColor: c.semantic.positiveSoft, borderColor: c.semantic.positive + '33' }]}>
@@ -315,10 +320,10 @@ function PaymentRow({
       </View>
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={[Typography.bodyM, { color: c.text, fontWeight: '600' }]} numberOfLines={1}>
-          {fromName} pagó a {toName}
+          {t('group_detail.paid_to', { from: fromName, to: toName })}
         </Text>
         <Text style={[Typography.bodyS, { color: c.textTertiary }]}>
-          Pago · {dateLabel}
+          {t('group_detail.payment_label')} · {dateLabel}
         </Text>
       </View>
       <Text style={[Typography.amountS, { color: c.semantic.positive }]}>

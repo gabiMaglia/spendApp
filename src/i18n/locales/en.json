@@ -98,7 +98,13 @@
     "join_group_sub": "group",
     "empty_title": "All settled",
     "empty_body": "No pending debts with anyone.",
-    "go_to_profile": "Go to my profile"
+    "go_to_profile": "Go to my profile",
+    "personal_label": "Personal",
+    "spent": "Spent",
+    "available": "Available",
+    "set_budget": "Set budget →",
+    "groups_balance": "Groups · Balance",
+    "net": "Net"
   },
   "groups": {
     "title": "Groups",
@@ -119,7 +125,15 @@
     "create_categories_label": "Active categories",
     "create_after_note": "After creating: you'll be able to invite members via QR, link or known username.",
     "create_icon_label": "Icon & color",
-    "create_icon_sub": "Optional · you can change it later"
+    "create_icon_sub": "Optional · you can change it later",
+    "new_title": "New group",
+    "name_placeholder": "Group name",
+    "currency_label": "CURRENCY",
+    "participants_label": "PARTICIPANTS",
+    "you_suffix": "{{name}} (you)",
+    "no_contacts": "You do not have saved contacts yet.",
+    "go_contacts": "Go to Contacts to add",
+    "select_hint": "Select at least one contact to create the group."
   },
   "group_detail": {
     "your_balance": "Your balance here",
@@ -132,7 +146,25 @@
     "sort": "Sort",
     "invite": "Invite",
     "currencies_count": "{{count}} currencies",
-    "your_balance_currency": "Your balance · {{currency}}"
+    "your_balance_currency": "Your balance · {{currency}}",
+    "member_added_title": "Member added",
+    "member_added_body": "{{name}} was added to the group. When you sync via QR, the app will link their account automatically.",
+    "not_found": "Group not found",
+    "balance_label": "Your balance",
+    "owe_you": "you’re owed",
+    "you_owe_short": "you owe",
+    "settled_up": "all settled",
+    "members_label": "MEMBERS ({{count}})",
+    "activity_label": "ACTIVITY ({{count}})",
+    "no_activity": "No activity yet",
+    "add_expense": "Add expense",
+    "add_member_title": "Add member",
+    "add_member_body": "Enter the person’s name. When you sync via QR their account will be linked.",
+    "name_placeholder": "Full name",
+    "add_to_group": "Add to group",
+    "total_suffix": "{{amount}} total",
+    "paid_to": "{{from}} paid {{to}}",
+    "payment_label": "Payment"
   },
   "invite": {
     "title": "Invite to group",
@@ -275,7 +307,15 @@
     "added_expense_own": "you added an expense",
     "joined_group": "joined the group",
     "edited": "edited",
-    "confirmed_delete": "confirmed deletion of"
+    "confirmed_delete": "confirmed deletion of",
+    "section_older": "Earlier",
+    "empty_title": "No activity yet",
+    "empty_body": "Here you will see your groups’ expenses and payments in chronological order.",
+    "no_filter_results": "No activity for \"{{name}}\"",
+    "action_registered_own": "logged",
+    "action_registered_other": "logged",
+    "action_requested_delete": "requested to delete",
+    "action_paid": "paid"
   },
   "settings": {
     "title": "Settings",
@@ -461,5 +501,22 @@
     "added_body": "{{name}} was added to your contacts.",
     "share_message": "Add me on SplitP2P to split expenses together 👇\n{{link}}",
     "share_title": "Add contact on SplitP2P"
+  },
+  "friends": {
+    "add_by_qr": "Add by QR",
+    "add_by_qr_sub": "Show your QR or scan someone else’s",
+    "title": "Contacts",
+    "owed_to_you": "Owed to you",
+    "you_owe": "You owe",
+    "empty_title": "No contacts yet",
+    "empty_body": "Add people to create groups and split expenses with them.",
+    "new_contact": "New contact",
+    "new_contact_hint": "Enter the name. When you sync via QR, the account links automatically.",
+    "name_placeholder": "Full name",
+    "remove_title": "Remove contact",
+    "remove_body": "Remove {{name}}? If they have expenses in active groups, the history is kept.",
+    "owes_you": "Owes you ",
+    "you_owe_them": "You owe ",
+    "settle": "Settle"
   }
 }
