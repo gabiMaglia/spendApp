@@ -425,7 +425,12 @@
     "pair_connection_failed": "Could not connect. Move the devices closer or retry.",
     "pair_failed": "Pairing failed. Retry.",
     "pair_expected_offer": "Expected the first device’s QR (offer).",
-    "pair_expected_answer": "Expected the reply QR."
+    "pair_expected_answer": "Expected the reply QR.",
+    "pair_your_code": "Your code",
+    "pair_copy_hint": "…or copy this code and paste it on the other device (no camera).",
+    "pair_paste_label": "Paste the other code",
+    "pair_paste_placeholder": "Paste the code here…",
+    "pair_paste_submit": "Continue"
   },
   "categories": {
     "food": "Food",
