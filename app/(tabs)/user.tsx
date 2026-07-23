@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
 import { Colors } from '@/src/constants/colors';
@@ -374,6 +375,19 @@ export default function UserScreen() {
             {t('profile.sign_out')}
           </Text>
         </Pressable>
+
+        {__DEV__ && (
+          <>
+            <SectionLabel label="DEV" />
+            <View style={[styles.section, { borderColor: c.borderHair }]}>
+              <LinkRow
+                label="WebRTC spike"
+                icon="hardware-chip-outline"
+                onPress={() => router.push('/debug/webrtc' as any)}
+              />
+            </View>
+          </>
+        )}
 
         <Text style={[Typography.caption, styles.version, { color: c.textTertiary }]}>
           {t('profile.version', { version: '1.0.0' })}
