@@ -81,7 +81,7 @@ export interface UseAmountInputResult {
  * Encapsula el pipeline de ingreso de monto de F-16b/ADR-002 §3(e): texto
  * crudo mientras se tipea, formateo on-blur, canónico entero siempre
  * disponible vía `parseMoney`. Reutilizable por los 3 inputs de monto de la
- * app (expense/new, settle/new, personal/new).
+ * app (expense/new, settle/new).
  */
 export function useAmountInput(code: CurrencyCode, initialMinor = 0): UseAmountInputResult {
   const { i18n } = useTranslation();
