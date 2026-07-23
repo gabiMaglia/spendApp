@@ -425,7 +425,12 @@
     "pair_connection_failed": "Não foi possível conectar. Aproxime os dispositivos ou tente de novo.",
     "pair_failed": "Falha no emparelhamento. Tente de novo.",
     "pair_expected_offer": "Esperava o QR do primeiro dispositivo (oferta).",
-    "pair_expected_answer": "Esperava o QR de resposta."
+    "pair_expected_answer": "Esperava o QR de resposta.",
+    "pair_your_code": "Seu código",
+    "pair_copy_hint": "…ou copie este código e cole no outro dispositivo (sem câmera).",
+    "pair_paste_label": "Colar o código do outro",
+    "pair_paste_placeholder": "Cole o código aqui…",
+    "pair_paste_submit": "Continuar"
   },
   "categories": {
     "food": "Comida",

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View,
+  ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -29,7 +29,18 @@ export default function WebRTCSyncScreen() {
 
   const [camera, setCamera] = useState<CameraMode>(null);
   const [scanned, setScanned] = useState(false);
+  const [pasteText, setPasteText] = useState('');
   const [permission, requestPermission] = useCameraPermissions();
+
+  // Fallback sin cámara (útil entre dos emuladores): pegar el código del otro.
+  // Rutea según en qué punto del flujo estamos.
+  function submitPaste() {
+    const data = pasteText.trim();
+    if (!data) return;
+    setPasteText('');
+    if (phase === 'idle') session.acceptOfferAndAnswer(data);
+    else if (phase === 'awaiting-peer' && role === 'offer') session.acceptAnswer(data);
+  }
 
   async function openCamera(mode: Exclude<CameraMode, null>) {
     if (!permission?.granted) {
@@ -69,6 +80,46 @@ export default function WebRTCSyncScreen() {
     phase === 'preparing'  ? t('sync.pair_preparing')
     : phase === 'connecting' ? t('sync.pair_connecting')
     : t('sync.pair_syncing');
+
+  // Bloque copiable con MI código (para pegar en el otro sin cámara).
+  const codeBox = mySignal ? (
+    <View style={{ width: '100%', gap: 6 }}>
+      <Text style={[Typography.caption, { color: c.textTertiary, textAlign: 'center' }]}>
+        {t('sync.pair_copy_hint')}
+      </Text>
+      <TextInput
+        value={mySignal}
+        editable={false}
+        multiline
+        selectTextOnFocus
+        style={[styles.codeInput, { color: c.textSecondary, borderColor: c.borderHair, backgroundColor: c.surfaceSunken }]}
+      />
+    </View>
+  ) : null;
+
+  // Caja para pegar el código del otro (fallback sin cámara).
+  const pasteBox = (
+    <View style={styles.pasteBox}>
+      <Text style={[Typography.caption, { color: c.textTertiary }]}>{t('sync.pair_paste_label')}</Text>
+      <TextInput
+        value={pasteText}
+        onChangeText={setPasteText}
+        placeholder={t('sync.pair_paste_placeholder')}
+        placeholderTextColor={c.textTertiary}
+        multiline
+        style={[styles.pasteInput, { color: c.text, borderColor: c.borderHair, backgroundColor: c.surfaceSunken }]}
+      />
+      <Pressable
+        onPress={submitPaste}
+        disabled={!pasteText.trim()}
+        style={[styles.pasteBtn, { backgroundColor: pasteText.trim() ? c.brand.primary : c.surfaceSunken }]}
+      >
+        <Text style={[Typography.bodyM, { color: pasteText.trim() ? '#fff' : c.textTertiary, fontWeight: '700' }]}>
+          {t('sync.pair_paste_submit')}
+        </Text>
+      </Pressable>
+    </View>
+  );
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: c.bg }]}>
@@ -139,16 +190,20 @@ export default function WebRTCSyncScreen() {
               <Text style={[Typography.bodyM, { color: c.textSecondary, textAlign: 'center' }]}>
                 {role === 'offer' ? t('sync.pair_show_offer_hint') : t('sync.pair_show_answer_hint')}
               </Text>
+              {codeBox}
               {role === 'offer' && (
-                <Pressable
-                  onPress={() => openCamera('scan-answer')}
-                  style={[styles.primaryBtn, { backgroundColor: c.brand.primary }]}
-                >
-                  <Ionicons name="scan-outline" size={18} color="#fff" />
-                  <Text style={[Typography.bodyM, { color: '#fff', fontWeight: '700' }]}>
-                    {t('sync.pair_scan_answer')}
-                  </Text>
-                </Pressable>
+                <>
+                  <Pressable
+                    onPress={() => openCamera('scan-answer')}
+                    style={[styles.primaryBtn, { backgroundColor: c.brand.primary }]}
+                  >
+                    <Ionicons name="scan-outline" size={18} color="#fff" />
+                    <Text style={[Typography.bodyM, { color: '#fff', fontWeight: '700' }]}>
+                      {t('sync.pair_scan_answer')}
+                    </Text>
+                  </Pressable>
+                  {pasteBox}
+                </>
               )}
             </View>
 
@@ -184,6 +239,7 @@ export default function WebRTCSyncScreen() {
                 </View>
                 <Ionicons name="chevron-forward" size={20} color={c.textTertiary} />
               </Pressable>
+              {pasteBox}
             </>
           )}
         </ScrollView>
@@ -214,4 +270,14 @@ const styles = StyleSheet.create({
   scanOverlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
   scanFrame:   { width: 240, height: 240, borderWidth: 3, borderColor: '#fff', borderRadius: 16 },
   scanText:    { color: '#fff', marginTop: 20, textAlign: 'center' },
+  codeInput:   {
+    borderWidth: 1, borderRadius: Radius.md, padding: 10,
+    fontSize: 11, minHeight: 64, maxHeight: 120, textAlignVertical: 'top',
+  },
+  pasteBox:    { width: '100%', gap: 8, marginTop: 8 },
+  pasteInput:  {
+    borderWidth: 1, borderRadius: Radius.md, padding: 10,
+    fontSize: 12, minHeight: 64, maxHeight: 120, textAlignVertical: 'top',
+  },
+  pasteBtn:    { paddingVertical: 12, borderRadius: Radius.full, alignItems: 'center' },
 });
