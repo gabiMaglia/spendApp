@@ -241,7 +241,12 @@
     "exchange_rate_label": "Tipo de cambio",
     "exchange_rate_source": "{{source}} · actualizado hace {{time}}",
     "equivalent": "Equivale a",
-    "manual_exchange": "Usar tipo de cambio manual"
+    "manual_exchange": "Usar tipo de cambio manual",
+    "max_exceeded": "No podés saldar más de {{amount}}",
+    "pending_balance": "Saldo pendiente: {{amount}}",
+    "select": "Seleccionar",
+    "who_received": "¿A quién le pagó?",
+    "payment_date": "Fecha del pago"
   },
   "delete": {
     "sheet_title": "¿Eliminar este gasto?",
@@ -339,7 +344,26 @@
     "synced": "Sincronizado",
     "syncing": "Sincronizando…",
     "pending": "Cambios pendientes",
-    "offline": "Sin conexión"
+    "offline": "Sin conexión",
+    "qr_title": "Sincronizar",
+    "perm_required_title": "Permiso requerido",
+    "perm_required_body": "Necesitamos acceso a la cámara para escanear el QR.",
+    "success_title": "Sincronización exitosa",
+    "success_body": "Los datos del otro dispositivo fueron importados correctamente.",
+    "invalid_title": "QR inválido",
+    "invalid_body": "Este código QR no corresponde a un sync de SplitP2P.",
+    "how_title": "¿Cómo funciona?",
+    "how_body": "Un dispositivo muestra el QR con sus datos y el otro lo escanea. Después hacen el proceso al revés para sincronizar en ambas direcciones.",
+    "show_my_qr": "Mostrar mi QR",
+    "show_my_qr_sub": "El otro dispositivo escanea este código",
+    "scan_qr": "Escanear QR",
+    "scan_qr_sub": "Apuntá la cámara al QR del otro dispositivo",
+    "both_steps_note": "Para sincronizar en ambas direcciones, hacé los dos pasos: mostrá y escaneá.",
+    "show_hint": "Mostrá este código al otro dispositivo para que lo escanee",
+    "qr_includes": "El QR incluye todos tus grupos, gastos y pagos",
+    "now_scan_theirs": "Ahora escanear el suyo",
+    "scan_other_hint": "Apuntá al QR del otro dispositivo",
+    "processing": "Procesando..."
   },
   "categories": {
     "food": "Comida",
@@ -415,5 +439,27 @@
     "kind_income": "Ingreso",
     "kind_group": "Del grupo",
     "kind_carryover": "Saldo anterior"
+  },
+  "contact": {
+    "title": "Agregar contacto",
+    "tab_my_qr": "Mi QR",
+    "tab_scan": "Escanear",
+    "my_qr_hint": "Mostrá este QR a tus contactos\npara que te puedan agregar.",
+    "or": "o",
+    "share_link": "Compartir link de contacto",
+    "cam_permission": "Necesitamos acceso a la cámara para escanear el QR.",
+    "grant_permission": "Dar permiso",
+    "scan_hint": "Apuntá al QR de tu contacto",
+    "rescan": "Volver a escanear",
+    "unknown_qr_title": "QR no reconocido",
+    "unknown_qr_body": "Este código no corresponde a un contacto de SplitP2P.",
+    "own_qr_title": "Es tu propio código",
+    "own_qr_body": "Escaneaste tu propio QR.",
+    "already_title": "Contacto ya guardado",
+    "already_body": "{{name}} ya está en tus contactos.",
+    "added_title": "¡Contacto agregado!",
+    "added_body": "{{name}} fue agregado a tus contactos.",
+    "share_message": "Agregame en SplitP2P para dividir gastos juntos 👇\n{{link}}",
+    "share_title": "Agregar contacto en SplitP2P"
   }
 }

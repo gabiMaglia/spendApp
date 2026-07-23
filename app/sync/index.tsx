@@ -14,11 +14,13 @@ import { Typography } from '@/src/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuthStore } from '@/src/store/authStore';
 import { buildDelta, deltaToQRString, parseDeltaFromQR, applyDelta } from '@/src/sync/useSyncQR';
+import { useTranslation } from 'react-i18next';
 
 type Mode = 'choose' | 'show' | 'scan';
 
 export default function SyncQRScreen() {
   const scheme = useColorScheme() ?? 'light';
+  const { t } = useTranslation();
   const c = Colors[scheme];
   const { currentUser } = useAuthStore();
 
@@ -38,7 +40,7 @@ export default function SyncQRScreen() {
     if (!permission?.granted) {
       const result = await requestPermission();
       if (!result.granted) {
-        Alert.alert('Permiso requerido', 'Necesitamos acceso a la cámara para escanear el QR.');
+        Alert.alert(t('sync.perm_required_title'), t('sync.perm_required_body'));
         return;
       }
     }
@@ -54,15 +56,15 @@ export default function SyncQRScreen() {
       const delta = parseDeltaFromQR(data);
       applyDelta(delta, currentUser?.id ?? '');
       Alert.alert(
-        'Sincronización exitosa',
-        'Los datos del otro dispositivo fueron importados correctamente.',
+        t('sync.success_title'),
+        t('sync.success_body'),
         [{ text: 'OK', onPress: () => router.back() }],
       );
     } catch {
       Alert.alert(
-        'QR inválido',
-        'Este código QR no corresponde a un sync de SplitP2P.',
-        [{ text: 'Reintentar', onPress: () => setScanned(false) }],
+        t('sync.invalid_title'),
+        t('sync.invalid_body'),
+        [{ text: t('common.retry'), onPress: () => setScanned(false) }],
       );
     }
   }
@@ -74,7 +76,7 @@ export default function SyncQRScreen() {
         <Pressable onPress={() => mode === 'choose' ? router.back() : setMode('choose')} hitSlop={12}>
           <Ionicons name={mode === 'choose' ? 'close' : 'arrow-back'} size={24} color={c.text} />
         </Pressable>
-        <Text style={[Typography.h3, { color: c.text }]}>Sincronizar</Text>
+        <Text style={[Typography.h3, { color: c.text }]}>{t('sync.qr_title')}</Text>
         <View style={{ width: 24 }} />
       </View>
 
@@ -84,10 +86,10 @@ export default function SyncQRScreen() {
           <View style={[styles.infoCard, { backgroundColor: c.brand.primarySoft }]}>
             <Ionicons name="sync-outline" size={28} color={c.brand.primary} />
             <Text style={[Typography.bodyM, { color: c.brand.primaryOnSoft, fontWeight: '600', marginTop: 8 }]}>
-              ¿Cómo funciona?
+              {t('sync.how_title')}
             </Text>
             <Text style={[Typography.bodyS, { color: c.brand.primaryOnSoft, marginTop: 4, textAlign: 'center', opacity: 0.85 }]}>
-              Un dispositivo muestra el QR con sus datos y el otro lo escanea. Después hacen el proceso al revés para sincronizar en ambas direcciones.
+              {t('sync.how_body')}
             </Text>
           </View>
 
@@ -100,10 +102,10 @@ export default function SyncQRScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[Typography.bodyL, { color: c.text, fontWeight: '600' }]}>
-                Mostrar mi QR
+                {t('sync.show_my_qr')}
               </Text>
               <Text style={[Typography.bodyS, { color: c.textTertiary, marginTop: 2 }]}>
-                El otro dispositivo escanea este código
+                {t('sync.show_my_qr_sub')}
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={c.textTertiary} />
@@ -118,17 +120,17 @@ export default function SyncQRScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[Typography.bodyL, { color: c.text, fontWeight: '600' }]}>
-                Escanear QR
+                {t('sync.scan_qr')}
               </Text>
               <Text style={[Typography.bodyS, { color: c.textTertiary, marginTop: 2 }]}>
-                Apuntá la cámara al QR del otro dispositivo
+                {t('sync.scan_qr_sub')}
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={c.textTertiary} />
           </Pressable>
 
           <Text style={[Typography.caption, { color: c.textTertiary, textAlign: 'center', marginTop: 8 }]}>
-            Para sincronizar en ambas direcciones, hacé los dos pasos: mostrá y escaneá.
+            {t('sync.both_steps_note')}
           </Text>
         </ScrollView>
       )}
@@ -137,7 +139,7 @@ export default function SyncQRScreen() {
       {mode === 'show' && qrValue !== '' && (
         <View style={styles.qrContainer}>
           <Text style={[Typography.bodyM, { color: c.textSecondary, textAlign: 'center', marginBottom: 24 }]}>
-            Mostrá este código al otro dispositivo para que lo escanee
+            {t('sync.show_hint')}
           </Text>
           <View style={[styles.qrWrapper, { backgroundColor: '#fff', borderColor: c.borderHair }]}>
             <QRCode
@@ -148,7 +150,7 @@ export default function SyncQRScreen() {
             />
           </View>
           <Text style={[Typography.caption, { color: c.textTertiary, textAlign: 'center', marginTop: 20 }]}>
-            El QR incluye todos tus grupos, gastos y pagos
+            {t('sync.qr_includes')}
           </Text>
           <Pressable
             onPress={handleStartScan}
@@ -156,7 +158,7 @@ export default function SyncQRScreen() {
           >
             <Ionicons name="scan-outline" size={18} color={c.brand.primary} />
             <Text style={[Typography.bodyM, { color: c.brand.primary, fontWeight: '600' }]}>
-              Ahora escanear el suyo
+              {t('sync.now_scan_theirs')}
             </Text>
           </Pressable>
         </View>
@@ -174,12 +176,12 @@ export default function SyncQRScreen() {
           <View style={styles.scanOverlay} pointerEvents="none">
             <View style={[styles.scanFrame, { borderColor: '#fff' }]} />
             <Text style={[Typography.bodyM, { color: '#fff', marginTop: 20, textAlign: 'center' }]}>
-              Apuntá al QR del otro dispositivo
+              {t('sync.scan_other_hint')}
             </Text>
           </View>
           {scanned && (
             <View style={[styles.scannedBanner, { backgroundColor: c.brand.primary }]}>
-              <Text style={[Typography.bodyM, { color: '#fff' }]}>Procesando...</Text>
+              <Text style={[Typography.bodyM, { color: '#fff' }]}>{t('sync.processing')}</Text>
             </View>
           )}
         </View>

@@ -241,7 +241,12 @@
     "exchange_rate_label": "Exchange rate",
     "exchange_rate_source": "{{source}} · updated {{time}} ago",
     "equivalent": "Equivalent to",
-    "manual_exchange": "Use manual exchange rate"
+    "manual_exchange": "Use manual exchange rate",
+    "max_exceeded": "You can’t settle more than {{amount}}",
+    "pending_balance": "Pending balance: {{amount}}",
+    "select": "Select",
+    "who_received": "Who received it?",
+    "payment_date": "Payment date"
   },
   "delete": {
     "sheet_title": "Delete this expense?",
@@ -339,7 +344,26 @@
     "synced": "Synced",
     "syncing": "Syncing…",
     "pending": "Pending changes",
-    "offline": "Offline"
+    "offline": "Offline",
+    "qr_title": "Sync",
+    "perm_required_title": "Permission required",
+    "perm_required_body": "We need camera access to scan the QR.",
+    "success_title": "Sync successful",
+    "success_body": "The other device’s data was imported correctly.",
+    "invalid_title": "Invalid QR",
+    "invalid_body": "This QR code is not a SplitP2P sync.",
+    "how_title": "How does it work?",
+    "how_body": "One device shows its QR with its data and the other scans it. Then you do it the other way around to sync in both directions.",
+    "show_my_qr": "Show my QR",
+    "show_my_qr_sub": "The other device scans this code",
+    "scan_qr": "Scan QR",
+    "scan_qr_sub": "Point the camera at the other device’s QR",
+    "both_steps_note": "To sync both ways, do both steps: show and scan.",
+    "show_hint": "Show this code to the other device so it can scan it",
+    "qr_includes": "The QR includes all your groups, expenses and payments",
+    "now_scan_theirs": "Now scan theirs",
+    "scan_other_hint": "Point at the other device’s QR",
+    "processing": "Processing..."
   },
   "categories": {
     "food": "Food",
@@ -415,5 +439,27 @@
     "kind_income": "Income",
     "kind_group": "From group",
     "kind_carryover": "Previous balance"
+  },
+  "contact": {
+    "title": "Add contact",
+    "tab_my_qr": "My QR",
+    "tab_scan": "Scan",
+    "my_qr_hint": "Show this QR to your contacts\nso they can add you.",
+    "or": "or",
+    "share_link": "Share contact link",
+    "cam_permission": "We need camera access to scan the QR.",
+    "grant_permission": "Grant permission",
+    "scan_hint": "Point at your contact’s QR",
+    "rescan": "Scan again",
+    "unknown_qr_title": "QR not recognized",
+    "unknown_qr_body": "This code is not a SplitP2P contact.",
+    "own_qr_title": "That’s your own code",
+    "own_qr_body": "You scanned your own QR.",
+    "already_title": "Contact already saved",
+    "already_body": "{{name}} is already in your contacts.",
+    "added_title": "Contact added!",
+    "added_body": "{{name}} was added to your contacts.",
+    "share_message": "Add me on SplitP2P to split expenses together 👇\n{{link}}",
+    "share_title": "Add contact on SplitP2P"
   }
 }
