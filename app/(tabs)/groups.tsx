@@ -142,7 +142,7 @@ export default function GroupsScreen() {
         )}
 
         {/* P2P info banner */}
-        <View style={[styles.section, styles.infoBanner, { backgroundColor: c.brand.accentSoft }]}>
+        <View style={[styles.infoBanner, { backgroundColor: c.brand.accentSoft }]}>
           <View style={[styles.infoIcon, { backgroundColor: c.brand.accent }]}>
             <Ionicons name="sync-outline" size={16} color="#fff" />
           </View>
@@ -224,6 +224,10 @@ const styles = StyleSheet.create({
   summaryCol:     { flex: 1, alignItems: 'center' },
   summaryDivider: { width: 1, height: 36, marginHorizontal: 4 },
   list:      { gap: Spacing.cardGap },
-  infoBanner:{ flexDirection: 'row', gap: 12, alignItems: 'flex-start', borderRadius: Radius.md, padding: 14 },
+  infoBanner:{
+    flexDirection: 'row', gap: 12, alignItems: 'flex-start',
+    marginHorizontal: Spacing.screenPad, marginBottom: Spacing[4],
+    borderRadius: Radius.md, padding: 14,
+  },
   infoIcon:  { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
 });
