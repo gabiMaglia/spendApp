@@ -83,7 +83,7 @@
     "title": "Suas contas",
     "greeting": "Olá, {{name}}",
     "balance_global": "Balance global",
-    "balance_favor": "A seu favor",
+    "balance_favor": "Saldo a favor",
     "balance_contra": "Contra você",
     "owed_to_you": "TE DEVEM",
     "you_owe": "VOCÊ DEVE",
@@ -98,7 +98,13 @@
     "join_group_sub": "um grupo",
     "empty_title": "Todo saldado",
     "empty_body": "No tenés deudas pendientes con nadie.",
-    "go_to_profile": "Ir ao meu perfil"
+    "go_to_profile": "Ir ao meu perfil",
+    "personal_label": "Pessoal",
+    "spent": "Gasto",
+    "available": "Disponível",
+    "set_budget": "Definir orçamento →",
+    "groups_balance": "Grupos · Saldo",
+    "net": "Líquido"
   },
   "groups": {
     "title": "Grupos",
@@ -119,7 +125,15 @@
     "create_categories_label": "Categorías activas",
     "create_after_note": "Después de crear: vas a poder invitar miembros con QR, link o por usuario conocido.",
     "create_icon_label": "Ícono e color",
-    "create_icon_sub": "Opcional · podés cambiarlo después"
+    "create_icon_sub": "Opcional · podés cambiarlo después",
+    "new_title": "Novo grupo",
+    "name_placeholder": "Nome do grupo",
+    "currency_label": "MOEDA",
+    "participants_label": "PARTICIPANTES",
+    "you_suffix": "{{name}} (você)",
+    "no_contacts": "Você ainda não tem contatos salvos.",
+    "go_contacts": "Ir para Contatos para adicionar",
+    "select_hint": "Selecione ao menos um contato para criar o grupo."
   },
   "group_detail": {
     "your_balance": "Tu balance acá",
@@ -132,7 +146,25 @@
     "sort": "Ordenar",
     "invite": "Invitar",
     "currencies_count": "{{count}} monedas",
-    "your_balance_currency": "Tu balance · {{currency}}"
+    "your_balance_currency": "Tu balance · {{currency}}",
+    "member_added_title": "Membro adicionado",
+    "member_added_body": "{{name}} foi adicionado ao grupo. Quando sincronizarem por QR, o app vai vincular a conta automaticamente.",
+    "not_found": "Grupo não encontrado",
+    "balance_label": "Seu saldo",
+    "owe_you": "te devem",
+    "you_owe_short": "você deve",
+    "settled_up": "em dia",
+    "members_label": "MEMBROS ({{count}})",
+    "activity_label": "ATIVIDADE ({{count}})",
+    "no_activity": "Sem atividade ainda",
+    "add_expense": "Adicionar despesa",
+    "add_member_title": "Adicionar membro",
+    "add_member_body": "Digite o nome da pessoa. Quando sincronizarem por QR a conta será vinculada.",
+    "name_placeholder": "Nome e sobrenome",
+    "add_to_group": "Adicionar ao grupo",
+    "total_suffix": "{{amount}} total",
+    "paid_to": "{{from}} pagou a {{to}}",
+    "payment_label": "Pagamento"
   },
   "invite": {
     "title": "Invitar al grupo",
@@ -275,7 +307,15 @@
     "added_expense_own": "agregaste un gasto",
     "joined_group": "se unió al grupo",
     "edited": "editó",
-    "confirmed_delete": "confirmó el borrado de"
+    "confirmed_delete": "confirmó el borrado de",
+    "section_older": "Antes",
+    "empty_title": "Sem atividade ainda",
+    "empty_body": "Aqui você verá as despesas e pagamentos dos seus grupos em ordem cronológica.",
+    "no_filter_results": "Sem atividade para \"{{name}}\"",
+    "action_registered_own": "registrou",
+    "action_registered_other": "registrou",
+    "action_requested_delete": "pediu para excluir",
+    "action_paid": "pagou a"
   },
   "settings": {
     "title": "Ajustes",
@@ -461,5 +501,22 @@
     "added_body": "{{name}} foi adicionado aos seus contatos.",
     "share_message": "Me adicione no SplitP2P para dividir despesas juntos 👇\n{{link}}",
     "share_title": "Adicionar contato no SplitP2P"
+  },
+  "friends": {
+    "add_by_qr": "Adicionar por QR",
+    "add_by_qr_sub": "Mostre seu QR ou escaneie o de outra pessoa",
+    "title": "Contatos",
+    "owed_to_you": "Te devem",
+    "you_owe": "Você deve",
+    "empty_title": "Sem contatos ainda",
+    "empty_body": "Adicione pessoas para criar grupos e dividir despesas com elas.",
+    "new_contact": "Novo contato",
+    "new_contact_hint": "Digite o nome. Quando sincronizarem por QR, a conta é vinculada automaticamente.",
+    "name_placeholder": "Nome e sobrenome",
+    "remove_title": "Remover contato",
+    "remove_body": "Remover {{name}}? Se tiver despesas em grupos ativos, o histórico é mantido.",
+    "owes_you": "Te deve ",
+    "you_owe_them": "Você deve ",
+    "settle": "Acertar"
   }
 }

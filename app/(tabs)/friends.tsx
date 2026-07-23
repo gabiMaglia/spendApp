@@ -74,11 +74,11 @@ export default function FriendsScreen() {
   function handleRemove(id: string, name: string) {
     hapticWarning();
     Alert.alert(
-      'Eliminar contacto',
-      `¿Eliminar a ${name}? Si tiene gastos en grupos activos, el historial se conserva.`,
+      t('friends.remove_title'),
+      t('friends.remove_body', { name }),
       [
         { text: t('common.cancel'), style: 'cancel' },
-        { text: 'Eliminar', style: 'destructive', onPress: () => removeUser(id) },
+        { text: t('common.delete'), style: 'destructive', onPress: () => removeUser(id) },
       ],
     );
   }
@@ -106,16 +106,16 @@ export default function FriendsScreen() {
           <Ionicons name="qr-code-outline" size={22} color={c.brand.primary} />
           <View style={{ flex: 1 }}>
             <Text style={[Typography.bodyM, { color: c.text, fontWeight: '700' }]}>
-              Agregar por QR
+              {t('friends.add_by_qr')}
             </Text>
             <Text style={[Typography.bodyS, { color: c.textSecondary }]}>
-              Mostrá tu QR o escaneá el de otra persona
+              {t('friends.add_by_qr_sub')}
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={c.textTertiary} />
         </Pressable>
 
-        <Text style={[Typography.display, styles.title, { color: c.text }]}>Contactos</Text>
+        <Text style={[Typography.display, styles.title, { color: c.text }]}>{t('friends.title')}</Text>
 
         {/* Balance summary — solo si hay deudas */}
         {(owedToYou > 0 || youOwe > 0) && (
@@ -123,7 +123,7 @@ export default function FriendsScreen() {
             <View style={styles.summaryRow}>
               <View style={styles.summaryCol}>
                 <Text style={[Typography.caption, { color: c.textTertiary, textTransform: 'uppercase' }]}>
-                  Te deben
+                  {t('friends.owed_to_you')}
                 </Text>
                 <Text style={[Typography.amountM, { color: c.semantic.positive, marginTop: 2 }]}>
                   {formatMoney(owedToYou, 'ARS')}
@@ -132,7 +132,7 @@ export default function FriendsScreen() {
               <View style={[styles.summaryDivider, { backgroundColor: c.borderHair }]} />
               <View style={styles.summaryCol}>
                 <Text style={[Typography.caption, { color: c.textTertiary, textTransform: 'uppercase' }]}>
-                  Debés
+                  {t('friends.you_owe')}
                 </Text>
                 <Text style={[Typography.amountM, { color: c.semantic.negative, marginTop: 2 }]}>
                   {formatMoney(youOwe, 'ARS')}
@@ -146,8 +146,8 @@ export default function FriendsScreen() {
         {contacts.length === 0 ? (
           <EmptyState
             iconName="people-outline"
-            title="Sin contactos aún"
-            body="Agregá personas para poder armar grupos y dividir gastos con ellas."
+            title={t('friends.empty_title')}
+            body={t('friends.empty_body')}
             action={
               <Pressable
                 onPress={() => { hapticLight(); router.push('/contact/add' as any); }}
@@ -155,7 +155,7 @@ export default function FriendsScreen() {
               >
                 <Ionicons name="qr-code-outline" size={16} color="#fff" />
                 <Text style={[Typography.bodyM, { color: '#fff', fontWeight: '700' }]}>
-                  Agregar por QR
+                  {t('friends.add_by_qr')}
                 </Text>
               </Pressable>
             }
@@ -194,7 +194,7 @@ export default function FriendsScreen() {
         <Fab
           onPress={() => router.push('/contact/add' as any)}
           icon="qr-code-outline"
-          label="Agregar por QR"
+          label={t('friends.add_by_qr')}
           backgroundColor={c.brand.primary}
         />
       </FabRow>
@@ -206,10 +206,10 @@ export default function FriendsScreen() {
       >
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <Text style={[Typography.h3, { color: c.text, marginBottom: 6 }]}>
-            Nuevo contacto
+            {t('friends.new_contact')}
           </Text>
           <Text style={[Typography.bodyS, { color: c.textSecondary, marginBottom: 20 }]}>
-            Ingresá el nombre. Cuando sincronicen por QR, la cuenta se vincula automáticamente.
+            {t('friends.new_contact_hint')}
           </Text>
           <View style={[styles.inputRow, { backgroundColor: c.surfaceSunken, borderColor: c.border }]}>
             <Ionicons name="person-outline" size={18} color={c.textTertiary} />
@@ -217,7 +217,7 @@ export default function FriendsScreen() {
               ref={inputRef}
               value={newName}
               onChangeText={setNewName}
-              placeholder="Nombre y apellido"
+              placeholder={t('friends.name_placeholder')}
               placeholderTextColor={c.textTertiary}
               style={[Typography.bodyL, { flex: 1, color: c.text, padding: 0 }]}
               returnKeyType="done"
@@ -237,7 +237,7 @@ export default function FriendsScreen() {
               color: newName.trim() ? '#fff' : c.textTertiary,
               fontWeight: '700',
             }]}>
-              Agregar
+              {t('common.add')}
             </Text>
           </Pressable>
         </KeyboardAvoidingView>
@@ -272,7 +272,7 @@ function ContactRow({
             color: positive ? c.semantic.positive : c.semantic.negative,
             fontWeight: '600',
           }]}>
-            {positive ? 'Te debe ' : 'Le debés '}
+            {positive ? t('friends.owes_you') : t('friends.you_owe_them')}
             {formatMoney(Math.abs(amount!), currency as any)}
           </Text>
         ) : (
@@ -288,7 +288,7 @@ function ContactRow({
             style={[styles.actionChip, { backgroundColor: c.brand.primarySoft }]}
           >
             <Text style={[Typography.caption, { color: c.brand.primary, fontWeight: '700' }]}>
-              Saldar
+              {t('friends.settle')}
             </Text>
           </Pressable>
         )}

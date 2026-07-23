@@ -43,10 +43,11 @@ export default function ActivityScreen() {
   const groups   = useGroupStore(s => s.groups);
   const feed     = useActivityFeed(currentUser?.id ?? '');
 
-  const allGroupNames = ['Todos', ...groups.filter(g => !g.isDeleted).map(g => g.name)];
-  const [activeFilter, setActiveFilter] = useState('Todos');
+  const ALL_FILTER = '__all__';
+  const allGroupNames = [ALL_FILTER, ...groups.filter(g => !g.isDeleted).map(g => g.name)];
+  const [activeFilter, setActiveFilter] = useState(ALL_FILTER);
 
-  const filteredFeed = activeFilter === 'Todos'
+  const filteredFeed = activeFilter === ALL_FILTER
     ? feed
     : feed.filter(ev => ev.groupName === activeFilter);
 
@@ -62,7 +63,7 @@ export default function ActivityScreen() {
 
   if (todayEvents.length)     sections.push({ label: t('activity.section_today'),     events: todayEvents });
   if (yesterdayEvents.length) sections.push({ label: t('activity.section_yesterday'), events: yesterdayEvents });
-  if (olderEvents.length)     sections.push({ label: 'Antes',                          events: olderEvents });
+  if (olderEvents.length)     sections.push({ label: t('activity.section_older'), events: olderEvents });
 
   const todayNewCount = todayEvents.length;
 
@@ -95,7 +96,7 @@ export default function ActivityScreen() {
               ]}
             >
               <Text style={{ fontSize: 13, fontWeight: '600', color: activeFilter === f ? '#fff' : c.textSecondary }}>
-                {f}
+                {f === ALL_FILTER ? t('activity.filter_all') : f}
               </Text>
             </Pressable>
           ))}
@@ -105,13 +106,13 @@ export default function ActivityScreen() {
         {feed.length === 0 ? (
           <EmptyState
             iconName="time-outline"
-            title="Sin actividad aún"
-            body="Aquí vas a ver los gastos y pagos de tus grupos en orden cronológico."
+            title={t('activity.empty_title')}
+            body={t('activity.empty_body')}
           />
         ) : filteredFeed.length === 0 ? (
           <View style={styles.emptyFilter}>
             <Text style={[Typography.bodyM, { color: c.textTertiary, textAlign: 'center' }]}>
-              Sin actividad para "{activeFilter}"
+              {t('activity.no_filter_results', { name: activeFilter })}
             </Text>
           </View>
         ) : (
@@ -153,14 +154,15 @@ function EventRow({
   getUserName: (id: string) => string;
   currentUserId: string;
 }) {
+  const { t } = useTranslation();
   const scheme = useColorScheme() ?? 'light';
   const c = Colors[scheme];
 
   if (event.kind === 'expense_added') {
     const { expense, groupName } = event;
     const isMe   = expense.paidById === currentUserId;
-    const who    = isMe ? 'Vos' : getUserName(expense.paidById);
-    const action = isMe ? 'registraste' : 'registró';
+    const who    = isMe ? t('common.you') : getUserName(expense.paidById);
+    const action = isMe ? t('activity.action_registered_own') : t('activity.action_registered_other');
     const ts     = relativeTime(expense.date);
 
     return (
@@ -198,8 +200,8 @@ function EventRow({
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={[Typography.bodyM, { color: c.text, lineHeight: 20 }]}>
             <Text style={{ fontWeight: '700' }}>{requestedByName}</Text>
-            {` solicitó borrar `}
-            <Text style={{ color: c.textSecondary }}>"{expense.description}" · {groupName}</Text>
+            {` ${t('activity.action_requested_delete')} `}
+            <Text style={{ color: c.textSecondary }}>{`“${expense.description}” · ${groupName}`}</Text>
           </Text>
           <Text style={[Typography.bodyS, { color: c.textTertiary, marginTop: 4 }]}>{ts}</Text>
         </View>
@@ -210,7 +212,7 @@ function EventRow({
   // payment_made
   const { payment, groupName } = event;
   const isMe   = payment.fromUserId === currentUserId;
-  const who    = isMe ? 'Vos' : getUserName(payment.fromUserId);
+  const who    = isMe ? t('common.you') : getUserName(payment.fromUserId);
   const toName = getUserName(payment.toUserId);
   const ts     = relativeTime(payment.date);
 
@@ -222,7 +224,7 @@ function EventRow({
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={[Typography.bodyM, { color: c.text, lineHeight: 20 }]}>
           <Text style={{ fontWeight: '700' }}>{who}</Text>
-          {` pagó a `}
+          {` ${t('activity.action_paid')} `}
           <Text style={{ fontWeight: '700' }}>{toName}</Text>
           <Text style={{ color: c.textSecondary }}> · {groupName}</Text>
         </Text>

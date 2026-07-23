@@ -18,11 +18,13 @@ import { useGroupStore } from '@/src/store/groupStore';
 import { useUserStore } from '@/src/store/userStore';
 import { hueForUser } from '@/src/utils/hueForUser';
 import { Avatar } from '@/src/components/Avatar';
+import { useTranslation } from 'react-i18next';
 
 const PRIMARY_CURRENCIES: CurrencyCode[] = ['ARS', 'USD', 'EUR', 'BRL'];
 
 export default function NewGroupScreen() {
   const scheme = useColorScheme() ?? 'light';
+  const { t } = useTranslation();
   const c = Colors[scheme];
 
   const { currentUser } = useAuthStore();
@@ -82,7 +84,7 @@ export default function NewGroupScreen() {
           <Pressable onPress={() => router.back()} hitSlop={12} style={styles.headerSide}>
             <Ionicons name="close" size={24} color={c.text} />
           </Pressable>
-          <Text style={[Typography.h3, { color: c.text }]}>Nuevo grupo</Text>
+          <Text style={[Typography.h3, { color: c.text }]}>{t('groups.new_title')}</Text>
           <Pressable
             onPress={handleSave}
             disabled={!canSave}
@@ -94,7 +96,7 @@ export default function NewGroupScreen() {
               fontWeight: '700',
               textAlign: 'right',
             }]}>
-              Crear
+              {t('common.create')}
             </Text>
           </Pressable>
         </View>
@@ -108,7 +110,7 @@ export default function NewGroupScreen() {
           <View style={[styles.inputCard, { backgroundColor: c.surface, borderColor: c.borderHair }]}>
             <Ionicons name="people-outline" size={18} color={c.textTertiary} />
             <TextInput
-              placeholder="Nombre del grupo"
+              placeholder={t('groups.name_placeholder')}
               placeholderTextColor={c.textTertiary}
               value={name}
               onChangeText={setName}
@@ -120,7 +122,7 @@ export default function NewGroupScreen() {
 
           {/* Currency */}
           <Text style={[Typography.label, styles.sectionLabel, { color: c.textTertiary }]}>
-            MONEDA
+            {t('groups.currency_label')}
           </Text>
           <View style={styles.currencyRow}>
             {PRIMARY_CURRENCIES.map(code => (
@@ -147,14 +149,14 @@ export default function NewGroupScreen() {
 
           {/* Members */}
           <Text style={[Typography.label, styles.sectionLabel, { color: c.textTertiary }]}>
-            PARTICIPANTES
+            {t('groups.participants_label')}
           </Text>
 
           {/* Yo — siempre fijo */}
           {currentUser && (
             <MemberRow
               id={currentUser.id}
-              name={`${currentUser.name} (vos)`}
+              name={t('groups.you_suffix', { name: currentUser.name })}
               selected
               locked
               onToggle={() => {}}
@@ -166,14 +168,14 @@ export default function NewGroupScreen() {
             <View style={[styles.noContacts, { backgroundColor: c.surfaceSunken, borderColor: c.borderHair }]}>
               <Ionicons name="people-outline" size={24} color={c.textTertiary} />
               <Text style={[Typography.bodyM, { color: c.textTertiary, textAlign: 'center' }]}>
-                Aún no tenés contactos guardados.
+                {t('groups.no_contacts')}
               </Text>
               <Pressable
                 onPress={() => router.back()}
                 style={[styles.goContactsBtn, { borderColor: c.brand.primary }]}
               >
                 <Text style={[Typography.bodyS, { color: c.brand.primary, fontWeight: '700' }]}>
-                  Ir a Contactos para agregar
+                  {t('groups.go_contacts')}
                 </Text>
               </Pressable>
             </View>
@@ -193,7 +195,7 @@ export default function NewGroupScreen() {
           {/* Hint si no seleccionó nadie */}
           {contacts.length > 0 && !hasContact && (
             <Text style={[Typography.bodyS, styles.hint, { color: c.textTertiary }]}>
-              Seleccioná al menos un contacto para crear el grupo.
+              {t('groups.select_hint')}
             </Text>
           )}
 

@@ -4,6 +4,7 @@ import { Fab, FabRow } from '@/src/components/Fab';
 import { SyncStatusBadge } from '@/src/components/SyncStatusBadge';
 import { Colors } from '@/src/constants/colors';
 import { MoneyText } from '@/src/components/MoneyText';
+import i18n from '@/src/i18n';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { useAuthStore } from '@/src/store/authStore';
@@ -103,7 +104,7 @@ export default function AccountScreen() {
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <Ionicons name="analytics-outline" size={14} color={c.brand.primary} />
               <Text style={[Typography.caption, { color: c.textTertiary, textTransform: 'uppercase', letterSpacing: 0.4 }]}>
-                Personal · {new Date().toLocaleString('es-AR', { month: 'long' })}
+                {t('dashboard.personal_label')} · {new Date().toLocaleString(i18n.language, { month: 'long' })}
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={14} color={c.textTertiary} />
@@ -111,12 +112,12 @@ export default function AccountScreen() {
 
           <View style={styles.statRow}>
             <View style={styles.stat}>
-              <Text style={[Typography.caption, { color: c.textTertiary }]}>Saldo a favor</Text>
+              <Text style={[Typography.caption, { color: c.textTertiary }]}>{t('dashboard.balance_favor')}</Text>
               <MoneyText minor={owedToMeInCur} code={cur} style={[Typography.amountM, { color: c.semantic.positive }]} />
             </View>
             <View style={[styles.statDivider, { backgroundColor: c.borderHair }]} />
             <View style={styles.stat}>
-              <Text style={[Typography.caption, { color: c.textTertiary }]}>Gastado</Text>
+              <Text style={[Typography.caption, { color: c.textTertiary }]}>{t('dashboard.spent')}</Text>
               {/* Rojo si hay deuda (gastos > ingresos); negro si los ingresos alcanzan (decisión PO). */}
               <MoneyText minor={totalSpent} code={cur} style={[Typography.amountM, {
                 color: totalIncome >= totalSpent ? c.text : c.semantic.negative,
@@ -126,7 +127,7 @@ export default function AccountScreen() {
               <>
                 <View style={[styles.statDivider, { backgroundColor: c.borderHair }]} />
                 <View style={styles.stat}>
-                  <Text style={[Typography.caption, { color: c.textTertiary }]}>Disponible</Text>
+                  <Text style={[Typography.caption, { color: c.textTertiary }]}>{t('dashboard.available')}</Text>
                   <MoneyText minor={Math.max(effectiveBudget - totalSpent, 0)} code={cur} style={[Typography.amountM, {
                     color: effectiveBudget - totalSpent >= 0 ? c.semantic.positive : c.semantic.negative,
                   }]} />
@@ -146,7 +147,7 @@ export default function AccountScreen() {
             </View>
           ) : (
             <Text style={[Typography.caption, { color: c.brand.primary }]}>
-              Configurar presupuesto →
+              {t('dashboard.set_budget')}
             </Text>
           )}
         </Pressable>
@@ -157,7 +158,7 @@ export default function AccountScreen() {
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <Ionicons name="wallet-outline" size={14} color={c.brand.primary} />
               <Text style={[Typography.caption, { color: c.textTertiary, textTransform: 'uppercase', letterSpacing: 0.4 }]}>
-                Grupos · Balance
+                {t('dashboard.groups_balance')}
               </Text>
             </View>
           </View>
@@ -174,7 +175,7 @@ export default function AccountScreen() {
             </View>
             <View style={[styles.statDivider, { backgroundColor: c.borderHair }]} />
             <View style={styles.stat}>
-              <Text style={[Typography.caption, { color: c.textTertiary }]}>Neto</Text>
+              <Text style={[Typography.caption, { color: c.textTertiary }]}>{t('dashboard.net')}</Text>
               <MoneyText minor={net} code="ARS" prefix={net >= 0 ? '+' : ''} style={[Typography.amountM, {
                 color: net >= 0 ? c.semantic.positive : c.semantic.negative,
               }]} />
