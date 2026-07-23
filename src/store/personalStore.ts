@@ -1,9 +1,9 @@
 import { create } from 'zustand';
-import { createStorage } from '@/src/utils/createStorage';
+import { createSecureStorage } from '@/src/utils/secureStorage';
 import { migratePersonalBudgetAmount, migratePersonalEntryAmounts } from './moneyMigration';
 import type { PersonalEntry, PersonalBudget } from '@/src/types/models';
 
-const storage = createStorage('personal');
+const storage = createSecureStorage('personal');
 const ENTRIES_KEY   = 'entries_v1';
 const BUDGET_KEY    = 'budget_v1';
 const LAST_SEEN_KEY = 'lastSeen_v1';

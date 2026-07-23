@@ -1,9 +1,9 @@
 import { create } from 'zustand';
-import { createStorage } from '@/src/utils/createStorage';
+import { createSecureStorage } from '@/src/utils/secureStorage';
 import { migrateExpenseAmounts } from './moneyMigration';
 import type { Expense } from '@/src/types/models';
 
-const storage = createStorage('expenses');
+const storage = createSecureStorage('expenses');
 const KEY = 'data_v1';
 // Guard de idempotencia de la conversión float→entero de montos (ADR-002 §6).
 // Correrla dos veces multiplicaría los montos otra vez por el factor.

@@ -30,8 +30,8 @@ import type { Expense, Payment, PersonalBudget, PersonalEntry } from '@/src/type
 describe('money migration guard (D1) — expenseStore', () => {
   it('converts float amounts to minor units on first hydrate, and does NOT re-convert on a second hydrate', () => {
     jest.isolateModules(() => {
-      const { createStorage } = require('@/src/utils/createStorage');
-      const seed = createStorage('expenses');
+      const { createSecureStorage } = require('@/src/utils/secureStorage');
+      const seed = createSecureStorage('expenses');
 
       const floatExpense: Expense = {
         id: 'e1', updatedAt: 0, isDeleted: false, groupId: 'g1',
@@ -68,8 +68,8 @@ describe('money migration guard (D1) — expenseStore', () => {
 describe('money migration guard (D1) — paymentStore', () => {
   it('converts float amounts to minor units on first hydrate, and does NOT re-convert on a second hydrate', () => {
     jest.isolateModules(() => {
-      const { createStorage } = require('@/src/utils/createStorage');
-      const seed = createStorage('payments');
+      const { createSecureStorage } = require('@/src/utils/secureStorage');
+      const seed = createSecureStorage('payments');
 
       const floatPayment: Payment = {
         id: 'p1', updatedAt: 0, isDeleted: false, groupId: 'g1',
@@ -96,8 +96,8 @@ describe('money migration guard (D1) — paymentStore', () => {
 describe('money migration guard (D1) — personalStore', () => {
   it('converts entries and budget to minor units on first hydrate, and does NOT re-convert on a second hydrate', () => {
     jest.isolateModules(() => {
-      const { createStorage } = require('@/src/utils/createStorage');
-      const seed = createStorage('personal');
+      const { createSecureStorage } = require('@/src/utils/secureStorage');
+      const seed = createSecureStorage('personal');
 
       const floatEntry: PersonalEntry = {
         id: 'pe1', updatedAt: 0, isDeleted: false, kind: 'expense',

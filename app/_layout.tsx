@@ -8,6 +8,7 @@ import 'react-native-reanimated';
 import 'react-native-get-random-values';
 
 import '@/src/i18n'; // inicializar i18next antes de cualquier render
+import { bootstrapSecureStorage } from '@/src/utils/secureStorage';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
@@ -34,13 +35,24 @@ function AuthGuard() {
   const hydrateTheme    = useThemeStore(s => s.hydrate);
 
   useEffect(() => {
-    hydrate();
-    hydrateGroups();
-    hydrateExpenses();
-    hydratePayments();
-    hydrateUsers();
-    hydratePersonal();
+    // Tema en claro y síncrono: se puede hidratar ya (evita flash).
     hydrateTheme();
+
+    // Stores sensibles: primero abrimos el storage CIFRADO (carga la clave del
+    // llavero + migra datos en claro a cifrado in-place), recién ahí hidratamos.
+    // authStore arranca isLoading:true, así que el AuthGuard espera este await.
+    let active = true;
+    (async () => {
+      await bootstrapSecureStorage();
+      if (!active) return;
+      hydrate();
+      hydrateGroups();
+      hydrateExpenses();
+      hydratePayments();
+      hydrateUsers();
+      hydratePersonal();
+    })();
+    return () => { active = false; };
   }, []);
 
   useEffect(() => {

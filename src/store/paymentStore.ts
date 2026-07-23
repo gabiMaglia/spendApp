@@ -1,9 +1,9 @@
 import { create } from 'zustand';
-import { createStorage } from '@/src/utils/createStorage';
+import { createSecureStorage } from '@/src/utils/secureStorage';
 import { migratePaymentAmounts } from './moneyMigration';
 import type { Payment } from '@/src/types/models';
 
-const storage = createStorage('payments');
+const storage = createSecureStorage('payments');
 const KEY = 'data_v1';
 // Guard de idempotencia de la conversión float→entero de montos (ADR-002 §6).
 const MONEY_MIGRATION_KEY = 'money_int_v1_done';

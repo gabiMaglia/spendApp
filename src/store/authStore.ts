@@ -1,9 +1,9 @@
 import { create } from 'zustand';
-import { createStorage } from '@/src/utils/createStorage';
+import { createSecureStorage } from '@/src/utils/secureStorage';
 import type { User } from '@/src/types/models';
 import { useUserStore } from './userStore';
 
-const storage = createStorage('auth');
+const storage = createSecureStorage('auth');
 
 const KEYS = {
   USER:   'current_user',

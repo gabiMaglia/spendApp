@@ -25,9 +25,16 @@ jest.mock('react-native-mmkv', () => {
       delete: (key: string) => store.delete(key),
       contains: (key: string) => store.has(key),
       clearAll: () => store.clear(),
+      recrypt: (_key?: string) => {},
     })),
   };
 });
+
+// expo-crypto: bytes deterministas para tests (256-bit)
+jest.mock('expo-crypto', () => ({
+  getRandomBytesAsync: async (n: number) =>
+    new Uint8Array(Array.from({ length: n }, (_, i) => (i * 7 + 3) % 256)),
+}));
 
 // expo-secure-store: mock simple
 jest.mock('expo-secure-store', () => ({
