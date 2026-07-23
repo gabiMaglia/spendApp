@@ -180,16 +180,16 @@ function AppLogoMark({ size }: { size: number }) {
     <View style={{ width: size, height: size, position: 'relative' }}>
       <View style={{
         position: 'absolute', left: 0, top: 0,
-        width: size * 0.72, height: size * 0.72,
-        borderRadius: size * 0.24, backgroundColor: '#0A6E8F',
+        width: size * 0.78, height: size * 0.78,
+        borderRadius: size * 0.26, backgroundColor: '#0A6E8F',
       }} />
       <View style={{
         position: 'absolute', right: 0, bottom: 0,
-        width: size * 0.62, height: size * 0.62,
-        borderRadius: size * 0.2, backgroundColor: '#8FBC94', opacity: 0.85,
+        width: size * 0.68, height: size * 0.68,
+        borderRadius: size * 0.22, backgroundColor: '#8FBC94', opacity: 0.85,
       }} />
       <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }]}>
-        <Text style={{ color: '#fff', fontSize: size * 0.38, fontWeight: '800', letterSpacing: -2 }}>S</Text>
+        <Text style={{ color: '#fff', fontSize: size * 0.31, fontWeight: '800', letterSpacing: -2 }}>S</Text>
       </View>
     </View>
   );
