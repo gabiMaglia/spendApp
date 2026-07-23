@@ -114,6 +114,7 @@ export default function RootLayout() {
         <Stack.Screen name="personal/new"  options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="settings"     options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="sync/index"   options={{ presentation: 'modal', headerShown: false }} />
+        <Stack.Screen name="debug/webrtc" options={{ presentation: 'modal', headerShown: false }} />
       </Stack>
       <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
     </ThemeProvider>
