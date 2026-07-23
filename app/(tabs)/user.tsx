@@ -255,7 +255,7 @@ export default function UserScreen() {
         {/* ── Apariencia ───────────────────────────────────────────────── */}
         <SectionLabel label={t('profile.section_appearance')} />
         <View style={[styles.section, { borderColor: c.borderHair }]}>
-          <View style={[styles.row, { backgroundColor: c.surface }]}>
+          <View style={[styles.row, { backgroundColor: c.surface, justifyContent: 'space-between' }]}>
             <Text style={[Typography.bodyM, { color: c.text, fontWeight: '600' }]}>{t('profile.theme')}</Text>
             <View style={[styles.themeSegment, { backgroundColor: c.surfaceSunken }]}>
               {(['auto', 'light', 'dark'] as const).map(opt => (
@@ -294,7 +294,7 @@ export default function UserScreen() {
         {/* ── Idioma ───────────────────────────────────────────────────── */}
         <SectionLabel label={t('profile.section_language')} />
         <View style={[styles.section, { borderColor: c.borderHair }]}>
-          <View style={[styles.row, { backgroundColor: c.surface }]}>
+          <View style={[styles.row, { backgroundColor: c.surface, justifyContent: 'space-between' }]}>
             <Text style={[Typography.bodyM, { color: c.text, fontWeight: '600' }]}>
               {t('profile.language')}
             </Text>
