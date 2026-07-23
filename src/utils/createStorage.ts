@@ -22,13 +22,39 @@ export interface SimpleStorage {
   clearAll(): void;
 }
 
+// Detecta si corremos en Expo Go (client de la tienda) vs un dev/prod build.
+// En Expo Go NO hay módulos nativos → MMKV no existe y la persistencia es
+// efímera. En un dev build sí debería andar; si igual falla, queremos ver el
+// error REAL (no asumir "Expo Go") para diagnosticar (p.ej. Nitro sin linkear).
+function isExpoGo(): boolean {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const Constants = require('expo-constants').default;
+    return Constants?.executionEnvironment === 'storeClient';
+  } catch {
+    return false;
+  }
+}
+
 export function createStorage(id: string): SimpleStorage {
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { MMKV } = require('react-native-mmkv');
-    return new MMKV({ id });
-  } catch {
-    console.warn(`[storage] MMKV no disponible (Expo Go). Usando memoria para "${id}".`);
+    const mmkv = new MMKV({ id });
+    // Prueba de humo: forzamos un acceso nativo para que un fallo de linkeo
+    // (Nitro/JSI) salte ACÁ y no más tarde silenciosamente.
+    mmkv.contains('__probe__');
+    return mmkv;
+  } catch (e) {
+    const reason = e instanceof Error ? e.message : String(e);
+    if (isExpoGo()) {
+      console.warn(`[storage] Expo Go: sin MMKV nativo. Datos EFÍMEROS para "${id}". Usá un dev build para persistir.`);
+    } else {
+      console.error(
+        `[storage] ⚠️ MMKV falló en un build NATIVO para "${id}" → usando memoria (datos NO persisten). ` +
+        `Rebuild necesario o dependencia nativa faltante. Error real: ${reason}`,
+      );
+    }
     return new MemoryStorage();
   }
 }
