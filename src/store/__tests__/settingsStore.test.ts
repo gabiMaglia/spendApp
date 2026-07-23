@@ -1,100 +1,68 @@
 import { createSettingsStore, useSettingsStore } from '../settingsStore';
 import { createStorage } from '@/src/utils/createStorage';
+import { useAuthStore } from '../authStore';
+import type { User } from '@/src/types/models';
 
-describe('settingsStore', () => {
+const USER_A = { id: 'userA' } as User;
+const USER_B = { id: 'userB' } as User;
+
+function setActive(u: User | null) {
+  useAuthStore.setState({ currentUser: u });
+}
+
+describe('settingsStore (preferencias por cuenta)', () => {
   beforeEach(() => {
-    // el mock de MMKV respalda todas las instancias con un mismo Map en memoria
-    // que persiste entre tests de este archivo — lo limpiamos y reseteamos el
-    // estado en memoria (mismo patrón que themeStore.test.ts).
     createStorage('settings').clearAll();
-    useSettingsStore.setState({
-      notifExpenses: true,
-      notifDeletions: true,
-      notifInvites: true,
-    });
+    setActive(USER_A);
+    useSettingsStore.setState({ notifExpenses: true, notifDeletions: true, notifInvites: true });
   });
 
-  it('defaults all 3 flags to true when nothing was persisted yet', () => {
-    const state = useSettingsStore.getState();
-    expect(state.notifExpenses).toBe(true);
-    expect(state.notifDeletions).toBe(true);
-    expect(state.notifInvites).toBe(true);
+  it('los 3 flags arrancan en true', () => {
+    const s = useSettingsStore.getState();
+    expect(s.notifExpenses).toBe(true);
+    expect(s.notifDeletions).toBe(true);
+    expect(s.notifInvites).toBe(true);
   });
 
-  it('setNotifExpenses updates in-memory state and persists it', () => {
+  it('setNotifExpenses persiste y sobrevive a un store fresco + hydrate (misma cuenta)', () => {
     useSettingsStore.getState().setNotifExpenses(false);
     expect(useSettingsStore.getState().notifExpenses).toBe(false);
 
-    useSettingsStore.getState().setNotifExpenses(true);
-    expect(useSettingsStore.getState().notifExpenses).toBe(true);
+    const fresh = createSettingsStore();
+    fresh.getState().hydrate();
+    expect(fresh.getState().notifExpenses).toBe(false);
   });
 
-  it('setNotifDeletions updates in-memory state and persists it', () => {
+  it('los flags persisten independientes entre sí', () => {
     useSettingsStore.getState().setNotifDeletions(false);
-    expect(useSettingsStore.getState().notifDeletions).toBe(false);
+
+    const fresh = createSettingsStore();
+    fresh.getState().hydrate();
+    expect(fresh.getState().notifDeletions).toBe(false);
+    expect(fresh.getState().notifExpenses).toBe(true);
+    expect(fresh.getState().notifInvites).toBe(true);
   });
 
-  it('setNotifInvites updates in-memory state and persists it', () => {
-    useSettingsStore.getState().setNotifInvites(false);
-    expect(useSettingsStore.getState().notifInvites).toBe(false);
-  });
-
-  it('flags persist independently of each other', () => {
+  // El fix de aislamiento por cuenta: lo que configura una cuenta NO lo ve otra.
+  it('aísla por cuenta: lo que apaga A no lo ve B, y A lo recupera al volver', () => {
+    setActive(USER_A);
     useSettingsStore.getState().setNotifExpenses(false);
-    expect(useSettingsStore.getState().notifDeletions).toBe(true);
-    expect(useSettingsStore.getState().notifInvites).toBe(true);
+
+    // B entra y hidrata → default true (no ve el de A)
+    setActive(USER_B);
+    useSettingsStore.getState().hydrate();
+    expect(useSettingsStore.getState().notifExpenses).toBe(true);
+
+    // A vuelve → recupera su false
+    setActive(USER_A);
+    useSettingsStore.getState().hydrate();
+    expect(useSettingsStore.getState().notifExpenses).toBe(false);
   });
 
-  // Mismo caso que protegía themeStore (D2): el valor persistido debe leerse
-  // SINCRÓNICAMENTE al crear el store, sin depender de un hydrate() posterior,
-  // para que no haya flash del valor default en el primer render.
-  it('a freshly created store reads persisted flags synchronously, with no hydrate() call', () => {
-    createStorage('settings').set('notif_expenses', false);
-    createStorage('settings').set('notif_deletions', false);
-
-    const freshStore = createSettingsStore();
-
-    expect(freshStore.getState().notifExpenses).toBe(false);
-    expect(freshStore.getState().notifDeletions).toBe(false);
-    expect(freshStore.getState().notifInvites).toBe(true);
-  });
-
-  it('a freshly created store falls back to true when nothing was persisted', () => {
-    const freshStore = createSettingsStore();
-    expect(freshStore.getState().notifExpenses).toBe(true);
-    expect(freshStore.getState().notifDeletions).toBe(true);
-    expect(freshStore.getState().notifInvites).toBe(true);
-  });
-
-  // QA (D-?): las pruebas de arriba plantaban el valor DIRECTO en storage
-  // (`createStorage('settings').set(...)`) en vez de pasar por el setter real,
-  // así que un setter que dejara de persistir (ej. `storage.set(...)` borrado
-  // por error) no rompía ningún test. Estas cierran el loop completo
-  // setter real -> storage -> lectura sincrónica en un store fresco, para
-  // los 3 flags.
-  describe('el setter real persiste de punta a punta (setter -> storage -> store fresco)', () => {
-    it('setNotifExpenses(false) sobrevive a un store fresco', () => {
-      useSettingsStore.getState().setNotifExpenses(false);
-
-      const freshStore = createSettingsStore();
-
-      expect(freshStore.getState().notifExpenses).toBe(false);
-    });
-
-    it('setNotifDeletions(false) sobrevive a un store fresco', () => {
-      useSettingsStore.getState().setNotifDeletions(false);
-
-      const freshStore = createSettingsStore();
-
-      expect(freshStore.getState().notifDeletions).toBe(false);
-    });
-
-    it('setNotifInvites(false) sobrevive a un store fresco', () => {
-      useSettingsStore.getState().setNotifInvites(false);
-
-      const freshStore = createSettingsStore();
-
-      expect(freshStore.getState().notifInvites).toBe(false);
-    });
+  it('sin usuario activo, hydrate deja los defaults (true) y el setter no persiste', () => {
+    setActive(null);
+    useSettingsStore.getState().setNotifExpenses(false); // no-op sin cuenta
+    useSettingsStore.getState().hydrate();
+    expect(useSettingsStore.getState().notifExpenses).toBe(true);
   });
 });

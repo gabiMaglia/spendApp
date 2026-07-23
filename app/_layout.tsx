@@ -11,12 +11,9 @@ import '@/src/i18n'; // inicializar i18next antes de cualquier render
 import { bootstrapSecureStorage } from '@/src/utils/secureStorage';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuthStore } from '@/src/store/authStore';
-import { useGroupStore } from '@/src/store/groupStore';
-import { useExpenseStore } from '@/src/store/expenseStore';
-import { usePaymentStore } from '@/src/store/paymentStore';
 import { useUserStore } from '@/src/store/userStore';
-import { usePersonalStore } from '@/src/store/personalStore';
 import { useThemeStore } from '@/src/store/themeStore';
+import { rehydrateForActiveUser, subscribeSessionRehydrate } from '@/src/store/session';
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -26,12 +23,7 @@ function AuthGuard() {
   const segments = useSegments();
   const router = useRouter();
   const { currentUser, isLoading, hydrate } = useAuthStore();
-  const hydrateGroups   = useGroupStore(s => s.hydrate);
-  const hydrateExpenses = useExpenseStore(s => s.hydrate);
-  const hydratePayments = usePaymentStore(s => s.hydrate);
-  const hydrateUsers    = useUserStore(s => s.hydrate);
   const addOrUpdateUser = useUserStore(s => s.addOrUpdateUser);
-  const hydratePersonal = usePersonalStore(s => s.hydrate);
   const hydrateTheme    = useThemeStore(s => s.hydrate);
 
   useEffect(() => {
@@ -39,20 +31,20 @@ function AuthGuard() {
     hydrateTheme();
 
     // Stores sensibles: primero abrimos el storage CIFRADO (carga la clave del
-    // llavero + migra datos en claro a cifrado in-place), recién ahí hidratamos.
-    // authStore arranca isLoading:true, así que el AuthGuard espera este await.
+    // llavero + migra datos en claro a cifrado in-place), recién ahí hidratamos
+    // los datos de la cuenta activa. authStore arranca isLoading:true, así que
+    // el AuthGuard espera este await.
     let active = true;
     (async () => {
       await bootstrapSecureStorage();
       if (!active) return;
-      hydrate();
-      hydrateGroups();
-      hydrateExpenses();
-      hydratePayments();
-      hydrateUsers();
-      hydratePersonal();
+      hydrate();                 // carga la sesión (cuál cuenta está activa)
+      rehydrateForActiveUser();  // carga los datos SCOPEADOS de esa cuenta
     })();
-    return () => { active = false; };
+
+    // Re-hidrata al cambiar de cuenta (login / logout / switch de usuario).
+    const unsub = subscribeSessionRehydrate();
+    return () => { active = false; unsub(); };
   }, []);
 
   useEffect(() => {
