@@ -81,6 +81,12 @@
         {
           "photosPermission": "Necesitamos acceso a tus fotos para adjuntar imágenes de tickets."
         }
+      ],
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.918898015438-vd4uat4b7q7jj7k6g770hl7rc0tqa1l6"
+        }
       ]
     ],
     "experiments": {

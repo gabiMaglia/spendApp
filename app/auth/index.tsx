@@ -2,11 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
-import * as WebBrowser from 'expo-web-browser';
-import * as Google from 'expo-auth-session/providers/google';
+import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import * as AppleAuthentication from 'expo-apple-authentication';
-
-WebBrowser.maybeCompleteAuthSession();
 
 import { Colors } from '@/src/constants/colors';
 import { Radius, Spacing } from '@/src/constants/spacing';
@@ -16,6 +13,14 @@ import { useAuthStore } from '@/src/store/authStore';
 import { Button } from '@/src/components/Button';
 import { BalancePill } from '@/src/components/BalancePill';
 import { Avatar } from '@/src/components/Avatar';
+
+type GoogleUser = {
+  id: string;
+  name?: string | null;
+  email: string;
+  photo?: string | null;
+  givenName?: string | null;
+};
 
 export default function AuthScreen() {
   const { t } = useTranslation();
@@ -31,46 +36,44 @@ export default function AuthScreen() {
     }
   }, []);
 
-  const googleIosId     = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS ?? '';
-  const googleAndroidId = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID ?? '';
-  // El client ID relevante depende de la plataforma del build actual.
-  const activeGoogleId = Platform.OS === 'android' ? googleAndroidId : googleIosId;
-  const googleConfigured =
-    activeGoogleId.length > 0 &&
-    !activeGoogleId.startsWith('000000') &&
-    activeGoogleId !== 'not-configured';
-
-  const [, , promptGoogleAsync] = Google.useAuthRequest({
-    iosClientId:     googleIosId || 'not-configured',
-    androidClientId: googleAndroidId || 'not-configured',
-  });
+  // Google Sign-In nativo (@react-native-google-signin). En Android usa el
+  // cliente OAuth Android registrado en GCP (paquete + SHA-1) — no requiere ID
+  // en código. En iOS necesita iosClientId. webClientId es opcional (solo para
+  // idToken; acá el auth es serverless y usamos el perfil directo).
+  useEffect(() => {
+    GoogleSignin.configure({
+      webClientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_WEB || undefined,
+      iosClientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS || undefined,
+      offlineAccess: false,
+    });
+  }, []);
 
   async function handleGoogleLogin() {
-    if (!googleConfigured) {
-      const envVar = Platform.OS === 'android'
-        ? 'EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID'
-        : 'EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS';
-      alert(`Configurá ${envVar} en el archivo .env`);
-      return;
+    try {
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      // La forma del retorno varía por versión; contemplamos {data:{user}} y {user}.
+      const response = (await GoogleSignin.signIn()) as unknown as {
+        data?: { user?: GoogleUser };
+        user?: GoogleUser;
+      };
+      const u = response?.data?.user ?? response?.user;
+      if (!u) return; // cancelado
+
+      setUser({
+        id:           u.id,
+        name:         u.name ?? u.givenName ?? 'Usuario',
+        email:        u.email,
+        avatarUrl:    u.photo ?? undefined,
+        authProvider: 'google',
+        updatedAt:    Date.now(),
+        isDeleted:    false,
+        createdAt:    Date.now(),
+      });
+    } catch (e) {
+      const code = (e as { code?: string })?.code;
+      if (code === statusCodes.SIGN_IN_CANCELLED || code === statusCodes.IN_PROGRESS) return;
+      alert('No se pudo iniciar sesión con Google. Reintentá.');
     }
-    const result = await promptGoogleAsync();
-    if (result.type !== 'success') return;
-
-    const res = await fetch('https://www.googleapis.com/userinfo/v2/me', {
-      headers: { Authorization: `Bearer ${result.authentication?.accessToken}` },
-    });
-    const userInfo = await res.json();
-
-    setUser({
-      id:           userInfo.id,
-      name:         userInfo.name,
-      email:        userInfo.email,
-      avatarUrl:    userInfo.picture,
-      authProvider: 'google',
-      updatedAt:    Date.now(),
-      isDeleted:    false,
-      createdAt:    Date.now(),
-    });
   }
 
   async function handleAppleLogin() {
