@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { RTCPeerConnection, RTCSessionDescription } from 'react-native-webrtc';
+import { v4 as uuidv4 } from 'uuid';
 import { encodeSignal, decodeSignal } from './sdpCodec';
+import { toFrames, Reassembler } from './chunker';
 import { buildDelta, applyDelta, deltaToQRString, parseDeltaFromQR } from '@/src/sync/useSyncQR';
 
 export type PairingRole = 'offer' | 'answer';
@@ -32,6 +34,7 @@ export function usePairingSession(currentUserId: string) {
   const pcRef = useRef<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const channelRef = useRef<any>(null);
+  const reassemblerRef = useRef(new Reassembler());
   const doneRef = useRef(false);
 
   const fail = useCallback((key: string) => { setError(key); setPhase('error'); }, []);
@@ -41,14 +44,21 @@ export function usePairingSession(currentUserId: string) {
     channelRef.current = ch;
     ch.addEventListener('open', () => {
       setPhase('syncing');
-      try { ch.send(deltaToQRString(buildDelta(currentUserId))); } catch { /* noop */ }
+      // Enviamos el delta en frames (chunking) por si supera el límite de mensaje.
+      try {
+        for (const frame of toFrames(deltaToQRString(buildDelta(currentUserId)), uuidv4())) {
+          ch.send(frame);
+        }
+      } catch { /* noop */ }
     });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ch.addEventListener('message', (ev: any) => {
       if (doneRef.current) return;
+      const raw = typeof ev.data === 'string' ? ev.data : String(ev.data);
+      const complete = reassemblerRef.current.push(raw);
+      if (complete === null) return; // faltan chunks todavía
       try {
-        const raw = typeof ev.data === 'string' ? ev.data : String(ev.data);
-        const delta = parseDeltaFromQR(raw);
+        const delta = parseDeltaFromQR(complete);
         applyDelta(delta, currentUserId);
         const records =
           (delta.groups?.length ?? 0) + (delta.expenses?.length ?? 0) +
@@ -137,6 +147,7 @@ export function usePairingSession(currentUserId: string) {
     try { channelRef.current?.close(); } catch { /* noop */ }
     try { pcRef.current?.close(); } catch { /* noop */ }
     channelRef.current = null; pcRef.current = null; doneRef.current = false;
+    reassemblerRef.current.reset();
     setPhase('idle'); setRole(null); setMySignal(null); setError(null); setSummary(null);
   }, []);
 
