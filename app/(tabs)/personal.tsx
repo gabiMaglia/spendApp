@@ -290,7 +290,7 @@ export default function PersonalScreen() {
             </Text>
           </View>
         ) : (
-          <View style={{ gap: Spacing.cardGap }}>
+          <View style={{ gap: Spacing.cardGap, paddingHorizontal: Spacing.screenPad }}>
             {[...monthEntries].sort((a, b) => b.date - a.date).map(entry => (
               <EntryRow
                 key={entry.id}
