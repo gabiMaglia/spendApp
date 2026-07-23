@@ -9,6 +9,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { v4 as uuidv4 } from 'uuid';
 import { hapticSelection, hapticSuccess } from '@/src/utils/haptics';
+import { useTranslation } from 'react-i18next';
 
 import { Colors } from '@/src/constants/colors';
 import { Radius, Spacing } from '@/src/constants/spacing';
@@ -73,6 +74,7 @@ function formatDate(d: Date): string {
 
 export default function NewExpenseScreen() {
   const scheme = useColorScheme() ?? 'light';
+  const { t } = useTranslation();
   const c = Colors[scheme];
 
   const { currentUser, isPro } = useAuthStore();
@@ -363,7 +365,7 @@ export default function NewExpenseScreen() {
     }
   }
 
-  const groupName = group?.name ?? 'Sin grupo';
+  const groupName = group?.name ?? t('expense.no_group_short');
   const payerName = getUserName(payerId);
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -378,7 +380,7 @@ export default function NewExpenseScreen() {
             <Ionicons name="close" size={24} color={c.text} />
           </Pressable>
           <Text style={[Typography.h3, { color: c.text }]}>
-            {isEditMode ? 'Editar gasto' : isIncome ? 'Nuevo ingreso' : 'Nuevo gasto'}
+            {isEditMode ? t('expense.edit_title') : isIncome ? t('expense.new_income_title') : t('expense.new_title')}
           </Text>
           <View style={styles.headerBtn} />
         </View>
@@ -393,8 +395,8 @@ export default function NewExpenseScreen() {
           {/* Toggle Gasto/Ingreso — solo en modo Personal (F-G2) */}
           {incomeAllowed && (
             <View style={[styles.segmented, { backgroundColor: c.surfaceSunken, marginBottom: 12 }]}>
-              <SegTab label="Gasto"   active={!isIncome} onPress={() => switchEntryKind('expense')} />
-              <SegTab label="Ingreso" active={isIncome}  onPress={() => switchEntryKind('income')} />
+              <SegTab label={t('expense.kind_expense')} active={!isIncome} onPress={() => switchEntryKind('expense')} />
+              <SegTab label={t('expense.kind_income')} active={isIncome}  onPress={() => switchEntryKind('income')} />
             </View>
           )}
 
@@ -402,7 +404,7 @@ export default function NewExpenseScreen() {
           <View style={[styles.inputCard, { backgroundColor: c.surface, borderColor: c.borderHair }]}>
             <Ionicons name="create-outline" size={18} color={c.textTertiary} style={{ marginTop: 1 }} />
             <TextInput
-              placeholder={isIncome ? '¿De dónde?' : '¿En qué gastaron?'}
+              placeholder={isIncome ? t('expense.income_desc_placeholder') : t('expense.description_placeholder')}
               placeholderTextColor={c.textTertiary}
               value={description}
               onChangeText={setDescription}
@@ -436,7 +438,7 @@ export default function NewExpenseScreen() {
                     color:      active ? '#fff' : c.textSecondary,
                     fontWeight: active ? '700' : '500',
                   }]}>
-                    {cat.label}
+                    {t(`categories.${cat.id}`)}
                   </Text>
                 </Pressable>
               );
@@ -470,7 +472,7 @@ export default function NewExpenseScreen() {
             onPress={() => setShowPayer(true)}
             style={[styles.row, { backgroundColor: c.surface, borderColor: c.borderHair }]}
           >
-            <Text style={[Typography.label, { color: c.textTertiary, textTransform: 'uppercase' }]}>Pagó</Text>
+            <Text style={[Typography.label, { color: c.textTertiary, textTransform: 'uppercase' }]}>{t('expense.payer_label')}</Text>
             <View style={styles.rowRight}>
               <Avatar name={payerName} hue={hueForUser(payerId)} size={24} />
               <Text style={[Typography.bodyM, { color: c.text, fontWeight: '600' }]}>{payerName}</Text>
@@ -481,18 +483,18 @@ export default function NewExpenseScreen() {
           {/* Split section */}
           <View style={styles.splitSection}>
             <Text style={[Typography.label, { color: c.textTertiary, textTransform: 'uppercase' }]}>
-              Cómo se divide
+              {t('expense.split_how')}
             </Text>
 
             {/* Mode tabs */}
             <View style={[styles.segmented, { backgroundColor: c.surfaceSunken }]}>
               <SegTab
-                label="Partes iguales"
+                label={t('expense.split_mode_equal')}
                 active={splitMode === 'equal'}
                 onPress={() => handleSplitModeChange('equal')}
               />
               <SegTab
-                label="Porcentaje"
+                label={t('expense.split_mode_percentage')}
                 active={splitMode === 'percentage'}
                 onPress={() => handleSplitModeChange('percentage')}
               />
@@ -503,12 +505,12 @@ export default function NewExpenseScreen() {
               <>
                 <View style={[styles.subSegmented, { backgroundColor: c.surfaceSunken }]}>
                   <SegTab
-                    label="Todos igual"
+                    label={t('expense.percent_same')}
                     active={percentSub === 'same'}
                     onPress={() => handlePercentSubChange('same')}
                   />
                   <SegTab
-                    label="Por persona"
+                    label={t('expense.percent_custom')}
                     active={percentSub === 'custom'}
                     onPress={() => handlePercentSubChange('custom')}
                   />
@@ -528,7 +530,7 @@ export default function NewExpenseScreen() {
                       <Text style={[Typography.h3, { color: c.textSecondary }]}>%</Text>
                     </View>
                     <Text style={[Typography.bodyS, { color: c.textTertiary }]}>
-                      para cada persona · el último recibe el resto
+                      {t('expense.percent_same_hint')}
                     </Text>
                   </View>
                 )}
@@ -576,7 +578,7 @@ export default function NewExpenseScreen() {
                     {showRest ? (
                       <View style={{ alignItems: 'flex-end' }}>
                         <Text style={[Typography.caption, { color: c.brand.primaryOnSoft }]}>
-                          {lastPercent < 0 ? '⚠ excedido' : `${roundPct(lastPercent)}% · resto`}
+                          {lastPercent < 0 ? t('expense.percent_exceeded') : t('expense.percent_rest', { pct: roundPct(lastPercent) })}
                         </Text>
                         <Text style={[Typography.amountS, {
                           color: lastPercent >= 0 ? c.brand.primaryOnSoft : c.semantic.negative,
@@ -604,7 +606,7 @@ export default function NewExpenseScreen() {
                 <View style={[styles.errorRow, { backgroundColor: c.semantic.errorSoft }]}>
                   <Ionicons name="warning-outline" size={16} color={c.semantic.error} />
                   <Text style={[Typography.bodyS, { color: c.semantic.error, flex: 1 }]}>
-                    Los porcentajes superan el 100%.
+                    {t('expense.percent_over_100')}
                   </Text>
                 </View>
               )}
@@ -617,8 +619,8 @@ export default function NewExpenseScreen() {
             <View style={[styles.tierRow, { backgroundColor: c.semantic.warningSoft }]}>
               <Ionicons name="information-circle-outline" size={16} color={c.semantic.warning} />
               <Text style={[Typography.bodyS, { color: '#8A6420', flex: 1 }]}>
-                {dailyCount} de 4 gastos gratis hoy.{' '}
-                {needsAd ? 'El próximo requiere ver un anuncio o activar Pro.' : ''}
+                {t('expense.free_count', { count: dailyCount })}{' '}
+                {needsAd ? t('expense.free_next') : ''}
               </Text>
             </View>
           )}
@@ -630,7 +632,7 @@ export default function NewExpenseScreen() {
             style={[styles.saveBtn, { backgroundColor: canSave ? c.brand.primary : c.surfaceSunken }]}
           >
             <Text style={[Typography.bodyL, { color: canSave ? '#fff' : c.textDisabled, fontWeight: '700' }]}>
-              {!isEditMode && needsAd ? 'Ver anuncio y guardar' : 'Guardar'}
+              {!isEditMode && needsAd ? t('expense.save_with_ad') : t('expense.save')}
             </Text>
           </Pressable>
 
@@ -698,10 +700,10 @@ export default function NewExpenseScreen() {
       {/* Group picker — only shown in create mode */}
       {!isEditMode && (
         <BottomSheet visible={showGroup} onClose={() => setShowGroup(false)}>
-          <Text style={[Typography.h3, { color: c.text, marginBottom: 16 }]}>Seleccionar grupo</Text>
+          <Text style={[Typography.h3, { color: c.text, marginBottom: 16 }]}>{t('expense.select_group')}</Text>
           <SheetOption
             icon="person-outline"
-            label="Sin grupo (personal)"
+            label={t('expense.no_group')}
             selected={groupId === ''}
             onPress={() => handleGroupChange('')}
           />
@@ -719,7 +721,7 @@ export default function NewExpenseScreen() {
 
       {/* Payer picker */}
       <BottomSheet visible={showPayer} onClose={() => setShowPayer(false)}>
-        <Text style={[Typography.h3, { color: c.text, marginBottom: 16 }]}>¿Quién pagó?</Text>
+        <Text style={[Typography.h3, { color: c.text, marginBottom: 16 }]}>{t('expense.who_paid')}</Text>
         {members.map(userId => (
           <SheetOptionAvatar
             key={userId}
@@ -733,7 +735,7 @@ export default function NewExpenseScreen() {
 
       {/* Date picker */}
       <BottomSheet visible={showDate} onClose={() => setShowDate(false)}>
-        <Text style={[Typography.h3, { color: c.text, marginBottom: 16 }]}>Fecha del gasto</Text>
+        <Text style={[Typography.h3, { color: c.text, marginBottom: 16 }]}>{t('expense.expense_date')}</Text>
         {Array.from({ length: 7 }, (_, i) => {
           const d = new Date();
           d.setDate(d.getDate() - i);
@@ -756,11 +758,11 @@ export default function NewExpenseScreen() {
 
       {/* Note */}
       <BottomSheet visible={showNote} onClose={() => setShowNote(false)}>
-        <Text style={[Typography.h3, { color: c.text, marginBottom: 12 }]}>Nota</Text>
+        <Text style={[Typography.h3, { color: c.text, marginBottom: 12 }]}>{t('expense.note')}</Text>
         <TextInput
           value={note}
           onChangeText={setNote}
-          placeholder="Agregar nota opcional..."
+          placeholder={t('expense.note_placeholder')}
           placeholderTextColor={c.textTertiary}
           multiline
           numberOfLines={4}
@@ -774,7 +776,7 @@ export default function NewExpenseScreen() {
           onPress={() => setShowNote(false)}
           style={[styles.saveBtn, { backgroundColor: c.brand.primary, marginTop: 12 }]}
         >
-          <Text style={[Typography.bodyL, { color: '#fff', fontWeight: '700' }]}>Listo</Text>
+          <Text style={[Typography.bodyL, { color: '#fff', fontWeight: '700' }]}>{t('common.done')}</Text>
         </Pressable>
       </BottomSheet>
 
