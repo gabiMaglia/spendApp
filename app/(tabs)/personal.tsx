@@ -22,15 +22,14 @@ import { hapticLight, hapticSelection, hapticWarning } from '@/src/utils/haptics
 import { v4 as uuidv4 } from 'uuid';
 import { BottomSheet } from '@/src/components/Sheet';
 import type { PersonalBudget, PersonalEntry } from '@/src/types/models';
-
-const MONTH_NAMES = [
-  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
-];
+import { useTranslation } from 'react-i18next';
+import i18n from '@/src/i18n';
 
 function monthLabel(key: string): string {
   const [year, month] = key.split('-').map(Number);
-  return `${MONTH_NAMES[month - 1]} ${year}`;
+  const d = new Date(year, month - 1, 1);
+  const s = d.toLocaleDateString(i18n.language, { month: 'long', year: 'numeric' });
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 function prevMonth(key: string): string {
@@ -46,14 +45,15 @@ function nextMonth(key: string): string {
 }
 
 const ENTRY_KIND_META = {
-  expense:         { icon: 'trending-down-outline' as const, label: 'Gasto personal' },
-  income:          { icon: 'trending-up-outline'   as const, label: 'Ingreso' },
-  group_replicated:{ icon: 'people-outline'        as const, label: 'Del grupo' },
-  carryover:       { icon: 'refresh-outline'       as const, label: 'Saldo anterior' },
+  expense:         { icon: 'trending-down-outline' as const, labelKey: 'personal.kind_expense' },
+  income:          { icon: 'trending-up-outline'   as const, labelKey: 'personal.kind_income' },
+  group_replicated:{ icon: 'people-outline'        as const, labelKey: 'personal.kind_group' },
+  carryover:       { icon: 'refresh-outline'       as const, labelKey: 'personal.kind_carryover' },
 };
 
 export default function PersonalScreen() {
   const scheme = useColorScheme() ?? 'light';
+  const { t } = useTranslation();
   const c = Colors[scheme];
 
   const { currentUser } = useAuthStore();
@@ -177,11 +177,11 @@ export default function PersonalScreen() {
     if (entry.kind === 'group_replicated') return;
     hapticWarning();
     Alert.alert(
-      'Eliminar entrada',
-      `¿Eliminar "${entry.description}"?`,
+      t('personal.remove_title'),
+      t('personal.remove_body', { desc: entry.description }),
       [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Eliminar', style: 'destructive', onPress: () => removeEntry(entry.id) },
+        { text: t('common.cancel'), style: 'cancel' },
+        { text: t('common.delete'), style: 'destructive', onPress: () => removeEntry(entry.id) },
       ],
     );
   }
@@ -192,7 +192,7 @@ export default function PersonalScreen() {
 
         {/* Header */}
         <View style={styles.header}>
-          <Text style={[Typography.display, { color: c.text }]}>Personal</Text>
+          <Text style={[Typography.display, { color: c.text }]}>{t('personal.title')}</Text>
           <Pressable
             onPress={() => { hapticLight(); setShowBudgetSheet(true); }}
             style={[styles.iconBtn, { backgroundColor: c.surfaceSunken }]}
@@ -224,13 +224,13 @@ export default function PersonalScreen() {
             <View style={styles.meterTop}>
               <View>
                 <Text style={[Typography.caption, { color: c.textTertiary, textTransform: 'uppercase' }]}>
-                  Gastado
+                  {t('personal.spent')}
                 </Text>
                 <MoneyText minor={totalSpent} code={cur} style={[Typography.amountM, { color: c.text }]} />
               </View>
               <View style={{ alignItems: 'flex-end' }}>
                 <Text style={[Typography.caption, { color: c.textTertiary, textTransform: 'uppercase' }]}>
-                  {remaining >= 0 ? 'Disponible' : 'Excedido'}
+                  {remaining >= 0 ? t('personal.available') : t('personal.exceeded')}
                 </Text>
                 <MoneyText minor={Math.abs(remaining)} code={cur} style={[Typography.amountM, { color: remaining >= 0 ? barColor : c.semantic.negative }]} />
               </View>
@@ -240,14 +240,14 @@ export default function PersonalScreen() {
               <View style={[styles.barFill, { width: `${Math.round(pct * 100)}%` as any, backgroundColor: barColor }]} />
             </View>
             <Text style={[Typography.caption, { color: c.textTertiary, textAlign: 'center' }]}>
-              {Math.round(pct * 100)}% de {formatMoney(effectiveBudget, cur)}
-              {budget.includeOwedToMe && owedToMe > 0 ? ` (incluye ${formatMoney(owedToMe, cur)} que te deben)` : ''}
+              {t('personal.budget_progress', { pct: Math.round(pct * 100), amount: formatMoney(effectiveBudget, cur) })}
+              {budget.includeOwedToMe && owedToMe > 0 ? t('personal.budget_includes_owed', { amount: formatMoney(owedToMe, cur) }) : ''}
             </Text>
             {youOwe > 0 && (
               <View style={[styles.debtBadge, { backgroundColor: c.semantic.negativeSoft }]}>
                 <Ionicons name="warning-outline" size={12} color={c.semantic.negative} />
                 <Text style={[Typography.caption, { color: c.semantic.negative }]}>
-                  Debés {formatMoney(youOwe, cur)} en grupos (no incluido arriba)
+                  {t('personal.debt_note', { amount: formatMoney(youOwe, cur) })}
                 </Text>
               </View>
             )}
@@ -259,34 +259,34 @@ export default function PersonalScreen() {
           >
             <Ionicons name="bar-chart-outline" size={28} color={c.textTertiary} />
             <Text style={[Typography.bodyM, { color: c.textSecondary, textAlign: 'center' }]}>
-              Configurá un presupuesto mensual para ver tu progreso
+              {t('personal.budget_empty')}
             </Text>
             <Text style={[Typography.bodyS, { color: c.brand.primary, fontWeight: '700' }]}>
-              Configurar presupuesto →
+              {t('personal.budget_configure')}
             </Text>
           </Pressable>
         )}
 
         {/* Summary chips */}
         <View style={styles.summaryRow}>
-          <SummaryChip label="Ingresos"    amount={totalIncome}  currency={cur} positive scheme={scheme} />
-          <SummaryChip label="Personal"    amount={totalExpense} currency={cur} scheme={scheme} />
-          <SummaryChip label="Grupos"      amount={totalGroup}   currency={cur} scheme={scheme} />
+          <SummaryChip label={t('personal.summary_income')} amount={totalIncome} currency={cur} positive scheme={scheme} />
+          <SummaryChip label={t('personal.summary_personal')} amount={totalExpense} currency={cur} scheme={scheme} />
+          <SummaryChip label={t('personal.summary_groups')} amount={totalGroup} currency={cur} scheme={scheme} />
           {youOwe > 0 && (
-            <SummaryChip label="Debo" amount={youOwe} currency={cur} negative scheme={scheme} />
+            <SummaryChip label={t('personal.summary_owe')} amount={youOwe} currency={cur} negative scheme={scheme} />
           )}
         </View>
 
         {/* Entries list */}
         <Text style={[Typography.label, styles.sectionLabel, { color: c.textTertiary }]}>
-          MOVIMIENTOS ({monthEntries.length})
+          {t('personal.movements_count', { count: monthEntries.length })}
         </Text>
 
         {monthEntries.length === 0 ? (
           <View style={[styles.emptyBox, { backgroundColor: c.surface, borderColor: c.borderHair }]}>
             <Ionicons name="receipt-outline" size={28} color={c.textTertiary} />
             <Text style={[Typography.bodyM, { color: c.textTertiary, marginTop: 8, textAlign: 'center' }]}>
-              Sin movimientos en {monthLabel(activeMonth)}
+              {t('personal.no_movements', { month: monthLabel(activeMonth) })}
             </Text>
           </View>
         ) : (
@@ -310,7 +310,7 @@ export default function PersonalScreen() {
           variant="secondary"
           onPress={() => router.push({ pathname: '/expense/new', params: { allowIncome: '1', kind: 'income' } } as any)}
           icon="trending-up-outline"
-          label="Ingreso"
+          label={t('personal.fab_income')}
           backgroundColor={c.semantic.positiveSoft}
           borderColor={c.semantic.positive + '44'}
           iconColor={c.semantic.positive}
@@ -319,20 +319,20 @@ export default function PersonalScreen() {
         <Fab
           onPress={() => router.push({ pathname: '/expense/new', params: { allowIncome: '1' } } as any)}
           icon="add"
-          label="Gasto"
+          label={t('personal.fab_expense')}
           backgroundColor={c.brand.primary}
         />
       </FabRow>
 
       {/* Budget settings sheet */}
       <BottomSheet visible={showBudgetSheet} onClose={() => setShowBudgetSheet(false)}>
-        <Text style={[Typography.h3, { color: c.text, marginBottom: 6 }]}>Presupuesto mensual</Text>
+        <Text style={[Typography.h3, { color: c.text, marginBottom: 6 }]}>{t('personal.budget_sheet_title')}</Text>
         <Text style={[Typography.bodyS, { color: c.textSecondary, marginBottom: 20 }]}>
-          Se resetea el 1º de cada mes.
+          {t('personal.budget_reset_note')}
         </Text>
 
         <Text style={[Typography.label, { color: c.textTertiary, marginBottom: 8, textTransform: 'uppercase' }]}>
-          Monto
+          {t('personal.amount')}
         </Text>
         <View style={[styles.budgetInput, { backgroundColor: c.surfaceSunken, borderColor: c.border }]}>
           <Text style={[Typography.bodyL, { color: c.textTertiary }]}>$</Text>
@@ -355,10 +355,10 @@ export default function PersonalScreen() {
         >
           <View style={{ flex: 1, gap: 2 }}>
             <Text style={[Typography.bodyM, { color: c.text, fontWeight: '600' }]}>
-              Incluir lo que me deben
+              {t('personal.include_owed')}
             </Text>
             <Text style={[Typography.bodyS, { color: c.textSecondary }]}>
-              El dinero pendiente de tus grupos suma al presupuesto
+              {t('personal.include_owed_sub')}
             </Text>
           </View>
           <View style={[
@@ -373,7 +373,7 @@ export default function PersonalScreen() {
           onPress={handleSaveBudget}
           style={[styles.saveBtn, { backgroundColor: c.brand.primary, marginTop: 16 }]}
         >
-          <Text style={[Typography.bodyM, { color: '#fff', fontWeight: '700' }]}>Guardar presupuesto</Text>
+          <Text style={[Typography.bodyM, { color: '#fff', fontWeight: '700' }]}>{t('personal.save_budget')}</Text>
         </Pressable>
       </BottomSheet>
     </SafeAreaView>
@@ -404,12 +404,13 @@ const summaryStyles = StyleSheet.create({
 
 function EntryRow({ entry, onRemove }: { entry: PersonalEntry; onRemove: () => void }) {
   const scheme = useColorScheme() ?? 'light';
+  const { t } = useTranslation();
   const c = Colors[scheme];
   const meta = ENTRY_KIND_META[entry.kind];
   const isCarryover = entry.kind === 'carryover';
   const isPositive  = entry.kind === 'income' || (isCarryover && entry.isPositiveCarryover === true);
   const isReadOnly  = entry.kind === 'group_replicated' || isCarryover;
-  const dateLabel   = new Date(entry.date).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' });
+  const dateLabel   = new Date(entry.date).toLocaleDateString(i18n.language, { day: 'numeric', month: 'short' });
 
   const iconBg    = isPositive ? c.semantic.positiveSoft
     : isReadOnly ? c.surfaceSunken : c.semantic.negativeSoft;
@@ -432,7 +433,7 @@ function EntryRow({ entry, onRemove }: { entry: PersonalEntry; onRemove: () => v
           {entry.description}
         </Text>
         <Text style={[Typography.caption, { color: c.textTertiary }]}>
-          {meta.label}
+          {t(meta.labelKey)}
           {entry.sourceGroupName ? ` · ${entry.sourceGroupName}` : ''}
           {' · '}{dateLabel}
         </Text>
