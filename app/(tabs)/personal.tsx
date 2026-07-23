@@ -10,6 +10,7 @@ import { Colors } from '@/src/constants/colors';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { formatMoney } from '@/src/constants/currencies';
+import { MoneyText } from '@/src/components/MoneyText';
 import type { CurrencyCode } from '@/src/constants/currencies';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAmountInput } from '@/src/hooks/useAmountInput';
@@ -225,17 +226,13 @@ export default function PersonalScreen() {
                 <Text style={[Typography.caption, { color: c.textTertiary, textTransform: 'uppercase' }]}>
                   Gastado
                 </Text>
-                <Text style={[Typography.amountM, { color: c.text }]}>
-                  {formatMoney(totalSpent, cur)}
-                </Text>
+                <MoneyText minor={totalSpent} code={cur} style={[Typography.amountM, { color: c.text }]} />
               </View>
               <View style={{ alignItems: 'flex-end' }}>
                 <Text style={[Typography.caption, { color: c.textTertiary, textTransform: 'uppercase' }]}>
                   {remaining >= 0 ? 'Disponible' : 'Excedido'}
                 </Text>
-                <Text style={[Typography.amountM, { color: remaining >= 0 ? barColor : c.semantic.negative }]}>
-                  {formatMoney(Math.abs(remaining), cur)}
-                </Text>
+                <MoneyText minor={Math.abs(remaining)} code={cur} style={[Typography.amountM, { color: remaining >= 0 ? barColor : c.semantic.negative }]} />
               </View>
             </View>
             {/* Progress bar */}

@@ -37,7 +37,12 @@ export function BalancePill({ amount, currency = 'ARS', size = 'md' }: BalancePi
 
   return (
     <View style={[styles.pill, { backgroundColor: bg, borderRadius: 9999 }, padding]}>
-      <Text style={{ color: fg, fontSize, fontWeight: '700', fontVariant: ['tabular-nums'] }}>
+      <Text
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.7}
+        style={{ color: fg, fontSize, fontWeight: '700', fontVariant: ['tabular-nums'] }}
+      >
         {sign}{symbol}{formatAmount(Math.abs(amount), currency)}
       </Text>
     </View>

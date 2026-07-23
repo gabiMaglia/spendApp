@@ -25,7 +25,38 @@
   },
   "profile": {
     "edit_name_title": "Edit name",
-    "edit_name_placeholder": "Your name"
+    "edit_name_placeholder": "Your name",
+    "title": "Me",
+    "no_name": "No name",
+    "section_plan": "PLAN",
+    "section_notifications": "NOTIFICATIONS",
+    "section_appearance": "APPEARANCE",
+    "section_store": "STORE",
+    "section_security": "SECURITY",
+    "section_language": "LANGUAGE",
+    "plan_pro": "Pro ✦",
+    "plan_free": "Free plan",
+    "free_daily": "4 free expenses per day",
+    "try_pro": "Try Pro free",
+    "notif_expenses": "New expenses",
+    "notif_deletions": "Deletion requests",
+    "notif_invites": "Group invitations",
+    "theme": "Theme",
+    "theme_auto": "Auto",
+    "theme_light": "Light",
+    "theme_dark": "Dark",
+    "skins": "Skins",
+    "coming_soon": "Coming soon",
+    "soon": "SOON",
+    "rate": "Rate the app",
+    "feedback": "Leave feedback",
+    "biometric": "Face ID / Touch ID",
+    "biometric_sub": "Require biometrics on open",
+    "sign_out": "Sign out",
+    "sign_out_confirm_body": "Are you sure? Your local data stays on the device.",
+    "version": "SplitP2P v{{version}} · serverless P2P",
+    "language": "Language",
+    "language_auto": "Auto"
   },
   "auth": {
     "welcome_title": "Split expenses\nwith friends.",
@@ -320,5 +351,13 @@
     "error_invalid_json": "The file is not a valid backup.",
     "error_invalid_format": "Unrecognized file format.",
     "error_unsupported_version": "Unsupported backup version."
+  },
+  "tabs": {
+    "account": "Account",
+    "personal": "Personal",
+    "friends": "Friends",
+    "groups": "Groups",
+    "activity": "Activity",
+    "me": "Me"
   }
 }

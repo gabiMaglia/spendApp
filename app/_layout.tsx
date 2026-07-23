@@ -3,6 +3,7 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import * as Linking from 'expo-linking';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
 import 'react-native-get-random-values';
 
@@ -86,6 +87,7 @@ export default function RootLayout() {
   const colorScheme = useColorScheme();
 
   return (
+    <SafeAreaProvider>
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <AuthGuard />
       <Stack>
@@ -101,7 +103,8 @@ export default function RootLayout() {
         <Stack.Screen name="settings"     options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="sync/index"   options={{ presentation: 'modal', headerShown: false }} />
       </Stack>
-      <StatusBar style="auto" />
+      <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
     </ThemeProvider>
+    </SafeAreaProvider>
   );
 }
