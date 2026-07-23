@@ -1,8 +1,8 @@
 import { create } from 'zustand';
-import { createStorage } from '@/src/utils/createStorage';
+import { createSecureStorage } from '@/src/utils/secureStorage';
 import type { User } from '@/src/types/models';
 
-const storage = createStorage('users');
+const storage = createSecureStorage('users');
 const KEY = 'data_v1';
 
 interface UserStoreState {

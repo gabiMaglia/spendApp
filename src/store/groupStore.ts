@@ -1,8 +1,8 @@
 import { create } from 'zustand';
-import { createStorage } from '@/src/utils/createStorage';
+import { createSecureStorage } from '@/src/utils/secureStorage';
 import type { Group } from '@/src/types/models';
 
-const storage = createStorage('groups');
+const storage = createSecureStorage('groups');
 const KEY = 'data_v1';
 
 interface GroupStoreState {
