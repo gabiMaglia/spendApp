@@ -31,17 +31,26 @@ export default function AuthScreen() {
     }
   }, []);
 
-  const googleIosId = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS ?? '';
-  const googleConfigured = googleIosId.length > 0 && !googleIosId.startsWith('000000');
+  const googleIosId     = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS ?? '';
+  const googleAndroidId = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID ?? '';
+  // El client ID relevante depende de la plataforma del build actual.
+  const activeGoogleId = Platform.OS === 'android' ? googleAndroidId : googleIosId;
+  const googleConfigured =
+    activeGoogleId.length > 0 &&
+    !activeGoogleId.startsWith('000000') &&
+    activeGoogleId !== 'not-configured';
 
   const [, , promptGoogleAsync] = Google.useAuthRequest({
     iosClientId:     googleIosId || 'not-configured',
-    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID ?? 'not-configured',
+    androidClientId: googleAndroidId || 'not-configured',
   });
 
   async function handleGoogleLogin() {
     if (!googleConfigured) {
-      alert('Configurá EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS en el archivo .env');
+      const envVar = Platform.OS === 'android'
+        ? 'EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID'
+        : 'EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS';
+      alert(`Configurá ${envVar} en el archivo .env`);
       return;
     }
     const result = await promptGoogleAsync();
