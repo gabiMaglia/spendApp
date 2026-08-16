@@ -13,16 +13,8 @@
       "bundleIdentifier": "com.splitp2p.app",
       "usesAppleSignIn": true,
       "infoPlist": {
-        "NSCameraUsageDescription": "Necesitamos acceso a la cámara para escanear tickets y compartir códigos QR.",
         "NSPhotoLibraryUsageDescription": "Necesitamos acceso a tus fotos para adjuntar imágenes de tickets.",
         "NSMicrophoneUsageDescription": "Requerido por el módulo de WebRTC para conexión P2P.",
-        "CFBundleURLTypes": [
-          {
-            "CFBundleURLSchemes": [
-              "com.googleusercontent.apps.918898015438-vd4uat4b7q7jj7k6g770hl7rc0tqa1l6"
-            ]
-          }
-        ],
         "ITSAppUsesNonExemptEncryption": false
       }
     },
