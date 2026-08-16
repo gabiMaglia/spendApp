@@ -77,7 +77,9 @@
     "privacy_members_body": "Each group encrypts its data with a key shared when inviting.",
     "privacy_tracking_title": "Zero tracking",
     "privacy_tracking_body": "No third-party analytics. No data selling.",
-    "understood": "Got it"
+    "understood": "Got it",
+    "error_google": "Couldn't sign in with Google. Try again.",
+    "error_apple": "Couldn't sign in with Apple. Try again."
   },
   "dashboard": {
     "title": "Your balances",
