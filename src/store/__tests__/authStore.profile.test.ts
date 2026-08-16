@@ -69,6 +69,26 @@ describe('authStore — el perfil de la cuenta sobrevive al signOut', () => {
     expect(auth.getStoredProfile('google:otra')).toBeNull();
   });
 
+  it('una sesión corrupta NO traba la app: hydrate degrada a "sin sesión"', () => {
+    createSecureStorage('auth').set('current_user', '{roto');
+
+    expect(() => useAuthStore.getState().hydrate()).not.toThrow();
+
+    const s = useAuthStore.getState();
+    expect(s.currentUser).toBeNull();
+    expect(s.isLoading).toBe(false); // si quedara true, la app se traba en el splash
+  });
+
+  it('una sesión corrupta no se lleva puesto el perfil de la cuenta', () => {
+    const auth = useAuthStore.getState();
+    auth.setUser(appleUser({ name: 'Gabi' }));
+    createSecureStorage('auth').set('current_user', '{roto');
+
+    auth.hydrate();
+
+    expect(auth.getStoredProfile(APPLE_ID)?.name).toBe('Gabi');
+  });
+
   it('un perfil corrupto en storage se trata como inexistente, no rompe el login', () => {
     createSecureStorage('auth').set(`profile::u:${APPLE_ID}`, '{roto');
     expect(useAuthStore.getState().getStoredProfile(APPLE_ID)).toBeNull();
