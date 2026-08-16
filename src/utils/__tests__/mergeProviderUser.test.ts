@@ -56,6 +56,14 @@ describe('mergeProviderUser', () => {
       expect(u.name).toBe('Gabi');
     });
 
+    it('el email guardado le gana al que manda el proveedor', () => {
+      const u = mergeProviderUser(storedUser({ email: 'viejo@mail.com' }), {
+        id: APPLE_ID, authProvider: 'apple', email: 'nuevo@mail.com',
+      }, 9_000);
+
+      expect(u.email).toBe('viejo@mail.com');
+    });
+
     it('no resetea createdAt', () => {
       const u = mergeProviderUser(storedUser({ createdAt: 1_000 }), {
         id: APPLE_ID, authProvider: 'apple',

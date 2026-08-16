@@ -85,7 +85,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   hydrate: () => {
     const raw = storage.getString(KEYS.USER);
-    const user = raw ? (JSON.parse(raw) as User) : null;
+    // Un current_user corrupto NO puede tirar acá: hydrate corre dentro del IIFE
+    // de app/_layout.tsx, y si lanza, isLoading queda en true para siempre y la
+    // app se traba en el splash sin forma de salir. Se degrada a "sin sesión".
+    let user: User | null = null;
+    try {
+      user = raw ? (JSON.parse(raw) as User) : null;
+    } catch {
+      storage.delete(KEYS.USER); // el perfil NO se toca: se recupera al re-loguear
+    }
     const isPro = user ? (storage.getBoolean(isProKey(user.id)) ?? false) : false;
     set({ currentUser: user, isPro, isLoading: false });
   },
