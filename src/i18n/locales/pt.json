@@ -79,7 +79,11 @@
     "privacy_tracking_body": "Sin analytics de terceros. Sin venta de datos.",
     "understood": "Entendido",
     "error_google": "Não foi possível entrar com o Google. Tente de novo.",
-    "error_apple": "Não foi possível entrar com a Apple. Tente de novo."
+    "error_apple": "Não foi possível entrar com a Apple. Tente de novo.",
+    "link_title": "É a sua conta?",
+    "link_body": "Você já usa o SplitP2P com {{account}}. Quer entrar nessa conta e juntar seus dados?",
+    "link_confirm": "Sim, é minha",
+    "link_separate": "Usar conta separada"
   },
   "dashboard": {
     "title": "Suas contas",
