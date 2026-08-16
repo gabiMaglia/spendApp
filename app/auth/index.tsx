@@ -27,7 +27,7 @@ export default function AuthScreen() {
   const { t } = useTranslation();
   const scheme = useColorScheme() ?? 'light';
   const c = Colors[scheme];
-  const { setUser, getStoredProfile } = useAuthStore();
+  const { setUser, getStoredProfile, resolveAccount } = useAuthStore();
 
   const [appleAvailable, setAppleAvailable] = useState(false);
 
@@ -60,8 +60,11 @@ export default function AuthScreen() {
       const u = response?.data?.user ?? response?.user;
       if (!u) return; // cancelado
 
-      setUser(mergeProviderUser(getStoredProfile(u.id), {
-        id:           u.id,
+      // Mismo mail => misma cuenta, entre con Google o con Apple.
+      const accountId = resolveAccount(u.id, u.email);
+
+      setUser(mergeProviderUser(getStoredProfile(accountId), {
+        id:           accountId,
         authProvider: 'google',
         name:         u.name ?? u.givenName,
         email:        u.email,
@@ -92,8 +95,10 @@ export default function AuthScreen() {
         credential.fullName?.familyName,
       ].filter(Boolean).join(' ');
 
-      setUser(mergeProviderUser(getStoredProfile(credential.user), {
-        id:           credential.user,
+      const accountId = resolveAccount(credential.user, credential.email);
+
+      setUser(mergeProviderUser(getStoredProfile(accountId), {
+        id:           accountId,
         authProvider: 'apple',
         name,
         email:        credential.email,

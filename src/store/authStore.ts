@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import type { User } from '@/src/types/models';
+import { resolveAccountId, type AccountIndex } from '@/src/utils/accountIdentity';
 
 const storage = createSecureStorage('auth');
 
@@ -24,6 +25,18 @@ function profileKey(uid: string): string {
   return `${KEYS.PROFILE}::u:${uid}`;
 }
 
+// Índice de identidad: traduce el id de cada proveedor al id de cuenta, para que
+// entrar con Google o con Apple usando el mismo mail caiga en la MISMA cuenta.
+// Ver src/utils/accountIdentity.ts. Tampoco se borra en el signOut.
+const accountIndex: AccountIndex = {
+  getAccountByProvider: (providerId) => storage.getString(`acct::p:${providerId}`) ?? null,
+  getAccountByEmail:    (email)      => storage.getString(`acct::e:${email}`) ?? null,
+  link: (providerId, accountId, email) => {
+    storage.set(`acct::p:${providerId}`, accountId);
+    if (email) storage.set(`acct::e:${email}`, accountId);
+  },
+};
+
 interface AuthState {
   currentUser: User | null;
   isPro: boolean;
@@ -32,6 +45,8 @@ interface AuthState {
   setUser: (user: User | null) => void;
   /** Perfil persistido de una cuenta. Sobrevive al signOut. */
   getStoredProfile: (uid: string) => User | null;
+  /** Id de cuenta para un login: une proveedores que comparten el mismo mail. */
+  resolveAccount: (providerId: string, email?: string | null) => string;
   setIsPro: (isPro: boolean) => void;
   setLoading: (loading: boolean) => void;
   signOut: () => void;
@@ -58,6 +73,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const isPro = user ? (storage.getBoolean(isProKey(user.id)) ?? false) : false;
     set({ currentUser: user, isPro });
   },
+
+  resolveAccount: (providerId, email) => resolveAccountId(accountIndex, providerId, email).accountId,
 
   getStoredProfile: (uid) => {
     const raw = storage.getString(profileKey(uid));
