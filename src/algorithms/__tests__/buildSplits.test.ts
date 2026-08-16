@@ -147,3 +147,50 @@ describe('validatePercentages', () => {
     expect(validatePercentages([40, 30])).toBe(false);
   });
 });
+
+describe("buildSplits — modo 'shares' (paridad con Splitwise)", () => {
+  it('reparte proporcional a las partes', () => {
+    const out = buildSplits(400, ['a', 'b', 'c'], 'shares', [2, 1, 1]);
+    expect(out.map(s => s.amount)).toEqual([200, 100, 100]);
+  });
+
+  it('la suma SIEMPRE es exacta aunque no divida redondo', () => {
+    const out = buildSplits(100, ['a', 'b', 'c'], 'shares', [1, 1, 1]);
+    expect(out.reduce((t, s) => t + s.amount, 0)).toBe(100);
+  });
+
+  it('con partes iguales da lo mismo que equal', () => {
+    const shares = buildSplits(101, ['a', 'b', 'c'], 'shares', [1, 1, 1]);
+    const equal  = buildSplits(101, ['a', 'b', 'c'], 'equal');
+    expect(shares.map(s => s.amount)).toEqual(equal.map(s => s.amount));
+  });
+
+  it('es determinista: el orden de entrada no cambia el resultado por usuario', () => {
+    const a = buildSplits(100, ['a', 'b', 'c'], 'shares', [1, 1, 1]);
+    const b = buildSplits(100, ['c', 'b', 'a'], 'shares', [1, 1, 1]);
+    const byUser = (r: typeof a) => Object.fromEntries(r.map(s => [s.userId, s.amount]));
+    expect(byUser(a)).toEqual(byUser(b));
+  });
+
+  it('quien tiene 0 partes no paga NADA, ni siquiera el resto del redondeo', () => {
+    // 101 entre 2 partes no divide redondo (sobra 1) y 'a' —el de 0 partes—
+    // ordena PRIMERO por userId: sin el guard, se comería esa unidad.
+    const out = buildSplits(101, ['a', 'b', 'c'], 'shares', [0, 1, 1]);
+
+    expect(out.find(s => s.userId === 'a')!.amount).toBe(0);
+    expect(out.reduce((t, s) => t + s.amount, 0)).toBe(101);
+  });
+
+  it('rechaza partes no enteras o negativas', () => {
+    expect(() => buildSplits(100, ['a', 'b'], 'shares', [1.5, 1])).toThrow();
+    expect(() => buildSplits(100, ['a', 'b'], 'shares', [-1, 2])).toThrow();
+  });
+
+  it('rechaza que todas las partes sean 0', () => {
+    expect(() => buildSplits(100, ['a', 'b'], 'shares', [0, 0])).toThrow();
+  });
+
+  it('rechaza un values de largo distinto a los miembros', () => {
+    expect(() => buildSplits(100, ['a', 'b', 'c'], 'shares', [1, 1])).toThrow();
+  });
+});

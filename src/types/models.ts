@@ -50,7 +50,7 @@ export type ExpenseCategory =
  * - 'custom'     → Personalizado: cada persona especifica su monto. El último
  *                  miembro recibe automáticamente el resto (total − suma de los demás).
  */
-export type SplitMode = 'equal' | 'percentage' | 'custom';
+export type SplitMode = 'equal' | 'percentage' | 'shares' | 'custom';
 
 export interface Split {
   userId: string;
