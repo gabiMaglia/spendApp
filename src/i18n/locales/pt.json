@@ -77,7 +77,9 @@
     "privacy_members_body": "Cada grupo cifra sus datos con una clave compartida al invitar.",
     "privacy_tracking_title": "Cero tracking",
     "privacy_tracking_body": "Sin analytics de terceros. Sin venta de datos.",
-    "understood": "Entendido"
+    "understood": "Entendido",
+    "error_google": "Não foi possível entrar com o Google. Tente de novo.",
+    "error_apple": "Não foi possível entrar com a Apple. Tente de novo."
   },
   "dashboard": {
     "title": "Suas contas",

@@ -5,8 +5,9 @@ import type { User } from '@/src/types/models';
 const storage = createSecureStorage('auth');
 
 const KEYS = {
-  USER:   'current_user',
-  IS_PRO: 'is_pro',
+  USER:    'current_user',
+  IS_PRO:  'is_pro',
+  PROFILE: 'profile',
 } as const;
 
 // isPro es por-cuenta (la suscripción es de un usuario). La sesión (current_user)
@@ -15,12 +16,22 @@ function isProKey(uid: string): string {
   return `${KEYS.IS_PRO}::u:${uid}`;
 }
 
+// El perfil de cada cuenta (nombre, email, createdAt) se guarda aparte de la
+// sesión y el signOut NO lo borra: es dato del usuario, no de la sesión. Sin
+// esto, cerrar sesión destruía el nombre editado a mano y Apple —que sólo manda
+// fullName en el PRIMER login— no tenía de dónde recuperarlo al volver a entrar.
+function profileKey(uid: string): string {
+  return `${KEYS.PROFILE}::u:${uid}`;
+}
+
 interface AuthState {
   currentUser: User | null;
   isPro: boolean;
   isLoading: boolean;
 
   setUser: (user: User | null) => void;
+  /** Perfil persistido de una cuenta. Sobrevive al signOut. */
+  getStoredProfile: (uid: string) => User | null;
   setIsPro: (isPro: boolean) => void;
   setLoading: (loading: boolean) => void;
   signOut: () => void;
@@ -38,11 +49,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   setUser: (user) => {
     if (user) {
       storage.set(KEYS.USER, JSON.stringify(user));
+      // Snapshot durable del perfil. Como editar el nombre en "Yo" también pasa
+      // por acá, el cambio queda persistido para el próximo login.
+      storage.set(profileKey(user.id), JSON.stringify(user));
     } else {
       storage.delete(KEYS.USER);
     }
     const isPro = user ? (storage.getBoolean(isProKey(user.id)) ?? false) : false;
     set({ currentUser: user, isPro });
+  },
+
+  getStoredProfile: (uid) => {
+    const raw = storage.getString(profileKey(uid));
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw) as User;
+    } catch {
+      return null; // dato corrupto: se trata como "no hay perfil"
+    }
   },
 
   setIsPro: (isPro) => {

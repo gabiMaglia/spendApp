@@ -10,6 +10,7 @@ import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuthStore } from '@/src/store/authStore';
+import { mergeProviderUser } from '@/src/utils/mergeProviderUser';
 import { Button } from '@/src/components/Button';
 import { BalancePill } from '@/src/components/BalancePill';
 import { Avatar } from '@/src/components/Avatar';
@@ -26,7 +27,7 @@ export default function AuthScreen() {
   const { t } = useTranslation();
   const scheme = useColorScheme() ?? 'light';
   const c = Colors[scheme];
-  const { setUser } = useAuthStore();
+  const { setUser, getStoredProfile } = useAuthStore();
 
   const [appleAvailable, setAppleAvailable] = useState(false);
 
@@ -59,20 +60,17 @@ export default function AuthScreen() {
       const u = response?.data?.user ?? response?.user;
       if (!u) return; // cancelado
 
-      setUser({
+      setUser(mergeProviderUser(getStoredProfile(u.id), {
         id:           u.id,
-        name:         u.name ?? u.givenName ?? 'Usuario',
-        email:        u.email,
-        avatarUrl:    u.photo ?? undefined,
         authProvider: 'google',
-        updatedAt:    Date.now(),
-        isDeleted:    false,
-        createdAt:    Date.now(),
-      });
+        name:         u.name ?? u.givenName,
+        email:        u.email,
+        avatarUrl:    u.photo,
+      }));
     } catch (e) {
       const code = (e as { code?: string })?.code;
       if (code === statusCodes.SIGN_IN_CANCELLED || code === statusCodes.IN_PROGRESS) return;
-      alert('No se pudo iniciar sesión con Google. Reintentá.');
+      alert(t('auth.error_google'));
     }
   }
 
@@ -85,25 +83,24 @@ export default function AuthScreen() {
         ],
       });
 
-      // Apple solo envía name y email en el PRIMER login; después son null.
-      // Se guardan en el store (persistido en MMKV) para que no se pierdan.
+      // Apple manda fullName y email SOLO en el primer login de cada Apple ID;
+      // después llegan null. Por eso NO se arma el User acá: mergeProviderUser
+      // combina lo que llegue con el perfil ya persistido (que sobrevive al
+      // signOut) y deja ganar al dato local. Ver src/utils/mergeProviderUser.ts.
       const name = [
         credential.fullName?.givenName,
         credential.fullName?.familyName,
-      ].filter(Boolean).join(' ') || 'Usuario';
+      ].filter(Boolean).join(' ');
 
-      setUser({
+      setUser(mergeProviderUser(getStoredProfile(credential.user), {
         id:           credential.user,
-        name,
-        email:        credential.email ?? '',
         authProvider: 'apple',
-        updatedAt:    Date.now(),
-        isDeleted:    false,
-        createdAt:    Date.now(),
-      });
+        name,
+        email:        credential.email,
+      }));
     } catch (e: any) {
       if (e.code !== 'ERR_REQUEST_CANCELED') {
-        alert('No se pudo iniciar sesión con Apple. Intentá de nuevo.');
+        alert(t('auth.error_apple'));
       }
     }
   }
