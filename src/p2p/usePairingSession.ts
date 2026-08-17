@@ -3,14 +3,18 @@ import { RTCPeerConnection, RTCSessionDescription } from 'react-native-webrtc';
 import { v4 as uuidv4 } from 'uuid';
 import { encodeSignal, decodeSignal } from './sdpCodec';
 import { toFrames, Reassembler } from './chunker';
-import { buildDelta, applyDelta, deltaToQRString, parseDeltaFromQR } from '@/src/sync/useSyncQR';
+import { buildDelta, applyDelta, peerIsOutdated, deltaToQRString, parseDeltaFromQR } from '@/src/sync/useSyncQR';
 
 export type PairingRole = 'offer' | 'answer';
 // idle → preparing (creando SDP + ICE) → awaiting-peer (mostrando MI QR / esperando
 // al otro) → connecting → syncing → done | error
 export type PairingPhase = 'idle' | 'preparing' | 'awaiting-peer' | 'connecting' | 'syncing' | 'done' | 'error';
 
-export interface PairingSummary { records: number; }
+export interface PairingSummary {
+  records: number;
+  /** El otro device tiene una versión anterior: verá distinto los gastos con varios pagadores. */
+  peerOutdated?: boolean;
+}
 
 // STUN de Google para atravesar NAT entre redes distintas. Solo expone la IP
 // pública propia al STUN (metadata mínima estándar); no hay servidor de
@@ -64,7 +68,7 @@ export function usePairingSession(currentUserId: string) {
           (delta.groups?.length ?? 0) + (delta.expenses?.length ?? 0) +
           (delta.payments?.length ?? 0) + (delta.users?.length ?? 0);
         doneRef.current = true;
-        setSummary({ records });
+        setSummary({ records, peerOutdated: peerIsOutdated(delta) });
         setPhase('done');
       } catch {
         fail('sync.pair_bad_data');

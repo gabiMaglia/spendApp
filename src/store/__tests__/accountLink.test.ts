@@ -1,4 +1,4 @@
-import { mergeAccounts } from '../accountLink';
+import { mergeAccounts, purgeMergedScopes, MERGE_GRACE_DAYS } from '../accountLink';
 import { profileKey } from '../authKeys';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { createStorage } from '@/src/utils/createStorage';
@@ -204,5 +204,67 @@ describe('preferencias de la cuenta (T-027)', () => {
     const faltantes = ['notif_expenses', 'notif_deletions', 'notif_invites']
       .filter(k => settings().getBoolean(`${k}::u:${GOOGLE}`) === undefined);
     expect(faltantes).toEqual([]);
+  });
+});
+
+describe('purga de scopes fusionados (T-029)', () => {
+  const DAY = 24 * 60 * 60 * 1000;
+  const NOW = Date.UTC(2026, 7, 17);
+
+  beforeEach(() => {
+    ['auth', 'groups', 'expenses', 'payments', 'users', 'recurring', 'comments', 'personal']
+      .forEach(b => createSecureStorage(b as any).clearAll());
+  });
+
+  it('recién fusionado NO se purga: hay que poder volver atrás', () => {
+    writeList('groups', APPLE, ['gA']);
+    mergeAccounts(APPLE, GOOGLE);
+
+    const purgados = purgeMergedScopes(NOW);
+
+    expect(purgados).toEqual([]);
+    expect(readIds('groups', APPLE)).toEqual(['gA']); // origen intacto
+  });
+
+  it('pasado el período de gracia sí se purga', () => {
+    writeList('groups', APPLE, ['gA']);
+    mergeAccounts(APPLE, GOOGLE);
+
+    const purgados = purgeMergedScopes(NOW + (MERGE_GRACE_DAYS + 1) * DAY);
+
+    expect(purgados).toEqual([APPLE]);
+    expect(readIds('groups', APPLE)).toEqual([]);
+  });
+
+  it('la purga NO toca los datos de la cuenta destino', () => {
+    writeList('groups', APPLE, ['gA']);
+    mergeAccounts(APPLE, GOOGLE);
+
+    purgeMergedScopes(NOW + (MERGE_GRACE_DAYS + 1) * DAY);
+
+    expect(readIds('groups', GOOGLE)).toEqual(['gA']);
+  });
+
+  it('purga también lo personal, que usa otra clave', () => {
+    writeAt('personal', 'entries_v1', APPLE, ['pA']);
+    mergeAccounts(APPLE, GOOGLE);
+
+    purgeMergedScopes(NOW + (MERGE_GRACE_DAYS + 1) * DAY);
+
+    expect(readAt('personal', 'entries_v1', APPLE)).toEqual([]);
+    expect(readAt('personal', 'entries_v1', GOOGLE)).toEqual(['pA']);
+  });
+
+  it('purgar dos veces no rompe ni repite', () => {
+    writeList('groups', APPLE, ['gA']);
+    mergeAccounts(APPLE, GOOGLE);
+    const late = NOW + (MERGE_GRACE_DAYS + 1) * DAY;
+
+    expect(purgeMergedScopes(late)).toEqual([APPLE]);
+    expect(purgeMergedScopes(late)).toEqual([]);
+  });
+
+  it('sin fusiones previas es un no-op', () => {
+    expect(purgeMergedScopes(NOW)).toEqual([]);
   });
 });

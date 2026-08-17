@@ -120,9 +120,14 @@ export interface Expense extends SyncMeta {
   currency: CurrencyCode;
   /**
    * Pagador principal. Se mantiene SIEMPRE (además de `payers`) porque el sync
-   * es P2P y no se puede obligar a los otros devices a actualizar: un peer viejo
-   * lee esto y sigue calculando balances razonables. Cuando hay varios
-   * pagadores, apunta al que más puso.
+   * es P2P y no se puede obligar a los otros devices a actualizar. Cuando hay
+   * varios pagadores, apunta al que más puso.
+   *
+   * OJO — un peer que no actualizó ignora `payers` y le acredita el TOTAL a este
+   * usuario, así que los dos dispositivos van a mostrar balances **distintos**
+   * para ese gasto. No es "razonable", es una limitación real: no hay forma de
+   * arreglarlo desde este lado. Lo que sí se hace es detectarlo
+   * (`peerIsOutdated`, src/sync/useSyncQR.ts) y avisarle al usuario.
    */
   paidById: string;
   /**

@@ -436,7 +436,8 @@
     "pair_copy_hint": "…o copiá este código y pegalo en el otro dispositivo (sin cámara).",
     "pair_paste_label": "Pegar código del otro",
     "pair_paste_placeholder": "Pegá el código acá…",
-    "pair_paste_submit": "Continuar"
+    "pair_paste_submit": "Continuar",
+    "peer_outdated": "El otro dispositivo tiene una versión anterior de la app. Los gastos que pagaron varias personas se le van a ver distinto hasta que la actualice."
   },
   "categories": {
     "food": "Comida",

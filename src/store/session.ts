@@ -6,6 +6,7 @@ import { useUserStore } from './userStore';
 import { usePersonalStore } from './personalStore';
 import { useRecurringStore } from './recurringStore';
 import { useCommentStore } from './commentStore';
+import { purgeMergedScopes } from './accountLink';
 import { materializeRecurring } from '@/src/services/materializeRecurring';
 import { useSettingsStore } from './settingsStore';
 
@@ -26,6 +27,9 @@ export function rehydrateForActiveUser(): void {
   // recurrentes vencidos. Va acá y no en el arranque de la app porque depende
   // de QUÉ cuenta está activa: cada una tiene sus propias plantillas.
   applyDueRecurring();
+
+  // Limpieza tardía de scopes fusionados que ya pasaron el período de gracia.
+  purgeMergedScopes();
 
   // El usuario logueado debe estar en SUS propios contactos. Se hace acá (no en
   // authStore.setUser) para que corra DESPUÉS de que el scope ya cambió al nuevo
