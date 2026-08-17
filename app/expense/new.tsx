@@ -276,7 +276,7 @@ export default function NewExpenseScreen() {
       description: description.trim(),
       amount,
       currency,
-      paidById:    payerId || currentUser.id,
+      ...payerFields(),
       splitMode,
       memberIds:   splits.map(sp => sp.userId),
       category:    category as ExpenseCategory,

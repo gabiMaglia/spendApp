@@ -138,3 +138,26 @@ describe('csvFileName', () => {
     expect(csvFileName('gastos', DAY)).toBe('splitp2p-gastos-2026-08-16.csv');
   });
 });
+
+describe('expensesToCsv — varios pagadores (defecto de QA)', () => {
+  it('exporta el desglose, no sólo el pagador principal', () => {
+    // Bob PAGÓ pero NO participa del reparto: así el único lugar donde puede
+    // aparecer es la columna de pagadores. Si el export leyera `paidById` crudo,
+    // Bob no estaría en ninguna parte del CSV.
+    const out = expensesToCsv({
+      expenses: [expense({
+        paidById: 'ua',
+        payers: [{ userId: 'ua', amount: 6000 }, { userId: 'ub', amount: 4000 }],
+        splits: [{ userId: 'ua', amount: 10000, isPaid: false }],
+      })],
+      groups, users,
+    });
+
+    expect(out).toContain('Bob');
+  });
+
+  it('un gasto de un solo pagador se sigue viendo igual', () => {
+    const out = expensesToCsv({ expenses: [expense()], groups, users });
+    expect(out).toContain('Ana');
+  });
+});

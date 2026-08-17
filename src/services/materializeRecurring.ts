@@ -28,6 +28,20 @@ function idFor(templateId: string, at: number): string {
   return `rec_${templateId}_${at}`;
 }
 
+/**
+ * `updatedAt` de un gasto materializado: la fecha del VENCIMIENTO, no `now`.
+ *
+ * No es un detalle. Con `now`, un gasto borrado revivía: device A materializa
+ * el alquiler de marzo y el usuario lo borra (tombstone con `updatedAt` = ahora);
+ * device B, que estuvo offline y todavía no avanzó su copia de la plantilla, lo
+ * regenera más tarde con un `updatedAt` MÁS NUEVO que el borrado, y el LWW hace
+ * ganar al zombi. Anclando al vencimiento, toda regeneración da el mismo valor
+ * y cualquier borrado posterior le gana siempre.
+ */
+function derivedUpdatedAt(at: number): number {
+  return at;
+}
+
 export function materializeRecurring(
   templates: RecurringExpense[],
   now: number,
@@ -53,7 +67,7 @@ export function materializeRecurring(
           category:    t.category,
           date:        at,
           createdAt:   at,
-          updatedAt:   now,
+          updatedAt:   derivedUpdatedAt(at),
           isDeleted:   false,
         } as PersonalEntry);
       } else {
@@ -64,6 +78,7 @@ export function materializeRecurring(
           amount:      t.amount,
           currency:    t.currency,
           paidById:    t.paidById,
+          payers:      t.payers,
           splitMode:   t.splitMode,
           splits:      buildSplits(t.amount, t.memberIds, t.splitMode, t.splitValues),
           category:    t.category,
@@ -71,7 +86,7 @@ export function materializeRecurring(
           createdAt:   at,
           createdById: t.createdById,
           deletionVotes: [],
-          updatedAt:   now,
+          updatedAt:   derivedUpdatedAt(at),
           isDeleted:   false,
         } as Expense);
       }

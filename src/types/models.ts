@@ -30,6 +30,8 @@ export interface RecurringExpense extends SyncMeta {
   amount: number;          // entero en menor unidad (ADR-002)
   currency: CurrencyCode;
   paidById: string;
+  /** Desglose cuando el gasto lo ponen entre varios. Ver `expensePayers()`. */
+  payers?: Payer[];
   splitMode: SplitMode;
   splitValues?: number[];  // para percentage / shares / custom
   memberIds: string[];     // participantes al momento de crear la plantilla
