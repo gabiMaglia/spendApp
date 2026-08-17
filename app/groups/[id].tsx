@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
-  Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
+  Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -21,6 +21,9 @@ import { useUserStore } from '@/src/store/userStore';
 import { useGroupBalance } from '@/src/store/selectors';
 import { hueForUser } from '@/src/utils/hueForUser';
 import { Avatar } from '@/src/components/Avatar';
+import { createInvite, inviteToLink } from '@/src/sync/groupInvite';
+import { ensureIdentity, saveInvite } from '@/src/store/identityStore';
+import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { BalancePill } from '@/src/components/BalancePill';
 import type { Expense, Payment } from '@/src/types/models';
 import { useTranslation } from 'react-i18next';
@@ -37,6 +40,7 @@ export default function GroupDetailScreen() {
   const c = Colors[scheme];
 
   const { currentUser } = useAuthStore();
+  const ensureKey   = useGroupKeyStore(st => st.ensureKey);
   const deleteGroup = useGroupStore(st => st.deleteGroup);
   const leaveGroup  = useGroupStore(st => st.leaveGroup);
   const group        = useGroupStore(s => s.groups.find(g => g.id === id));
@@ -61,6 +65,34 @@ export default function GroupDetailScreen() {
 
   const balances    = useGroupBalance(id ?? '', currentUser?.id ?? '');
   const mainBalance = balances.find(b => b.currency === group?.currency)?.amount ?? 0;
+
+  /**
+   * Comparte un link de invitación por el canal que el usuario elija (mail,
+   * SMS, copiar, lo que ofrezca el sistema). Es el ÚNICO camino posible para
+   * alguien con quien todavía no intercambiaste nada: no hay canal interno por
+   * donde avisarle, porque establecerlo es justamente lo que hace la invitación.
+   */
+  async function handleShareInvite() {
+    if (!group || !currentUser) return;
+    hapticLight();
+
+    // La clave del grupo se crea acá si no existía: sin ella no hay nada que
+    // cifrar y el grupo no puede sincronizarse.
+    ensureKey(group.id);
+    const identidad = ensureIdentity();
+
+    const invite = createInvite(group.id, group.name, identidad.publicKey);
+    saveInvite(invite);
+
+    try {
+      await Share.share({
+        message: t('group_detail.invite_message', {
+          group: group.name,
+          link: inviteToLink(invite),
+        }),
+      });
+    } catch { /* el usuario canceló el share sheet */ }
+  }
 
   function handleAddMember() {
     const name = inviteName.trim();
@@ -189,6 +221,20 @@ export default function GroupDetailScreen() {
               ),
             )}
           </View>
+        )}
+
+        {/* Invitar por link */}
+        {group && currentUser && group.memberIds.includes(currentUser.id) && (
+          <Pressable
+            accessibilityRole="button"
+            onPress={handleShareInvite}
+            style={[styles.inviteRow, { borderColor: c.brand.primary }]}
+          >
+            <Ionicons name="link-outline" size={18} color={c.brand.primary} />
+            <Text style={[Typography.bodyM, { color: c.brand.primary, fontWeight: '600' }]}>
+              {t('group_detail.invite_link')}
+            </Text>
+          </Pressable>
         )}
 
         {/* Salir / eliminar */}
@@ -391,6 +437,7 @@ function PaymentRow({
 }
 
 const styles = StyleSheet.create({
+  inviteRow:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 24, padding: 14, borderWidth: 1, borderRadius: 14 },
   dangerZone: { marginTop: 32, alignItems: 'center' },
   dangerRow:  { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12 },
   safe:           { flex: 1 },

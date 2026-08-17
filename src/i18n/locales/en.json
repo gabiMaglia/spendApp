@@ -177,7 +177,9 @@
     "leave_group": "Leave group",
     "leave_title": "Leave group",
     "leave_body": "You'll stop seeing this group. The expenses you added stay there for the others, so pending balances aren't lost.",
-    "leave_confirm": "Leave"
+    "leave_confirm": "Leave",
+    "invite_link": "Invite by link",
+    "invite_message": "I'm inviting you to “{{group}}” on SplitP2P. Open this link to join: {{link}}"
   },
   "invite": {
     "title": "Invite to group",
