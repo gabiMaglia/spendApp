@@ -5,6 +5,7 @@ import { useUserStore } from '@/src/store/userStore';
 import { useRecurringStore } from '@/src/store/recurringStore';
 import { useCommentStore } from '@/src/store/commentStore';
 import { usePersonalStore } from '@/src/store/personalStore';
+import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 
 /**
  * Versión de FEATURES del delta, aparte de `version` (que es el formato).
@@ -32,6 +33,14 @@ export interface SyncDelta {
   users: ReturnType<typeof useUserStore.getState>['users'];
   /** Plantillas recurrentes. Opcional: los deltas de versiones previas no la traen. */
   recurring?: ReturnType<typeof useRecurringStore.getState>['recurring'];
+  /**
+   * Claves de grupo. **SÓLO viajan por este delta**, que va por el pairing QR:
+   * un canal autenticado por presencia física. NUNCA por el relay — si el relay
+   * pudiera entregar claves podría sustituirlas por las suyas y leer todo
+   * (ADR-003 §1). El payload del relay se arma con `buildRelayPayload`, que no
+   * las incluye, y hay un test que lo verifica.
+   */
+  groupKeys?: ReturnType<typeof useGroupKeyStore.getState>['keys'];
   /** Comentarios. Opcional por la misma razón. */
   comments?: ReturnType<typeof useCommentStore.getState>['comments'];
   /** Movimientos personales. Opcional por la misma razón. */
@@ -51,6 +60,7 @@ export function buildDelta(currentUserId: string): SyncDelta {
     users:       useUserStore.getState().users,
     recurring:   useRecurringStore.getState().recurring,
     comments:    useCommentStore.getState().comments,
+    groupKeys:   useGroupKeyStore.getState().keys,
     personal:    usePersonalStore.getState().entries,
   };
 }
@@ -76,6 +86,8 @@ export function applyDelta(delta: SyncDelta, currentUserId: string): void {
   useRecurringStore.getState().mergeRecurring(delta.recurring ?? []);
   useCommentStore.getState().mergeComments(delta.comments ?? []);
   usePersonalStore.getState().mergeEntries(delta.personal ?? []);
+  // Canal autenticado por QR: acá SÍ se adoptan claves (nunca desde el relay).
+  useGroupKeyStore.getState().adoptKeys(delta.groupKeys ?? []);
 }
 
 /**
