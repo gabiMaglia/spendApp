@@ -13,20 +13,35 @@ jest.mock('react-i18next', () => ({
   Trans: ({ i18nKey }: { i18nKey: string }) => i18nKey,
 }));
 
-// MMKV: mock en memoria para tests
+// MMKV: mock en memoria para tests.
+//
+// UN MAP POR `id`, no uno compartido. En producción `new MMKV({ id })` crea
+// stores independientes: un `clearAll()` en 'groups' no toca 'expenses'. El
+// mock tenía un solo Map global, así que cualquier `clearAll()` borraba TODO y
+// los tests no podían distinguir "esto borra su bucket" de "esto borra todo" —
+// justo lo que hay que verificar en cosas como wipeAllAccounts.
 jest.mock('react-native-mmkv', () => {
-  const store = new Map<string, string | number | boolean>();
+  const stores = new Map<string, Map<string, string | number | boolean>>();
+  const storeFor = (id: string) => {
+    let s = stores.get(id);
+    if (!s) { s = new Map(); stores.set(id, s); }
+    return s;
+  };
+
   return {
-    MMKV: jest.fn().mockImplementation(() => ({
-      set: (key: string, value: string | number | boolean) => store.set(key, value),
-      getString: (key: string) => store.get(key) as string | undefined,
-      getNumber: (key: string) => store.get(key) as number | undefined,
-      getBoolean: (key: string) => store.get(key) as boolean | undefined,
-      delete: (key: string) => store.delete(key),
-      contains: (key: string) => store.has(key),
-      clearAll: () => store.clear(),
-      recrypt: (_key?: string) => {},
-    })),
+    MMKV: jest.fn().mockImplementation((config?: { id?: string }) => {
+      const store = storeFor(config?.id ?? 'default');
+      return {
+        set: (key: string, value: string | number | boolean) => store.set(key, value),
+        getString: (key: string) => store.get(key) as string | undefined,
+        getNumber: (key: string) => store.get(key) as number | undefined,
+        getBoolean: (key: string) => store.get(key) as boolean | undefined,
+        delete: (key: string) => store.delete(key),
+        contains: (key: string) => store.has(key),
+        clearAll: () => store.clear(),
+        recrypt: (_key?: string) => {},
+      };
+    }),
   };
 });
 

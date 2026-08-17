@@ -11,6 +11,8 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
+import { wipeAllAccounts } from '@/src/store/wipeDevice';
+import { Alert } from 'react-native';
 
 /**
  * Diagnóstico del índice de identidad (solo DEV).
@@ -72,6 +74,39 @@ export default function IdentityDebugScreen() {
               );
             })
           )}
+        </Block>
+
+        <Block title="EMPEZAR DE CERO" c={c}>
+          <Text style={[Typography.bodyS, { color: c.textSecondary }]}>
+            Borra todas las cuentas de este teléfono y sus datos, para poder
+            probar el primer login sin desinstalar la app. El tema y el idioma
+            no se tocan.
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              Alert.alert(
+                'Borrar todas las cuentas',
+                'Se borran las cuentas de este dispositivo y TODOS sus gastos, grupos y pagos. No se puede deshacer.',
+                [
+                  { text: 'Cancelar', style: 'cancel' },
+                  {
+                    text: 'Borrar todo',
+                    style: 'destructive',
+                    onPress: () => {
+                      wipeAllAccounts();
+                      router.replace('/auth');
+                    },
+                  },
+                ],
+              );
+            }}
+            style={[styles.card, { borderColor: c.semantic.negative, alignItems: 'center' }]}
+          >
+            <Text style={[Typography.bodyM, { color: c.semantic.negative, fontWeight: '700' }]}>
+              Borrar todas las cuentas y datos
+            </Text>
+          </Pressable>
         </Block>
 
         {dosCuentas && (
