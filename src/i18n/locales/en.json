@@ -551,5 +551,14 @@
     "owes_you": "Owes you ",
     "you_owe_them": "You owe ",
     "settle": "Settle"
+  },
+  "recurrence": {
+    "label": "REPEAT",
+    "once": "Once",
+    "weekly": "Weekly",
+    "fortnightly": "Fortnightly",
+    "monthly": "Monthly",
+    "yearly": "Yearly",
+    "hint": "It will be created on each due date, even if you don't open the app."
   }
 }
