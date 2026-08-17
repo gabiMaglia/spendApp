@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { readScoped, writeScoped } from './userScope';
+import { mergeByIdLWW } from './lww';
 import type { ExpenseComment } from '@/src/types/models';
 
 const storage = createSecureStorage('comments');
@@ -66,12 +67,7 @@ export const useCommentStore = create<CommentStoreState>((set, get) => ({
   // LWW por updatedAt. Como cada comentario es un registro con id propio, dos
   // personas comentando el mismo gasto sin haber sincronizado NO se pisan.
   mergeComments: (incoming) => {
-    const merged = [...get().comments];
-    for (const inc of incoming) {
-      const i = merged.findIndex(c => c.id === inc.id);
-      if (i === -1) merged.push(inc);
-      else if (inc.updatedAt > merged[i]!.updatedAt) merged[i] = inc;
-    }
+    const merged = mergeByIdLWW(get().comments, incoming);
     persist(merged);
     set({ comments: merged });
   },

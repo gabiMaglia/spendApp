@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { readScoped, writeScoped } from './userScope';
+import { mergeByIdLWW } from './lww';
 import { migrateExpenseAmounts } from './moneyMigration';
 import type { Expense } from '@/src/types/models';
 
@@ -47,23 +48,23 @@ export const useExpenseStore = create<ExpenseStoreState>((set, get) => ({
 
   // LWW merge para sync P2P
   mergeExpenses: (incoming) => {
-    const current = get().expenses;
-    const merged = [...current];
-    for (const inc of incoming) {
-      const idx = merged.findIndex(e => e.id === inc.id);
-      if (idx === -1) {
-        merged.push(inc);
-      } else if (inc.updatedAt > merged[idx].updatedAt) {
-        merged[idx] = inc;
-      }
-    }
+    const merged = mergeByIdLWW(get().expenses, incoming);
     persist(merged);
     set({ expenses: merged });
   },
 
   hydrate: () => {
     const raw = readScoped(storage, KEY);
-    let expenses = raw ? (JSON.parse(raw) as Expense[]) : [];
+    // Un dato corrupto NO puede tirar acá: hydrate corre en el arranque de la app
+    // (app/_layout.tsx) y una excepción deja isLoading en true para siempre,
+    // trabando la pantalla de carga sin salida. Ya pasó con la sesión (T-020);
+    // estos stores habían quedado sin la misma protección.
+    let expenses: Expense[] = [];
+    try {
+      expenses = raw ? (JSON.parse(raw) as Expense[]) : [];
+    } catch {
+      expenses = [];
+    }
 
     // Conversión one-shot de datos existentes (float → entero, ADR-002 §6).
     // Debe correr ANTES de la migración WatermelonDB (T-003).
