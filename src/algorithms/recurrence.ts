@@ -14,15 +14,10 @@
  *    devuelve sólo lo posterior — nunca "desde hoy".
  */
 
-export type Frequency = 'weekly' | 'fortnightly' | 'monthly' | 'yearly';
+import type { RecurrenceRule } from '@/src/types/models';
 
-export type RecurrenceRule = {
-  frequency: Frequency;
-  /** Primer vencimiento. También fija el día del mes / día de semana. */
-  startDate: number;
-  /** Último vencimiento inclusive. Sin esto, no termina nunca. */
-  endDate?: number;
-};
+export type Frequency = RecurrenceRule['frequency'];
+export type { RecurrenceRule };
 
 const DAY_MS = 86_400_000;
 

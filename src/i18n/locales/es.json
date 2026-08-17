@@ -551,5 +551,14 @@
     "owes_you": "Te debe ",
     "you_owe_them": "Le debés ",
     "settle": "Saldar"
+  },
+  "recurrence": {
+    "label": "REPETIR",
+    "once": "Una vez",
+    "weekly": "Semanal",
+    "fortnightly": "Quincenal",
+    "monthly": "Mensual",
+    "yearly": "Anual",
+    "hint": "Se va a crear solo en cada vencimiento, aunque no abras la app."
   }
 }
