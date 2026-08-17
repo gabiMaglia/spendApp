@@ -291,8 +291,10 @@ export default function NewExpenseScreen() {
   }
 
   /** Desglose de pagadores listo para guardar (o el pagador único). */
-  function payerFields(): { paidById: string; payers?: Payer[] } {
-    if (!multiPayer) return { paidById: payerId || currentUser!.id };
+  function payerFields(): { paidById: string; payers: Payer[] | undefined } {
+    // `payers: undefined` explícito, no ausente: se aplica con spread al editar,
+    // y una clave ausente dejaría vivo el desglose anterior.
+    if (!multiPayer) return { paidById: payerId || currentUser!.id, payers: undefined };
     return normalizePayers(payers);
   }
 

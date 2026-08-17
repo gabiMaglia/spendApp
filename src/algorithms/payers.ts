@@ -67,14 +67,22 @@ export function validatePayers(payers: Payer[], totalAmount: number): PayersVali
 
 /**
  * Normaliza un desglose para guardar: descarta a los que pusieron 0 y calcula
- * el pagador principal. Devuelve `payers: undefined` cuando hay uno solo, para
- * no ensuciar el registro con un campo que no aporta (y que un peer viejo
- * ignoraría igual).
+ * el pagador principal.
+ *
+ * La clave `payers` va SIEMPRE en el objeto devuelto, con `undefined` cuando
+ * queda un solo pagador. Omitirla parece más prolijo pero es un bug: al editar
+ * un gasto se aplica con spread (`{...expense, ...payerFields()}`), así que una
+ * clave ausente NO pisa el desglose anterior — el gasto pasaba a "pagó uno
+ * solo" conservando el array viejo, y `calculateBalances` seguía repartiendo
+ * con él. El error se persistía y se propagaba por sync.
  */
-export function normalizePayers(payers: Payer[]): { paidById: string; payers?: Payer[] } {
+export function normalizePayers(payers: Payer[]): { paidById: string; payers: Payer[] | undefined } {
   const contributing = payers.filter(p => p.amount > 0);
   if (contributing.length <= 1) {
-    return { paidById: contributing[0]?.userId ?? payers[0]?.userId ?? '' };
+    return {
+      paidById: contributing[0]?.userId ?? payers[0]?.userId ?? '',
+      payers: undefined,
+    };
   }
   return { paidById: primaryPayerId(contributing), payers: contributing };
 }

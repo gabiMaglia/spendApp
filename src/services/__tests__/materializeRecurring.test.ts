@@ -1,5 +1,6 @@
 import { materializeRecurring } from '../materializeRecurring';
 import type { RecurringExpense } from '@/src/types/models';
+import { useExpenseStore } from '@/src/store/expenseStore';
 
 const d = (y: number, m: number, day: number) => Date.UTC(y, m - 1, day);
 
@@ -128,13 +129,22 @@ describe('materializeRecurring — no resucita gastos borrados (defecto de QA)',
       .toBe(b.expenses.find(e => e.date === at)!.updatedAt);
   });
 
-  it('un borrado posterior le gana al regenerado (LWW)', () => {
+  it('un borrado posterior le gana al regenerado, pasando por el merge REAL', () => {
     const at = d(2026, 3, 10);
+    // Device A materializa marzo y el usuario lo borra.
+    const original = materializeRecurring([template()], d(2026, 3, 20))
+      .expenses.find(e => e.date === at)!;
+    const tombstone = { ...original, isDeleted: true, updatedAt: d(2026, 3, 15) };
+
+    useExpenseStore.setState({ expenses: [tombstone] });
+
+    // Device B, offline y con su plantilla sin avanzar, regenera meses después.
     const regenerado = materializeRecurring([template()], d(2026, 9, 1))
       .expenses.find(e => e.date === at)!;
-    const tombstone = { ...regenerado, isDeleted: true, updatedAt: d(2026, 3, 15) };
+    useExpenseStore.getState().mergeExpenses([regenerado]);
 
-    expect(tombstone.updatedAt).toBeGreaterThan(regenerado.updatedAt);
+    const final = useExpenseStore.getState().expenses.find(e => e.id === original.id)!;
+    expect(final.isDeleted).toBe(true); // el zombi NO revive
   });
 
   it('los movimientos personales siguen la misma regla', () => {

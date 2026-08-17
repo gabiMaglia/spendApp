@@ -12,9 +12,20 @@ import type { User } from '@/src/types/models';
  * Se declaran acá y no en `mergeAccountData` para que ese módulo quede sin
  * dependencias de stores y se pueda testear aislado.
  */
-const MERGEABLE_STORES = ['groups', 'expenses', 'payments', 'personal', 'users', 'recurring', 'comments'] as const;
+/**
+ * Stores que guardan su lista bajo la clave `data_v1`.
+ *
+ * `personal` NO está acá: persiste bajo `entries_v1` (+ `budget_v1`), no bajo
+ * `data_v1`. Estuvo en esta lista y era peor que no estar — `readList` leía una
+ * clave inexistente, devolvía `[]` y reportaba la fusión como exitosa con cero
+ * registros, así que los movimientos personales y el presupuesto de la cuenta
+ * absorbida desaparecían en silencio. Se fusiona aparte, en `mergePersonal()`.
+ */
+const MERGEABLE_STORES = ['groups', 'expenses', 'payments', 'users', 'recurring', 'comments'] as const;
 
 const DATA_KEY = 'data_v1';
+const PERSONAL_ENTRIES_KEY = 'entries_v1';
+const PERSONAL_BUDGET_KEY  = 'budget_v1';
 
 /**
  * Fusiona TODOS los datos de `fromAccountId` dentro de `toAccountId`.
@@ -25,8 +36,31 @@ export function mergeAccounts(fromAccountId: string, toAccountId: string): Merge
     name => [createSecureStorage(name), DATA_KEY] as [ReturnType<typeof createSecureStorage>, string],
   );
   const report = mergeAccountData(stores, fromAccountId, toAccountId);
+  mergePersonal(fromAccountId, toAccountId, report);
   mergeProfiles(fromAccountId, toAccountId);
   return report;
+}
+
+/**
+ * Movimientos personales y presupuesto. Van aparte porque `personalStore` no usa
+ * la clave `data_v1` de los demás.
+ */
+function mergePersonal(fromAccountId: string, toAccountId: string, report: MergeReport): void {
+  if (fromAccountId === toAccountId) return;
+  const storage = createSecureStorage('personal');
+
+  const sub = mergeAccountData([[storage, PERSONAL_ENTRIES_KEY]], fromAccountId, toAccountId);
+  report.counts.personal = sub.counts[PERSONAL_ENTRIES_KEY] ?? 0;
+  if (!sub.sourceWasEmpty) report.sourceWasEmpty = false;
+
+  // El presupuesto es un objeto, no una lista: sólo se adopta si el destino no
+  // tiene uno propio (no se pisa un presupuesto que el usuario ya configuró).
+  const budgetKey = (uid: string) => `${PERSONAL_BUDGET_KEY}::u:${uid}`;
+  const sourceBudget = storage.getString(budgetKey(fromAccountId));
+  const targetBudget = storage.getString(budgetKey(toAccountId));
+  if (sourceBudget !== undefined && targetBudget === undefined) {
+    storage.set(budgetKey(toAccountId), sourceBudget);
+  }
 }
 
 /**
