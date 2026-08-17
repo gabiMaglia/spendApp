@@ -36,12 +36,24 @@ function readKnown(): KnownAccount[] {
 }
 
 /** Registra una cuenta como vista en este device (para ofrecerla como candidata). */
-function rememberAccount(accountId: string, label: string): void {
+function rememberAccount(accountId: string, label: string, email?: string): void {
   const known = readKnown();
   const i = known.findIndex(a => a.accountId === accountId);
-  if (i === -1) known.push({ accountId, label });
-  else if (label && known[i].label !== label) known[i] = { accountId, label };
-  else return;
+  const prev = i === -1 ? undefined : known[i];
+
+  // El email NO se sobreescribe con undefined: una vez que lo supimos, lo
+  // sabemos. Apple deja de mandarlo después del primer login, y perderlo haría
+  // que la cuenta vuelva a ser "indescartable" y molestemos al usuario de nuevo.
+  const next: KnownAccount = {
+    accountId,
+    label: label || prev?.label || accountId,
+    email: email ?? prev?.email,
+  };
+
+  if (prev && prev.label === next.label && prev.email === next.email) return;
+
+  if (i === -1) known.push(next);
+  else known[i] = next;
   storage.set(KNOWN, JSON.stringify(known));
 }
 
@@ -87,7 +99,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Snapshot durable del perfil. Como editar el nombre en "Yo" también pasa
       // por acá, el cambio queda persistido para el próximo login.
       storage.set(profileKey(user.id), JSON.stringify(user));
-      rememberAccount(user.id, user.email || user.name);
+      rememberAccount(user.id, user.name || user.email, user.email || undefined);
     } else {
       storage.delete(KEYS.USER);
     }

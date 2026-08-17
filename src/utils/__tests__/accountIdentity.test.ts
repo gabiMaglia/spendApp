@@ -18,9 +18,9 @@ function memoryIndex(known: KnownAccount[] = []) {
     link: (providerId, accountId, email) => {
       providers.set(providerId, accountId);
       if (email) emails.set(email, accountId);
-      if (!accounts.some(a => a.accountId === accountId)) {
-        accounts.push({ accountId, label: accountId });
-      }
+      const i = accounts.findIndex(a => a.accountId === accountId);
+      if (i === -1) accounts.push({ accountId, label: accountId, email });
+      else if (email && accounts[i]!.email === undefined) accounts[i] = { ...accounts[i]!, email };
     },
   };
   return ix;
@@ -139,5 +139,58 @@ describe('confirmLink', () => {
   it('con el índice vacío (1er login tras actualizar) IGUAL manda a fusionar', () => {
     const ix = memoryIndex([]);
     expect(confirmLink(ix, APPLE, GOOGLE)).toEqual({ previousAccountId: APPLE });
+  });
+});
+
+describe('candidatas para preguntar — sin molestar a personas distintas', () => {
+  const OTRO_MAIL = 'otra@persona.com';
+
+  it('mails conocidos y DISTINTOS ⇒ no pregunta, son dos personas', () => {
+    const ix = memoryIndex([{ accountId: GOOGLE, label: 'g', email: MAIL }]);
+    ix.link(GOOGLE, GOOGLE, MAIL);
+
+    const r = resolveAccount(ix, 'apple:otro', OTRO_MAIL);
+
+    expect(r.kind).toBe('new');
+  });
+
+  // EL BUG QUE VEÍA EL PO: Apple entró primero sin mail, así que su cuenta no
+  // tiene mail conocido. Traer un mail que no matchea NO prueba que sea otra
+  // persona cuando del otro lado no sabemos nada.
+  it('mail propio conocido pero el de la cuenta existente DESCONOCIDO ⇒ pregunta', () => {
+    const ix = memoryIndex([{ accountId: APPLE, label: 'a' }]); // sin email
+    ix.link(APPLE, APPLE);
+
+    const r = resolveAccount(ix, GOOGLE, MAIL);
+
+    expect(r.kind).toBe('confirm');
+    if (r.kind === 'confirm') expect(r.candidates.map(c => c.accountId)).toEqual([APPLE]);
+  });
+
+  it('sin mail propio ⇒ pregunta aunque la existente tenga mail conocido', () => {
+    const ix = memoryIndex([{ accountId: GOOGLE, label: 'g', email: MAIL }]);
+    ix.link(GOOGLE, GOOGLE, MAIL);
+
+    const r = resolveAccount(ix, APPLE, null);
+
+    expect(r.kind).toBe('confirm');
+  });
+
+  it('con varias cuentas, ofrece sólo las que no se pueden descartar', () => {
+    const ix = memoryIndex([
+      { accountId: 'sinmail',  label: 's' },
+      { accountId: 'otromail', label: 'o', email: OTRO_MAIL },
+    ]);
+    ix.link('sinmail', 'sinmail');
+    ix.link('otromail', 'otromail', OTRO_MAIL);
+
+    const r = resolveAccount(ix, GOOGLE, MAIL);
+
+    expect(r.kind).toBe('confirm');
+    if (r.kind === 'confirm') expect(r.candidates.map(c => c.accountId)).toEqual(['sinmail']);
+  });
+
+  it('device limpio ⇒ cuenta nueva sin molestar', () => {
+    expect(resolveAccount(memoryIndex([]), GOOGLE, MAIL).kind).toBe('new');
   });
 });
