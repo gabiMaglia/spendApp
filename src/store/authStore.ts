@@ -75,6 +75,12 @@ interface AuthState {
   setUser: (user: User | null) => void;
   /** Perfil persistido de una cuenta. Sobrevive al signOut. */
   getStoredProfile: (uid: string) => User | null;
+  /** Snapshot del índice de identidad, para diagnóstico (pantalla DEV). */
+  identitySnapshot: () => {
+    known: KnownAccount[];
+    activeAccountId: string | null;
+    profiles: Array<{ accountId: string; name: string; email: string }>;
+  };
   /** Decide a qué cuenta pertenece un login. Puede pedir confirmación al usuario. */
   resolveAccount: (providerId: string, email?: string | null) => AccountResolution;
   /** El usuario confirmó que la cuenta es suya: vincula y FUSIONA los datos. */
@@ -105,6 +111,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
     const isPro = user ? (storage.getBoolean(isProKey(user.id)) ?? false) : false;
     set({ currentUser: user, isPro });
+  },
+
+  identitySnapshot: () => {
+    const known = readKnown();
+    return {
+      known,
+      activeAccountId: get().currentUser?.id ?? null,
+      profiles: known.map(a => {
+        const raw = storage.getString(profileKey(a.accountId));
+        let name = '—', email = '—';
+        try {
+          const u = raw ? (JSON.parse(raw) as User) : null;
+          if (u) { name = u.name; email = u.email || '—'; }
+        } catch { /* perfil corrupto: se muestra como vacío */ }
+        return { accountId: a.accountId, name, email };
+      }),
+    };
   },
 
   resolveAccount: (providerId, email) => {

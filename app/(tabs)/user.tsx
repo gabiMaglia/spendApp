@@ -385,6 +385,11 @@ export default function UserScreen() {
                 icon="hardware-chip-outline"
                 onPress={() => router.push('/debug/webrtc' as any)}
               />
+              <LinkRow
+                label="Identidad de cuentas"
+                icon="finger-print-outline"
+                onPress={() => router.push('/debug/identity' as any)}
+              />
             </View>
           </>
         )}
