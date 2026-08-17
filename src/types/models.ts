@@ -57,6 +57,12 @@ export interface RecurrenceRule {
  * y el otro se perdería sin aviso. Como registros separados con id propio, los
  * dos sobreviven.
  */
+/** Cuánto puso una persona en un gasto que pagaron entre varios. */
+export interface Payer {
+  userId: string;
+  amount: number;   // entero en menor unidad (ADR-002)
+}
+
 export interface ExpenseComment extends SyncMeta {
   expenseId: string;
   authorId: string;
@@ -110,7 +116,20 @@ export interface Expense extends SyncMeta {
   description: string;
   amount: number;
   currency: CurrencyCode;
+  /**
+   * Pagador principal. Se mantiene SIEMPRE (además de `payers`) porque el sync
+   * es P2P y no se puede obligar a los otros devices a actualizar: un peer viejo
+   * lee esto y sigue calculando balances razonables. Cuando hay varios
+   * pagadores, apunta al que más puso.
+   */
   paidById: string;
+  /**
+   * Pagadores cuando el gasto lo pusieron entre varios. Opcional a propósito:
+   * si falta (gasto viejo o de un peer sin actualizar) se deriva de `paidById`.
+   * NO leer este campo directo — usar `expensePayers()` (src/algorithms/payers.ts),
+   * que es la única fuente de verdad.
+   */
+  payers?: Payer[];
   splits: Split[];
   splitMode: SplitMode;
   category: ExpenseCategory;

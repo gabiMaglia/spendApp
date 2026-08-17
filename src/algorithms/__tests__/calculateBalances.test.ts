@@ -109,3 +109,56 @@ describe('calculateBalances', () => {
     expect(result[0]!.amount).toBe(0);
   });
 });
+
+describe('calculateBalances — gastos pagados entre varios (T-025)', () => {
+  const base = {
+    id: 'e1', groupId: 'g1', description: 'Cena', currency: 'ARS' as const,
+    splitMode: 'equal' as const, category: 'food' as const,
+    date: 0, createdAt: 0, createdById: 'ua', deletionVotes: [],
+    updatedAt: 0, isDeleted: false,
+  };
+
+  it('acredita a cada pagador lo que puso, no el total al principal', () => {
+    const out = calculateBalances([{
+      ...base, amount: 10000, paidById: 'ub',
+      payers: [{ userId: 'ua', amount: 4000 }, { userId: 'ub', amount: 6000 }],
+      splits: [
+        { userId: 'ua', amount: 5000, isPaid: false },
+        { userId: 'ub', amount: 5000, isPaid: false },
+      ],
+    } as any], ['ua', 'ub']);
+
+    const by = Object.fromEntries(out.map(b => [b.userId, b.amount]));
+    expect(by.ua).toBe(-1000); // puso 4000, le tocaba 5000
+    expect(by.ub).toBe(1000);  // puso 6000, le tocaba 5000
+  });
+
+  it('la suma de balances sigue dando cero', () => {
+    const out = calculateBalances([{
+      ...base, amount: 9999, paidById: 'ua',
+      payers: [{ userId: 'ua', amount: 3333 }, { userId: 'ub', amount: 6666 }],
+      splits: [
+        { userId: 'ua', amount: 3333, isPaid: false },
+        { userId: 'ub', amount: 3333, isPaid: false },
+        { userId: 'uc', amount: 3333, isPaid: false },
+      ],
+    } as any], ['ua', 'ub', 'uc']);
+
+    expect(out.reduce((t, b) => t + b.amount, 0)).toBe(0);
+  });
+
+  // Compatibilidad: un peer sin actualizar manda gastos sin `payers`
+  it('un gasto SIN payers se sigue calculando como antes', () => {
+    const out = calculateBalances([{
+      ...base, amount: 10000, paidById: 'ua',
+      splits: [
+        { userId: 'ua', amount: 5000, isPaid: false },
+        { userId: 'ub', amount: 5000, isPaid: false },
+      ],
+    } as any], ['ua', 'ub']);
+
+    const by = Object.fromEntries(out.map(b => [b.userId, b.amount]));
+    expect(by.ua).toBe(5000);
+    expect(by.ub).toBe(-5000);
+  });
+});
