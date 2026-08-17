@@ -6,6 +6,8 @@ import { deriveTopic } from './envelopeCrypto';
 import { subscribeTopic, isRelayConfigured } from './relay';
 import { publishToGroup, drainGroup } from './relaySync';
 import { fromHex } from './envelopeCrypto';
+import { deriveInviteTopic, type GroupInvite } from './groupInvite';
+import { activeInvites, processInvite, processAllInvites } from './inviteEngine';
 
 /**
  * Motor del sync en tiempo real: publica lo que cambia y aplica lo que llega.
@@ -139,6 +141,11 @@ export async function startRelay(): Promise<void> {
   stopRelay();
   if (!isRelayConfigured()) return;
 
+  // Las invitaciones se resuelven PRIMERO: una que se complete acá adopta la
+  // clave del grupo, y recién con esa clave el grupo entra en `syncableGroupIds`
+  // y se puede suscribir abajo. Al revés habría que esperar al próximo arranque.
+  const adoptados = await processAllInvites(deviceId()).catch(() => [] as string[]);
+
   for (const groupId of syncableGroupIds()) {
     const record = useGroupKeyStore.getState().getKey(groupId);
     if (!record) continue;
@@ -149,7 +156,37 @@ export async function startRelay(): Promise<void> {
     } catch { /* un grupo que falla no debe impedir los demás */ }
   }
 
+  await subscribeInvites();
   await drainAll(); // al arrancar, lo encolado mientras estuvimos afuera
+
+  // Un grupo recién adoptado no estaba en la cola de arriba cuando se drenó,
+  // así que se drena explícitamente: es justo el caso en el que el usuario está
+  // mirando la pantalla esperando ver el grupo aparecer.
+  for (const groupId of adoptados) await drainNow(groupId);
+}
+
+/**
+ * Escucha los buzones de invitación abiertos, en los dos roles: el que invita
+ * espera reclamos, el que entra espera su clave. Sin esto, entrar a un grupo
+ * exigiría que las dos personas reinicien la app en el orden correcto.
+ */
+async function subscribeInvites(): Promise<void> {
+  for (const invite of activeInvites()) {
+    try {
+      const topic = await deriveInviteTopic(invite.token);
+      unsubs.push(subscribeTopic(topic, () => { void onInviteNews(invite); }));
+    } catch { /* una invitación rota no debe impedir las demás */ }
+  }
+}
+
+async function onInviteNews(invite: GroupInvite): Promise<void> {
+  const adoptados = await processInvite(invite, deviceId()).catch(() => [] as string[]);
+  if (adoptados.length === 0) return;
+
+  // Adoptamos una clave nueva: hay que suscribirse al grupo. La recursión está
+  // acotada — el ingreso ya se marcó como resuelto, así que el `startRelay` de
+  // adentro no vuelve a adoptar nada.
+  await startRelay();
 }
 
 export function stopRelay(): void {

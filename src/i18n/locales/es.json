@@ -591,5 +591,21 @@
     "missing": "Faltan {{amount}}",
     "over": "Se pasan {{amount}}",
     "difference": "Diferencia con el total"
+  },
+  "join": {
+    "invalid_title": "Link inválido",
+    "invalid_body": "Este link de invitación está incompleto o mal copiado. Pedile a quien te invitó que te lo mande de nuevo.",
+    "expired_title": "El link venció",
+    "expired_body": "Las invitaciones duran 48 horas. Pedile a quien te invitó que genere una nueva.",
+    "need_login_title": "Iniciá sesión primero",
+    "need_login_body": "Entrá con tu cuenta y volvé a abrir el link para unirte al grupo.",
+    "intro": "Te invitaron a este grupo. Al entrar vas a ver los gastos y las cuentas de todos.",
+    "accept": "Unirme al grupo",
+    "waiting_key": "Esperando que te den acceso…",
+    "joined_title": "Ya estás adentro",
+    "joined_body": "Te uniste a «{{group}}». Los gastos se sincronizan solos.",
+    "open_group": "Ver el grupo",
+    "pending_title": "Tu pedido quedó enviado",
+    "pending_body": "Falta que quien te invitó abra la app para darte acceso. Cuando pase, el grupo te va a aparecer solo — no hace falta que hagas nada más."
   }
 }

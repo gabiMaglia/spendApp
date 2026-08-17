@@ -23,6 +23,7 @@ import { hueForUser } from '@/src/utils/hueForUser';
 import { Avatar } from '@/src/components/Avatar';
 import { createInvite, inviteToLink } from '@/src/sync/groupInvite';
 import { ensureIdentity, saveInvite } from '@/src/store/identityStore';
+import { startRelay } from '@/src/sync/relayEngine';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { BalancePill } from '@/src/components/BalancePill';
 import type { Expense, Payment } from '@/src/types/models';
@@ -83,6 +84,11 @@ export default function GroupDetailScreen() {
 
     const invite = createInvite(group.id, group.name, identidad.publicKey);
     saveInvite(invite);
+
+    // Reabre las suscripciones para incluir el buzón de ESTA invitación. Sin
+    // esto sólo se escucharían las que existían al arrancar la app, y quien
+    // reciba el link se quedaría esperando hasta que reiniciemos.
+    void startRelay();
 
     try {
       await Share.share({

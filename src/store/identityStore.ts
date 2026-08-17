@@ -18,6 +18,7 @@ const storage = createSecureStorage('groupkeys');
 const K_IDENTITY = 'identity_v1';
 const K_WRAP     = 'wrapkeys_v1';
 const K_INVITES  = 'invites_v1';
+const K_PENDING  = 'pending_joins_v1';
 
 type Keypair = { privateKey: string; publicKey: string };
 
@@ -61,4 +62,27 @@ export function listInvites(): GroupInvite[] {
 /** Recupera el token de una invitación emitida, para abrir el reclamo. */
 export function findInviteToken(groupId: string, token: string): GroupInvite | undefined {
   return listInvites().find(i => i.groupId === groupId && i.token === token);
+}
+
+/**
+ * Invitaciones que ACEPTAMOS y todavía no se completaron.
+ *
+ * Se persisten porque la entrega de la clave depende de que el que invitó abra
+ * la app, y eso puede pasar horas después. Sin esto, cerrar la app antes de que
+ * conteste dejaría el ingreso a medias para siempre, sin nada que lo reintente.
+ */
+export function savePendingJoin(invite: GroupInvite): void {
+  const all = readJson<GroupInvite[]>(K_PENDING, []);
+  const vivas = all.filter(i => i.expiresAt > Date.now() && i.token !== invite.token);
+  storage.set(K_PENDING, JSON.stringify([...vivas, invite]));
+}
+
+export function listPendingJoins(): GroupInvite[] {
+  return readJson<GroupInvite[]>(K_PENDING, []).filter(i => i.expiresAt > Date.now());
+}
+
+/** Se llama al adoptar la clave: el ingreso ya no está pendiente. */
+export function removePendingJoin(token: string): void {
+  const all = readJson<GroupInvite[]>(K_PENDING, []);
+  storage.set(K_PENDING, JSON.stringify(all.filter(i => i.token !== token)));
 }
