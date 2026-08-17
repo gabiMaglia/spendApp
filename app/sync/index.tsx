@@ -13,7 +13,7 @@ import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuthStore } from '@/src/store/authStore';
-import { buildDelta, deltaToQRString, parseDeltaFromQR, applyDelta } from '@/src/sync/useSyncQR';
+import { buildDelta, deltaToQRString, parseDeltaFromQR, applyDelta, peerIsOutdated } from '@/src/sync/useSyncQR';
 import { useTranslation } from 'react-i18next';
 
 type Mode = 'choose' | 'show' | 'scan';
@@ -57,7 +57,12 @@ export default function SyncQRScreen() {
       applyDelta(delta, currentUser?.id ?? '');
       Alert.alert(
         t('sync.success_title'),
-        t('sync.success_body'),
+        // Si el otro tiene una versión anterior, los gastos con varios pagadores
+        // se le van a ver distinto. Mejor decirlo que dejar descubrir números
+        // que no cuadran entre los dos teléfonos.
+        peerIsOutdated(delta)
+          ? `${t('sync.success_body')}\n\n${t('sync.peer_outdated')}`
+          : t('sync.success_body'),
         [{ text: 'OK', onPress: () => router.back() }],
       );
     } catch {

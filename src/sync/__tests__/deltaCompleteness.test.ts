@@ -1,4 +1,4 @@
-import { buildDelta, applyDelta } from '../useSyncQR';
+import { buildDelta, applyDelta, peerIsOutdated, DELTA_FEATURE_VERSION } from '../useSyncQR';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
@@ -126,5 +126,36 @@ describe('delta de sync — nada se pierde entre dos teléfonos', () => {
     expect(useRecurringStore.getState().recurring).toHaveLength(1);
     expect(useCommentStore.getState().comments).toHaveLength(1);
     expect(usePersonalStore.getState().entries).toHaveLength(1);
+  });
+});
+
+describe('peerIsOutdated — detectar un dispositivo sin actualizar', () => {
+  beforeEach(() => {
+    useAuthStore.setState({ currentUser: { id: ME } as User });
+    clearAll();
+  });
+
+  it('un delta nuestro NO se marca como desactualizado', () => {
+    expect(peerIsOutdated(buildDelta(ME))).toBe(false);
+  });
+
+  it('buildDelta declara la versión de features', () => {
+    expect(buildDelta(ME).featureVersion).toBe(DELTA_FEATURE_VERSION);
+  });
+
+  // Un peer anterior a los gastos con varios pagadores no manda este campo.
+  it('un delta SIN featureVersion se detecta como desactualizado', () => {
+    const delta = buildDelta(ME);
+    delete (delta as any).featureVersion;
+
+    expect(peerIsOutdated(delta)).toBe(true);
+  });
+
+  it('una versión de features menor también cuenta como desactualizado', () => {
+    expect(peerIsOutdated({ ...buildDelta(ME), featureVersion: DELTA_FEATURE_VERSION - 1 })).toBe(true);
+  });
+
+  it('una versión MAYOR no se marca (el otro está más nuevo, no nosotros)', () => {
+    expect(peerIsOutdated({ ...buildDelta(ME), featureVersion: DELTA_FEATURE_VERSION + 1 })).toBe(false);
   });
 });

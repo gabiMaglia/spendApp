@@ -436,7 +436,8 @@
     "pair_copy_hint": "…or copy this code and paste it on the other device (no camera).",
     "pair_paste_label": "Paste the other code",
     "pair_paste_placeholder": "Paste the code here…",
-    "pair_paste_submit": "Continue"
+    "pair_paste_submit": "Continue",
+    "peer_outdated": "The other device is running an older version. Expenses paid by several people will look different there until it updates."
   },
   "categories": {
     "food": "Food",

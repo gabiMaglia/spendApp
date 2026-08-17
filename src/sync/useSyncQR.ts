@@ -6,8 +6,24 @@ import { useRecurringStore } from '@/src/store/recurringStore';
 import { useCommentStore } from '@/src/store/commentStore';
 import { usePersonalStore } from '@/src/store/personalStore';
 
+/**
+ * Versión de FEATURES del delta, aparte de `version` (que es el formato).
+ *
+ * `version` no se puede tocar: `applyDelta` descarta el delta entero si no es 1,
+ * así que subirla haría que un peer viejo ignore TODO en silencio — peor que el
+ * problema que queremos resolver. Este campo es opcional y sólo sirve para
+ * DETECTAR con quién estamos hablando: si llega un delta sin él, el otro
+ * dispositivo tiene una versión anterior a los gastos con varios pagadores, y
+ * va a mostrar balances distintos a los nuestros (acredita el total al pagador
+ * principal porque ignora el desglose). No se puede arreglar de este lado, pero
+ * sí avisarle al usuario en vez de dejarlo descubrir números que no cuadran.
+ */
+export const DELTA_FEATURE_VERSION = 2;
+
 export interface SyncDelta {
   version: 1;
+  /** Ausente ⇒ el peer es anterior a DELTA_FEATURE_VERSION. */
+  featureVersion?: number;
   fromUserId: string;
   timestamp: number;
   groups: ReturnType<typeof useGroupStore.getState>['groups'];
@@ -25,7 +41,8 @@ export interface SyncDelta {
 /** Genera el delta completo del dispositivo actual para compartir por QR. */
 export function buildDelta(currentUserId: string): SyncDelta {
   return {
-    version:     1,
+    version:        1,
+    featureVersion: DELTA_FEATURE_VERSION,
     fromUserId:  currentUserId,
     timestamp:   Date.now(),
     groups:      useGroupStore.getState().groups,
@@ -59,6 +76,15 @@ export function applyDelta(delta: SyncDelta, currentUserId: string): void {
   useRecurringStore.getState().mergeRecurring(delta.recurring ?? []);
   useCommentStore.getState().mergeComments(delta.comments ?? []);
   usePersonalStore.getState().mergeEntries(delta.personal ?? []);
+}
+
+/**
+ * ¿El otro dispositivo tiene una versión anterior?
+ * Si es así, los gastos con varios pagadores se le van a ver distinto: ignora el
+ * desglose y le acredita el total al pagador principal.
+ */
+export function peerIsOutdated(delta: SyncDelta): boolean {
+  return (delta.featureVersion ?? 1) < DELTA_FEATURE_VERSION;
 }
 
 /** Serializa el delta a string JSON comprimido para el QR. */

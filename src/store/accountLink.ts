@@ -40,7 +40,61 @@ export function mergeAccounts(fromAccountId: string, toAccountId: string): Merge
   mergePersonal(fromAccountId, toAccountId, report);
   mergeProfiles(fromAccountId, toAccountId);
   mergeSettings(fromAccountId, toAccountId);
+  recordMerge(fromAccountId);
   return report;
+}
+
+/**
+ * Los scopes fusionados NO se borran en el momento: si la fusión sale mal, los
+ * datos originales siguen ahí y se puede volver atrás. Pero sin límite eso deja
+ * una copia completa acumulada por cada enlace, para siempre.
+ *
+ * Política: se anota la fecha del enlace y el scope se purga recién pasado el
+ * período de gracia, en un arranque posterior de la app. Suficiente para
+ * recuperar datos si algo salió mal, y acotado en el tiempo.
+ */
+const MERGED_LOG = 'acct::merged_scopes';
+export const MERGE_GRACE_DAYS = 30;
+
+type MergedEntry = { scope: string; at: number };
+
+function readMergeLog(): MergedEntry[] {
+  const raw = createSecureStorage('auth').getString(MERGED_LOG);
+  if (!raw) return [];
+  try { return JSON.parse(raw) as MergedEntry[]; } catch { return []; }
+}
+
+function writeMergeLog(entries: MergedEntry[]): void {
+  createSecureStorage('auth').set(MERGED_LOG, JSON.stringify(entries));
+}
+
+function recordMerge(scope: string, now: number = Date.now()): void {
+  const log = readMergeLog().filter(e => e.scope !== scope);
+  log.push({ scope, at: now });
+  writeMergeLog(log);
+}
+
+/**
+ * Borra los datos de los scopes fusionados hace más de `MERGE_GRACE_DAYS`.
+ * Se llama en el arranque; devuelve los scopes purgados.
+ */
+export function purgeMergedScopes(now: number = Date.now()): string[] {
+  const graceMs = MERGE_GRACE_DAYS * 24 * 60 * 60 * 1000;
+  const log = readMergeLog();
+  const expired = log.filter(e => now - e.at >= graceMs);
+  if (expired.length === 0) return [];
+
+  for (const { scope } of expired) {
+    for (const name of MERGEABLE_STORES) {
+      createSecureStorage(name).delete(`${DATA_KEY}::u:${scope}`);
+    }
+    const personal = createSecureStorage('personal');
+    personal.delete(`${PERSONAL_ENTRIES_KEY}::u:${scope}`);
+    personal.delete(`${PERSONAL_BUDGET_KEY}::u:${scope}`);
+  }
+
+  writeMergeLog(log.filter(e => now - e.at < graceMs));
+  return expired.map(e => e.scope);
 }
 
 /** Preferencias por cuenta (toggles de notificación). */
