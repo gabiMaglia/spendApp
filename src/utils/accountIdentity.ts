@@ -35,6 +35,13 @@ export type KnownAccount = {
   accountId: string;
   /** Para mostrarle al usuario cuál es. */
   label: string;
+  /**
+   * Email conocido de esa cuenta, si alguna vez lo supimos. `undefined` NO
+   * significa "no tiene": significa que el proveedor nunca lo mandó (el caso de
+   * Apple después del primer login). Esa distinción es la que decide si podemos
+   * descartar que sea la misma persona.
+   */
+  email?: string;
 };
 
 export type AccountResolution =
@@ -89,13 +96,29 @@ export function resolveAccount(
     }
   }
 
-  // 3. Sin mail con el que decidir, pero hay otras cuentas en el device.
-  //    No se adivina: se pregunta (decisión del PO).
-  if (!normalized) {
-    const candidates = index.listKnownAccounts().filter(a => a.accountId !== providerId);
-    if (candidates.length > 0) {
-      return { kind: 'confirm', providerId, candidates };
-    }
+  // 3. No pudimos resolver por vínculo ni por mail. ¿Hay alguna cuenta en el
+  //    device que NO podamos descartar que sea la misma persona? Si sí, se
+  //    pregunta (decisión del PO). No se adivina en ninguna dirección.
+  //
+  //    Se descarta una cuenta sólo cuando sabemos su mail y es OTRO. Si su mail
+  //    es desconocido, no alcanza para descartarla: es exactamente el caso de
+  //    una cuenta creada con Apple después del primer login, que nunca aportó
+  //    su mail. Esto es lo que fallaba — al llegar Google CON mail y no
+  //    matchear, se asumía "es otra persona" y se abría una segunda cuenta sin
+  //    preguntar. Traer un mail que no matchea no prueba nada sobre una cuenta
+  //    cuyo mail nunca conocimos.
+  const candidates = index.listKnownAccounts().filter(a => {
+    if (a.accountId === providerId) return false;
+    // Sin mail propio no tenemos con qué descartar a nadie (Apple en re-login).
+    if (normalized === undefined) return true;
+    // Su mail nunca lo supimos: tampoco se puede descartar (Apple en su 1er
+    // login sin mail). Este es el caso que abría cuentas duplicadas en silencio.
+    if (a.email === undefined) return true;
+    // Sabemos los dos: sólo es candidata si coinciden.
+    return a.email === normalized;
+  });
+  if (candidates.length > 0) {
+    return { kind: 'confirm', providerId, candidates };
   }
 
   // 4. Cuenta nueva. Su id es este providerId, así las cuentas que ya existían

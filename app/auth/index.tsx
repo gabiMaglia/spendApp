@@ -220,9 +220,17 @@ function AppLogoMark({ size }: { size: number }) {
 
 const styles = StyleSheet.create({
   safe:        { flex: 1 },
-  scroll:      { flexGrow: 1, padding: Spacing.screenPad, paddingTop: Spacing[8] },
-  hero:        { flex: 1, alignItems: 'center', gap: 32, marginBottom: 32 },
+  // Sin la tarjeta de ejemplo el hero quedaba arriba y los botones abajo, con un
+  // hueco en medio. Ahora el contenido se centra vertical y el bloque de botones
+  // se queda pegado al final: la pantalla se lee como una sola pieza.
+  scroll:      {
+    flexGrow: 1,
+    justifyContent: 'center',
+    padding: Spacing.screenPad,
+    paddingTop: Spacing[8],
+  },
+  hero:        { alignItems: 'center', gap: 24, marginBottom: Spacing[8] },
   heroText:    { alignItems: 'center', gap: 8 },
-  ctas:        { gap: 10, paddingBottom: Spacing[8] },
+  ctas:        { gap: 10, paddingBottom: Spacing[4] },
   appleButton: { width: '100%', height: 50 },
 });
