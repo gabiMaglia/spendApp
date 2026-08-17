@@ -21,6 +21,33 @@ function readProfile(uid: string): User | null {
   return raw ? (JSON.parse(raw) as User) : null;
 }
 
+/**
+ * Todos los stores scopeados que deben fusionarse, con la clave REAL de cada uno.
+ * `personal` no usa `data_v1` como el resto — esa diferencia hizo que la fusión
+ * lo leyera de una clave inexistente y perdiera todo en silencio.
+ */
+const SCOPED = [
+  { bucket: 'groups',    key: 'data_v1' },
+  { bucket: 'expenses',  key: 'data_v1' },
+  { bucket: 'payments',  key: 'data_v1' },
+  { bucket: 'users',     key: 'data_v1' },
+  { bucket: 'recurring', key: 'data_v1' },
+  { bucket: 'comments',  key: 'data_v1' },
+  { bucket: 'personal',  key: 'entries_v1' },
+] as const;
+
+function writeAt(bucket: string, key: string, uid: string, ids: string[]) {
+  createSecureStorage(bucket as any).set(
+    `${key}::u:${uid}`,
+    JSON.stringify(ids.map(id => ({ id, updatedAt: 1_000 }))),
+  );
+}
+
+function readAt(bucket: string, key: string, uid: string): string[] {
+  const raw = createSecureStorage(bucket as any).getString(`${key}::u:${uid}`);
+  return raw ? (JSON.parse(raw) as Array<{ id: string }>).map(r => r.id).sort() : [];
+}
+
 function writeList(bucket: 'groups' | 'expenses', uid: string, ids: string[]) {
   createSecureStorage(bucket).set(
     `data_v1::u:${uid}`,
@@ -49,14 +76,35 @@ describe('mergeAccounts', () => {
     expect(readIds('groups', GOOGLE)).toEqual(['gA', 'gG']);
   });
 
-  it('fusiona todos los stores, no sólo grupos', () => {
-    writeList('groups', APPLE, ['gA']);
-    writeList('expenses', APPLE, ['eA']);
+  // Este test nació VACUO: sólo escribía en groups y expenses, así que sacar
+  // cualquier otro store de MERGEABLE_STORES lo dejaba en verde. Ahora recorre
+  // TODOS los stores scopeados con su clave real.
+  it('fusiona TODOS los stores scopeados, cada uno con su clave real', () => {
+    SCOPED.forEach(({ bucket, key }) => writeAt(bucket, key, APPLE, [`${bucket}-A`]));
 
     mergeAccounts(APPLE, GOOGLE);
 
-    expect(readIds('groups', GOOGLE)).toEqual(['gA']);
-    expect(readIds('expenses', GOOGLE)).toEqual(['eA']);
+    const perdidos = SCOPED
+      .filter(({ bucket, key }) => readAt(bucket, key, GOOGLE).length === 0)
+      .map(s => s.bucket);
+    expect(perdidos).toEqual([]);
+  });
+
+  it('el presupuesto personal se adopta si el destino no tiene uno', () => {
+    createSecureStorage('personal').set(`budget_v1::u:${APPLE}`, JSON.stringify({ amount: 50000 }));
+
+    mergeAccounts(APPLE, GOOGLE);
+
+    expect(createSecureStorage('personal').getString(`budget_v1::u:${GOOGLE}`)).toBeDefined();
+  });
+
+  it('un presupuesto ya configurado en el destino NO se pisa', () => {
+    createSecureStorage('personal').set(`budget_v1::u:${APPLE}`, JSON.stringify({ amount: 50000 }));
+    createSecureStorage('personal').set(`budget_v1::u:${GOOGLE}`, JSON.stringify({ amount: 99999 }));
+
+    mergeAccounts(APPLE, GOOGLE);
+
+    expect(createSecureStorage('personal').getString(`budget_v1::u:${GOOGLE}`)).toContain('99999');
   });
 
   it('no borra el origen: se puede volver atrás', () => {

@@ -1,11 +1,14 @@
 import type {
   Group, Expense, Payment, User, PersonalEntry, PersonalBudget,
+  RecurringExpense, ExpenseComment,
 } from '@/src/types/models';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { usePaymentStore } from '@/src/store/paymentStore';
 import { useUserStore } from '@/src/store/userStore';
 import { usePersonalStore } from '@/src/store/personalStore';
+import { useRecurringStore } from '@/src/store/recurringStore';
+import { useCommentStore } from '@/src/store/commentStore';
 import { useAuthStore } from '@/src/store/authStore';
 
 /**
@@ -31,6 +34,9 @@ export interface BackupFile {
   users:           User[];
   personalEntries: PersonalEntry[];
   personalBudget:  PersonalBudget;
+  /** Opcionales: los backups hechos antes de estas features no los traen. */
+  recurring?:      RecurringExpense[];
+  comments?:       ExpenseComment[];
 }
 
 /** Arma el backup leyendo el estado actual de todos los stores. */
@@ -45,6 +51,8 @@ export function buildBackup(): BackupFile {
     users:           useUserStore.getState().users,
     personalEntries: usePersonalStore.getState().entries,
     personalBudget:  usePersonalStore.getState().budget,
+    recurring:       useRecurringStore.getState().recurring,
+    comments:        useCommentStore.getState().comments,
   };
 }
 
@@ -113,6 +121,15 @@ export function applyBackup(backup: BackupFile): void {
   usePersonalStore.setState({ entries: [] });
   usePersonalStore.getState().mergeEntries(backup.personalEntries);
   usePersonalStore.getState().setBudget(backup.personalBudget);
+
+  // Plantillas recurrentes y comentarios. Van con el mismo criterio RESTORE
+  // (reemplazo) que el resto: si el backup no los trae —porque es anterior a
+  // estas features— quedan vacíos, coherente con restaurar ese snapshot.
+  useRecurringStore.setState({ recurring: [] });
+  useRecurringStore.getState().mergeRecurring(backup.recurring ?? []);
+
+  useCommentStore.setState({ comments: [] });
+  useCommentStore.getState().mergeComments(backup.comments ?? []);
 
   // El nombre del perfil sale de authStore (no de userStore): refrescar el
   // usuario de sesión con su registro restaurado, si viene en el backup.

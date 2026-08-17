@@ -98,3 +98,26 @@ describe('normalizePayers', () => {
       });
   });
 });
+
+describe('normalizePayers — pasar de varios pagadores a uno solo', () => {
+  // Nació como bug real: la clave `payers` se omitía al quedar un solo pagador,
+  // y como al editar se aplica con spread, el desglose VIEJO sobrevivía. El
+  // gasto decía "pagó uno" pero calculateBalances seguía usando el array
+  // anterior, y el error se persistía y viajaba por sync.
+  it('devuelve la clave payers en undefined, no ausente', () => {
+    const out = normalizePayers([{ userId: 'ua', amount: 10000 }]);
+    expect('payers' in out).toBe(true);
+    expect(out.payers).toBeUndefined();
+  });
+
+  it('aplicado con spread, LIMPIA el desglose anterior', () => {
+    const anterior = {
+      paidById: 'ub',
+      payers: [{ userId: 'ua', amount: 4000 }, { userId: 'ub', amount: 6000 }],
+    };
+    const actualizado = { ...anterior, ...normalizePayers([{ userId: 'ua', amount: 10000 }]) };
+
+    expect(actualizado.payers).toBeUndefined();
+    expect(actualizado.paidById).toBe('ua');
+  });
+});

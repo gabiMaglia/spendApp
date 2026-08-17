@@ -8,6 +8,8 @@ import { usePaymentStore } from '@/src/store/paymentStore';
 import { useUserStore } from '@/src/store/userStore';
 import { usePersonalStore } from '@/src/store/personalStore';
 import { useAuthStore } from '@/src/store/authStore';
+import { useRecurringStore } from '@/src/store/recurringStore';
+import { useCommentStore } from '@/src/store/commentStore';
 import type {
   Group, Expense, Payment, User, PersonalEntry, PersonalBudget,
 } from '@/src/types/models';
@@ -177,3 +179,52 @@ function blank(): BackupFile {
     personalBudget: emptyBudget,
   };
 }
+
+describe('backup — plantillas recurrentes y comentarios (hallazgo del verificador)', () => {
+  const recurring = [{
+    id: 'r1', groupId: 'g1', description: 'Alquiler', amount: 1000, currency: 'ARS' as const,
+    paidById: 'ua', splitMode: 'equal' as const, memberIds: ['ua'], category: 'home' as const,
+    rule: { frequency: 'monthly' as const, startDate: 0 }, lastMaterializedAt: null,
+    isActive: true, createdAt: 0, createdById: 'ua', updatedAt: 1_000, isDeleted: false,
+  }];
+  const comments = [{
+    id: 'c1', expenseId: 'e1', authorId: 'ua', text: 'hola',
+    createdAt: 0, updatedAt: 1_000, isDeleted: false,
+  }];
+
+  beforeEach(() => {
+    useRecurringStore.setState({ recurring: [] });
+    useCommentStore.setState({ comments: [] });
+  });
+
+  it('el export las incluye', () => {
+    useRecurringStore.setState({ recurring: recurring as any });
+    useCommentStore.setState({ comments: comments as any });
+
+    const backup = buildBackup();
+
+    expect(backup.recurring).toHaveLength(1);
+    expect(backup.comments).toHaveLength(1);
+  });
+
+  it('sobreviven un round-trip completo export → import', () => {
+    useRecurringStore.setState({ recurring: recurring as any });
+    useCommentStore.setState({ comments: comments as any });
+    const raw = serializeBackup(buildBackup());
+
+    useRecurringStore.setState({ recurring: [] });
+    useCommentStore.setState({ comments: [] });
+    importBackup(raw);
+
+    expect(useRecurringStore.getState().recurring).toHaveLength(1);
+    expect(useCommentStore.getState().comments).toHaveLength(1);
+  });
+
+  it('un backup viejo (sin esos campos) no rompe el restore', () => {
+    const backup = buildBackup();
+    delete (backup as any).recurring;
+    delete (backup as any).comments;
+
+    expect(() => applyBackup(backup)).not.toThrow();
+  });
+});
