@@ -105,3 +105,56 @@ describe('materializeRecurring', () => {
     expect(r.expenses).toHaveLength(5);
   });
 });
+
+describe('materializeRecurring — no resucita gastos borrados (defecto de QA)', () => {
+  // Escenario cross-device: A materializa marzo y el usuario lo BORRA. B estuvo
+  // offline con su plantilla sin avanzar, y al abrir regenera el mismo id. Si el
+  // regenerado llevara `updatedAt: now`, le ganaría al tombstone y el gasto
+  // revivía solo. Anclado al vencimiento, el borrado siempre gana.
+  it('el updatedAt del gasto es la fecha del vencimiento, no el momento de correr', () => {
+    const at = d(2026, 3, 10);
+    const r = materializeRecurring([template()], d(2026, 3, 20));
+    const marzo = r.expenses.find(e => e.date === at)!;
+
+    expect(marzo.updatedAt).toBe(at);
+  });
+
+  it('regenerar el mismo vencimiento en otro momento da el MISMO updatedAt', () => {
+    const a = materializeRecurring([template()], d(2026, 3, 20));
+    const b = materializeRecurring([template()], d(2026, 9, 1)); // mucho después
+
+    const at = d(2026, 3, 10);
+    expect(a.expenses.find(e => e.date === at)!.updatedAt)
+      .toBe(b.expenses.find(e => e.date === at)!.updatedAt);
+  });
+
+  it('un borrado posterior le gana al regenerado (LWW)', () => {
+    const at = d(2026, 3, 10);
+    const regenerado = materializeRecurring([template()], d(2026, 9, 1))
+      .expenses.find(e => e.date === at)!;
+    const tombstone = { ...regenerado, isDeleted: true, updatedAt: d(2026, 3, 15) };
+
+    expect(tombstone.updatedAt).toBeGreaterThan(regenerado.updatedAt);
+  });
+
+  it('los movimientos personales siguen la misma regla', () => {
+    const r = materializeRecurring([template({ groupId: '' })], d(2026, 3, 20));
+    const at = d(2026, 3, 10);
+    expect(r.personalEntries.find(e => e.date === at)!.updatedAt).toBe(at);
+  });
+});
+
+describe('materializeRecurring — conserva el desglose de pagadores (defecto de QA)', () => {
+  it('propaga payers a cada gasto generado', () => {
+    const payers = [{ userId: 'ua', amount: 30000 }, { userId: 'ub', amount: 20000 }];
+    const r = materializeRecurring([template({ payers })], d(2026, 2, 15));
+
+    expect(r.expenses).toHaveLength(2);
+    r.expenses.forEach(e => expect(e.payers).toEqual(payers));
+  });
+
+  it('sin desglose, el gasto generado tampoco lo lleva', () => {
+    const r = materializeRecurring([template()], d(2026, 1, 15));
+    expect(r.expenses[0]!.payers).toBeUndefined();
+  });
+});

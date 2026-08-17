@@ -1,5 +1,6 @@
 import type { Expense, PersonalEntry, User, Group } from '@/src/types/models';
 import { formatMoney } from '@/src/constants/currencies';
+import { expensePayers } from '@/src/algorithms/payers';
 
 /**
  * Export a CSV para abrir en Excel / Google Sheets.
@@ -64,7 +65,11 @@ export function expensesToCsv({ expenses, groups, users, groupId }: ExpenseCsvIn
     e.currency,
     formatMoney(e.amount, e.currency),
     e.amount,
-    userName(e.paidById),
+    // Pasa por expensePayers(): leer `paidById` crudo diría que pagó uno solo
+    // cuando en realidad lo pusieron entre varios.
+    expensePayers(e)
+      .map(p => `${userName(p.userId)}: ${formatMoney(p.amount, e.currency)}`)
+      .join(' · '),
     e.splitMode,
     e.splits.map(s => `${userName(s.userId)}: ${formatMoney(s.amount, e.currency)}`).join(' · '),
     e.note ?? '',
