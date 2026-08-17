@@ -119,3 +119,43 @@ describe('commentStore', () => {
     expect(useCommentStore.getState().comments).toEqual([]);
   });
 });
+
+describe('removeForExpense — cascada al borrar el gasto', () => {
+  beforeEach(() => {
+    createSecureStorage('comments').clearAll();
+    setActive(USER_A);
+    useCommentStore.setState({ comments: [], isLoading: false });
+  });
+
+  it('tombstonea todos los comentarios del gasto', () => {
+    useCommentStore.getState().addComment(comment({ id: 'c1' }));
+    useCommentStore.getState().addComment(comment({ id: 'c2' }));
+
+    useCommentStore.getState().removeForExpense('e1');
+
+    expect(useCommentStore.getState().forExpense('e1')).toHaveLength(0);
+  });
+
+  it('NO toca los comentarios de otros gastos', () => {
+    useCommentStore.getState().addComment(comment({ id: 'c1', expenseId: 'e1' }));
+    useCommentStore.getState().addComment(comment({ id: 'c2', expenseId: 'e2' }));
+
+    useCommentStore.getState().removeForExpense('e1');
+
+    expect(useCommentStore.getState().forExpense('e2')).toHaveLength(1);
+  });
+
+  it('tombstonea, no borra físico: el borrado se propaga por sync', () => {
+    useCommentStore.getState().addComment(comment({ id: 'c1' }));
+
+    useCommentStore.getState().removeForExpense('e1');
+
+    const raw = useCommentStore.getState().comments;
+    expect(raw).toHaveLength(1);
+    expect(raw[0]!.isDeleted).toBe(true);
+  });
+
+  it('sobre un gasto sin comentarios no rompe nada', () => {
+    expect(() => useCommentStore.getState().removeForExpense('inexistente')).not.toThrow();
+  });
+});
