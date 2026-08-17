@@ -560,5 +560,13 @@
     "monthly": "Monthly",
     "yearly": "Yearly",
     "hint": "It will be created on each due date, even if you don't open the app."
+  },
+  "comments": {
+    "title": "COMMENTS",
+    "empty": "No comments yet.",
+    "placeholder": "Write a comment…",
+    "send": "Send comment",
+    "delete_title": "Delete comment",
+    "delete_body": "It will be deleted for everyone on the next sync."
   }
 }

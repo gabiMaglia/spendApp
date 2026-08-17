@@ -9,7 +9,7 @@ import { mergeAccountData, type MergeReport } from './mergeAccountData';
  * Se declaran acá y no en `mergeAccountData` para que ese módulo quede sin
  * dependencias de stores y se pueda testear aislado.
  */
-const MERGEABLE_STORES = ['groups', 'expenses', 'payments', 'personal', 'users', 'recurring'] as const;
+const MERGEABLE_STORES = ['groups', 'expenses', 'payments', 'personal', 'users', 'recurring', 'comments'] as const;
 
 const DATA_KEY = 'data_v1';
 

@@ -3,6 +3,7 @@ import { useExpenseStore } from '@/src/store/expenseStore';
 import { usePaymentStore } from '@/src/store/paymentStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useRecurringStore } from '@/src/store/recurringStore';
+import { useCommentStore } from '@/src/store/commentStore';
 
 export interface SyncDelta {
   version: 1;
@@ -14,6 +15,8 @@ export interface SyncDelta {
   users: ReturnType<typeof useUserStore.getState>['users'];
   /** Plantillas recurrentes. Opcional: los deltas de versiones previas no la traen. */
   recurring?: ReturnType<typeof useRecurringStore.getState>['recurring'];
+  /** Comentarios. Opcional por la misma razón. */
+  comments?: ReturnType<typeof useCommentStore.getState>['comments'];
 }
 
 /** Genera el delta completo del dispositivo actual para compartir por QR. */
@@ -27,6 +30,7 @@ export function buildDelta(currentUserId: string): SyncDelta {
     payments:    usePaymentStore.getState().payments,
     users:       useUserStore.getState().users,
     recurring:   useRecurringStore.getState().recurring,
+    comments:    useCommentStore.getState().comments,
   };
 }
 
@@ -49,6 +53,7 @@ export function applyDelta(delta: SyncDelta, currentUserId: string): void {
   // Las plantillas recurrentes viajan como cualquier otro registro (LWW).
   // Los deltas viejos no las traen: se toleran con ?? [] en vez de romper.
   useRecurringStore.getState().mergeRecurring(delta.recurring ?? []);
+  useCommentStore.getState().mergeComments(delta.comments ?? []);
 }
 
 /** Serializa el delta a string JSON comprimido para el QR. */

@@ -5,6 +5,7 @@ import { usePaymentStore } from './paymentStore';
 import { useUserStore } from './userStore';
 import { usePersonalStore } from './personalStore';
 import { useRecurringStore } from './recurringStore';
+import { useCommentStore } from './commentStore';
 import { materializeRecurring } from '@/src/services/materializeRecurring';
 import { useSettingsStore } from './settingsStore';
 
@@ -18,6 +19,7 @@ export function rehydrateForActiveUser(): void {
   useUserStore.getState().hydrate();
   usePersonalStore.getState().hydrate();
   useRecurringStore.getState().hydrate();
+  useCommentStore.getState().hydrate();
   useSettingsStore.getState().hydrate();
 
   // Con los datos de la cuenta ya cargados, se materializan los gastos

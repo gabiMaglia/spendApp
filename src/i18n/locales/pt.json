@@ -560,5 +560,13 @@
     "monthly": "Mensal",
     "yearly": "Anual",
     "hint": "Será criado a cada vencimento, mesmo que você não abra o app."
+  },
+  "comments": {
+    "title": "COMENTÁRIOS",
+    "empty": "Nenhum comentário ainda.",
+    "placeholder": "Escreva um comentário…",
+    "send": "Enviar comentário",
+    "delete_title": "Excluir comentário",
+    "delete_body": "Será excluído para todos na próxima sincronização."
   }
 }
