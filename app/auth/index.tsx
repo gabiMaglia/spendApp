@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
@@ -10,6 +10,7 @@ import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuthStore } from '@/src/store/authStore';
+import { mergeProviderUser } from '@/src/utils/mergeProviderUser';
 import { Button } from '@/src/components/Button';
 import { BalancePill } from '@/src/components/BalancePill';
 import { Avatar } from '@/src/components/Avatar';
@@ -26,7 +27,7 @@ export default function AuthScreen() {
   const { t } = useTranslation();
   const scheme = useColorScheme() ?? 'light';
   const c = Colors[scheme];
-  const { setUser } = useAuthStore();
+  const { setUser, getStoredProfile, resolveAccount, confirmAccountLink } = useAuthStore();
 
   const [appleAvailable, setAppleAvailable] = useState(false);
 
@@ -48,6 +49,41 @@ export default function AuthScreen() {
     });
   }, []);
 
+
+  // Resuelve a qué cuenta entra este login. Si el proveedor no mandó email
+  // (Apple sólo lo manda la 1ª vez) y ya hay otras cuentas en el device, no se
+  // adivina: se le pregunta al usuario (decisión del PO). Devuelve el id de
+  // cuenta, o null si el usuario todavía tiene que decidir.
+  function accountIdFor(
+    providerId: string,
+    email: string | null | undefined,
+    onResolved: (accountId: string) => void,
+  ) {
+    const r = resolveAccount(providerId, email);
+
+    if (r.kind !== 'confirm') { onResolved(r.accountId); return; }
+
+    const candidate = r.candidates[0];
+    Alert.alert(
+      t('auth.link_title'),
+      t('auth.link_body', { account: candidate.label }),
+      [
+        {
+          text: t('auth.link_separate'),
+          style: 'cancel',
+          onPress: () => onResolved(providerId), // cuenta propia
+        },
+        {
+          text: t('auth.link_confirm'),
+          onPress: () => {
+            confirmAccountLink(providerId, candidate.accountId);
+            onResolved(candidate.accountId);
+          },
+        },
+      ],
+    );
+  }
+
   async function handleGoogleLogin() {
     try {
       await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
@@ -59,20 +95,20 @@ export default function AuthScreen() {
       const u = response?.data?.user ?? response?.user;
       if (!u) return; // cancelado
 
-      setUser({
-        id:           u.id,
-        name:         u.name ?? u.givenName ?? 'Usuario',
-        email:        u.email,
-        avatarUrl:    u.photo ?? undefined,
-        authProvider: 'google',
-        updatedAt:    Date.now(),
-        isDeleted:    false,
-        createdAt:    Date.now(),
+      // Mismo mail ⇒ misma cuenta, entre con Google o con Apple.
+      accountIdFor(u.id, u.email, (accountId) => {
+        setUser(mergeProviderUser(getStoredProfile(accountId), {
+          id:           accountId,
+          authProvider: 'google',
+          name:         u.name ?? u.givenName,
+          email:        u.email,
+          avatarUrl:    u.photo,
+        }));
       });
     } catch (e) {
       const code = (e as { code?: string })?.code;
       if (code === statusCodes.SIGN_IN_CANCELLED || code === statusCodes.IN_PROGRESS) return;
-      alert('No se pudo iniciar sesión con Google. Reintentá.');
+      alert(t('auth.error_google'));
     }
   }
 
@@ -85,25 +121,26 @@ export default function AuthScreen() {
         ],
       });
 
-      // Apple solo envía name y email en el PRIMER login; después son null.
-      // Se guardan en el store (persistido en MMKV) para que no se pierdan.
+      // Apple manda fullName y email SOLO en el primer login de cada Apple ID;
+      // después llegan null. Por eso NO se arma el User acá: mergeProviderUser
+      // combina lo que llegue con el perfil ya persistido (que sobrevive al
+      // signOut) y deja ganar al dato local. Ver src/utils/mergeProviderUser.ts.
       const name = [
         credential.fullName?.givenName,
         credential.fullName?.familyName,
-      ].filter(Boolean).join(' ') || 'Usuario';
+      ].filter(Boolean).join(' ');
 
-      setUser({
-        id:           credential.user,
-        name,
-        email:        credential.email ?? '',
-        authProvider: 'apple',
-        updatedAt:    Date.now(),
-        isDeleted:    false,
-        createdAt:    Date.now(),
+      accountIdFor(credential.user, credential.email, (accountId) => {
+        setUser(mergeProviderUser(getStoredProfile(accountId), {
+          id:           accountId,
+          authProvider: 'apple',
+          name,
+          email:        credential.email,
+        }));
       });
     } catch (e: any) {
       if (e.code !== 'ERR_REQUEST_CANCELED') {
-        alert('No se pudo iniciar sesión con Apple. Intentá de nuevo.');
+        alert(t('auth.error_apple'));
       }
     }
   }
