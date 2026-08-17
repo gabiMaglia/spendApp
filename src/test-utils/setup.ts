@@ -45,10 +45,32 @@ jest.mock('react-native-mmkv', () => {
   };
 });
 
-// expo-crypto: bytes deterministas para tests (256-bit)
+// expo-crypto para tests.
+//
+// `getRandomBytes` NO puede ser determinista: el cifrado de sobres usa nonces
+// aleatorios, y con bytes fijos dos sobres del mismo texto darían idénticos —
+// el test que verifica lo contrario pasaría por construcción y no protegería
+// nada. `getRandomBytesAsync` se mantiene determinista porque la clave de
+// cifrado at-rest sí espera valores estables entre corridas.
+let mockSeed = 1;
 jest.mock('expo-crypto', () => ({
   getRandomBytesAsync: async (n: number) =>
     new Uint8Array(Array.from({ length: n }, (_, i) => (i * 7 + 3) % 256)),
+  getRandomBytes: (n: number) =>
+    new Uint8Array(Array.from({ length: n }, () => {
+      mockSeed = (mockSeed * 1103515245 + 12345) & 0x7fffffff;
+      return mockSeed % 256;
+    })),
+  digestStringAsync: async (_alg: string, data: string) => {
+    // Hash de juguete: sólo tiene que ser determinista y distinguir entradas.
+    let h1 = 0x811c9dc5, h2 = 0x01000193;
+    for (let i = 0; i < data.length; i++) {
+      h1 = ((h1 ^ data.charCodeAt(i)) * 16777619) >>> 0;
+      h2 = ((h2 + data.charCodeAt(i) * (i + 1)) * 2654435761) >>> 0;
+    }
+    return (h1.toString(16).padStart(8, '0') + h2.toString(16).padStart(8, '0')).repeat(4);
+  },
+  CryptoDigestAlgorithm: { SHA256: 'SHA-256' },
 }));
 
 // expo-secure-store: mock simple

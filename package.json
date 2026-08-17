@@ -29,7 +29,7 @@
       "<rootDir>/.claude/"
     ],
     "transformIgnorePatterns": [
-      "node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|sentry-expo|native-base|react-native-svg|i18next|react-i18next|react-native-mmkv|zustand|uuid|react-native-get-random-values)"
+      "node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|sentry-expo|native-base|react-native-svg|i18next|react-i18next|react-native-mmkv|zustand|uuid|react-native-get-random-values|@noble)"
     ],
     "collectCoverageFrom": [
       "src/**/*.{ts,tsx}",
@@ -41,6 +41,7 @@
   "dependencies": {
     "@config-plugins/react-native-webrtc": "^13.0.0",
     "@expo/vector-icons": "^15.0.3",
+    "@noble/ciphers": "^2.3.0",
     "@react-native-google-signin/google-signin": "^16.1.2",
     "@react-navigation/bottom-tabs": "^7.4.0",
     "@react-navigation/elements": "^2.6.3",
