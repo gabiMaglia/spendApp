@@ -8,6 +8,7 @@ import { useRecurringStore } from './recurringStore';
 import { useCommentStore } from './commentStore';
 import { useGroupKeyStore } from './groupKeyStore';
 import { purgeMergedScopes } from './accountLink';
+import { startRelay } from '@/src/sync/relayEngine';
 import { materializeRecurring } from '@/src/services/materializeRecurring';
 import { useSettingsStore } from './settingsStore';
 
@@ -32,6 +33,11 @@ export function rehydrateForActiveUser(): void {
 
   // Limpieza tardía de scopes fusionados que ya pasaron el período de gracia.
   purgeMergedScopes();
+
+  // Sync en tiempo real de la cuenta activa: se suscribe a los grupos con clave
+  // y drena lo que quedó encolado mientras la app estuvo cerrada. Va acá y no
+  // en el arranque global porque los grupos y sus claves son POR CUENTA.
+  void startRelay();
 
   // El usuario logueado debe estar en SUS propios contactos. Se hace acá (no en
   // authStore.setUser) para que corra DESPUÉS de que el scope ya cambió al nuevo
