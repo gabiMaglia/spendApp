@@ -48,6 +48,22 @@ export interface RecurrenceRule {
   endDate?: number;
 }
 
+/**
+ * Comentario en un gasto.
+ *
+ * Es una entidad PROPIA y no un array dentro de `Expense` a propósito: el merge
+ * del sync es LWW por registro, así que si dos personas comentan el mismo gasto
+ * antes de sincronizar y los comentarios vivieran dentro del gasto, ganaría uno
+ * y el otro se perdería sin aviso. Como registros separados con id propio, los
+ * dos sobreviven.
+ */
+export interface ExpenseComment extends SyncMeta {
+  expenseId: string;
+  authorId: string;
+  text: string;
+  createdAt: number;
+}
+
 export interface DeletionVote {
   userId: string;
   votedAt: number;

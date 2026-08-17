@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
+import { v4 as uuidv4 } from 'uuid';
 import { hapticLight, hapticWarning } from '@/src/utils/haptics';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,6 +18,8 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuthStore } from '@/src/store/authStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { useUserStore } from '@/src/store/userStore';
+import { useCommentStore } from '@/src/store/commentStore';
+import { CommentThread } from '@/src/components/CommentThread';
 import { CategoryIcon } from '@/src/components/CategoryIcon';
 import { Avatar } from '@/src/components/Avatar';
 import { hueForUser } from '@/src/utils/hueForUser';
@@ -32,6 +35,9 @@ export default function ExpenseDetailScreen() {
   const expense = useExpenseStore(s => s.expenses.find(e => e.id === id));
   const updateExpense = useExpenseStore(s => s.updateExpense);
   const { getUserName } = useUserStore();
+  const comments = useCommentStore(st => st.forExpense(id ?? ''));
+  const addComment = useCommentStore(st => st.addComment);
+  const removeComment = useCommentStore(st => st.removeComment);
 
   const dateStr = useMemo(() => {
     if (!expense) return '';
@@ -58,6 +64,20 @@ export default function ExpenseDetailScreen() {
   }
 
   const isCreator = expense.createdById === currentUser?.id;
+
+  function handleAddComment(text: string) {
+    if (!currentUser || !id) return;
+    const now = Date.now();
+    addComment({
+      id:        uuidv4(),
+      expenseId: id,
+      authorId:  currentUser.id,
+      text,
+      createdAt: now,
+      updatedAt: now,
+      isDeleted: false,
+    });
+  }
   const hasPendingDelete = expense.deletionVotes.some(v => v.action === 'delete');
 
   function handleRequestDelete() {
@@ -271,6 +291,17 @@ export default function ExpenseDetailScreen() {
             )}
           </View>
         )}
+
+        {/* Comentarios */}
+        <View style={{ marginTop: Spacing[6] }}>
+          <CommentThread
+            comments={comments}
+            currentUserId={currentUser?.id ?? ''}
+            authorName={getUserName}
+            onAdd={handleAddComment}
+            onDelete={removeComment}
+          />
+        </View>
 
         <View style={{ height: Spacing[9] }} />
       </ScrollView>
