@@ -170,7 +170,14 @@
     "add_to_group": "Add to group",
     "total_suffix": "{{amount}} total",
     "paid_to": "{{from}} paid {{to}}",
-    "payment_label": "Payment"
+    "payment_label": "Payment",
+    "delete_group": "Delete group",
+    "delete_title": "Delete group",
+    "delete_body": "“{{name}}” will be deleted for every member. The expenses stop being visible. This can't be undone.",
+    "leave_group": "Leave group",
+    "leave_title": "Leave group",
+    "leave_body": "You'll stop seeing this group. The expenses you added stay there for the others, so pending balances aren't lost.",
+    "leave_confirm": "Leave"
   },
   "invite": {
     "title": "Invite to group",

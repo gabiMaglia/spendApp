@@ -170,7 +170,14 @@
     "add_to_group": "Agregar al grupo",
     "total_suffix": "{{amount}} total",
     "paid_to": "{{from}} pagó a {{to}}",
-    "payment_label": "Pago"
+    "payment_label": "Pago",
+    "delete_group": "Eliminar grupo",
+    "delete_title": "Eliminar grupo",
+    "delete_body": "Se elimina «{{name}}» para todos los miembros. Los gastos dejan de verse. No se puede deshacer.",
+    "leave_group": "Salir del grupo",
+    "leave_title": "Salir del grupo",
+    "leave_body": "Dejás de ver este grupo. Los gastos que cargaste siguen ahí para los demás, así que las cuentas pendientes no se pierden.",
+    "leave_confirm": "Salir"
   },
   "invite": {
     "title": "Invitar al grupo",
