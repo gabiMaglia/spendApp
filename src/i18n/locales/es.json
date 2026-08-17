@@ -534,7 +534,10 @@
     "added_title": "¡Contacto agregado!",
     "added_body": "{{name}} fue agregado a tus contactos.",
     "share_message": "Agregame en SplitP2P para dividir gastos juntos 👇\n{{link}}",
-    "share_title": "Agregar contacto en SplitP2P"
+    "share_title": "Agregar contacto en SplitP2P",
+    "added_half_body": "Agregaste a {{name}} en este teléfono. Para que {{name}} también te tenga a vos, todavía falta que escanee tu código.",
+    "show_my_code": "Mostrar mi código",
+    "later": "Más tarde"
   },
   "friends": {
     "add_by_qr": "Agregar por QR",

@@ -80,10 +80,20 @@ export default function AddContactScreen() {
       updatedAt:    Date.now(),
       isDeleted:    false,
     });
+    // El QR es de UNA dirección: quien escanea guarda al otro, pero el que
+    // mostró el código no se entera de nada. Antes la app decía "listo" y el
+    // usuario quedaba creyendo que estaban conectados los dos. Ahora se dice la
+    // verdad y se ofrece completar el otro sentido mostrando el propio código.
     Alert.alert(
       t('contact.added_title'),
-      t('contact.added_body', { name: contact.name }),
-      [{ text: t('common.done'), onPress: () => router.back() }],
+      t('contact.added_half_body', { name: contact.name }),
+      [
+        { text: t('contact.later'), style: 'cancel', onPress: () => router.back() },
+        {
+          text: t('contact.show_my_code'),
+          onPress: () => { setMode('my_qr'); setScanned(false); },
+        },
+      ],
     );
   }, [scanned, currentUser]);
 
