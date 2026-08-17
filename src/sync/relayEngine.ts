@@ -8,6 +8,7 @@ import { publishToGroup, drainGroup } from './relaySync';
 import { fromHex } from './envelopeCrypto';
 import { deriveInviteTopic, type GroupInvite } from './groupInvite';
 import { activeInvites, processInvite, processAllInvites } from './inviteEngine';
+import { ensureContactSecret, deriveContactTopic, drainContacts } from './contactChannel';
 
 /**
  * Motor del sync en tiempo real: publica lo que cambia y aplica lo que llega.
@@ -157,6 +158,8 @@ export async function startRelay(): Promise<void> {
   }
 
   await subscribeInvites();
+  await subscribeContacts();
+  await drainContactsNow();
   await drainAll(); // al arrancar, lo encolado mientras estuvimos afuera
 
   // Un grupo recién adoptado no estaba en la cola de arriba cuando se drenó,
@@ -176,6 +179,35 @@ async function subscribeInvites(): Promise<void> {
       const topic = await deriveInviteTopic(invite.token);
       unsubs.push(subscribeTopic(topic, () => { void onInviteNews(invite); }));
     } catch { /* una invitación rota no debe impedir las demás */ }
+  }
+}
+
+/**
+ * Escucha mi propio buzón de contactos: quien escanee mi QR deja su tarjeta
+ * ahí, y así el contacto queda en los dos teléfonos sin escanear dos veces.
+ */
+async function subscribeContacts(): Promise<void> {
+  const secret = ensureContactSecret();
+  if (!secret) return;
+
+  try {
+    const topic = await deriveContactTopic(secret);
+    unsubs.push(subscribeTopic(topic, () => { void drainContactsNow(); }));
+  } catch { /* sin buzón de contactos la app sigue andando */ }
+}
+
+/** Recoge las tarjetas nuevas. El cursor se persiste DESPUÉS de aplicarlas. */
+export async function drainContactsNow(): Promise<number> {
+  const secret = ensureContactSecret();
+  if (!secret) return 0;
+
+  try {
+    const topic = await deriveContactTopic(secret);
+    const r = await drainContacts(secret, deviceId(), readCursor(topic));
+    writeCursor(topic, r.cursor);
+    return r.added;
+  } catch {
+    return 0; // offline: se reintenta al próximo arranque o aviso
   }
 }
 

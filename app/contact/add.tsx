@@ -15,7 +15,11 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuthStore } from '@/src/store/authStore';
 import { useUserStore } from '@/src/store/userStore';
 import { hapticLight, hapticSuccess, hapticWarning } from '@/src/utils/haptics';
-import { buildContactPayload, parseContactPayload, buildContactDeepLink } from '@/src/utils/contactLink';
+import {
+  buildContactPayload, parseContactPayload, buildContactDeepLink, type ContactPayload,
+} from '@/src/utils/contactLink';
+import { ensureContactSecret, announceContact, savePeerSecret } from '@/src/sync/contactChannel';
+import { deviceId } from '@/src/sync/relayEngine';
 import { useTranslation } from 'react-i18next';
 
 type Mode = 'my_qr' | 'scan';
@@ -37,8 +41,11 @@ export default function AddContactScreen() {
     }
   }, [mode]);
 
-  const myQRData  = currentUser ? buildContactPayload(currentUser) : '';
-  const deepLink  = currentUser ? buildContactDeepLink(currentUser) : '';
+  // El secreto viaja en el código: es lo que permite que quien me escanee me
+  // devuelva su tarjeta y el contacto quede en los dos teléfonos.
+  const miSecreto = currentUser ? ensureContactSecret() : null;
+  const myQRData  = currentUser ? buildContactPayload(currentUser, miSecreto) : '';
+  const deepLink  = currentUser ? buildContactDeepLink(currentUser, miSecreto) : '';
 
   const handleBarCodeScanned = useCallback(({ data }: { data: string }) => {
     if (scanned) return;
@@ -80,10 +87,27 @@ export default function AddContactScreen() {
       updatedAt:    Date.now(),
       isDeleted:    false,
     });
-    // El QR es de UNA dirección: quien escanea guarda al otro, pero el que
-    // mostró el código no se entera de nada. Antes la app decía "listo" y el
-    // usuario quedaba creyendo que estaban conectados los dos. Ahora se dice la
-    // verdad y se ofrece completar el otro sentido mostrando el propio código.
+
+    // Le dejo mi tarjeta en su buzón: con esto el contacto queda en LOS DOS
+    // teléfonos con un solo escaneo. Va sin await — que el alta local no dependa
+    // de la red — y si falla, lo peor que pasa es lo que pasaba antes.
+    const mutuo = Boolean(contact.secret);
+    if (contact.secret) {
+      savePeerSecret(contact.id, contact.secret);
+      void announceContact(contact.secret, deviceId());
+    }
+    // Con secreto en el código el alta es MUTUA: un escaneo y listo. Sin él
+    // (códigos viejos) sigue siendo de una sola dirección, y ahí la app dice la
+    // verdad en vez de dejar al usuario creyendo que están conectados los dos.
+    if (mutuo) {
+      Alert.alert(
+        t('contact.added_title'),
+        t('contact.added_both_body', { name: contact.name }),
+        [{ text: 'OK', onPress: () => router.back() }],
+      );
+      return;
+    }
+
     Alert.alert(
       t('contact.added_title'),
       t('contact.added_half_body', { name: contact.name }),
@@ -234,13 +258,17 @@ export default function AddContactScreen() {
   );
 }
 
-function parseDeepLinkContact(raw: string): { id: string; name: string; email?: string } | null {
+function parseDeepLinkContact(raw: string): ContactPayload | null {
   try {
     const url = new URL(raw);
     const id   = url.searchParams.get('id');
     const name = url.searchParams.get('name');
     if (!id || !name) return null;
-    return { id, name, email: url.searchParams.get('email') ?? '' };
+    return {
+      id, name,
+      email: url.searchParams.get('email') ?? '',
+      secret: url.searchParams.get('s') ?? undefined,
+    };
   } catch {
     return null;
   }

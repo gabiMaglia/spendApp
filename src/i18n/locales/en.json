@@ -546,7 +546,8 @@
     "share_title": "Add contact on SplitP2P",
     "added_half_body": "You added {{name}} on this phone. For {{name}} to have you too, they still need to scan your code.",
     "show_my_code": "Show my code",
-    "later": "Later"
+    "later": "Later",
+    "added_both_body": "You and {{name}} are now added on both phones. They don't need to scan anything."
   },
   "friends": {
     "add_by_qr": "Add by QR",

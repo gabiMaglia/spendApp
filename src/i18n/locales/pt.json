@@ -546,7 +546,8 @@
     "share_title": "Adicionar contato no SplitP2P",
     "added_half_body": "Você adicionou {{name}} neste telefone. Para que {{name}} também tenha você, ainda falta escanear o seu código.",
     "show_my_code": "Mostrar meu código",
-    "later": "Mais tarde"
+    "later": "Mais tarde",
+    "added_both_body": "Você e {{name}} ficaram adicionados nos dois celulares. Ela não precisa escanear nada."
   },
   "friends": {
     "add_by_qr": "Adicionar por QR",

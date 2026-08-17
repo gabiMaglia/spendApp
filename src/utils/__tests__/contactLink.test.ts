@@ -88,3 +88,34 @@ describe('vínculo de contacto en AMBOS sentidos (T-031)', () => {
     expect(leido?.id).toBe(ana.id); // la pantalla usa esto para no auto-agregarse
   });
 });
+
+describe('secreto de contacto en el código', () => {
+  const yo = {
+    id: 'u-ana', name: 'Ana', email: 'ana@test.com', authProvider: 'google' as const,
+    createdAt: 0, updatedAt: 0, isDeleted: false,
+  };
+  const SECRETO = 'ab'.repeat(32);
+
+  // Sin el secreto adentro, el QR vuelve a ser de UNA dirección: el que lo
+  // muestra nunca se entera de quién lo escaneó. Es todo el punto de la feature.
+  it('EL QR LLEVA EL SECRETO Y SE RECUPERA AL LEERLO', () => {
+    const leido = parseContactPayload(buildContactPayload(yo, SECRETO));
+    expect(leido?.secret).toBe(SECRETO);
+  });
+
+  it('el link de contacto también lo lleva', () => {
+    expect(buildContactDeepLink(yo, SECRETO)).toContain(`s=${SECRETO}`);
+  });
+
+  it('sin secreto el código sigue siendo válido, pero de una sola dirección', () => {
+    const leido = parseContactPayload(buildContactPayload(yo));
+    expect(leido?.id).toBe('u-ana');
+    expect(leido?.secret).toBeUndefined();
+  });
+
+  // Códigos generados por una versión anterior tienen que seguir andando.
+  it('un código viejo sin secreto se lee igual', () => {
+    const viejo = 'spendp2p:contact:' + JSON.stringify({ id: 'u-x', name: 'Equis', email: '' });
+    expect(parseContactPayload(viejo)).toMatchObject({ id: 'u-x', name: 'Equis' });
+  });
+});
