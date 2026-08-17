@@ -15,7 +15,14 @@ interface GroupStoreState {
   updateGroup: (id: string, patch: Partial<Group>) => void;
   /** Borra el grupo para TODOS (tombstone). Sólo debería ofrecerlo el creador. */
   deleteGroup: (id: string) => void;
-  /** Me saco del grupo sin borrarlo: el resto lo sigue viendo. */
+  /**
+   * Me saco del grupo sin borrarlo.
+   *
+   * OJO: NO valida saldos. Salir con cuentas abiertas exige absorción y
+   * aprobación (ver `canLeaveGroup` y `src/algorithms/absorbBalance.ts`); la UI
+   * debe resolver eso ANTES de llamar acá. Se deja sin validar a propósito para
+   * que la salida siga funcionando cuando el plan ya se aplicó como pagos.
+   */
   leaveGroup: (id: string, userId: string) => void;
   mergeGroups: (incoming: Group[]) => void;
   hydrate: () => void;
