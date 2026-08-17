@@ -16,6 +16,8 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useUserStore } from '@/src/store/userStore';
+import { useGroupKeyStore } from '@/src/store/groupKeyStore';
+import { announceGroupToContacts } from '@/src/sync/relayEngine';
 import { hueForUser } from '@/src/utils/hueForUser';
 import { Avatar } from '@/src/components/Avatar';
 import { useTranslation } from 'react-i18next';
@@ -29,6 +31,7 @@ export default function NewGroupScreen() {
 
   const { currentUser } = useAuthStore();
   const { addGroup } = useGroupStore();
+  const ensureKey = useGroupKeyStore(st => st.ensureKey);
   const { users } = useUserStore();
 
   const [name, setName] = useState('');
@@ -60,8 +63,9 @@ export default function NewGroupScreen() {
       ? selectedIds
       : [currentUser.id, ...selectedIds];
 
+    const id = uuidv4();
     addGroup({
-      id:            uuidv4(),
+      id,
       name:          name.trim(),
       memberIds,
       currency,
@@ -71,6 +75,11 @@ export default function NewGroupScreen() {
       updatedAt:     Date.now(),
       isDeleted:     false,
     });
+
+    // La clave del grupo y su reparto a los contactos que ya escaneaste. Es lo
+    // que hace que el grupo le aparezca al otro sin que tenga que hacer nada.
+    ensureKey(id);
+    void announceGroupToContacts(id);
 
     router.back();
   }

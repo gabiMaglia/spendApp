@@ -99,12 +99,12 @@ describe('secreto de contacto en el código', () => {
   // Sin el secreto adentro, el QR vuelve a ser de UNA dirección: el que lo
   // muestra nunca se entera de quién lo escaneó. Es todo el punto de la feature.
   it('EL QR LLEVA EL SECRETO Y SE RECUPERA AL LEERLO', () => {
-    const leido = parseContactPayload(buildContactPayload(yo, SECRETO));
+    const leido = parseContactPayload(buildContactPayload(yo, { secret: SECRETO }));
     expect(leido?.secret).toBe(SECRETO);
   });
 
   it('el link de contacto también lo lleva', () => {
-    expect(buildContactDeepLink(yo, SECRETO)).toContain(`s=${SECRETO}`);
+    expect(buildContactDeepLink(yo, { secret: SECRETO })).toContain(`s=${SECRETO}`);
   });
 
   it('sin secreto el código sigue siendo válido, pero de una sola dirección', () => {
@@ -117,5 +117,38 @@ describe('secreto de contacto en el código', () => {
   it('un código viejo sin secreto se lee igual', () => {
     const viejo = 'spendp2p:contact:' + JSON.stringify({ id: 'u-x', name: 'Equis', email: '' });
     expect(parseContactPayload(viejo)).toMatchObject({ id: 'u-x', name: 'Equis' });
+  });
+});
+
+describe('claves públicas en el código', () => {
+  const yo = {
+    id: 'u-ana', name: 'Ana', email: 'ana@test.com', authProvider: 'google' as const,
+    createdAt: 0, updatedAt: 0, isDeleted: false,
+  };
+  const CLAVES = {
+    secret: 'ab'.repeat(32),
+    wrapPublicKey: 'cd'.repeat(32),
+    identityPublicKey: 'ef'.repeat(32),
+  };
+
+  // Sin la pública de envoltura no se le puede mandar nada dirigido SOLO a esta
+  // persona: la clave de su buzón la conoce todo el que haya escaneado el mismo
+  // código, así que dejar ahí una clave de grupo se la daría a todos ellos.
+  it('EL QR LLEVA LA PÚBLICA DE ENVOLTURA', () => {
+    expect(parseContactPayload(buildContactPayload(yo, CLAVES))?.wrapPublicKey)
+      .toBe(CLAVES.wrapPublicKey);
+  });
+
+  // Sin la de firma no se puede verificar que lo que llega sea realmente suyo.
+  it('EL QR LLEVA LA PÚBLICA DE FIRMA', () => {
+    expect(parseContactPayload(buildContactPayload(yo, CLAVES))?.identityPublicKey)
+      .toBe(CLAVES.identityPublicKey);
+  });
+
+  it('el link de contacto lleva las tres', () => {
+    const link = buildContactDeepLink(yo, CLAVES);
+    expect(link).toContain(`s=${CLAVES.secret}`);
+    expect(link).toContain(`w=${CLAVES.wrapPublicKey}`);
+    expect(link).toContain(`k=${CLAVES.identityPublicKey}`);
   });
 });

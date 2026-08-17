@@ -23,7 +23,7 @@ import { hueForUser } from '@/src/utils/hueForUser';
 import { Avatar } from '@/src/components/Avatar';
 import { createInvite, inviteToLink } from '@/src/sync/groupInvite';
 import { ensureIdentity, saveInvite } from '@/src/store/identityStore';
-import { startRelay } from '@/src/sync/relayEngine';
+import { startRelay, announceGroupToContacts } from '@/src/sync/relayEngine';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { BalancePill } from '@/src/components/BalancePill';
 import type { Expense, Payment } from '@/src/types/models';
@@ -116,6 +116,8 @@ export default function GroupDetailScreen() {
 
     addOrUpdateUser(newUser);
     updateGroup(group.id, { memberIds: [...group.memberIds, newUser.id] });
+    ensureKey(group.id);
+    void announceGroupToContacts(group.id);
     hapticSuccess();
     setInviteName('');
     setInviteVisible(false);
