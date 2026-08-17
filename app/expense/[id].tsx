@@ -38,6 +38,7 @@ export default function ExpenseDetailScreen() {
   const comments = useCommentStore(st => st.forExpense(id ?? ''));
   const addComment = useCommentStore(st => st.addComment);
   const removeComment = useCommentStore(st => st.removeComment);
+  const removeCommentsForExpense = useCommentStore(st => st.removeForExpense);
 
   const dateStr = useMemo(() => {
     if (!expense) return '';
@@ -93,8 +94,11 @@ export default function ExpenseDetailScreen() {
           style: 'destructive',
           onPress: () => {
             if (isCreator) {
-              // El creador borra directamente (tombstone)
+              // El creador borra directamente (tombstone). Los comentarios se
+              // tombstonean en cascada: si no, quedan huérfanos apuntando a un
+              // gasto inexistente y viajando en cada sync.
               updateExpense(expense.id, { isDeleted: true });
+              removeCommentsForExpense(expense.id);
               router.back();
             } else {
               // Otros miembros votan por el borrado

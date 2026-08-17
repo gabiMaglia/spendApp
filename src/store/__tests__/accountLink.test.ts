@@ -1,6 +1,7 @@
 import { mergeAccounts } from '../accountLink';
 import { profileKey } from '../authKeys';
 import { createSecureStorage } from '@/src/utils/secureStorage';
+import { createStorage } from '@/src/utils/createStorage';
 import type { User } from '@/src/types/models';
 
 const APPLE = 'apple:000123.abc';
@@ -169,5 +170,39 @@ describe('mergeAccounts', () => {
 
     expect(readIds('groups', APPLE)).toEqual(['gA']);
     expect(readProfile(APPLE)?.name).toBe('Gabi');
+  });
+});
+
+describe('preferencias de la cuenta (T-027)', () => {
+  const settings = () => createStorage('settings');
+
+  beforeEach(() => settings().clearAll());
+
+  it('las preferencias de la cuenta absorbida sobreviven al enlace', () => {
+    settings().set(`notif_expenses::u:${APPLE}`, false);
+
+    mergeAccounts(APPLE, GOOGLE);
+
+    expect(settings().getBoolean(`notif_expenses::u:${GOOGLE}`)).toBe(false);
+  });
+
+  it('una preferencia ya elegida en el destino NO se pisa', () => {
+    settings().set(`notif_expenses::u:${APPLE}`, false);
+    settings().set(`notif_expenses::u:${GOOGLE}`, true);
+
+    mergeAccounts(APPLE, GOOGLE);
+
+    expect(settings().getBoolean(`notif_expenses::u:${GOOGLE}`)).toBe(true);
+  });
+
+  it('cubre los tres toggles, no sólo uno', () => {
+    ['notif_expenses', 'notif_deletions', 'notif_invites']
+      .forEach(k => settings().set(`${k}::u:${APPLE}`, false));
+
+    mergeAccounts(APPLE, GOOGLE);
+
+    const faltantes = ['notif_expenses', 'notif_deletions', 'notif_invites']
+      .filter(k => settings().getBoolean(`${k}::u:${GOOGLE}`) === undefined);
+    expect(faltantes).toEqual([]);
   });
 });

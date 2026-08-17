@@ -12,6 +12,8 @@ interface CommentStoreState {
   /** Comentarios vivos de un gasto, del más viejo al más nuevo. */
   forExpense: (expenseId: string) => ExpenseComment[];
   addComment: (comment: ExpenseComment) => void;
+  /** Tombstonea todos los comentarios de un gasto (cascada al borrarlo). */
+  removeForExpense: (expenseId: string) => void;
   removeComment: (id: string) => void;
   mergeComments: (incoming: ExpenseComment[]) => void;
   hydrate: () => void;
@@ -38,6 +40,21 @@ export const useCommentStore = create<CommentStoreState>((set, get) => ({
   },
 
   // Tombstone, nunca DELETE físico (regla de negocio #1).
+  // Cascada: al borrar un gasto sus comentarios se tombstonean también. Sin
+  // esto quedaban huérfanos para siempre, apuntando a un gasto que ya no existe,
+  // y viajando en cada delta de sync. Se tombstonea (no se borra físico) para
+  // que el borrado se propague a los otros devices, igual que el del gasto.
+  removeForExpense: (expenseId) => {
+    const now = Date.now();
+    const comments = get().comments.map(c =>
+      c.expenseId === expenseId && !c.isDeleted
+        ? { ...c, isDeleted: true, updatedAt: now }
+        : c,
+    );
+    persist(comments);
+    set({ comments });
+  },
+
   removeComment: (id) => {
     const comments = get().comments.map(c =>
       c.id === id ? { ...c, isDeleted: true, updatedAt: Date.now() } : c,

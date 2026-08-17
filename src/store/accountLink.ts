@@ -1,4 +1,5 @@
 import { createSecureStorage } from '@/src/utils/secureStorage';
+import { createStorage } from '@/src/utils/createStorage';
 import { mergeAccountData, type MergeReport } from './mergeAccountData';
 import { profileKey } from './authKeys';
 import { mergeProviderUser } from '@/src/utils/mergeProviderUser';
@@ -38,7 +39,30 @@ export function mergeAccounts(fromAccountId: string, toAccountId: string): Merge
   const report = mergeAccountData(stores, fromAccountId, toAccountId);
   mergePersonal(fromAccountId, toAccountId, report);
   mergeProfiles(fromAccountId, toAccountId);
+  mergeSettings(fromAccountId, toAccountId);
   return report;
+}
+
+/** Preferencias por cuenta (toggles de notificación). */
+const SETTINGS_KEYS = ['notif_expenses', 'notif_deletions', 'notif_invites'] as const;
+
+/**
+ * Las preferencias son booleanos sueltos, no una lista, así que tampoco pasan
+ * por `mergeAccountData`. Sin esto los toggles volvían al default al enlazar.
+ * Gana el destino: sólo se adopta la preferencia del origen si el destino nunca
+ * la configuró (no se pisa una elección explícita del usuario).
+ */
+function mergeSettings(fromAccountId: string, toAccountId: string): void {
+  if (fromAccountId === toAccountId) return;
+  const storage = createStorage('settings');
+
+  for (const key of SETTINGS_KEYS) {
+    const target = storage.getBoolean(`${key}::u:${toAccountId}`);
+    if (target !== undefined) continue;
+
+    const source = storage.getBoolean(`${key}::u:${fromAccountId}`);
+    if (source !== undefined) storage.set(`${key}::u:${toAccountId}`, source);
+  }
 }
 
 /**
