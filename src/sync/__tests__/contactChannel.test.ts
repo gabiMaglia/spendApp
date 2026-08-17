@@ -1,11 +1,14 @@
 import {
   ensureContactSecret, myContactCard, announceContact, drainContacts,
-  deriveContactTopic, savePeerSecret, peerSecret, listPeerSecrets,
+  deriveContactTopic, savePeer, peerSecret, listPeers, sendGroupKey,
 } from '../contactChannel';
+import { useGroupKeyStore } from '@/src/store/groupKeyStore';
+import { ensureIdentity, ensureWrapKeypair } from '@/src/store/identityStore';
 import { useAuthStore } from '@/src/store/authStore';
 import { useUserStore } from '@/src/store/userStore';
 import { createSecureStorage } from '@/src/utils/secureStorage';
-import { openEnvelope, fromHex } from '../envelopeCrypto';
+import { openEnvelope, sealEnvelope, fromHex } from '../envelopeCrypto';
+import * as Crypto from 'expo-crypto';
 import type { User } from '@/src/types/models';
 
 /**
@@ -60,15 +63,54 @@ function usuario(id: string, name: string): User {
   };
 }
 
-/** Cambia de cuenta activa: cada una tiene su secreto y sus contactos. */
+// --- alternancia de dispositivos ---------------------------------------------
+// El secreto y los contactos están scopeados por cuenta, pero la identidad del
+// dispositivo y las claves de grupo NO — son del aparato. Si no se guardaran y
+// restauraran acá, los dos "teléfonos" compartirían identidad y el test no
+// podría distinguir a Ana de Carla, que es justo lo que hay que verificar.
+
+const CLAVES_DISPOSITIVO = ['identity_v1', 'wrapkeys_v1'];
+
+type Dispositivo = {
+  storage: Record<string, string | undefined>;
+  keys: { groupId: string; key: string; epoch: number }[];
+};
+
+const dispositivos = new Map<string, Dispositivo>();
+let actual: string | null = null;
+
+/** Cambia de dispositivo/cuenta. El primero de cada uno arranca en blanco. */
 function usar(me: User): void {
+  const store = createSecureStorage('groupkeys');
+
+  if (actual) {
+    dispositivos.set(actual, {
+      storage: Object.fromEntries(CLAVES_DISPOSITIVO.map(k => [k, store.getString(k)])),
+      keys: useGroupKeyStore.getState().keys,
+    });
+  }
+
+  for (const k of CLAVES_DISPOSITIVO) store.delete(k);
+  const guardado = dispositivos.get(me.id);
+  if (guardado) {
+    for (const [k, v] of Object.entries(guardado.storage)) if (v !== undefined) store.set(k, v);
+    useGroupKeyStore.setState({ keys: guardado.keys });
+  } else {
+    useGroupKeyStore.setState({ keys: [] });
+  }
+
   useAuthStore.setState({ currentUser: me });
   useUserStore.setState({ users: [me] });
+  actual = me.id;
 }
 
 beforeEach(() => {
   relayMock.__reset();
   createSecureStorage('users').clearAll();
+  createSecureStorage('groupkeys').clearAll();
+  useGroupKeyStore.setState({ keys: [] });
+  dispositivos.clear();
+  actual = null;
   useUserStore.setState({ users: [] });
   useAuthStore.setState({ currentUser: null });
 });
@@ -218,25 +260,242 @@ describe('tarjeta propia', () => {
 describe('secretos de contactos guardados', () => {
   it('se guardan por usuario y sobreviven', () => {
     usar(ANA);
-    savePeerSecret('u-beto', 'sec-beto');
-    savePeerSecret('u-carla', 'sec-carla');
+    savePeer('u-beto', { secret: 'sec-beto' });
+    savePeer('u-carla', { secret: 'sec-carla' });
 
     expect(peerSecret('u-beto')).toBe('sec-beto');
-    expect(Object.keys(listPeerSecrets())).toHaveLength(2);
+    expect(Object.keys(listPeers())).toHaveLength(2);
   });
 
   it('un secreto vacío no se guarda', () => {
     usar(ANA);
-    savePeerSecret('u-beto', '');
+    savePeer('u-beto', { secret: '' });
 
     expect(peerSecret('u-beto')).toBeUndefined();
   });
 
   it('no se mezclan entre cuentas', () => {
     usar(ANA);
-    savePeerSecret('u-beto', 'sec-beto');
+    savePeer('u-beto', { secret: 'sec-beto' });
 
     usar(BETO);
     expect(peerSecret('u-beto')).toBeUndefined();
+  });
+});
+
+describe('crear un grupo con un contacto: le llega solo', () => {
+  /** Ana y Beto ya se escanearon: cada uno tiene el buzón y las claves del otro. */
+  async function yaSonContactos(): Promise<{ deAna: string; deBeto: string }> {
+    usar(ANA);
+    const deAna = ensureContactSecret()!;
+    const tarjetaDeAna = myContactCard()!;
+
+    usar(BETO);
+    const deBeto = ensureContactSecret()!;
+    // Beto escaneó el código de Ana: guarda sus claves y le deja la suya.
+    savePeer(ANA.id, {
+      secret: deAna,
+      wrapPublicKey: tarjetaDeAna.wrapPublicKey,
+      identityPublicKey: tarjetaDeAna.identityPublicKey,
+    });
+    await announceContact(deAna, 'dev-beto');
+
+    usar(ANA);
+    await drainContacts(deAna, 'dev-ana', 0);   // Ana recoge la tarjeta de Beto
+
+    return { deAna, deBeto };
+  }
+
+  it('Beto termina con la clave del grupo sin hacer nada', async () => {
+    const { deBeto } = await yaSonContactos();
+
+    usar(ANA);
+    const clave = useGroupKeyStore.getState().ensureKey('g1').key;
+    expect(await sendGroupKey(BETO.id, { id: 'g1', name: 'Viaje' }, 'dev-ana')).toBe(true);
+
+    usar(BETO);
+    const r = await drainContacts(deBeto, 'dev-beto', 0);
+
+    expect(r.joinedGroups).toEqual(['g1']);
+    expect(useGroupKeyStore.getState().getKey('g1')?.key).toBe(clave);
+  });
+
+  it('la clave del grupo NO viaja en claro por el relay', async () => {
+    const { deBeto } = await yaSonContactos();
+
+    usar(ANA);
+    const clave = useGroupKeyStore.getState().ensureKey('g1').key;
+    await sendGroupKey(BETO.id, { id: 'g1', name: 'Viaje' }, 'dev-ana');
+
+    const topic = await deriveContactTopic(deBeto);
+    const sobre = relayMock.__buzones.get(topic)!.at(-1)!;
+
+    expect(sobre.payload).not.toContain(clave);
+  });
+
+  it('a alguien que no es contacto no se le manda nada', async () => {
+    usar(ANA);
+    useGroupKeyStore.getState().ensureKey('g1');
+
+    expect(await sendGroupKey('u-desconocido', { id: 'g1', name: 'Viaje' }, 'dev-ana')).toBe(false);
+  });
+
+  it('sin la clave del grupo no hay nada que entregar', async () => {
+    await yaSonContactos();
+    usar(ANA);
+    useGroupKeyStore.setState({ keys: [] });
+
+    expect(await sendGroupKey(BETO.id, { id: 'g1', name: 'Viaje' }, 'dev-ana')).toBe(false);
+  });
+
+  // La clave del buzón la conoce TODO el que haya escaneado ese código alguna
+  // vez. Sin firma verificada contra la identidad que guardamos de esa persona,
+  // cualquiera de ellos podría meter una clave inventada.
+  it('una clave firmada por otro se rechaza', async () => {
+    const { deBeto } = await yaSonContactos();
+
+    // Carla también escaneó a Beto, así que conoce su buzón. Intenta pasarle
+    // una clave haciéndose pasar por Ana.
+    usar(usuario('u-carla', 'Carla'));
+    savePeer(BETO.id, {
+      secret: deBeto,
+      wrapPublicKey: ensureWrapKeypair().publicKey,
+      identityPublicKey: ensureIdentity().publicKey,
+    });
+    useGroupKeyStore.setState({ keys: [{ groupId: 'g1', key: 'ff'.repeat(32), epoch: 1 }] });
+    await sendGroupKey(BETO.id, { id: 'g1', name: 'Trucho' }, 'dev-carla');
+
+    usar(BETO);
+    const r = await drainContacts(deBeto, 'dev-beto', 0);
+
+    expect(r.joinedGroups).toEqual([]);
+    expect(useGroupKeyStore.getState().getKey('g1')).toBeUndefined();
+  });
+
+  it('una clave que no es para mí se ignora', async () => {
+    const { deBeto } = await yaSonContactos();
+
+    usar(ANA);
+    useGroupKeyStore.getState().ensureKey('g1');
+    await sendGroupKey(BETO.id, { id: 'g1', name: 'Viaje' }, 'dev-ana');
+
+    // Carla lee el buzón de Beto (lo conoce), pero la entrega no es para ella.
+    usar(usuario('u-carla', 'Carla'));
+    expect((await drainContacts(deBeto, 'dev-carla', 0)).joinedGroups).toEqual([]);
+  });
+
+  it('no se pisa una clave que ya teníamos', async () => {
+    const { deBeto } = await yaSonContactos();
+
+    usar(ANA);
+    useGroupKeyStore.getState().ensureKey('g1');
+    await sendGroupKey(BETO.id, { id: 'g1', name: 'Viaje' }, 'dev-ana');
+
+    usar(BETO);
+    const propia = useGroupKeyStore.getState().ensureKey('g1').key;
+    const r = await drainContacts(deBeto, 'dev-beto', 0);
+
+    expect(r.joinedGroups).toEqual([]);
+    expect(useGroupKeyStore.getState().getKey('g1')?.key).toBe(propia);
+  });
+});
+
+describe('claves de grupo: lo que NO se acepta', () => {
+  /** La misma derivación del módulo, para poder alterar un sobre sellado. */
+  async function claveDelBuzon(secret: string): Promise<Uint8Array> {
+    const hex = await Crypto.digestStringAsync(
+      Crypto.CryptoDigestAlgorithm.SHA256,
+      `splitp2p/contact/v1:${secret}`,
+    );
+    return fromHex(hex.slice(0, 64));
+  }
+
+  /** Reemplaza el último sobre del buzón por una versión alterada del mensaje. */
+  async function alterar(
+    secret: string,
+    cambios: Record<string, unknown>,
+  ): Promise<void> {
+    const topic = await deriveContactTopic(secret);
+    const key = await claveDelBuzon(secret);
+    const sobres = relayMock.__buzones.get(topic)!;
+    const ultimo = sobres.at(-1)!;
+
+    const msg = JSON.parse(openEnvelope(key, ultimo.payload)!) as Record<string, unknown>;
+    ultimo.payload = sealEnvelope(key, JSON.stringify({ ...msg, ...cambios }));
+  }
+
+  async function anaYBetoSeEscanearon(): Promise<{ deAna: string; deBeto: string }> {
+    usar(ANA);
+    const deAna = ensureContactSecret()!;
+    const tarjetaDeAna = myContactCard()!;
+
+    usar(BETO);
+    const deBeto = ensureContactSecret()!;
+    savePeer(ANA.id, {
+      secret: deAna,
+      wrapPublicKey: tarjetaDeAna.wrapPublicKey,
+      identityPublicKey: tarjetaDeAna.identityPublicKey,
+    });
+    await announceContact(deAna, 'dev-beto');
+
+    usar(ANA);
+    await drainContacts(deAna, 'dev-ana', 0);
+    return { deAna, deBeto };
+  }
+
+  /**
+   * La firma cubre el groupId. Alterarlo deja la clave envuelta intacta —así que
+   * se descifra perfecto— y el ÚNICO obstáculo que queda es la firma. Sin esto
+   * el atacante redirige una clave legítima a un grupo que él controla.
+   */
+  it('cambiar el grupo de una entrega la invalida', async () => {
+    const { deBeto } = await anaYBetoSeEscanearon();
+
+    usar(ANA);
+    useGroupKeyStore.getState().ensureKey('g1');
+    await sendGroupKey(BETO.id, { id: 'g1', name: 'Viaje' }, 'dev-ana');
+
+    await alterar(deBeto, { groupId: 'g-trucho' });
+
+    usar(BETO);
+    const r = await drainContacts(deBeto, 'dev-beto', 0);
+
+    expect(r.joinedGroups).toEqual([]);
+    expect(useGroupKeyStore.getState().getKey('g-trucho')).toBeUndefined();
+  });
+
+  /**
+   * La entrega tiene que venir del MISMO dispositivo que escaneamos, no apenas
+   * de alguien que figure en la agenda. Caso real: la otra persona reinstaló la
+   * app y tiene identidad nueva — la firma es válida, pero ya no es la que
+   * verificamos en persona, así que no alcanza.
+   */
+  it('una entrega firmada con una identidad distinta a la que escaneamos se rechaza', async () => {
+    const { deAna, deBeto } = await anaYBetoSeEscanearon();
+
+    // Beto tiene a Ana en la agenda, pero con OTRA identidad (la de antes).
+    usar(BETO);
+    savePeer(ANA.id, { secret: deAna, identityPublicKey: 'ab'.repeat(32) });
+
+    usar(ANA);
+    useGroupKeyStore.getState().ensureKey('g1');
+    await sendGroupKey(BETO.id, { id: 'g1', name: 'Viaje' }, 'dev-ana');
+
+    usar(BETO);
+    const r = await drainContacts(deBeto, 'dev-beto', 0);
+
+    expect(r.joinedGroups).toEqual([]);
+    expect(useGroupKeyStore.getState().getKey('g1')).toBeUndefined();
+  });
+
+  it('a un contacto del que no conocemos su pública no se le manda nada', async () => {
+    usar(BETO);
+    const deBeto = ensureContactSecret()!;
+
+    usar(ANA);
+    savePeer(BETO.id, { secret: deBeto }); // sin wrapPublicKey
+    useGroupKeyStore.getState().ensureKey('g1');
+
+    expect(await sendGroupKey(BETO.id, { id: 'g1', name: 'Viaje' }, 'dev-ana')).toBe(false);
   });
 });

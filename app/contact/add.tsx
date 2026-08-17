@@ -18,8 +18,9 @@ import { hapticLight, hapticSuccess, hapticWarning } from '@/src/utils/haptics';
 import {
   buildContactPayload, parseContactPayload, buildContactDeepLink, type ContactPayload,
 } from '@/src/utils/contactLink';
-import { ensureContactSecret, announceContact, savePeerSecret } from '@/src/sync/contactChannel';
+import { ensureContactSecret, announceContact, savePeer } from '@/src/sync/contactChannel';
 import { deviceId } from '@/src/sync/relayEngine';
+import { ensureIdentity, ensureWrapKeypair } from '@/src/store/identityStore';
 import { useTranslation } from 'react-i18next';
 
 type Mode = 'my_qr' | 'scan';
@@ -43,9 +44,13 @@ export default function AddContactScreen() {
 
   // El secreto viaja en el código: es lo que permite que quien me escanee me
   // devuelva su tarjeta y el contacto quede en los dos teléfonos.
-  const miSecreto = currentUser ? ensureContactSecret() : null;
-  const myQRData  = currentUser ? buildContactPayload(currentUser, miSecreto) : '';
-  const deepLink  = currentUser ? buildContactDeepLink(currentUser, miSecreto) : '';
+  const misClaves = currentUser ? {
+    secret:            ensureContactSecret() ?? undefined,
+    wrapPublicKey:     ensureWrapKeypair().publicKey,
+    identityPublicKey: ensureIdentity().publicKey,
+  } : null;
+  const myQRData  = currentUser ? buildContactPayload(currentUser, misClaves) : '';
+  const deepLink  = currentUser ? buildContactDeepLink(currentUser, misClaves) : '';
 
   const handleBarCodeScanned = useCallback(({ data }: { data: string }) => {
     if (scanned) return;
@@ -93,7 +98,11 @@ export default function AddContactScreen() {
     // de la red — y si falla, lo peor que pasa es lo que pasaba antes.
     const mutuo = Boolean(contact.secret);
     if (contact.secret) {
-      savePeerSecret(contact.id, contact.secret);
+      savePeer(contact.id, {
+        secret: contact.secret,
+        wrapPublicKey: contact.wrapPublicKey,
+        identityPublicKey: contact.identityPublicKey,
+      });
       void announceContact(contact.secret, deviceId());
     }
     // Con secreto en el código el alta es MUTUA: un escaneo y listo. Sin él

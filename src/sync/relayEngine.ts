@@ -8,7 +8,7 @@ import { publishToGroup, drainGroup } from './relaySync';
 import { fromHex } from './envelopeCrypto';
 import { deriveInviteTopic, type GroupInvite } from './groupInvite';
 import { activeInvites, processInvite, processAllInvites } from './inviteEngine';
-import { ensureContactSecret, deriveContactTopic, drainContacts } from './contactChannel';
+import { ensureContactSecret, deriveContactTopic, drainContacts, sendGroupKey } from './contactChannel';
 
 /**
  * Motor del sync en tiempo real: publica lo que cambia y aplica lo que llega.
@@ -196,7 +196,10 @@ async function subscribeContacts(): Promise<void> {
   } catch { /* sin buzón de contactos la app sigue andando */ }
 }
 
-/** Recoge las tarjetas nuevas. El cursor se persiste DESPUÉS de aplicarlas. */
+/**
+ * Recoge lo que dejaron en mi buzón de contacto: tarjetas y claves de grupo.
+ * El cursor se persiste DESPUÉS de aplicarlas.
+ */
 export async function drainContactsNow(): Promise<number> {
   const secret = ensureContactSecret();
   if (!secret) return 0;
@@ -205,10 +208,46 @@ export async function drainContactsNow(): Promise<number> {
     const topic = await deriveContactTopic(secret);
     const r = await drainContacts(secret, deviceId(), readCursor(topic));
     writeCursor(topic, r.cursor);
-    return r.added;
+
+    // Llegó la clave de un grupo nuevo: hay que bajar su contenido y quedarse
+    // escuchando. Sin esto el grupo aparecería recién al reabrir la app.
+    if (r.joinedGroups.length > 0) {
+      for (const groupId of r.joinedGroups) await drainNow(groupId);
+      void startRelay();
+    }
+
+    return r.added + r.joinedGroups.length;
   } catch {
     return 0; // offline: se reintenta al próximo arranque o aviso
   }
+}
+
+/**
+ * Le manda la clave del grupo a cada miembro que ya sea un contacto conocido.
+ *
+ * Es lo que hace que crear un grupo con alguien que escaneaste alcance: le
+ * llega solo, sin links ni un segundo escaneo. A los que no son contactos no se
+ * les puede mandar nada — para esos queda el link de invitación.
+ */
+export async function announceGroupToContacts(groupId: string): Promise<number> {
+  const me = useAuthStore.getState().currentUser;
+  const group = useGroupStore.getState().getById(groupId);
+  if (!me || !group) return 0;
+
+  // El estado del grupo se publica ANTES de repartir las claves. Al revés, el
+  // que recibe la clave abriría un buzón de grupo todavía vacío, se quedaría
+  // sin el grupo y nada volvería a dispararlo.
+  await publishNow(groupId);
+
+  let enviados = 0;
+  for (const memberId of group.memberIds) {
+    if (memberId === me.id) continue;
+    try {
+      if (await sendGroupKey(memberId, group, deviceId())) enviados++;
+    } catch { /* un contacto que falla no debe impedir los demás */ }
+  }
+
+  return enviados;
 }
 
 async function onInviteNews(invite: GroupInvite): Promise<void> {

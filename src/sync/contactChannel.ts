@@ -5,6 +5,23 @@ import { useAuthStore } from '@/src/store/authStore';
 import { useUserStore } from '@/src/store/userStore';
 import { sealEnvelope, openEnvelope, toHex, fromHex } from './envelopeCrypto';
 import { sendEnvelope, fetchSince } from './relay';
+import { ensureIdentity, ensureWrapKeypair } from '@/src/store/identityStore';
+import { useGroupKeyStore } from '@/src/store/groupKeyStore';
+import { wrapGroupKey, unwrapGroupKey } from './groupInvite';
+import { ed25519 } from '@noble/curves/ed25519.js';
+
+/** Bytes UTF-8 de un texto: `Buffer` no existe en React Native. */
+function utf8(s: string): Uint8Array {
+  const out: number[] = [];
+  for (const ch of s) {
+    const cp = ch.codePointAt(0)!;
+    if (cp < 0x80) out.push(cp);
+    else if (cp < 0x800) out.push(0xc0 | (cp >> 6), 0x80 | (cp & 63));
+    else if (cp < 0x10000) out.push(0xe0 | (cp >> 12), 0x80 | ((cp >> 6) & 63), 0x80 | (cp & 63));
+    else out.push(0xf0 | (cp >> 18), 0x80 | ((cp >> 12) & 63), 0x80 | ((cp >> 6) & 63), 0x80 | (cp & 63));
+  }
+  return new Uint8Array(out);
+}
 
 /**
  * Buzón de contactos: lo que hace que agregar a alguien quede en LOS DOS
@@ -83,6 +100,10 @@ export type ContactCard = {
   email: string;
   /** Secreto de quien manda: es lo que deja el canal abierto en los dos sentidos. */
   contactSecret: string;
+  /** X25519 de su dispositivo: a ella se le envolverán las claves de grupo. */
+  wrapPublicKey: string;
+  /** Ed25519 de su dispositivo: con ella se verifica lo que mande después. */
+  identityPublicKey: string;
   sentAt: number;
 };
 
@@ -98,6 +119,8 @@ export function myContactCard(): ContactCard | null {
     name: me.name,
     email: me.email ?? '',
     contactSecret: secret,
+    wrapPublicKey: ensureWrapKeypair().publicKey,
+    identityPublicKey: ensureIdentity().publicKey,
     sentAt: Date.now(),
   };
 }
@@ -123,7 +146,126 @@ export async function announceContact(peerSecret: string, deviceId: string): Pro
   }
 }
 
-export type DrainContactsResult = { added: number; cursor: number };
+/**
+ * Entrega de la clave de un grupo a un contacto conocido.
+ *
+ * Reemplaza al link para gente que ya escaneaste: creás el grupo y le llega,
+ * sin que tenga que abrir nada ni escanear de nuevo.
+ *
+ * La clave va **envuelta para su X25519**, no sólo cifrada con la clave del
+ * buzón. La diferencia importa: la clave del buzón la conoce TODO el que haya
+ * escaneado ese código alguna vez, así que dejar ahí una clave de grupo en esas
+ * condiciones se la estaría entregando a todos ellos.
+ */
+export type GroupKeyDrop = {
+  kind: 'group_key';
+  groupId: string;
+  groupName: string;
+  fromUserId: string;
+  forUserId: string;
+  wrappedKey: string;
+  senderWrapPublicKey: string;
+  /** Ed25519 de quien manda: se contrasta con la que guardamos de esa persona. */
+  senderIdentity: string;
+  epoch: number;
+  sentAt: number;
+  signature: string;
+};
+
+type ChannelMessage = ContactCard | GroupKeyDrop;
+
+function dropPayload(d: Omit<GroupKeyDrop, 'kind' | 'signature'>): string {
+  return [d.groupId, d.fromUserId, d.forUserId, d.wrappedKey, d.senderWrapPublicKey, d.epoch].join('|');
+}
+
+/**
+ * Le manda a un contacto la clave de un grupo.
+ * `false` si no lo conocemos lo suficiente (sin buzón o sin su pública) o si
+ * no tenemos la clave: en esos casos no hay nada que entregar.
+ */
+export async function sendGroupKey(
+  peerUserId: string,
+  group: { id: string; name: string },
+  deviceId: string,
+): Promise<boolean> {
+  const me = useAuthStore.getState().currentUser;
+  const peer = getPeer(peerUserId);
+  const record = useGroupKeyStore.getState().getKey(group.id);
+  if (!me || !peer?.secret || !peer.wrapPublicKey || !record) return false;
+
+  const wrap = ensureWrapKeypair();
+  const identity = ensureIdentity();
+
+  const datos = {
+    groupId: group.id,
+    groupName: group.name,
+    fromUserId: me.id,
+    forUserId: peerUserId,
+    wrappedKey: wrapGroupKey(record.key, peer.wrapPublicKey, wrap.privateKey),
+    senderWrapPublicKey: wrap.publicKey,
+    senderIdentity: identity.publicKey,
+    epoch: record.epoch,
+    sentAt: Date.now(),
+  };
+
+  const drop: GroupKeyDrop = {
+    ...datos,
+    kind: 'group_key',
+    signature: toHex(ed25519.sign(utf8(dropPayload(datos)), fromHex(identity.privateKey))),
+  };
+
+  try {
+    const topic = await deriveContactTopic(peer.secret);
+    const sealed = sealEnvelope(await contactKey(peer.secret), JSON.stringify(drop));
+    return (await sendEnvelope(topic, sealed, deviceId)).ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Adopta una clave que llegó por el canal de contacto.
+ *
+ * Se acepta SÓLO si viene de alguien que escaneamos y la firma corresponde a la
+ * identidad que guardamos de esa persona. Sin este chequeo, cualquiera que
+ * conozca el buzón (todos los que escanearon el mismo código) podría meter una
+ * clave inventada y dejarnos con un grupo que no descifra nada.
+ */
+function adoptDroppedKey(drop: GroupKeyDrop, myUserId: string): boolean {
+  // Redundante con la criptografía —una entrega envuelta para otro no la puedo
+  // abrir igual— y por eso ningún test puede matarlo. Se deja porque hace
+  // explícita la intención y corta antes de gastar una operación de curva.
+  if (drop.forUserId !== myUserId || drop.fromUserId === myUserId) return false;
+
+  const peer = getPeer(drop.fromUserId);
+  if (!peer?.identityPublicKey || peer.identityPublicKey !== drop.senderIdentity) return false;
+
+  try {
+    const { kind: _k, signature, ...datos } = drop;
+    const ok = ed25519.verify(fromHex(signature), utf8(dropPayload(datos)), fromHex(drop.senderIdentity));
+    if (!ok) return false;
+  } catch {
+    return false;
+  }
+
+  if (useGroupKeyStore.getState().getKey(drop.groupId)) return false; // ya la teníamos
+
+  const wrap = ensureWrapKeypair();
+  const key = unwrapGroupKey(drop.wrappedKey, drop.senderWrapPublicKey, wrap.privateKey);
+  // Una clave del largo equivocado dejaría el grupo ilegible para siempre, sin
+  // más síntoma que "no me llega nada".
+  if (!key || !/^[0-9a-f]{64}$/i.test(key)) return false;
+
+  useGroupKeyStore.getState().adoptKeys([{ groupId: drop.groupId, key, epoch: drop.epoch }]);
+  return true;
+}
+
+export type DrainContactsResult = {
+  added: number;
+  /** Grupos cuya clave adoptamos: el llamador tiene que drenarlos. */
+  joinedGroups: string[];
+  cursor: number;
+};
 
 /**
  * Recoge las tarjetas que dejaron en MI buzón y las guarda como contactos.
@@ -137,7 +279,7 @@ export async function drainContacts(
   sinceSeq: number,
 ): Promise<DrainContactsResult> {
   const me = useAuthStore.getState().currentUser;
-  if (!me || !mySecret) return { added: 0, cursor: sinceSeq };
+  if (!me || !mySecret) return { added: 0, joinedGroups: [], cursor: sinceSeq };
 
   let topic: string;
   let key: Uint8Array;
@@ -145,68 +287,97 @@ export async function drainContacts(
     topic = await deriveContactTopic(mySecret);
     key = await contactKey(mySecret);
   } catch {
-    return { added: 0, cursor: sinceSeq };
+    return { added: 0, joinedGroups: [], cursor: sinceSeq };
   }
 
   const r = await fetchSince(topic, sinceSeq, deviceId);
-  if (!r.ok) return { added: 0, cursor: sinceSeq };
+  if (!r.ok) return { added: 0, joinedGroups: [], cursor: sinceSeq };
 
   let added = 0;
+  const joinedGroups: string[] = [];
+
   for (const envelope of r.envelopes) {
-    const card = parseCard(openEnvelope(key, envelope.payload));
     // Un sobre que no abre es basura de alguien que conoce el topic: se saltea
     // sin frenar la cola.
-    if (!card || card.userId === me.id) continue;
+    const msg = parseMessage(openEnvelope(key, envelope.payload));
+    if (!msg) continue;
 
-    useUserStore.getState().addOrUpdateUser({
-      id: card.userId,
-      name: card.name,
-      email: card.email,
-      authProvider: 'google',
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      isDeleted: false,
-    });
-    savePeerSecret(card.userId, card.contactSecret);
-    added++;
+    if (msg.kind === 'contact') {
+      if (msg.userId === me.id) continue;
+      useUserStore.getState().addOrUpdateUser({
+        id: msg.userId,
+        name: msg.name,
+        email: msg.email,
+        authProvider: 'google',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        isDeleted: false,
+      });
+      savePeer(msg.userId, {
+        secret: msg.contactSecret,
+        wrapPublicKey: msg.wrapPublicKey,
+        identityPublicKey: msg.identityPublicKey,
+      });
+      added++;
+      continue;
+    }
+
+    if (adoptDroppedKey(msg, me.id)) joinedGroups.push(msg.groupId);
   }
 
-  return { added, cursor: r.cursor };
+  return { added, joinedGroups, cursor: r.cursor };
 }
 
-function parseCard(plain: string | null): ContactCard | null {
+function parseMessage(plain: string | null): ChannelMessage | null {
   if (plain === null) return null;
   try {
-    const card = JSON.parse(plain) as ContactCard;
-    if (card.kind !== 'contact' || !card.userId || !card.name) return null;
-    return card;
+    const msg = JSON.parse(plain) as ChannelMessage;
+    if (msg.kind === 'contact') return msg.userId && msg.name ? msg : null;
+    if (msg.kind === 'group_key') return msg.groupId && msg.wrappedKey ? msg : null;
+    return null;
   } catch {
     return null;
   }
 }
 
-// --- secretos de los contactos ------------------------------------------------
-// Se guardan para poder avisarles cosas después sin volver a escanear nada.
+// --- registro de contactos ----------------------------------------------------
+// De cada persona que escaneamos (o que nos escaneó) guardamos su buzón y sus
+// claves públicas. Es lo que permite mandarle cosas después sin volver a
+// vernos la cara — y, sobre todo, verificar que lo que llega es realmente suyo.
 
 const K_PEERS = 'contact_peers_v1';
 
-export function savePeerSecret(userId: string, secret: string): void {
-  if (!secret) return;
-  const todos = listPeerSecrets();
-  todos[userId] = secret;
+export type PeerInfo = {
+  secret: string;
+  /** X25519: a ella se le envuelven las claves de grupo. */
+  wrapPublicKey?: string;
+  /** Ed25519: con ella se verifica que lo que llega lo mandó esta persona. */
+  identityPublicKey?: string;
+};
+
+export function savePeer(userId: string, info: PeerInfo): void {
+  if (!info.secret) return;
+  const todos = listPeers();
+  // Se completa lo que ya sabíamos en vez de pisarlo: un código viejo sin claves
+  // no debe borrar las que ya teníamos de esa persona.
+  todos[userId] = { ...todos[userId], ...info };
   writeScoped(storage, K_PEERS, JSON.stringify(todos));
 }
 
-export function listPeerSecrets(): Record<string, string> {
+export function listPeers(): Record<string, PeerInfo> {
   const raw = readScoped(storage, K_PEERS);
   if (!raw) return {};
   try {
-    return JSON.parse(raw) as Record<string, string>;
+    return JSON.parse(raw) as Record<string, PeerInfo>;
   } catch {
     return {}; // dato corrupto: se degrada a "no conozco a nadie", no rompe
   }
 }
 
+export function getPeer(userId: string): PeerInfo | undefined {
+  return listPeers()[userId];
+}
+
 export function peerSecret(userId: string): string | undefined {
-  return listPeerSecrets()[userId];
+  return getPeer(userId)?.secret;
 }

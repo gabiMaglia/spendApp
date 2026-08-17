@@ -14,7 +14,7 @@ import { useAuthStore } from '@/src/store/authStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useThemeStore } from '@/src/store/themeStore';
 import { rehydrateForActiveUser, subscribeSessionRehydrate } from '@/src/store/session';
-import { announceContact, savePeerSecret } from '@/src/sync/contactChannel';
+import { announceContact, savePeer } from '@/src/sync/contactChannel';
 import { deviceId } from '@/src/sync/relayEngine';
 
 export const unstable_settings = {
@@ -65,7 +65,7 @@ function AuthGuard() {
       try {
         const parsed = Linking.parse(url);
         if (parsed.path === 'contact/add' && parsed.queryParams) {
-          const { id, name, email, s } = parsed.queryParams as Record<string, string>;
+          const { id, name, email, s, w, k } = parsed.queryParams as Record<string, string>;
           if (id && name && currentUser && id !== currentUser.id) {
             addOrUpdateUser({
               id,
@@ -79,7 +79,7 @@ function AuthGuard() {
             // Le devuelvo mi tarjeta para que el alta quede en los dos lados,
             // igual que al escanear el QR.
             if (s) {
-              savePeerSecret(id, s);
+              savePeer(id, { secret: s, wrapPublicKey: w, identityPublicKey: k });
               void announceContact(s, deviceId());
             }
           }
