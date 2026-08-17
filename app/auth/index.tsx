@@ -12,8 +12,6 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuthStore } from '@/src/store/authStore';
 import { mergeProviderUser } from '@/src/utils/mergeProviderUser';
 import { Button } from '@/src/components/Button';
-import { BalancePill } from '@/src/components/BalancePill';
-import { Avatar } from '@/src/components/Avatar';
 
 type GoogleUser = {
   id: string;
@@ -145,18 +143,6 @@ export default function AuthScreen() {
     }
   }
 
-  function handleGuestLogin() {
-    setUser({
-      id:           'u0',
-      name:         'Lucas Rivera',
-      email:        'lucas@example.com',
-      authProvider: 'google',
-      updatedAt:    Date.now(),
-      isDeleted:    false,
-      createdAt:    Date.now(),
-    });
-  }
-
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: c.bg }]}>
       <ScrollView
@@ -173,13 +159,6 @@ export default function AuthScreen() {
             <Text style={[Typography.bodyL, { color: c.textSecondary, textAlign: 'center', maxWidth: 280 }]}>
               {t('auth.welcome_subtitle')}
             </Text>
-          </View>
-
-          {/* Mini balance demo */}
-          <View style={[styles.demoCard, { backgroundColor: c.surface, borderColor: c.borderHair }]}>
-            <DemoRow name="Ana" hue={0} amount={4500} />
-            <View style={[styles.divider, { backgroundColor: c.borderHair }]} />
-            <DemoRow name="Bob" hue={1} amount={-2100} />
           </View>
         </View>
 
@@ -213,11 +192,6 @@ export default function AuthScreen() {
             {'. '}{t('auth.terms_suffix')}
           </Text>
 
-          {__DEV__ && (
-            <Button variant="ghost" size="sm" block onPress={handleGuestLogin}>
-              ⚡ Entrar como invitado (solo dev)
-            </Button>
-          )}
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -244,32 +218,11 @@ function AppLogoMark({ size }: { size: number }) {
   );
 }
 
-function DemoRow({ name, hue, amount }: { name: string; hue: number; amount: number }) {
-  return (
-    <View style={styles.demoRow}>
-      <Avatar name={name} hue={hue} size={32} />
-      <View style={{ flex: 1 }}>
-        <Text style={[Typography.bodyM, { fontWeight: '600', color: '#1F1A14' }]}>{name}</Text>
-      </View>
-      <BalancePill amount={amount} currency="ARS" size="sm" />
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   safe:        { flex: 1 },
   scroll:      { flexGrow: 1, padding: Spacing.screenPad, paddingTop: Spacing[8] },
   hero:        { flex: 1, alignItems: 'center', gap: 32, marginBottom: 32 },
   heroText:    { alignItems: 'center', gap: 8 },
-  demoCard:    {
-    width: '100%', maxWidth: 320,
-    padding: Spacing[4],
-    borderRadius: Radius.lg,
-    borderWidth: 1,
-    gap: 10,
-  },
-  demoRow:     { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  divider:     { height: 1 },
   ctas:        { gap: 10, paddingBottom: Spacing[8] },
   appleButton: { width: '100%', height: 50 },
 });
