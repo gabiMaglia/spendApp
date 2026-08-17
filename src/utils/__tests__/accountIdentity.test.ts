@@ -88,6 +88,14 @@ describe('resolveAccount', () => {
       .toEqual({ kind: 'new', accountId: GOOGLE });
   });
 
+  // Misma regresión, por el camino automático (mail coincidente).
+  it('el enganche por mail manda a fusionar aunque el índice no conozca la cuenta', () => {
+    const ix = memoryIndex([]);
+    ix.link(GOOGLE, GOOGLE, MAIL);
+    const r = resolveAccount(ix, APPLE, MAIL);
+    expect(r).toEqual({ kind: 'linked', accountId: GOOGLE, previousAccountId: APPLE });
+  });
+
   it('avisa cuando el proveedor traía cuenta propia (hay que fusionar datos)', () => {
     const ix = memoryIndex();
     resolveAccount(ix, GOOGLE, MAIL);   // cuenta Google con sus datos
@@ -117,13 +125,19 @@ describe('confirmLink', () => {
     expect(resolveAccount(ix, APPLE, null)).toEqual({ kind: 'existing', accountId: GOOGLE });
   });
 
-  it('reporta que hay datos que fusionar si el proveedor tenía cuenta propia', () => {
+  it('siempre devuelve el scope del proveedor para fusionar', () => {
     const ix = memoryIndex([{ accountId: APPLE, label: 'a' }, { accountId: GOOGLE, label: 'g' }]);
     expect(confirmLink(ix, APPLE, GOOGLE)).toEqual({ previousAccountId: APPLE });
   });
 
-  it('sin cuenta propia previa, no hay nada que fusionar', () => {
-    const ix = memoryIndex([{ accountId: GOOGLE, label: 'g' }]);
-    expect(confirmLink(ix, APPLE, GOOGLE)).toEqual({ previousAccountId: null });
+  // REGRESIÓN (QA rechazó T-019 v2 por esto): el índice de cuentas conocidas
+  // nace VACÍO en toda instalación previa a esta feature y se llena recién
+  // dentro de setUser, o sea DESPUÉS de esta decisión. Si el enlace preguntara
+  // al índice "¿esta cuenta existía?", en el caso que importa —una cuenta vieja
+  // CON datos— respondería que no y la fusión no correría, dejando los datos
+  // invisibles. Quién decide si hay algo que traer es mergeAccountData.
+  it('con el índice vacío (1er login tras actualizar) IGUAL manda a fusionar', () => {
+    const ix = memoryIndex([]);
+    expect(confirmLink(ix, APPLE, GOOGLE)).toEqual({ previousAccountId: APPLE });
   });
 });
