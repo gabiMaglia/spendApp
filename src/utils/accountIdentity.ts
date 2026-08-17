@@ -42,8 +42,12 @@ export type AccountResolution =
   | { kind: 'existing'; accountId: string }
   /** Cuenta nueva: no hay con qué vincularla. */
   | { kind: 'new'; accountId: string }
-  /** El mail coincidió con una cuenta existente: se vinculó sola. */
-  | { kind: 'linked'; accountId: string; previousAccountId: string | null }
+  /**
+   * El mail coincidió con una cuenta existente: se vinculó sola.
+   * `previousAccountId` es el scope del que hay que traer los datos — el
+   * llamador DEBE fusionar antes de dar el login por bueno.
+   */
+  | { kind: 'linked'; accountId: string; previousAccountId: string }
   /** Sin mail y hay otras cuentas: hay que preguntarle al usuario. */
   | { kind: 'confirm'; providerId: string; candidates: KnownAccount[] };
 
@@ -80,13 +84,8 @@ export function resolveAccount(
   if (normalized) {
     const byEmail = index.getAccountByEmail(normalized);
     if (byEmail && byEmail !== providerId) {
-      const hadOwnAccount = index.listKnownAccounts().some(a => a.accountId === providerId);
       index.link(providerId, byEmail, normalized);
-      return {
-        kind: 'linked',
-        accountId: byEmail,
-        previousAccountId: hadOwnAccount ? providerId : null,
-      };
+      return { kind: 'linked', accountId: byEmail, previousAccountId: providerId };
     }
   }
 
@@ -107,15 +106,22 @@ export function resolveAccount(
 
 /**
  * Confirmación del usuario en el caso `confirm`: vincula el proveedor a la
- * cuenta elegida. Devuelve si el proveedor traía cuenta propia (⇒ hay que
- * fusionar datos).
+ * cuenta elegida y devuelve el scope del que hay que traer los datos.
+ *
+ * Devuelve SIEMPRE el `providerId`, sin preguntarse antes si esa cuenta
+ * "existía": ese guard estaba mal y costó un rechazo de QA. El índice de
+ * cuentas conocidas nace VACÍO en toda instalación previa a esta feature y se
+ * llena recién dentro de `setUser`, o sea DESPUÉS de esta decisión — así que
+ * justo en el caso que importa (una cuenta vieja con datos) respondía "no
+ * existía" y la fusión no corría, dejando los datos invisibles.
+ * Quién sabe si hay algo para traer es `mergeAccountData`, que con un origen
+ * vacío no hace nada.
  */
 export function confirmLink(
   index: AccountIndex,
   providerId: string,
   targetAccountId: string,
-): { previousAccountId: string | null } {
-  const hadOwnAccount = index.listKnownAccounts().some(a => a.accountId === providerId);
+): { previousAccountId: string } {
   index.link(providerId, targetAccountId);
-  return { previousAccountId: hadOwnAccount ? providerId : null };
+  return { previousAccountId: providerId };
 }

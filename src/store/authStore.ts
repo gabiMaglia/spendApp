@@ -6,14 +6,11 @@ import {
   type AccountIndex, type AccountResolution, type KnownAccount,
 } from '@/src/utils/accountIdentity';
 import { mergeAccounts } from './accountLink';
+import { AUTH_KEYS, profileKey } from './authKeys';
 
 const storage = createSecureStorage('auth');
 
-const KEYS = {
-  USER:    'current_user',
-  IS_PRO:  'is_pro',
-  PROFILE: 'profile',
-} as const;
+const KEYS = AUTH_KEYS;
 
 // isPro es por-cuenta (la suscripción es de un usuario). La sesión (current_user)
 // es global (puntero a la cuenta activa); isPro se scopea por el id del usuario.
@@ -25,9 +22,7 @@ function isProKey(uid: string): string {
 // sesión y el signOut NO lo borra: es dato del usuario, no de la sesión. Sin
 // esto, cerrar sesión destruía el nombre editado a mano y Apple —que sólo manda
 // fullName en el PRIMER login— no tenía de dónde recuperarlo al volver a entrar.
-function profileKey(uid: string): string {
-  return `${KEYS.PROFILE}::u:${uid}`;
-}
+
 
 // Índice de identidad: traduce el id de cada proveedor al id de cuenta, para
 // que entrar con Google o con Apple usando el mismo mail caiga en la MISMA
