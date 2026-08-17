@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { readScoped, writeScoped } from './userScope';
 import { mergeByIdLWW } from './lww';
+import { schedulePublish } from '@/src/sync/relayEngine';
 import type { Group } from '@/src/types/models';
 
 const storage = createSecureStorage('groups');
@@ -42,6 +43,8 @@ export const useGroupStore = create<GroupStoreState>((set, get) => ({
     const groups = [...get().groups, group];
     persist(groups);
     set({ groups });
+
+    schedulePublish(group.id);
   },
 
   updateGroup: (id, patch) => {
@@ -62,6 +65,9 @@ export const useGroupStore = create<GroupStoreState>((set, get) => ({
     );
     persist(groups);
     set({ groups });
+    // El borrado se publica ANTES de que dejemos de sincronizar el grupo: si no,
+    // los demás nunca se enteran y el grupo les queda vivo para siempre.
+    schedulePublish(id, 0);
   },
 
   /**
@@ -79,6 +85,7 @@ export const useGroupStore = create<GroupStoreState>((set, get) => ({
     );
     persist(groups);
     set({ groups });
+    schedulePublish(id, 0); // sin debounce: después de salir dejamos de publicar
   },
 
   mergeGroups: (incoming) => {

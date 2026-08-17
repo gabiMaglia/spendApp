@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { readScoped, writeScoped } from './userScope';
 import { mergeByIdLWW } from './lww';
+import { schedulePublish } from '@/src/sync/relayEngine';
 import { migrateExpenseAmounts } from './moneyMigration';
 import type { Expense } from '@/src/types/models';
 
@@ -36,6 +37,9 @@ export const useExpenseStore = create<ExpenseStoreState>((set, get) => ({
     const expenses = [...get().expenses, expense];
     persist(expenses);
     set({ expenses });
+    // Se avisa al motor de sync. Va con debounce: cargar un gasto dispara
+    // varios cambios seguidos y no tiene sentido un sobre por cada uno.
+    if (expense.groupId) schedulePublish(expense.groupId);
   },
 
   updateExpense: (id, patch) => {
@@ -44,6 +48,9 @@ export const useExpenseStore = create<ExpenseStoreState>((set, get) => ({
     );
     persist(expenses);
     set({ expenses });
+
+    const groupId = expenses.find(e => e.id === id)?.groupId;
+    if (groupId) schedulePublish(groupId);
   },
 
   // LWW merge para sync P2P
