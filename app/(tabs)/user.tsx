@@ -390,6 +390,11 @@ export default function UserScreen() {
                 icon="finger-print-outline"
                 onPress={() => router.push('/debug/identity' as any)}
               />
+              <LinkRow
+                label="Relay (buzón)"
+                icon="cloud-upload-outline"
+                onPress={() => router.push('/debug/relay' as any)}
+              />
             </View>
           </>
         )}
