@@ -77,7 +77,13 @@
     "privacy_members_body": "Each group encrypts its data with a key shared when inviting.",
     "privacy_tracking_title": "Zero tracking",
     "privacy_tracking_body": "No third-party analytics. No data selling.",
-    "understood": "Got it"
+    "understood": "Got it",
+    "error_google": "Couldn't sign in with Google. Try again.",
+    "error_apple": "Couldn't sign in with Apple. Try again.",
+    "link_title": "Is this your account?",
+    "link_body": "You already use SplitP2P with {{account}}. Do you want to sign in to that account and merge your data?",
+    "link_confirm": "Yes, it's mine",
+    "link_separate": "Use a separate account"
   },
   "dashboard": {
     "title": "Your balances",
@@ -545,5 +551,14 @@
     "owes_you": "Owes you ",
     "you_owe_them": "You owe ",
     "settle": "Settle"
+  },
+  "recurrence": {
+    "label": "REPEAT",
+    "once": "Once",
+    "weekly": "Weekly",
+    "fortnightly": "Fortnightly",
+    "monthly": "Monthly",
+    "yearly": "Yearly",
+    "hint": "It will be created on each due date, even if you don't open the app."
   }
 }

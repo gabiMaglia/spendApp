@@ -77,7 +77,13 @@
     "privacy_members_body": "Cada grupo cifra sus datos con una clave compartida al invitar.",
     "privacy_tracking_title": "Cero tracking",
     "privacy_tracking_body": "Sin analytics de terceros. Sin venta de datos.",
-    "understood": "Entendido"
+    "understood": "Entendido",
+    "error_google": "No se pudo iniciar sesión con Google. Reintentá.",
+    "error_apple": "No se pudo iniciar sesión con Apple. Intentá de nuevo.",
+    "link_title": "¿Es tu cuenta?",
+    "link_body": "Ya usás SplitP2P con {{account}}. ¿Querés entrar a esa cuenta y unir tus datos?",
+    "link_confirm": "Sí, es mía",
+    "link_separate": "Usar cuenta aparte"
   },
   "dashboard": {
     "title": "Tus cuentas",
@@ -545,5 +551,14 @@
     "owes_you": "Te debe ",
     "you_owe_them": "Le debés ",
     "settle": "Saldar"
+  },
+  "recurrence": {
+    "label": "REPETIR",
+    "once": "Una vez",
+    "weekly": "Semanal",
+    "fortnightly": "Quincenal",
+    "monthly": "Mensual",
+    "yearly": "Anual",
+    "hint": "Se va a crear solo en cada vencimiento, aunque no abras la app."
   }
 }

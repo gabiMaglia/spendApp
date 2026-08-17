@@ -17,6 +17,37 @@ export interface User extends SyncMeta {
   createdAt: number;
 }
 
+/**
+ * Plantilla de gasto recurrente (alquiler, servicios, suscripciones).
+ *
+ * Es una PLANTILLA, no un gasto con bandera: cada vencimiento produce un
+ * `Expense` propio, con su fecha, que se puede editar o borrar sin tocar la
+ * serie. `lastMaterializedAt` es lo que hace idempotente la materialización.
+ */
+export interface RecurringExpense extends SyncMeta {
+  groupId: string;         // '' = movimiento personal
+  description: string;
+  amount: number;          // entero en menor unidad (ADR-002)
+  currency: CurrencyCode;
+  paidById: string;
+  splitMode: SplitMode;
+  splitValues?: number[];  // para percentage / shares / custom
+  memberIds: string[];     // participantes al momento de crear la plantilla
+  category: ExpenseCategory;
+  rule: RecurrenceRule;
+  /** Último vencimiento ya convertido en gasto. null = ninguno todavía. */
+  lastMaterializedAt: number | null;
+  isActive: boolean;       // el usuario puede pausar sin borrar
+  createdAt: number;
+  createdById: string;
+}
+
+export interface RecurrenceRule {
+  frequency: 'weekly' | 'fortnightly' | 'monthly' | 'yearly';
+  startDate: number;
+  endDate?: number;
+}
+
 export interface DeletionVote {
   userId: string;
   votedAt: number;
@@ -50,7 +81,7 @@ export type ExpenseCategory =
  * - 'custom'     → Personalizado: cada persona especifica su monto. El último
  *                  miembro recibe automáticamente el resto (total − suma de los demás).
  */
-export type SplitMode = 'equal' | 'percentage' | 'custom';
+export type SplitMode = 'equal' | 'percentage' | 'shares' | 'custom';
 
 export interface Split {
   userId: string;

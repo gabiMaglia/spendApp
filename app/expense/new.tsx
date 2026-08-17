@@ -12,6 +12,8 @@ import { hapticSelection, hapticSuccess } from '@/src/utils/haptics';
 import { useTranslation } from 'react-i18next';
 
 import { Colors } from '@/src/constants/colors';
+import { RecurrencePicker, type RecurrenceValue } from '@/src/components/RecurrencePicker';
+import { useRecurringStore } from '@/src/store/recurringStore';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { formatMoney } from '@/src/constants/currencies';
@@ -156,6 +158,8 @@ export default function NewExpenseScreen() {
   const [showPayer,  setShowPayer]  = useState(false);
   const [showDate,   setShowDate]   = useState(false);
   const [showNote,   setShowNote]   = useState(false);
+  const [recurrence, setRecurrence] = useState<RecurrenceValue>(null);
+  const addRecurring = useRecurringStore(st => st.addRecurring);
 
   // ── Derived ────────────────────────────────────────────────────────────────
   const group    = groups.find(g => g.id === groupId);
@@ -250,6 +254,34 @@ export default function NewExpenseScreen() {
     if (k === 'income') setGroupId(''); // el ingreso no lleva grupo
   }
 
+  /**
+   * Si el usuario eligió repetición, además del gasto de hoy se guarda la
+   * PLANTILLA. `lastMaterializedAt` arranca en la fecha de este gasto para que
+   * el materializador no vuelva a crear el que se acaba de crear a mano.
+   */
+  function saveRecurringTemplate() {
+    if (recurrence === null || !currentUser) return;
+    const at = date.getTime();
+    addRecurring({
+      id:          uuidv4(),
+      groupId:     hasGroup ? groupId : '',
+      description: description.trim(),
+      amount,
+      currency,
+      paidById:    payerId || currentUser.id,
+      splitMode,
+      memberIds:   splits.map(sp => sp.userId),
+      category:    category as ExpenseCategory,
+      rule:        { frequency: recurrence, startDate: at },
+      lastMaterializedAt: at,
+      isActive:    true,
+      createdAt:   Date.now(),
+      createdById: currentUser.id,
+      updatedAt:   Date.now(),
+      isDeleted:   false,
+    });
+  }
+
   function handleSave() {
     if (!canSave || !currentUser) return;
 
@@ -268,6 +300,7 @@ export default function NewExpenseScreen() {
         updatedAt:   Date.now(),
         isDeleted:   false,
       });
+      saveRecurringTemplate();
       router.back();
       return;
     }
@@ -346,6 +379,7 @@ export default function NewExpenseScreen() {
         });
       }
       incrementCount(currentUser.id);
+      saveRecurringTemplate();
     }
 
     router.back();
@@ -622,6 +656,13 @@ export default function NewExpenseScreen() {
                 {t('expense.free_count', { count: dailyCount })}{' '}
                 {needsAd ? t('expense.free_next') : ''}
               </Text>
+            </View>
+          )}
+
+          {/* Repetición — sólo al crear; editar una ocurrencia no toca la serie. */}
+          {!isEditMode && (
+            <View style={{ marginBottom: Spacing[4] }}>
+              <RecurrencePicker value={recurrence} onChange={setRecurrence} />
             </View>
           )}
 

@@ -15,6 +15,12 @@ import type { Split, SplitMode } from '@/src/types/models';
  *                  se redondean con Math.round; si el redondeo no cierra exacto
  *                  contra el total, el resto/déficit se corrige con el MISMO
  *                  criterio determinista por userId ascendente.
+ *   'shares'     — values[i] = cantidad de partes de cada miembro (enteros > 0).
+ *                  Ej: [2,1,1] reparte mitad / cuarto / cuarto. Sirve para
+ *                  "yo ocupo la habitación doble y ustedes las simples" sin
+ *                  tener que calcular porcentajes a mano. El resto de la
+ *                  división se corrige con el MISMO criterio determinista por
+ *                  userId ascendente que usan los otros modos.
  *   'custom'     — values[i] = monto de cada miembro EXCEPTO el último,
  *                  que recibe automáticamente el resto (total − suma de los demás).
  *
@@ -77,6 +83,44 @@ export function buildSplits(
       const adjusted = [...rawAmounts];
       for (const { i } of order) {
         if (remaining === 0) break;
+        adjusted[i] = adjusted[i]! + step;
+        remaining -= 1;
+      }
+
+      return memberIds.map((userId, i) => ({
+        userId,
+        amount: adjusted[i]!,
+        isPaid: false,
+      }));
+    }
+
+    case 'shares': {
+      if (!values || values.length !== memberIds.length) {
+        throw new Error('buildSplits: shares requiere values con una cantidad de partes por miembro');
+      }
+      if (values.some(v => !Number.isInteger(v) || v < 0)) {
+        throw new Error('buildSplits: las partes deben ser enteros >= 0');
+      }
+      const totalShares = values.reduce((a, b) => a + b, 0);
+      if (totalShares === 0) {
+        throw new Error('buildSplits: la suma de partes no puede ser 0');
+      }
+
+      // Se reparte por parte entera y el resto se distribuye de a 1 unidad,
+      // igual que en 'equal', para que dos devices lleguen al mismo resultado.
+      const raw = values.map(sh => Math.floor(totalAmount * sh / totalShares));
+      const diff = totalAmount - raw.reduce((a, b) => a + b, 0);
+
+      const order = memberIds
+        .map((userId, i) => ({ userId, i }))
+        .sort((a, b) => (a.userId < b.userId ? -1 : a.userId > b.userId ? 1 : 0));
+
+      const step = diff > 0 ? 1 : -1;
+      let remaining = Math.abs(diff);
+      const adjusted = [...raw];
+      for (const { i } of order) {
+        if (remaining === 0) break;
+        if (values[i] === 0) continue; // quien no participa no absorbe el resto
         adjusted[i] = adjusted[i]! + step;
         remaining -= 1;
       }
