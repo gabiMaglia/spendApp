@@ -177,7 +177,9 @@
     "leave_group": "Sair do grupo",
     "leave_title": "Sair do grupo",
     "leave_body": "Você deixa de ver este grupo. As despesas que você lançou continuam lá para os outros, então as contas pendentes não se perdem.",
-    "leave_confirm": "Sair"
+    "leave_confirm": "Sair",
+    "invite_link": "Convidar por link",
+    "invite_message": "Estou te convidando para “{{group}}” no SplitP2P. Abra este link para entrar: {{link}}"
   },
   "invite": {
     "title": "Invitar al grupo",
