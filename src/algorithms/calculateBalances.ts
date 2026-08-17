@@ -1,6 +1,7 @@
 import { minorFactor } from '@/src/constants/currencies';
 import type { CurrencyCode } from '@/src/constants/currencies';
 import type { Balance, BalanceByCurrency, Expense, Payment } from '@/src/types/models';
+import { expensePayers } from './payers';
 
 /**
  * Escala fija de `Payment.exchangeRate` (ADR-002 §6). No es un monto en una
@@ -45,8 +46,12 @@ export function calculateBalances(
   for (const expense of expenses) {
     if (expense.isDeleted) continue;
 
-    const current = totals.get(expense.paidById) ?? 0;
-    totals.set(expense.paidById, current + expense.amount);
+    // Un gasto lo pueden haber puesto entre varios: se acredita a cada uno lo
+    // que puso, no el total al "pagador principal".
+    for (const payer of expensePayers(expense)) {
+      const current = totals.get(payer.userId) ?? 0;
+      totals.set(payer.userId, current + payer.amount);
+    }
 
     for (const split of expense.splits) {
       const splitCurrent = totals.get(split.userId) ?? 0;
@@ -84,7 +89,9 @@ export function calculateBalancesByCurrency(
 
   for (const expense of expenses) {
     if (expense.isDeleted) continue;
-    addTo(expense.paidById, expense.currency, expense.amount);
+    for (const payer of expensePayers(expense)) {
+      addTo(payer.userId, expense.currency, payer.amount);
+    }
     for (const split of expense.splits) {
       addTo(split.userId, expense.currency, -split.amount);
     }

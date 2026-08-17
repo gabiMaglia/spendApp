@@ -568,5 +568,15 @@
     "send": "Send comment",
     "delete_title": "Delete comment",
     "delete_body": "It will be deleted for everyone on the next sync."
+  },
+  "payers": {
+    "title": "WHO PAID",
+    "multiple": "Several people paid",
+    "single": "One person paid",
+    "amount_for": "Amount for {{name}}",
+    "balanced": "✓ Adds up to the total",
+    "missing": "{{amount}} missing",
+    "over": "{{amount}} over",
+    "difference": "Difference from total"
   }
 }

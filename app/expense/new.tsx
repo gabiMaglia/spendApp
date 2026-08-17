@@ -13,6 +13,9 @@ import { useTranslation } from 'react-i18next';
 
 import { Colors } from '@/src/constants/colors';
 import { RecurrencePicker, type RecurrenceValue } from '@/src/components/RecurrencePicker';
+import { PayerSplitter } from '@/src/components/PayerSplitter';
+import { normalizePayers, validatePayers } from '@/src/algorithms/payers';
+import type { Payer } from '@/src/types/models';
 import { useRecurringStore } from '@/src/store/recurringStore';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
@@ -159,6 +162,8 @@ export default function NewExpenseScreen() {
   const [showDate,   setShowDate]   = useState(false);
   const [showNote,   setShowNote]   = useState(false);
   const [recurrence, setRecurrence] = useState<RecurrenceValue>(null);
+  const [multiPayer, setMultiPayer] = useState(false);
+  const [payers, setPayers] = useState<Payer[]>([]);
   const addRecurring = useRecurringStore(st => st.addRecurring);
 
   // ── Derived ────────────────────────────────────────────────────────────────
@@ -209,7 +214,10 @@ export default function NewExpenseScreen() {
   const percentError = splitMode === 'percentage' && amount > 0 && lastPercent < 0;
   // hasGroup=false ⇒ gasto PERSONAL (sin repartos, sin pagador). (F-G)
   const hasGroup     = groupId !== '';
-  const canSave      = description.trim().length > 0 && amount > 0 && !percentError && (!hasGroup || members.length > 0);
+  // Con varios pagadores la suma tiene que dar EXACTA contra el total: son
+  // enteros en menor unidad (ADR-002), no hay redondeo que perdonar.
+  const payersOk     = !multiPayer || validatePayers(payers.filter(p => p.amount > 0), amount).ok;
+  const canSave      = description.trim().length > 0 && amount > 0 && !percentError && (!hasGroup || members.length > 0) && payersOk;
 
   // ── Handlers ───────────────────────────────────────────────────────────────
 
@@ -282,6 +290,12 @@ export default function NewExpenseScreen() {
     });
   }
 
+  /** Desglose de pagadores listo para guardar (o el pagador único). */
+  function payerFields(): { paidById: string; payers?: Payer[] } {
+    if (!multiPayer) return { paidById: payerId || currentUser!.id };
+    return normalizePayers(payers);
+  }
+
   function handleSave() {
     if (!canSave || !currentUser) return;
 
@@ -321,7 +335,7 @@ export default function NewExpenseScreen() {
       updateExpense(expenseId, {
         description:     description.trim(),
         amount,
-        paidById:        payerId || currentUser.id,
+        ...payerFields(),
         splits:          splitPayload,
         splitMode,
         category:        category as ExpenseCategory,
@@ -347,7 +361,7 @@ export default function NewExpenseScreen() {
         description:     description.trim(),
         amount,
         currency,
-        paidById:        payerId || currentUser.id,
+        ...payerFields(),
         splits:          splitPayload,
         splitMode,
         category:        category as ExpenseCategory,
@@ -502,17 +516,50 @@ export default function NewExpenseScreen() {
           {/* Payer + repartos: SOLO con grupo. Sin grupo = gasto personal. (F-G) */}
           {hasGroup && (<>
           {/* Payer */}
-          <Pressable
-            onPress={() => setShowPayer(true)}
-            style={[styles.row, { backgroundColor: c.surface, borderColor: c.borderHair }]}
-          >
-            <Text style={[Typography.label, { color: c.textTertiary, textTransform: 'uppercase' }]}>{t('expense.payer_label')}</Text>
-            <View style={styles.rowRight}>
-              <Avatar name={payerName} hue={hueForUser(payerId)} size={24} />
-              <Text style={[Typography.bodyM, { color: c.text, fontWeight: '600' }]}>{payerName}</Text>
-              <Ionicons name="chevron-down" size={16} color={c.textTertiary} />
+          {multiPayer ? (
+            <View style={[styles.row, { backgroundColor: c.surface, borderColor: c.borderHair, flexDirection: 'column', alignItems: 'stretch', gap: Spacing[2] }]}>
+              <PayerSplitter
+                members={members.map(uid => ({ id: uid, name: getUserName(uid) }))}
+                value={payers}
+                totalAmount={amount}
+                currency={currency}
+                onChange={setPayers}
+              />
+              <Pressable onPress={() => { setMultiPayer(false); setPayers([]); }} hitSlop={8}>
+                <Text style={[Typography.bodyS, { color: c.brand.primary }]}>{t('payers.single')}</Text>
+              </Pressable>
             </View>
-          </Pressable>
+          ) : (
+            <Pressable
+              onPress={() => setShowPayer(true)}
+              style={[styles.row, { backgroundColor: c.surface, borderColor: c.borderHair }]}
+            >
+              <Text style={[Typography.label, { color: c.textTertiary, textTransform: 'uppercase' }]}>{t('expense.payer_label')}</Text>
+              <View style={styles.rowRight}>
+                <Avatar name={payerName} hue={hueForUser(payerId)} size={24} />
+                <Text style={[Typography.bodyM, { color: c.text, fontWeight: '600' }]}>{payerName}</Text>
+                <Ionicons name="chevron-down" size={16} color={c.textTertiary} />
+              </View>
+            </Pressable>
+          )}
+
+          {!multiPayer && (
+            <Pressable
+              onPress={() => {
+                // Arranca con el pagador actual poniendo todo: el usuario resta
+                // desde ahí, que es más rápido que cargar todo de cero.
+                setPayers(members.map(uid => ({
+                  userId: uid,
+                  amount: uid === (payerId || currentUser?.id) ? amount : 0,
+                })));
+                setMultiPayer(true);
+              }}
+              hitSlop={8}
+              style={{ alignSelf: 'flex-start' }}
+            >
+              <Text style={[Typography.bodyS, { color: c.brand.primary }]}>{t('payers.multiple')}</Text>
+            </Pressable>
+          )}
 
           {/* Split section */}
           <View style={styles.splitSection}>

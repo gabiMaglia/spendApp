@@ -568,5 +568,15 @@
     "send": "Enviar comentário",
     "delete_title": "Excluir comentário",
     "delete_body": "Será excluído para todos na próxima sincronização."
+  },
+  "payers": {
+    "title": "QUEM PAGOU",
+    "multiple": "Várias pessoas pagaram",
+    "single": "Uma pessoa pagou",
+    "amount_for": "Valor de {{name}}",
+    "balanced": "✓ A soma bate com o total",
+    "missing": "Faltam {{amount}}",
+    "over": "Passou {{amount}}",
+    "difference": "Diferença em relação ao total"
   }
 }
