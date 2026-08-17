@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { readScoped, writeScoped } from './userScope';
+import { mergeByIdLWW } from './lww';
 import { migratePaymentAmounts } from './moneyMigration';
 import type { Payment } from '@/src/types/models';
 
@@ -46,23 +47,23 @@ export const usePaymentStore = create<PaymentStoreState>((set, get) => ({
 
   // LWW merge para sync P2P
   mergePayments: (incoming) => {
-    const current = get().payments;
-    const merged = [...current];
-    for (const inc of incoming) {
-      const idx = merged.findIndex(p => p.id === inc.id);
-      if (idx === -1) {
-        merged.push(inc);
-      } else if (inc.updatedAt > merged[idx].updatedAt) {
-        merged[idx] = inc;
-      }
-    }
+    const merged = mergeByIdLWW(get().payments, incoming);
     persist(merged);
     set({ payments: merged });
   },
 
   hydrate: () => {
     const raw = readScoped(storage, KEY);
-    let payments = raw ? (JSON.parse(raw) as Payment[]) : [];
+    // Un dato corrupto NO puede tirar acá: hydrate corre en el arranque de la app
+    // (app/_layout.tsx) y una excepción deja isLoading en true para siempre,
+    // trabando la pantalla de carga sin salida. Ya pasó con la sesión (T-020);
+    // estos stores habían quedado sin la misma protección.
+    let payments: Payment[] = [];
+    try {
+      payments = raw ? (JSON.parse(raw) as Payment[]) : [];
+    } catch {
+      payments = [];
+    }
 
     // Conversión one-shot de datos existentes (float → entero, ADR-002 §6).
     if (!storage.getBoolean(MONEY_MIGRATION_KEY)) {

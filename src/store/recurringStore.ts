@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { readScoped, writeScoped } from './userScope';
+import { mergeByIdLWW } from './lww';
 import type { RecurringExpense } from '@/src/types/models';
 
 const storage = createSecureStorage('recurring');
@@ -56,12 +57,7 @@ export const useRecurringStore = create<RecurringStoreState>((set, get) => ({
 
   // LWW por updatedAt, igual que el resto de los stores (sync P2P).
   mergeRecurring: (incoming) => {
-    const merged = [...get().recurring];
-    for (const inc of incoming) {
-      const i = merged.findIndex(r => r.id === inc.id);
-      if (i === -1) merged.push(inc);
-      else if (inc.updatedAt > merged[i]!.updatedAt) merged[i] = inc;
-    }
+    const merged = mergeByIdLWW(get().recurring, incoming);
     persist(merged);
     set({ recurring: merged });
   },

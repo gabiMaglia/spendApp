@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { readScoped, writeScoped } from './userScope';
+import { mergeByIdLWW } from './lww';
 import type { User } from '@/src/types/models';
 
 const storage = createSecureStorage('users');
@@ -47,23 +48,23 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
 
   // LWW merge para sync P2P — propaga perfiles de otros usuarios
   mergeUsers: (incoming) => {
-    const current = get().users;
-    const merged = [...current];
-    for (const inc of incoming) {
-      const idx = merged.findIndex(u => u.id === inc.id);
-      if (idx === -1) {
-        merged.push(inc);
-      } else if (inc.updatedAt > merged[idx].updatedAt) {
-        merged[idx] = inc;
-      }
-    }
+    const merged = mergeByIdLWW(get().users, incoming);
     persist(merged);
     set({ users: merged });
   },
 
   hydrate: () => {
     const raw = readScoped(storage, KEY);
-    const users = raw ? (JSON.parse(raw) as User[]) : [];
+    // Un dato corrupto NO puede tirar acá: hydrate corre en el arranque de la app
+    // (app/_layout.tsx) y una excepción deja isLoading en true para siempre,
+    // trabando la pantalla de carga sin salida. Ya pasó con la sesión (T-020);
+    // estos stores habían quedado sin la misma protección.
+    let users: User[] = [];
+    try {
+      users = raw ? (JSON.parse(raw) as User[]) : [];
+    } catch {
+      users = [];
+    }
     set({ users });
   },
 }));

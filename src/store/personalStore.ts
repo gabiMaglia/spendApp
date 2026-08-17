@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { readScoped, writeScoped } from './userScope';
+import { mergeByIdLWW } from './lww';
 import { migratePersonalBudgetAmount, migratePersonalEntryAmounts } from './moneyMigration';
 import type { PersonalEntry, PersonalBudget } from '@/src/types/models';
 
@@ -94,16 +95,7 @@ export const usePersonalStore = create<PersonalStoreState>((set, get) => ({
   // LWW merge por updatedAt (para import de backup / sync). Mismo patrón que
   // expenseStore.mergeExpenses: gana el registro con mayor updatedAt.
   mergeEntries: (incoming) => {
-    const current = get().entries;
-    const merged = [...current];
-    for (const inc of incoming) {
-      const idx = merged.findIndex(e => e.id === inc.id);
-      if (idx === -1) {
-        merged.push(inc);
-      } else if (inc.updatedAt > merged[idx].updatedAt) {
-        merged[idx] = inc;
-      }
-    }
+    const merged = mergeByIdLWW(get().entries, incoming);
     persistEntries(merged);
     set({ entries: merged });
   },
@@ -112,8 +104,18 @@ export const usePersonalStore = create<PersonalStoreState>((set, get) => ({
     const rawEntries  = readScoped(storage, ENTRIES_KEY);
     const rawBudget   = readScoped(storage, BUDGET_KEY);
     const rawLastSeen = readScoped(storage, LAST_SEEN_KEY);
-    let entries      = rawEntries  ? (JSON.parse(rawEntries)  as PersonalEntry[]) : [];
-    let budget       = rawBudget   ? (JSON.parse(rawBudget)   as PersonalBudget)  : DEFAULT_BUDGET;
+    // Un dato corrupto NO puede tirar acá: hydrate corre en el arranque de la app
+    // (app/_layout.tsx) y una excepción deja isLoading en true para siempre,
+    // trabando la pantalla de carga sin salida. Ya pasó con la sesión (T-020);
+    // estos stores habían quedado sin la misma protección.
+    let entries: PersonalEntry[] = [];
+    let budget: PersonalBudget = DEFAULT_BUDGET;
+    try {
+      entries = rawEntries ? (JSON.parse(rawEntries) as PersonalEntry[]) : [];
+    } catch { entries = []; }
+    try {
+      budget = rawBudget ? (JSON.parse(rawBudget) as PersonalBudget) : DEFAULT_BUDGET;
+    } catch { budget = DEFAULT_BUDGET; }
     const lastSeenMonth = rawLastSeen ?? currentMonthKey();
 
     // Conversión one-shot de datos existentes (float → entero, ADR-002 §6).
