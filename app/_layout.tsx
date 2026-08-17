@@ -99,6 +99,7 @@ export default function RootLayout() {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="groups/[id]"  options={{ headerShown: false }} />
         <Stack.Screen name="groups/new"   options={{ presentation: 'modal', headerShown: false }} />
+        <Stack.Screen name="groups/join"  options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="expense/new"  options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="expense/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="settle/new"   options={{ presentation: 'modal', headerShown: false }} />

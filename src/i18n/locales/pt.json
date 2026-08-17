@@ -591,5 +591,21 @@
     "missing": "Faltam {{amount}}",
     "over": "Passou {{amount}}",
     "difference": "Diferença em relação ao total"
+  },
+  "join": {
+    "invalid_title": "Link inválido",
+    "invalid_body": "Este link de convite está incompleto ou foi copiado errado. Peça para quem te convidou enviar de novo.",
+    "expired_title": "O link expirou",
+    "expired_body": "Os convites duram 48 horas. Peça para quem te convidou gerar um novo.",
+    "need_login_title": "Entre na sua conta",
+    "need_login_body": "Entre com sua conta e abra o link de novo para entrar no grupo.",
+    "intro": "Você foi convidado para este grupo. Ao entrar, vai ver as despesas e os saldos de todos.",
+    "accept": "Entrar no grupo",
+    "waiting_key": "Esperando liberarem seu acesso…",
+    "joined_title": "Você já está dentro",
+    "joined_body": "Você entrou em “{{group}}”. As despesas sincronizam sozinhas.",
+    "open_group": "Ver o grupo",
+    "pending_title": "Seu pedido foi enviado",
+    "pending_body": "Falta quem te convidou abrir o app para liberar seu acesso. Quando isso acontecer, o grupo aparece sozinho — você não precisa fazer mais nada."
   }
 }

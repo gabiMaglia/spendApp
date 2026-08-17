@@ -591,5 +591,21 @@
     "missing": "{{amount}} missing",
     "over": "{{amount}} over",
     "difference": "Difference from total"
+  },
+  "join": {
+    "invalid_title": "Invalid link",
+    "invalid_body": "This invite link is incomplete or was copied wrong. Ask whoever invited you to send it again.",
+    "expired_title": "The link expired",
+    "expired_body": "Invites last 48 hours. Ask whoever invited you to create a new one.",
+    "need_login_title": "Sign in first",
+    "need_login_body": "Sign in with your account and open the link again to join the group.",
+    "intro": "You've been invited to this group. Once you join you'll see everyone's expenses and balances.",
+    "accept": "Join group",
+    "waiting_key": "Waiting for access…",
+    "joined_title": "You're in",
+    "joined_body": "You joined “{{group}}”. Expenses sync automatically.",
+    "open_group": "Open the group",
+    "pending_title": "Your request was sent",
+    "pending_body": "Whoever invited you needs to open the app to grant you access. When they do, the group will show up on its own — nothing else for you to do."
   }
 }
