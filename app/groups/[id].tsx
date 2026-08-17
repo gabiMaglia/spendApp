@@ -37,6 +37,8 @@ export default function GroupDetailScreen() {
   const c = Colors[scheme];
 
   const { currentUser } = useAuthStore();
+  const deleteGroup = useGroupStore(st => st.deleteGroup);
+  const leaveGroup  = useGroupStore(st => st.leaveGroup);
   const group        = useGroupStore(s => s.groups.find(g => g.id === id));
   const updateGroup  = useGroupStore(s => s.updateGroup);
   const allExpenses  = useExpenseStore(s => s.expenses);
@@ -189,6 +191,61 @@ export default function GroupDetailScreen() {
           </View>
         )}
 
+        {/* Salir / eliminar */}
+        {group && currentUser && (
+          <View style={styles.dangerZone}>
+            {group.createdById === currentUser.id ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  Alert.alert(
+                    t('group_detail.delete_title'),
+                    t('group_detail.delete_body', { name: group.name }),
+                    [
+                      { text: t('common.cancel'), style: 'cancel' },
+                      {
+                        text: t('common.delete'),
+                        style: 'destructive',
+                        onPress: () => { deleteGroup(group.id); router.back(); },
+                      },
+                    ],
+                  );
+                }}
+                style={styles.dangerRow}
+              >
+                <Ionicons name="trash-outline" size={16} color={c.semantic.negative} />
+                <Text style={[Typography.bodyM, { color: c.semantic.negative, fontWeight: '600' }]}>
+                  {t('group_detail.delete_group')}
+                </Text>
+              </Pressable>
+            ) : (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  Alert.alert(
+                    t('group_detail.leave_title'),
+                    t('group_detail.leave_body'),
+                    [
+                      { text: t('common.cancel'), style: 'cancel' },
+                      {
+                        text: t('group_detail.leave_confirm'),
+                        style: 'destructive',
+                        onPress: () => { leaveGroup(group.id, currentUser.id); router.back(); },
+                      },
+                    ],
+                  );
+                }}
+                style={styles.dangerRow}
+              >
+                <Ionicons name="exit-outline" size={16} color={c.semantic.negative} />
+                <Text style={[Typography.bodyM, { color: c.semantic.negative, fontWeight: '600' }]}>
+                  {t('group_detail.leave_group')}
+                </Text>
+              </Pressable>
+            )}
+          </View>
+        )}
+
         <View style={{ height: 120 }} />
       </ScrollView>
 
@@ -334,6 +391,8 @@ function PaymentRow({
 }
 
 const styles = StyleSheet.create({
+  dangerZone: { marginTop: 32, alignItems: 'center' },
+  dangerRow:  { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12 },
   safe:           { flex: 1 },
   header:         {
     flexDirection: 'row', alignItems: 'center',
