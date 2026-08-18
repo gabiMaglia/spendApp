@@ -12,7 +12,6 @@ import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { isRelayConfigured } from '@/src/sync/relay';
-import { clearRoster } from '@/src/sync/groupRoster';
 import { ensureContactSecret, listPeers, peersIncompletos } from '@/src/sync/contactChannel';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { wipeAllAccounts } from '@/src/store/wipeDevice';
@@ -45,7 +44,6 @@ export default function IdentityDebugScreen() {
   const miSecreto = ensureContactSecret();
 
   const sinClave = groups.filter(g => !g.isDeleted && !claves.some(k => k.groupId === g.id));
-  const [rosterReiniciado, setRosterReiniciado] = React.useState(false);
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: c.bg }]}>
@@ -72,19 +70,6 @@ export default function IdentityDebugScreen() {
           <Row label="…sin claves públicas" value={String(incompletos)} c={c} warn={incompletos > 0} />
           <Row label="grupos con clave" value={`${claves.length} de ${groups.filter(g => !g.isDeleted).length}`} c={c}
                warn={sinClave.length > 0} />
-
-          {/* Si una cuenta se usa en dos teléfonos (o alguien reinstaló), la
-              identidad cambia y sus sobres se rechazan en silencio. Reiniciar
-              el roster vuelve a aceptar la primera identidad que llegue. */}
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => { clearRoster(); setRosterReiniciado(true); }}
-            style={{ marginTop: 10 }}
-          >
-            <Text style={[Typography.bodyS, { color: c.brand.primary, fontWeight: '600' }]}>
-              {rosterReiniciado ? 'Roster reiniciado ✓' : 'Reiniciar roster de publicadores'}
-            </Text>
-          </Pressable>
         </Block>
 
         {incompletos > 0 && (
