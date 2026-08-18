@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
@@ -99,8 +99,12 @@ export default function SettleNewScreen() {
     onBlur: onAmountBlur,
     setMinor: setAmountMinor,
   } = useAmountInput(currencyForAmount, maxAmount ?? 0);
+  // El que paga soy yo salvo que esté editando el pago de otro: entrar y tener
+  // que corregir "de quién sale la plata" es un paso que nadie quiere dar.
   const [fromId,    setFromId]    = useState(
-    isPrefilled && currentUser ? currentUser.id : (defaultGroup?.memberIds[0] ?? ''),
+    currentUser && (defaultGroup?.memberIds.includes(currentUser.id) ?? false)
+      ? currentUser.id
+      : (defaultGroup?.memberIds[0] ?? ''),
   );
   const [toId, setToId] = useState(
     isPrefilled && paramToId ? paramToId : (defaultGroup?.memberIds.filter(uid => uid !== fromId)[0] ?? ''),
@@ -117,27 +121,57 @@ export default function SettleNewScreen() {
   const currency = currencyForAmount;
   const toOptions = members.filter(uid => uid !== fromId);
 
-  /**
-   * Cuánto haría falta para saldar entre estas dos personas en este grupo.
-   * Sale de los balances reales del grupo (gastos + pagos ya hechos), no del
-   * total del grupo: pagar de más movería la deuda en vez de saldarla.
-   */
-  const deudaTotal = useMemo(() => {
-    if (!group || !fromId || !toId) return 0;
+  /** Balances reales del grupo en esta moneda: gastos MENOS lo ya pagado. */
+  const balancesDelGrupo = useMemo<Balance[]>(() => {
+    if (!group) return [];
 
-    const delGrupo = allExpenses.filter(e => e.groupId === group.id && !e.isDeleted);
-    const pagosDelGrupo = allPayments.filter(p => p.groupId === group.id && !p.isDeleted);
-
-    const porMoneda = calculateBalancesByCurrency(delGrupo, pagosDelGrupo, group.memberIds);
-    const enEstaMoneda: Balance[] = porMoneda.map(u => ({
+    const porMoneda = calculateBalancesByCurrency(
+      allExpenses.filter(e => e.groupId === group.id && !e.isDeleted),
+      allPayments.filter(p => p.groupId === group.id && !p.isDeleted),
+      group.memberIds,
+    );
+    return porMoneda.map(u => ({
       userId: u.userId,
       amount: u.balances.find(b => b.currency === currency)?.amount ?? 0,
     }));
+  }, [group, allExpenses, allPayments, currency]);
 
-    return suggestedSettlement(enEstaMoneda, fromId, toId);
-  }, [group, allExpenses, allPayments, fromId, toId, currency]);
+  /**
+   * Cuánto haría falta para saldar entre estas dos personas. Acotado por los
+   * dos lados: pagar de más movería la deuda en vez de saldarla.
+   */
+  const deudaTotal = useMemo(
+    () => suggestedSettlement(balancesDelGrupo, fromId, toId),
+    [balancesDelGrupo, fromId, toId],
+  );
 
+  const todoSaldado = balancesDelGrupo.length > 0 && balancesDelGrupo.every(b => b.amount === 0);
   const yaEsElTotal = deudaTotal > 0 && amount === deudaTotal;
+
+  /**
+   * El monto llega YA PUESTO al elegir a la persona, como en Splitwise: saldar
+   * completo es el caso normal y tipearlo a mano deja restos de un peso. Sigue
+   * siendo editable — un pago parcial es sólo escribir otro número encima.
+   *
+   * Se rellena al CAMBIAR de par, no en cada render: si no, pisaría lo que el
+   * usuario está escribiendo.
+   */
+  const ultimoPar = useRef('');
+  useEffect(() => {
+    const par = `${groupId}|${fromId}|${toId}|${currency}`;
+    if (par === ultimoPar.current) return;
+    ultimoPar.current = par;
+    setAmountMinor(deudaTotal);
+  }, [groupId, fromId, toId, currency, deudaTotal, setAmountMinor]);
+
+  /** Lo que hay que mostrarle al lado del nombre al elegir a alguien. */
+  function hintDe(uid: string): string | undefined {
+    const saldo = balancesDelGrupo.find(b => b.userId === uid)?.amount ?? 0;
+    if (saldo === 0) return undefined;
+    return saldo > 0
+      ? t('settle.hint_owed', { amount: formatMoney(saldo, currency) })
+      : t('settle.hint_owes', { amount: formatMoney(Math.abs(saldo), currency) });
+  }
 
   const exceedsMax  = maxAmount !== undefined && amount > maxAmount;
   const canSave     = amount > 0 && !exceedsMax && fromId.length > 0 && toId.length > 0 && fromId !== toId && groupId.length > 0;
@@ -219,9 +253,17 @@ export default function SettleNewScreen() {
                 returnKeyType="done"
               />
             </View>
-            {/* Atajo: el caso normal es saldar TODO, y escribirlo a mano es
-                tedioso y propenso a dejar un resto de un peso que nadie
-                entiende después. */}
+            {/* El monto ya viene puesto al elegir a la persona; este chip es
+                para volver al total después de haberlo editado. */}
+            {todoSaldado && (
+              <View style={[styles.wholeDebt, { backgroundColor: c.semantic.positiveSoft, borderColor: 'transparent' }]}>
+                <Ionicons name="checkmark-circle" size={14} color={c.semantic.positiveOnSoft} />
+                <Text style={[Typography.bodyS, { color: c.semantic.positiveOnSoft, fontWeight: '600' }]}>
+                  {t('settle.all_settled')}
+                </Text>
+              </View>
+            )}
+
             {deudaTotal > 0 && (
               <Pressable
                 accessibilityRole="button"
@@ -369,6 +411,7 @@ export default function SettleNewScreen() {
               key={uid}
               userId={uid}
               name={getUserName(uid)}
+              hint={hintDe(uid)}
               selected={uid === fromId}
               onPress={() => handleFromChange(uid)}
             />
@@ -385,6 +428,7 @@ export default function SettleNewScreen() {
               key={uid}
               userId={uid}
               name={getUserName(uid)}
+              hint={hintDe(uid)}
               selected={uid === toId}
               onPress={() => { hapticSelection(); setToId(uid); setShowTo(false); }}
             />

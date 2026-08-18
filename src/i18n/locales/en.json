@@ -292,7 +292,10 @@
     "select": "Select",
     "who_received": "Who received it?",
     "payment_date": "Payment date",
-    "whole_debt": "Full amount · {{amount}}"
+    "whole_debt": "Full amount · {{amount}}",
+    "hint_owed": "is owed {{amount}}",
+    "hint_owes": "owes {{amount}}",
+    "all_settled": "This group is all settled up"
   },
   "delete": {
     "sheet_title": "Delete this expense?",
