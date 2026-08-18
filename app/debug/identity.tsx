@@ -10,6 +10,9 @@ import { Typography } from '@/src/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
+import { useGroupKeyStore } from '@/src/store/groupKeyStore';
+import { isRelayConfigured } from '@/src/sync/relay';
+import { ensureContactSecret, listPeers, peersIncompletos } from '@/src/sync/contactChannel';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { wipeAllAccounts } from '@/src/store/wipeDevice';
 import { Alert } from 'react-native';
@@ -31,6 +34,17 @@ export default function IdentityDebugScreen() {
 
   const dosCuentas = snapshot.known.length > 1;
 
+  // Estado del sync. Es lo que convierte un "no me llega nada" en un diagnóstico:
+  // sin relay configurado, sin secreto propio o con contactos a los que les
+  // faltan las públicas, la entrega de claves de grupo NO puede salir — y el
+  // síntoma es siempre el mismo, no pasa nada y no hay error.
+  const claves = useGroupKeyStore(st => st.keys);
+  const peers = listPeers();
+  const incompletos = peersIncompletos().length;
+  const miSecreto = ensureContactSecret();
+
+  const sinClave = groups.filter(g => !g.isDeleted && !claves.some(k => k.groupId === g.id));
+
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: c.bg }]}>
       <View style={styles.header}>
@@ -46,6 +60,31 @@ export default function IdentityDebugScreen() {
           <Row label="grupos visibles" value={String(groups.length)} c={c} />
           <Row label="gastos visibles" value={String(expenses.length)} c={c} />
         </Block>
+
+        <Block title="SYNC" c={c}>
+          <Row label="relay configurado" value={isRelayConfigured() ? 'sí' : 'NO'} c={c}
+               warn={!isRelayConfigured()} />
+          <Row label="mi buzón de contacto" value={miSecreto ? miSecreto.slice(0, 12) + '…' : 'NO'} c={c}
+               warn={!miSecreto} />
+          <Row label="contactos con buzón" value={String(Object.keys(peers).length)} c={c} />
+          <Row label="…sin claves públicas" value={String(incompletos)} c={c} warn={incompletos > 0} />
+          <Row label="grupos con clave" value={`${claves.length} de ${groups.filter(g => !g.isDeleted).length}`} c={c}
+               warn={sinClave.length > 0} />
+        </Block>
+
+        {incompletos > 0 && (
+          <View style={[styles.card, { borderColor: c.semantic.warning }]}>
+            <Text style={[Typography.bodyM, { color: c.semantic.warning, fontWeight: '600' }]}>
+              {incompletos} contacto(s) a medias
+            </Text>
+            <Text style={[Typography.bodyS, { color: c.textSecondary }]}>
+              Se agregaron con una versión anterior del código, que no mandaba las
+              claves públicas. Sin ellas no se les puede entregar la clave de un
+              grupo. La app les manda la tarjeta al arrancar; si los dos abren la
+              app queda reparado solo. Si no, volvé a escanear el QR.
+            </Text>
+          </View>
+        )}
 
         <Block title={`CUENTAS CONOCIDAS EN ESTE DEVICE (${snapshot.known.length})`} c={c}>
           {snapshot.known.length === 0 ? (

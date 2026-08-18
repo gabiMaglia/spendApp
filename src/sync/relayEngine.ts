@@ -8,7 +8,10 @@ import { publishToGroup, drainGroup } from './relaySync';
 import { fromHex } from './envelopeCrypto';
 import { deriveInviteTopic, type GroupInvite } from './groupInvite';
 import { activeInvites, processInvite, processAllInvites } from './inviteEngine';
-import { ensureContactSecret, deriveContactTopic, drainContacts, sendGroupKey } from './contactChannel';
+import {
+  ensureContactSecret, deriveContactTopic, drainContacts, sendGroupKey,
+  announceContact, peersIncompletos,
+} from './contactChannel';
 
 /**
  * Motor del sync en tiempo real: publica lo que cambia y aplica lo que llega.
@@ -159,6 +162,7 @@ export async function startRelay(): Promise<void> {
 
   await subscribeInvites();
   await subscribeContacts();
+  await completarContactos();
   await drainContactsNow();
   await drainAll(); // al arrancar, lo encolado mientras estuvimos afuera
 
@@ -166,6 +170,47 @@ export async function startRelay(): Promise<void> {
   // así que se drena explícitamente: es justo el caso en el que el usuario está
   // mirando la pantalla esperando ver el grupo aparecer.
   for (const groupId of adoptados) await drainNow(groupId);
+
+  await reenviarClavesDeGrupo();
+}
+
+/**
+ * Le manda la tarjeta propia a los contactos de los que todavía no tenemos sus
+ * claves públicas.
+ *
+ * Repara los contactos agregados con una versión anterior del código, que no
+ * las incluía. Sin ellas no se les puede entregar la clave de ningún grupo, y
+ * el síntoma es el peor de todos: el grupo simplemente no les llega, sin error
+ * ni aviso. Al recibir la tarjeta, el otro lado responde con la suya y los dos
+ * quedan completos — sin volver a escanear nada.
+ */
+async function completarContactos(): Promise<void> {
+  for (const secreto of peersIncompletos()) {
+    try { await announceContact(secreto, deviceId()); } catch { /* se reintenta */ }
+  }
+}
+
+/**
+ * Reenvía la clave de cada grupo propio a los contactos que son miembros.
+ *
+ * Es el reintento del reparto: si cuando se creó el grupo todavía no
+ * conocíamos las públicas del otro, la entrega no salió y NADA volvía a
+ * dispararla. Adoptar una clave que ya se tiene es un no-op, así que repetirlo
+ * no cuesta nada más que unos pocos bytes por arranque.
+ */
+async function reenviarClavesDeGrupo(): Promise<void> {
+  const me = useAuthStore.getState().currentUser;
+  if (!me) return;
+
+  for (const groupId of syncableGroupIds()) {
+    const group = useGroupStore.getState().getById(groupId);
+    if (!group) continue;
+
+    for (const memberId of group.memberIds) {
+      if (memberId === me.id) continue;
+      try { await sendGroupKey(memberId, group, deviceId()); } catch { /* sigue */ }
+    }
+  }
 }
 
 /**

@@ -211,10 +211,17 @@ describe('purga de scopes fusionados (T-029)', () => {
   const DAY = 24 * 60 * 60 * 1000;
   const NOW = Date.UTC(2026, 7, 17);
 
+  // `mergeAccounts` fecha la fusión con el reloj real, así que sin fijarlo el
+  // resultado depende de qué día se corra el test: si la fecha de hoy queda
+  // cerca de NOW, el período de gracia no se cumple y la purga no ocurre.
+  // Pasó de verdad — los tests se rompieron solos al cambiar el día.
   beforeEach(() => {
+    jest.spyOn(Date, 'now').mockReturnValue(NOW);
     ['auth', 'groups', 'expenses', 'payments', 'users', 'recurring', 'comments', 'personal']
       .forEach(b => createSecureStorage(b as any).clearAll());
   });
+
+  afterEach(() => { jest.restoreAllMocks(); });
 
   it('recién fusionado NO se purga: hay que poder volver atrás', () => {
     writeList('groups', APPLE, ['gA']);
