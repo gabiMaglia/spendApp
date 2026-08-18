@@ -11,6 +11,7 @@ import { useGroupKeyStore } from './groupKeyStore';
 import { purgeMergedScopes } from './accountLink';
 import { startRelay } from '@/src/sync/relayEngine';
 import { materializeRecurring } from '@/src/services/materializeRecurring';
+import { resolvePendingDeletions } from '@/src/services/resolveDeletions';
 import { useSettingsStore } from './settingsStore';
 
 // (Re)hidrata todos los stores scopeados por cuenta con los datos del usuario
@@ -32,6 +33,11 @@ export function rehydrateForActiveUser(): void {
   // recurrentes vencidos. Va acá y no en el arranque de la app porque depende
   // de QUÉ cuenta está activa: cada una tiene sus propias plantillas.
   applyDueRecurring();
+
+  // Solicitudes de borrado cuyas 72hs ya vencieron sin objeción. Va acá y no en
+  // un temporizador: mientras la app está cerrada no hay nada que ejecutar, y
+  // el vencimiento se evalúa igual de bien al volver.
+  resolvePendingDeletions();
 
   // Limpieza tardía de scopes fusionados que ya pasaron el período de gracia.
   purgeMergedScopes();
