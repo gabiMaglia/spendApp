@@ -18,6 +18,10 @@ import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useUserStore } from '@/src/store/userStore';
 import { usePaymentStore } from '@/src/store/paymentStore';
+import { useExpenseStore } from '@/src/store/expenseStore';
+import { calculateBalancesByCurrency } from '@/src/algorithms/calculateBalances';
+import { suggestedSettlement } from '@/src/algorithms/settleSuggestion';
+import type { Balance } from '@/src/types/models';
 import { hapticSuccess, hapticWarning, hapticSelection } from '@/src/utils/haptics';
 import { hueForUser } from '@/src/utils/hueForUser';
 import { Avatar } from '@/src/components/Avatar';
@@ -42,7 +46,9 @@ export default function SettleNewScreen() {
   const { currentUser } = useAuthStore();
   const { addPayment } = usePaymentStore();
   const { getUserName } = useUserStore();
-  const allGroups = useGroupStore(s => s.groups);
+  const allGroups   = useGroupStore(s => s.groups);
+  const allExpenses = useExpenseStore(s => s.expenses);
+  const allPayments = usePaymentStore(s => s.payments);
 
   // Params from friends tab: pre-fill who you're paying and how much
   const {
@@ -110,6 +116,28 @@ export default function SettleNewScreen() {
   const members  = group?.memberIds ?? [];
   const currency = currencyForAmount;
   const toOptions = members.filter(uid => uid !== fromId);
+
+  /**
+   * Cuánto haría falta para saldar entre estas dos personas en este grupo.
+   * Sale de los balances reales del grupo (gastos + pagos ya hechos), no del
+   * total del grupo: pagar de más movería la deuda en vez de saldarla.
+   */
+  const deudaTotal = useMemo(() => {
+    if (!group || !fromId || !toId) return 0;
+
+    const delGrupo = allExpenses.filter(e => e.groupId === group.id && !e.isDeleted);
+    const pagosDelGrupo = allPayments.filter(p => p.groupId === group.id && !p.isDeleted);
+
+    const porMoneda = calculateBalancesByCurrency(delGrupo, pagosDelGrupo, group.memberIds);
+    const enEstaMoneda: Balance[] = porMoneda.map(u => ({
+      userId: u.userId,
+      amount: u.balances.find(b => b.currency === currency)?.amount ?? 0,
+    }));
+
+    return suggestedSettlement(enEstaMoneda, fromId, toId);
+  }, [group, allExpenses, allPayments, fromId, toId, currency]);
+
+  const yaEsElTotal = deudaTotal > 0 && amount === deudaTotal;
 
   const exceedsMax  = maxAmount !== undefined && amount > maxAmount;
   const canSave     = amount > 0 && !exceedsMax && fromId.length > 0 && toId.length > 0 && fromId !== toId && groupId.length > 0;
@@ -191,6 +219,32 @@ export default function SettleNewScreen() {
                 returnKeyType="done"
               />
             </View>
+            {/* Atajo: el caso normal es saldar TODO, y escribirlo a mano es
+                tedioso y propenso a dejar un resto de un peso que nadie
+                entiende después. */}
+            {deudaTotal > 0 && (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => { hapticSelection(); setAmountMinor(deudaTotal); }}
+                style={[styles.wholeDebt, {
+                  backgroundColor: yaEsElTotal ? c.brand.primarySoft : c.surfaceSunken,
+                  borderColor: yaEsElTotal ? c.brand.primary : 'transparent',
+                }]}
+              >
+                <Ionicons
+                  name={yaEsElTotal ? 'checkmark-circle' : 'flash-outline'}
+                  size={14}
+                  color={yaEsElTotal ? c.brand.primary : c.textSecondary}
+                />
+                <Text style={[Typography.bodyS, {
+                  color: yaEsElTotal ? c.brand.primary : c.textSecondary,
+                  fontWeight: '600',
+                }]}>
+                  {t('settle.whole_debt', { amount: formatMoney(deudaTotal, currency) })}
+                </Text>
+              </Pressable>
+            )}
+
             {maxAmount !== undefined && (
               <View style={[styles.maxHint, { backgroundColor: exceedsMax ? c.semantic.negativeSoft : c.surfaceSunken }]}>
                 <Ionicons
@@ -366,6 +420,12 @@ export default function SettleNewScreen() {
 }
 
 const styles = StyleSheet.create({
+  wholeDebt: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    alignSelf: 'flex-start', marginTop: Spacing[3],
+    paddingVertical: Spacing[2], paddingHorizontal: Spacing[3],
+    borderRadius: Radius.full, borderWidth: 1,
+  },
   safe:           { flex: 1 },
   header:         {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',

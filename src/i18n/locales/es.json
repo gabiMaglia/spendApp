@@ -119,8 +119,6 @@
     "new_group": "Nuevo grupo",
     "members_count": "{{count}} miembros",
     "expenses_count": "{{count}} gastos",
-    "p2p_banner_title": "P2P, sin servidor",
-    "p2p_banner_body": "Los miembros sincronizan entre sí. Si nadie tiene internet, alcanza con estar cerca: Bluetooth se encarga.",
     "empty_title": "Sin grupos todavía",
     "empty_body": "Creá un grupo para dividir gastos con amigos.",
     "create_title": "Nuevo grupo",
@@ -293,7 +291,8 @@
     "pending_balance": "Saldo pendiente: {{amount}}",
     "select": "Seleccionar",
     "who_received": "¿A quién le pagó?",
-    "payment_date": "Fecha del pago"
+    "payment_date": "Fecha del pago",
+    "whole_debt": "Toda la deuda · {{amount}}"
   },
   "delete": {
     "sheet_title": "¿Eliminar este gasto?",

@@ -119,8 +119,6 @@
     "new_group": "New group",
     "members_count": "{{count}} members",
     "expenses_count": "{{count}} expenses",
-    "p2p_banner_title": "P2P, no server",
-    "p2p_banner_body": "Members sync with each other. No internet? Bluetooth handles it when nearby.",
     "empty_title": "No groups yet",
     "empty_body": "Create a group to split expenses with friends.",
     "create_title": "New group",
@@ -293,7 +291,8 @@
     "pending_balance": "Pending balance: {{amount}}",
     "select": "Select",
     "who_received": "Who received it?",
-    "payment_date": "Payment date"
+    "payment_date": "Payment date",
+    "whole_debt": "Full amount · {{amount}}"
   },
   "delete": {
     "sheet_title": "Delete this expense?",
