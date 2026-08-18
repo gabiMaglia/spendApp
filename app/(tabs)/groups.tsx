@@ -141,21 +141,6 @@ export default function GroupsScreen() {
           </View>
         )}
 
-        {/* P2P info banner */}
-        <View style={[styles.infoBanner, { backgroundColor: c.brand.accentSoft }]}>
-          <View style={[styles.infoIcon, { backgroundColor: c.brand.accent }]}>
-            <Ionicons name="sync-outline" size={16} color="#fff" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[Typography.bodyM, { color: c.brand.accentOnSoft, fontWeight: '600' }]}>
-              {t('groups.p2p_banner_title')}
-            </Text>
-            <Text style={[Typography.bodyS, { color: c.brand.accentOnSoft, opacity: 0.85, marginTop: 2 }]}>
-              {t('groups.p2p_banner_body')}
-            </Text>
-          </View>
-        </View>
-
         <View style={{ height: Spacing[9] }} />
       </ScrollView>
 
