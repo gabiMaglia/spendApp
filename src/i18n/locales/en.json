@@ -137,7 +137,11 @@
     "you_suffix": "{{name}} (you)",
     "no_contacts": "You do not have saved contacts yet.",
     "go_contacts": "Go to Contacts to add",
-    "select_hint": "Select at least one contact to create the group."
+    "select_hint": "Select at least one contact to create the group.",
+    "archive": "Archive",
+    "unarchive": "Restore",
+    "empty_archived_title": "Nothing archived",
+    "empty_archived_body": "Swipe a group left to take it off the main list. Nothing is deleted: its expenses and balances stay intact."
   },
   "group_detail": {
     "your_balance": "Your balance here",

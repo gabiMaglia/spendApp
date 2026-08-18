@@ -1,5 +1,6 @@
 import { useAuthStore } from './authStore';
 import { useGroupStore } from './groupStore';
+import { useArchiveStore } from './archiveStore';
 import { useExpenseStore } from './expenseStore';
 import { usePaymentStore } from './paymentStore';
 import { useUserStore } from './userStore';
@@ -17,6 +18,7 @@ import { useSettingsStore } from './settingsStore';
 // el store limpio → ninguna cuenta ve los datos de otra.
 export function rehydrateForActiveUser(): void {
   useGroupStore.getState().hydrate();
+  useArchiveStore.getState().hydrate();
   useExpenseStore.getState().hydrate();
   usePaymentStore.getState().hydrate();
   useUserStore.getState().hydrate();

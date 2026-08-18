@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import * as Linking from 'expo-linking';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 import 'react-native-get-random-values';
 
@@ -98,7 +99,10 @@ function AuthGuard() {
 export default function RootLayout() {
   const colorScheme = useColorScheme();
 
+  // GestureHandlerRootView: los gestos (deslizar para archivar) NO funcionan
+  // sin esta raíz, y fallan EN SILENCIO — el swipe simplemente no responde.
   return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
     <SafeAreaProvider>
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <AuthGuard />
@@ -122,5 +126,6 @@ export default function RootLayout() {
       <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
     </ThemeProvider>
     </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
