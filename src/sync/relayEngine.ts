@@ -1,3 +1,4 @@
+import { AppState } from 'react-native';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { useGroupStore } from '@/src/store/groupStore';
@@ -33,6 +34,21 @@ import {
 
 const storage = createSecureStorage('groupkeys');
 const CURSOR_PREFIX = 'cursor::';
+
+/**
+ * Cada cuánto se relee todo mientras la app está en primer plano.
+ *
+ * El aviso realtime es SÓLO un aviso: puede perderse (websocket caído, app en
+ * background, red que cambió) y no hay forma de saber que se perdió. Toda la
+ * arquitectura dice que la verdad se lee por cursor... pero hasta acá la única
+ * lectura pasaba al arrancar la app. Resultado: un aviso perdido significaba un
+ * gasto que NUNCA aparecía hasta reiniciar. Esto es lo que hace cierto el
+ * invariante que ya estaba escrito.
+ *
+ * 20s es barato —una query indexada por grupo— y es el orden de magnitud que
+ * la gente tolera esperando ver un gasto que acaba de cargar el otro.
+ */
+export const POLL_INTERVAL_MS = 20_000;
 
 /** Ventana de agrupación: suficiente para juntar una edición, imperceptible. */
 export const PUBLISH_DEBOUNCE_MS = 1_500;
@@ -141,7 +157,21 @@ let unsubs: Array<() => void> = [];
  * dispara una lectura por cursor, que es la única fuente de verdad. Si el
  * websocket estuvo caído, la lectura recupera igual lo que se perdió.
  */
-export async function startRelay(): Promise<void> {
+/**
+ * Reentrada: `startRelay` se llama desde varios lados (arranque, cambio de
+ * cuenta, alta de invitación, adopción de clave) y arranca cortando TODO. Si
+ * dos corridas se pisan, la segunda desuscribe lo que la primera acaba de
+ * crear. El candado hace que la de afuera gane y la de adentro se descarte.
+ */
+let arrancando: Promise<void> | null = null;
+
+export function startRelay(): Promise<void> {
+  if (arrancando) return arrancando;
+  arrancando = doStartRelay().finally(() => { arrancando = null; });
+  return arrancando;
+}
+
+async function doStartRelay(): Promise<void> {
   stopRelay();
   if (!isRelayConfigured()) return;
 
@@ -172,6 +202,41 @@ export async function startRelay(): Promise<void> {
   for (const groupId of adoptados) await drainNow(groupId);
 
   await reenviarClavesDeGrupo();
+  startPolling();
+}
+
+// --- relectura periódica ------------------------------------------------------
+
+let poll: ReturnType<typeof setInterval> | null = null;
+let appStateSub: { remove: () => void } | null = null;
+
+/**
+ * Relee todo cada `POLL_INTERVAL_MS` y también al volver del background.
+ *
+ * Lo segundo importa tanto como lo primero: en background el websocket se cae y
+ * los avisos de ese rato no llegan nunca. Volver a la app tiene que ponerte al
+ * día, que es exactamente cuando el usuario está mirando.
+ */
+function startPolling(): void {
+  stopPolling();
+
+  poll = setInterval(() => { void releerTodo(); }, POLL_INTERVAL_MS);
+
+  appStateSub = AppState.addEventListener('change', estado => {
+    if (estado === 'active') void releerTodo();
+  });
+}
+
+function stopPolling(): void {
+  if (poll) { clearInterval(poll); poll = null; }
+  if (appStateSub) { appStateSub.remove(); appStateSub = null; }
+}
+
+async function releerTodo(): Promise<void> {
+  try {
+    await drainContactsNow();
+    await drainAll();
+  } catch { /* offline: se reintenta en la próxima vuelta */ }
 }
 
 /**
@@ -308,4 +373,5 @@ async function onInviteNews(invite: GroupInvite): Promise<void> {
 export function stopRelay(): void {
   for (const off of unsubs) { try { off(); } catch { /* ya cortado */ } }
   unsubs = [];
+  stopPolling();
 }

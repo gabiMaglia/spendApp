@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { readScoped, writeScoped } from './userScope';
 import { mergeByIdLWW } from './lww';
+import { schedulePublish } from '@/src/sync/relayEngine';
 import { migratePaymentAmounts } from './moneyMigration';
 import type { Payment } from '@/src/types/models';
 
@@ -31,10 +32,14 @@ export const usePaymentStore = create<PaymentStoreState>((set, get) => ({
   getByGroupId: (groupId) =>
     get().payments.filter(p => p.groupId === groupId && !p.isDeleted),
 
+  // Saldar una deuda tiene que verse del otro lado igual que un gasto: si no,
+  // el que pagó ve su saldo en cero y el otro le sigue reclamando.
   addPayment: (payment) => {
     const payments = [...get().payments, payment];
     persist(payments);
     set({ payments });
+
+    if (payment.groupId) schedulePublish(payment.groupId);
   },
 
   updatePayment: (id, patch) => {
@@ -43,6 +48,9 @@ export const usePaymentStore = create<PaymentStoreState>((set, get) => ({
     );
     persist(payments);
     set({ payments });
+
+    const groupId = payments.find(p => p.id === id)?.groupId;
+    if (groupId) schedulePublish(groupId);
   },
 
   // LWW merge para sync P2P
