@@ -23,9 +23,13 @@ interface CategoryIconProps {
 
 export function CategoryIcon({ kind = 'other', size = 40 }: CategoryIconProps) {
   const scheme = useColorScheme() ?? 'light';
-  const color = Colors[scheme].category[kind];
+  // Las categorías de ingreso (sueldo, freelance) no están en este mapa: son
+  // sólo para movimientos personales. Antes, destructurar `undefined` tiraba la
+  // pantalla entera. Un ícono genérico es infinitamente mejor que un crash.
+  const conocida: CategoryKind = kind in CATEGORY_META ? kind : 'other';
+  const color = Colors[scheme].category[conocida];
   const iconSize = Math.round(size * 0.55);
-  const { iconName } = CATEGORY_META[kind];
+  const { iconName } = CATEGORY_META[conocida];
 
   return (
     <View
