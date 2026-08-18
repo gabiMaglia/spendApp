@@ -1,7 +1,6 @@
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Avatar } from '@/src/components/Avatar';
 import { Fab, FabRow } from '@/src/components/Fab';
-import { SyncStatusBadge } from '@/src/components/SyncStatusBadge';
 import { Colors } from '@/src/constants/colors';
 import { MoneyText } from '@/src/components/MoneyText';
 import i18n from '@/src/i18n';
@@ -9,7 +8,6 @@ import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGlobalPersonBalances } from '@/src/store/selectors';
-import { useSyncStore } from '@/src/store/syncStore';
 import { usePersonalStore, toMonthKey } from '@/src/store/personalStore';
 import { hueForUser } from '@/src/utils/hueForUser';
 import { Ionicons } from '@expo/vector-icons';
@@ -27,7 +25,6 @@ export default function AccountScreen() {
   const scheme = useColorScheme() ?? 'light';
   const c = Colors[scheme];
   const { currentUser } = useAuthStore();
-  const { state: syncState } = useSyncStore();
 
   const personBalances = useGlobalPersonBalances(currentUser?.id ?? '');
   const firstName = currentUser?.name?.split(' ')[0] ?? 'vos';
@@ -69,7 +66,6 @@ export default function AccountScreen() {
 
         {/* Header */}
         <View style={styles.header}>
-          <SyncStatusBadge state={syncState} />
           {/* El avatar lleva al perfil "Yo" (decisión PO). */}
           <Pressable
             onPress={() => { hapticLight(); router.push('/(tabs)/user' as any); }}
