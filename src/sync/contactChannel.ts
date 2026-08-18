@@ -295,6 +295,8 @@ export async function drainContacts(
 
   let added = 0;
   const joinedGroups: string[] = [];
+  /** Buzones a los que hay que devolverles nuestra tarjeta. Ver abajo. */
+  const responder: string[] = [];
 
   for (const envelope of r.envelopes) {
     // Un sobre que no abre es basura de alguien que conoce el topic: se saltea
@@ -313,11 +315,22 @@ export async function drainContacts(
         updatedAt: Date.now(),
         isDeleted: false,
       });
-      savePeer(msg.userId, {
+      // Si de esta persona todavía no teníamos sus públicas y ahora sí, le
+      // devolvemos la nuestra. Es lo que repara los contactos creados con una
+      // versión anterior del código, que viajaba sin ellas: los dos lados se
+      // completan solos al abrir la app, sin volver a escanear nada.
+      //
+      // No hay ping-pong: sólo se responde cuando la tarjeta trae algo que no
+      // teníamos, así que a la segunda vuelta ya nadie responde.
+      const previo = getPeer(msg.userId);
+      const esNuevo = Boolean(msg.wrapPublicKey) && !previo?.wrapPublicKey;
+
+      savePeerFromCard(msg.userId, {
         secret: msg.contactSecret,
         wrapPublicKey: msg.wrapPublicKey,
         identityPublicKey: msg.identityPublicKey,
       });
+      if (esNuevo) responder.push(msg.contactSecret);
       added++;
       continue;
     }
@@ -325,7 +338,22 @@ export async function drainContacts(
     if (adoptDroppedKey(msg, me.id)) joinedGroups.push(msg.groupId);
   }
 
+  for (const secreto of responder) await announceContact(secreto, deviceId);
+
   return { added, joinedGroups, cursor: r.cursor };
+}
+
+/**
+ * Contactos de los que tenemos buzón pero NO sus claves públicas.
+ *
+ * Son los que quedaron a medias: se agregaron con una versión que no las
+ * mandaba. Sin sus públicas no se les puede entregar la clave de un grupo, y el
+ * síntoma es el peor posible — el grupo simplemente no les llega, sin error.
+ */
+export function peersIncompletos(): string[] {
+  return Object.entries(listPeers())
+    .filter(([, info]) => info.secret && !info.wrapPublicKey)
+    .map(([, info]) => info.secret);
 }
 
 function parseMessage(plain: string | null): ChannelMessage | null {
@@ -355,13 +383,52 @@ export type PeerInfo = {
   identityPublicKey?: string;
 };
 
+/**
+ * Guarda a alguien que tenemos DELANTE: su código lo estamos viendo en su
+ * pantalla. Acá sí se pisa lo que hubiera antes — si reinstaló la app y tiene
+ * claves nuevas, escanear de nuevo es exactamente cómo se re-verifica.
+ */
 export function savePeer(userId: string, info: PeerInfo): void {
   if (!info.secret) return;
   const todos = listPeers();
-  // Se completa lo que ya sabíamos en vez de pisarlo: un código viejo sin claves
-  // no debe borrar las que ya teníamos de esa persona.
-  todos[userId] = { ...todos[userId], ...info };
+  // Los campos vacíos no borran lo que ya sabíamos: un código viejo sin claves
+  // no debe hacernos perder las que ya teníamos.
+  todos[userId] = { ...todos[userId], ...limpiar(info) };
   writeScoped(storage, K_PEERS, JSON.stringify(todos));
+}
+
+/**
+ * Guarda a alguien a partir de una tarjeta que llegó por el relay.
+ *
+ * **Sólo completa huecos, nunca reemplaza una clave que ya teníamos.** La
+ * diferencia con `savePeer` es de confianza y es la más importante del módulo:
+ * una tarjeta la puede escribir cualquiera que conozca el buzón — es decir,
+ * cualquiera que haya escaneado ese código alguna vez. Si pudiera pisar claves,
+ * uno de ellos mandaría una tarjeta diciendo ser otra persona, con SUS claves, y
+ * a partir de ahí le entregaríamos claves de grupo creyendo que es quien dice.
+ *
+ * Consecuencia deliberada: si alguien reinstala la app, hay que volver a
+ * escanearlo. Verificar en persona significa eso; aceptar la clave nueva por el
+ * mismo canal que se quiere proteger no verificaría nada.
+ */
+export function savePeerFromCard(userId: string, info: PeerInfo): void {
+  if (!info.secret) return;
+  const todos = listPeers();
+  const previo = todos[userId];
+
+  todos[userId] = {
+    secret:            previo?.secret            ?? info.secret,
+    wrapPublicKey:     previo?.wrapPublicKey     ?? info.wrapPublicKey,
+    identityPublicKey: previo?.identityPublicKey ?? info.identityPublicKey,
+  };
+  writeScoped(storage, K_PEERS, JSON.stringify(todos));
+}
+
+/** Saca los campos vacíos, para que no pisen datos buenos al mezclar. */
+function limpiar(info: PeerInfo): PeerInfo {
+  return Object.fromEntries(
+    Object.entries(info).filter(([, v]) => Boolean(v)),
+  ) as PeerInfo;
 }
 
 export function listPeers(): Record<string, PeerInfo> {

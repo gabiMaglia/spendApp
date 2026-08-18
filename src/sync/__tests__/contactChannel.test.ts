@@ -1,6 +1,7 @@
 import {
   ensureContactSecret, myContactCard, announceContact, drainContacts,
   deriveContactTopic, savePeer, peerSecret, listPeers, sendGroupKey,
+  getPeer, peersIncompletos,
 } from '../contactChannel';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { ensureIdentity, ensureWrapKeypair } from '@/src/store/identityStore';
@@ -497,5 +498,122 @@ describe('claves de grupo: lo que NO se acepta', () => {
     useGroupKeyStore.getState().ensureKey('g1');
 
     expect(await sendGroupKey(BETO.id, { id: 'g1', name: 'Viaje' }, 'dev-ana')).toBe(false);
+  });
+});
+
+describe('reparación de contactos incompletos', () => {
+  it('los contactos sin claves públicas quedan listados para completar', () => {
+    usar(ANA);
+    savePeer('u-viejo', { secret: 'sec-viejo' });                       // agregado antes
+    savePeer('u-nuevo', { secret: 'sec-nuevo', wrapPublicKey: 'cd'.repeat(32) });
+
+    expect(peersIncompletos()).toEqual(['sec-viejo']);
+  });
+
+  it('recibir una tarjeta completa los huecos', async () => {
+    usar(ANA);
+    const deAna = ensureContactSecret()!;
+
+    usar(BETO);
+    await announceContact(deAna, 'dev-beto');
+
+    usar(ANA);
+    savePeer(BETO.id, { secret: 'viejo-sin-claves' }); // como quedó de antes
+    await drainContacts(deAna, 'dev-ana', 0);
+
+    expect(getPeer(BETO.id)?.wrapPublicKey).toBeTruthy();
+    expect(peersIncompletos()).toEqual([]);
+  });
+
+  it('al completarse, se le devuelve la tarjeta propia para que el otro también complete', async () => {
+    usar(ANA);
+    const deAna = ensureContactSecret()!;
+
+    usar(BETO);
+    const deBeto = ensureContactSecret()!;
+    await announceContact(deAna, 'dev-beto');
+
+    usar(ANA);
+    await drainContacts(deAna, 'dev-ana', 0);
+
+    const topicDeBeto = await deriveContactTopic(deBeto);
+    expect(relayMock.__buzones.get(topicDeBeto) ?? []).toHaveLength(1);
+  });
+
+  it('no hay ida y vuelta infinita: el que ya tenía las claves no responde', async () => {
+    usar(ANA);
+    const deAna = ensureContactSecret()!;
+    const tarjetaDeAna = myContactCard()!;
+
+    // Beto escaneó a Ana, así que YA tiene sus claves.
+    usar(BETO);
+    const deBeto = ensureContactSecret()!;
+    savePeer(ANA.id, {
+      secret: deAna,
+      wrapPublicKey: tarjetaDeAna.wrapPublicKey,
+      identityPublicKey: tarjetaDeAna.identityPublicKey,
+    });
+    await announceContact(deAna, 'dev-beto');
+
+    usar(ANA);
+    await drainContacts(deAna, 'dev-ana', 0);      // Ana responde una vez
+
+    usar(BETO);
+    await drainContacts(deBeto, 'dev-beto', 0);    // Beto ya las tenía: no responde
+
+    const topicDeAna = await deriveContactTopic(deAna);
+    expect(relayMock.__buzones.get(topicDeAna)).toHaveLength(1); // sólo la original
+  });
+
+  /**
+   * Una tarjeta la puede escribir cualquiera que conozca el buzón — o sea,
+   * cualquiera que haya escaneado ese código. Si pudiera pisar claves ya
+   * conocidas, uno de ellos se haría pasar por otro y recibiría claves de grupo
+   * en su nombre.
+   */
+  it('UNA TARJETA NO PUEDE REEMPLAZAR CLAVES QUE YA TENÍAMOS', async () => {
+    usar(ANA);
+    const deAna = ensureContactSecret()!;
+    savePeer(BETO.id, {
+      secret: 'sec-beto',
+      wrapPublicKey: 'aa'.repeat(32),
+      identityPublicKey: 'bb'.repeat(32),
+    });
+
+    // Beto (o alguien con su buzón) manda una tarjeta con claves distintas.
+    usar(BETO);
+    await announceContact(deAna, 'dev-beto');
+
+    usar(ANA);
+    await drainContacts(deAna, 'dev-ana', 0);
+
+    expect(getPeer(BETO.id)?.identityPublicKey).toBe('bb'.repeat(32));
+    expect(getPeer(BETO.id)?.wrapPublicKey).toBe('aa'.repeat(32));
+  });
+
+  // Escanear en persona SÍ puede: es la forma de re-verificar a alguien que
+  // reinstaló la app.
+  it('volver a escanear sí actualiza las claves', () => {
+    usar(ANA);
+    savePeer(BETO.id, { secret: 's', wrapPublicKey: 'aa'.repeat(32) });
+    savePeer(BETO.id, { secret: 's', wrapPublicKey: 'cc'.repeat(32) });
+
+    expect(getPeer(BETO.id)?.wrapPublicKey).toBe('cc'.repeat(32));
+  });
+});
+
+describe('guardar contactos sin perder datos', () => {
+  // Escanear un código viejo (sin claves) no puede hacernos perder las que ya
+  // teníamos: quedaríamos sin poder entregarle nada y sin ningún síntoma.
+  it('un campo vacío no borra lo que ya sabíamos', () => {
+    usar(ANA);
+    savePeer(BETO.id, {
+      secret: 's', wrapPublicKey: 'aa'.repeat(32), identityPublicKey: 'bb'.repeat(32),
+    });
+
+    savePeer(BETO.id, { secret: 's', wrapPublicKey: undefined, identityPublicKey: '' });
+
+    expect(getPeer(BETO.id)?.wrapPublicKey).toBe('aa'.repeat(32));
+    expect(getPeer(BETO.id)?.identityPublicKey).toBe('bb'.repeat(32));
   });
 });
