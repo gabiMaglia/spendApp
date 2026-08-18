@@ -18,16 +18,55 @@ import { groupKeyBytes, useGroupKeyStore } from '@/src/store/groupKeyStore';
  */
 
 /**
- * Payload para el relay: el delta SIN las claves de grupo.
+ * Payload del relay: **sólo lo del grupo al que se publica**.
  *
- * Se construye quitando el campo explícitamente en vez de armar un objeto nuevo
- * campo por campo: así, si mañana se agrega una entidad al delta, viaja sola por
- * el relay en vez de olvidarse (que fue el bug de `personal`). Lo que hay que
- * recordar es lo que se EXCLUYE, que es una lista corta y crítica.
+ * Antes esto mandaba el delta entero menos las claves — o sea TODO el
+ * dispositivo, cifrado con la clave de UN grupo. Cualquier miembro de ese grupo
+ * podía abrirlo y quedarse con los otros grupos, sus gastos y los movimientos
+ * personales de quien publicaba. Con dos cuentas del mismo dueño era invisible;
+ * con gente real era una filtración, e imposible de revertir una vez que el
+ * dato aterrizó en otro teléfono.
+ *
+ * Filtrar por grupo es además lo que baja el tamaño: el sobre pasa a ser una
+ * fracción, y el techo de 256KB deja de estar a la vuelta de la esquina.
+ *
+ * Este objeto se arma campo por campo, no quitando lo prohibido. Es lo contrario
+ * de lo que hacía antes, y es a propósito: no existe un filtro genérico "lo de
+ * este grupo" — cada entidad se relaciona con el grupo de una forma distinta
+ * (los comentarios cuelgan del gasto, los usuarios de la membresía). Enumerar
+ * obliga a decidir. Para que agregar una entidad nueva no se olvide EN SILENCIO,
+ * `relayScope.test.ts` compara las claves del delta contra esta lista y falla si
+ * aparece una que nadie clasificó.
  */
-export function buildRelayPayload(currentUserId: string): SyncDelta {
-  const { groupKeys: _excluidas, ...sinClaves } = buildDelta(currentUserId);
-  return sinClaves as SyncDelta;
+export function buildGroupPayload(groupId: string, currentUserId: string): SyncDelta {
+  const completo = buildDelta(currentUserId);
+
+  const delGrupo = completo.groups.filter(g => g.id === groupId);
+  const miembros = new Set(delGrupo[0]?.memberIds ?? []);
+
+  const expenses = completo.expenses.filter(e => e.groupId === groupId);
+  const idsDeGastos = new Set(expenses.map(e => e.id));
+
+  return {
+    version: completo.version,
+    featureVersion: completo.featureVersion,
+    fromUserId: completo.fromUserId,
+    timestamp: completo.timestamp,
+
+    groups: delGrupo,
+    expenses,
+    payments: completo.payments.filter(p => p.groupId === groupId),
+    // Los perfiles de los miembros SÍ hacen falta: sin ellos el otro ve ids en
+    // vez de nombres. Los de gente ajena al grupo, no.
+    users: completo.users.filter(u => miembros.has(u.id)),
+    recurring: (completo.recurring ?? []).filter(r => r.groupId === groupId),
+    // Un comentario no sabe de qué grupo es: cuelga del gasto.
+    comments: (completo.comments ?? []).filter(c => idsDeGastos.has(c.expenseId)),
+
+    // `personal` NO viaja: son movimientos sin grupo, de nadie más que su dueño.
+    // `groupKeys` tampoco: si el relay pudiera entregar claves podría
+    // sustituirlas y leer todo (ADR-003 §1).
+  };
 }
 
 export type PublishResult =
@@ -49,7 +88,7 @@ export async function publishToGroup(
 
   const record = useGroupKeyStore.getState().getKey(groupId)!;
   const topic = await deriveTopic(key, record.epoch);
-  const sealed = sealEnvelope(key, JSON.stringify(buildRelayPayload(currentUserId)));
+  const sealed = sealEnvelope(key, JSON.stringify(buildGroupPayload(groupId, currentUserId)));
 
   const r = await sendEnvelope(topic, sealed, deviceId);
   if (!r.ok) return { ok: false, reason: r.reason, detail: r.detail };
