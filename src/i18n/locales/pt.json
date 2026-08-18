@@ -137,7 +137,11 @@
     "you_suffix": "{{name}} (você)",
     "no_contacts": "Você ainda não tem contatos salvos.",
     "go_contacts": "Ir para Contatos para adicionar",
-    "select_hint": "Selecione ao menos um contato para criar o grupo."
+    "select_hint": "Selecione ao menos um contato para criar o grupo.",
+    "archive": "Arquivar",
+    "unarchive": "Restaurar",
+    "empty_archived_title": "Nada arquivado",
+    "empty_archived_body": "Deslize um grupo para a esquerda para tirá-lo da lista principal. Nada é apagado: as despesas e os saldos ficam intactos."
   },
   "group_detail": {
     "your_balance": "Tu balance acá",

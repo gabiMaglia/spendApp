@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Pressable, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
@@ -13,26 +13,25 @@ import { Typography } from '@/src/constants/typography';
 import { formatMoney } from '@/src/constants/currencies';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuthStore } from '@/src/store/authStore';
-import { useSyncStore } from '@/src/store/syncStore';
 import { useGroupStore } from '@/src/store/groupStore';
+import { useArchiveStore } from '@/src/store/archiveStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useGroupBalance, useGroupExpenseCount, useGroupsTotalBalance } from '@/src/store/selectors';
 import { hueForUser } from '@/src/utils/hueForUser';
-import { Fab, FabRow } from '@/src/components/Fab';
 import { GroupCard } from '@/src/components/GroupCard';
-import { SyncStatusBadge } from '@/src/components/SyncStatusBadge';
+import { SwipeToArchive } from '@/src/components/SwipeToArchive';
 import { EmptyState } from '@/src/components/EmptyState';
 import { hapticLight } from '@/src/utils/haptics';
-import { Button } from '@/src/components/Button';
 import type { Group } from '@/src/types/models';
 
 export default function GroupsScreen() {
   const { t } = useTranslation();
   const scheme = useColorScheme() ?? 'light';
   const c = Colors[scheme];
-  const { state: syncState } = useSyncStore();
   const { currentUser } = useAuthStore();
   const allGroups   = useGroupStore(s => s.groups);
+  const archivedIds = useArchiveStore(s => s.archivedIds);
+  const setArchived = useArchiveStore(s => s.setArchived);
   const groupTotals = useGroupsTotalBalance(currentUser?.id ?? '');
 
   const arsTotals = groupTotals.find(t => t.currency === 'ARS');
@@ -44,34 +43,34 @@ export default function GroupsScreen() {
     [allGroups, currentUser],
   );
 
+  const [tabActual, setTab] = useState<'activos' | 'archivados'>('activos');
+
+  const visibles = useMemo(
+    () => myGroups.filter(g => archivedIds.includes(g.id) === (tabActual === 'archivados')),
+    [myGroups, archivedIds, tabActual],
+  );
+
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: c.bg }]}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
 
-        {/* Header */}
-        <View style={styles.header}>
-          <SyncStatusBadge state={syncState} />
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            <Pressable
-              onPress={() => router.push('/sync' as any)}
-              style={[styles.addButton, { backgroundColor: c.surfaceSunken }]}
-            >
-              <Ionicons name="sync-outline" size={18} color={c.text} />
-            </Pressable>
-            <Pressable
-              onPress={() => { hapticLight(); router.push('/groups/new' as any); }}
-              style={[styles.addButton, { backgroundColor: c.surfaceSunken }]}
-            >
-              <Ionicons name="add" size={20} color={c.text} />
-            </Pressable>
-          </View>
+        {/* Header. Único punto de entrada para crear un grupo: antes había tres
+            (éste, el del estado vacío —que no hacía nada— y el FAB). */}
+        <View style={[styles.header, { justifyContent: 'flex-end' }]}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => { hapticLight(); router.push('/groups/new' as any); }}
+            style={[styles.addButton, { backgroundColor: c.surfaceSunken }]}
+          >
+            <Ionicons name="add" size={20} color={c.text} />
+          </Pressable>
         </View>
         <View style={styles.titleRow}>
           <Text style={[Typography.display, { color: c.text }]}>{t('groups.title')}</Text>
         </View>
 
         {/* Balance summary */}
-        {myGroups.length > 0 && (
+        {visibles.length > 0 && (
           <View style={[styles.summaryCard, { backgroundColor: c.surface, borderColor: c.borderHair }]}>
             <View style={styles.summaryRow}>
               <View style={styles.summaryCol}>
@@ -97,46 +96,54 @@ export default function GroupsScreen() {
                   Grupos
                 </Text>
                 <Text style={[Typography.amountM, { color: c.text, marginTop: 2 }]}>
-                  {myGroups.length}
+                  {visibles.length}
                 </Text>
               </View>
             </View>
           </View>
         )}
 
-        {/* Filter tabs */}
+        {/* Pestañas. Estaban dibujadas pero no filtraban nada. */}
         <View style={styles.section}>
           <View style={[styles.segmented, { backgroundColor: c.surfaceSunken }]}>
-            <View style={[styles.segTab, { backgroundColor: c.surface }]}>
-              <Text style={[Typography.bodyS, { color: c.text, fontWeight: '600' }]}>{t('groups.tab_active')}</Text>
-            </View>
-            <Pressable style={styles.segTab}>
-              <Text style={[Typography.bodyS, { color: c.textSecondary, fontWeight: '600' }]}>{t('groups.tab_archived')}</Text>
-            </Pressable>
+            {(['activos', 'archivados'] as const).map(tab => (
+              <Pressable
+                key={tab}
+                accessibilityRole="button"
+                onPress={() => { hapticLight(); setTab(tab); }}
+                style={[styles.segTab, tab === tabActual && { backgroundColor: c.surface }]}
+              >
+                <Text style={[Typography.bodyS, {
+                  color: tab === tabActual ? c.text : c.textSecondary, fontWeight: '600',
+                }]}>
+                  {tab === 'activos' ? t('groups.tab_active') : t('groups.tab_archived')}
+                </Text>
+              </Pressable>
+            ))}
           </View>
         </View>
 
         {/* Group list */}
-        {myGroups.length === 0 ? (
+        {visibles.length === 0 ? (
           <EmptyState
-            iconName="people-outline"
-            title={t('groups.empty_title')}
-            body={t('groups.empty_body')}
-            action={
-              <Button variant="primary" onPress={() => {}}>
-                {t('groups.new_group')}
-              </Button>
-            }
+            iconName={tabActual === 'archivados' ? 'archive-outline' : 'people-outline'}
+            title={tabActual === 'archivados' ? t('groups.empty_archived_title') : t('groups.empty_title')}
+            body={tabActual === 'archivados' ? t('groups.empty_archived_body') : t('groups.empty_body')}
           />
         ) : (
           <View style={[styles.list, styles.section]}>
-            {myGroups.map(g => (
-              <GroupRow
+            {visibles.map(g => (
+              <SwipeToArchive
                 key={g.id}
-                group={g}
-                currentUserId={currentUser?.id ?? ''}
-                onPress={() => router.push(`/groups/${g.id}` as any)}
-              />
+                archived={tabActual === 'archivados'}
+                onAction={() => setArchived(g.id, tabActual === 'activos')}
+              >
+                <GroupRow
+                  group={g}
+                  currentUserId={currentUser?.id ?? ''}
+                  onPress={() => router.push(`/groups/${g.id}` as any)}
+                />
+              </SwipeToArchive>
             ))}
           </View>
         )}
@@ -144,15 +151,6 @@ export default function GroupsScreen() {
         <View style={{ height: Spacing[9] }} />
       </ScrollView>
 
-      {/* FAB */}
-      <FabRow>
-        <Fab
-          onPress={() => router.push('/groups/new' as any)}
-          icon="add"
-          label={t('groups.new_group')}
-          backgroundColor={c.brand.primary}
-        />
-      </FabRow>
     </SafeAreaView>
   );
 }
