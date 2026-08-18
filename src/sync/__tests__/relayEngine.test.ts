@@ -1,6 +1,6 @@
 import {
   readCursor, writeCursor, deviceId, syncableGroupIds,
-  schedulePublish, cancelPendingPublishes, PUBLISH_DEBOUNCE_MS,
+  schedulePublish, cancelPendingPublishes, PUBLISH_DEBOUNCE_MS, startRelay,
 } from '../relayEngine';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
@@ -114,5 +114,21 @@ describe('debounce de publicación', () => {
 
   it('sin relay configurado no agenda nada ni rompe', () => {
     expect(() => schedulePublish('g1')).not.toThrow();
+  });
+});
+
+describe('arranque del relay', () => {
+  // Arranca cortando todo. Si dos corridas se pisan, la segunda desuscribe lo
+  // que la primera acaba de crear y la app queda sin escuchar nada.
+  it('dos arranques concurrentes son uno solo', () => {
+    const a = startRelay();
+    const b = startRelay();
+    expect(b).toBe(a);
+  });
+
+  it('después de terminar, un arranque nuevo vuelve a correr', async () => {
+    const a = startRelay();
+    await a;
+    expect(startRelay()).not.toBe(a);
   });
 });

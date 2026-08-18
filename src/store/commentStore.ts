@@ -2,6 +2,18 @@ import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { readScoped, writeScoped } from './userScope';
 import { mergeByIdLWW } from './lww';
+import { schedulePublish } from '@/src/sync/relayEngine';
+import { useExpenseStore } from './expenseStore';
+
+/**
+ * Un comentario no sabe a qué grupo pertenece: cuelga del gasto. Se resuelve
+ * acá para poder publicarlo, y los de movimientos personales (sin grupo) no
+ * viajan a ningún lado.
+ */
+function publicarDelGasto(expenseId: string): void {
+  const groupId = useExpenseStore.getState().expenses.find(e => e.id === expenseId)?.groupId;
+  if (groupId) schedulePublish(groupId);
+}
 import type { ExpenseComment } from '@/src/types/models';
 
 const storage = createSecureStorage('comments');
@@ -38,6 +50,8 @@ export const useCommentStore = create<CommentStoreState>((set, get) => ({
     const comments = [...get().comments, comment];
     persist(comments);
     set({ comments });
+
+    publicarDelGasto(comment.expenseId);
   },
 
   // Tombstone, nunca DELETE físico (regla de negocio #1).
@@ -54,6 +68,8 @@ export const useCommentStore = create<CommentStoreState>((set, get) => ({
     );
     persist(comments);
     set({ comments });
+
+    publicarDelGasto(expenseId);
   },
 
   removeComment: (id) => {
@@ -62,6 +78,9 @@ export const useCommentStore = create<CommentStoreState>((set, get) => ({
     );
     persist(comments);
     set({ comments });
+
+    const expenseId = comments.find(c => c.id === id)?.expenseId;
+    if (expenseId) publicarDelGasto(expenseId);
   },
 
   // LWW por updatedAt. Como cada comentario es un registro con id propio, dos
