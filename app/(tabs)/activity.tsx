@@ -190,7 +190,7 @@ function EventRow({
 
   if (event.kind === 'expense_delete_request') {
     const { expense, groupName, requestedByName } = event;
-    const ts = relativeTime(expense.deletionVotes[0]?.votedAt ?? expense.date);
+    const ts = relativeTime(expense.deletionVotes?.[0]?.votedAt ?? expense.date);
 
     return (
       <View style={[styles.row, { backgroundColor: c.semantic.warningSoft, marginHorizontal: 12, borderRadius: Radius.md }]}>

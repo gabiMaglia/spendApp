@@ -35,7 +35,18 @@ export default function ExpenseDetailScreen() {
   const expense = useExpenseStore(s => s.expenses.find(e => e.id === id));
   const updateExpense = useExpenseStore(s => s.updateExpense);
   const { getUserName } = useUserStore();
-  const comments = useCommentStore(st => st.forExpense(id ?? ''));
+  // OJO: NO seleccionar `st.forExpense(id)` acá. Ese método arma un array
+  // nuevo en cada llamada, y zustand compara por identidad: cada render produce
+  // una referencia distinta, React la ve como "cambió" y vuelve a renderizar,
+  // para siempre. Da "Maximum update depth exceeded" y la pantalla no abre.
+  // Se selecciona el array crudo (referencia estable) y se filtra en un useMemo.
+  const allComments = useCommentStore(st => st.comments);
+  const comments = useMemo(
+    () => allComments
+      .filter(cm => cm.expenseId === id && !cm.isDeleted)
+      .sort((a, b) => a.createdAt - b.createdAt),
+    [allComments, id],
+  );
   const addComment = useCommentStore(st => st.addComment);
   const removeComment = useCommentStore(st => st.removeComment);
   const removeCommentsForExpense = useCommentStore(st => st.removeForExpense);
@@ -79,7 +90,12 @@ export default function ExpenseDetailScreen() {
       isDeleted: false,
     });
   }
-  const hasPendingDelete = expense.deletionVotes.some(v => v.action === 'delete');
+  // Un registro que llega por sync puede no traer estos campos (versión vieja
+  // del otro lado, o dato a medio escribir). Sin los `?? []` la pantalla no
+  // abre y no hay forma de ver el gasto ni de arreglarlo.
+  const votos  = expense.deletionVotes ?? [];
+  const splits = expense.splits ?? [];
+  const hasPendingDelete = votos.some(v => v.action === 'delete');
 
   function handleRequestDelete() {
     if (!currentUser || !expense) return;
@@ -104,7 +120,7 @@ export default function ExpenseDetailScreen() {
               // Otros miembros votan por el borrado
               updateExpense(expense.id, {
                 deletionVotes: [
-                  ...expense.deletionVotes,
+                  ...votos,
                   { userId: currentUser.id, votedAt: Date.now(), action: 'delete' },
                 ],
               });
@@ -119,13 +135,13 @@ export default function ExpenseDetailScreen() {
     if (!currentUser || !expense) return;
     hapticLight();
     updateExpense(expense.id, {
-      deletionVotes: expense.deletionVotes.filter(
+      deletionVotes: votos.filter(
         v => !(v.userId === currentUser.id && v.action === 'delete'),
       ),
     });
   }
 
-  const myShare = expense.splits.find(s => s.userId === currentUser?.id)?.amount ?? 0;
+  const myShare = splits.find(s => s.userId === currentUser?.id)?.amount ?? 0;
   const isPayer = expense.paidById === currentUser?.id;
   const netForMe = isPayer ? expense.amount - myShare : -myShare;
 
@@ -213,7 +229,7 @@ export default function ExpenseDetailScreen() {
           <Text style={[Typography.caption, { color: c.textTertiary, textTransform: 'uppercase', marginBottom: 12 }]}>
             {t('expense.split_detail')}
           </Text>
-          {expense.splits.map((split, i) => {
+          {splits.map((split, i) => {
             const name = split.userId === currentUser?.id
               ? t('common.you')
               : getUserName(split.userId);
@@ -223,7 +239,7 @@ export default function ExpenseDetailScreen() {
                 key={split.userId}
                 style={[
                   styles.splitRow,
-                  i < expense.splits.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.borderHair },
+                  i < splits.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.borderHair },
                 ]}
               >
                 <Avatar name={name} hue={hueForUser(split.userId)} size={36} />

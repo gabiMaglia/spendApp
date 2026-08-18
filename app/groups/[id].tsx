@@ -245,6 +245,25 @@ export default function GroupDetailScreen() {
           </Pressable>
         )}
 
+        {/* Saldar. Estaba la traducción pero nunca el botón: saldar una deuda
+            del grupo obligaba a salir a la pestaña de amigos y elegir el grupo
+            de nuevo. */}
+        {group && currentUser && group.memberIds.includes(currentUser.id) && (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              hapticLight();
+              router.push(`/settle/new?groupId=${group.id}` as any);
+            }}
+            style={[styles.inviteRow, { borderColor: c.brand.primary }]}
+          >
+            <Ionicons name="swap-horizontal-outline" size={18} color={c.brand.primary} />
+            <Text style={[Typography.bodyM, { color: c.brand.primary, fontWeight: '600' }]}>
+              {t('group_detail.settle_debts')}
+            </Text>
+          </Pressable>
+        )}
+
         {/* Salir / eliminar */}
         {group && currentUser && (
           <View style={styles.dangerZone}>

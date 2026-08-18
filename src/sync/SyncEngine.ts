@@ -51,7 +51,7 @@ export function mergeDeletionVotes(votes: DeletionVote[]): DeletionVote[] {
  *  3. Si hay al menos un voto 'delete' y pasaron 72hs sin objeciones, se borra.
  */
 export function resolveDeletionVotes(expense: Expense, _memberIds: string[]): boolean {
-  const latestVotes = mergeDeletionVotes(expense.deletionVotes);
+  const latestVotes = mergeDeletionVotes(expense.deletionVotes ?? []);
 
   // El creador puede forzar borrado inmediato
   const creatorVote = latestVotes.find(v => v.userId === expense.createdById);

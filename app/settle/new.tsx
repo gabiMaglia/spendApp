@@ -49,7 +49,10 @@ export default function SettleNewScreen() {
     toId:      paramToId,
     maxAmount: paramMaxStr,
     currency:  paramCurrency,
-  } = useLocalSearchParams<{ toId?: string; maxAmount?: string; currency?: string }>();
+    groupId:   paramGroupId,
+  } = useLocalSearchParams<{
+    toId?: string; maxAmount?: string; currency?: string; groupId?: string;
+  }>();
 
   const isPrefilled  = Boolean(paramToId);
   // `paramMaxStr` viene de `friends.tsx` como `String(balance)` — ya es el
@@ -70,9 +73,13 @@ export default function SettleNewScreen() {
 
   // Auto-select first group that matches currency when prefilled
   const defaultGroup = useMemo(() => {
+    // Si venimos del detalle de un grupo, ese grupo manda: el usuario ya eligió
+    // dónde está saldando y volver a preguntárselo sería un paso de más.
+    const desdeGrupo = paramGroupId ? groups.find(g => g.id === paramGroupId) : undefined;
+    if (desdeGrupo) return desdeGrupo;
     if (!isPrefilled) return groups[0];
     return groups.find(g => g.currency === paramCur) ?? groups[0];
-  }, [groups, isPrefilled, paramCur]);
+  }, [groups, isPrefilled, paramCur, paramGroupId]);
 
   const [groupId,   setGroupId]   = useState(defaultGroup?.id ?? '');
   // Moneda resuelta temprano — el input de monto (entero, menor unidad,

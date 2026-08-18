@@ -176,7 +176,7 @@ export function useActivityFeed(currentUserId: string): ActivityKind[] {
       if (!myGroupIds.has(expense.groupId) || expense.isDeleted) continue;
 
       // Solicitudes de borrado pendientes
-      const pendingDelete = expense.deletionVotes.find(v => v.action === 'delete');
+      const pendingDelete = (expense.deletionVotes ?? []).find(v => v.action === 'delete');
       if (pendingDelete) {
         events.push({
           kind: 'expense_delete_request',
