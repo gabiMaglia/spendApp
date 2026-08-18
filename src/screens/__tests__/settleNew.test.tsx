@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render } from '@testing-library/react-native';
+import { act, fireEvent, render } from '@testing-library/react-native';
 import SettleNewScreen from '@/app/settle/new';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
@@ -9,8 +9,10 @@ import { usePaymentStore } from '@/src/store/paymentStore';
 import type { Expense, Group, Payment, User } from '@/src/types/models';
 
 /**
- * El botón "toda la deuda": el caso normal al saldar es pagar TODO, y
- * escribirlo a mano deja restos de un peso que después nadie entiende.
+ * Saldar, como en Splitwise: elegís a la persona y el monto **ya viene puesto**
+ * con lo que se debe. Pagar todo es el caso normal y tipearlo a mano deja
+ * restos de un peso que después nadie entiende. Sigue siendo editable: un pago
+ * parcial es escribir otro número encima.
  */
 
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
@@ -23,7 +25,9 @@ const ANA  = { id: 'ana',  name: 'Ana'  } as User;
 const BETO = { id: 'beto', name: 'Beto' } as User;
 
 const grupo = (): Group => ({
-  id: 'g1', name: 'Viaje', memberIds: ['ana', 'beto'], currency: 'ARS',
+  // A propósito Beto primero: el que paga tiene que ser YO, no el primero
+  // de la lista.
+  id: 'g1', name: 'Viaje', memberIds: ['beto', 'ana'], currency: 'ARS',
   createdAt: 0, createdById: 'beto', deletionVotes: [], updatedAt: 0, isDeleted: false,
 } as Group);
 
@@ -32,7 +36,7 @@ const gasto = (over: Partial<Expense> = {}): Expense => ({
   id: 'e1', groupId: 'g1', description: 'Nafta', amount: 1_000_000, currency: 'ARS',
   paidById: 'beto', splitMode: 'equal',
   splits: [{ userId: 'ana', amount: 500_000 }, { userId: 'beto', amount: 500_000 }],
-  memberIds: ['ana', 'beto'], category: 'transport', date: 0, createdAt: 0,
+  memberIds: ['beto', 'ana'], category: 'transport', date: 0, createdAt: 0,
   createdById: 'beto', deletionVotes: [], updatedAt: 0, isDeleted: false, ...over,
 } as Expense);
 
@@ -44,17 +48,60 @@ beforeEach(() => {
   usePaymentStore.setState({ payments: [] });
 });
 
-describe('atajo de deuda completa', () => {
-  it('ofrece el total exacto que se debe', () => {
-    const { getByText } = render(<SettleNewScreen />);
-    // 500.000 en menor unidad = $5.000,00
-    expect(getByText(/5\.000/)).toBeTruthy();
+describe('el monto llega puesto', () => {
+  it('al abrir ya está el total que se debe', () => {
+    // Beto puso 10.000 a medias ⇒ Ana le debe 5.000 (500.000 en menor unidad).
+    const { getByDisplayValue } = render(<SettleNewScreen />);
+    expect(getByDisplayValue(/5\.000/)).toBeTruthy();
   });
 
-  it('tocarlo completa el monto', () => {
+  // Un pago parcial es simplemente escribir otro número: el autocompletado no
+  // puede pisar lo que la persona está tipeando.
+  it('editarlo a mano no se pisa solo', () => {
+    const { getByDisplayValue } = render(<SettleNewScreen />);
+
+    // Sin separador de miles: en es-AR el punto es separador y el input lo
+    // descarta mientras se tipea (F-16b.4).
+    fireEvent.changeText(getByDisplayValue(/5\.000/), '2000');
+
+    expect(getByDisplayValue('2000')).toBeTruthy();
+  });
+
+  it('el que paga soy yo, no el primer miembro de la lista', () => {
+    // El grupo es ['beto','ana'] y yo soy Ana: si tomara el primero, el pago
+    // saldría de Beto y habría que corregirlo a mano cada vez.
+    const { getAllByText, queryAllByText } = render(<SettleNewScreen />);
+
+    expect(getAllByText('common.you').length).toBeGreaterThan(0);
+    expect(queryAllByText('Ana')).toHaveLength(0); // aparezco como "vos"
+  });
+
+  /**
+   * Ahora que el sync es en vivo, un pago del otro teléfono puede llegar
+   * MIENTRAS estás tipeando. Recalcular el monto en ese momento te borraría lo
+   * que escribiste sin que entiendas por qué.
+   */
+  it('un pago que llega por sync no pisa lo que estás tipeando', () => {
+    const { getByDisplayValue } = render(<SettleNewScreen />);
+
+    fireEvent.changeText(getByDisplayValue(/5\.000/), '2000');
+
+    act(() => {
+      usePaymentStore.setState({ payments: [{
+        id: 'p-remoto', groupId: 'g1', fromUserId: 'ana', toUserId: 'beto',
+        amount: 100_000, currency: 'ARS', date: 0,
+        createdAt: 0, createdById: 'beto', updatedAt: 0, isDeleted: false,
+      } as Payment] });
+    });
+
+    expect(getByDisplayValue('2000')).toBeTruthy();
+  });
+
+  it('el chip permite volver al total después de editar', () => {
     const { getByText, getByDisplayValue } = render(<SettleNewScreen />);
 
-    fireEvent.press(getByText(/settle.whole_debt|5\.000/));
+    fireEvent.changeText(getByDisplayValue(/5\.000/), '2000');
+    fireEvent.press(getByText(/whole_debt|5\.000/));
 
     expect(getByDisplayValue(/5\.000/)).toBeTruthy();
   });
@@ -77,5 +124,17 @@ describe('atajo de deuda completa', () => {
 
     const { queryByText } = render(<SettleNewScreen />);
     expect(queryByText(/settle\.whole_debt/)).toBeNull();
+  });
+
+  // Mejor decirlo que dejar un formulario mudo con un cero.
+  it('avisa cuando el grupo ya está saldado', () => {
+    usePaymentStore.setState({ payments: [{
+      id: 'p1', groupId: 'g1', fromUserId: 'ana', toUserId: 'beto',
+      amount: 500_000, currency: 'ARS', date: 0,
+      createdAt: 0, createdById: 'ana', updatedAt: 0, isDeleted: false,
+    } as Payment] });
+
+    const { getByText } = render(<SettleNewScreen />);
+    expect(getByText('settle.all_settled')).toBeTruthy();
   });
 });

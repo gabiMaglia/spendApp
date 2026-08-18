@@ -292,7 +292,10 @@
     "select": "Seleccionar",
     "who_received": "¿A quién le pagó?",
     "payment_date": "Fecha del pago",
-    "whole_debt": "Toda la deuda · {{amount}}"
+    "whole_debt": "Toda la deuda · {{amount}}",
+    "hint_owed": "le deben {{amount}}",
+    "hint_owes": "debe {{amount}}",
+    "all_settled": "En este grupo está todo saldado"
   },
   "delete": {
     "sheet_title": "¿Eliminar este gasto?",

@@ -65,9 +65,11 @@ export function SheetOption({
 }
 
 export function SheetOptionAvatar({
-  userId, name, selected, onPress,
+  userId, name, selected, onPress, hint,
 }: {
   userId: string; name: string; selected: boolean; onPress: () => void;
+  /** Dato para poder elegir con criterio (p.ej. cuánto debe esta persona). */
+  hint?: string;
 }) {
   const scheme = useColorScheme() ?? 'light';
   const c = Colors[scheme];
@@ -77,9 +79,16 @@ export function SheetOptionAvatar({
       style={[styles.sheetOption, { backgroundColor: selected ? c.brand.primarySoft : c.surfaceSunken }]}
     >
       <Avatar name={name} hue={hueForUser(userId)} size={28} />
-      <Text style={[Typography.bodyM, { flex: 1, color: selected ? c.brand.primaryOnSoft : c.text, fontWeight: '600' }]}>
-        {name}
-      </Text>
+      <View style={{ flex: 1 }}>
+        <Text style={[Typography.bodyM, { color: selected ? c.brand.primaryOnSoft : c.text, fontWeight: '600' }]}>
+          {name}
+        </Text>
+        {hint ? (
+          <Text style={[Typography.caption, { color: selected ? c.brand.primaryOnSoft : c.textSecondary }]}>
+            {hint}
+          </Text>
+        ) : null}
+      </View>
       {selected && <Ionicons name="checkmark" size={18} color={c.brand.primaryOnSoft} />}
     </Pressable>
   );
