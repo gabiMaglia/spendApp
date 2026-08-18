@@ -6,6 +6,7 @@ import { useAuthStore } from '@/src/store/authStore';
 import { deriveTopic } from './envelopeCrypto';
 import { subscribeTopic, isRelayConfigured } from './relay';
 import { publishToGroup, drainGroup } from './relaySync';
+import { resolvePendingDeletions } from '@/src/services/resolveDeletions';
 import { fromHex } from './envelopeCrypto';
 import { deriveInviteTopic, type GroupInvite } from './groupInvite';
 import { activeInvites, processInvite, processAllInvites } from './inviteEngine';
@@ -135,6 +136,11 @@ export async function drainNow(groupId: string): Promise<number> {
     if (!r.ok) return 0;
 
     writeCursor(topic, r.cursor);
+
+    // Los votos de borrado viajan como cualquier campo: lo que acaba de llegar
+    // puede completar una ronda que hasta recién figuraba pendiente.
+    if (r.applied > 0) resolvePendingDeletions();
+
     return r.applied;
   } catch {
     return 0; // offline: se reintenta al próximo arranque o aviso

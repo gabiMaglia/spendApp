@@ -1,6 +1,7 @@
 import type { DeletionVote, Expense, SyncMeta } from '@/src/types/models';
 
-const DELETION_TIMEOUT_MS = 72 * 60 * 60 * 1000;
+/** Ventana para objetar un borrado (regla de negocio #2). */
+export const DELETION_TIMEOUT_MS = 72 * 60 * 60 * 1000;
 
 export class SyncEngine {
   /**
@@ -50,7 +51,11 @@ export function mergeDeletionVotes(votes: DeletionVote[]): DeletionVote[] {
  *  2. Si algún miembro votó 'cancel', el borrado no procede.
  *  3. Si hay al menos un voto 'delete' y pasaron 72hs sin objeciones, se borra.
  */
-export function resolveDeletionVotes(expense: Expense, _memberIds: string[]): boolean {
+export function resolveDeletionVotes(
+  expense: Expense,
+  _memberIds: string[],
+  now: number = Date.now(),
+): boolean {
   const latestVotes = mergeDeletionVotes(expense.deletionVotes ?? []);
 
   // El creador puede forzar borrado inmediato
@@ -65,7 +70,7 @@ export function resolveDeletionVotes(expense: Expense, _memberIds: string[]): bo
   const deleteVotes = latestVotes.filter(v => v.action === 'delete');
   if (deleteVotes.length > 0) {
     const oldest = Math.min(...deleteVotes.map(v => v.votedAt));
-    return Date.now() - oldest > DELETION_TIMEOUT_MS;
+    return now - oldest > DELETION_TIMEOUT_MS;
   }
 
   return false;

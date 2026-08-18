@@ -7,6 +7,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { v4 as uuidv4 } from 'uuid';
 import { hapticLight, hapticWarning } from '@/src/utils/haptics';
 import { useTranslation } from 'react-i18next';
+import i18n from '@/src/i18n';
 import { Ionicons } from '@expo/vector-icons';
 
 import { Colors } from '@/src/constants/colors';
@@ -23,7 +24,16 @@ import { CommentThread } from '@/src/components/CommentThread';
 import { CategoryIcon } from '@/src/components/CategoryIcon';
 import { Avatar } from '@/src/components/Avatar';
 import { hueForUser } from '@/src/utils/hueForUser';
+import { deletionRound, msUntilDeletion, hasObjected, hasRequested } from '@/src/algorithms/deletionRound';
 import type { CategoryKind } from '@/src/constants/colors';
+
+/** "2 días" / "5 horas" / "40 minutos": basta para saber si hay que apurarse. */
+function formatearRestante(ms: number): string {
+  const horas = Math.floor(ms / 3600_000);
+  if (horas >= 24) return i18n.t('expense.time_days', { count: Math.floor(horas / 24) });
+  if (horas >= 1)  return i18n.t('expense.time_hours', { count: horas });
+  return i18n.t('expense.time_minutes', { count: Math.max(1, Math.floor(ms / 60_000)) });
+}
 
 export default function ExpenseDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -95,51 +105,86 @@ export default function ExpenseDetailScreen() {
   // abre y no hay forma de ver el gasto ni de arreglarlo.
   const votos  = expense.deletionVotes ?? [];
   const splits = expense.splits ?? [];
-  const hasPendingDelete = votos.some(v => v.action === 'delete');
+
+  const ronda = deletionRound(expense);
+  const hayPedido = ronda !== null && !ronda.objected;
+  const yoPedi    = currentUser ? hasRequested(expense, currentUser.id) : false;
+  const yoObjete  = currentUser ? hasObjected(expense, currentUser.id) : false;
+
+  /**
+   * Pedir el borrado ABRE UNA RONDA NUEVA: se limpian los votos anteriores.
+   *
+   * Si se acumularan, una objeción vieja bloquearía cualquier pedido futuro
+   * para siempre, y un pedido viejo que sobreviviera a la objeción vencería al
+   * instante al reabrirse — borrando sin darle a nadie sus 72hs.
+   */
+  function pedirBorrado() {
+    if (!currentUser || !expense) return;
+    updateExpense(expense.id, {
+      deletionVotes: [{ userId: currentUser.id, votedAt: Date.now(), action: 'delete' }],
+    });
+  }
+
+  /** Sólo el creador. Se borra ya, sin ventana para objetar. */
+  function forzarBorrado() {
+    if (!currentUser || !expense) return;
+    updateExpense(expense.id, {
+      deletionVotes: [{ userId: currentUser.id, votedAt: Date.now(), action: 'delete', forced: true }],
+      isDeleted: true,
+    });
+    // Cascada: si no, los comentarios quedan huérfanos apuntando a un gasto
+    // inexistente y viajando en cada sync.
+    removeCommentsForExpense(expense.id);
+    router.back();
+  }
 
   function handleRequestDelete() {
     if (!currentUser || !expense) return;
     hapticWarning();
+
+    // El creador elige: pedirlo y esperar, o forzarlo. Los demás sólo pueden
+    // pedirlo (regla de negocio #2).
+    const opciones = isCreator
+      ? [
+          { text: t('common.cancel'), style: 'cancel' as const },
+          { text: t('expense.delete_request'), onPress: pedirBorrado },
+          { text: t('expense.delete_force'), style: 'destructive' as const, onPress: forzarBorrado },
+        ]
+      : [
+          { text: t('common.cancel'), style: 'cancel' as const },
+          { text: t('expense.delete_request'), style: 'destructive' as const, onPress: pedirBorrado },
+        ];
+
     Alert.alert(
       t('expense.delete_title'),
       isCreator ? t('expense.delete_body_creator') : t('expense.delete_body_member'),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: t('common.delete'),
-          style: 'destructive',
-          onPress: () => {
-            if (isCreator) {
-              // El creador borra directamente (tombstone). Los comentarios se
-              // tombstonean en cascada: si no, quedan huérfanos apuntando a un
-              // gasto inexistente y viajando en cada sync.
-              updateExpense(expense.id, { isDeleted: true });
-              removeCommentsForExpense(expense.id);
-              router.back();
-            } else {
-              // Otros miembros votan por el borrado
-              updateExpense(expense.id, {
-                deletionVotes: [
-                  ...votos,
-                  { userId: currentUser.id, votedAt: Date.now(), action: 'delete' },
-                ],
-              });
-            }
-          },
-        },
-      ],
+      opciones,
     );
   }
 
-  function handleCancelDeleteVote() {
+  /** Objetar mata la ronda: el gasto no se borra hasta que alguien pida de nuevo. */
+  function objetarBorrado() {
     if (!currentUser || !expense) return;
     hapticLight();
     updateExpense(expense.id, {
-      deletionVotes: votos.filter(
-        v => !(v.userId === currentUser.id && v.action === 'delete'),
-      ),
+      deletionVotes: [
+        ...votos.filter(v => v.userId !== currentUser.id),
+        { userId: currentUser.id, votedAt: Date.now(), action: 'cancel' },
+      ],
     });
   }
+
+  /** Retirar MI pedido. Distinto de objetar: no bloquea, sólo me saco. */
+  function retirarPedido() {
+    if (!currentUser || !expense) return;
+    hapticLight();
+    updateExpense(expense.id, {
+      deletionVotes: votos.filter(v => v.userId !== currentUser.id),
+    });
+  }
+
+  const nombreDe = (uid: string) => (uid === currentUser?.id ? t('common.you') : getUserName(uid));
+  const restante = ronda ? formatearRestante(msUntilDeletion(ronda)) : '';
 
   const myShare = splits.find(s => s.userId === currentUser?.id)?.amount ?? 0;
   const isPayer = expense.paidById === currentUser?.id;
@@ -271,41 +316,82 @@ export default function ExpenseDetailScreen() {
           </View>
         ) : null}
 
-        {/* Solicitud de borrado pendiente */}
-        {hasPendingDelete && (
-          <View style={[styles.section, styles.warningSection, { backgroundColor: c.semantic.warningSoft, borderColor: c.semantic.warning }]}>
-            <Ionicons name="warning-outline" size={18} color={c.semantic.warning} />
+        {/* Estado de la solicitud de borrado. Decir QUIÉN lo pidió y CUÁNTO
+            falta es lo que hace accionable el aviso: "pendiente" a secas no le
+            dice a nadie si tiene que hacer algo ni cuándo. */}
+        {ronda && !expense.isDeleted && (
+          <View style={[
+            styles.section, styles.warningSection,
+            ronda.objected
+              ? { backgroundColor: c.surfaceSunken, borderColor: c.borderHair }
+              : { backgroundColor: c.semantic.warningSoft, borderColor: c.semantic.warning },
+          ]}>
+            <Ionicons
+              name={ronda.objected ? 'hand-left-outline' : 'time-outline'}
+              size={18}
+              color={ronda.objected ? c.textSecondary : c.semantic.warning}
+            />
             <View style={{ flex: 1 }}>
-              <Text style={[Typography.bodyM, { color: c.semantic.warning, fontWeight: '600' }]}>
-                {t('expense.delete_pending_title')}
+              <Text style={[Typography.bodyM, {
+                color: ronda.objected ? c.text : c.semantic.warning, fontWeight: '600',
+              }]}>
+                {ronda.objected
+                  ? t('expense.delete_objected_title', { name: nombreDe(ronda.objectedBy!) })
+                  : t('expense.delete_pending_title')}
               </Text>
-              <Text style={[Typography.bodyS, { color: c.semantic.warning, marginTop: 2, opacity: 0.85 }]}>
-                {t('expense.delete_pending_body')}
+              <Text style={[Typography.bodyS, {
+                color: ronda.objected ? c.textSecondary : c.semantic.warning,
+                marginTop: 2, opacity: 0.9,
+              }]}>
+                {ronda.objected
+                  ? t('expense.delete_objected_body')
+                  : t('expense.delete_pending_body', {
+                      name: nombreDe(ronda.requestedBy),
+                      time: restante,
+                    })}
               </Text>
             </View>
           </View>
         )}
 
-        {/* Botón de votar borrado (para no-creadores) */}
-        {!isCreator && !expense.isDeleted && (
-          <View style={[styles.section, { paddingHorizontal: Spacing.screenPad }]}>
-            {hasPendingDelete ? (
+        {/* Acciones. Objetar y retirar el pedido NO son lo mismo: objetar frena
+            el borrado de todos, retirar sólo me saca a mí. */}
+        {!expense.isDeleted && currentUser && (
+          <View style={[styles.section, { paddingHorizontal: Spacing.screenPad, gap: Spacing[2] }]}>
+            {hayPedido && !yoPedi && !yoObjete && (
               <Pressable
-                onPress={handleCancelDeleteVote}
+                accessibilityRole="button"
+                onPress={objetarBorrado}
+                style={[styles.actionBtn, { borderColor: c.brand.primary, backgroundColor: c.surface }]}
+              >
+                <Ionicons name="hand-left-outline" size={16} color={c.brand.primary} />
+                <Text style={[Typography.bodyM, { color: c.brand.primary, fontWeight: '600' }]}>
+                  {t('expense.object_delete')}
+                </Text>
+              </Pressable>
+            )}
+
+            {hayPedido && yoPedi && (
+              <Pressable
+                accessibilityRole="button"
+                onPress={retirarPedido}
                 style={[styles.actionBtn, { borderColor: c.borderHair, backgroundColor: c.surface }]}
               >
                 <Text style={[Typography.bodyM, { color: c.textSecondary, fontWeight: '600' }]}>
-                  {t('expense.cancel_delete_vote')}
+                  {t('expense.withdraw_request')}
                 </Text>
               </Pressable>
-            ) : (
+            )}
+
+            {!hayPedido && (
               <Pressable
+                accessibilityRole="button"
                 onPress={handleRequestDelete}
                 style={[styles.actionBtn, { borderColor: c.semantic.negativeSoft, backgroundColor: c.semantic.negativeSoft }]}
               >
                 <Ionicons name="trash-outline" size={16} color={c.semantic.negative} />
                 <Text style={[Typography.bodyM, { color: c.semantic.negative, fontWeight: '600' }]}>
-                  {t('expense.request_delete')}
+                  {isCreator ? t('expense.delete_expense') : t('expense.request_delete')}
                 </Text>
               </Pressable>
             )}
