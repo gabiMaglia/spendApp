@@ -172,10 +172,12 @@ export function useActivityFeed(currentUserId: string): ActivityKind[] {
 
   return useMemo(() => {
     // Solo grupos donde participa el usuario
+    // OJO: acá NO se filtran los grupos borrados, a diferencia de los saldos.
+    // La actividad es un REGISTRO DE LO QUE PASÓ; los saldos son una afirmación
+    // sobre el presente. Borrar un grupo tiene que sacar sus deudas (ya no se
+    // pueden saldar) pero no puede borrar la historia de lo que hiciste.
     const myGroupIds = new Set(
-      groups
-        .filter(g => !g.isDeleted && g.memberIds.includes(currentUserId))
-        .map(g => g.id),
+      groups.filter(g => g.memberIds.includes(currentUserId)).map(g => g.id),
     );
 
     const groupName = (id: string) => groups.find(g => g.id === id)?.name ?? id;

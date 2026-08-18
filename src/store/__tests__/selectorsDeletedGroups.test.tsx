@@ -73,10 +73,13 @@ describe('un grupo borrado deja de contar', () => {
     expect(totales.find(t => t.currency === 'ARS')?.owedToYou ?? 0).toBe(0);
   });
 
-  it('ni aparece en la actividad', () => {
+  // La actividad es un REGISTRO de lo que pasó, no una afirmación sobre el
+  // presente. Borrar un grupo saca sus deudas (ya no se pueden saldar) pero no
+  // puede borrarte la historia de lo que hiciste.
+  it('PERO la actividad se conserva: es historial, no saldo', () => {
     useGroupStore.setState({ groups: [grupo({ isDeleted: true })] });
 
-    expect(usar(() => useActivityFeed(YO))).toEqual([]);
+    expect(usar(() => useActivityFeed(YO))).toHaveLength(1);
   });
 
   /**
@@ -97,8 +100,7 @@ describe('un grupo borrado deja de contar', () => {
       gasto(),
       gasto({
         id: 'e2', groupId: 'g2', amount: 600_000, paidById: 'beto',
-        splits: [{ userId: 'beto', amount: 300_000 }, { userId: 'caro', amount: 300_000 }],
-        memberIds: ['beto', 'caro'],
+        splits: [{ userId: 'beto', amount: 300_000, isPaid: false }, { userId: 'caro', amount: 300_000, isPaid: false }],
       }),
     ]});
 
