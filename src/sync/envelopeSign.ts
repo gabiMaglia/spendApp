@@ -10,10 +10,21 @@ import { toHex, fromHex } from './envelopeCrypto';
  * una por una.
  *
  * Con la firma por fuera del cifrado, un sobre ajeno se descarta ANTES de tocar
- * la criptografía cara, y —lo que importa de verdad— el sobre queda atado a la
- * identidad del dispositivo que lo mandó. Eso es lo que permite decir "esto lo
- * publicó Ana" en vez de "esto lo publicó alguien que tenía la clave", y es la
- * base para poder echar a alguien de un grupo más adelante.
+ * la criptografía cara, y queda atado a la clave del dispositivo que lo mandó.
+ *
+ * **Alcance honesto de lo que esto resuelve y lo que no:**
+ *
+ *  - contra alguien de AFUERA: sirve poco de más, porque el cifrado ya lo
+ *    frenaba. Lo que gana es descartar la basura barato, sin intentar descifrar
+ *    sobre por sobre;
+ *  - contra un MIEMBRO malicioso: **no lo frena**. Tiene la clave del grupo, así
+ *    que puede fabricar registros a nombre de quien quiera — `createdById` y
+ *    `paidById` son datos como cualquier otro. Vigilar quién manda el sobre no
+ *    arregla eso; hay que firmar CADA REGISTRO con la clave de su autor (T-041);
+ *  - contra un EX miembro: tampoco. Para eso hace falta rotar la clave del grupo.
+ *
+ * Sirve, además, como cimiento: es la pieza sobre la que se apoyan tanto el
+ * firmado por registro como la revocación.
  *
  * La firma NO reemplaza al cifrado: va por afuera y sólo autentica. Quien no
  * tiene la clave del grupo sigue sin poder leer nada aunque firme perfecto.

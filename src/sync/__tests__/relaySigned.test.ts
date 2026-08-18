@@ -123,34 +123,37 @@ describe('lo que el buzón no deja pasar', () => {
   });
 
   /**
-   * ESTE es el caso que justifica todo: alguien que consiguió la clave del
-   * grupo publica diciendo ser Ana. Sin el roster le cargaría gastos falsos a
-   * su nombre y nadie notaría la diferencia.
+   * ⚠️ LO QUE LA FIRMA **NO** HACE, y conviene que esté escrito.
+   *
+   * La firma autentica el SOBRE, no lo que hay adentro. Quien tiene la clave
+   * del grupo puede fabricar registros a nombre de cualquiera: `createdById` y
+   * `paidById` son datos como cualquier otro y el merge no los verifica.
+   *
+   * Este test existe para que nadie crea que el problema está resuelto.
+   * Cerrarlo de verdad exige firmar CADA REGISTRO con la clave de su autor
+   * (T-041), no vigilar el remitente del sobre.
    */
-  it('un impostor con la clave del grupo no puede hacerse pasar por un miembro', async () => {
-    // Primero un sobre legítimo de Ana: fija su identidad en el roster.
-    await publishToGroup('G', 'ana', 'dev-ana');
-
-    // Ahora el impostor: tiene la clave del grupo, pero su propia identidad.
+  it('DOCUMENTA: la firma NO impide fabricar registros a nombre de otro', async () => {
     const rec = useGroupKeyStore.getState().getKey('G')!;
-    const impostor = generateIdentity();
+    const otroMiembro = generateIdentity();
     const sellado = sealEnvelope(fromHex(rec.key), JSON.stringify({
-      version: 1, fromUserId: 'ana', timestamp: 0,
-      groups: [], expenses: [gasto('e9', 'Gasto falso')], payments: [], users: [],
+      version: 1, fromUserId: 'beto', timestamp: 0,
+      groups: [], payments: [], users: [],
+      expenses: [{ ...gasto('e9', 'Gasto que Ana nunca hizo'), createdById: 'ana', paidById: 'ana' }],
     }));
-    const topic = await topicDelGrupo();
-    relayMock.__buzones.get(topic)!.push({
-      seq: 99, payload: signEnvelope(sellado, impostor.privateKey), sender: 'dev-malo',
-    });
+    relayMock.__buzones.set(await topicDelGrupo(), [{
+      seq: 1, payload: signEnvelope(sellado, otroMiembro.privateKey), sender: 'dev-beto',
+    }]);
 
     useExpenseStore.setState({ expenses: [] });
-    const r = await drainGroup('G', 'beto', 'dev-beto', 0);
+    await drainGroup('G', 'caro', 'dev-caro', 0);
 
-    expect(useExpenseStore.getState().expenses.map(e => e.id)).toEqual(['e1']);
-    expect(r.ok && r.skipped).toBe(1);
+    expect(useExpenseStore.getState().expenses[0]?.createdById).toBe('ana');
   });
 
-  it('un miembro nuevo que nadie vio antes sí entra (primera vez)', async () => {
+  // Cualquier dispositivo de cualquier miembro publica sin trámite previo: la
+  // credencial de pertenencia es la clave del grupo, no una lista aparte.
+  it('un dispositivo que nadie vio antes publica sin problema', async () => {
     const nuevo = generateIdentity();
     const rec = useGroupKeyStore.getState().getKey('G')!;
     const sellado = sealEnvelope(fromHex(rec.key), JSON.stringify({
