@@ -15,14 +15,12 @@ import { Typography } from '@/src/constants/typography';
 import { formatMoney } from '@/src/constants/currencies';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuthStore } from '@/src/store/authStore';
-import { useSyncStore } from '@/src/store/syncStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useGlobalPersonBalances } from '@/src/store/selectors';
 import { hueForUser } from '@/src/utils/hueForUser';
 import { hapticLight, hapticSuccess, hapticWarning } from '@/src/utils/haptics';
 import { Avatar } from '@/src/components/Avatar';
 import { Fab, FabRow } from '@/src/components/Fab';
-import { SyncStatusBadge } from '@/src/components/SyncStatusBadge';
 import { EmptyState } from '@/src/components/EmptyState';
 import { BottomSheet } from '@/src/components/Sheet';
 
@@ -30,7 +28,6 @@ export default function FriendsScreen() {
   const { t } = useTranslation();
   const scheme = useColorScheme() ?? 'light';
   const c = Colors[scheme];
-  const { state: syncState } = useSyncStore();
   const { currentUser } = useAuthStore();
   const { users, addOrUpdateUser, removeUser } = useUserStore();
 
@@ -89,7 +86,6 @@ export default function FriendsScreen() {
 
         {/* Header */}
         <View style={styles.header}>
-          <SyncStatusBadge state={syncState} />
           <Pressable
             onPress={() => { hapticLight(); setShowAdd(true); }}
             style={[styles.iconBtn, { backgroundColor: c.surfaceSunken }]}
@@ -304,7 +300,7 @@ const styles = StyleSheet.create({
   safe:          { flex: 1 },
   scroll:        { paddingTop: Spacing[2] },
   header:        {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end',
     paddingHorizontal: Spacing.screenPad, paddingBottom: Spacing[3],
   },
   iconBtn:       { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },

@@ -11,12 +11,10 @@ import { Typography } from '@/src/constants/typography';
 import { formatMoney } from '@/src/constants/currencies';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuthStore } from '@/src/store/authStore';
-import { useSyncStore } from '@/src/store/syncStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useActivityFeed } from '@/src/store/selectors';
 import type { ActivityKind } from '@/src/store/selectors';
-import { SyncStatusBadge } from '@/src/components/SyncStatusBadge';
 import { EmptyState } from '@/src/components/EmptyState';
 import { hapticSelection } from '@/src/utils/haptics';
 
@@ -37,7 +35,6 @@ export default function ActivityScreen() {
   const { t } = useTranslation();
   const scheme = useColorScheme() ?? 'light';
   const c = Colors[scheme];
-  const { state: syncState } = useSyncStore();
   const { currentUser } = useAuthStore();
   const { getUserName } = useUserStore();
   const groups   = useGroupStore(s => s.groups);
@@ -73,7 +70,6 @@ export default function ActivityScreen() {
 
         {/* Header */}
         <View style={styles.header}>
-          <SyncStatusBadge state={syncState} />
           <Pressable style={[styles.iconBtn, { backgroundColor: c.surfaceSunken }]}>
             <Ionicons name="search-outline" size={18} color={c.text} />
           </Pressable>
@@ -241,7 +237,7 @@ const styles = StyleSheet.create({
   safe:          { flex: 1 },
   header:        {
     flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
     paddingHorizontal: Spacing.screenPad, paddingBottom: Spacing[3],
   },
   titleRow:      { paddingHorizontal: Spacing.screenPad, marginBottom: Spacing[3] },

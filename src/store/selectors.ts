@@ -97,6 +97,14 @@ export function useGlobalPersonBalances(currentUserId: string): PersonBalance[] 
     };
 
     for (const group of groups) {
+      // Un grupo borrado NO puede seguir generando deuda: esa plata ya no se
+      // puede saldar (no hay pantalla donde hacerlo) y quedaba figurando para
+      // siempre en Amigos y en el resumen.
+      if (group.isDeleted) continue;
+      // Y un grupo del que no soy parte tampoco: sus saldos entrarían al pozo
+      // global y cambiarían con QUIÉN me empareja la simplificación.
+      if (!group.memberIds.includes(currentUserId)) continue;
+
       const gExpenses = expenses.filter(e => e.groupId === group.id);
       const gPayments = payments.filter(p => p.groupId === group.id);
       const balances  = calculateBalancesByCurrency(gExpenses, gPayments, group.memberIds);
@@ -165,7 +173,9 @@ export function useActivityFeed(currentUserId: string): ActivityKind[] {
   return useMemo(() => {
     // Solo grupos donde participa el usuario
     const myGroupIds = new Set(
-      groups.filter(g => g.memberIds.includes(currentUserId)).map(g => g.id),
+      groups
+        .filter(g => !g.isDeleted && g.memberIds.includes(currentUserId))
+        .map(g => g.id),
     );
 
     const groupName = (id: string) => groups.find(g => g.id === id)?.name ?? id;
