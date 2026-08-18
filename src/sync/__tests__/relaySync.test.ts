@@ -1,4 +1,4 @@
-import { buildRelayPayload } from '../relaySync';
+import { buildGroupPayload } from '../relaySync';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { useGroupStore } from '@/src/store/groupStore';
@@ -23,7 +23,7 @@ describe('LA CLAVE DEL GRUPO NUNCA SALE POR EL RELAY', () => {
   it('el payload del relay no incluye el campo groupKeys', () => {
     useGroupKeyStore.getState().ensureKey('g1');
 
-    const payload = buildRelayPayload(ME);
+    const payload = buildGroupPayload('g1', ME);
 
     expect('groupKeys' in payload).toBe(false);
   });
@@ -31,7 +31,7 @@ describe('LA CLAVE DEL GRUPO NUNCA SALE POR EL RELAY', () => {
   it('el material de la clave no aparece NI SERIALIZADO en el payload', () => {
     const record = useGroupKeyStore.getState().ensureKey('g1');
 
-    const serializado = JSON.stringify(buildRelayPayload(ME));
+    const serializado = JSON.stringify(buildGroupPayload('g1', ME));
 
     expect(serializado).not.toContain(record.key);
   });
@@ -42,16 +42,7 @@ describe('LA CLAVE DEL GRUPO NUNCA SALE POR EL RELAY', () => {
     expect(buildDelta(ME).groupKeys).toHaveLength(1);
   });
 
-  it('el payload del relay conserva todo lo demás del delta', () => {
-    const completo = buildDelta(ME);
-    const relay = buildRelayPayload(ME) as unknown as Record<string, unknown>;
-
-    const faltantes = Object.keys(completo)
-      .filter(k => k !== 'groupKeys' && k !== 'timestamp')
-      .filter(k => !(k in relay));
-
-    expect(faltantes).toEqual([]);
-  });
+  // Lo que el payload SÍ debe llevar, y lo que jamás, está en relayScope.test.ts.
 });
 
 describe('groupKeyStore', () => {
