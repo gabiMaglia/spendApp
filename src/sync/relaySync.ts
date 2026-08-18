@@ -2,6 +2,9 @@ import { buildDelta, applyDelta, type SyncDelta } from './useSyncQR';
 import { sealEnvelope, openEnvelope, deriveTopic } from './envelopeCrypto';
 import { sendEnvelope, fetchSince } from './relay';
 import { groupKeyBytes, useGroupKeyStore } from '@/src/store/groupKeyStore';
+import { ensureIdentity } from '@/src/store/identityStore';
+import { signEnvelope, verifyEnvelope } from './envelopeSign';
+import { acceptPublisher } from './groupRoster';
 
 /**
  * Sync por el relay: arma el sobre cifrado, lo publica y aplica lo que llega.
@@ -90,7 +93,11 @@ export async function publishToGroup(
   const topic = await deriveTopic(key, record.epoch);
   const sealed = sealEnvelope(key, JSON.stringify(buildGroupPayload(groupId, currentUserId)));
 
-  const r = await sendEnvelope(topic, sealed, deviceId);
+  // La firma va POR FUERA del cifrado: autentica quién lo mandó sin exponer
+  // nada de lo que va adentro (T-033).
+  const firmado = signEnvelope(sealed, ensureIdentity().privateKey);
+
+  const r = await sendEnvelope(topic, firmado, deviceId);
   if (!r.ok) return { ok: false, reason: r.reason, detail: r.detail };
   return { ok: true, seq: r.seq };
 }
@@ -127,11 +134,26 @@ export async function drainGroup(
   let skipped = 0;
 
   for (const envelope of r.envelopes) {
-    const plain = openEnvelope(key, envelope.payload);
+    // 1. Firma. Descarta lo ajeno ANTES de gastar una operación de cifrado.
+    const firmado = verifyEnvelope(envelope.payload);
+    if (firmado === null) { skipped++; continue; }
+
+    // 2. Cifrado. Sin la clave del grupo no se lee nada, firme quien firme.
+    const plain = openEnvelope(key, firmado.sealed);
     if (plain === null) { skipped++; continue; }
 
     try {
-      applyDelta(JSON.parse(plain) as SyncDelta, currentUserId);
+      const delta = JSON.parse(plain) as SyncDelta;
+
+      // 3. Identidad. La clave que firmó tiene que ser la que ya conocíamos de
+      //    esa persona en este grupo. Sin esto, cualquiera con la clave del
+      //    grupo podría publicar gastos diciendo ser otro miembro.
+      if (!acceptPublisher(groupId, delta.fromUserId, firmado.senderKey)) {
+        skipped++;
+        continue;
+      }
+
+      applyDelta(delta, currentUserId);
       applied++;
     } catch {
       // Descifró pero el JSON no era un delta válido: se saltea igual.
