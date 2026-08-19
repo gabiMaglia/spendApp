@@ -28,6 +28,8 @@ import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { BalancePill } from '@/src/components/BalancePill';
 import { SheetOptionAvatar } from '@/src/components/Sheet';
 import { canLeaveGroup } from '@/src/algorithms/canLeaveGroup';
+import { approvalProgress } from '@/src/algorithms/leaveRequest';
+import { applyApprovedLeaves } from '@/src/services/applyLeave';
 import type { Expense, Payment } from '@/src/types/models';
 import { useTranslation } from 'react-i18next';
 import i18n from '@/src/i18n';
@@ -43,7 +45,9 @@ export default function GroupDetailScreen() {
   const c = Colors[scheme];
 
   const { currentUser } = useAuthStore();
-  const ensureKey   = useGroupKeyStore(st => st.ensureKey);
+  const ensureKey    = useGroupKeyStore(st => st.ensureKey);
+  const approveLeave = useGroupStore(st => st.approveLeave);
+  const cancelLeave  = useGroupStore(st => st.cancelLeave);
   const deleteGroup = useGroupStore(st => st.deleteGroup);
   const leaveGroup  = useGroupStore(st => st.leaveGroup);
   const group        = useGroupStore(s => s.groups.find(g => g.id === id));
@@ -91,6 +95,9 @@ export default function GroupDetailScreen() {
   }, [allExpenses, allPayments, id]);
 
   const balances    = useGroupBalance(id ?? '', currentUser?.id ?? '');
+  const avance      = group?.leaveRequest
+    ? approvalProgress(group, group.leaveRequest)
+    : { got: 0, need: 0 };
   const mainBalance = balances.find(b => b.currency === group?.currency)?.amount ?? 0;
 
   /**
@@ -150,6 +157,8 @@ export default function GroupDetailScreen() {
     }
 
     if (veredicto.kind === 'needs_absorption') {
+      // Dos salidas posibles y las dos honestas: saldar la deuda, o repartirla
+      // entre los que quedan con la aprobación de todos.
       Alert.alert(
         t('group_detail.leave_blocked_title'),
         t('group_detail.leave_needs_settle', {
@@ -160,6 +169,10 @@ export default function GroupDetailScreen() {
           {
             text: t('group_detail.settle_debts'),
             onPress: () => router.push(`/settle/new?groupId=${group.id}` as any),
+          },
+          {
+            text: t('leave.title'),
+            onPress: () => router.push(`/groups/leave?id=${group.id}` as any),
           },
         ],
       );
@@ -324,6 +337,55 @@ export default function GroupDetailScreen() {
               {t('group_detail.invite_link')}
             </Text>
           </Pressable>
+        )}
+
+        {/* Pedido de salida pendiente. Todos tienen que aprobar antes de que
+            alguien se coma un saldo ajeno. */}
+        {group?.leaveRequest && currentUser && (
+          <View style={{ paddingHorizontal: Spacing.screenPad, marginTop: Spacing[4] }}>
+            <View style={[styles.leaveCard, { backgroundColor: c.semantic.warningSoft, borderColor: c.semantic.warning }]}>
+              <Text style={[Typography.bodyM, { color: c.semantic.warning, fontWeight: '600' }]}>
+                {group.leaveRequest.userId === currentUser.id
+                  ? t('leave.pending_mine', avance)
+                  : t('leave.pending_title', { name: getUserName(group.leaveRequest.userId) })}
+              </Text>
+              {group.leaveRequest.userId !== currentUser.id && (
+                <Text style={[Typography.bodyS, { color: c.semantic.warning, marginTop: 2, opacity: 0.9 }]}>
+                  {t('leave.pending_body', avance)}
+                </Text>
+              )}
+            </View>
+
+            {group.leaveRequest.userId === currentUser.id ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => cancelLeave(group.id)}
+                style={[styles.inviteRow, { borderColor: c.borderHair, marginTop: Spacing[2] }]}
+              >
+                <Text style={[Typography.bodyM, { color: c.textSecondary, fontWeight: '600' }]}>
+                  {t('leave.withdraw')}
+                </Text>
+              </Pressable>
+            ) : !group.leaveRequest.approvedBy.includes(currentUser.id) && (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  hapticSuccess();
+                  approveLeave(group.id, currentUser.id);
+                  // Si la mía era la que faltaba, se aplica ya: hacer esperar
+                  // al próximo arranque para algo que acaba de completarse
+                  // deja a todos mirando una pantalla que no cambia.
+                  applyApprovedLeaves();
+                }}
+                style={[styles.inviteRow, { borderColor: c.brand.primary, marginTop: Spacing[2] }]}
+              >
+                <Ionicons name="checkmark-circle-outline" size={18} color={c.brand.primary} />
+                <Text style={[Typography.bodyM, { color: c.brand.primary, fontWeight: '600' }]}>
+                  {t('leave.approve')}
+                </Text>
+              </Pressable>
+            )}
+          </View>
         )}
 
         {/* Saldar. Estaba la traducción pero nunca el botón: saldar una deuda
@@ -569,6 +631,7 @@ function PaymentRow({
 
 const styles = StyleSheet.create({
   inviteRow:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 24, padding: 14, borderWidth: 1, borderRadius: 14 },
+  leaveCard:  { borderRadius: Radius.md, borderWidth: 1, padding: Spacing[4] },
   dangerZone: { marginTop: 32, alignItems: 'center' },
   dangerRow:  { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12 },
   safe:           { flex: 1 },

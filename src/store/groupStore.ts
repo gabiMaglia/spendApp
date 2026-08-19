@@ -3,7 +3,8 @@ import { createSecureStorage } from '@/src/utils/secureStorage';
 import { readScoped, writeScoped } from './userScope';
 import { mergeByIdLWW } from './lww';
 import { schedulePublish } from '@/src/sync/relayEngine';
-import type { Group } from '@/src/types/models';
+import type { Group, LeaveRequest } from '@/src/types/models';
+import { mergeApprovals } from '@/src/algorithms/leaveRequest';
 
 const storage = createSecureStorage('groups');
 const KEY = 'data_v1';
@@ -25,6 +26,12 @@ interface GroupStoreState {
    * que la salida siga funcionando cuando el plan ya se aplicó como pagos.
    */
   leaveGroup: (id: string, userId: string) => void;
+  /** Pide salir con saldo abierto, proponiendo quién absorbe. */
+  requestLeave: (id: string, userId: string, plan: LeaveRequest['plan']) => void;
+  /** Aprueba el pedido de salida pendiente. Idempotente. */
+  approveLeave: (id: string, userId: string) => void;
+  /** Retira el pedido (lo cancela quien se iba, o se limpia al aplicarlo). */
+  cancelLeave: (id: string) => void;
   mergeGroups: (incoming: Group[]) => void;
   hydrate: () => void;
 }
@@ -88,8 +95,60 @@ export const useGroupStore = create<GroupStoreState>((set, get) => ({
     schedulePublish(id, 0); // sin debounce: después de salir dejamos de publicar
   },
 
+  requestLeave: (id, userId, plan) => {
+    const groups = get().groups.map(g => g.id === id ? {
+      ...g,
+      leaveRequest: { userId, plan, requestedAt: Date.now(), approvedBy: [] },
+      updatedAt: Date.now(),
+    } : g);
+    persist(groups);
+    set({ groups });
+    schedulePublish(id, 0); // sin debounce: los demás tienen que poder aprobar ya
+  },
+
+  approveLeave: (id, userId) => {
+    const groups = get().groups.map(g => {
+      if (g.id !== id || !g.leaveRequest) return g;
+      if (g.leaveRequest.approvedBy.includes(userId)) return g; // idempotente
+      return {
+        ...g,
+        leaveRequest: {
+          ...g.leaveRequest,
+          approvedBy: [...g.leaveRequest.approvedBy, userId],
+        },
+        updatedAt: Date.now(),
+      };
+    });
+    persist(groups);
+    set({ groups });
+    schedulePublish(id, 0);
+  },
+
+  cancelLeave: (id) => {
+    const groups = get().groups.map(g =>
+      g.id === id ? { ...g, leaveRequest: undefined, updatedAt: Date.now() } : g,
+    );
+    persist(groups);
+    set({ groups });
+    schedulePublish(id, 0);
+  },
+
+  /**
+   * LWW por registro, PERO las aprobaciones de salida se unen.
+   *
+   * Sin eso, dos personas aprobando en paralelo pierden una de las dos firmas
+   * —gana el registro con `updatedAt` mayor y se lleva puesto al otro— y el
+   * pedido no junta nunca las que necesita. Nadie se entera: simplemente no
+   * pasa nada. Ver `mergeApprovals`.
+   */
   mergeGroups: (incoming) => {
-    const merged = mergeByIdLWW(get().groups, incoming);
+    const antes = new Map(get().groups.map(g => [g.id, g]));
+    const merged = mergeByIdLWW(get().groups, incoming).map(g => {
+      const local = antes.get(g.id);
+      const remoto = incoming.find(x => x.id === g.id);
+      const unido = mergeApprovals(local?.leaveRequest, remoto?.leaveRequest);
+      return unido === undefined && g.leaveRequest === undefined ? g : { ...g, leaveRequest: unido };
+    });
     persist(merged);
     set({ groups: merged });
   },
