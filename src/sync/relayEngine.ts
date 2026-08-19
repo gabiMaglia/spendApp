@@ -6,6 +6,7 @@ import { useAuthStore } from '@/src/store/authStore';
 import { deriveTopic } from './envelopeCrypto';
 import { subscribeTopic, isRelayConfigured } from './relay';
 import { publishToGroup, drainGroup } from './relaySync';
+import { recordPublish } from './publishHealth';
 import { resolvePendingDeletions } from '@/src/services/resolveDeletions';
 import { fromHex } from './envelopeCrypto';
 import { deriveInviteTopic, type GroupInvite } from './groupInvite';
@@ -108,8 +109,13 @@ export async function publishNow(groupId: string): Promise<void> {
   const userId = useAuthStore.getState().currentUser?.id;
   if (!userId) return;
   // Un fallo de red no puede romper la app: se reintentará en el próximo cambio
-  // o cuando el usuario vuelva a abrirla.
-  try { await publishToGroup(groupId, userId, deviceId()); } catch { /* offline */ }
+  // o cuando el usuario vuelva a abrirla. Pero SE ANOTA: tragárselo sin dejar
+  // rastro es lo que produjo dos veces "no me llega nada" sin nada que mirar.
+  try {
+    recordPublish(groupId, await publishToGroup(groupId, userId, deviceId()));
+  } catch (e) {
+    recordPublish(groupId, { ok: false, reason: 'network', detail: String(e) });
+  }
 }
 
 /** Sólo para tests: cancela los envíos pendientes. */

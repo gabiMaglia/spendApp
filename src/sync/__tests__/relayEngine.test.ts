@@ -1,8 +1,9 @@
 import {
   readCursor, writeCursor, deviceId, syncableGroupIds,
-  schedulePublish, cancelPendingPublishes, PUBLISH_DEBOUNCE_MS, startRelay,
+  schedulePublish, cancelPendingPublishes, PUBLISH_DEBOUNCE_MS, startRelay, publishNow,
 } from '../relayEngine';
 import { useAuthStore } from '@/src/store/authStore';
+import { publishFailures, clearPublishFailures } from '../publishHealth';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { createSecureStorage } from '@/src/utils/secureStorage';
@@ -130,5 +131,32 @@ describe('arranque del relay', () => {
     const a = startRelay();
     await a;
     expect(startRelay()).not.toBe(a);
+  });
+});
+
+describe('publicar deja rastro cuando falla', () => {
+  beforeEach(() => {
+    clearPublishFailures();
+    useAuthStore.setState({ currentUser: { id: ME } as User });
+    useGroupKeyStore.setState({ keys: [] });
+  });
+
+  /**
+   * `publishNow` se traga los errores a propósito —es offline-first— pero
+   * tragárselos SIN dejar rastro produjo dos veces el mismo síntoma: "no me
+   * llega nada", sin error y sin nada que mirar.
+   */
+  it('un fallo de publicación queda anotado', async () => {
+    await publishNow('g1'); // sin clave del grupo: no puede publicar
+
+    expect(publishFailures().map(f => f.groupId)).toEqual(['g1']);
+  });
+
+  it('sin sesión no se anota nada: no hay nada que publicar', async () => {
+    useAuthStore.setState({ currentUser: null });
+
+    await publishNow('g1');
+
+    expect(publishFailures()).toEqual([]);
   });
 });
