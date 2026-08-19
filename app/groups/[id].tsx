@@ -26,6 +26,7 @@ import { ensureIdentity, saveInvite } from '@/src/store/identityStore';
 import { startRelay, announceGroupToContacts } from '@/src/sync/relayEngine';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { BalancePill } from '@/src/components/BalancePill';
+import { SheetOptionAvatar } from '@/src/components/Sheet';
 import type { Expense, Payment } from '@/src/types/models';
 import { useTranslation } from 'react-i18next';
 import i18n from '@/src/i18n';
@@ -49,9 +50,33 @@ export default function GroupDetailScreen() {
   const allExpenses  = useExpenseStore(s => s.expenses);
   const allPayments  = usePaymentStore(s => s.payments);
   const { getUserName, addOrUpdateUser } = useUserStore();
+  const allUsers = useUserStore(s => s.users);
 
   const [inviteVisible, setInviteVisible] = useState(false);
   const [inviteName, setInviteName] = useState('');
+  const [sinApp, setSinApp] = useState(false);
+
+  /** Contactos que todavía no están en el grupo. */
+  const contactosDisponibles = useMemo(
+    () => allUsers.filter(u =>
+      !u.isDeleted && u.id !== currentUser?.id && !(group?.memberIds ?? []).includes(u.id),
+    ),
+    [allUsers, group, currentUser],
+  );
+
+  /**
+   * Sumar a un contacto: le llega la clave del grupo por el canal que abrió el
+   * QR y el grupo le aparece solo. Esto es lo que "agregar miembro" tenía que
+   * haber sido desde el principio.
+   */
+  function handleAddContact(userId: string) {
+    if (!group) return;
+    hapticSuccess();
+    updateGroup(group.id, { memberIds: [...group.memberIds, userId] });
+    ensureKey(group.id);
+    void announceGroupToContacts(group.id);
+    setInviteVisible(false);
+  }
 
   const timeline = useMemo<TimelineItem[]>(() => {
     const items: TimelineItem[] = [];
@@ -121,9 +146,10 @@ export default function GroupDetailScreen() {
     hapticSuccess();
     setInviteName('');
     setInviteVisible(false);
+    setSinApp(false);
     Alert.alert(
       t('group_detail.member_added_title'),
-      t('group_detail.member_added_body', { name }),
+      t('group_detail.without_app_warning'),
     );
   }
 
@@ -347,28 +373,64 @@ export default function GroupDetailScreen() {
               <Text style={[Typography.h3, { color: c.text, marginBottom: 6 }]}>
                 {t('group_detail.add_member_title')}
               </Text>
-              <Text style={[Typography.bodyS, { color: c.textSecondary, marginBottom: 20 }]}>
-                {t('group_detail.add_member_body')}
-              </Text>
 
-              <TextInput
-                value={inviteName}
-                onChangeText={setInviteName}
-                placeholder={t('group_detail.name_placeholder')}
-                placeholderTextColor={c.textTertiary}
-                style={[styles.input, { backgroundColor: c.surfaceSunken, color: c.text, borderColor: c.border }]}
-                returnKeyType="done"
-                onSubmitEditing={handleAddMember}
-              />
+              {/* Los contactos van PRIMERO: son los únicos que van a poder ver
+                  el grupo de verdad. Antes la única opción era escribir un
+                  nombre, que crea a alguien inalcanzable. */}
+              {contactosDisponibles.length > 0 && (
+                <>
+                  <Text style={[Typography.bodyS, { color: c.textSecondary, marginBottom: 12 }]}>
+                    {t('group_detail.add_from_contacts')}
+                  </Text>
+                  {contactosDisponibles.map(u => (
+                    <SheetOptionAvatar
+                      key={u.id}
+                      userId={u.id}
+                      name={u.name}
+                      selected={false}
+                      onPress={() => handleAddContact(u.id)}
+                    />
+                  ))}
+                </>
+              )}
 
+              {/* Alguien que no usa la app. Se puede, pero se dice lo que pasa:
+                  entra en los repartos y no va a ver nada. */}
               <Pressable
-                onPress={handleAddMember}
-                style={[styles.confirmBtn, { backgroundColor: inviteName.trim() ? c.brand.primary : c.surfaceSunken }]}
+                accessibilityRole="button"
+                onPress={() => setSinApp(v => !v)}
+                style={{ marginTop: contactosDisponibles.length > 0 ? Spacing[5] : 0, marginBottom: Spacing[2] }}
               >
-                <Text style={[Typography.bodyM, { color: inviteName.trim() ? '#fff' : c.textTertiary, fontWeight: '600' }]}>
-                  {t('group_detail.add_to_group')}
+                <Text style={[Typography.bodyS, { color: c.brand.primary, fontWeight: '600' }]}>
+                  {t('group_detail.add_without_app')}
                 </Text>
               </Pressable>
+
+              {sinApp && (
+                <>
+                  <Text style={[Typography.caption, { color: c.textSecondary, marginBottom: 12 }]}>
+                    {t('group_detail.without_app_warning')}
+                  </Text>
+                  <TextInput
+                    value={inviteName}
+                    onChangeText={setInviteName}
+                    placeholder={t('group_detail.name_placeholder')}
+                    placeholderTextColor={c.textTertiary}
+                    style={[styles.input, { backgroundColor: c.surfaceSunken, color: c.text, borderColor: c.border }]}
+                    returnKeyType="done"
+                    onSubmitEditing={handleAddMember}
+                  />
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={handleAddMember}
+                    style={[styles.confirmBtn, { backgroundColor: inviteName.trim() ? c.brand.primary : c.surfaceSunken }]}
+                  >
+                    <Text style={[Typography.bodyM, { color: inviteName.trim() ? '#fff' : c.textTertiary, fontWeight: '600' }]}>
+                      {t('group_detail.add_to_group')}
+                    </Text>
+                  </Pressable>
+                </>
+              )}
             </View>
           </KeyboardAvoidingView>
         </View>
