@@ -181,7 +181,10 @@
     "leave_body": "Dejás de ver este grupo. Los gastos que cargaste siguen ahí para los demás, así que las cuentas pendientes no se pierden.",
     "leave_confirm": "Salir",
     "invite_link": "Invitar por link",
-    "invite_message": "Te invito a «{{group}}» en SplitP2P. Abrí este link para entrar: {{link}}"
+    "invite_message": "Te invito a «{{group}}» en SplitP2P. Abrí este link para entrar: {{link}}",
+    "add_from_contacts": "De tus contactos",
+    "add_without_app": "Agregar a alguien que no usa la app",
+    "without_app_warning": "Entra en los repartos y le vas a poder llevar la cuenta, pero NO va a ver el grupo ni recibir nada: no tiene la app. Para que lo vea, agregalo desde tus contactos."
   },
   "invite": {
     "title": "Invitar al grupo",

@@ -181,7 +181,10 @@
     "leave_body": "Você deixa de ver este grupo. As despesas que você lançou continuam lá para os outros, então as contas pendentes não se perdem.",
     "leave_confirm": "Sair",
     "invite_link": "Convidar por link",
-    "invite_message": "Estou te convidando para “{{group}}” no SplitP2P. Abra este link para entrar: {{link}}"
+    "invite_message": "Estou te convidando para “{{group}}” no SplitP2P. Abra este link para entrar: {{link}}",
+    "add_from_contacts": "Dos seus contatos",
+    "add_without_app": "Adicionar alguém que não usa o app",
+    "without_app_warning": "Entra nas divisões e você consegue acompanhar o que deve, mas NÃO vai ver o grupo nem receber nada: não tem o app. Para que veja, adicione pelos seus contatos."
   },
   "invite": {
     "title": "Invitar al grupo",
