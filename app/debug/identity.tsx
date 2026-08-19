@@ -14,6 +14,7 @@ import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { isRelayConfigured } from '@/src/sync/relay';
 import { ensureContactSecret, listPeers, peersIncompletos } from '@/src/sync/contactChannel';
 import { registerDeviceKey, fetchAccountKeys } from '@/src/sync/deviceKeys';
+import { blockingFailures } from '@/src/sync/publishHealth';
 import { ensureIdentity } from '@/src/store/identityStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { wipeAllAccounts } from '@/src/store/wipeDevice';
@@ -49,6 +50,7 @@ export default function IdentityDebugScreen() {
 
   // Estado del directorio de claves (ADR-004). Sin esto, "no me sincroniza" y
   // "no pude registrar mi clave" se ven exactamente igual.
+  const bloqueantes = blockingFailures();
   const [directorio, setDirectorio] = React.useState<string>('—');
   const [misClaves, setMisClaves] = React.useState<string[]>([]);
 
@@ -88,6 +90,24 @@ export default function IdentityDebugScreen() {
           <Row label="grupos con clave" value={`${claves.length} de ${groups.filter(g => !g.isDeleted).length}`} c={c}
                warn={sinClave.length > 0} />
         </Block>
+
+        {/* Si publicar falla y nadie lo cuenta, el sintoma es "no me llega
+            nada" sin nada que mirar. Ya paso dos veces. */}
+        {bloqueantes.length > 0 && (
+          <View style={[styles.card, { borderColor: c.semantic.negative }]}>
+            <Text style={[Typography.bodyM, { color: c.semantic.negative, fontWeight: '600' }]}>
+              {bloqueantes.length} grupo(s) que NO se están publicando
+            </Text>
+            {bloqueantes.map(f => (
+              <Text key={f.groupId} style={[Typography.bodyS, { color: c.textSecondary }]}>
+                {useGroupStore.getState().getById(f.groupId)?.name ?? f.groupId}: {f.reason}
+                {f.reason === 'too_large'
+                  ? ' — el sobre pasó los 256KB. Los cambios de este grupo dejaron de viajar.'
+                  : ' — falta la clave del grupo.'}
+              </Text>
+            ))}
+          </View>
+        )}
 
         <Block title="DIRECTORIO DE CLAVES (ADR-004)" c={c}>
           <Row label="mi clave" value={directorio} c={c} warn={directorio !== 'registrada'} />
