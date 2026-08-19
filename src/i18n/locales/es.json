@@ -633,5 +633,28 @@
     "open_group": "Ver el grupo",
     "pending_title": "Tu pedido quedó enviado",
     "pending_body": "Falta que quien te invitó abra la app para darte acceso. Cuando pase, el grupo te va a aparecer solo — no hace falta que hagas nada más."
+  },
+  "leave": {
+    "title": "Salir del grupo",
+    "intro": "Tenés cuentas abiertas acá. Para poder salir, ese saldo lo tiene que absorber alguien de los que quedan — y todos tienen que estar de acuerdo.",
+    "your_balance": "Tu saldo en este grupo",
+    "you_owe": "que debés",
+    "owed_to_you": "que te deben",
+    "who_absorbs": "Quiénes lo absorben",
+    "mode_equal": "Partes iguales",
+    "mode_percentage": "Porcentajes",
+    "preview": "Qué va a pasar",
+    "preview_line": "{{from}} → {{to}}: {{amount}}",
+    "nobody_selected": "Elegí al menos a una persona que absorba el saldo.",
+    "percent_must_be_100": "Los porcentajes tienen que sumar 100. Ahora suman {{total}}.",
+    "request": "Pedir la salida ({{count}} tienen que aprobar)",
+    "confirm_title": "¿Mandar el pedido?",
+    "confirm_body": "Se le va a pedir a los {{count}} que quedan que aprueben este reparto. Vas a salir del grupo recién cuando estén todos de acuerdo.",
+    "confirm_send": "Mandar pedido",
+    "pending_title": "{{name}} quiere salir del grupo",
+    "pending_body": "Propone que su saldo lo absorban los que quedan. Aprobaron {{got}} de {{need}}.",
+    "pending_mine": "Tu pedido de salida está esperando: aprobaron {{got}} de {{need}}.",
+    "approve": "Aprobar el reparto",
+    "withdraw": "Retirar mi pedido"
   }
 }

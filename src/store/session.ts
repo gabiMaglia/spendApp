@@ -12,6 +12,7 @@ import { purgeMergedScopes } from './accountLink';
 import { startRelay } from '@/src/sync/relayEngine';
 import { materializeRecurring } from '@/src/services/materializeRecurring';
 import { resolvePendingDeletions } from '@/src/services/resolveDeletions';
+import { applyApprovedLeaves } from '@/src/services/applyLeave';
 import { useSettingsStore } from './settingsStore';
 
 // (Re)hidrata todos los stores scopeados por cuenta con los datos del usuario
@@ -38,6 +39,11 @@ export function rehydrateForActiveUser(): void {
   // un temporizador: mientras la app está cerrada no hay nada que ejecutar, y
   // el vencimiento se evalúa igual de bien al volver.
   resolvePendingDeletions();
+
+  // Salidas de grupo que ya juntaron todas las aprobaciones. Misma razón que
+  // arriba: la firma que faltaba pudo haber llegado por sync mientras la app
+  // estaba cerrada.
+  applyApprovedLeaves();
 
   // Limpieza tardía de scopes fusionados que ya pasaron el período de gracia.
   purgeMergedScopes();

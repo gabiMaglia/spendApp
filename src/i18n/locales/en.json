@@ -633,5 +633,28 @@
     "open_group": "Open the group",
     "pending_title": "Your request was sent",
     "pending_body": "Whoever invited you needs to open the app to grant you access. When they do, the group will show up on its own — nothing else for you to do."
+  },
+  "leave": {
+    "title": "Leave group",
+    "intro": "You have open balances here. To leave, someone who stays has to absorb that balance — and everyone has to agree.",
+    "your_balance": "Your balance in this group",
+    "you_owe": "you owe",
+    "owed_to_you": "you're owed",
+    "who_absorbs": "Who absorbs it",
+    "mode_equal": "Split equally",
+    "mode_percentage": "Percentages",
+    "preview": "What will happen",
+    "preview_line": "{{from}} → {{to}}: {{amount}}",
+    "nobody_selected": "Pick at least one person to absorb the balance.",
+    "percent_must_be_100": "Percentages must add up to 100. They add up to {{total}}.",
+    "request": "Request to leave ({{count}} must approve)",
+    "confirm_title": "Send the request?",
+    "confirm_body": "The {{count}} who stay will be asked to approve this split. You'll leave the group only once everyone agrees.",
+    "confirm_send": "Send request",
+    "pending_title": "{{name}} wants to leave the group",
+    "pending_body": "They propose that the people who stay absorb their balance. {{got}} of {{need}} approved.",
+    "pending_mine": "Your request to leave is pending: {{got}} of {{need}} approved.",
+    "approve": "Approve the split",
+    "withdraw": "Withdraw my request"
   }
 }

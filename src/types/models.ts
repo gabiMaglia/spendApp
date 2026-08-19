@@ -79,6 +79,29 @@ export interface DeletionVote {
   forced?: boolean; // solo el creador puede marcar forced=true
 }
 
+/**
+ * Pedido de salida con saldo abierto (regla de negocio del PO).
+ *
+ * Irse debiendo no es gratis: esa plata la pierde alguien. Por eso el que se va
+ * propone QUIÉN absorbe y CUÁNTO, y **todos los que quedan tienen que aprobar**
+ * antes de que se aplique. Vive en el `Group` para que viaje por el sync como
+ * cualquier otro campo.
+ */
+export interface LeaveRequest {
+  /** Quién se va. */
+  userId: string;
+  /** Los pagos que dejarían su saldo en cero. Ver `planAbsorption`. */
+  plan: { fromUserId: string; toUserId: string; amount: number; currency: CurrencyCode }[];
+  requestedAt: number;
+  /**
+   * Quiénes ya aprobaron. Es un conjunto que sólo CRECE, y por eso se puede
+   * unir sin perder nada cuando dos personas aprueban sin haberse sincronizado
+   * — si se resolviera por LWW como el resto del registro, una de las dos
+   * aprobaciones se perdería y el pedido no se completaría nunca.
+   */
+  approvedBy: string[];
+}
+
 export interface Group extends SyncMeta {
   name: string;
   memberIds: string[];
@@ -92,6 +115,8 @@ export interface Group extends SyncMeta {
    * Si está definido, se pre-selecciona ese modo pero se puede cambiar por gasto.
    */
   defaultSplitMode?: SplitMode;
+  /** Pedido de salida pendiente. Ver `LeaveRequest`. */
+  leaveRequest?: LeaveRequest;
 }
 
 export type ExpenseCategory =

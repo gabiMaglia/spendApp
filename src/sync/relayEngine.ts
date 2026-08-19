@@ -8,6 +8,7 @@ import { subscribeTopic, isRelayConfigured } from './relay';
 import { publishToGroup, drainGroup } from './relaySync';
 import { recordPublish } from './publishHealth';
 import { resolvePendingDeletions } from '@/src/services/resolveDeletions';
+import { applyApprovedLeaves } from '@/src/services/applyLeave';
 import { fromHex } from './envelopeCrypto';
 import { deriveInviteTopic, type GroupInvite } from './groupInvite';
 import { activeInvites, processInvite, processAllInvites } from './inviteEngine';
@@ -145,7 +146,10 @@ export async function drainNow(groupId: string): Promise<number> {
 
     // Los votos de borrado viajan como cualquier campo: lo que acaba de llegar
     // puede completar una ronda que hasta recién figuraba pendiente.
-    if (r.applied > 0) resolvePendingDeletions();
+    if (r.applied > 0) {
+      resolvePendingDeletions();
+      applyApprovedLeaves();
+    }
 
     return r.applied;
   } catch {
