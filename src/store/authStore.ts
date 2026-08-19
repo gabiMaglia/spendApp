@@ -6,6 +6,7 @@ import {
   type AccountIndex, type AccountResolution, type KnownAccount,
 } from '@/src/utils/accountIdentity';
 import { mergeAccounts } from './accountLink';
+import { signOutOfDirectory } from '@/src/sync/directoryAuth';
 import { AUTH_KEYS, profileKey } from './authKeys';
 
 const storage = createSecureStorage('auth');
@@ -167,6 +168,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     storage.delete(KEYS.USER);
     // El isPro scopeado del usuario NO se borra: queda para cuando vuelva a entrar.
     set({ currentUser: null, isPro: false });
+
+    // También la sesión del directorio de claves (ADR-004). Va sin await: el
+    // logout local no puede quedar esperando a la red.
+    void signOutOfDirectory();
   },
 
   hydrate: () => {

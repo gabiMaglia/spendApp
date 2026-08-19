@@ -13,6 +13,8 @@ import { useGroupStore } from '@/src/store/groupStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { isRelayConfigured } from '@/src/sync/relay';
 import { ensureContactSecret, listPeers, peersIncompletos } from '@/src/sync/contactChannel';
+import { registerDeviceKey, fetchAccountKeys } from '@/src/sync/deviceKeys';
+import { ensureIdentity } from '@/src/store/identityStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { wipeAllAccounts } from '@/src/store/wipeDevice';
 import { Alert } from 'react-native';
@@ -45,6 +47,21 @@ export default function IdentityDebugScreen() {
 
   const sinClave = groups.filter(g => !g.isDeleted && !claves.some(k => k.groupId === g.id));
 
+  // Estado del directorio de claves (ADR-004). Sin esto, "no me sincroniza" y
+  // "no pude registrar mi clave" se ven exactamente igual.
+  const [directorio, setDirectorio] = React.useState<string>('—');
+  const [misClaves, setMisClaves] = React.useState<string[]>([]);
+
+  React.useEffect(() => {
+    const cuenta = snapshot.activeAccountId;
+    if (!cuenta) return;
+    void (async () => {
+      const r = await registerDeviceKey();
+      setDirectorio(r.ok ? 'registrada' : r.reason);
+      setMisClaves(await fetchAccountKeys(cuenta));
+    })();
+  }, [snapshot.activeAccountId]);
+
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: c.bg }]}>
       <View style={styles.header}>
@@ -70,6 +87,13 @@ export default function IdentityDebugScreen() {
           <Row label="…sin claves públicas" value={String(incompletos)} c={c} warn={incompletos > 0} />
           <Row label="grupos con clave" value={`${claves.length} de ${groups.filter(g => !g.isDeleted).length}`} c={c}
                warn={sinClave.length > 0} />
+        </Block>
+
+        <Block title="DIRECTORIO DE CLAVES (ADR-004)" c={c}>
+          <Row label="mi clave" value={directorio} c={c} warn={directorio !== 'registrada'} />
+          <Row label="dispositivos de esta cuenta" value={String(misClaves.length)} c={c}
+               warn={misClaves.length === 0} />
+          <Row label="esta es" value={`${ensureIdentity().publicKey.slice(0, 12)}…`} c={c} />
         </Block>
 
         {incompletos > 0 && (

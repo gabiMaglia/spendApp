@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Alert, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
+import { signIntoDirectory } from '@/src/sync/directoryAuth';
+import { registerDeviceKey } from '@/src/sync/deviceKeys';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import * as AppleAuthentication from 'expo-apple-authentication';
 
@@ -82,13 +84,27 @@ export default function AuthScreen() {
     );
   }
 
+  /**
+   * Entra al directorio de claves y registra la de este dispositivo.
+   *
+   * Best effort de punta a punta: si Supabase Auth no está configurado, si el
+   * proveedor no mandó `id_token` o si la RLS rechaza, no pasa nada — la app
+   * funciona igual que antes de que esto existiera (ADR-004, fase A).
+   */
+  async function entrarAlDirectorio(proveedor: 'google' | 'apple', idToken?: string | null) {
+    const entrada = await signIntoDirectory(proveedor, idToken);
+    if (!entrada.ok) return;
+    await registerDeviceKey();
+  }
+
   async function handleGoogleLogin() {
     try {
       await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
       // La forma del retorno varía por versión; contemplamos {data:{user}} y {user}.
       const response = (await GoogleSignin.signIn()) as unknown as {
-        data?: { user?: GoogleUser };
+        data?: { user?: GoogleUser; idToken?: string | null };
         user?: GoogleUser;
+        idToken?: string | null;
       };
       const u = response?.data?.user ?? response?.user;
       if (!u) return; // cancelado
@@ -102,6 +118,11 @@ export default function AuthScreen() {
           email:        u.email,
           avatarUrl:    u.photo,
         }));
+
+        // Directorio de claves (ADR-004): se aprovecha el MISMO id_token del
+        // login, así que no hay una segunda pantalla para el usuario. Va sin
+        // await y sin bloquear: si falla, la app entra igual.
+        void entrarAlDirectorio('google', response?.data?.idToken ?? response?.idToken);
       });
     } catch (e) {
       const code = (e as { code?: string })?.code;
@@ -135,6 +156,8 @@ export default function AuthScreen() {
           name,
           email:        credential.email,
         }));
+
+        void entrarAlDirectorio('apple', credential.identityToken);
       });
     } catch (e: any) {
       if (e.code !== 'ERR_REQUEST_CANCELED') {
