@@ -184,7 +184,10 @@
     "invite_message": "Estou te convidando para “{{group}}” no SplitP2P. Abra este link para entrar: {{link}}",
     "add_from_contacts": "Dos seus contatos",
     "add_without_app": "Adicionar alguém que não usa o app",
-    "without_app_warning": "Entra nas divisões e você consegue acompanhar o que deve, mas NÃO vai ver o grupo nem receber nada: não tem o app. Para que veja, adicione pelos seus contatos."
+    "without_app_warning": "Entra nas divisões e você consegue acompanhar o que deve, mas NÃO vai ver o grupo nem receber nada: não tem o app. Para que veja, adicione pelos seus contatos.",
+    "leave_blocked_title": "Ainda não dá para sair",
+    "leave_needs_settle": "Você tem contas abertas neste grupo ({{currencies}}). Acerte primeiro: se saísse agora, as contas parariam de fechar para quem ficar.",
+    "leave_last_member": "Você é o único que resta e há saldo em aberto. Não há para quem passar essa dívida, então não dá para sair sem acertar."
   },
   "invite": {
     "title": "Invitar al grupo",

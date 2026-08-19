@@ -27,6 +27,7 @@ import { startRelay, announceGroupToContacts } from '@/src/sync/relayEngine';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { BalancePill } from '@/src/components/BalancePill';
 import { SheetOptionAvatar } from '@/src/components/Sheet';
+import { canLeaveGroup } from '@/src/algorithms/canLeaveGroup';
 import type { Expense, Payment } from '@/src/types/models';
 import { useTranslation } from 'react-i18next';
 import i18n from '@/src/i18n';
@@ -123,6 +124,60 @@ export default function GroupDetailScreen() {
         }),
       });
     } catch { /* el usuario canceló el share sheet */ }
+  }
+
+  /**
+   * Salir del grupo, con la regla de negocio puesta de verdad.
+   *
+   * Hasta acá `canLeaveGroup` existía y estaba testeado, pero **no lo llamaba
+   * nadie**: se salía con saldo abierto y los números dejaban de cerrar en
+   * silencio — al sacarte de `memberIds`, tu saldo desaparece del cálculo y las
+   * cuentas de los que quedan ya no suman.
+   */
+  function handleLeave() {
+    if (!group || !currentUser) return;
+
+    const otros = group.memberIds.filter(id => id !== currentUser.id);
+    const veredicto = canLeaveGroup(
+      balances.map(b => ({ currency: b.currency, amount: b.amount })),
+      otros,
+    );
+
+    if (veredicto.kind === 'last_member_with_balance') {
+      // No hay a quién pasarle el saldo. Ofrecer "salir" acá sería mentir.
+      Alert.alert(t('group_detail.leave_blocked_title'), t('group_detail.leave_last_member'));
+      return;
+    }
+
+    if (veredicto.kind === 'needs_absorption') {
+      Alert.alert(
+        t('group_detail.leave_blocked_title'),
+        t('group_detail.leave_needs_settle', {
+          currencies: veredicto.currencies.join(', '),
+        }),
+        [
+          { text: t('common.cancel'), style: 'cancel' },
+          {
+            text: t('group_detail.settle_debts'),
+            onPress: () => router.push(`/settle/new?groupId=${group.id}` as any),
+          },
+        ],
+      );
+      return;
+    }
+
+    Alert.alert(
+      t('group_detail.leave_title'),
+      t('group_detail.leave_body'),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('group_detail.leave_confirm'),
+          style: 'destructive',
+          onPress: () => { leaveGroup(group.id, currentUser.id); router.back(); },
+        },
+      ],
+    );
   }
 
   function handleAddMember() {
@@ -320,20 +375,7 @@ export default function GroupDetailScreen() {
             ) : (
               <Pressable
                 accessibilityRole="button"
-                onPress={() => {
-                  Alert.alert(
-                    t('group_detail.leave_title'),
-                    t('group_detail.leave_body'),
-                    [
-                      { text: t('common.cancel'), style: 'cancel' },
-                      {
-                        text: t('group_detail.leave_confirm'),
-                        style: 'destructive',
-                        onPress: () => { leaveGroup(group.id, currentUser.id); router.back(); },
-                      },
-                    ],
-                  );
-                }}
+                onPress={handleLeave}
                 style={styles.dangerRow}
               >
                 <Ionicons name="exit-outline" size={16} color={c.semantic.negative} />
