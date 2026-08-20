@@ -15,6 +15,7 @@ function publicarDelGasto(expenseId: string): void {
   if (groupId) schedulePublish(groupId);
 }
 import type { ExpenseComment } from '@/src/types/models';
+import { syncedNow } from '@/src/utils/syncedClock';
 
 const storage = createSecureStorage('comments');
 const KEY = 'data_v1';
@@ -60,7 +61,7 @@ export const useCommentStore = create<CommentStoreState>((set, get) => ({
   // y viajando en cada delta de sync. Se tombstonea (no se borra físico) para
   // que el borrado se propague a los otros devices, igual que el del gasto.
   removeForExpense: (expenseId) => {
-    const now = Date.now();
+    const now = syncedNow();
     const comments = get().comments.map(c =>
       c.expenseId === expenseId && !c.isDeleted
         ? { ...c, isDeleted: true, updatedAt: now }
@@ -74,7 +75,7 @@ export const useCommentStore = create<CommentStoreState>((set, get) => ({
 
   removeComment: (id) => {
     const comments = get().comments.map(c =>
-      c.id === id ? { ...c, isDeleted: true, updatedAt: Date.now() } : c,
+      c.id === id ? { ...c, isDeleted: true, updatedAt: syncedNow() } : c,
     );
     persist(comments);
     set({ comments });

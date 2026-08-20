@@ -33,6 +33,7 @@ import { applyApprovedLeaves } from '@/src/services/applyLeave';
 import type { Expense, Payment } from '@/src/types/models';
 import { useTranslation } from 'react-i18next';
 import i18n from '@/src/i18n';
+import { syncedNow } from '@/src/utils/syncedClock';
 
 type TimelineItem =
   | { type: 'expense'; data: Expense; ts: number }
@@ -202,7 +203,7 @@ export default function GroupDetailScreen() {
       name,
       email:        '',
       authProvider: 'google' as const,
-      updatedAt:    Date.now(),
+      updatedAt:    syncedNow(),
       isDeleted:    false,
       createdAt:    Date.now(),
     };

@@ -34,6 +34,7 @@ import { Avatar } from '@/src/components/Avatar';
 import { BottomSheet, SheetOption, SheetOptionAvatar } from '@/src/components/Sheet';
 import { buildSplits } from '@/src/algorithms/buildSplits';
 import type { ExpenseCategory, PersonalCategory } from '@/src/types/models';
+import { syncedNow } from '@/src/utils/syncedClock';
 
 type CatMeta = { id: PersonalCategory; icon: React.ComponentProps<typeof Ionicons>['name']; label: string };
 
@@ -285,7 +286,7 @@ export default function NewExpenseScreen() {
       isActive:    true,
       createdAt:   Date.now(),
       createdById: currentUser.id,
-      updatedAt:   Date.now(),
+      updatedAt:   syncedNow(),
       isDeleted:   false,
     });
   }
@@ -313,7 +314,7 @@ export default function NewExpenseScreen() {
         category,
         date:        date.getTime(),
         createdAt:   Date.now(),
-        updatedAt:   Date.now(),
+        updatedAt:   syncedNow(),
         isDeleted:   false,
       });
       saveRecurringTemplate();
@@ -373,7 +374,7 @@ export default function NewExpenseScreen() {
         note:            note || undefined,
         receiptImageUri: receiptUri,
         deletionVotes:   [],
-        updatedAt:       Date.now(),
+        updatedAt:       syncedNow(),
         isDeleted:       false,
       });
       // Replicate my share to personal expenses
@@ -387,7 +388,7 @@ export default function NewExpenseScreen() {
           category,
           date:                 date.getTime(),
           createdAt:            Date.now(),
-          updatedAt:            Date.now(),
+          updatedAt:            syncedNow(),
           isDeleted:            false,
           sourceGroupExpenseId: newId,
           sourceGroupId:        groupId,

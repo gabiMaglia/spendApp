@@ -26,6 +26,7 @@ import { Avatar } from '@/src/components/Avatar';
 import { hueForUser } from '@/src/utils/hueForUser';
 import { deletionRound, msUntilDeletion, hasObjected, hasRequested } from '@/src/algorithms/deletionRound';
 import type { CategoryKind } from '@/src/constants/colors';
+import { syncedNow } from '@/src/utils/syncedClock';
 
 /** "2 días" / "5 horas" / "40 minutos": basta para saber si hay que apurarse. */
 function formatearRestante(ms: number): string {
@@ -89,7 +90,7 @@ export default function ExpenseDetailScreen() {
 
   function handleAddComment(text: string) {
     if (!currentUser || !id) return;
-    const now = Date.now();
+    const now = syncedNow();
     addComment({
       id:        uuidv4(),
       expenseId: id,

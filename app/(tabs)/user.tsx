@@ -26,6 +26,7 @@ import { File, Paths } from 'expo-file-system';
 import {
   buildBackup, serializeBackup, parseBackup, applyBackup, backupFileName,
 } from '@/src/services/backup';
+import { syncedNow } from '@/src/utils/syncedClock';
 
 export default function UserScreen() {
   const scheme = useColorScheme() ?? 'light';
@@ -46,7 +47,7 @@ export default function UserScreen() {
   function handleSaveName() {
     const clean = sanitizeUserName(draftName);
     if (!clean || !currentUser) return;
-    useAuthStore.getState().setUser({ ...currentUser, name: clean, updatedAt: Date.now() });
+    useAuthStore.getState().setUser({ ...currentUser, name: clean, updatedAt: syncedNow() });
     setEditingName(false);
   }
 

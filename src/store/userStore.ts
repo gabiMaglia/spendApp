@@ -3,6 +3,7 @@ import { createSecureStorage } from '@/src/utils/secureStorage';
 import { readScoped, writeScoped } from './userScope';
 import { mergeByIdLWW } from './lww';
 import type { User } from '@/src/types/models';
+import { syncedNow } from '@/src/utils/syncedClock';
 
 const storage = createSecureStorage('users');
 const KEY = 'data_v1';
@@ -30,7 +31,7 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
 
   removeUser: (id) => {
     const users = get().users.map(u =>
-      u.id === id ? { ...u, isDeleted: true, updatedAt: Date.now() } : u,
+      u.id === id ? { ...u, isDeleted: true, updatedAt: syncedNow() } : u,
     );
     persist(users);
     set({ users });

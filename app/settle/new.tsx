@@ -28,6 +28,7 @@ import { Avatar } from '@/src/components/Avatar';
 import { BottomSheet, SheetOption, SheetOptionAvatar } from '@/src/components/Sheet';
 import { useTranslation } from 'react-i18next';
 import i18n from '@/src/i18n';
+import { syncedNow } from '@/src/utils/syncedClock';
 
 function formatDate(d: Date): string {
   const today     = new Date(); today.setHours(0, 0, 0, 0);
@@ -214,7 +215,7 @@ export default function SettleNewScreen() {
       date:        date.getTime(),
       createdAt:   Date.now(),
       createdById: currentUser.id,
-      updatedAt:   Date.now(),
+      updatedAt:   syncedNow(),
       isDeleted:   false,
     });
     router.back();

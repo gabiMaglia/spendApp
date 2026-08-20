@@ -24,6 +24,7 @@ import { BottomSheet } from '@/src/components/Sheet';
 import type { PersonalBudget, PersonalEntry } from '@/src/types/models';
 import { useTranslation } from 'react-i18next';
 import i18n from '@/src/i18n';
+import { syncedNow } from '@/src/utils/syncedClock';
 
 function monthLabel(key: string): string {
   const [year, month] = key.split('-').map(Number);
@@ -136,7 +137,7 @@ export default function PersonalScreen() {
         category:           'other',
         date:               firstOfMonth,
         createdAt:          Date.now(),
-        updatedAt:          Date.now(),
+        updatedAt:          syncedNow(),
         isDeleted:          false,
       });
     }

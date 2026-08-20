@@ -9,6 +9,7 @@ import { ensureIdentity, ensureWrapKeypair } from '@/src/store/identityStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { wrapGroupKey, unwrapGroupKey } from './groupInvite';
 import { ed25519 } from '@noble/curves/ed25519.js';
+import { syncedNow } from '@/src/utils/syncedClock';
 
 /** Bytes UTF-8 de un texto: `Buffer` no existe en React Native. */
 function utf8(s: string): Uint8Array {
@@ -312,7 +313,7 @@ export async function drainContacts(
         email: msg.email,
         authProvider: 'google',
         createdAt: Date.now(),
-        updatedAt: Date.now(),
+        updatedAt: syncedNow(),
         isDeleted: false,
       });
       // Si de esta persona todavía no teníamos sus públicas y ahora sí, le

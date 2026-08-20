@@ -15,6 +15,7 @@ import { isRelayConfigured } from '@/src/sync/relay';
 import { ensureContactSecret, listPeers, peersIncompletos } from '@/src/sync/contactChannel';
 import { registerDeviceKey, fetchAccountKeys } from '@/src/sync/deviceKeys';
 import { blockingFailures } from '@/src/sync/publishHealth';
+import { clockOffsetMs, hasClockReference, clockIsOff } from '@/src/utils/syncedClock';
 import { ensureIdentity } from '@/src/store/identityStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { wipeAllAccounts } from '@/src/store/wipeDevice';
@@ -115,6 +116,36 @@ export default function IdentityDebugScreen() {
                warn={misClaves.length === 0} />
           <Row label="esta es" value={`${ensureIdentity().publicKey.slice(0, 12)}…`} c={c} />
         </Block>
+
+        <Block title="RELOJ (ADR-005)" c={c}>
+          <Row
+            label="referencia del relay"
+            value={hasClockReference() ? 'sí' : 'todavía no'}
+            c={c}
+            warn={!hasClockReference()}
+          />
+          <Row
+            label="desfase de este teléfono"
+            value={`${Math.round(clockOffsetMs() / 1000)} s`}
+            c={c}
+            warn={clockIsOff()}
+          />
+        </Block>
+
+        {/* Corregir `updatedAt` arregla el merge, pero NO lo que el usuario VE:
+            las fechas de los gastos siguen saliendo del reloj del teléfono. */}
+        {clockIsOff() && (
+          <View style={[styles.card, { borderColor: c.semantic.warning }]}>
+            <Text style={[Typography.bodyM, { color: c.semantic.warning, fontWeight: '600' }]}>
+              La hora de este teléfono está mal
+            </Text>
+            <Text style={[Typography.bodyS, { color: c.textSecondary }]}>
+              El sync ya se corrige solo, pero las FECHAS de los gastos que cargues
+              van a salir con la hora equivocada. Conviene arreglarla en los ajustes
+              del sistema.
+            </Text>
+          </View>
+        )}
 
         {incompletos > 0 && (
           <View style={[styles.card, { borderColor: c.semantic.warning }]}>

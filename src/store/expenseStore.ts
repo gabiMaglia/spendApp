@@ -5,6 +5,7 @@ import { mergeByIdLWW } from './lww';
 import { schedulePublish } from '@/src/sync/relayEngine';
 import { migrateExpenseAmounts } from './moneyMigration';
 import type { Expense } from '@/src/types/models';
+import { syncedNow } from '@/src/utils/syncedClock';
 
 const storage = createSecureStorage('expenses');
 const KEY = 'data_v1';
@@ -44,7 +45,7 @@ export const useExpenseStore = create<ExpenseStoreState>((set, get) => ({
 
   updateExpense: (id, patch) => {
     const expenses = get().expenses.map(e =>
-      e.id === id ? { ...e, ...patch, updatedAt: Date.now() } : e,
+      e.id === id ? { ...e, ...patch, updatedAt: syncedNow() } : e,
     );
     persist(expenses);
     set({ expenses });
