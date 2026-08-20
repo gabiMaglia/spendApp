@@ -67,6 +67,21 @@ Google no va a poder registrar bajo el `accountId` de Apple. Se detecta (la
 escritura falla) y por ahora se degrada a no registrar; no se inventa una
 vinculación que el servidor no puede probar.
 
+**Este borde es MÁS probable de lo que parecía** (verificado 2026-08-20): Apple
+manda el claim `email` dentro del `identityToken` **sólo en la primera
+autorización**; en los ingresos siguientes puede no venir. Para que la sesión no
+se rechace hay que habilitar *Allow users without an email* en el proveedor
+Apple — pero un usuario sin mail es justamente uno que Supabase no puede
+vincular por mail con su identidad de Google. O sea: la opción que hace que el
+login funcione es la misma que hace más probable que las identidades queden
+separadas.
+
+Implicancia para la **fase B**: el lector conoce el `accountId` del autor, no
+sus otros `provider_id`. Antes de exigir verificación hay que resolver cómo se
+publica y se encuentra la clave de alguien cuya cuenta canónica es de un
+proveedor y su sesión de otro. Está sin diseñar, y es lo primero a mirar cuando
+se abra la fase B.
+
 ## Despliegue en dos fases, a propósito
 
 No se puede empezar a exigir firmas verificadas contra el directorio el mismo
