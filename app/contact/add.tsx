@@ -22,6 +22,7 @@ import { ensureContactSecret, announceContact, savePeer } from '@/src/sync/conta
 import { deviceId } from '@/src/sync/relayEngine';
 import { ensureIdentity, ensureWrapKeypair } from '@/src/store/identityStore';
 import { useTranslation } from 'react-i18next';
+import { syncedNow } from '@/src/utils/syncedClock';
 
 type Mode = 'my_qr' | 'scan';
 
@@ -89,7 +90,7 @@ export default function AddContactScreen() {
       email:        contact.email ?? '',
       authProvider: 'google',
       createdAt:    Date.now(),
-      updatedAt:    Date.now(),
+      updatedAt:    syncedNow(),
       isDeleted:    false,
     });
 

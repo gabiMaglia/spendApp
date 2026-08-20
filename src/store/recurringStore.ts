@@ -3,6 +3,7 @@ import { createSecureStorage } from '@/src/utils/secureStorage';
 import { readScoped, writeScoped } from './userScope';
 import { mergeByIdLWW } from './lww';
 import type { RecurringExpense } from '@/src/types/models';
+import { syncedNow } from '@/src/utils/syncedClock';
 
 const storage = createSecureStorage('recurring');
 const KEY = 'data_v1';
@@ -40,7 +41,7 @@ export const useRecurringStore = create<RecurringStoreState>((set, get) => ({
 
   updateRecurring: (id, patch) => {
     const recurring = get().recurring.map(r =>
-      r.id === id ? { ...r, ...patch, updatedAt: Date.now() } : r,
+      r.id === id ? { ...r, ...patch, updatedAt: syncedNow() } : r,
     );
     persist(recurring);
     set({ recurring });
@@ -49,7 +50,7 @@ export const useRecurringStore = create<RecurringStoreState>((set, get) => ({
   // Tombstone, nunca DELETE físico (regla de negocio #1).
   removeRecurring: (id) => {
     const recurring = get().recurring.map(r =>
-      r.id === id ? { ...r, isDeleted: true, updatedAt: Date.now() } : r,
+      r.id === id ? { ...r, isDeleted: true, updatedAt: syncedNow() } : r,
     );
     persist(recurring);
     set({ recurring });

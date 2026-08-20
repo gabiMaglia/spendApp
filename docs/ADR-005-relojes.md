@@ -1,6 +1,6 @@
-# ADR-005 (BORRADOR) — Relojes: cómo dejar de depender de la hora del teléfono
+# ADR-005 — Relojes: cómo dejar de depender de la hora del teléfono
 
-**Estado:** BORRADOR — investigado, **sin decidir**. La decisión la toma el PO.
+**Estado:** aceptado (PO, 2026-08-20) — **opción B**. Implementado en `src/utils/syncedClock.ts`.
 
 ## El problema
 
@@ -56,7 +56,7 @@ colaborativo no alcanzaría.
 El desempate por contenido ya evita la divergencia permanente ante empates
 exactos. El riesgo del reloj queda anotado y se acepta.
 
-## Recomendación (a discutir)
+## Decisión: B
 
 **B.** El problema concreto que tiene este proyecto es "un teléfono con la hora
 mal gana siempre", y B lo cierra con un helper y un valor persistido, apoyándose
@@ -68,12 +68,24 @@ entre pocos participantes que además se sincronizan cada 20 segundos.
 Si el proyecto alguna vez apunta a edición colaborativa fina, A es el camino y
 conviene hacerlo antes de que haya usuarios reales.
 
-## Lo que habría que verificar antes de cerrar
+## Cómo quedó resuelto lo que faltaba verificar
 
-1. Que el desfase se pueda obtener sin una lectura extra (debería: `created_at`
-   ya viene en cada drenaje).
-2. Qué hacer en un dispositivo que **nunca** habló con el relay: sin referencia,
-   `syncedNow()` es `Date.now()` y estamos como hoy. ¿Se avisa? ¿Se acepta?
-3. Si conviene **detectar y avisar** un desfase grande (p.ej. > 5 minutos) en vez
-   de sólo corregirlo en silencio — un teléfono con la hora mal también muestra
-   fechas de gastos equivocadas, y eso ningún offset lo arregla.
+1. **De dónde sale la hora del servidor.** No del drenaje sino de la RESPUESTA AL
+   INSERTAR: `created_at` de la fila recién creada es la hora del servidor *en ese
+   instante*. El `created_at` de un sobre que se lee puede tener días y usarlo
+   como "ahora" metería un desfase enorme al revés.
+   La hora local se toma ANTES del pedido, para que la latencia no entre en la
+   cuenta.
+2. **Dispositivo que nunca habló con el relay.** `syncedNow()` devuelve la hora
+   local: exactamente lo que había antes, así que no queda peor que hoy. El
+   diagnóstico dice si ya hay referencia o no.
+3. **Avisar además de corregir: SÍ.** Con más de 5 minutos de desfase el
+   diagnóstico lo marca y explica lo que la corrección NO arregla — las FECHAS de
+   los gastos siguen saliendo del reloj del teléfono.
+
+## Lo que protege que esto no se deshaga solo
+
+`updatedAt` se escribe en 32 lugares. Alcanza con que UNO vuelva a `Date.now()`
+para reabrir el agujero entero, y falla en silencio. `syncedClockCoverage.test.ts`
+recorre el código y falla si aparece uno —directo o a través de una variable
+intermedia— en vez de confiar en que alguien se acuerde.

@@ -1,4 +1,5 @@
 import type { User } from '@/src/types/models';
+import { syncedNow } from '@/src/utils/syncedClock';
 
 /**
  * Perfil tal como lo devuelve un proveedor OAuth. Todos los campos de datos son
@@ -37,7 +38,7 @@ function clean(value?: string | null): string | undefined {
 export function mergeProviderUser(
   stored: User | null | undefined,
   incoming: ProviderProfile,
-  now: number = Date.now(),
+  now: number = syncedNow(),
 ): User {
   const prev = stored && stored.id === incoming.id ? stored : null;
 

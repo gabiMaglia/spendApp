@@ -4,6 +4,7 @@ import { readScoped, writeScoped } from './userScope';
 import { mergeByIdLWW } from './lww';
 import { migratePersonalBudgetAmount, migratePersonalEntryAmounts } from './moneyMigration';
 import type { PersonalEntry, PersonalBudget } from '@/src/types/models';
+import { syncedNow } from '@/src/utils/syncedClock';
 
 const storage = createSecureStorage('personal');
 const ENTRIES_KEY   = 'entries_v1';
@@ -66,7 +67,7 @@ export const usePersonalStore = create<PersonalStoreState>((set, get) => ({
 
   removeEntry: (id) => {
     const entries = get().entries.map(e =>
-      e.id === id ? { ...e, isDeleted: true, updatedAt: Date.now() } : e,
+      e.id === id ? { ...e, isDeleted: true, updatedAt: syncedNow() } : e,
     );
     persistEntries(entries);
     set({ entries });
@@ -75,7 +76,7 @@ export const usePersonalStore = create<PersonalStoreState>((set, get) => ({
   updateReplicatedEntry: (sourceGroupExpenseId, patch) => {
     const entries = get().entries.map(e =>
       e.sourceGroupExpenseId === sourceGroupExpenseId && !e.isDeleted
-        ? { ...e, ...patch, updatedAt: Date.now() }
+        ? { ...e, ...patch, updatedAt: syncedNow() }
         : e,
     );
     persistEntries(entries);

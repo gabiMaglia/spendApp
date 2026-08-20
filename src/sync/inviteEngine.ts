@@ -13,6 +13,7 @@ import {
   wrapGroupKey, unwrapGroupKey, isInviteExpired,
   type GroupInvite, type InviteClaim, type InviteGrant,
 } from './groupInvite';
+import { syncedNow } from '@/src/utils/syncedClock';
 
 /**
  * El encuentro entre quien invita y quien entra.
@@ -140,7 +141,7 @@ async function admit(
       email: '',
       authProvider: 'google',
       createdAt: Date.now(),
-      updatedAt: Date.now(),
+      updatedAt: syncedNow(),
       isDeleted: false,
     });
   }

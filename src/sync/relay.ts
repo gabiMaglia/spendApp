@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { recordServerTime } from '@/src/utils/syncedClock';
 
 /**
  * Transporte del relay (ADR-003). Buzón store-and-forward.
@@ -100,14 +101,24 @@ export async function sendEnvelope(
     return { ok: false, reason: 'too_large' };
   }
 
+  // La hora local ANTES del pedido: tomarla después metería la latencia dentro
+  // del desfase que vamos a calcular.
+  const antes = Date.now();
+
   const { data, error } = await supabase
     .from('envelopes')
     .insert(envelopeRow(topic, payload, sender, compactable))
-    .select('seq')
+    .select('seq,created_at')
     .single();
 
   if (error) return { ok: false, reason: 'network', detail: error.message };
-  return { ok: true, seq: (data as { seq: number }).seq };
+
+  // El servidor estampó `created_at` al insertar: es un reloj único para todos
+  // los dispositivos, y llega gratis en la respuesta (ADR-005).
+  const fila = data as { seq: number; created_at?: string };
+  if (fila.created_at) recordServerTime(fila.created_at, antes);
+
+  return { ok: true, seq: fila.seq };
 }
 
 export type FetchResult =

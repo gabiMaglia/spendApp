@@ -17,6 +17,7 @@ import { useThemeStore } from '@/src/store/themeStore';
 import { rehydrateForActiveUser, subscribeSessionRehydrate } from '@/src/store/session';
 import { announceContact, savePeer } from '@/src/sync/contactChannel';
 import { deviceId } from '@/src/sync/relayEngine';
+import { syncedNow } from '@/src/utils/syncedClock';
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -74,7 +75,7 @@ function AuthGuard() {
               email: email ?? '',
               authProvider: 'google',
               createdAt: Date.now(),
-              updatedAt: Date.now(),
+              updatedAt: syncedNow(),
               isDeleted: false,
             });
             // Le devuelvo mi tarjeta para que el alta quede en los dos lados,

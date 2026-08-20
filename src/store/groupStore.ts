@@ -5,6 +5,7 @@ import { mergeByIdLWW } from './lww';
 import { schedulePublish } from '@/src/sync/relayEngine';
 import type { Group, LeaveRequest } from '@/src/types/models';
 import { mergeApprovals } from '@/src/algorithms/leaveRequest';
+import { syncedNow } from '@/src/utils/syncedClock';
 
 const storage = createSecureStorage('groups');
 const KEY = 'data_v1';
@@ -56,7 +57,7 @@ export const useGroupStore = create<GroupStoreState>((set, get) => ({
 
   updateGroup: (id, patch) => {
     const groups = get().groups.map(g =>
-      g.id === id ? { ...g, ...patch, updatedAt: Date.now() } : g,
+      g.id === id ? { ...g, ...patch, updatedAt: syncedNow() } : g,
     );
     persist(groups);
     set({ groups });
@@ -68,7 +69,7 @@ export const useGroupStore = create<GroupStoreState>((set, get) => ({
   // seguiría teniendo el grupo y lo reintroduciría en el merge.
   deleteGroup: (id) => {
     const groups = get().groups.map(g =>
-      g.id === id ? { ...g, isDeleted: true, updatedAt: Date.now() } : g,
+      g.id === id ? { ...g, isDeleted: true, updatedAt: syncedNow() } : g,
     );
     persist(groups);
     set({ groups });
@@ -87,7 +88,7 @@ export const useGroupStore = create<GroupStoreState>((set, get) => ({
   leaveGroup: (id, userId) => {
     const groups = get().groups.map(g =>
       g.id === id
-        ? { ...g, memberIds: g.memberIds.filter(m => m !== userId), updatedAt: Date.now() }
+        ? { ...g, memberIds: g.memberIds.filter(m => m !== userId), updatedAt: syncedNow() }
         : g,
     );
     persist(groups);
@@ -99,7 +100,7 @@ export const useGroupStore = create<GroupStoreState>((set, get) => ({
     const groups = get().groups.map(g => g.id === id ? {
       ...g,
       leaveRequest: { userId, plan, requestedAt: Date.now(), approvedBy: [] },
-      updatedAt: Date.now(),
+      updatedAt: syncedNow(),
     } : g);
     persist(groups);
     set({ groups });
@@ -116,7 +117,7 @@ export const useGroupStore = create<GroupStoreState>((set, get) => ({
           ...g.leaveRequest,
           approvedBy: [...g.leaveRequest.approvedBy, userId],
         },
-        updatedAt: Date.now(),
+        updatedAt: syncedNow(),
       };
     });
     persist(groups);
@@ -126,7 +127,7 @@ export const useGroupStore = create<GroupStoreState>((set, get) => ({
 
   cancelLeave: (id) => {
     const groups = get().groups.map(g =>
-      g.id === id ? { ...g, leaveRequest: undefined, updatedAt: Date.now() } : g,
+      g.id === id ? { ...g, leaveRequest: undefined, updatedAt: syncedNow() } : g,
     );
     persist(groups);
     set({ groups });

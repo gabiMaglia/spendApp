@@ -21,6 +21,7 @@ import { announceGroupToContacts } from '@/src/sync/relayEngine';
 import { hueForUser } from '@/src/utils/hueForUser';
 import { Avatar } from '@/src/components/Avatar';
 import { useTranslation } from 'react-i18next';
+import { syncedNow } from '@/src/utils/syncedClock';
 
 const PRIMARY_CURRENCIES: CurrencyCode[] = ['ARS', 'USD', 'EUR', 'BRL'];
 
@@ -72,7 +73,7 @@ export default function NewGroupScreen() {
       createdAt:     Date.now(),
       createdById:   currentUser.id,
       deletionVotes: [],
-      updatedAt:     Date.now(),
+      updatedAt:     syncedNow(),
       isDeleted:     false,
     });
 

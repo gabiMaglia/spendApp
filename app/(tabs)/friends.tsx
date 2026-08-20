@@ -23,6 +23,7 @@ import { Avatar } from '@/src/components/Avatar';
 import { Fab, FabRow } from '@/src/components/Fab';
 import { EmptyState } from '@/src/components/EmptyState';
 import { BottomSheet } from '@/src/components/Sheet';
+import { syncedNow } from '@/src/utils/syncedClock';
 
 export default function FriendsScreen() {
   const { t } = useTranslation();
@@ -60,7 +61,7 @@ export default function FriendsScreen() {
       name,
       email:        '',
       authProvider: 'google',
-      updatedAt:    Date.now(),
+      updatedAt:    syncedNow(),
       isDeleted:    false,
       createdAt:    Date.now(),
     });

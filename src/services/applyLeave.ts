@@ -3,6 +3,7 @@ import { useGroupStore } from '@/src/store/groupStore';
 import { usePaymentStore } from '@/src/store/paymentStore';
 import { isApprovedByAll } from '@/src/algorithms/leaveRequest';
 import type { Group } from '@/src/types/models';
+import { syncedNow } from '@/src/utils/syncedClock';
 
 /**
  * Aplica los pedidos de salida que ya juntaron todas las aprobaciones.
@@ -20,7 +21,7 @@ import type { Group } from '@/src/types/models';
  * así que aplicar dos veces DUPLICARÍA el reparto — por eso limpiar el pedido
  * es parte de la misma operación y no un paso aparte.
  */
-export function applyApprovedLeaves(now: number = Date.now()): number {
+export function applyApprovedLeaves(now: number = syncedNow()): number {
   const store = useGroupStore.getState();
 
   const listos: Group[] = store.groups.filter(g =>
