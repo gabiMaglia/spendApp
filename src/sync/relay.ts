@@ -53,6 +53,21 @@ export function isRelayConfigured(): boolean {
   return Boolean(URL && ANON);
 }
 
+/**
+ * La fila que se inserta. Está afuera de `sendEnvelope` para poder testearla
+ * sin cliente ni credenciales: configurarlas en un test filtra `process.env` a
+ * los demás suites del worker, y ahí el motor arranca su `setInterval` de
+ * relectura y Jest no termina nunca. Pasó de verdad — 44 minutos colgado.
+ */
+export function envelopeRow(
+  topic: string,
+  payload: string,
+  sender: string,
+  compactable = false,
+): { topic: string; payload: string; sender: string; compactable: boolean } {
+  return { topic, payload, sender, compactable };
+}
+
 export type SendResult =
   | { ok: true; seq: number }
   | { ok: false; reason: 'not_configured' | 'too_large' | 'network'; detail?: string };
@@ -61,10 +76,20 @@ export type SendResult =
  * Deja un sobre en el buzón del topic.
  * No espera a que nadie lo lea: si el destinatario está offline, queda encolado.
  */
+/**
+ * `compactable`: este sobre REEMPLAZA a los anteriores del mismo remitente en
+ * el mismo topic, y el servidor los borra (T-032).
+ *
+ * Sólo vale para los sobres de grupo, que llevan **estado completo**. Los de
+ * contacto e invitación llevan MENSAJES distintos por el mismo canal —una
+ * tarjeta y una entrega de clave— y compactarlos borraría el que el otro
+ * todavía no leyó.
+ */
 export async function sendEnvelope(
   topic: string,
   payload: string,
   sender: string,
+  compactable = false,
 ): Promise<SendResult> {
   const supabase = getRelayClient();
   if (!supabase) return { ok: false, reason: 'not_configured' };
@@ -77,7 +102,7 @@ export async function sendEnvelope(
 
   const { data, error } = await supabase
     .from('envelopes')
-    .insert({ topic, payload, sender })
+    .insert(envelopeRow(topic, payload, sender, compactable))
     .select('seq')
     .single();
 

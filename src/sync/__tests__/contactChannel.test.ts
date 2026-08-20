@@ -23,7 +23,7 @@ import type { User } from '@/src/types/models';
  */
 
 jest.mock('../relay', () => {
-  const buzones = new Map<string, { seq: number; topic: string; payload: string; sender: string; created_at: string }[]>();
+  const buzones = new Map<string, { seq: number; topic: string; payload: string; sender: string; created_at: string; compactable?: boolean }[]>();
   let seq = 0;
 
   return {
@@ -31,9 +31,9 @@ jest.mock('../relay', () => {
     __reset: () => { buzones.clear(); seq = 0; },
     isRelayConfigured: () => true,
     subscribeTopic: () => () => {},
-    sendEnvelope: async (topic: string, payload: string, sender: string) => {
+    sendEnvelope: async (topic: string, payload: string, sender: string, compactable = false) => {
       const lista = buzones.get(topic) ?? [];
-      lista.push({ seq: ++seq, topic, payload, sender, created_at: '' });
+      lista.push({ seq: ++seq, topic, payload, sender, created_at: '', compactable });
       buzones.set(topic, lista);
       return { ok: true, seq };
     },
@@ -50,7 +50,7 @@ jest.mock('../relay', () => {
 });
 
 const relayMock = jest.requireMock('../relay') as {
-  __buzones: Map<string, { seq: number; payload: string; sender: string }[]>;
+  __buzones: Map<string, { seq: number; payload: string; sender: string; compactable?: boolean }[]>;
   __reset: () => void;
 };
 
@@ -615,5 +615,42 @@ describe('guardar contactos sin perder datos', () => {
 
     expect(getPeer(BETO.id)?.wrapPublicKey).toBe('aa'.repeat(32));
     expect(getPeer(BETO.id)?.identityPublicKey).toBe('bb'.repeat(32));
+  });
+});
+
+/**
+ * El buzón de contacto lleva MENSAJES distintos por el mismo canal y desde el
+ * mismo remitente: una tarjeta y una entrega de clave de grupo. Marcarlos
+ * compactables haría que la entrega borre la tarjeta que el otro todavía no
+ * leyó — pérdida de datos silenciosa.
+ */
+describe('el buzón de contacto NO se compacta', () => {
+  it('la tarjeta no se marca compactable', async () => {
+    usar(ANA);
+    const deAna = ensureContactSecret()!;
+
+    usar(BETO);
+    await announceContact(deAna, 'dev-beto');
+
+    const sobre = relayMock.__buzones.get(await deriveContactTopic(deAna))![0]!;
+    expect(sobre.compactable).toBe(false);
+  });
+
+  it('la entrega de clave tampoco', async () => {
+    usar(BETO);
+    const deBeto = ensureContactSecret()!;
+    const tarjetaDeBeto = myContactCard()!;
+
+    usar(ANA);
+    savePeer(BETO.id, {
+      secret: deBeto,
+      wrapPublicKey: tarjetaDeBeto.wrapPublicKey,
+      identityPublicKey: tarjetaDeBeto.identityPublicKey,
+    });
+    useGroupKeyStore.getState().ensureKey('g1');
+    await sendGroupKey(BETO.id, { id: 'g1', name: 'Viaje' }, 'dev-ana');
+
+    const sobres = relayMock.__buzones.get(await deriveContactTopic(deBeto))!;
+    expect(sobres.every(s => s.compactable === false)).toBe(true);
   });
 });

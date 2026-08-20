@@ -96,7 +96,9 @@ export async function publishToGroup(
   // nada de lo que va adentro (T-033).
   const firmado = signEnvelope(sealed, ensureIdentity().privateKey);
 
-  const r = await sendEnvelope(topic, firmado, deviceId);
+  // Compactable: este sobre lleva el estado COMPLETO del grupo, así que
+  // reemplaza a los anteriores de este mismo dispositivo (T-032).
+  const r = await sendEnvelope(topic, firmado, deviceId, true);
   if (!r.ok) return { ok: false, reason: r.reason, detail: r.detail };
   return { ok: true, seq: r.seq };
 }
