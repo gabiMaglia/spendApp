@@ -15,16 +15,16 @@ import type { Expense, Group, User } from '@/src/types/models';
  */
 
 jest.mock('../relay', () => {
-  const buzones = new Map<string, { seq: number; topic: string; payload: string; sender: string; created_at: string }[]>();
+  const buzones = new Map<string, { seq: number; topic: string; payload: string; sender: string; created_at: string; compactable?: boolean }[]>();
   let seq = 0;
   return {
     __buzones: buzones,
     __reset: () => { buzones.clear(); seq = 0; },
     isRelayConfigured: () => true,
     subscribeTopic: () => () => {},
-    sendEnvelope: async (topic: string, payload: string, sender: string) => {
+    sendEnvelope: async (topic: string, payload: string, sender: string, compactable = false) => {
       const l = buzones.get(topic) ?? [];
-      l.push({ seq: ++seq, topic, payload, sender, created_at: '' });
+      l.push({ seq: ++seq, topic, payload, sender, created_at: '', compactable });
       buzones.set(topic, l);
       return { ok: true, seq };
     },
@@ -37,7 +37,7 @@ jest.mock('../relay', () => {
 });
 
 const relayMock = jest.requireMock('../relay') as {
-  __buzones: Map<string, { seq: number; payload: string; sender: string }[]>;
+  __buzones: Map<string, { seq: number; payload: string; sender: string; compactable?: boolean }[]>;
   __reset: () => void;
 };
 
@@ -180,5 +180,20 @@ describe('lo que el buzón no deja pasar', () => {
 
     expect(r.ok && r.applied).toBe(1);
     expect(r.ok && r.skipped).toBe(1);
+  });
+});
+
+/**
+ * T-032. El servidor borra los sobres compactables anteriores del mismo
+ * remitente, así que la marca decide qué se puede tirar. Es segura **sólo**
+ * para los sobres de grupo, que llevan estado COMPLETO: el último reemplaza a
+ * todos los anteriores.
+ */
+describe('compactación', () => {
+  it('el sobre de un grupo se marca compactable', async () => {
+    await publishToGroup('G', 'ana', 'dev-ana');
+
+    const sobre = relayMock.__buzones.get(await topicDelGrupo())![0]!;
+    expect(sobre.compactable).toBe(true);
   });
 });
