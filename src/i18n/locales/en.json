@@ -656,5 +656,12 @@
     "pending_mine": "Your request to leave is pending: {{got}} of {{need}} approved.",
     "approve": "Approve the split",
     "withdraw": "Withdraw my request"
+  },
+  "notifications": {
+    "new_expenses_one": "1 new expense was added",
+    "new_expenses_other": "{{count}} new expenses were added",
+    "deletion_requested": "Someone asked to delete “{{description}}”. You have 72h to object.",
+    "joined_title": "You were added to a group",
+    "joined_body": "You can now see “{{group}}”"
   }
 }
