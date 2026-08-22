@@ -242,8 +242,16 @@ describe('la detección está enchufada', () => {
     expect(src).toContain('verifyMyKeyRegistered()');
   });
 
-  it('la pantalla de diagnóstico la muestra', () => {
+  /**
+   * La fila "mi clave" tiene que salir de la LECTURA del directorio, no del
+   * intento de escritura: sin sesión, escribir devuelve `no_session` y se lee
+   * como si la clave faltara cuando está perfectamente registrada.
+   */
+  it('la pantalla muestra la lectura, no el intento de escritura', () => {
     const src = fs.readFileSync(path.join(__dirname, '../../../app/debug/identity.tsx'), 'utf8');
-    expect(src).toContain('myKeyPresence()');
+    const efecto = src.slice(src.indexOf('React.useEffect'), src.indexOf('return ('));
+    expect(efecto).toContain('verifyMyKeyRegistered()');
+    // El alta sólo se intenta cuando de verdad falta.
+    expect(efecto).toMatch(/if \(presente === 'falta'\)[\s\S]*registerDeviceKey\(\)/);
   });
 });
