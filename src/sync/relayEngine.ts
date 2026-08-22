@@ -2,6 +2,10 @@ import { AppState } from 'react-native';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { useGroupStore } from '@/src/store/groupStore';
+import { useExpenseStore } from '@/src/store/expenseStore';
+import { syncedNow } from '@/src/utils/syncedClock';
+import { snapshot, noticesFor, type Snapshot } from '@/src/services/syncNotices';
+import { deliver } from '@/src/services/notifications';
 import { useAuthStore } from '@/src/store/authStore';
 import { deriveTopic } from './envelopeCrypto';
 import { subscribeTopic, isRelayConfigured } from './relay';
@@ -139,6 +143,10 @@ export async function drainNow(groupId: string): Promise<number> {
   const record = useGroupKeyStore.getState().getKey(groupId);
   if (!userId || !record) return 0;
 
+  // Foto previa: es lo que distingue "llegó recién" de "ya estaba". Sin esto
+  // cada relectura por cursor volvería a avisar lo mismo.
+  const antes = snapshot(useExpenseStore.getState().expenses, syncedNow());
+
   try {
     const topic = await deriveTopic(fromHex(record.key), record.epoch);
     const r = await drainGroup(groupId, userId, deviceId(), readCursor(topic));
@@ -153,10 +161,31 @@ export async function drainNow(groupId: string): Promise<number> {
       applyApprovedLeaves();
     }
 
+    // T-010. Va DESPUÉS de resolver borrados: una ronda que acaba de vencer ya
+    // no es un pedido pendiente y no tiene por qué avisarse.
+    if (r.applied > 0) void avisarDeLoNuevo(antes, userId);
+
     return r.applied;
   } catch {
     return 0; // offline: se reintenta al próximo arranque o aviso
   }
+}
+
+/**
+ * Avisa de lo que llegó en esta bajada. No puede tirar ni frenar el sync: una
+ * notificación que no sale es una molestia, un sync caído es un bug.
+ */
+async function avisarDeLoNuevo(antes: Snapshot, userId: string): Promise<void> {
+  try {
+    const avisos = noticesFor(
+      antes,
+      useExpenseStore.getState().expenses,
+      useGroupStore.getState().groups,
+      userId,
+      syncedNow(),
+    );
+    if (avisos.length > 0) await deliver(avisos);
+  } catch { /* nunca rompe el sync */ }
 }
 
 /** Drena todos los grupos sincronizables. Se llama al abrir la app. */
@@ -372,6 +401,14 @@ export async function drainContactsNow(): Promise<number> {
     if (r.joinedGroups.length > 0) {
       for (const groupId of r.joinedGroups) await drainNow(groupId);
       void startRelay();
+
+      // T-010. Va DESPUÉS de drenar: recién ahí el grupo tiene nombre. Antes
+      // el aviso diría "te agregaron a «»", que es peor que no avisar.
+      void deliver(r.joinedGroups.map(groupId => ({
+        kind: 'joined' as const,
+        groupId,
+        groupName: useGroupStore.getState().getById(groupId)?.name ?? '',
+      })).filter(n => n.groupName !== ''));
     }
 
     return r.added + r.joinedGroups.length;

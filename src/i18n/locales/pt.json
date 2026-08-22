@@ -656,5 +656,12 @@
     "pending_mine": "Seu pedido de saída está esperando: aprovaram {{got}} de {{need}}.",
     "approve": "Aprovar a divisão",
     "withdraw": "Retirar meu pedido"
+  },
+  "notifications": {
+    "new_expenses_one": "1 despesa nova foi adicionada",
+    "new_expenses_other": "{{count}} despesas novas foram adicionadas",
+    "deletion_requested": "Pediram para apagar “{{description}}”. Você tem 72h para se opor.",
+    "joined_title": "Você foi adicionado a um grupo",
+    "joined_body": "Já pode ver “{{group}}”"
   }
 }
