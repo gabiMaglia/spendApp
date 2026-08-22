@@ -14,7 +14,8 @@ import { deriveInviteTopic, type GroupInvite } from './groupInvite';
 import { activeInvites, processInvite, processAllInvites } from './inviteEngine';
 import {
   ensureContactSecret, deriveContactTopic, drainContacts, sendGroupKey,
-  announceContact, peersIncompletos,
+  announceContact, listPeers, myContactCard, cardFingerprint,
+  cardYaEnviada, marcarCardEnviada,
 } from './contactChannel';
 
 /**
@@ -208,7 +209,7 @@ async function doStartRelay(): Promise<void> {
 
   await subscribeInvites();
   await subscribeContacts();
-  await completarContactos();
+  await anunciarMiTarjeta();
   await drainContactsNow();
   await drainAll(); // al arrancar, lo encolado mientras estuvimos afuera
 
@@ -256,18 +257,44 @@ async function releerTodo(): Promise<void> {
 }
 
 /**
- * Le manda la tarjeta propia a los contactos de los que todavía no tenemos sus
- * claves públicas.
+ * Reparte la tarjeta propia a TODOS los contactos conocidos.
  *
- * Repara los contactos agregados con una versión anterior del código, que no
- * las incluía. Sin ellas no se les puede entregar la clave de ningún grupo, y
- * el síntoma es el peor de todos: el grupo simplemente no les llega, sin error
- * ni aviso. Al recibir la tarjeta, el otro lado responde con la suya y los dos
- * quedan completos — sin volver a escanear nada.
+ * Corre en DOS momentos, y los dos hacen falta:
+ *
+ *  1. Al cambiarse el nombre, para que llegue en el acto.
+ *  2. **En cada arranque**, porque el punto 1 es un disparo único: si ese envío
+ *     falló —sin red, o el sobre no entró— el nombre nuevo no se reintentaba
+ *     NUNCA y el otro se quedaba con el viejo para siempre. Este es el mismo
+ *     modo de falla silenciosa que ya nos mordió con las claves de grupo.
+ *
+ * Reemplaza al viejo `completarContactos`, que sólo le escribía a los contactos
+ * INCOMPLETOS: un contacto completo es justamente el que se quedaba con el
+ * nombre viejo. Sigue reparando lo que reparaba aquél —quien recibe una tarjeta
+ * con claves que no tenía responde con la suya— porque es un superconjunto.
+ *
+ * Es además el único camino hacia los contactos con los que no se comparte
+ * ningún grupo: a esos el delta de grupo nunca los alcanza.
+ *
+ * Cuesta un sobre chico por contacto por arranque. Se paga con gusto: la
+ * alternativa demostró ser "el dato no llega y nadie se entera".
  */
-async function completarContactos(): Promise<void> {
-  for (const secreto of peersIncompletos()) {
-    try { await announceContact(secreto, deviceId()); } catch { /* se reintenta */ }
+export async function anunciarMiTarjeta(): Promise<void> {
+  const card = myContactCard();
+  if (!card) return;
+  const huella = cardFingerprint(card);
+
+  for (const [userId, peer] of Object.entries(listPeers())) {
+    if (!peer.secret) continue;
+    // Ya tiene esta versión: no se le manda nada. Es lo que hace que el costo
+    // converja a CERO cuando no cambió nada, en vez de un sobre por contacto
+    // por arranque para siempre.
+    if (cardYaEnviada(userId, huella)) continue;
+
+    // Se marca sólo si salió bien, así un fallo de red se reintenta solo.
+    // Un contacto que falla no puede frenar a los demás.
+    try {
+      if (await announceContact(peer.secret, deviceId())) marcarCardEnviada(userId, huella);
+    } catch { /* sigue con el resto */ }
   }
 }
 
