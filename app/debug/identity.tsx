@@ -13,7 +13,9 @@ import { useGroupStore } from '@/src/store/groupStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { isRelayConfigured } from '@/src/sync/relay';
 import { ensureContactSecret, listPeers, peersIncompletos } from '@/src/sync/contactChannel';
-import { registerDeviceKey, fetchAccountKeys, myKeyPresence } from '@/src/sync/deviceKeys';
+import {
+  registerDeviceKey, fetchAccountKeys, verifyMyKeyRegistered,
+} from '@/src/sync/deviceKeys';
 import { unverifiedAuthors, authorStats } from '@/src/sync/authorHealth';
 import { blockingFailures } from '@/src/sync/publishHealth';
 import { clockOffsetMs, hasClockReference, clockIsOff } from '@/src/utils/syncedClock';
@@ -58,12 +60,29 @@ export default function IdentityDebugScreen() {
   const stats = authorStats();
   const [misClaves, setMisClaves] = React.useState<string[]>([]);
 
+  const [alta, setAlta] = React.useState<string | null>(null);
+
   React.useEffect(() => {
     const cuenta = snapshot.activeAccountId;
     if (!cuenta) return;
     void (async () => {
-      const r = await registerDeviceKey();
-      setDirectorio(r.ok ? 'registrada' : r.reason);
+      // La verdad es la LECTURA del directorio: no necesita sesión, así que no
+      // depende de haber logueado en ESTE arranque.
+      //
+      // Antes esta fila mostraba el resultado de `registerDeviceKey`, que es una
+      // ESCRITURA. Sin sesión —o sea, en cualquier apertura que no venga de un
+      // login— devolvía `no_session` y se leía como "algo está roto", con la
+      // clave perfectamente registrada del otro lado.
+      const presente = await verifyMyKeyRegistered();
+      setDirectorio(presente);
+
+      // Sólo se intenta dar de alta si realmente falta. Si no hay sesión, acá
+      // el `no_session` sí significa algo: hay que reloguearse.
+      if (presente === 'falta') {
+        const r = await registerDeviceKey();
+        setAlta(r.ok ? 'dada de alta recién' : r.reason);
+      }
+
       setMisClaves(await fetchAccountKeys(cuenta));
     })();
   }, [snapshot.activeAccountId]);
@@ -114,10 +133,11 @@ export default function IdentityDebugScreen() {
         )}
 
         <Block title="DIRECTORIO DE CLAVES (ADR-004)" c={c}>
-          <Row label="mi clave" value={directorio} c={c} warn={directorio !== 'registrada'} />
-          {/* Detectado al arrancar, sin sesion: la lectura del directorio es abierta. */}
-          <Row label="al arrancar figuraba" value={myKeyPresence()} c={c}
-               warn={myKeyPresence() === 'falta'} />
+          {/* Lectura del directorio, no intento de escritura. Ver el efecto arriba. */}
+          <Row label="mi clave" value={directorio} c={c} warn={directorio === 'falta'} />
+          {alta !== null && (
+            <Row label="intento de alta" value={alta} c={c} warn={alta !== 'dada de alta recién'} />
+          )}
           <Row label="dispositivos de esta cuenta" value={String(misClaves.length)} c={c}
                warn={misClaves.length === 0} />
           <Row label="esta es" value={`${ensureIdentity().publicKey.slice(0, 12)}…`} c={c} />
