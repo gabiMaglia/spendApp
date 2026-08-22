@@ -1,4 +1,6 @@
-import { registerDeviceKey, fetchAccountKeys } from '../deviceKeys';
+import {
+  registerDeviceKey, fetchAccountKeys, verifyMyKeyRegistered, myKeyPresence,
+} from '../deviceKeys';
 import { signIntoDirectory } from '../directoryAuth';
 import { useAuthStore } from '@/src/store/authStore';
 import { ensureIdentity } from '@/src/store/identityStore';
@@ -180,5 +182,68 @@ describe('sesión del directorio', () => {
   it('un rechazo del servidor no tira', async () => {
     estado.signIn = { message: 'nonce mismatch' };
     expect(await signIntoDirectory('apple', 'tok')).toMatchObject({ ok: false, reason: 'rejected' });
+  });
+});
+
+/**
+ * `registerDeviceKey` se llama SÓLO en el login. Quien ya estuviera logueado
+ * cuando esto se publique nunca se registra, no tiene motivo para desloguearse
+ * y nada en pantalla se lo dice. Al encender el rechazo de la fase B esa
+ * persona dejaría de sincronizar sin entender por qué.
+ */
+describe('detectar al arrancar si mi clave falta', () => {
+  it('si está en el directorio, registrada', async () => {
+    estado.filasRpc = [{ public_key: ensureIdentity().publicKey }, { public_key: 'otra' }];
+    expect(await verifyMyKeyRegistered()).toBe('registrada');
+    expect(myKeyPresence()).toBe('registrada');
+  });
+
+  // El caso que motiva todo esto: la cuenta tiene claves, pero no la mía.
+  it('si la cuenta tiene otras claves pero no la mía, falta', async () => {
+    estado.filasRpc = [{ public_key: 'de-otro-telefono' }];
+    expect(await verifyMyKeyRegistered()).toBe('falta');
+  });
+
+  it('una cuenta sin ninguna clave también es falta', async () => {
+    estado.filasRpc = [];
+    expect(await verifyMyKeyRegistered()).toBe('falta');
+  });
+
+  /**
+   * Un corte de red NO puede leerse como "te falta la clave": mandaría al
+   * usuario a reloguearse al pedo. Es la razón de existir de `queryAccountKeys`.
+   */
+  it('sin poder consultar NO dice que falta', async () => {
+    estado.rpcExplota = true;
+    estado.errorSelect = true;
+    expect(await verifyMyKeyRegistered()).toBe('desconocido');
+  });
+
+  it('sin cuenta activa tampoco concluye nada', async () => {
+    useAuthStore.setState({ currentUser: null });
+    expect(await verifyMyKeyRegistered()).toBe('desconocido');
+  });
+
+  it('sin relay configurado tampoco', async () => {
+    estado.cliente = false;
+    expect(await verifyMyKeyRegistered()).toBe('desconocido');
+  });
+});
+
+// Otra vez la guarda: lógica construida que nadie llama ya nos pasó tres veces.
+describe('la detección está enchufada', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const fs: typeof import('fs') = require('fs');
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const path: typeof import('path') = require('path');
+
+  it('el arranque del relay la llama', () => {
+    const src = fs.readFileSync(path.join(__dirname, '../relayEngine.ts'), 'utf8');
+    expect(src).toContain('verifyMyKeyRegistered()');
+  });
+
+  it('la pantalla de diagnóstico la muestra', () => {
+    const src = fs.readFileSync(path.join(__dirname, '../../../app/debug/identity.tsx'), 'utf8');
+    expect(src).toContain('myKeyPresence()');
   });
 });

@@ -13,8 +13,8 @@ import { useGroupStore } from '@/src/store/groupStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { isRelayConfigured } from '@/src/sync/relay';
 import { ensureContactSecret, listPeers, peersIncompletos } from '@/src/sync/contactChannel';
-import { registerDeviceKey, fetchAccountKeys } from '@/src/sync/deviceKeys';
-import { unverifiedAuthors } from '@/src/sync/authorHealth';
+import { registerDeviceKey, fetchAccountKeys, myKeyPresence } from '@/src/sync/deviceKeys';
+import { unverifiedAuthors, authorStats } from '@/src/sync/authorHealth';
 import { blockingFailures } from '@/src/sync/publishHealth';
 import { clockOffsetMs, hasClockReference, clockIsOff } from '@/src/utils/syncedClock';
 import { ensureIdentity } from '@/src/store/identityStore';
@@ -55,6 +55,7 @@ export default function IdentityDebugScreen() {
   const bloqueantes = blockingFailures();
   const [directorio, setDirectorio] = React.useState<string>('—');
   const sinVerificar = unverifiedAuthors();
+  const stats = authorStats();
   const [misClaves, setMisClaves] = React.useState<string[]>([]);
 
   React.useEffect(() => {
@@ -114,6 +115,9 @@ export default function IdentityDebugScreen() {
 
         <Block title="DIRECTORIO DE CLAVES (ADR-004)" c={c}>
           <Row label="mi clave" value={directorio} c={c} warn={directorio !== 'registrada'} />
+          {/* Detectado al arrancar, sin sesion: la lectura del directorio es abierta. */}
+          <Row label="al arrancar figuraba" value={myKeyPresence()} c={c}
+               warn={myKeyPresence() === 'falta'} />
           <Row label="dispositivos de esta cuenta" value={String(misClaves.length)} c={c}
                warn={misClaves.length === 0} />
           <Row label="esta es" value={`${ensureIdentity().publicKey.slice(0, 12)}…`} c={c} />
@@ -123,6 +127,15 @@ export default function IdentityDebugScreen() {
             Cero sostenido con gente real ⇒ el borde de Apple no pega en la
             práctica. Distinto de cero ⇒ rechazar romperia a alguien legítimo.
           */}
+          {/*
+            Los tres juntos o ninguno. "Sin verificar: 0" solo no dice nada:
+            da cero tanto si todo verifico como si no se pudo consultar nada.
+            Solo significa algo al lado de un "verificados" distinto de cero.
+          */}
+          <Row label="sobres verificados" value={String(stats.ok)} c={c}
+               warn={stats.ok === 0 && stats.sin_directorio > 0} />
+          <Row label="no se pudo consultar" value={String(stats.sin_directorio)} c={c}
+               warn={stats.sin_directorio > 0} />
           <Row label="autores sin verificar" value={String(sinVerificar.length)} c={c}
                warn={sinVerificar.length > 0} />
           {sinVerificar.map(o => (

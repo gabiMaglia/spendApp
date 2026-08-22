@@ -1,5 +1,5 @@
 import {
-  checkAuthor, observeAuthor, unverifiedAuthors, clearAuthorObservations,
+  checkAuthor, observeAuthor, unverifiedAuthors, clearAuthorObservations, authorStats,
 } from '../authorHealth';
 
 const mockFetch = jest.fn(async (_accountId: string) => [] as string[]);
@@ -144,5 +144,41 @@ describe('está enchufado', () => {
 
   it('la pantalla de diagnóstico lo muestra', () => {
     expect(leer('../../../app/debug/identity.tsx')).toContain('unverifiedAuthors()');
+  });
+});
+
+/**
+ * El cero de `unverifiedAuthors` MIENTE POR OMISIÓN si se lo mira solo: da cero
+ * tanto si todo verificó como si no se pudo consultar nada. Estos contadores
+ * son lo que lo hace interpretable.
+ */
+describe('los contadores hacen interpretable el cero', () => {
+  it('un sobre que verifica suma a ok', async () => {
+    mockFetch.mockImplementation(async () => ['aa']);
+    await observeAuthor('g1', 'cuenta-ana', 'aa');
+    expect(authorStats()).toMatchObject({ ok: 1, sin_directorio: 0, clave_desconocida: 0 });
+  });
+
+  // El caso que hacía indistinguible al cero: nada verificado, nada sospechoso.
+  it('sin directorio, "sin verificar" queda en cero pero se ve por qué', async () => {
+    mockFetch.mockImplementation(async () => []);
+    await observeAuthor('g1', 'cuenta-ana', 'aa');
+    await observeAuthor('g1', 'cuenta-ana', 'bb');
+
+    expect(unverifiedAuthors()).toEqual([]);
+    expect(authorStats()).toMatchObject({ ok: 0, sin_directorio: 2 });
+  });
+
+  it('una clave desconocida suma a su propio contador', async () => {
+    mockFetch.mockImplementation(async () => ['aa']);
+    await observeAuthor('g1', 'cuenta-ana', 'zz');
+    expect(authorStats()).toMatchObject({ ok: 0, clave_desconocida: 1 });
+  });
+
+  // Un directorio que explota no puede desaparecer de la medición.
+  it('una excepción también se cuenta', async () => {
+    mockFetch.mockImplementation(async () => { throw new Error('boom'); });
+    await observeAuthor('g1', 'cuenta-ana', 'zz');
+    expect(authorStats()).toMatchObject({ sin_directorio: 1 });
   });
 });
