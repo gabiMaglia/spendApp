@@ -14,6 +14,7 @@ import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { isRelayConfigured } from '@/src/sync/relay';
 import { ensureContactSecret, listPeers, peersIncompletos } from '@/src/sync/contactChannel';
 import { registerDeviceKey, fetchAccountKeys } from '@/src/sync/deviceKeys';
+import { unverifiedAuthors } from '@/src/sync/authorHealth';
 import { blockingFailures } from '@/src/sync/publishHealth';
 import { clockOffsetMs, hasClockReference, clockIsOff } from '@/src/utils/syncedClock';
 import { ensureIdentity } from '@/src/store/identityStore';
@@ -53,6 +54,7 @@ export default function IdentityDebugScreen() {
   // "no pude registrar mi clave" se ven exactamente igual.
   const bloqueantes = blockingFailures();
   const [directorio, setDirectorio] = React.useState<string>('—');
+  const sinVerificar = unverifiedAuthors();
   const [misClaves, setMisClaves] = React.useState<string[]>([]);
 
   React.useEffect(() => {
@@ -115,6 +117,19 @@ export default function IdentityDebugScreen() {
           <Row label="dispositivos de esta cuenta" value={String(misClaves.length)} c={c}
                warn={misClaves.length === 0} />
           <Row label="esta es" value={`${ensureIdentity().publicKey.slice(0, 12)}…`} c={c} />
+          {/*
+            Fase B en modo AVISO: se cuenta lo que no verifica, no se descarta.
+            Este número es el que decide si algún día se puede pasar a rechazo.
+            Cero sostenido con gente real ⇒ el borde de Apple no pega en la
+            práctica. Distinto de cero ⇒ rechazar romperia a alguien legítimo.
+          */}
+          <Row label="autores sin verificar" value={String(sinVerificar.length)} c={c}
+               warn={sinVerificar.length > 0} />
+          {sinVerificar.map(o => (
+            <Text key={`${o.groupId}${o.senderKey}`} style={[Typography.bodyS, { color: c.textSecondary }]}>
+              {o.accountId.slice(0, 8)}… firmó con {o.senderKey.slice(0, 8)}… ×{o.count}
+            </Text>
+          ))}
         </Block>
 
         <Block title="RELOJ (ADR-005)" c={c}>
