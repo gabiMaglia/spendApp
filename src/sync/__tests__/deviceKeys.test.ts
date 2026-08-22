@@ -19,6 +19,12 @@ const estado = {
   errorSelect: false,
   upserts: [] as unknown[],
   signIn: null as { message: string } | null,
+  /** null = la funcion existe. Un objeto = el error que devuelve Supabase. */
+  errorRpc: null as { message: string } | null,
+  /** true = ni siquiera existe el metodo (cliente viejo). */
+  rpcExplota: false,
+  filasRpc: [] as { public_key: string }[],
+  rpcArgs: [] as unknown[],
 };
 
 jest.mock('../relay', () => ({
@@ -27,6 +33,13 @@ jest.mock('../relay', () => ({
       getSession: async () => ({ data: { session: estado.sesion ? { user: {} } : null } }),
       signInWithIdToken: async () => ({ error: estado.signIn }),
       signOut: async () => ({}),
+    },
+    rpc: async (nombre: string, args: unknown) => {
+      if (estado.rpcExplota) throw new TypeError('rpc no existe');
+      estado.rpcArgs.push([nombre, args]);
+      return estado.errorRpc
+        ? { data: null, error: estado.errorRpc }
+        : { data: estado.filasRpc, error: null };
     },
     from: () => ({
       upsert: async (fila: unknown) => { estado.upserts.push(fila); return { error: estado.errorUpsert }; },
@@ -46,6 +59,7 @@ beforeEach(() => {
   Object.assign(estado, {
     cliente: true, sesion: true, errorUpsert: null,
     filas: [], errorSelect: false, upserts: [], signIn: null,
+    errorRpc: null, rpcExplota: false, filasRpc: [], rpcArgs: [],
   });
 });
 
@@ -100,8 +114,10 @@ describe('nada de esto puede romper la app', () => {
 });
 
 describe('leer las claves de una cuenta', () => {
+  // El camino normal pasa por la función `account_keys` (ver 005). La consulta
+  // directa a la tabla quedó como respaldo y se prueba más abajo.
   it('devuelve las registradas', async () => {
-    estado.filas = [{ public_key: 'aa' }, { public_key: 'bb' }];
+    estado.filasRpc = [{ public_key: 'aa' }, { public_key: 'bb' }];
     expect(await fetchAccountKeys('cuenta-ana')).toEqual(['aa', 'bb']);
   });
 
@@ -117,6 +133,37 @@ describe('leer las claves de una cuenta', () => {
 
   it('sin relay configurado devuelve vacío', async () => {
     estado.cliente = false;
+    expect(await fetchAccountKeys('cuenta-ana')).toEqual([]);
+  });
+});
+
+describe('resolver claves por PERSONA, no por proveedor (005)', () => {
+  // El caso que motiva la migración: Google en un teléfono, Apple en el otro.
+  // Sin esto, la fase B rechazaría el segundo dispositivo de alguien legítimo.
+  it('usa la función y le pasa la cuenta', async () => {
+    estado.filasRpc = [{ public_key: 'aa' }, { public_key: 'bb' }];
+    expect(await fetchAccountKeys('cuenta-ana')).toEqual(['aa', 'bb']);
+    expect(estado.rpcArgs[0]).toEqual(['account_keys', { p_account_id: 'cuenta-ana' }]);
+  });
+
+  // La 005 se corre a mano: un cliente actualizado puede llegar antes que ella.
+  // Quedarse sin claves ahí se leería como "este sobre no verifica".
+  it('si la función todavía no existe cae a la consulta vieja', async () => {
+    estado.errorRpc = { message: 'function public.account_keys does not exist' };
+    estado.filas = [{ public_key: 'cc' }];
+    expect(await fetchAccountKeys('cuenta-ana')).toEqual(['cc']);
+  });
+
+  it('un cliente sin rpc tampoco rompe', async () => {
+    estado.rpcExplota = true;
+    estado.filas = [{ public_key: 'dd' }];
+    expect(await fetchAccountKeys('cuenta-ana')).toEqual(['dd']);
+  });
+
+  // Vacío tiene que seguir significando "no pude preguntar", nunca "rechazar".
+  it('si fallan los dos caminos devuelve vacío', async () => {
+    estado.rpcExplota = true;
+    estado.errorSelect = true;
     expect(await fetchAccountKeys('cuenta-ana')).toEqual([]);
   });
 });

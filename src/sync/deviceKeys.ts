@@ -80,6 +80,25 @@ export async function fetchAccountKeys(accountId: string): Promise<string[]> {
   const supabase = getRelayClient();
   if (!supabase || !accountId) return [];
 
+  const filas = (data: unknown): string[] =>
+    ((data ?? []) as { public_key: string }[]).map(r => r.public_key);
+
+  try {
+    // `account_keys` resuelve por PERSONA, no por proveedor: trae también los
+    // dispositivos que esa misma persona registró entrando por otro proveedor
+    // (ver supabase/005_claves_por_owner.sql). Es lo que evita que la fase B
+    // rechace el segundo teléfono de alguien legítimo.
+    const { data, error } = await supabase.rpc('account_keys', { p_account_id: accountId });
+    if (!error) return filas(data);
+
+    // La función todavía no existe en este proyecto: la migración 005 se corre
+    // a mano y un cliente actualizado puede llegar antes. Se cae a la consulta
+    // vieja —correcta, sólo más angosta— en vez de quedarse sin ninguna clave,
+    // que en fase B se leería como "este sobre no verifica".
+  } catch {
+    // La red se reintenta abajo; si también falla, vacío.
+  }
+
   try {
     // Con error, Supabase devuelve `data: null`, así que el `?? []` ya cubre
     // los dos casos. Un `if (error) return []` aparte sería una línea que
@@ -89,7 +108,7 @@ export async function fetchAccountKeys(accountId: string): Promise<string[]> {
       .select('public_key')
       .eq('account_id', accountId);
 
-    return (data ?? []).map(r => (r as { public_key: string }).public_key);
+    return filas(data);
   } catch {
     return [];
   }
