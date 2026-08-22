@@ -77,8 +77,24 @@ export async function registerDeviceKey(): Promise<RegisterResult> {
  * y nunca como "rechazar".
  */
 export async function fetchAccountKeys(accountId: string): Promise<string[]> {
+  return (await queryAccountKeys(accountId)).keys;
+}
+
+/**
+ * Igual que `fetchAccountKeys` pero distinguiendo **"no tiene ninguna"** de
+ * **"no pude preguntar"**.
+ *
+ * `fetchAccountKeys` colapsa los dos casos en `[]` a propósito, porque para
+ * verificar una firma dan lo mismo: sin claves no se verifica y punto. Pero
+ * para saber si MI clave falta la diferencia lo es todo — un corte de red no
+ * puede leerse como "tu clave no está registrada" y mandar al usuario a
+ * reloguearse al pedo.
+ */
+export type KeysQuery = { ok: boolean; keys: string[] };
+
+export async function queryAccountKeys(accountId: string): Promise<KeysQuery> {
   const supabase = getRelayClient();
-  if (!supabase || !accountId) return [];
+  if (!supabase || !accountId) return { ok: false, keys: [] };
 
   const filas = (data: unknown): string[] =>
     ((data ?? []) as { public_key: string }[]).map(r => r.public_key);
@@ -89,7 +105,7 @@ export async function fetchAccountKeys(accountId: string): Promise<string[]> {
     // (ver supabase/005_claves_por_owner.sql). Es lo que evita que la fase B
     // rechace el segundo teléfono de alguien legítimo.
     const { data, error } = await supabase.rpc('account_keys', { p_account_id: accountId });
-    if (!error) return filas(data);
+    if (!error) return { ok: true, keys: filas(data) };
 
     // La función todavía no existe en este proyecto: la migración 005 se corre
     // a mano y un cliente actualizado puede llegar antes. Se cae a la consulta
@@ -103,13 +119,63 @@ export async function fetchAccountKeys(accountId: string): Promise<string[]> {
     // Con error, Supabase devuelve `data: null`, así que el `?? []` ya cubre
     // los dos casos. Un `if (error) return []` aparte sería una línea que
     // ningún test puede distinguir de su ausencia.
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from(TABLE)
       .select('public_key')
       .eq('account_id', accountId);
 
-    return filas(data);
+    return error ? { ok: false, keys: [] } : { ok: true, keys: filas(data) };
   } catch {
-    return [];
+    return { ok: false, keys: [] };
   }
+}
+
+/**
+ * ¿La clave de ESTE dispositivo está en el directorio?
+ *
+ *  - `registrada` — está. Nada que hacer.
+ *  - `falta`      — el servidor contestó y NO está.
+ *  - `desconocido`— no se pudo preguntar. **No es lo mismo que `falta`** y no
+ *                   se le puede mostrar nada al usuario con esto.
+ */
+export type KeyPresence = 'registrada' | 'falta' | 'desconocido';
+
+let presencia: KeyPresence = 'desconocido';
+
+/** Último resultado conocido. Sin efectos: lo lee la UI. */
+export function myKeyPresence(): KeyPresence {
+  return presencia;
+}
+
+/**
+ * Comprueba al arrancar si esta clave quedó registrada.
+ *
+ * Existe por un agujero real: `registerDeviceKey` se llama **sólo en el login**
+ * (`app/auth/index.tsx`). Quien ya estuviera logueado cuando esto se publique
+ * nunca se registra, no tiene ningún motivo para desloguearse, y no hay nada en
+ * pantalla que se lo diga. Al encender el rechazo de la fase B, esa persona
+ * dejaría de sincronizar sin entender por qué.
+ *
+ * Leer el directorio NO necesita sesión —la política de select es abierta— así
+ * que esto se puede hacer en cada arranque, que es justamente donde no hay
+ * sesión de Supabase (`persistSession: false`).
+ *
+ * Sólo DETECTA. Registrar necesita un `id_token` fresco, y pedirlo en silencio
+ * al arrancar sería un login encubierto: la decisión de reloguearse es del
+ * usuario, y para eso hay que avisarle.
+ */
+export async function verifyMyKeyRegistered(): Promise<KeyPresence> {
+  const accountId = useAuthStore.getState().currentUser?.id;
+  if (!accountId) {
+    presencia = 'desconocido';
+    return presencia;
+  }
+
+  const r = await queryAccountKeys(accountId);
+  // Sin respuesta del servidor no se concluye nada. Tratar un corte de red como
+  // "te falta la clave" mandaría al usuario a reloguearse sin necesidad.
+  presencia = !r.ok
+    ? 'desconocido'
+    : r.keys.includes(ensureIdentity().publicKey) ? 'registrada' : 'falta';
+  return presencia;
 }

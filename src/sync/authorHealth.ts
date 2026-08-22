@@ -48,6 +48,22 @@ const cache = new Map<string, { keys: string[]; at: number }>();
 const sospechas = new Map<string, AuthorObservation>();
 
 /**
+ * Cuántos sobres cayeron en cada veredicto.
+ *
+ * Hace falta porque `unverifiedAuthors()` sola MIENTE por omisión: da cero
+ * tanto si todo verificó como si no se pudo consultar nada, que son
+ * conclusiones opuestas. Un cero sólo significa algo al lado de un `ok`
+ * distinto de cero.
+ */
+const conteo: Record<AuthorVerdict, number> = {
+  ok: 0, clave_desconocida: 0, sin_directorio: 0,
+};
+
+export function authorStats(): Record<AuthorVerdict, number> {
+  return { ...conteo };
+}
+
+/**
  * Claves de una cuenta, con caché.
  *
  * Un vacío NO se cachea a propósito: no se puede distinguir "no tiene claves"
@@ -88,9 +104,13 @@ export async function observeAuthor(
   try {
     verdict = await checkAuthor(accountId, senderKey);
   } catch {
-    return 'sin_directorio'; // observar no puede romper el sync, nunca
+    // Observar no puede romper el sync, nunca. Pero tiene que CONTARSE: si no,
+    // un directorio que explota se vuelve invisible en la medición.
+    conteo.sin_directorio++;
+    return 'sin_directorio';
   }
 
+  conteo[verdict]++;
   if (verdict !== 'clave_desconocida') return verdict;
 
   const clave = `${groupId}::${accountId}::${senderKey}`;
@@ -111,4 +131,7 @@ export function unverifiedAuthors(): AuthorObservation[] {
 export function clearAuthorObservations(): void {
   sospechas.clear();
   cache.clear();
+  conteo.ok = 0;
+  conteo.clave_desconocida = 0;
+  conteo.sin_directorio = 0;
 }

@@ -12,6 +12,7 @@ import { applyApprovedLeaves } from '@/src/services/applyLeave';
 import { fromHex } from './envelopeCrypto';
 import { deriveInviteTopic, type GroupInvite } from './groupInvite';
 import { activeInvites, processInvite, processAllInvites } from './inviteEngine';
+import { verifyMyKeyRegistered } from './deviceKeys';
 import {
   ensureContactSecret, deriveContactTopic, drainContacts, sendGroupKey,
   announceContact, listPeers, myContactCard, cardFingerprint,
@@ -210,6 +211,10 @@ async function doStartRelay(): Promise<void> {
   await subscribeInvites();
   await subscribeContacts();
   await anunciarMiTarjeta();
+
+  // ¿Quedó registrada la clave de este aparato? Sólo se detecta; registrarla
+  // necesita un login, y esa decisión es del usuario (ver deviceKeys).
+  void verifyMyKeyRegistered();
   await drainContactsNow();
   await drainAll(); // al arrancar, lo encolado mientras estuvimos afuera
 
