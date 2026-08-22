@@ -1,6 +1,10 @@
 import {
   checkAuthor, observeAuthor, unverifiedAuthors, clearAuthorObservations, authorStats,
 } from '../authorHealth';
+import { createSecureStorage } from '@/src/utils/secureStorage';
+import { readScoped, writeScoped } from '@/src/store/userScope';
+import { useAuthStore } from '@/src/store/authStore';
+import type { User } from '@/src/types/models';
 
 const mockFetch = jest.fn(async (_accountId: string) => [] as string[]);
 jest.mock('../deviceKeys', () => ({
@@ -8,6 +12,9 @@ jest.mock('../deviceKeys', () => ({
 }));
 
 beforeEach(() => {
+  // Sin cuenta activa el storage scopeado no escribe nada y la persistencia
+  // quedaría sin probar.
+  useAuthStore.setState({ currentUser: { id: 'yo' } as User });
   clearAuthorObservations();
   mockFetch.mockReset();
   mockFetch.mockImplementation(async () => []);
@@ -180,5 +187,85 @@ describe('los contadores hacen interpretable el cero', () => {
     mockFetch.mockImplementation(async () => { throw new Error('boom'); });
     await observeAuthor('g1', 'cuenta-ana', 'zz');
     expect(authorStats()).toMatchObject({ sin_directorio: 1 });
+  });
+});
+
+/**
+ * La pregunta que esta medición responde —"¿cuántos sobres legítimos
+ * rechazaríamos si encendiéramos el rechazo?"— sólo se contesta acumulando días
+ * de uso real. En memoria se reseteaba en cada arranque y el número vivía
+ * siempre cerca de cero: la lectura equivocada que todo esto trata de evitar.
+ */
+describe('la medición sobrevive al reinicio', () => {
+  const storage = createSecureStorage('users');
+  const K = 'author_health_v1';
+
+  /**
+   * El caso NORMAL en producción es que todo verifique. Si sólo se guardara al
+   * encontrar algo sospechoso, el contador de verificados se resetearía en cada
+   * arranque y nadie lo notaría: la fase B se quedaría sin la única evidencia
+   * que justifica encender el rechazo.
+   */
+  it('un ok solo, sin nada sospechoso, también se guarda', async () => {
+    mockFetch.mockImplementation(async () => ['aa']);
+    await observeAuthor('g1', 'cuenta-ana', 'aa');
+
+    expect(JSON.parse(readScoped(storage, K)!).conteo).toMatchObject({ ok: 1 });
+  });
+
+  // Lo mismo para el veredicto que no acusa a nadie pero sí explica el cero.
+  it('un sin_directorio solo también se guarda', async () => {
+    mockFetch.mockImplementation(async () => []);
+    await observeAuthor('g1', 'cuenta-ana', 'aa');
+
+    expect(JSON.parse(readScoped(storage, K)!).conteo).toMatchObject({ sin_directorio: 1 });
+  });
+
+  it('lo observado queda escrito en disco', async () => {
+    mockFetch.mockImplementation(async () => ['aa']);
+    await observeAuthor('g1', 'cuenta-ana', 'aa');
+    await observeAuthor('g1', 'cuenta-ana', 'zz');
+
+    const guardado = JSON.parse(readScoped(storage, K)!);
+    expect(guardado.conteo).toMatchObject({ ok: 1, clave_desconocida: 1 });
+    expect(guardado.sospechas).toHaveLength(1);
+    expect(guardado.sospechas[0]).toMatchObject({ senderKey: 'zz', count: 1 });
+  });
+
+  // Lo de arriba al revés: lo que quedó de sesiones anteriores se levanta.
+  it('lo de sesiones anteriores se levanta al abrir', () => {
+    clearAuthorObservations(); // deja el módulo como recién arrancado
+    writeScoped(storage, K, JSON.stringify({
+      conteo: { ok: 40, clave_desconocida: 2, sin_directorio: 5 },
+      sospechas: [{ groupId: 'g9', accountId: 'c9', senderKey: 'k9', at: 1, count: 7 }],
+    }));
+
+    expect(authorStats()).toMatchObject({ ok: 40, clave_desconocida: 2, sin_directorio: 5 });
+    expect(unverifiedAuthors()[0]).toMatchObject({ senderKey: 'k9', count: 7 });
+  });
+
+  it('lo que ya venía se sigue sumando, no se pisa', async () => {
+    clearAuthorObservations();
+    writeScoped(storage, K, JSON.stringify({ conteo: { ok: 10 }, sospechas: [] }));
+
+    mockFetch.mockImplementation(async () => ['aa']);
+    await observeAuthor('g1', 'cuenta-ana', 'aa');
+
+    expect(authorStats()).toMatchObject({ ok: 11 });
+  });
+
+  // Un JSON mal escrito no puede tumbar el sync: se arranca de cero y listo.
+  it('un dato corrupto no rompe nada', () => {
+    clearAuthorObservations();
+    writeScoped(storage, K, 'no-es-json');
+    expect(authorStats()).toMatchObject({ ok: 0 });
+    expect(unverifiedAuthors()).toEqual([]);
+  });
+
+  it('limpiar borra también lo persistido', async () => {
+    mockFetch.mockImplementation(async () => ['aa']);
+    await observeAuthor('g1', 'cuenta-ana', 'zz');
+    clearAuthorObservations();
+    expect(readScoped(storage, K)).toBeFalsy();
   });
 });
