@@ -12,6 +12,8 @@ import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuthStore } from '@/src/store/authStore';
+import { useUserStore } from '@/src/store/userStore';
+import { anunciarMiTarjeta } from '@/src/sync/relayEngine';
 import { useThemeStore } from '@/src/store/themeStore';
 import { useLangStore, type LanguageChoice } from '@/src/store/langStore';
 import { SUPPORTED_LANGUAGES } from '@/src/i18n';
@@ -47,7 +49,21 @@ export default function UserScreen() {
   function handleSaveName() {
     const clean = sanitizeUserName(draftName);
     if (!clean || !currentUser) return;
-    useAuthStore.getState().setUser({ ...currentUser, name: clean, updatedAt: syncedNow() });
+    const actualizado = { ...currentUser, name: clean, updatedAt: syncedNow() };
+    useAuthStore.getState().setUser(actualizado);
+
+    // El nombre vive en DOS lados: authStore (quién soy) y userStore (la lista
+    // de contactos, que es lo que leen las pantallas Y lo que arma el delta de
+    // sync). setUser sólo toca el primero, y la re-hidratación que los alinea
+    // corre únicamente al CAMBIAR de cuenta — no al renombrarse. Sin esta
+    // línea el nombre viejo queda pegado hasta el próximo login, tanto en las
+    // listas propias como en lo que ven los demás.
+    useUserStore.getState().addOrUpdateUser(actualizado);
+
+    // A los contactos con los que no comparto ningún grupo el nombre sólo les
+    // llega por el canal de contactos: el delta de grupo nunca los alcanza.
+    void anunciarMiTarjeta();
+
     setEditingName(false);
   }
 

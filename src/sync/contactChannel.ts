@@ -375,6 +375,7 @@ function parseMessage(plain: string | null): ChannelMessage | null {
 // vernos la cara — y, sobre todo, verificar que lo que llega es realmente suyo.
 
 const K_PEERS = 'contact_peers_v1';
+const K_CARD_SENT = 'card_sent_v1';
 
 export type PeerInfo = {
   secret: string;
@@ -430,6 +431,43 @@ function limpiar(info: PeerInfo): PeerInfo {
   return Object.fromEntries(
     Object.entries(info).filter(([, v]) => Boolean(v)),
   ) as PeerInfo;
+}
+
+/**
+ * Huella de lo que al otro lado le importa de mi tarjeta.
+ *
+ * `sentAt` y `contactSecret` quedan AFUERA a propósito: el primero cambia en
+ * cada llamada y haría que todo arranque pareciera un cambio, que es justo lo
+ * que esto evita.
+ */
+export function cardFingerprint(card: ContactCard): string {
+  return [card.userId, card.name, card.email, card.wrapPublicKey, card.identityPublicKey].join('|');
+}
+
+function tarjetasEnviadas(): Record<string, string> {
+  const raw = readScoped(storage, K_CARD_SENT);
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw) as Record<string, string>;
+  } catch {
+    return {}; // dato corrupto: se reenvía de más, nunca de menos
+  }
+}
+
+/** ¿Este contacto ya tiene ESTA versión de mi tarjeta? */
+export function cardYaEnviada(userId: string, huella: string): boolean {
+  return tarjetasEnviadas()[userId] === huella;
+}
+
+/**
+ * Se marca SÓLO cuando el envío salió bien. Es lo que hace que un fallo de red
+ * se reintente al próximo arranque en vez de perderse: el modo de falla que
+ * teníamos era exactamente ese, y en silencio.
+ */
+export function marcarCardEnviada(userId: string, huella: string): void {
+  const todas = tarjetasEnviadas();
+  todas[userId] = huella;
+  writeScoped(storage, K_CARD_SENT, JSON.stringify(todas));
 }
 
 export function listPeers(): Record<string, PeerInfo> {
