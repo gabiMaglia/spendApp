@@ -4,6 +4,7 @@ import { sendEnvelope, fetchSince } from './relay';
 import { groupKeyBytes, useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { ensureIdentity } from '@/src/store/identityStore';
 import { signEnvelope, verifyEnvelope } from './envelopeSign';
+import { observeAuthor } from './authorHealth';
 
 /**
  * Sync por el relay: arma el sobre cifrado, lo publica y aplica lo que llega.
@@ -143,11 +144,26 @@ export async function drainGroup(
     const plain = openEnvelope(key, firmado.sealed);
     if (plain === null) { skipped++; continue; }
 
+    let delta: SyncDelta;
     try {
-      applyDelta(JSON.parse(plain) as SyncDelta, currentUserId);
-      applied++;
+      delta = JSON.parse(plain) as SyncDelta;
     } catch {
       // Descifró pero el JSON no era un delta válido: se saltea igual.
+      skipped++;
+      continue;
+    }
+
+    // 3. Autoría (ADR-004 fase B) — en modo AVISO. La firma prueba que quien
+    // mandó tiene la privada de SU dispositivo; esto mira si ese dispositivo
+    // está registrado bajo la cuenta que el delta dice ser. Va sin `await` a
+    // propósito: es observación, y no puede meterse en el camino del sync ni
+    // agregarle la latencia de una consulta por sobre.
+    void observeAuthor(groupId, delta.fromUserId, firmado.senderKey);
+
+    try {
+      applyDelta(delta, currentUserId);
+      applied++;
+    } catch {
       skipped++;
     }
   }
