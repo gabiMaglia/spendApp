@@ -283,7 +283,9 @@ export default function AccountScreen() {
             </View>
             <View style={[styles.statDivider, { backgroundColor: c.borderHair }]} />
             <View style={styles.stat}>
-              <Text style={[Typography.caption, { color: c.textTertiary }]}>{t('dashboard.groups_balance')}</Text>
+              {/* Etiqueta propia: `groups_balance` ya titula la tarjeta entera
+                  y repetirla acá no decía qué era este número. */}
+              <Text style={[Typography.caption, { color: c.textTertiary }]}>{t('dashboard.groups_count_label')}</Text>
               <Text testID="groups-count" style={[Typography.amountM, { color: c.text }]}>
                 {misGrupos.length === 1
                   ? t('dashboard.groups_count_one')

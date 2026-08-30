@@ -110,8 +110,9 @@
     "set_budget": "Set budget →",
     "groups_balance": "Groups · Balance",
     "net": "Net",
-    "groups_count": "{{count}} groups",
-    "groups_count_one": "1 group"
+    "groups_count": "{{count}} GROUPS",
+    "groups_count_one": "1 GROUP",
+    "groups_count_label": "Number of groups"
   },
   "groups": {
     "title": "Groups",

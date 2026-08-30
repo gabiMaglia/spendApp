@@ -110,8 +110,9 @@
     "set_budget": "Configurar presupuesto →",
     "groups_balance": "Grupos · Balance",
     "net": "Neto",
-    "groups_count": "{{count}} grupos",
-    "groups_count_one": "1 grupo"
+    "groups_count": "{{count}} GRUPOS",
+    "groups_count_one": "1 GRUPO",
+    "groups_count_label": "Cantidad de grupos"
   },
   "groups": {
     "title": "Grupos",

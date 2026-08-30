@@ -110,8 +110,9 @@
     "set_budget": "Definir orçamento →",
     "groups_balance": "Grupos · Saldo",
     "net": "Líquido",
-    "groups_count": "{{count}} grupos",
-    "groups_count_one": "1 grupo"
+    "groups_count": "{{count}} GRUPOS",
+    "groups_count_one": "1 GRUPO",
+    "groups_count_label": "Quantidade de grupos"
   },
   "groups": {
     "title": "Grupos",
