@@ -55,6 +55,17 @@ export default function GroupDetailScreen() {
   const group        = useGroupStore(s => s.groups.find(g => g.id === id));
   const updateGroup  = useGroupStore(s => s.updateGroup);
   const allExpenses  = useExpenseStore(s => s.expenses);
+
+  /**
+   * ¿Hay algo que saldar? Sin un solo gasto no hay deuda posible, y ofrecer
+   * "saldar" en un grupo vacío manda a una pantalla que no puede hacer nada.
+   * Los borrados no cuentan: un grupo cuyo único gasto se borró vuelve a estar
+   * vacío.
+   */
+  const tieneGastos = useMemo(
+    () => allExpenses.some(e => e.groupId === id && !e.isDeleted),
+    [allExpenses, id],
+  );
   const allPayments  = usePaymentStore(s => s.payments);
   const { getUserName, addOrUpdateUser } = useUserStore();
   const allUsers = useUserStore(s => s.users);
@@ -392,6 +403,7 @@ export default function GroupDetailScreen() {
           — se pisaban. */}
       {group && currentUser && group.memberIds.includes(currentUser.id) && (
         <FabRow>
+          {tieneGastos && (
           <Fab
             testID="settle-debts"
             variant="secondary"
@@ -406,6 +418,7 @@ export default function GroupDetailScreen() {
             iconColor={c.brand.primary}
             textColor={c.brand.primary}
           />
+          )}
           <Fab
             testID="add-expense"
             icon="add"
