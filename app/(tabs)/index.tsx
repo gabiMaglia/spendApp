@@ -121,7 +121,7 @@ export default function AccountScreen() {
 
         {/* Header */}
         <View style={styles.header}>
-          {/* El avatar lleva al perfil "Yo" (decisión PO). */}
+          {/* El avatar lleva al perfil "Yo" (decisión PO). No se mueve de acá. */}
           <Pressable
             onPress={() => { hapticLight(); router.push('/(tabs)/user' as any); }}
             hitSlop={8}
@@ -134,19 +134,9 @@ export default function AccountScreen() {
               size={36}
             />
           </Pressable>
-        </View>
 
-        {/* Greeting */}
-        <View style={[styles.greeting, { flexDirection: 'row', alignItems: 'flex-start' }]}>
-          <View style={{ flex: 1, gap: 2 }}>
-            <Text style={[Typography.bodyM, { color: c.textSecondary }]}>
-              {t('dashboard.greeting', { name: firstName })}
-            </Text>
-            <Text style={[Typography.display, { color: c.text }]}>
-              {t('dashboard.title')}
-            </Text>
-          </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          {/* Campana y selector de moneda a la altura del avatar (T-050), mismo tamaño visual. */}
+          <View style={styles.headerControls}>
             <NoticeBell unread={sinLeer} onPress={() => setBandeja(true)} />
             <Pressable
               accessibilityRole="button"
@@ -161,6 +151,16 @@ export default function AccountScreen() {
               </Text>
             </Pressable>
           </View>
+        </View>
+
+        {/* Greeting */}
+        <View style={styles.greeting}>
+          <Text style={[Typography.bodyM, { color: c.textSecondary }]}>
+            {t('dashboard.greeting', { name: firstName })}
+          </Text>
+          <Text style={[Typography.display, { color: c.text }]}>
+            {t('dashboard.title')}
+          </Text>
         </View>
 
         <CurrencySheet
@@ -347,11 +347,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: Spacing.screenPad, paddingBottom: Spacing[3],
   },
+  // Campana + selector de moneda, agrupados a la altura del avatar (T-050).
+  headerControls: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   greeting:  { paddingHorizontal: Spacing.screenPad, marginBottom: Spacing[5], gap: 2 },
   // El código de moneda entra en 3 letras; el círculo se dimensiona para la
   // más ancha y no cambia de tamaño al elegir otra.
+  // Mismo diámetro que el avatar (36) para que los 3 controles del header
+  // se vean del mismo tamaño (T-050).
   currencyBtn: {
-    width: 34, height: 34, borderRadius: 17, borderWidth: 1,
+    width: 36, height: 36, borderRadius: 18, borderWidth: 1,
     alignItems: 'center', justifyContent: 'center',
   },
   card:        {

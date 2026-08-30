@@ -44,7 +44,9 @@ export function NoticeBell({ unread, onPress }: { unread: number; onPress: () =>
 }
 
 const styles = StyleSheet.create({
-  root:      { padding: 4 },
+  // Mismo footprint que el avatar y el selector de moneda (36) para que los
+  // 3 controles del header queden del mismo tamaño visual (T-050).
+  root:      { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   badge: {
     position: 'absolute', top: 0, right: 0,
     minWidth: 16, height: 16, borderRadius: 8,
