@@ -11,6 +11,7 @@ import { Colors } from '@/src/constants/colors';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { ActionButton } from '@/src/components/ActionButton';
 import { Typography } from '@/src/constants/typography';
+import { topeDelSaldo, excedeElTope } from '@/src/algorithms/settleScope';
 import { formatMoney } from '@/src/constants/currencies';
 import type { CurrencyCode } from '@/src/constants/currencies';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -176,7 +177,16 @@ export default function SettleNewScreen() {
       : t('settle.hint_owes', { amount: formatMoney(Math.abs(saldo), currency) });
   }
 
-  const exceedsMax  = maxAmount !== undefined && amount > maxAmount;
+  /**
+   * El techo real: lo que se debe EN ESTE grupo, nunca más.
+   *
+   * Antes se validaba contra `maxAmount`, que viniendo de Contactos es el neto
+   * GLOBAL entre las dos personas. El monto hablaba de todos los grupos y el
+   * pago se registraba en uno solo: así se corrompieron los saldos del PO
+   * (T-051). Ahora monto y alcance hablan de lo mismo.
+   */
+  const tope       = topeDelSaldo(deudaTotal, maxAmount);
+  const exceedsMax = excedeElTope(amount, tope);
   const canSave     = amount > 0 && !exceedsMax && fromId.length > 0 && toId.length > 0 && fromId !== toId && groupId.length > 0;
 
   function handleGroupChange(id: string) {
@@ -280,7 +290,7 @@ export default function SettleNewScreen() {
                   variant={yaEsElTotal ? 'secondary' : 'ghost'}
                   label={t('settle.max')}
                   accessibilityLabel={t('settle.max_a11y')}
-                  action={() => { hapticSelection(); setAmountMinor(deudaTotal); }}
+                  action={() => { hapticSelection(); setAmountMinor(tope); }}
                 />
               </View>
             )}
