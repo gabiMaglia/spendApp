@@ -27,8 +27,7 @@ import { startRelay, announceGroupToContacts } from '@/src/sync/relayEngine';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { BalancePill } from '@/src/components/BalancePill';
 import { BottomSheet, SheetOption, SheetOptionAvatar } from '@/src/components/Sheet';
-import { ActionButton } from '@/src/components/ActionButton';
-import { ButtonRack } from '@/src/components/ButtonRack';
+import { Fab, FabRow } from '@/src/components/Fab';
 import { canLeaveGroup } from '@/src/algorithms/canLeaveGroup';
 import { approvalProgress } from '@/src/algorithms/leaveRequest';
 import { applyApprovedLeaves } from '@/src/services/applyLeave';
@@ -387,32 +386,37 @@ export default function GroupDetailScreen() {
       {/* Botonera fija abajo: la acción principal de la pantalla no puede
           depender de cuánto scrolleaste. Margen inferior de 24 pedido por el
           PO, sobre el padding lateral de siempre. */}
-      {/* Antes "agregar gasto" era un FAB flotante en bottom:24 y "saldar" una
-          barra abajo: se pisaban. Ahora conviven en la misma botonera, con la
-          jerarquía explícita — primary lo que se hace todos los días,
-          secondary lo ocasional. */}
+      {/* Botonera flotante, el patrón de Personal: el secundario a la
+          izquierda y el primario a la derecha, donde cae el pulgar. Antes
+          "agregar gasto" era un FAB propio y "saldar" una barra pegada abajo
+          — se pisaban. */}
       {group && currentUser && group.memberIds.includes(currentUser.id) && (
-        <ButtonRack direction="row">
-          <ActionButton
-            testID="add-expense"
-            icon="add"
-            label={t('group_detail.add_expense')}
-            action={() => {
-              hapticLight();
-              router.push({ pathname: '/expense/new', params: { groupId: id } } as any);
-            }}
-          />
-          <ActionButton
+        <FabRow>
+          <Fab
             testID="settle-debts"
-            icon="swap-horizontal-outline"
             variant="secondary"
+            icon="swap-horizontal-outline"
             label={t('group_detail.settle_debts')}
-            action={() => {
+            onPress={() => {
               hapticLight();
               router.push(`/settle/new?groupId=${group.id}` as any);
             }}
+            backgroundColor={c.surface}
+            borderColor={c.brand.primary + '44'}
+            iconColor={c.brand.primary}
+            textColor={c.brand.primary}
           />
-        </ButtonRack>
+          <Fab
+            testID="add-expense"
+            icon="add"
+            label={t('group_detail.add_expense')}
+            onPress={() => {
+              hapticLight();
+              router.push({ pathname: '/expense/new', params: { groupId: id } } as any);
+            }}
+            backgroundColor={c.brand.primary}
+          />
+        </FabRow>
       )}
 
       {/* Menú de los 3 puntos */}

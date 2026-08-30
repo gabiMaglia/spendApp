@@ -5,12 +5,13 @@ import { Spacing } from '@/src/constants/spacing';
 export interface ButtonRackProps {
   children: React.ReactNode;
   /**
-   * `bottom` (default) pega la botonera al pie de la pantalla, con el padding
-   * lateral de siempre y **24 de margen inferior** — la regla del PO para toda
-   * pantalla con botonera abajo. Va FUERA del ScrollView: la acción principal
-   * no puede depender de cuánto scrolleaste.
+   * `inline` (default) para racks dentro del contenido.
    *
-   * `inline` es para racks que viven dentro del contenido.
+   * **Para la botonera del pie NO se usa esto: se usa `FabRow` + `Fab`**
+   * (decisión del PO, 2026-08-30 — "todas las botoneras del bottom van a ser
+   * el fab flotante"). Ese patrón ya resuelve la posición flotante, el orden
+   * secundario→primario y el margen inferior. `bottom` queda sólo para racks
+   * anclados que no floten, y no debería hacer falta.
    */
   placement?: 'bottom' | 'inline';
   /** `column` (default) apila; `row` reparte en la misma línea. */
