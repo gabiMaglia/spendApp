@@ -3,15 +3,18 @@
   "main": "expo-router/entry",
   "version": "1.0.0",
   "scripts": {
-    "start": "expo start",
+    "start": "expo start --dev-client",
+    "start:tunnel": "expo start --dev-client --tunnel",
+    "android": "ANDROID_HOME=${ANDROID_HOME:-$HOME/Library/Android/sdk} expo run:android --no-bundler",
+    "ios": "LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 expo run:ios --no-bundler",
+    "ios:eas": "eas build --profile development --platform ios",
+    "devices": "${ANDROID_HOME:-$HOME/Library/Android/sdk}/platform-tools/adb devices",
     "reset-project": "node ./scripts/reset-project.js",
-    "android": "expo run:android",
-    "ios": "expo run:ios",
-    "web": "expo start --web",
     "lint": "expo lint",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage"
+    "test:coverage": "jest --coverage",
+    "web": "expo start --web"
   },
   "jest": {
     "preset": "jest-expo",
