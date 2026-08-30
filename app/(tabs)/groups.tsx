@@ -17,6 +17,8 @@ import { useGroupStore } from '@/src/store/groupStore';
 import { useArchiveStore } from '@/src/store/archiveStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useGroupBalance, useGroupExpenseCount, useGroupsTotalBalance } from '@/src/store/selectors';
+import { useFx } from '@/src/store/useFx';
+import { sumConverted } from '@/src/services/fxTotals';
 import { hueForUser } from '@/src/utils/hueForUser';
 import { GroupCard } from '@/src/components/GroupCard';
 import { SwipeToArchive } from '@/src/components/SwipeToArchive';
@@ -34,9 +36,17 @@ export default function GroupsScreen() {
   const setArchived = useArchiveStore(s => s.setArchived);
   const groupTotals = useGroupsTotalBalance(currentUser?.id ?? '');
 
-  const arsTotals = groupTotals.find(t => t.currency === 'ARS');
-  const owedToYou = arsTotals?.owedToYou ?? 0;
-  const youOwe    = arsTotals?.youOwe    ?? 0;
+  // Buscaba LITERALMENTE la fila 'ARS' y caía a 0 con `?? 0` cuando no
+  // existía: un grupo en reales daba 0 en los dos marcadores, siempre.
+  const { fx, display: cur } = useFx();
+  const deben = sumConverted(
+    groupTotals.map(t => ({ currency: t.currency, minor: t.owedToYou })), cur, fx,
+  );
+  const debo = sumConverted(
+    groupTotals.map(t => ({ currency: t.currency, minor: t.youOwe })), cur, fx,
+  );
+  const owedToYou = deben.totalMinor;
+  const youOwe    = debo.totalMinor;
 
   const myGroups = useMemo(
     () => allGroups.filter(g => !g.isDeleted && (!currentUser || g.memberIds.includes(currentUser.id))),
@@ -78,7 +88,7 @@ export default function GroupsScreen() {
                   Te deben
                 </Text>
                 <Text style={[Typography.amountM, { color: c.semantic.positive, marginTop: 2 }]}>
-                  {formatMoney(owedToYou, 'ARS')}
+                  {formatMoney(owedToYou, cur)}
                 </Text>
               </View>
               <View style={[styles.summaryDivider, { backgroundColor: c.borderHair }]} />
@@ -87,7 +97,7 @@ export default function GroupsScreen() {
                   Debés
                 </Text>
                 <Text style={[Typography.amountM, { color: c.semantic.negative, marginTop: 2 }]}>
-                  {formatMoney(youOwe, 'ARS')}
+                  {formatMoney(youOwe, cur)}
                 </Text>
               </View>
               <View style={[styles.summaryDivider, { backgroundColor: c.borderHair }]} />
