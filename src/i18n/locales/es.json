@@ -146,7 +146,13 @@
     "archive": "Archivar",
     "unarchive": "Restaurar",
     "empty_archived_title": "Nada archivado",
-    "empty_archived_body": "Deslizá un grupo hacia la izquierda para sacarlo de la lista principal. No se borra: sus gastos y saldos quedan intactos."
+    "empty_archived_body": "Deslizá un grupo hacia la izquierda para sacarlo de la lista principal. No se borra: sus gastos y saldos quedan intactos.",
+    "deletion_label": "BORRAR GASTOS",
+    "deletion_consensus": "Con acuerdo",
+    "deletion_consensus_hint": "Para borrar un gasto ajeno hay que pedirlo. Los demás tienen 72hs para objetar. Quien lo cargó puede borrarlo sin esperar.",
+    "deletion_open": "Libre",
+    "deletion_open_hint": "Cualquiera del grupo borra al instante, y cualquiera puede restaurarlo desde Actividad.",
+    "deletion_fixed": "Se elige ahora y no cambia después."
   },
   "group_detail": {
     "your_balance": "Tu balance acá",
@@ -296,7 +302,8 @@
     "time_hours": "{{count}} hora",
     "time_hours_plural": "{{count}} horas",
     "time_minutes": "{{count}} minuto",
-    "time_minutes_plural": "{{count}} minutos"
+    "time_minutes_plural": "{{count}} minutos",
+    "delete_body_open": "Se borra ahora. Cualquiera del grupo puede restaurarlo desde Actividad."
   },
   "settle": {
     "title": "Registrar pago",

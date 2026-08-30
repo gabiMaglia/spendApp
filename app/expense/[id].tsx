@@ -16,6 +16,8 @@ import { Typography } from '@/src/constants/typography';
 import { formatMoney } from '@/src/constants/currencies';
 import { MoneyText } from '@/src/components/MoneyText';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useGroupStore } from '@/src/store/groupStore';
+import { borraAlInstante, deletionModeOf } from '@/src/algorithms/deletionPolicy';
 import { useAuthStore } from '@/src/store/authStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { useUserStore } from '@/src/store/userStore';
@@ -88,6 +90,20 @@ export default function ExpenseDetailScreen() {
 
   const isCreator = expense.createdById === currentUser?.id;
 
+  // En un grupo de borrado LIBRE (elegido al crearlo) cualquier miembro borra
+  // al instante, igual que Splitwise: la defensa no es impedir sino que quede
+  // visible en Actividad y se pueda restaurar de un toque. En un grupo con
+  // acuerdo sigue mandando la regla #2 y sólo el creador del gasto fuerza.
+  const groups = useGroupStore(st => st.groups);
+  const grupoDelGasto = groups.find(g => g.id === expense.groupId);
+  // Si el grupo no se puede resolver (todavía no sincronizó, dato a medias) se
+  // cae al comportamiento de siempre —el creador manda— y NO al más
+  // restrictivo: quitarle el override al creador por no encontrar el grupo
+  // sería una regresión silenciosa. Lo atrapó `expenseDetail.test.tsx`.
+  const borradoDirecto = !currentUser ? false
+    : grupoDelGasto ? borraAlInstante(grupoDelGasto, currentUser.id, expense.createdById)
+    : isCreator;
+
   function handleAddComment(text: string) {
     if (!currentUser || !id) return;
     const now = syncedNow();
@@ -126,7 +142,7 @@ export default function ExpenseDetailScreen() {
     });
   }
 
-  /** Sólo el creador. Se borra ya, sin ventana para objetar. */
+  /** Se borra ya, sin ventana para objetar: creador, o grupo de borrado libre. */
   function forzarBorrado() {
     if (!currentUser || !expense) return;
     updateExpense(expense.id, {
@@ -142,6 +158,21 @@ export default function ExpenseDetailScreen() {
   function handleRequestDelete() {
     if (!currentUser || !expense) return;
     hapticWarning();
+
+    // En un grupo de borrado LIBRE no hay ronda que abrir: se borra y listo,
+    // con restaurar como contraparte. Ofrecer "pedir el borrado" ahí sería
+    // ofrecer un trámite que ese grupo decidió no tener.
+    if (grupoDelGasto && deletionModeOf(grupoDelGasto) === 'open') {
+      Alert.alert(
+        t('expense.delete_title'),
+        t('expense.delete_body_open'),
+        [
+          { text: t('common.cancel'), style: 'cancel' as const },
+          { text: t('expense.delete_expense'), style: 'destructive' as const, onPress: forzarBorrado },
+        ],
+      );
+      return;
+    }
 
     // El creador elige: pedirlo y esperar, o forzarlo. Los demás sólo pueden
     // pedirlo (regla de negocio #2).
@@ -392,7 +423,7 @@ export default function ExpenseDetailScreen() {
               >
                 <Ionicons name="trash-outline" size={16} color={c.semantic.negative} />
                 <Text style={[Typography.bodyM, { color: c.semantic.negative, fontWeight: '600' }]}>
-                  {isCreator ? t('expense.delete_expense') : t('expense.request_delete')}
+                  {borradoDirecto ? t('expense.delete_expense') : t('expense.request_delete')}
                 </Text>
               </Pressable>
             )}
