@@ -14,6 +14,8 @@ import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { formatMoney } from '@/src/constants/currencies';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useFx } from '@/src/store/useFx';
+import { sumConverted } from '@/src/services/fxTotals';
 import { useAuthStore } from '@/src/store/authStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useGlobalPersonBalances } from '@/src/store/selectors';
@@ -43,14 +45,19 @@ export default function FriendsScreen() {
     [users, currentUser],
   );
 
-  const owedToYou = personBalances
-    .filter(p => p.currency === 'ARS' && p.amount > 0)
-    .reduce((s, p) => s + p.amount, 0);
-  const youOwe = Math.abs(
-    personBalances
-      .filter(p => p.currency === 'ARS' && p.amount < 0)
-      .reduce((s, p) => s + p.amount, 0),
+  // `'ARS'` estaba hardcodeado acá: con grupos en otra moneda esto daba 0
+  // siempre. Ahora se convierte a la moneda que el usuario eligió en Perfil.
+  const { fx, display: cur } = useFx();
+  const deben = sumConverted(
+    personBalances.filter(p => p.amount > 0).map(p => ({ currency: p.currency, minor: p.amount })),
+    cur, fx,
   );
+  const debo = sumConverted(
+    personBalances.filter(p => p.amount < 0).map(p => ({ currency: p.currency, minor: -p.amount })),
+    cur, fx,
+  );
+  const owedToYou = deben.totalMinor;
+  const youOwe    = debo.totalMinor;
 
   function handleAddContact() {
     const name = newName.trim();
@@ -123,7 +130,7 @@ export default function FriendsScreen() {
                   {t('friends.owed_to_you')}
                 </Text>
                 <Text style={[Typography.amountM, { color: c.semantic.positive, marginTop: 2 }]}>
-                  {formatMoney(owedToYou, 'ARS')}
+                  {formatMoney(owedToYou, cur)}
                 </Text>
               </View>
               <View style={[styles.summaryDivider, { backgroundColor: c.borderHair }]} />
@@ -132,7 +139,7 @@ export default function FriendsScreen() {
                   {t('friends.you_owe')}
                 </Text>
                 <Text style={[Typography.amountM, { color: c.semantic.negative, marginTop: 2 }]}>
-                  {formatMoney(youOwe, 'ARS')}
+                  {formatMoney(youOwe, cur)}
                 </Text>
               </View>
             </View>

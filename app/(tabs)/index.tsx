@@ -10,8 +10,8 @@ import { useAuthStore } from '@/src/store/authStore';
 import { useGlobalPersonBalances } from '@/src/store/selectors';
 import { usePersonalStore, toMonthKey } from '@/src/store/personalStore';
 import { useSettingsStore } from '@/src/store/settingsStore';
-import { useCurrenciesInUse } from '@/src/store/currenciesInUse';
-import { convertMinor, ensureRates, readCache, type FxCache } from '@/src/services/fx';
+import { useFx } from '@/src/store/useFx';
+import { convertMinor } from '@/src/services/fx';
 import { sumConverted } from '@/src/services/fxTotals';
 import { UnconvertedNotice } from '@/src/components/UnconvertedNotice';
 import { hueForUser } from '@/src/utils/hueForUser';
@@ -40,18 +40,7 @@ export default function AccountScreen() {
   // La moneda la elige el usuario en el menú, ya no la fija el presupuesto.
   // Antes `cur` era `budget.currency` y todo lo que no coincidiera se
   // descartaba EN SILENCIO: un gasto en reales daba 0 sin ninguna señal.
-  const cur = useSettingsStore(s => s.displayCurrency);
-  const monedasEnUso = useCurrenciesInUse();
-
-  // Stale-while-revalidate: se pinta con lo que haya en cache y se actualiza
-  // cuando llega la respuesta. `ensureRates` no sale a la red si el usuario
-  // tiene una sola moneda (decisión del PO) ni si la cache sigue vigente.
-  const [fx, setFx] = useState<FxCache | null>(() => readCache());
-  useEffect(() => {
-    let vivo = true;
-    void ensureRates(monedasEnUso, cur).then(r => { if (vivo) setFx(r); });
-    return () => { vivo = false; };
-  }, [monedasEnUso, cur]);
+  const { fx, display: cur } = useFx();
 
   const thisMonth = toMonthKey(Date.now());
   const monthEntries = personalEntries.filter(
@@ -85,14 +74,18 @@ export default function AccountScreen() {
   const budgetPct = effectiveBudget > 0 ? Math.min(totalSpent / effectiveBudget, 1) : 0;
   const hasBudget = budget.monthlyAmount > 0;
 
-  const owedToYou = personBalances
-    .filter(p => p.currency === 'ARS' && p.amount > 0)
-    .reduce((s, p) => s + p.amount, 0);
-  const youOwe = Math.abs(
-    personBalances
-      .filter(p => p.currency === 'ARS' && p.amount < 0)
-      .reduce((s, p) => s + p.amount, 0),
+  // Antes filtraba `p.currency === 'ARS'` LITERAL: cualquiera cuyos grupos no
+  // fueran en pesos argentinos veía 0 para siempre en «te deben» y «debés».
+  const deben = sumConverted(
+    personBalances.filter(p => p.amount > 0).map(p => ({ currency: p.currency, minor: p.amount })),
+    cur, fx,
   );
+  const debo = sumConverted(
+    personBalances.filter(p => p.amount < 0).map(p => ({ currency: p.currency, minor: -p.amount })),
+    cur, fx,
+  );
+  const owedToYou = deben.totalMinor;
+  const youOwe    = debo.totalMinor;
   const net = owedToYou - youOwe;
 
   return (
