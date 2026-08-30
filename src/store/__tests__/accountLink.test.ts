@@ -348,3 +348,76 @@ describe('T-047 · los grupos archivados tampoco se pierden', () => {
     expect(JSON.parse(grp().getString(`archived_v1::u:${GOOGLE}`)!)).toEqual(['g3']);
   });
 });
+
+/**
+ * Decisión del PO (2026-08-30): **todo se fusiona al enlazar cuentas.** La
+ * bandeja de avisos estaba declarada como "no se fusiona" — el PO lo revirtió.
+ * Las dos cuentas son la misma persona: lo que pasó bajo una identidad le pasó
+ * a ella, y perderlo al enlazar es perder historia sin ganar nada.
+ */
+const nt = () => createSecureStorage('notices');
+
+function writeInbox(uid: string, items: { id: string; createdAt: number; readAt: number | null }[]) {
+  nt().set(`inbox_v1::u:${uid}`, JSON.stringify(
+    items.map(i => ({ ...i, notice: { kind: 'expenses', groupId: 'g1', groupName: 'A', count: 1 } })),
+  ));
+}
+function readInbox(uid: string): { id: string; readAt: number | null }[] {
+  const raw = nt().getString(`inbox_v1::u:${uid}`);
+  return raw ? JSON.parse(raw) : [];
+}
+
+describe('la bandeja de avisos también se fusiona', () => {
+  beforeEach(() => { nt().clearAll(); });
+
+  it('los avisos del origen llegan al destino', () => {
+    writeInbox(APPLE, [{ id: 'a', createdAt: 100, readAt: null }]);
+    writeInbox(GOOGLE, [{ id: 'b', createdAt: 200, readAt: null }]);
+    mergeAccounts(APPLE, GOOGLE);
+    expect(readInbox(GOOGLE).map(i => i.id).sort()).toEqual(['a', 'b']);
+  });
+
+  it('quedan ordenados por fecha, el mas nuevo primero', () => {
+    writeInbox(APPLE, [{ id: 'viejo', createdAt: 100, readAt: null }]);
+    writeInbox(GOOGLE, [{ id: 'nuevo', createdAt: 900, readAt: null }]);
+    mergeAccounts(APPLE, GOOGLE);
+    expect(readInbox(GOOGLE)[0].id).toBe('nuevo');
+  });
+
+  it('el acuse de recibo de cada aviso se respeta', () => {
+    // Un aviso ya leído en la cuenta absorbida no puede volver a aparecer sin
+    // leer: haría subir el badge por algo que la persona ya miró.
+    writeInbox(APPLE, [{ id: 'a', createdAt: 100, readAt: 150 }]);
+    writeInbox(GOOGLE, []);
+    mergeAccounts(APPLE, GOOGLE);
+    expect(readInbox(GOOGLE)[0].readAt).toBe(150);
+  });
+
+  it('no duplica si el mismo id esta en las dos', () => {
+    writeInbox(APPLE, [{ id: 'a', createdAt: 100, readAt: null }]);
+    writeInbox(GOOGLE, [{ id: 'a', createdAt: 100, readAt: 500 }]);
+    mergeAccounts(APPLE, GOOGLE);
+    expect(readInbox(GOOGLE)).toHaveLength(1);
+  });
+});
+
+describe('la moneda maestra tampoco se pierde al fusionar', () => {
+  const st = () => createStorage('settings');
+  beforeEach(() => { st().clearAll(); });
+
+  it('el destino adopta la moneda elegida en la cuenta absorbida', () => {
+    // `mergeSettings` recorria SOLO claves booleanas (`getBoolean`), y
+    // `display_currency` es un string: se perdia en silencio. Misma clase de
+    // bug que T-047, introducida al agregar la clave.
+    st().set(`display_currency::u:${APPLE}`, 'BRL');
+    mergeAccounts(APPLE, GOOGLE);
+    expect(st().getString(`display_currency::u:${GOOGLE}`)).toBe('BRL');
+  });
+
+  it('NO pisa una moneda que el destino ya habia elegido', () => {
+    st().set(`display_currency::u:${APPLE}`, 'BRL');
+    st().set(`display_currency::u:${GOOGLE}`, 'CLP');
+    mergeAccounts(APPLE, GOOGLE);
+    expect(st().getString(`display_currency::u:${GOOGLE}`)).toBe('CLP');
+  });
+});

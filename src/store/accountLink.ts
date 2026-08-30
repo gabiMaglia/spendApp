@@ -29,6 +29,8 @@ const PERSONAL_ENTRIES_KEY = 'entries_v1';
 const PERSONAL_BUDGET_KEY  = 'budget_v1';
 const GROUP_KEYS_KEY       = 'data_v1';
 const ARCHIVED_KEY         = 'archived_v1';
+const INBOX_KEY            = 'inbox_v1';
+const INBOX_MAX            = 200;
 
 /**
  * Fusiona TODOS los datos de `fromAccountId` dentro de `toAccountId`.
@@ -42,6 +44,7 @@ export function mergeAccounts(fromAccountId: string, toAccountId: string): Merge
   mergePersonal(fromAccountId, toAccountId, report);
   mergeGroupKeys(fromAccountId, toAccountId);
   mergeArchived(fromAccountId, toAccountId);
+  mergeNotices(fromAccountId, toAccountId);
   mergeProfiles(fromAccountId, toAccountId);
   mergeSettings(fromAccountId, toAccountId);
   recordMerge(fromAccountId);
@@ -103,6 +106,15 @@ export function purgeMergedScopes(now: number = Date.now()): string[] {
 
 /** Preferencias por cuenta (toggles de notificación). */
 const SETTINGS_KEYS = ['notif_expenses', 'notif_deletions', 'notif_invites'] as const;
+/**
+ * Preferencias de settings que NO son booleanas.
+ *
+ * Van aparte porque `mergeSettings` recorría todo con `getBoolean`, así que al
+ * agregar `display_currency` (un string) la moneda maestra elegida se perdía en
+ * silencio al enlazar cuentas. Es la MISMA clase que T-047 — una clave nueva
+ * que no encaja en la forma que el merge asumía — reaparecida el día después.
+ */
+const SETTINGS_STRING_KEYS = ['display_currency'] as const;
 
 /**
  * Las preferencias son booleanos sueltos, no una lista, así que tampoco pasan
@@ -119,6 +131,14 @@ function mergeSettings(fromAccountId: string, toAccountId: string): void {
     if (target !== undefined) continue;
 
     const source = storage.getBoolean(`${key}::u:${fromAccountId}`);
+    if (source !== undefined) storage.set(`${key}::u:${toAccountId}`, source);
+  }
+
+  // Misma semántica que arriba: sólo se adopta si el destino no eligió nada.
+  // Nunca se pisa una preferencia que el usuario ya fijó en esta cuenta.
+  for (const key of SETTINGS_STRING_KEYS) {
+    if (storage.getString(`${key}::u:${toAccountId}`) !== undefined) continue;
+    const source = storage.getString(`${key}::u:${fromAccountId}`);
     if (source !== undefined) storage.set(`${key}::u:${toAccountId}`, source);
   }
 }
@@ -191,6 +211,54 @@ function mergeArchived(fromAccountId: string, toAccountId: string): void {
   const origen = leer(fromAccountId);
   if (origen.length === 0) return;
   storage.set(k(toAccountId), JSON.stringify([...new Set([...leer(toAccountId), ...origen])]));
+}
+
+/**
+ * Bandeja de avisos.
+ *
+ * Va aparte porque no tiene `updatedAt` —el acuse es local y no sincroniza— así
+ * que `mergeAccountData`, que resuelve por LWW, no aplica.
+ *
+ * Decisión del PO (2026-08-30): **todo se fusiona al enlazar cuentas.** Las dos
+ * identidades son la misma persona; lo que pasó bajo una le pasó a ella.
+ *
+ * Se une por `id` y **el acuse gana si existe en cualquiera de las dos**: un
+ * aviso ya leído no puede volver a aparecer sin leer, porque haría subir el
+ * badge por algo que la persona ya miró. Se ordena por fecha y se recorta al
+ * mismo tope que el store, descartando lo más viejo.
+ */
+function mergeNotices(fromAccountId: string, toAccountId: string): void {
+  if (fromAccountId === toAccountId) return;
+  const storage = createSecureStorage('notices');
+  const k = (uid: string) => `${INBOX_KEY}::u:${uid}`;
+
+  type Item = { id: string; createdAt: number; readAt: number | null };
+  const leer = (uid: string): Item[] => {
+    const raw = storage.getString(k(uid));
+    if (!raw) return [];
+    try {
+      const v = JSON.parse(raw);
+      return Array.isArray(v) ? v : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const origen = leer(fromAccountId);
+  if (origen.length === 0) return;
+
+  const porId = new Map<string, Item>();
+  for (const it of [...leer(toAccountId), ...origen]) {
+    const previo = porId.get(it.id);
+    if (!previo) { porId.set(it.id, it); continue; }
+    // El acuse gana sobre el no-acuse, venga de la cuenta que venga.
+    porId.set(it.id, { ...previo, readAt: previo.readAt ?? it.readAt });
+  }
+
+  const items = [...porId.values()]
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .slice(0, INBOX_MAX);
+  storage.set(k(toAccountId), JSON.stringify(items));
 }
 
 /**
@@ -273,7 +341,7 @@ export const COBERTURA_FUSION: Record<string, string> = {
   groupKeyStore:  'aparte · mergeGroupKeys (es {groupId,key,epoch}, sin id/updatedAt; gana la época mayor)',
   archiveStore:   'aparte · mergeArchived (string[] bajo archived_v1, en el bucket groups; unión)',
   settingsStore:  'aparte · mergeSettings (preferencias, no datos)',
-  noticeInboxStore: 'aparte · NO se fusiona a proposito: la bandeja es el registro local de "que paso mientras no mirabas" y su acuse no viaja. Arrastrar avisos de una identidad que ya no existe suma ruido sin recuperar nada — los datos que esos avisos anunciaban SI se fusionan por su propio store. Revisar con el PO si alguna vez molesta.',
+  noticeInboxStore: 'aparte · mergeNotices (union por id; el acuse gana sobre el no-acuse). Decision del PO 2026-08-30: TODO se fusiona al enlazar cuentas.',
   userScope:      'no es un store: es el mecanismo de scoping',
 };
 

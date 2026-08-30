@@ -71,18 +71,12 @@ export function CurrencyPicker({
         <Ionicons name="chevron-forward" size={16} color={c.textTertiary} />
       </Pressable>
 
-      <BottomSheet visible={abierto} onClose={() => setAbierto(false)}>
-        {SUPPORTED_CURRENCIES.map(m => (
-          <SheetOption
-            key={m.code}
-            icon="cash-outline"
-            label={`${m.symbol}  ${m.code}`}
-            sublabel={m.name}
-            selected={m.code === value}
-            onPress={() => { onChange(m.code); setAbierto(false); }}
-          />
-        ))}
-      </BottomSheet>
+      <CurrencySheet
+        visible={abierto}
+        value={value}
+        onChange={onChange}
+        onClose={() => setAbierto(false)}
+      />
     </>
   );
 }
@@ -94,3 +88,34 @@ const styles = StyleSheet.create({
     borderRadius: Radius.md,
   },
 });
+
+/**
+ * Sólo la hoja de selección, sin la fila.
+ *
+ * Vive aparte porque la usan dos entradas distintas: la fila del menú (Perfil →
+ * MONEDA) y el botón redondo del encabezado del dashboard. Duplicar las nueve
+ * opciones en dos lugares garantiza que algún día difieran.
+ */
+export function CurrencySheet({
+  visible, value, onChange, onClose,
+}: {
+  visible: boolean;
+  value: CurrencyCode;
+  onChange: (code: CurrencyCode) => void;
+  onClose: () => void;
+}) {
+  return (
+    <BottomSheet visible={visible} onClose={onClose}>
+      {SUPPORTED_CURRENCIES.map(m => (
+        <SheetOption
+          key={m.code}
+          icon="cash-outline"
+          label={`${m.symbol}  ${m.code}`}
+          sublabel={m.name}
+          selected={m.code === value}
+          onPress={() => { onChange(m.code); onClose(); }}
+        />
+      ))}
+    </BottomSheet>
+  );
+}

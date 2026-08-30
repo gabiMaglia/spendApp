@@ -15,6 +15,7 @@ import { convertMinor } from '@/src/services/fx';
 import { sumConverted } from '@/src/services/fxTotals';
 import { UnconvertedNotice } from '@/src/components/UnconvertedNotice';
 import { NoticeBell } from '@/src/components/NoticeBell';
+import { CurrencySheet } from '@/src/components/CurrencyPicker';
 import { NoticeInboxSheet } from '@/src/components/NoticeInboxSheet';
 import { useNoticeInboxStore, type StoredNotice } from '@/src/store/noticeInboxStore';
 import { useGroupStore } from '@/src/store/groupStore';
@@ -80,6 +81,8 @@ export default function AccountScreen() {
   const markRead    = useNoticeInboxStore(st => st.markRead);
   const markAllRead = useNoticeInboxStore(st => st.markAllRead);
   const [bandeja, setBandeja] = useState(false);
+  const [monedas, setMonedas] = useState(false);
+  const setDisplayCurrency = useSettingsStore(st => st.setDisplayCurrency);
   const groups = useGroupStore(st => st.groups);
 
   function abrirAviso(item: StoredNotice) {
@@ -143,8 +146,29 @@ export default function AccountScreen() {
               {t('dashboard.title')}
             </Text>
           </View>
-          <NoticeBell unread={sinLeer} onPress={() => setBandeja(true)} />
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <NoticeBell unread={sinLeer} onPress={() => setBandeja(true)} />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('profile.display_currency')}
+              testID="currency-button"
+              onPress={() => setMonedas(true)}
+              hitSlop={8}
+              style={[styles.currencyBtn, { backgroundColor: c.surfaceSunken, borderColor: c.borderHair }]}
+            >
+              <Text style={[Typography.caption, { color: c.textSecondary, fontWeight: '700' }]}>
+                {cur}
+              </Text>
+            </Pressable>
+          </View>
         </View>
+
+        <CurrencySheet
+          visible={monedas}
+          value={cur}
+          onChange={setDisplayCurrency}
+          onClose={() => setMonedas(false)}
+        />
 
         <NoticeInboxSheet
           visible={bandeja}
@@ -210,26 +234,6 @@ export default function AccountScreen() {
             </Text>
           )}
         </Pressable>
-
-        {/* El total de arriba es verdadero pero PARCIAL mientras haya monedas
-            sin cotización. El aviso salta solo la primera vez y esta fila
-            queda para volver a abrirlo: un número incompleto no puede quedar
-            en pantalla sin que se note. */}
-        {(pendientes.length > 0 || pendientesFav.length > 0) && (
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => setAvisoVisto(false)}
-            style={{
-              flexDirection: 'row', alignItems: 'center', gap: 6,
-              paddingHorizontal: 4, paddingVertical: 8,
-            }}
-          >
-            <Ionicons name="alert-circle-outline" size={14} color={c.semantic.warning} />
-            <Text style={[Typography.caption, { color: c.semantic.warning, fontWeight: '600' }]}>
-              {t('fx.see_detail')}
-            </Text>
-          </Pressable>
-        )}
 
         <UnconvertedNotice
           visible={(pendientes.length > 0 || pendientesFav.length > 0) && !avisoVisto}
@@ -344,6 +348,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.screenPad, paddingBottom: Spacing[3],
   },
   greeting:  { paddingHorizontal: Spacing.screenPad, marginBottom: Spacing[5], gap: 2 },
+  // El código de moneda entra en 3 letras; el círculo se dimensiona para la
+  // más ancha y no cambia de tamaño al elegir otra.
+  currencyBtn: {
+    width: 34, height: 34, borderRadius: 17, borderWidth: 1,
+    alignItems: 'center', justifyContent: 'center',
+  },
   card:        {
     marginHorizontal: Spacing.screenPad, marginBottom: Spacing[4],
     borderRadius: Radius.xl, borderWidth: 1,
