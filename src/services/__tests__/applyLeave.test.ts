@@ -102,3 +102,69 @@ describe('lo que NO se aplica', () => {
     expect(usePaymentStore.getState().payments).toHaveLength(2);
   });
 });
+
+/**
+ * T-043 — la absorción se aplicaba DOS VECES con dos dispositivos.
+ *
+ * `applyApprovedLeaves` corre en TODOS los devices: al arrancar
+ * (`src/store/session.ts:46`) y después de cada sync (`src/sync/relayEngine.ts:161`).
+ * Cada uno materializaba el reparto con un `uuidv4()` nuevo, así que dos
+ * teléfonos que resolvían la misma salida antes de verse generaban pagos con
+ * ids distintos: al mergear sobrevivían los dos y la plata se movía el doble.
+ *
+ * El guard que ya existía —limpiar `leaveRequest` en la misma escritura— protege
+ * contra aplicar dos veces en UN device, no contra dos devices. La suite lo
+ * confirmaba como punto ciego: probaba idempotencia sobre un solo store.
+ */
+describe('T-043 · dos dispositivos, un solo reparto', () => {
+  function resolverEnUnDeviceLimpio(): string[] {
+    useGroupStore.setState({ groups: [grupo()] });
+    usePaymentStore.setState({ payments: [] });
+    applyApprovedLeaves(AHORA);
+    return usePaymentStore.getState().payments.map(p => p.id);
+  }
+
+  it('los dos generan el MISMO id para el mismo pago del plan', () => {
+    const idsA = resolverEnUnDeviceLimpio();
+    const idsB = resolverEnUnDeviceLimpio();
+    expect(idsA).toHaveLength(1);
+    expect(idsB).toEqual(idsA);
+  });
+
+  it('al mergear por id, el reparto NO se duplica', () => {
+    const idsA = resolverEnUnDeviceLimpio();
+    const idsB = resolverEnUnDeviceLimpio();
+    const mergeados = new Set([...idsA, ...idsB]);
+    expect(mergeados.size).toBe(1);
+  });
+
+  it('dos pedidos distintos del mismo usuario NO colisionan', () => {
+    // Si el id sólo dependiera del grupo y de quién se va, una segunda salida
+    // del mismo usuario reusaría el id y el segundo reparto se perdería.
+    useGroupStore.setState({ groups: [grupo()] });
+    usePaymentStore.setState({ payments: [] });
+    applyApprovedLeaves(AHORA);
+    const primero = usePaymentStore.getState().payments.map(p => p.id);
+
+    useGroupStore.setState({ groups: [grupo({ leaveRequest: pedido({ requestedAt: 2_000 }) })] });
+    usePaymentStore.setState({ payments: [] });
+    applyApprovedLeaves(AHORA);
+    const segundo = usePaymentStore.getState().payments.map(p => p.id);
+
+    expect(segundo).not.toEqual(primero);
+  });
+
+  it('un plan con varios pagos no colisiona consigo mismo', () => {
+    useGroupStore.setState({ groups: [grupo({ leaveRequest: pedido({
+      plan: [
+        { fromUserId: 'ana', toUserId: 'beto', amount: 300_000, currency: 'ARS' },
+        { fromUserId: 'ana', toUserId: 'caro', amount: 200_000, currency: 'ARS' },
+      ],
+      approvedBy: ['beto', 'caro'],
+    }), memberIds: ['ana', 'beto', 'caro'] })] });
+    usePaymentStore.setState({ payments: [] });
+    applyApprovedLeaves(AHORA);
+    const ids = usePaymentStore.getState().payments.map(p => p.id);
+    expect(new Set(ids).size).toBe(2);
+  });
+});

@@ -1,8 +1,7 @@
-import { v4 as uuidv4 } from 'uuid';
 import { useGroupStore } from '@/src/store/groupStore';
 import { usePaymentStore } from '@/src/store/paymentStore';
 import { isApprovedByAll } from '@/src/algorithms/leaveRequest';
-import type { Group } from '@/src/types/models';
+import type { Group, LeaveRequest } from '@/src/types/models';
 import { syncedNow } from '@/src/utils/syncedClock';
 
 /**
@@ -21,6 +20,23 @@ import { syncedNow } from '@/src/utils/syncedClock';
  * así que aplicar dos veces DUPLICARÍA el reparto — por eso limpiar el pedido
  * es parte de la misma operación y no un paso aparte.
  */
+/**
+ * Id DERIVADO del pedido, no aleatorio.
+ *
+ * Esta función corre en TODOS los dispositivos —al arrancar y después de cada
+ * sync— y antes usaba `uuidv4()`. Dos teléfonos que resolvían la misma salida
+ * sin haberse visto generaban pagos con ids distintos: al mergear sobrevivían
+ * los dos y **el reparto se aplicaba dos veces**. Limpiar el pedido en la misma
+ * escritura protegía contra repetir en UN device, no contra dos.
+ *
+ * Con el id derivado de datos que los dos ya comparten, el merge por id los
+ * colapsa solo. `requestedAt` distingue una segunda salida del mismo usuario;
+ * el índice, dos pagos del mismo plan.
+ */
+function idDelPago(groupId: string, req: LeaveRequest, i: number): string {
+  return `leave:${groupId}:${req.userId}:${req.requestedAt}:${i}`;
+}
+
 export function applyApprovedLeaves(now: number = syncedNow()): number {
   const store = useGroupStore.getState();
 
@@ -31,9 +47,9 @@ export function applyApprovedLeaves(now: number = syncedNow()): number {
   for (const group of listos) {
     const req = group.leaveRequest!;
 
-    for (const p of req.plan) {
+    req.plan.forEach((p, i) => {
       usePaymentStore.getState().addPayment({
-        id:          uuidv4(),
+        id:          idDelPago(group.id, req, i),
         groupId:     group.id,
         fromUserId:  p.fromUserId,
         toUserId:    p.toUserId,
@@ -45,7 +61,7 @@ export function applyApprovedLeaves(now: number = syncedNow()): number {
         updatedAt:   now,
         isDeleted:   false,
       });
-    }
+    });
 
     // Sacar el pedido y al que se va, en una sola escritura: si quedaran
     // separadas y la app muriera en el medio, el pedido volvería a aplicarse y
