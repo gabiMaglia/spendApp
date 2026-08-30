@@ -251,12 +251,28 @@ export default function SettleNewScreen() {
                 keyboardType="decimal-pad"
                 placeholder="0"
                 placeholderTextColor={c.textTertiary}
-                style={[Typography.amountXL, { color: exceedsMax ? c.semantic.negative : c.text, flex: 1 }]}
+                style={[Typography.amountXL, { color: exceedsMax ? c.semantic.negative : c.text }]}
                 returnKeyType="done"
               />
-              {/* MAX vive DENTRO del input: pedirlo es querer saldar todo, y
-                  antes eso era un chip aparte debajo que había que buscar. */}
-              {deudaTotal > 0 && (
+            </View>
+            {/* La deuda y su atajo, en una fila propia de ancho completo.
+                MAX estuvo dentro de la fila del monto y se cortaba en pantallas
+                angostas: competía por el ancho con una tipografía enorme dentro
+                de un contenedor centrado, que no se estira. Acá está siempre
+                visible y, además, pegado al número que va a poner. */}
+            {deudaTotal > 0 && (
+              <View style={styles.outstandingRow}>
+                <View testID="settle-outstanding" style={{ flexDirection: 'row', gap: 6, flex: 1 }}>
+                  <Text style={[Typography.bodyS, { color: c.textTertiary }]} numberOfLines={1}>
+                    {t('settle.outstanding_label')}
+                  </Text>
+                  {/* El monto va FUERA del string traducido: dentro, ninguna
+                      prueba puede verlo sin conocer la clave, y el número queda
+                      a merced de cómo esté redactada cada traducción. */}
+                  <Text style={[Typography.bodyS, { color: c.textSecondary, fontWeight: '700' }]} numberOfLines={1}>
+                    {formatMoney(deudaTotal, currency)}
+                  </Text>
+                </View>
                 <ActionButton
                   testID="settle-max"
                   size="sm"
@@ -265,22 +281,6 @@ export default function SettleNewScreen() {
                   accessibilityLabel={t('settle.max_a11y')}
                   action={() => { hapticSelection(); setAmountMinor(deudaTotal); }}
                 />
-              )}
-            </View>
-            {/* Cuánto se debe, siempre visible. El chip que se quitó lo
-                mostraba en su etiqueta; sin esto, averiguar la deuda exigía
-                apretar MAX y mirar qué había puesto. */}
-            {deudaTotal > 0 && (
-              <View testID="settle-outstanding" style={{ flexDirection: 'row', gap: 6 }}>
-                <Text style={[Typography.bodyS, { color: c.textTertiary }]}>
-                  {t('settle.outstanding_label')}
-                </Text>
-                {/* El monto va FUERA del string traducido: dentro, ninguna
-                    prueba puede verlo sin conocer la clave, y el número queda
-                    a merced de cómo esté redactada cada traducción. */}
-                <Text style={[Typography.bodyS, { color: c.textSecondary, fontWeight: '700' }]}>
-                  {formatMoney(deudaTotal, currency)}
-                </Text>
               </View>
             )}
 
@@ -490,6 +490,13 @@ const styles = StyleSheet.create({
     paddingVertical: 20, alignItems: 'center', gap: 4,
   },
   amountRow:      { flexDirection: 'row', alignItems: 'flex-end', gap: 6 },
+  // Ancho completo dentro de una tarjeta centrada: sin `alignSelf: stretch` la
+  // fila se encoge al contenido y el botón se sale del borde.
+  outstandingRow: {
+    alignSelf: 'stretch', flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'space-between', gap: 8,
+    paddingHorizontal: 16, marginTop: 8,
+  },
   currencySymbol: { fontSize: 28, fontWeight: '400', lineHeight: 48, paddingBottom: 6 },
   maxHint:        {
     flexDirection: 'row', alignItems: 'center', gap: 5,

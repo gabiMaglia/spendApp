@@ -72,6 +72,10 @@ export function ActionButton({
       testID={testID}
       disabled={inactivo}
       onPress={action}
+      // `sm` es más chico que el objetivo táctil mínimo por definición: el
+      // hitSlop lo compensa acá y no en cada pantalla que lo use, que es donde
+      // se olvidaría.
+      hitSlop={size === 'sm' ? 10 : undefined}
       style={[
         styles.base,
         size === 'lg' ? styles.lg : size === 'sm' ? styles.sm : styles.md,
@@ -109,7 +113,7 @@ const styles = StyleSheet.create({
   // `sm` es para afordancias compactas que viven DENTRO de otro control (el
   // "MAX" del input de monto). No respeta el tapTarget de 44 por definición:
   // quien lo use tiene que compensar con hitSlop.
-  sm:       { paddingVertical: 6, paddingHorizontal: Spacing[3], borderRadius: Radius.sm },
+  sm:       { paddingVertical: 6, paddingHorizontal: Spacing[3], borderRadius: Radius.sm, gap: 4 },
   md:       { paddingVertical: 12, paddingHorizontal: Spacing[4], minHeight: Spacing.tapTarget },
   lg:       { paddingVertical: 16, paddingHorizontal: Spacing[5], minHeight: 52 },
   // El texto empuja la flecha al borde y deja el ícono pegado a la izquierda.
