@@ -96,15 +96,11 @@
     "balance_global": "Balance global",
     "balance_favor": "Saldo a favor",
     "balance_contra": "Contra você",
-    "owed_to_you": "TE DEVEM",
-    "you_owe": "VOCÊ DEVE",
     "by_person": "Por pessoa",
     "see_all": "Ver todos",
     "owes_you": "Te deve",
     "you_owe_person": "Você deve",
     "add_expense": "Adicionar gasto",
-    "register_payment": "Registrar",
-    "register_payment_sub": "um pagamento",
     "empty_title": "Todo saldado",
     "empty_body": "No tenés deudas pendientes con nadie.",
     "go_to_profile": "Ir ao meu perfil",
@@ -113,7 +109,9 @@
     "available": "Disponível",
     "set_budget": "Definir orçamento →",
     "groups_balance": "Grupos · Saldo",
-    "net": "Líquido"
+    "net": "Líquido",
+    "groups_count": "{{count}} grupos",
+    "groups_count_one": "1 grupo"
   },
   "groups": {
     "title": "Grupos",

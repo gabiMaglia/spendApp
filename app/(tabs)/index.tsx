@@ -22,7 +22,7 @@ import { useGroupStore } from '@/src/store/groupStore';
 import { hueForUser } from '@/src/utils/hueForUser';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { hapticLight } from '@/src/utils/haptics';
 import { useTranslation } from 'react-i18next';
 import {
@@ -84,6 +84,14 @@ export default function AccountScreen() {
   const [monedas, setMonedas] = useState(false);
   const setDisplayCurrency = useSettingsStore(st => st.setDisplayCurrency);
   const groups = useGroupStore(st => st.groups);
+
+  // Los grupos donde el usuario participa de verdad. Un grupo borrado o uno
+  // del que ya salió no cuenta: el número tiene que coincidir con lo que ve
+  // en la pestaña Grupos.
+  const misGrupos = useMemo(
+    () => groups.filter(g => !g.isDeleted && !!currentUser && g.memberIds.includes(currentUser.id)),
+    [groups, currentUser],
+  );
 
   function abrirAviso(item: StoredNotice) {
     // El acuse se registra SIEMPRE, aunque el destino ya no exista: si no, un
@@ -254,36 +262,35 @@ export default function AccountScreen() {
             </View>
           </View>
 
+          {/* Un solo neto y cuántos grupos (PO 2026-08-30). Antes eran tres
+              cifras —te deben, debés y neto— y las dos primeras son deducibles
+              del detalle: acá lo que se quiere saber de un vistazo es si estás
+              a favor o en contra, no el desglose.
+              `code` sale de la moneda elegida: estaba HARDCODEADO en "ARS",
+              así que los montos se convertían bien y se mostraban con el
+              símbolo equivocado. */}
           <View style={styles.statRow}>
             <View style={styles.stat}>
-              <Text style={[Typography.caption, { color: c.textTertiary }]}>{t('dashboard.owed_to_you')}</Text>
-              <MoneyText minor={owedToYou} code="ARS" style={[Typography.amountM, { color: c.semantic.positive }]} />
-            </View>
-            <View style={[styles.statDivider, { backgroundColor: c.borderHair }]} />
-            <View style={styles.stat}>
-              <Text style={[Typography.caption, { color: c.textTertiary }]}>{t('dashboard.you_owe')}</Text>
-              <MoneyText minor={youOwe} code="ARS" style={[Typography.amountM, { color: c.semantic.negative }]} />
-            </View>
-            <View style={[styles.statDivider, { backgroundColor: c.borderHair }]} />
-            <View style={styles.stat}>
               <Text style={[Typography.caption, { color: c.textTertiary }]}>{t('dashboard.net')}</Text>
-              <MoneyText minor={net} code="ARS" prefix={net >= 0 ? '+' : ''} style={[Typography.amountM, {
-                color: net >= 0 ? c.semantic.positive : c.semantic.negative,
-              }]} />
+              <MoneyText
+                minor={net}
+                code={cur}
+                prefix={net > 0 ? '+' : ''}
+                style={[Typography.amountM, {
+                  color: net > 0 ? c.semantic.positive : net < 0 ? c.semantic.negative : c.text,
+                }]}
+              />
+            </View>
+            <View style={[styles.statDivider, { backgroundColor: c.borderHair }]} />
+            <View style={styles.stat}>
+              <Text style={[Typography.caption, { color: c.textTertiary }]}>{t('dashboard.groups_balance')}</Text>
+              <Text testID="groups-count" style={[Typography.amountM, { color: c.text }]}>
+                {misGrupos.length === 1
+                  ? t('dashboard.groups_count_one')
+                  : t('dashboard.groups_count', { count: misGrupos.length })}
+              </Text>
             </View>
           </View>
-        </View>
-
-        {/* Quick actions */}
-        <View style={styles.quickRow}>
-          <QuickAction
-            iconName="card-outline"
-            iconBg={c.semantic.positiveSoft}
-            iconColor={c.semantic.positive}
-            label={t('dashboard.register_payment')}
-            sub={t('dashboard.register_payment_sub')}
-            onPress={() => router.push('/settle/new' as any)}
-          />
         </View>
 
         <View style={{ height: Spacing[9] }} />
@@ -299,36 +306,6 @@ export default function AccountScreen() {
         />
       </FabRow>
     </SafeAreaView>
-  );
-}
-
-function QuickAction({
-  iconName, iconBg, iconColor, label, sub, onPress,
-}: {
-  iconName: keyof typeof Ionicons.glyphMap;
-  iconBg: string; iconColor: string;
-  label: string; sub: string;
-  onPress: () => void;
-}) {
-  const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
-  return (
-    <Pressable
-      onPress={() => { hapticLight(); onPress(); }}
-      style={({ pressed }) => [styles.quickCard, { backgroundColor: c.surface, borderColor: c.borderHair, opacity: pressed ? 0.8 : 1 }]}
-    >
-      <View style={[styles.quickIcon, { backgroundColor: iconBg }]}>
-        <Ionicons name={iconName} size={20} color={iconColor} />
-      </View>
-      <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={[Typography.bodyM, { color: c.text, fontWeight: '700' }]} numberOfLines={1}>
-          {label}
-        </Text>
-        <Text style={[Typography.bodyS, { color: c.textTertiary }]} numberOfLines={1}>
-          {sub}
-        </Text>
-      </View>
-    </Pressable>
   );
 }
 
@@ -359,14 +336,6 @@ const styles = StyleSheet.create({
   statRow:     { flexDirection: 'row', alignItems: 'center' },
   stat:        { flex: 1, alignItems: 'center', gap: 3 },
   statDivider: { width: StyleSheet.hairlineWidth, height: 36, marginHorizontal: 4 },
-  quickRow:  {
-    flexDirection: 'row', gap: 10,
-    paddingHorizontal: Spacing.screenPad, marginBottom: Spacing[4],
-  },
-  quickCard: {
-    flex: 1, padding: 14, borderRadius: Radius.lg, borderWidth: 1,
-    gap: 10,
-  },
   quickIcon: {
     width: 40, height: 40, borderRadius: Radius.md,
     alignItems: 'center', justifyContent: 'center',

@@ -19,6 +19,11 @@ const CARPETAS = ['app', 'src/components'];
 const PROHIBIDO = [
   /\.currency\s*===\s*'[A-Z]{3}'/,
   /formatMoney\(\s*[A-Za-z_][A-Za-z0-9_]*\s*,\s*'[A-Z]{3}'\s*\)/,
+  // Prop de JSX con la moneda escrita a mano. Se agrego el 30/08 porque el
+  // guard NO atrapo `<MoneyText code="ARS">` en el dashboard: los montos se
+  // convertian bien a la moneda elegida y se mostraban con el simbolo de
+  // pesos. El patron era el mismo; lo que fallaba era el alcance del guard.
+  /\b(code|currency)=["'][A-Z]{3}["']/,
 ];
 
 function archivos(dir: string): string[] {

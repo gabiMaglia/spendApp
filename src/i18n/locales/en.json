@@ -96,15 +96,11 @@
     "balance_global": "Global balance",
     "balance_favor": "In your favor",
     "balance_contra": "Against you",
-    "owed_to_you": "OWED TO YOU",
-    "you_owe": "YOU OWE",
     "by_person": "By person",
     "see_all": "See all",
     "owes_you": "Owes you",
     "you_owe_person": "You owe",
     "add_expense": "Add expense",
-    "register_payment": "Register",
-    "register_payment_sub": "a payment",
     "empty_title": "All settled",
     "empty_body": "No pending debts with anyone.",
     "go_to_profile": "Go to my profile",
@@ -113,7 +109,9 @@
     "available": "Available",
     "set_budget": "Set budget →",
     "groups_balance": "Groups · Balance",
-    "net": "Net"
+    "net": "Net",
+    "groups_count": "{{count}} groups",
+    "groups_count_one": "1 group"
   },
   "groups": {
     "title": "Groups",
