@@ -196,7 +196,9 @@
     "without_app_warning": "Entra en los repartos y le vas a poder llevar la cuenta, pero NO va a ver el grupo ni recibir nada: no tiene la app. Para que lo vea, agregalo desde tus contactos.",
     "leave_blocked_title": "Todavía no podés salir",
     "leave_needs_settle": "Tenés cuentas abiertas en este grupo ({{currencies}}). Saldalas primero: si te fueras ahora, los números dejarían de cerrar para los que quedan.",
-    "leave_last_member": "Sos el único que queda y hay saldo abierto. No hay a quién pasarle esa deuda, así que no se puede salir sin saldarla."
+    "leave_last_member": "Sos el único que queda y hay saldo abierto. No hay a quién pasarle esa deuda, así que no se puede salir sin saldarla.",
+    "options": "Opciones del grupo",
+    "add_person": "Agregar persona"
   },
   "invite": {
     "title": "Invitar al grupo",

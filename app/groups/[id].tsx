@@ -26,7 +26,9 @@ import { ensureIdentity, saveInvite } from '@/src/store/identityStore';
 import { startRelay, announceGroupToContacts } from '@/src/sync/relayEngine';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { BalancePill } from '@/src/components/BalancePill';
-import { SheetOptionAvatar } from '@/src/components/Sheet';
+import { BottomSheet, SheetOption, SheetOptionAvatar } from '@/src/components/Sheet';
+import { ActionButton } from '@/src/components/ActionButton';
+import { ButtonRack } from '@/src/components/ButtonRack';
 import { canLeaveGroup } from '@/src/algorithms/canLeaveGroup';
 import { approvalProgress } from '@/src/algorithms/leaveRequest';
 import { applyApprovedLeaves } from '@/src/services/applyLeave';
@@ -107,6 +109,8 @@ export default function GroupDetailScreen() {
    * alguien con quien todavía no intercambiaste nada: no hay canal interno por
    * donde avisarle, porque establecerlo es justamente lo que hace la invitación.
    */
+  const [menuVisible, setMenuVisible] = useState(false);
+
   async function handleShareInvite() {
     if (!group || !currentUser) return;
     hapticLight();
@@ -246,7 +250,19 @@ export default function GroupDetailScreen() {
         <Text style={[Typography.h3, { color: c.text, flex: 1, textAlign: 'center' }]} numberOfLines={1}>
           {group.name}
         </Text>
-        <View style={{ width: 32 }} />
+        {/* Todo lo que no es de uso diario vive acá: agregar gente, invitar por
+            link y borrar el grupo. Antes estaban sueltos en la pantalla, con
+            "eliminar grupo" a un toque de distancia de cualquiera. */}
+        <Pressable
+          testID="group-options"
+          accessibilityRole="button"
+          accessibilityLabel={t('group_detail.options')}
+          onPress={() => setMenuVisible(true)}
+          hitSlop={12}
+          style={{ width: 32, alignItems: 'flex-end' }}
+        >
+          <Ionicons name="ellipsis-vertical" size={20} color={c.text} />
+        </Pressable>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
@@ -270,15 +286,6 @@ export default function GroupDetailScreen() {
             <Text style={[Typography.label, { color: c.textTertiary }]}>
               {t('group_detail.members_label', { count: group.memberIds.length })}
             </Text>
-            <Pressable
-              onPress={() => setInviteVisible(true)}
-              style={[styles.addMemberBtn, { backgroundColor: c.brand.primarySoft }]}
-            >
-              <Ionicons name="person-add-outline" size={14} color={c.brand.primary} />
-              <Text style={[Typography.caption, { color: c.brand.primary, fontWeight: '600' }]}>
-                {t('common.add')}
-              </Text>
-            </Pressable>
           </View>
           <View style={styles.membersRow}>
             {group.memberIds.map(uid => (
@@ -324,20 +331,6 @@ export default function GroupDetailScreen() {
               ),
             )}
           </View>
-        )}
-
-        {/* Invitar por link */}
-        {group && currentUser && group.memberIds.includes(currentUser.id) && (
-          <Pressable
-            accessibilityRole="button"
-            onPress={handleShareInvite}
-            style={[styles.inviteRow, { borderColor: c.brand.primary }]}
-          >
-            <Ionicons name="link-outline" size={18} color={c.brand.primary} />
-            <Text style={[Typography.bodyM, { color: c.brand.primary, fontWeight: '600' }]}>
-              {t('group_detail.invite_link')}
-            </Text>
-          </Pressable>
         )}
 
         {/* Pedido de salida pendiente. Todos tienen que aprobar antes de que
@@ -389,69 +382,77 @@ export default function GroupDetailScreen() {
           </View>
         )}
 
-        {/* Saldar. Estaba la traducción pero nunca el botón: saldar una deuda
-            del grupo obligaba a salir a la pestaña de amigos y elegir el grupo
-            de nuevo. */}
-        {group && currentUser && group.memberIds.includes(currentUser.id) && (
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => {
+      </ScrollView>
+
+      {/* Botonera fija abajo: la acción principal de la pantalla no puede
+          depender de cuánto scrolleaste. Margen inferior de 24 pedido por el
+          PO, sobre el padding lateral de siempre. */}
+      {group && currentUser && group.memberIds.includes(currentUser.id) && (
+        <ButtonRack>
+          <ActionButton
+            testID="settle-debts"
+            icon="swap-horizontal-outline"
+            label={t('group_detail.settle_debts')}
+            arrow
+            full
+            action={() => {
               hapticLight();
               router.push(`/settle/new?groupId=${group.id}` as any);
             }}
-            style={[styles.inviteRow, { borderColor: c.brand.primary }]}
-          >
-            <Ionicons name="swap-horizontal-outline" size={18} color={c.brand.primary} />
-            <Text style={[Typography.bodyM, { color: c.brand.primary, fontWeight: '600' }]}>
-              {t('group_detail.settle_debts')}
-            </Text>
-          </Pressable>
-        )}
+          />
+        </ButtonRack>
+      )}
 
-        {/* Salir / eliminar */}
+      {/* Menú de los 3 puntos */}
+      <BottomSheet visible={menuVisible} onClose={() => setMenuVisible(false)}>
+        {group && currentUser && group.memberIds.includes(currentUser.id) && (
+          <>
+            <SheetOption
+              icon="person-add-outline"
+              label={t('group_detail.add_person')}
+              selected={false}
+              onPress={() => { setMenuVisible(false); setInviteVisible(true); }}
+            />
+            <SheetOption
+              icon="link-outline"
+              label={t('group_detail.invite_link')}
+              selected={false}
+              onPress={() => { setMenuVisible(false); void handleShareInvite(); }}
+            />
+          </>
+        )}
         {group && currentUser && (
-          <View style={styles.dangerZone}>
-            {group.createdById === currentUser.id ? (
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => {
-                  Alert.alert(
-                    t('group_detail.delete_title'),
-                    t('group_detail.delete_body', { name: group.name }),
-                    [
-                      { text: t('common.cancel'), style: 'cancel' },
-                      {
-                        text: t('common.delete'),
-                        style: 'destructive',
-                        onPress: () => { deleteGroup(group.id); router.back(); },
-                      },
-                    ],
-                  );
-                }}
-                style={styles.dangerRow}
-              >
-                <Ionicons name="trash-outline" size={16} color={c.semantic.negative} />
-                <Text style={[Typography.bodyM, { color: c.semantic.negative, fontWeight: '600' }]}>
-                  {t('group_detail.delete_group')}
-                </Text>
-              </Pressable>
-            ) : (
-              <Pressable
-                accessibilityRole="button"
-                onPress={handleLeave}
-                style={styles.dangerRow}
-              >
-                <Ionicons name="exit-outline" size={16} color={c.semantic.negative} />
-                <Text style={[Typography.bodyM, { color: c.semantic.negative, fontWeight: '600' }]}>
-                  {t('group_detail.leave_group')}
-                </Text>
-              </Pressable>
-            )}
-          </View>
+          group.createdById === currentUser.id ? (
+            <SheetOption
+              icon="trash-outline"
+              label={t('group_detail.delete_group')}
+              selected={false}
+              onPress={() => {
+                setMenuVisible(false);
+                Alert.alert(
+                  t('group_detail.delete_title'),
+                  t('group_detail.delete_body', { name: group.name }),
+                  [
+                    { text: t('common.cancel'), style: 'cancel' },
+                    {
+                      text: t('common.delete'),
+                      style: 'destructive',
+                      onPress: () => { deleteGroup(group.id); router.back(); },
+                    },
+                  ],
+                );
+              }}
+            />
+          ) : (
+            <SheetOption
+              icon="exit-outline"
+              label={t('group_detail.leave_group')}
+              selected={false}
+              onPress={() => { setMenuVisible(false); handleLeave(); }}
+            />
+          )
         )}
-
-        <View style={{ height: 120 }} />
-      </ScrollView>
+      </BottomSheet>
 
       {/* FAB */}
       <Pressable

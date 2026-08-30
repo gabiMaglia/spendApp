@@ -56,8 +56,11 @@ beforeEach(() => {
 
 afterEach(() => { jest.restoreAllMocks(); });
 
-const salir = (r: ReturnType<typeof render>) =>
+// Salir del grupo vive ahora en el menu de los 3 puntos (PO 2026-08-30).
+const salir = (r: ReturnType<typeof render>) => {
+  fireEvent.press(r.getByTestId('group-options'));
   fireEvent.press(r.getByText('group_detail.leave_group'));
+};
 
 describe('salir del grupo', () => {
   it('sin deudas, pregunta y deja salir', () => {

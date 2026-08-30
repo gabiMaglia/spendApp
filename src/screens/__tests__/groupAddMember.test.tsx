@@ -47,8 +47,12 @@ beforeEach(() => {
 
 afterEach(() => { jest.restoreAllMocks(); });
 
+// "Agregar persona" dejo de estar suelto en la pantalla y vive en el menu de
+// los 3 puntos (PO 2026-08-30): estaba demasiado a mano, igual que borrar el
+// grupo. Cambia el camino, no lo que este archivo prueba.
 function abrirModal(r: ReturnType<typeof render>) {
-  fireEvent.press(r.getByText('common.add'));
+  fireEvent.press(r.getByTestId('group-options'));
+  fireEvent.press(r.getByText('group_detail.add_person'));
 }
 
 describe('agregar miembros', () => {

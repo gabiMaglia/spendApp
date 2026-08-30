@@ -196,7 +196,9 @@
     "without_app_warning": "They'll be part of the splits and you can track what they owe, but they will NOT see the group or receive anything — they don't have the app. To let them see it, add them from your contacts.",
     "leave_blocked_title": "You can't leave yet",
     "leave_needs_settle": "You have open balances in this group ({{currencies}}). Settle them first: if you left now, the numbers would stop adding up for everyone else.",
-    "leave_last_member": "You're the only one left and there's an open balance. There's nobody to hand it to, so you can't leave without settling it."
+    "leave_last_member": "You're the only one left and there's an open balance. There's nobody to hand it to, so you can't leave without settling it.",
+    "options": "Group options",
+    "add_person": "Add person"
   },
   "invite": {
     "title": "Invite to group",
