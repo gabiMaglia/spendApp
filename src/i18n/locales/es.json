@@ -56,7 +56,12 @@
     "sign_out_confirm_body": "¿Estás seguro? Tus datos locales se conservan en el dispositivo.",
     "version": "SplitP2P v{{version}} · P2P sin servidor",
     "language": "Idioma",
-    "language_auto": "Auto"
+    "language_auto": "Auto",
+    "section_currency": "MONEDA",
+    "display_currency": "Ver mis totales en",
+    "rates_updated": "Cotización del {{date}}",
+    "rates_never": "Sin cotización todavía",
+    "rates_single": "Usás una sola moneda: no se piden cotizaciones"
   },
   "auth": {
     "welcome_title": "Dividí gastos\nentre amigos.",
@@ -663,5 +668,12 @@
     "deletion_requested": "Pidieron borrar «{{description}}». Tenés 72hs para objetar.",
     "joined_title": "Te agregaron a un grupo",
     "joined_body": "Ya podés ver «{{group}}»"
+  },
+  "fx": {
+    "partial_title": "Hay saldo que no te estamos mostrando",
+    "partial_body": "El total de arriba está solo en {{currency}}. No pudimos traer las cotizaciones, así que esto quedó afuera:",
+    "partial_hint": "Se suma al total apenas haya conexión.",
+    "close": "Entendido",
+    "see_detail": "Ver qué falta"
   }
 }

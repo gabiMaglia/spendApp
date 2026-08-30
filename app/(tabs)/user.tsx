@@ -22,6 +22,9 @@ import { hueForUser } from '@/src/utils/hueForUser';
 import { sanitizeUserName } from '@/src/utils/sanitizeUserName';
 import { Avatar } from '@/src/components/Avatar';
 import { BottomSheet } from '@/src/components/Sheet';
+import { CurrencyPicker } from '@/src/components/CurrencyPicker';
+import { useCurrenciesInUse } from '@/src/store/currenciesInUse';
+import { needsRates, readCache } from '@/src/services/fx';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Sharing from 'expo-sharing';
 import { File, Paths } from 'expo-file-system';
@@ -33,7 +36,7 @@ import { syncedNow } from '@/src/utils/syncedClock';
 export default function UserScreen() {
   const scheme = useColorScheme() ?? 'light';
   const c = Colors[scheme];
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { currentUser, isPro, signOut } = useAuthStore();
 
   // Edición de nombre — sheet controlado, cross-platform (Alert.prompt no
@@ -75,6 +78,13 @@ export default function UserScreen() {
     notifDeletions, setNotifDeletions,
     notifInvites, setNotifInvites,
   } = useSettingsStore();
+  const displayCurrency    = useSettingsStore(s => s.displayCurrency);
+  const setDisplayCurrency = useSettingsStore(s => s.setDisplayCurrency);
+
+  // La fecha de cotización se lee de la cache al vuelo: es informativa y no
+  // justifica un store propio ni un re-render extra.
+  const monedasEnUso = useCurrenciesInUse();
+  const fxCache      = readCache();
 
   // Appearance
   const { themeChoice, setThemeChoice } = useThemeStore();
@@ -307,6 +317,18 @@ export default function UserScreen() {
               </Text>
             </View>
           </View>
+        </View>
+
+        {/* ── Moneda ───────────────────────────────────────────────────── */}
+        <SectionLabel label={t('profile.section_currency')} />
+        <View style={[styles.section, { borderColor: c.borderHair }]}>
+          <CurrencyPicker
+            value={displayCurrency}
+            onChange={setDisplayCurrency}
+            ratesFetchedAt={fxCache?.fetchedAt ?? null}
+            ratesNeeded={needsRates(monedasEnUso, displayCurrency)}
+            locale={i18n.language}
+          />
         </View>
 
         {/* ── Idioma ───────────────────────────────────────────────────── */}
