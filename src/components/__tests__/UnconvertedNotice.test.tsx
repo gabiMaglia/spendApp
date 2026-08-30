@@ -43,3 +43,43 @@ describe('UnconvertedNotice', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('saldo a favor sin convertir', () => {
+  const aFavor: Bucket[] = [{ currency: 'CLP', minor: 92_529 }];
+
+  it('lo lista en su propia seccion', () => {
+    // Sumarlo con lo gastado daria un numero sin sentido: son cosas distintas.
+    const { getByTestId } = render(
+      <UnconvertedNotice visible display="ARS" unconverted={pendientes} owed={aFavor} onClose={() => {}} />,
+    );
+    expect(getByTestId('owed-CLP')).toBeTruthy();
+    expect(getByTestId('unconverted-BRL')).toBeTruthy();
+  });
+
+  it('avisa aunque SOLO haya saldo a favor sin convertir', () => {
+    const { getByTestId, queryByTestId } = render(
+      <UnconvertedNotice visible display="ARS" unconverted={[]} owed={aFavor} onClose={() => {}} />,
+    );
+    expect(getByTestId('owed-CLP')).toBeTruthy();
+    expect(queryByTestId('unconverted-BRL')).toBeNull();
+  });
+
+  it('con las dos secciones se etiquetan; con una sola, no', () => {
+    const dos = render(
+      <UnconvertedNotice visible display="ARS" unconverted={pendientes} owed={aFavor} onClose={() => {}} />,
+    );
+    expect(dos.getByText('fx.partial_owed')).toBeTruthy();
+
+    const una = render(
+      <UnconvertedNotice visible display="ARS" unconverted={pendientes} owed={[]} onClose={() => {}} />,
+    );
+    expect(una.queryByText('fx.partial_spent')).toBeNull();
+  });
+
+  it('sin nada pendiente de ningun tipo no se renderiza', () => {
+    const { toJSON } = render(
+      <UnconvertedNotice visible display="ARS" unconverted={[]} owed={[]} onClose={() => {}} />,
+    );
+    expect(toJSON()).toBeNull();
+  });
+});

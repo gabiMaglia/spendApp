@@ -70,7 +70,8 @@ export default function AccountScreen() {
 
   // Lo que no se pudo convertir. Mientras haya algo acá, los números de arriba
   // son verdaderos pero PARCIALES, y eso hay que decirlo (ver el modal).
-  const pendientes = gastos.unconverted;
+  const pendientes    = gastos.unconverted;
+  const pendientesFav = aFavor.unconverted;
   const [avisoVisto, setAvisoVisto] = useState(false);
 
   // Bandeja de avisos (T-044). El acuse es LOCAL: no viaja a ningún lado.
@@ -214,7 +215,7 @@ export default function AccountScreen() {
             sin cotización. El aviso salta solo la primera vez y esta fila
             queda para volver a abrirlo: un número incompleto no puede quedar
             en pantalla sin que se note. */}
-        {pendientes.length > 0 && (
+        {(pendientes.length > 0 || pendientesFav.length > 0) && (
           <Pressable
             accessibilityRole="button"
             onPress={() => setAvisoVisto(false)}
@@ -231,9 +232,10 @@ export default function AccountScreen() {
         )}
 
         <UnconvertedNotice
-          visible={pendientes.length > 0 && !avisoVisto}
+          visible={(pendientes.length > 0 || pendientesFav.length > 0) && !avisoVisto}
           display={cur}
           unconverted={pendientes}
+          owed={pendientesFav}
           onClose={() => setAvisoVisto(true)}
         />
 

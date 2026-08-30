@@ -23,11 +23,15 @@ import type { Bucket } from '@/src/services/fxTotals';
  * que no se pudo hacer, y aproximarlo acá sería inventar el dato que falta.
  */
 export function UnconvertedNotice({
-  visible, display, unconverted, onClose,
+  visible, display, unconverted, owed = [], onClose,
 }: {
   visible: boolean;
   display: CurrencyCode;
+  /** Gastos que no se pudieron convertir. */
   unconverted: Bucket[];
+  /** Saldo a favor que tampoco se pudo convertir. Va en su propia sección:
+   *  sumar plata gastada con plata que te deben daría un número sin sentido. */
+  owed?: Bucket[];
   onClose: () => void;
 }) {
   const scheme = useColorScheme() ?? 'light';
@@ -35,7 +39,7 @@ export function UnconvertedNotice({
   const { t } = useTranslation();
 
   // Sin nada pendiente no hay nada que avisar: el total ya es completo.
-  if (unconverted.length === 0) return null;
+  if (unconverted.length === 0 && owed.length === 0) return null;
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -53,18 +57,32 @@ export function UnconvertedNotice({
             {t('fx.partial_body', { currency: display })}
           </Text>
 
-          <View style={[styles.list, { backgroundColor: c.surfaceSunken }]}>
-            {unconverted.map(b => (
-              <View key={b.currency} style={styles.item} testID={`unconverted-${b.currency}`}>
-                <Text style={[Typography.bodyM, { color: c.textSecondary, fontWeight: '600' }]}>
-                  {b.currency}
+          {([
+            { key: 'unconverted', etiqueta: t('fx.partial_spent'), datos: unconverted },
+            { key: 'owed',        etiqueta: t('fx.partial_owed'),  datos: owed },
+          ] as const).filter(s => s.datos.length > 0).map(seccion => (
+            <View key={seccion.key} style={{ gap: 4 }}>
+              {/* La etiqueta sólo aparece si hay las dos: con una sola sección
+                  titularla es ruido. */}
+              {unconverted.length > 0 && owed.length > 0 && (
+                <Text style={[Typography.caption, { color: c.textTertiary, textTransform: 'uppercase' }]}>
+                  {seccion.etiqueta}
                 </Text>
-                <Text style={[Typography.bodyM, { color: c.text, fontWeight: '700' }]}>
-                  {formatMoney(b.minor, b.currency)}
-                </Text>
+              )}
+              <View style={[styles.list, { backgroundColor: c.surfaceSunken }]}>
+                {seccion.datos.map(b => (
+                  <View key={b.currency} style={styles.item} testID={`${seccion.key}-${b.currency}`}>
+                    <Text style={[Typography.bodyM, { color: c.textSecondary, fontWeight: '600' }]}>
+                      {b.currency}
+                    </Text>
+                    <Text style={[Typography.bodyM, { color: c.text, fontWeight: '700' }]}>
+                      {formatMoney(b.minor, b.currency)}
+                    </Text>
+                  </View>
+                ))}
               </View>
-            ))}
-          </View>
+            </View>
+          ))}
 
           <Text style={[Typography.caption, { color: c.textTertiary }]}>
             {t('fx.partial_hint')}
