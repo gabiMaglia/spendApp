@@ -273,6 +273,7 @@ export const COBERTURA_FUSION: Record<string, string> = {
   groupKeyStore:  'aparte · mergeGroupKeys (es {groupId,key,epoch}, sin id/updatedAt; gana la época mayor)',
   archiveStore:   'aparte · mergeArchived (string[] bajo archived_v1, en el bucket groups; unión)',
   settingsStore:  'aparte · mergeSettings (preferencias, no datos)',
+  noticeInboxStore: 'aparte · NO se fusiona a proposito: la bandeja es el registro local de "que paso mientras no mirabas" y su acuse no viaja. Arrastrar avisos de una identidad que ya no existe suma ruido sin recuperar nada — los datos que esos avisos anunciaban SI se fusionan por su propio store. Revisar con el PO si alguna vez molesta.',
   userScope:      'no es un store: es el mecanismo de scoping',
 };
 

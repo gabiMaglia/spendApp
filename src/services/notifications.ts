@@ -2,6 +2,7 @@ import * as Notifications from 'expo-notifications';
 import i18n from '@/src/i18n';
 import { useSettingsStore } from '@/src/store/settingsStore';
 import type { Notice } from './syncNotices';
+import { useNoticeInboxStore } from '@/src/store/noticeInboxStore';
 
 /**
  * Entrega de notificaciones locales (T-010).
@@ -144,4 +145,30 @@ export async function deliver(notices: Notice[]): Promise<number> {
     }
   }
   return entregados;
+}
+
+/**
+ * Punto único para dar a conocer un aviso: lo REGISTRA en la bandeja y además
+ * lo entrega al sistema si el usuario quiere ese tipo de aviso.
+ *
+ * Los dos pasos están acá y no en cada llamador porque son la misma intención
+ * —"pasó algo que el usuario debería saber"— y separarlos invita a que un
+ * futuro llamador registre sin avisar, o avise sin registrar.
+ *
+ * **El toggle gobierna el aviso del sistema, NO la bandeja** (decisión del PO):
+ * un aviso con su toggle apagado no vibra pero queda anotado. Perder el
+ * registro en silencio es peor que no vibrar — el usuario apagó una molestia,
+ * no pidió que le escondamos lo que pasó.
+ *
+ * Best effort de punta a punta: si la bandeja no puede escribir, el aviso sale
+ * igual; ninguna de las dos cosas puede tumbar el sync.
+ */
+export async function announce(notices: Notice[]): Promise<number> {
+  if (notices.length === 0) return 0;
+  try {
+    useNoticeInboxStore.getState().record(notices);
+  } catch {
+    // La bandeja es lo secundario: que falle no puede costar el aviso.
+  }
+  return deliver(notices);
 }
