@@ -27,6 +27,8 @@ const MERGEABLE_STORES = ['groups', 'expenses', 'payments', 'users', 'recurring'
 const DATA_KEY = 'data_v1';
 const PERSONAL_ENTRIES_KEY = 'entries_v1';
 const PERSONAL_BUDGET_KEY  = 'budget_v1';
+const GROUP_KEYS_KEY       = 'data_v1';
+const ARCHIVED_KEY         = 'archived_v1';
 
 /**
  * Fusiona TODOS los datos de `fromAccountId` dentro de `toAccountId`.
@@ -38,6 +40,8 @@ export function mergeAccounts(fromAccountId: string, toAccountId: string): Merge
   );
   const report = mergeAccountData(stores, fromAccountId, toAccountId);
   mergePersonal(fromAccountId, toAccountId, report);
+  mergeGroupKeys(fromAccountId, toAccountId);
+  mergeArchived(fromAccountId, toAccountId);
   mergeProfiles(fromAccountId, toAccountId);
   mergeSettings(fromAccountId, toAccountId);
   recordMerge(fromAccountId);
@@ -120,6 +124,76 @@ function mergeSettings(fromAccountId: string, toAccountId: string): void {
 }
 
 /**
+ * Claves de grupo. Van aparte porque `GroupKeyRecord` es `{groupId, key, epoch}`
+ * y NO tiene `{id, updatedAt}`: `mergeAccountData` no puede tocarlas.
+ *
+ * Es lo más caro de perder de todo lo que se fusiona. **Sin la clave, el
+ * dispositivo no puede descifrar los sobres de ese grupo**: los gastos siguen
+ * llegando por el relay y no se pueden leer. El grupo queda mudo sin un solo
+ * mensaje de error.
+ *
+ * Ante el mismo grupo gana la ÉPOCA MAYOR: al rotar una clave cambia el topic,
+ * así que quedarse con la vieja sería quedarse escuchando un buzón que ya nadie
+ * usa. Nunca se degrada a una época anterior.
+ */
+function mergeGroupKeys(fromAccountId: string, toAccountId: string): void {
+  if (fromAccountId === toAccountId) return;
+  const storage = createSecureStorage('groupkeys');
+  const k = (uid: string) => `${GROUP_KEYS_KEY}::u:${uid}`;
+
+  const leer = (uid: string): { groupId: string; key: string; epoch: number }[] => {
+    const raw = storage.getString(k(uid));
+    if (!raw) return [];
+    try {
+      const v = JSON.parse(raw);
+      return Array.isArray(v) ? v : [];
+    } catch {
+      return []; // scope corrupto: no puede tumbar el resto de la fusión
+    }
+  };
+
+  const origen  = leer(fromAccountId);
+  if (origen.length === 0) return;
+
+  const destino = leer(toAccountId);
+  const porGrupo = new Map(destino.map(r => [r.groupId, r]));
+  for (const rec of origen) {
+    const actual = porGrupo.get(rec.groupId);
+    if (!actual || rec.epoch > actual.epoch) porGrupo.set(rec.groupId, rec);
+  }
+  storage.set(k(toAccountId), JSON.stringify([...porGrupo.values()]));
+}
+
+/**
+ * Grupos archivados. Viven en el bucket `groups` pero bajo `archived_v1`, y el
+ * merge de listas sólo mira `data_v1` — por eso se perdían.
+ *
+ * Es una UNIÓN: las dos cuentas son la misma persona, y si guardó un grupo en
+ * cualquiera de sus identidades quiso guardarlo. Perder el archivado le hace
+ * reaparecer grupos que ya había ordenado.
+ */
+function mergeArchived(fromAccountId: string, toAccountId: string): void {
+  if (fromAccountId === toAccountId) return;
+  const storage = createSecureStorage('groups');
+  const k = (uid: string) => `${ARCHIVED_KEY}::u:${uid}`;
+
+  const leer = (uid: string): string[] => {
+    const raw = storage.getString(k(uid));
+    if (!raw) return [];
+    try {
+      const v = JSON.parse(raw);
+      return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const origen = leer(fromAccountId);
+  if (origen.length === 0) return;
+  storage.set(k(toAccountId), JSON.stringify([...new Set([...leer(toAccountId), ...origen])]));
+}
+
+/**
  * Movimientos personales y presupuesto. Van aparte porque `personalStore` no usa
  * la clave `data_v1` de los demás.
  */
@@ -175,5 +249,31 @@ function mergeProfiles(fromAccountId: string, toAccountId: string): void {
 
   storage.set(profileKey(toAccountId), JSON.stringify(merged));
 }
+
+/**
+ * Qué hace la fusión con CADA store scopeado por cuenta.
+ *
+ * Existe porque la lista de stores a fusionar se enumeraba a mano y se
+ * desincronizaba del código: `personal` desapareció en silencio una vez, y
+ * `groupkeys` y los archivados otra (T-047). Tres veces el mismo patrón.
+ *
+ * El guard `accountCoverage.test.ts` compara esta tabla contra los stores que
+ * de verdad existen y falla si aparece uno nuevo sin declarar. Agregar un store
+ * scopeado obliga a decidir acá qué pasa cuando dos cuentas se fusionan — que
+ * es exactamente la decisión que se venía olvidando.
+ */
+export const COBERTURA_FUSION: Record<string, string> = {
+  groupStore:     'fusionado (MERGEABLE_STORES · groups/data_v1)',
+  expenseStore:   'fusionado (MERGEABLE_STORES · expenses/data_v1)',
+  paymentStore:   'fusionado (MERGEABLE_STORES · payments/data_v1)',
+  userStore:      'fusionado (MERGEABLE_STORES · users/data_v1)',
+  recurringStore: 'fusionado (MERGEABLE_STORES · recurring/data_v1)',
+  commentStore:   'fusionado (MERGEABLE_STORES · comments/data_v1)',
+  personalStore:  'aparte · mergePersonal (usa entries_v1 + budget_v1, no data_v1)',
+  groupKeyStore:  'aparte · mergeGroupKeys (es {groupId,key,epoch}, sin id/updatedAt; gana la época mayor)',
+  archiveStore:   'aparte · mergeArchived (string[] bajo archived_v1, en el bucket groups; unión)',
+  settingsStore:  'aparte · mergeSettings (preferencias, no datos)',
+  userScope:      'no es un store: es el mecanismo de scoping',
+};
 
 export { MERGEABLE_STORES };
