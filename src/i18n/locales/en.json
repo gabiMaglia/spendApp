@@ -330,7 +330,10 @@
     "whole_debt": "Full amount · {{amount}}",
     "hint_owed": "is owed {{amount}}",
     "hint_owes": "owes {{amount}}",
-    "all_settled": "This group is all settled up"
+    "all_settled": "This group is all settled up",
+    "max": "MAX",
+    "max_a11y": "Use the full debt",
+    "outstanding_label": "Outstanding"
   },
   "delete": {
     "sheet_title": "Delete this expense?",

@@ -330,7 +330,10 @@
     "whole_debt": "Toda la deuda · {{amount}}",
     "hint_owed": "le deben {{amount}}",
     "hint_owes": "debe {{amount}}",
-    "all_settled": "En este grupo está todo saldado"
+    "all_settled": "En este grupo está todo saldado",
+    "max": "MAX",
+    "max_a11y": "Poner toda la deuda",
+    "outstanding_label": "Deuda pendiente"
   },
   "delete": {
     "sheet_title": "¿Eliminar este gasto?",

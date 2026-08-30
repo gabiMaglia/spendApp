@@ -330,7 +330,10 @@
     "whole_debt": "Dívida inteira · {{amount}}",
     "hint_owed": "deve receber {{amount}}",
     "hint_owes": "deve {{amount}}",
-    "all_settled": "Neste grupo está tudo acertado"
+    "all_settled": "Neste grupo está tudo acertado",
+    "max": "MAX",
+    "max_a11y": "Usar toda a dívida",
+    "outstanding_label": "Dívida pendente"
   },
   "delete": {
     "sheet_title": "¿Eliminar este gasto?",

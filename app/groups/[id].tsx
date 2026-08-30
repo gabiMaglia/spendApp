@@ -387,14 +387,26 @@ export default function GroupDetailScreen() {
       {/* Botonera fija abajo: la acción principal de la pantalla no puede
           depender de cuánto scrolleaste. Margen inferior de 24 pedido por el
           PO, sobre el padding lateral de siempre. */}
+      {/* Antes "agregar gasto" era un FAB flotante en bottom:24 y "saldar" una
+          barra abajo: se pisaban. Ahora conviven en la misma botonera, con la
+          jerarquía explícita — primary lo que se hace todos los días,
+          secondary lo ocasional. */}
       {group && currentUser && group.memberIds.includes(currentUser.id) && (
-        <ButtonRack>
+        <ButtonRack direction="row">
+          <ActionButton
+            testID="add-expense"
+            icon="add"
+            label={t('group_detail.add_expense')}
+            action={() => {
+              hapticLight();
+              router.push({ pathname: '/expense/new', params: { groupId: id } } as any);
+            }}
+          />
           <ActionButton
             testID="settle-debts"
             icon="swap-horizontal-outline"
+            variant="secondary"
             label={t('group_detail.settle_debts')}
-            arrow
-            full
             action={() => {
               hapticLight();
               router.push(`/settle/new?groupId=${group.id}` as any);
@@ -453,15 +465,6 @@ export default function GroupDetailScreen() {
           )
         )}
       </BottomSheet>
-
-      {/* FAB */}
-      <Pressable
-        onPress={() => { hapticLight(); router.push({ pathname: '/expense/new', params: { groupId: id } } as any); }}
-        style={[styles.fab, { backgroundColor: c.brand.primary }]}
-      >
-        <Ionicons name="add" size={24} color="#fff" />
-        <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>{t('group_detail.add_expense')}</Text>
-      </Pressable>
 
       {/* Modal — Invitar miembro */}
       <Modal
@@ -664,13 +667,6 @@ const styles = StyleSheet.create({
     padding: Spacing.cardPad, borderRadius: Radius.lg, borderWidth: 1,
   },
   expenseIcon:    { width: 40, height: 40, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
-  fab:            {
-    position: 'absolute', right: 20, bottom: 24,
-    height: 56, paddingHorizontal: 20,
-    borderRadius: Radius.full,
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    boxShadow: '0 8px 24px rgba(10,110,143,0.35)',
-  },
   // Modal
   modalRoot:   { flex: 1, justifyContent: 'flex-end' },
   sheet:       { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },

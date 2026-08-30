@@ -9,6 +9,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 import { Colors } from '@/src/constants/colors';
 import { Radius, Spacing } from '@/src/constants/spacing';
+import { ActionButton } from '@/src/components/ActionButton';
 import { Typography } from '@/src/constants/typography';
 import { formatMoney } from '@/src/constants/currencies';
 import type { CurrencyCode } from '@/src/constants/currencies';
@@ -250,12 +251,39 @@ export default function SettleNewScreen() {
                 keyboardType="decimal-pad"
                 placeholder="0"
                 placeholderTextColor={c.textTertiary}
-                style={[Typography.amountXL, { color: exceedsMax ? c.semantic.negative : c.text }]}
+                style={[Typography.amountXL, { color: exceedsMax ? c.semantic.negative : c.text, flex: 1 }]}
                 returnKeyType="done"
               />
+              {/* MAX vive DENTRO del input: pedirlo es querer saldar todo, y
+                  antes eso era un chip aparte debajo que había que buscar. */}
+              {deudaTotal > 0 && (
+                <ActionButton
+                  testID="settle-max"
+                  size="sm"
+                  variant={yaEsElTotal ? 'secondary' : 'ghost'}
+                  label={t('settle.max')}
+                  accessibilityLabel={t('settle.max_a11y')}
+                  action={() => { hapticSelection(); setAmountMinor(deudaTotal); }}
+                />
+              )}
             </View>
-            {/* El monto ya viene puesto al elegir a la persona; este chip es
-                para volver al total después de haberlo editado. */}
+            {/* Cuánto se debe, siempre visible. El chip que se quitó lo
+                mostraba en su etiqueta; sin esto, averiguar la deuda exigía
+                apretar MAX y mirar qué había puesto. */}
+            {deudaTotal > 0 && (
+              <View testID="settle-outstanding" style={{ flexDirection: 'row', gap: 6 }}>
+                <Text style={[Typography.bodyS, { color: c.textTertiary }]}>
+                  {t('settle.outstanding_label')}
+                </Text>
+                {/* El monto va FUERA del string traducido: dentro, ninguna
+                    prueba puede verlo sin conocer la clave, y el número queda
+                    a merced de cómo esté redactada cada traducción. */}
+                <Text style={[Typography.bodyS, { color: c.textSecondary, fontWeight: '700' }]}>
+                  {formatMoney(deudaTotal, currency)}
+                </Text>
+              </View>
+            )}
+
             {todoSaldado && (
               <View style={[styles.wholeDebt, { backgroundColor: c.semantic.positiveSoft, borderColor: 'transparent' }]}>
                 <Ionicons name="checkmark-circle" size={14} color={c.semantic.positiveOnSoft} />
@@ -265,28 +293,6 @@ export default function SettleNewScreen() {
               </View>
             )}
 
-            {deudaTotal > 0 && (
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => { hapticSelection(); setAmountMinor(deudaTotal); }}
-                style={[styles.wholeDebt, {
-                  backgroundColor: yaEsElTotal ? c.brand.primarySoft : c.surfaceSunken,
-                  borderColor: yaEsElTotal ? c.brand.primary : 'transparent',
-                }]}
-              >
-                <Ionicons
-                  name={yaEsElTotal ? 'checkmark-circle' : 'flash-outline'}
-                  size={14}
-                  color={yaEsElTotal ? c.brand.primary : c.textSecondary}
-                />
-                <Text style={[Typography.bodyS, {
-                  color: yaEsElTotal ? c.brand.primary : c.textSecondary,
-                  fontWeight: '600',
-                }]}>
-                  {t('settle.whole_debt', { amount: formatMoney(deudaTotal, currency) })}
-                </Text>
-              </Pressable>
-            )}
 
             {maxAmount !== undefined && (
               <View style={[styles.maxHint, { backgroundColor: exceedsMax ? c.semantic.negativeSoft : c.surfaceSunken }]}>

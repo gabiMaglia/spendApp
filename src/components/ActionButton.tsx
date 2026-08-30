@@ -8,7 +8,7 @@ import { Typography } from '@/src/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export type ActionButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
-export type ActionButtonSize = 'md' | 'lg';
+export type ActionButtonSize = 'sm' | 'md' | 'lg';
 
 export interface ActionButtonProps {
   /** Qué pasa al tocarlo. */
@@ -74,7 +74,7 @@ export function ActionButton({
       onPress={action}
       style={[
         styles.base,
-        size === 'lg' ? styles.lg : styles.md,
+        size === 'lg' ? styles.lg : size === 'sm' ? styles.sm : styles.md,
         full && { alignSelf: 'stretch' },
         { backgroundColor: p.bg, borderColor: p.border },
         inactivo && styles.inactivo,
@@ -83,10 +83,10 @@ export function ActionButton({
     >
       {loading
         ? <ActivityIndicator size="small" color={p.fg} />
-        : icon && <Ionicons name={icon} size={size === 'lg' ? 20 : 18} color={p.fg} />}
+        : icon && <Ionicons name={icon} size={size === 'lg' ? 20 : size === 'sm' ? 14 : 18} color={p.fg} />}
 
-      <View style={styles.textos}>
-        <Text style={[Typography.bodyM, { color: p.fg, fontWeight: '700' }]} numberOfLines={1}>
+      <View style={size === 'sm' ? undefined : styles.textos}>
+        <Text style={[size === 'sm' ? Typography.caption : Typography.bodyM, { color: p.fg, fontWeight: '700' }]} numberOfLines={1}>
           {label}
         </Text>
         {sub && (
@@ -96,7 +96,7 @@ export function ActionButton({
         )}
       </View>
 
-      {arrow && <Ionicons name="arrow-forward" size={size === 'lg' ? 20 : 18} color={p.fg} />}
+      {arrow && <Ionicons name="arrow-forward" size={size === 'lg' ? 20 : size === 'sm' ? 14 : 18} color={p.fg} />}
     </Pressable>
   );
 }
@@ -106,6 +106,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: Spacing[2],
     borderRadius: Radius.md, borderWidth: 1,
   },
+  // `sm` es para afordancias compactas que viven DENTRO de otro control (el
+  // "MAX" del input de monto). No respeta el tapTarget de 44 por definición:
+  // quien lo use tiene que compensar con hitSlop.
+  sm:       { paddingVertical: 6, paddingHorizontal: Spacing[3], borderRadius: Radius.sm },
   md:       { paddingVertical: 12, paddingHorizontal: Spacing[4], minHeight: Spacing.tapTarget },
   lg:       { paddingVertical: 16, paddingHorizontal: Spacing[5], minHeight: 52 },
   // El texto empuja la flecha al borde y deja el ícono pegado a la izquierda.

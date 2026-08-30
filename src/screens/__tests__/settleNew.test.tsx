@@ -98,11 +98,14 @@ describe('el monto llega puesto', () => {
     expect(getByDisplayValue('2.000')).toBeTruthy();
   });
 
-  it('el chip permite volver al total después de editar', () => {
-    const { getByText, getByDisplayValue } = render(<SettleNewScreen />);
+  it('MAX vuelve al total después de editar a mano', () => {
+    const { getByTestId, getByDisplayValue } = render(<SettleNewScreen />);
 
     fireEvent.changeText(getByDisplayValue(/5\.000/), '2000');
-    fireEvent.press(getByText(/whole_debt|5\.000/));
+    // El chip "Toda la deuda" se fue: MAX vive ahora DENTRO del input
+    // (PO 2026-08-30). Lo que este test prueba —volver al total después de
+    // editar a mano— no cambia.
+    fireEvent.press(getByTestId('settle-max'));
 
     expect(getByDisplayValue(/5\.000/)).toBeTruthy();
   });
@@ -116,8 +119,8 @@ describe('el monto llega puesto', () => {
       createdAt: 0, createdById: 'ana', updatedAt: 0, isDeleted: false,
     } as Payment] });
 
-    const { getByText } = render(<SettleNewScreen />);
-    expect(getByText(/3\.000/)).toBeTruthy();
+    const { getByTestId } = render(<SettleNewScreen />);
+    expect(getByTestId('settle-outstanding')).toHaveTextContent(/3\.000/);
   });
 
   it('sin deuda no se ofrece el atajo', () => {

@@ -41,7 +41,14 @@ export function ButtonRack({
         style,
       ]}
     >
-      {children}
+      {/* En fila, cada botón se lleva la misma porción del ancho. Se resuelve
+          acá y no en cada pantalla: si lo decidiera quien la escribe, dos
+          pantallas con la misma botonera terminarían con anchos distintos.
+          Admite varios primary y varios secondary sin cambiar nada. */}
+      {direction === 'row'
+        ? React.Children.map(children, hijo =>
+            hijo == null ? null : <View style={styles.celda}>{hijo}</View>)
+        : children}
     </View>
   );
 }
@@ -55,4 +62,5 @@ const styles = StyleSheet.create({
   row:    { flexDirection: 'row', alignItems: 'center' },
   bottom: { paddingTop: Spacing[3], marginBottom: MARGEN_INFERIOR },
   inline: { marginVertical: Spacing[3] },
+  celda:  { flex: 1 },
 });
