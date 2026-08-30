@@ -35,12 +35,28 @@ function formatForEditing(minor: number, code: CurrencyCode, lang: AppLang): str
  *   y redondea después).
  * - Solo se admite UNA ocurrencia del separador decimal; ocurrencias
  *   adicionales se descartan.
- * - El usuario NUNCA tipea separador de miles — cualquier otro carácter
- *   (incluido un separador de miles manual) se descarta. El separador de
- *   miles solo aparece autogenerado on-blur (`formatForEditing`).
+ * - El usuario NUNCA tipea separador de miles: se descarta lo que escriba y se
+ *   RE-AGRUPA solo (PO 2026-08-30). Antes la agrupación aparecía únicamente
+ *   on-blur, así que al tipear "1500000" se veía "1500000" y no había forma de
+ *   saber si eran un millón y medio o quince millones sin contar ceros de a
+ *   uno — con PYG o CLP, donde un gasto normal tiene 7 dígitos, es peor.
  * - Monedas sin decimales (CLP/PYG): el separador decimal queda bloqueado
  *   por completo — todo lo que no sea dígito se descarta.
  */
+/**
+ * Separador de miles del idioma. Es el complemento del decimal: donde el
+ * decimal es coma, los miles son punto, y al revés. Nunca pueden coincidir o
+ * el texto dejaría de ser re-parseable.
+ */
+function grupoSep(lang: AppLang): string {
+  return lang === 'en' ? ',' : '.';
+}
+
+/** Agrupa de a tres desde la derecha: miles, millones, miles de millones. */
+function agruparMiles(digitos: string, lang: AppLang): string {
+  return digitos.replace(/\B(?=(\d{3})+(?!\d))/g, grupoSep(lang));
+}
+
 function sanitizeTypedAmount(raw: string, code: CurrencyCode, lang: AppLang): string {
   const decimals = getCurrency(code).decimals;
   const dec = lang === 'en' ? '.' : ',';
@@ -61,7 +77,12 @@ function sanitizeTypedAmount(raw: string, code: CurrencyCode, lang: AppLang): st
     // cualquier otro carácter (separador de miles, letras, etc.) se descarta
   }
 
-  return seenDec ? `${intPart}${dec}${fracPart}` : intPart;
+  // Ceros a la izquierda: sin esto "0001500" se agruparía como "0.001.500".
+  // Se conserva un "0" solo, que es un monto válido mientras se escribe.
+  const enteros = intPart.replace(/^0+(?=\d)/, '');
+  const agrupado = agruparMiles(enteros, lang);
+
+  return seenDec ? `${agrupado}${dec}${fracPart}` : agrupado;
 }
 
 export interface UseAmountInputResult {

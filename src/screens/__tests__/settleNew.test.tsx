@@ -60,11 +60,12 @@ describe('el monto llega puesto', () => {
   it('editarlo a mano no se pisa solo', () => {
     const { getByDisplayValue } = render(<SettleNewScreen />);
 
-    // Sin separador de miles: en es-AR el punto es separador y el input lo
-    // descarta mientras se tipea (F-16b.4).
+    // El separador de miles ahora se agrupa MIENTRAS se tipea (PO 2026-08-30,
+    // reemplaza F-16b.4): se escribe "2000" y se ve "2.000". Lo que este test
+    // prueba —que lo tipeado a mano no se pise solo— no cambia.
     fireEvent.changeText(getByDisplayValue(/5\.000/), '2000');
 
-    expect(getByDisplayValue('2000')).toBeTruthy();
+    expect(getByDisplayValue('2.000')).toBeTruthy();
   });
 
   it('el que paga soy yo, no el primer miembro de la lista', () => {
@@ -94,7 +95,7 @@ describe('el monto llega puesto', () => {
       } as Payment] });
     });
 
-    expect(getByDisplayValue('2000')).toBeTruthy();
+    expect(getByDisplayValue('2.000')).toBeTruthy();
   });
 
   it('el chip permite volver al total después de editar', () => {

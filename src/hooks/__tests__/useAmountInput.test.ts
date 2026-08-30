@@ -1,3 +1,4 @@
+import type { CurrencyCode } from '@/src/constants/currencies';
 import { act, renderHook } from '@testing-library/react-native';
 
 // Sobreescribe el mock global de react-i18next (test-utils/setup.ts) para
@@ -66,26 +67,48 @@ describe('useAmountInput', () => {
     expect(result.current.text).toBe('150,55');
   });
 
-  it('discards a manually-typed thousands separator (users never type it)', () => {
+  it('descarta el separador de miles tipeado y lo REGENERA el (PO 2026-08-30)', () => {
+    // El separador que escribe el usuario se sigue descartando: nunca se
+    // confia en donde lo puso. Lo que cambio es que despues se re-agrupa solo,
+    // en vez de quedar el texto pelado hasta el blur.
     const { result } = renderHook(() => useAmountInput('ARS'));
     act(() => result.current.onChangeText('1.500,50'));
-    expect(result.current.text).toBe('1500,50');
+    expect(result.current.text).toBe('1.500,50');
     expect(result.current.minor).toBe(150050);
   });
 
-  it('blocks any decimal/thousands separator character for currencies without decimals (CLP)', () => {
+  it('un separador de miles puesto en un lugar ABSURDO se reacomoda', () => {
+    // Prueba que no se respeta lo tipeado sino que se reagrupa de cero.
+    const { result } = renderHook(() => useAmountInput('ARS'));
+    act(() => result.current.onChangeText('1.5.0.0,50'));   // digitos: 1500
+    expect(result.current.text).toBe('1.500,50');
+  });
+
+  it('bloquea el separador DECIMAL en monedas sin decimales (CLP), aunque agrupe miles', () => {
     const { result } = renderHook(() => useAmountInput('CLP'));
     // Simula tipear "1500" seguido de un intento de "," (bloqueado — se descarta).
     act(() => result.current.onChangeText('1500'));
     act(() => result.current.onChangeText('1500,'));
-    expect(result.current.text).toBe('1500'); // la coma nunca llega al texto
+    // El punto que se ve es agrupacion de miles, NO un decimal: lo prueba el
+    // valor canonico, que sigue siendo 1500 y no 15.
+    expect(result.current.text).toBe('1.500');
     expect(result.current.minor).toBe(1500);
   });
 
-  it('does NOT reformat the text on every keystroke (raw text preserved while typing)', () => {
+  it('en CLP ningun decimal sobrevive por mas vueltas que se den', () => {
+    const { result } = renderHook(() => useAmountInput('CLP'));
+    act(() => result.current.onChangeText('1500,99'));
+    expect(result.current.minor).toBe(150099);  // los digitos entran como enteros
+    expect(result.current.text).not.toContain(',');
+  });
+
+  it('SI agrupa en cada tecla (PO 2026-08-30 — reemplaza la regla F-16b.4)', () => {
+    // La regla anterior era no reformatear mientras se tipea. El PO la cambio:
+    // en montos largos, ver "1500000" sin separadores obliga a contar ceros de
+    // a uno para saber si escribiste lo que querias.
     const { result } = renderHook(() => useAmountInput('ARS'));
     act(() => result.current.onChangeText('1500'));
-    expect(result.current.text).toBe('1500'); // texto crudo, sin separador de miles insertado
+    expect(result.current.text).toBe('1.500');
   });
 
   it('formats the text on blur without changing the canonical minor value', () => {
@@ -126,5 +149,84 @@ describe('useAmountInput', () => {
     const { result } = renderHook(() => useAmountInput('ARS'));
     act(() => result.current.onChangeText('150,23'));
     expect(result.current.minor).toBe(15023);
+  });
+});
+
+/**
+ * Separador de miles MIENTRAS SE TIPEA (pedido del PO 2026-08-30).
+ *
+ * Antes solo aparecía al salir del campo: tipeabas "1500000" y veías
+ * "1500000" hasta el blur. En montos largos —y con monedas como PYG o CLP,
+ * donde un gasto normal tiene 6 o 7 dígitos— es imposible saber si escribiste
+ * lo que querías sin contar los ceros de a uno.
+ *
+ * El texto agrupado tiene que seguir siendo re-parseable por `parseMoney` con
+ * el MISMO idioma, que es la invariante que sostiene todo este módulo.
+ */
+describe('agrupacion de miles al tipear', () => {
+  const es = (code: CurrencyCode = 'ARS') => renderHook(() => useAmountInput(code));
+
+  it('agrupa de a tres desde los miles', () => {
+    const { result } = es();
+    act(() => result.current.onChangeText('1500'));
+    expect(result.current.text).toBe('1.500');
+  });
+
+  it('millones', () => {
+    const { result } = es();
+    act(() => result.current.onChangeText('1500000'));
+    expect(result.current.text).toBe('1.500.000');
+  });
+
+  it('miles de millones', () => {
+    const { result } = es();
+    act(() => result.current.onChangeText('1500000000'));
+    expect(result.current.text).toBe('1.500.000.000');
+  });
+
+  it('menos de mil no se agrupa', () => {
+    const { result } = es();
+    act(() => result.current.onChangeText('999'));
+    expect(result.current.text).toBe('999');
+  });
+
+  it('lo agrupado sigue valiendo el mismo monto', () => {
+    // La invariante que no se puede romper: lo que se ve se puede re-parsear.
+    const { result } = es();
+    act(() => result.current.onChangeText('1500000'));
+    expect(result.current.minor).toBe(150_000_000); // 1.500.000,00 ARS
+  });
+
+  it('con decimales, solo se agrupa la parte entera', () => {
+    const { result } = es();
+    act(() => result.current.onChangeText('1500000,25'));
+    expect(result.current.text).toBe('1.500.000,25');
+    expect(result.current.minor).toBe(150_000_025);
+  });
+
+  it('una moneda sin decimales tambien se agrupa (PYG)', () => {
+    const { result } = es('PYG');
+    act(() => result.current.onChangeText('2500000'));
+    expect(result.current.text).toBe('2.500.000');
+    expect(result.current.minor).toBe(2_500_000);
+  });
+
+  it('los ceros a la izquierda no ensucian la agrupacion', () => {
+    const { result } = es();
+    act(() => result.current.onChangeText('0001500'));
+    expect(result.current.text).toBe('1.500');
+  });
+
+  it('un cero solo sigue siendo un cero', () => {
+    const { result } = es();
+    act(() => result.current.onChangeText('0'));
+    expect(result.current.text).toBe('0');
+  });
+
+  it('borrar digitos reagrupa hacia atras', () => {
+    const { result } = es();
+    act(() => result.current.onChangeText('1500000'));
+    act(() => result.current.onChangeText('1.500.00'));  // el usuario borro un digito
+    expect(result.current.text).toBe('150.000');
   });
 });
