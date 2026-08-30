@@ -1,6 +1,7 @@
 import * as Crypto from 'expo-crypto';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { readScoped, writeScoped } from '@/src/store/userScope';
+import { avatarCabe } from '@/src/services/avatar';
 import { useAuthStore } from '@/src/store/authStore';
 import { useUserStore } from '@/src/store/userStore';
 import { sealEnvelope, openEnvelope, toHex, fromHex } from './envelopeCrypto';
@@ -105,6 +106,16 @@ export type ContactCard = {
   wrapPublicKey: string;
   /** Ed25519 de su dispositivo: con ella se verifica lo que mande después. */
   identityPublicKey: string;
+  /**
+   * Foto de perfil como data URI, ya achicada. Opcional: quien no tiene, viaja
+   * sin ella y del otro lado se ven las iniciales.
+   *
+   * Va como BYTES y no como URL para no delegar en el CDN de nadie quién mira
+   * a quién. El tope de `AVATAR_MAX_BYTES` existe porque esta tarjeta viaja en
+   * cada sync: sin él, una foto de teléfono degradaría la sincronización de
+   * todo el grupo.
+   */
+  avatar?: string;
   sentAt: number;
 };
 
@@ -119,6 +130,9 @@ export function myContactCard(): ContactCard | null {
     userId: me.id,
     name: me.name,
     email: me.email ?? '',
+    // Se revalida el tope acá y no solo al guardar: es el último punto antes
+    // de que la foto salga al aire.
+    avatar: me.avatar && avatarCabe(me.avatar) ? me.avatar : undefined,
     contactSecret: secret,
     wrapPublicKey: ensureWrapKeypair().publicKey,
     identityPublicKey: ensureIdentity().publicKey,
@@ -311,6 +325,7 @@ export async function drainContacts(
         id: msg.userId,
         name: msg.name,
         email: msg.email,
+        avatar: msg.avatar,
         authProvider: 'google',
         createdAt: Date.now(),
         updatedAt: syncedNow(),
@@ -441,7 +456,13 @@ function limpiar(info: PeerInfo): PeerInfo {
  * que esto evita.
  */
 export function cardFingerprint(card: ContactCard): string {
-  return [card.userId, card.name, card.email, card.wrapPublicKey, card.identityPublicKey].join('|');
+  // La foto entra en la huella: si no, cambiarla no se detectaría como un
+  // cambio de tarjeta y no se reenviaría a nadie — exactamente el mecanismo
+  // por el que hoy se propaga el nombre.
+  return [
+    card.userId, card.name, card.email,
+    card.wrapPublicKey, card.identityPublicKey, card.avatar ?? '',
+  ].join('|');
 }
 
 function tarjetasEnviadas(): Record<string, string> {

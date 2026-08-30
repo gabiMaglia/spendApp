@@ -25,6 +25,7 @@ import { useCommentStore } from '@/src/store/commentStore';
 import { CommentThread } from '@/src/components/CommentThread';
 import { CategoryIcon } from '@/src/components/CategoryIcon';
 import { Avatar } from '@/src/components/Avatar';
+import { UserAvatar } from '@/src/components/UserAvatar';
 import { hueForUser } from '@/src/utils/hueForUser';
 import { deletionRound, msUntilDeletion, hasObjected, hasRequested } from '@/src/algorithms/deletionRound';
 import type { CategoryKind } from '@/src/constants/colors';
@@ -321,7 +322,7 @@ export default function ExpenseDetailScreen() {
                   i < splits.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.borderHair },
                 ]}
               >
-                <Avatar name={name} hue={hueForUser(split.userId)} size={36} />
+                <UserAvatar userId={split.userId} name={name} size={36} />
                 <View style={{ flex: 1, marginLeft: 10 }}>
                   <Text style={[Typography.bodyM, { color: c.text, fontWeight: '600' }]}>
                     {name}

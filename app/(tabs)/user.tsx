@@ -11,6 +11,7 @@ import { Colors } from '@/src/constants/colors';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { elegirAvatarDeGaleria } from '@/src/services/avatar';
 import { useAuthStore } from '@/src/store/authStore';
 import { useUserStore } from '@/src/store/userStore';
 import { anunciarMiTarjeta } from '@/src/sync/relayEngine';
@@ -42,6 +43,23 @@ export default function UserScreen() {
   // Edición de nombre — sheet controlado, cross-platform (Alert.prompt no
   // existe en Android). Prefill con el nombre actual al abrir.
   const [editingName, setEditingName] = useState(false);
+
+  /**
+   * Cambiar la foto de perfil.
+   *
+   * Se guarda en el usuario y se anuncia a los contactos igual que el nombre:
+   * `announceContactCards` compara la huella de la tarjeta, y la foto entra en
+   * esa huella, así que el cambio se detecta y se reenvía solo.
+   */
+  async function cambiarFoto() {
+    const foto = await elegirAvatarDeGaleria();
+    if (!foto) return;   // canceló, o la imagen no se pudo procesar
+    const yo = useAuthStore.getState().currentUser;
+    if (!yo) return;
+    const actualizado = { ...yo, avatar: foto, updatedAt: syncedNow() };
+    useAuthStore.getState().setUser(actualizado);
+    useUserStore.getState().addOrUpdateUser(actualizado);
+  }
   const [draftName, setDraftName] = useState('');
 
   function openEditName() {
@@ -170,11 +188,23 @@ export default function UserScreen() {
 
         {/* ── Mi cuenta ────────────────────────────────────────────────── */}
         <View style={[styles.profileCard, { backgroundColor: c.surface, borderColor: c.borderHair }]}>
-          <Avatar
-            name={currentUser?.name ?? '?'}
-            hue={hueForUser(currentUser?.id ?? '')}
-            size={56}
-          />
+          {/* Tocar la foto la cambia. Mismo camino que el nombre: se elige y
+              se guarda, sin recorte ni confirmación (decisión del PO), y el
+              cambio viaja solo en la próxima tarjeta de contacto. */}
+          <Pressable
+            testID="change-photo"
+            accessibilityRole="button"
+            accessibilityLabel={t('profile.change_photo')}
+            onPress={cambiarFoto}
+            hitSlop={8}
+          >
+            <Avatar
+              name={currentUser?.name ?? '?'}
+              hue={hueForUser(currentUser?.id ?? '')}
+              photo={currentUser?.avatar}
+              size={56}
+            />
+          </Pressable>
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={[Typography.bodyL, { color: c.text, fontWeight: '700' }]} numberOfLines={1}>
               {currentUser?.name ?? t('profile.no_name')}

@@ -22,6 +22,7 @@ import { useGlobalPersonBalances } from '@/src/store/selectors';
 import { hueForUser } from '@/src/utils/hueForUser';
 import { hapticLight, hapticSuccess, hapticWarning } from '@/src/utils/haptics';
 import { Avatar } from '@/src/components/Avatar';
+import { UserAvatar } from '@/src/components/UserAvatar';
 import { Fab, FabRow } from '@/src/components/Fab';
 import { EmptyState } from '@/src/components/EmptyState';
 import { BottomSheet } from '@/src/components/Sheet';
@@ -243,7 +244,7 @@ function ContactRow({
 
   return (
     <View style={[styles.contactRow, { backgroundColor: c.surface, borderColor: c.borderHair }]}>
-      <Avatar name={name} hue={hueForUser(userId)} size={44} />
+      <UserAvatar userId={userId} name={name} size={44} />
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={[Typography.bodyL, { color: c.text, fontWeight: '600' }]} numberOfLines={1}>
           {name}

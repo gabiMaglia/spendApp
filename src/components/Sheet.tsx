@@ -8,7 +8,7 @@ import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { hueForUser } from '@/src/utils/hueForUser';
-import { Avatar } from './Avatar';
+import { UserAvatar } from './UserAvatar';
 
 export function BottomSheet({
   visible, onClose, children,
@@ -78,7 +78,7 @@ export function SheetOptionAvatar({
       onPress={onPress}
       style={[styles.sheetOption, { backgroundColor: selected ? c.brand.primarySoft : c.surfaceSunken }]}
     >
-      <Avatar name={name} hue={hueForUser(userId)} size={28} />
+      <UserAvatar userId={userId} name={name} size={28} />
       <View style={{ flex: 1 }}>
         <Text style={[Typography.bodyM, { color: selected ? c.brand.primaryOnSoft : c.text, fontWeight: '600' }]}>
           {name}

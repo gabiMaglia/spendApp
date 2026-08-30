@@ -61,7 +61,9 @@
     "display_currency": "Ver meus totais em",
     "rates_updated": "Cotação de {{date}}",
     "rates_never": "Ainda sem cotação",
-    "rates_single": "Você usa uma só moeda: nenhuma cotação é solicitada"
+    "rates_single": "Você usa uma só moeda: nenhuma cotação é solicitada",
+    "change_photo": "Alterar foto",
+    "photo_failed": "Não foi possível usar essa imagem"
   },
   "auth": {
     "welcome_title": "Divida gastos\ncom amigos.",

@@ -12,6 +12,7 @@ export type ProviderProfile = {
   name?: string | null;
   email?: string | null;
   avatarUrl?: string | null;
+  avatar?: string | null;
 };
 
 export const FALLBACK_USER_NAME = 'Usuario';
@@ -50,6 +51,9 @@ export function mergeProviderUser(
     name:         usableStoredName ?? clean(incoming.name) ?? FALLBACK_USER_NAME,
     email:        clean(prev?.email) ?? clean(incoming.email) ?? '',
     avatarUrl:    clean(incoming.avatarUrl) ?? prev?.avatarUrl,
+    // Al revés que `avatarUrl`: la foto SÍ es editable por el usuario, así que
+    // la local gana. Si no, cada login con Google le pisaría la que eligió.
+    avatar:       prev?.avatar ?? clean(incoming.avatar),
     username:     prev?.username,
     authProvider: incoming.authProvider,
     createdAt:    prev?.createdAt ?? now,

@@ -26,6 +26,7 @@ import type { Balance } from '@/src/types/models';
 import { hapticSuccess, hapticWarning, hapticSelection } from '@/src/utils/haptics';
 import { hueForUser } from '@/src/utils/hueForUser';
 import { Avatar } from '@/src/components/Avatar';
+import { UserAvatar } from '@/src/components/UserAvatar';
 import { BottomSheet, SheetOption, SheetOptionAvatar } from '@/src/components/Sheet';
 import { useTranslation } from 'react-i18next';
 import i18n from '@/src/i18n';
@@ -322,7 +323,7 @@ export default function SettleNewScreen() {
               </Text>
               {fromId ? (
                 <View style={styles.transferUser}>
-                  <Avatar name={getUserName(fromId)} hue={hueForUser(fromId)} size={36} />
+                  <UserAvatar userId={fromId} name={getUserName(fromId)} size={36} />
                   <Text style={[Typography.bodyS, { color: c.text, fontWeight: '600', textAlign: 'center' }]} numberOfLines={2}>
                     {fromId === currentUser?.id ? t('common.you') : getUserName(fromId)}
                   </Text>

@@ -61,7 +61,9 @@
     "display_currency": "Show my totals in",
     "rates_updated": "Rates from {{date}}",
     "rates_never": "No rates yet",
-    "rates_single": "You only use one currency: no rates are requested"
+    "rates_single": "You only use one currency: no rates are requested",
+    "change_photo": "Change photo",
+    "photo_failed": "That image couldn't be used"
   },
   "auth": {
     "welcome_title": "Split expenses\nwith friends.",

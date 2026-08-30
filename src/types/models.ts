@@ -12,7 +12,16 @@ export interface User extends SyncMeta {
   name: string;
   email: string;
   username?: string;
+  /** URL del proveedor. Sirve UNA vez, para sembrar `avatar`; después no se usa. */
   avatarUrl?: string;
+  /**
+   * Foto de perfil como data URI, ya achicada (96×96 JPEG, ~4-6 KB).
+   *
+   * Son BYTES y no una URL a propósito: una URL de Google haría que cada peer
+   * bajara la imagen de su CDN, contándole a Google quién mira a quién. Ver
+   * `src/services/avatar.ts`.
+   */
+  avatar?: string;
   authProvider: 'google' | 'apple';
   createdAt: number;
 }

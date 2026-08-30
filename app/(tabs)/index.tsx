@@ -1,5 +1,5 @@
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { Avatar } from '@/src/components/Avatar';
+import { UserAvatar } from '@/src/components/UserAvatar';
 import { Fab, FabRow } from '@/src/components/Fab';
 import { Colors } from '@/src/constants/colors';
 import { MoneyText } from '@/src/components/MoneyText';
@@ -136,11 +136,7 @@ export default function AccountScreen() {
             accessibilityRole="button"
             accessibilityLabel={t('dashboard.go_to_profile')}
           >
-            <Avatar
-              name={currentUser?.name ?? '?'}
-              hue={hueForUser(currentUser?.id ?? '')}
-              size={36}
-            />
+            <UserAvatar userId={currentUser?.id ?? ''} name={currentUser?.name} size={36} />
           </Pressable>
 
           {/* Campana y selector de moneda a la altura del avatar (T-050), mismo tamaño visual. */}

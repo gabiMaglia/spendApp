@@ -21,6 +21,7 @@ import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { announceGroupToContacts } from '@/src/sync/relayEngine';
 import { hueForUser } from '@/src/utils/hueForUser';
 import { Avatar } from '@/src/components/Avatar';
+import { UserAvatar } from '@/src/components/UserAvatar';
 import { useTranslation } from 'react-i18next';
 import { syncedNow } from '@/src/utils/syncedClock';
 
@@ -282,7 +283,7 @@ function MemberRow({
         { backgroundColor: c.surface, borderColor: c.borderHair, opacity: pressed && !locked ? 0.8 : 1 },
       ]}
     >
-      <Avatar name={name} hue={hueForUser(id)} size={38} />
+      <UserAvatar userId={id} name={name} size={38} />
       <Text style={[Typography.bodyM, { flex: 1, color: c.text, fontWeight: '600' }]}>
         {name}
       </Text>

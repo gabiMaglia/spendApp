@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, Text, View } from 'react-native';
 import { Colors } from '@/src/constants/colors';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
@@ -19,9 +19,17 @@ interface AvatarProps {
   size?: number;
   hue?: number;
   ring?: string;
+  /**
+   * Foto en data URI. Si falta —o si falla al dibujarse— se cae a las
+   * iniciales, que es lo que ya funcionaba.
+   *
+   * NO se ofrece verla en grande (decisión del PO): es un identificador visual
+   * en una lista, no una galería.
+   */
+  photo?: string;
 }
 
-export function Avatar({ name, size = 36, hue = 0, ring }: AvatarProps) {
+export function Avatar({ name, size = 36, hue = 0, ring, photo }: AvatarProps) {
   const [bg, fg] = AVATAR_HUES[hue % AVATAR_HUES.length]!;
   const initials = name
     .split(/\s+/)
@@ -42,9 +50,20 @@ export function Avatar({ name, size = 36, hue = 0, ring }: AvatarProps) {
         },
       ]}
     >
-      <Text style={{ color: fg, fontSize: Math.round(size * 0.4), fontWeight: '600' }}>
-        {initials}
-      </Text>
+      {photo ? (
+        <Image
+          source={{ uri: photo }}
+          style={{ width: size, height: size, borderRadius: size / 2 }}
+          // La foto es un cuadrado ya recortado por `achicarAAvatar`; `cover`
+          // evita que una imagen no cuadrada se deforme.
+          resizeMode="cover"
+          accessibilityIgnoresInvertColors
+        />
+      ) : (
+        <Text style={{ color: fg, fontSize: Math.round(size * 0.4), fontWeight: '600' }}>
+          {initials}
+        </Text>
+      )}
     </View>
   );
 }

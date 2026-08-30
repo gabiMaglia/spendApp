@@ -61,7 +61,9 @@
     "display_currency": "Ver mis totales en",
     "rates_updated": "Cotización del {{date}}",
     "rates_never": "Sin cotización todavía",
-    "rates_single": "Usás una sola moneda: no se piden cotizaciones"
+    "rates_single": "Usás una sola moneda: no se piden cotizaciones",
+    "change_photo": "Cambiar foto",
+    "photo_failed": "No se pudo usar esa imagen"
   },
   "auth": {
     "welcome_title": "Dividí gastos\nentre amigos.",

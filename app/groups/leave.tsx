@@ -15,6 +15,7 @@ import { useGroupStore } from '@/src/store/groupStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useGroupBalance } from '@/src/store/selectors';
 import { Avatar } from '@/src/components/Avatar';
+import { UserAvatar } from '@/src/components/UserAvatar';
 import { hueForUser } from '@/src/utils/hueForUser';
 import { hapticLight, hapticSuccess, hapticWarning } from '@/src/utils/haptics';
 import { planAbsorption, planSettlesLeaver, type BalanceEntry } from '@/src/algorithms/absorbBalance';
@@ -166,7 +167,7 @@ export default function LeaveGroupScreen() {
               backgroundColor: absorben.includes(uid) ? c.brand.primarySoft : c.surfaceSunken,
             }]}
           >
-            <Avatar name={getUserName(uid)} hue={hueForUser(uid)} size={32} />
+            <UserAvatar userId={uid} name={getUserName(uid)} size={32} />
             <Text style={[Typography.bodyM, { flex: 1, color: c.text, fontWeight: '600' }]}>
               {getUserName(uid)}
             </Text>

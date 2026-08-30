@@ -11,6 +11,7 @@ import { Colors } from '@/src/constants/colors';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { adoptarAvatarDelProveedor } from '@/src/services/avatar';
 import { useAuthStore } from '@/src/store/authStore';
 import { mergeProviderUser } from '@/src/utils/mergeProviderUser';
 import { Button } from '@/src/components/Button';
@@ -118,6 +119,17 @@ export default function AuthScreen() {
           email:        u.email,
           avatarUrl:    u.photo,
         }));
+
+        // La foto de Google se adopta como bytes propios UNA vez. A partir de
+        // acá deja de depender de su CDN: no caduca, se dibuja sin internet y
+        // nadie afuera se entera de quién la mira. Va sin await: si falla o
+        // tarda, se entra igual y quedan las iniciales.
+        void adoptarAvatarDelProveedor(u.photo ?? undefined).then(foto => {
+          if (!foto) return;
+          const yo = useAuthStore.getState().currentUser;
+          if (!yo || yo.id !== accountId || yo.avatar) return; // ya eligió una: no se pisa
+          useAuthStore.getState().setUser({ ...yo, avatar: foto });
+        });
 
         // Directorio de claves (ADR-004): se aprovecha el MISMO id_token del
         // login, así que no hay una segunda pantalla para el usuario. Va sin
