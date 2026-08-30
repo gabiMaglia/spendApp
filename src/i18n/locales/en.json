@@ -105,8 +105,6 @@
     "add_expense": "Add expense",
     "register_payment": "Register",
     "register_payment_sub": "a payment",
-    "join_group": "Join a",
-    "join_group_sub": "group",
     "empty_title": "All settled",
     "empty_body": "No pending debts with anyone.",
     "go_to_profile": "Go to my profile",
@@ -678,11 +676,11 @@
     "deletion_requested": "Someone asked to delete “{{description}}”. You have 72h to object.",
     "joined_title": "You were added to a group",
     "joined_body": "You can now see “{{group}}”",
-    "inbox_title": "Alerts",
-    "inbox_empty": "No alerts yet",
+    "inbox_title": "Notifications",
+    "inbox_empty": "No notifications yet",
     "inbox_empty_hint": "This is where what happened while you were away shows up.",
     "inbox_mark_all": "Mark all as read",
-    "inbox_open": "View alerts",
+    "inbox_open": "View notifications",
     "inbox_gone": "That's no longer available"
   },
   "fx": {

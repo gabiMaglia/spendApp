@@ -284,14 +284,6 @@ export default function AccountScreen() {
             sub={t('dashboard.register_payment_sub')}
             onPress={() => router.push('/settle/new' as any)}
           />
-          <QuickAction
-            iconName="qr-code-outline"
-            iconBg={c.brand.primarySoft}
-            iconColor={c.brand.primary}
-            label={t('dashboard.join_group')}
-            sub={t('dashboard.join_group_sub')}
-            onPress={() => {}}
-          />
         </View>
 
         <View style={{ height: Spacing[9] }} />
