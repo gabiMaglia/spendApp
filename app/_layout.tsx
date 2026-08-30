@@ -18,6 +18,12 @@ import { rehydrateForActiveUser, subscribeSessionRehydrate } from '@/src/store/s
 import { announceContact, savePeer } from '@/src/sync/contactChannel';
 import { deviceId } from '@/src/sync/relayEngine';
 import { syncedNow } from '@/src/utils/syncedClock';
+import { installNotificationHandler } from '@/src/services/notifications';
+
+// A nivel de módulo, no dentro de un componente: el handler tiene que estar
+// registrado ANTES de que llegue el primer aviso. Sin él, expo-notifications
+// descarta en silencio todo lo que llegue con la app en primer plano.
+installNotificationHandler();
 
 export const unstable_settings = {
   anchor: '(tabs)',

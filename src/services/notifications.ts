@@ -21,6 +21,42 @@ import type { Notice } from './syncNotices';
  * Acá sólo se traduce y se entrega.
  */
 
+let handlerInstalado = false;
+
+/**
+ * Registra CÓMO se presenta un aviso mientras la app está en primer plano.
+ *
+ * Sin esto no se ve nada: la doc de Expo SDK 54 es explícita — *"the default
+ * behavior when the handler is not set or does not respond in time is not to
+ * show the notification"*. El aviso se generaba bien, `scheduleNotificationAsync`
+ * devolvía su id, y el sistema lo descartaba sin pintarlo. Era invisible para
+ * los tests porque todos miraban la entrega, no la presentación.
+ *
+ * `shouldShowAlert` está deprecado en SDK 54; lo reemplazan `shouldShowBanner`
+ * (el globo que baja) y `shouldShowList` (queda en el centro de notificaciones).
+ *
+ * `shouldSetBadge: false` a propósito: no hay nada que limpie el número del
+ * ícono, así que encenderlo dejaría un badge pegado para siempre. Cuando exista
+ * la bandeja de avisos (T-044) el badge pasa a tener dueño y se puede prender.
+ */
+export function installNotificationHandler(): void {
+  if (handlerInstalado) return;
+  handlerInstalado = true;
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowBanner: true,
+      shouldShowList:   true,
+      shouldPlaySound:  true,
+      shouldSetBadge:   false,
+    }),
+  });
+}
+
+/** Sólo para tests: permite volver a registrar el handler. */
+export function resetNotificationHandler(): void {
+  handlerInstalado = false;
+}
+
 /** `undefined` = todavía no se preguntó en esta corrida. */
 let permiso: boolean | undefined;
 
