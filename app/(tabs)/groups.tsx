@@ -17,6 +17,7 @@ import { useGroupStore } from '@/src/store/groupStore';
 import { useArchiveStore } from '@/src/store/archiveStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useGroupBalance, useGroupExpenseCount, useGroupsTotalBalance } from '@/src/store/selectors';
+import { Fab, FabRow } from '@/src/components/Fab';
 import { useFx } from '@/src/store/useFx';
 import { sumConverted } from '@/src/services/fxTotals';
 import { hueForUser } from '@/src/utils/hueForUser';
@@ -64,17 +65,8 @@ export default function GroupsScreen() {
     <SafeAreaView style={[styles.safe, { backgroundColor: c.bg }]}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
 
-        {/* Header. Único punto de entrada para crear un grupo: antes había tres
-            (éste, el del estado vacío —que no hacía nada— y el FAB). */}
-        <View style={[styles.header, { justifyContent: 'flex-end' }]}>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => { hapticLight(); router.push('/groups/new' as any); }}
-            style={[styles.addButton, { backgroundColor: c.surfaceSunken }]}
-          >
-            <Ionicons name="add" size={20} color={c.text} />
-          </Pressable>
-        </View>
+        {/* Crear grupo vive SOLO en el FAB, como en el resto de las tabs
+            (PO 2026-08-30). */}
         <View style={styles.titleRow}>
           <Text style={[Typography.display, { color: c.text }]}>{t('groups.title')}</Text>
         </View>
@@ -161,6 +153,15 @@ export default function GroupsScreen() {
         <View style={{ height: Spacing[9] }} />
       </ScrollView>
 
+      <FabRow>
+        <Fab
+          testID="new-group"
+          onPress={() => { hapticLight(); router.push('/groups/new' as any); }}
+          icon="add"
+          label={t('groups.new_group')}
+          backgroundColor={c.brand.primary}
+        />
+      </FabRow>
     </SafeAreaView>
   );
 }

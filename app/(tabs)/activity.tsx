@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -15,6 +15,7 @@ import { useUserStore } from '@/src/store/userStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { useActivityFeed } from '@/src/store/selectors';
+import { searchActivity } from '@/src/algorithms/searchActivity';
 import type { ActivityKind } from '@/src/store/selectors';
 import { EmptyState } from '@/src/components/EmptyState';
 import { hapticSelection } from '@/src/utils/haptics';
@@ -54,14 +55,18 @@ export default function ActivityScreen() {
   }
   const groups   = useGroupStore(s => s.groups);
   const feed     = useActivityFeed(currentUser?.id ?? '');
+  const [query, setQuery] = useState('');
 
   const ALL_FILTER = '__all__';
   const allGroupNames = [ALL_FILTER, ...groups.filter(g => !g.isDeleted).map(g => g.name)];
   const [activeFilter, setActiveFilter] = useState(ALL_FILTER);
 
-  const filteredFeed = activeFilter === ALL_FILTER
+  // El filtro por grupo y la búsqueda se combinan: buscar dentro de un grupo
+  // filtrado es lo que uno espera, y no que la búsqueda pise el filtro.
+  const porGrupo = activeFilter === ALL_FILTER
     ? feed
     : feed.filter(ev => ev.groupName === activeFilter);
+  const filteredFeed = searchActivity(porGrupo, query, getUserName);
 
   const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
   const yesterdayStart = new Date(todayStart); yesterdayStart.setDate(yesterdayStart.getDate() - 1);
@@ -83,14 +88,35 @@ export default function ActivityScreen() {
     <SafeAreaView style={[styles.safe, { backgroundColor: c.bg }]}>
       <ScrollView showsVerticalScrollIndicator={false}>
 
-        {/* Header */}
-        <View style={styles.header}>
-          <Pressable style={[styles.iconBtn, { backgroundColor: c.surfaceSunken }]}>
-            <Ionicons name="search-outline" size={18} color={c.text} />
-          </Pressable>
-        </View>
+        {/* La lupa que estaba acá arriba NO tenía onPress: era un ícono sin
+            función. La reemplaza una barra que busca de verdad, entre el
+            título y los filtros. */}
         <View style={styles.titleRow}>
           <Text style={[Typography.display, { color: c.text }]}>{t('activity.title')}</Text>
+        </View>
+
+        <View style={[styles.searchBar, { backgroundColor: c.surfaceSunken, borderColor: c.borderHair }]}>
+          <Ionicons name="search-outline" size={16} color={c.textTertiary} />
+          <TextInput
+            testID="activity-search"
+            value={query}
+            onChangeText={setQuery}
+            placeholder={t('activity.search_placeholder')}
+            placeholderTextColor={c.textTertiary}
+            style={[Typography.bodyM, { color: c.text, flex: 1, padding: 0 }]}
+            returnKeyType="search"
+            autoCorrect={false}
+          />
+          {query !== '' && (
+            <Pressable
+              testID="activity-search-clear"
+              accessibilityRole="button"
+              onPress={() => setQuery('')}
+              hitSlop={10}
+            >
+              <Ionicons name="close-circle" size={16} color={c.textTertiary} />
+            </Pressable>
+          )}
         </View>
 
         {/* Filter chips */}
@@ -294,6 +320,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.screenPad, paddingBottom: Spacing[3],
   },
   titleRow:      { paddingHorizontal: Spacing.screenPad, marginBottom: Spacing[3] },
+  searchBar: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    marginHorizontal: Spacing.screenPad, marginBottom: Spacing[3],
+    paddingHorizontal: 12, height: 40,
+    borderRadius: Radius.md, borderWidth: 1,
+  },
   iconBtn:       { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   filters:       { paddingHorizontal: Spacing.screenPad, gap: 8, paddingBottom: Spacing[3] },
   chip:          { paddingHorizontal: 14, paddingVertical: 6, borderRadius: Radius.full, borderWidth: 1 },

@@ -92,32 +92,9 @@ export default function FriendsScreen() {
     <SafeAreaView style={[styles.safe, { backgroundColor: c.bg }]}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
 
-        {/* Header */}
-        <View style={styles.header}>
-          <Pressable
-            onPress={() => { hapticLight(); setShowAdd(true); }}
-            style={[styles.iconBtn, { backgroundColor: c.surfaceSunken }]}
-          >
-            <Ionicons name="person-add-outline" size={18} color={c.text} />
-          </Pressable>
-        </View>
-
-        {/* QR button */}
-        <Pressable
-          onPress={() => { hapticLight(); router.push('/contact/add' as any); }}
-          style={[styles.qrBanner, { backgroundColor: c.surface, borderColor: c.borderHair }]}
-        >
-          <Ionicons name="qr-code-outline" size={22} color={c.brand.primary} />
-          <View style={{ flex: 1 }}>
-            <Text style={[Typography.bodyM, { color: c.text, fontWeight: '700' }]}>
-              {t('friends.add_by_qr')}
-            </Text>
-            <Text style={[Typography.bodyS, { color: c.textSecondary }]}>
-              {t('friends.add_by_qr_sub')}
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={c.textTertiary} />
-        </Pressable>
+        {/* Agregar contacto vive SOLO en el FAB (PO 2026-08-30): estaba
+            también como botón circular arriba y como banner de QR, tres
+            entradas para lo mismo en una pantalla. */}
 
         <Text style={[Typography.display, styles.title, { color: c.text }]}>{t('friends.title')}</Text>
 

@@ -372,7 +372,9 @@
     "action_paid": "paid",
     "deleted_title": "Deleted: {{desc}}",
     "restore": "Restore",
-    "restored": "Restored"
+    "restored": "Restored",
+    "search_placeholder": "Search by description, person or group",
+    "search_empty": "Nothing matches “{{q}}”"
   },
   "settings": {
     "title": "Settings",

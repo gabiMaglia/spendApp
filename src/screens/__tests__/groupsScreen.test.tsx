@@ -31,21 +31,25 @@ beforeEach(() => {
 describe('un solo punto de entrada para crear grupo', () => {
   // Había tres: el "+" de arriba, el del estado vacío (que no hacía NADA) y el
   // FAB. Tres botones para lo mismo y uno muerto.
-  it('el botón + navega a crear grupo', () => {
-    const { getAllByRole } = render(<GroupsScreen />);
-    const botones = getAllByRole('button');
-
-    fireEvent.press(botones[0]!);
+  it('el FAB navega a crear grupo', () => {
+    // El "+" del encabezado se fue: crear grupo vive solo en el FAB, como en
+    // el resto de las tabs (PO 2026-08-30). Se busca por testID y no por
+    // posición, que era frágil ante cualquier reordenamiento.
+    const { getByTestId } = render(<GroupsScreen />);
+    fireEvent.press(getByTestId('new-group'));
 
     const { router } = jest.requireMock('expo-router');
     expect(router.push).toHaveBeenCalledWith('/groups/new');
   });
 
-  it('el estado vacío ya no trae su propio botón muerto', () => {
+  it('hay UN solo punto de entrada, tambien con la lista vacia', () => {
+    // Antes habia tres (el "+" del encabezado, uno muerto en el estado vacio y
+    // el FAB). La asercion se vuelve mas exigente, no mas laxa: no basta con
+    // que no haya uno muerto, tiene que haber exactamente UNO.
     useGroupStore.setState({ groups: [] });
 
-    const { queryByText } = render(<GroupsScreen />);
-    expect(queryByText('groups.new_group')).toBeNull();
+    const { getAllByText } = render(<GroupsScreen />);
+    expect(getAllByText('groups.new_group')).toHaveLength(1);
   });
 });
 

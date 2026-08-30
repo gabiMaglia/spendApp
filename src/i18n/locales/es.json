@@ -372,7 +372,9 @@
     "action_paid": "pagó a",
     "deleted_title": "Borrado: {{desc}}",
     "restore": "Restaurar",
-    "restored": "Restaurado"
+    "restored": "Restaurado",
+    "search_placeholder": "Buscar por descripción, persona o grupo",
+    "search_empty": "Nada coincide con “{{q}}”"
   },
   "settings": {
     "title": "Ajustes",
