@@ -41,6 +41,9 @@ function formatearRestante(ms: number): string {
 export default function ExpenseDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { t } = useTranslation();
+  // ARRIBA del early return de la línea ~74: un hook después de un return
+  // condicional rompe el orden de hooks entre renders. Lo atrapó el lint.
+  const groups = useGroupStore(st => st.groups);
   const scheme = useColorScheme() ?? 'light';
   const c = Colors[scheme];
 
@@ -94,7 +97,6 @@ export default function ExpenseDetailScreen() {
   // al instante, igual que Splitwise: la defensa no es impedir sino que quede
   // visible en Actividad y se pueda restaurar de un toque. En un grupo con
   // acuerdo sigue mandando la regla #2 y sólo el creador del gasto fuerza.
-  const groups = useGroupStore(st => st.groups);
   const grupoDelGasto = groups.find(g => g.id === expense.groupId);
   // Si el grupo no se puede resolver (todavía no sincronizó, dato a medias) se
   // cae al comportamiento de siempre —el creador manda— y NO al más
