@@ -680,6 +680,8 @@
     "partial_body": "The total above is only in {{currency}}. We could not fetch exchange rates, so this was left out:",
     "partial_hint": "It will be added to the total as soon as there is a connection.",
     "close": "Got it",
-    "see_detail": "See what's missing"
+    "see_detail": "See what's missing",
+    "partial_spent": "Spent",
+    "partial_owed": "Owed to you"
   }
 }

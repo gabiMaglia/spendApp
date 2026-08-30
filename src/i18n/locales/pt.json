@@ -680,6 +680,8 @@
     "partial_body": "O total acima está só em {{currency}}. Não conseguimos obter as cotações, então isto ficou de fora:",
     "partial_hint": "Será somado ao total assim que houver conexão.",
     "close": "Entendi",
-    "see_detail": "Ver o que falta"
+    "see_detail": "Ver o que falta",
+    "partial_spent": "Gasto",
+    "partial_owed": "A favor"
   }
 }
