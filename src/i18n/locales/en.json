@@ -367,7 +367,10 @@
     "action_registered_own": "logged",
     "action_registered_other": "logged",
     "action_requested_delete": "requested to delete",
-    "action_paid": "paid"
+    "action_paid": "paid",
+    "deleted_title": "Deleted: {{desc}}",
+    "restore": "Restore",
+    "restored": "Restored"
   },
   "settings": {
     "title": "Settings",

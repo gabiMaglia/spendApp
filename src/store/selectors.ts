@@ -162,7 +162,14 @@ export function useGlobalPersonBalances(currentUserId: string): PersonBalance[] 
 export type ActivityKind =
   | { kind: 'expense_added';          expense: Expense; groupName: string }
   | { kind: 'expense_delete_request'; expense: Expense; groupName: string; requestedByName: string }
-  | { kind: 'payment_made';           payment: Payment; groupName: string };
+  | { kind: 'payment_made';           payment: Payment; groupName: string }
+  /**
+   * Un gasto borrado. Aparece para que se pueda RESTAURAR: es la contraparte
+   * del modo de borrado libre —cualquiera borra, cualquiera deshace— y sin
+   * esto borrar era irreversible. Splitwise hace lo mismo: se deshace en un
+   * toque desde el feed de actividad.
+   */
+  | { kind: 'expense_deleted';        expense: Expense; groupName: string };
 
 export function useActivityFeed(currentUserId: string): ActivityKind[] {
   const groups   = useGroupStore(s => s.groups);
@@ -185,7 +192,22 @@ export function useActivityFeed(currentUserId: string): ActivityKind[] {
     const events: (ActivityKind & { _ts: number })[] = [];
 
     for (const expense of expenses) {
-      if (!myGroupIds.has(expense.groupId) || expense.isDeleted) continue;
+      if (!myGroupIds.has(expense.groupId)) continue;
+
+      // Lo borrado se muestra como tal y NO genera los demás eventos: un gasto
+      // que ya no existe no puede seguir figurando como "agregado" ni con una
+      // ronda de borrado abierta.
+      if (expense.isDeleted) {
+        events.push({
+          kind: 'expense_deleted',
+          expense,
+          groupName: groupName(expense.groupId),
+          // Por `updatedAt`, no por `date`: lo que se está registrando es
+          // CUÁNDO se borró, no cuándo fue el gasto.
+          _ts: expense.updatedAt || expense.date,
+        });
+        continue;
+      }
 
       // Solicitudes de borrado pendientes
       const pendingDelete = (expense.deletionVotes ?? []).find(v => v.action === 'delete');

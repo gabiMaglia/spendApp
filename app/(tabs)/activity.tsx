@@ -13,6 +13,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuthStore } from '@/src/store/authStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useGroupStore } from '@/src/store/groupStore';
+import { useExpenseStore } from '@/src/store/expenseStore';
 import { useActivityFeed } from '@/src/store/selectors';
 import type { ActivityKind } from '@/src/store/selectors';
 import { EmptyState } from '@/src/components/EmptyState';
@@ -37,6 +38,20 @@ export default function ActivityScreen() {
   const c = Colors[scheme];
   const { currentUser } = useAuthStore();
   const { getUserName } = useUserStore();
+  const updateExpense = useExpenseStore(st => st.updateExpense);
+
+  /**
+   * Deshacer un borrado. Es la contraparte del modo de borrado LIBRE, pero se
+   * ofrece en los dos modos: deshacer nunca puede ser más difícil que hacer.
+   *
+   * Se limpian los votos además de levantar el tombstone. Si quedaran, un voto
+   * de borrado viejo seguiría vivo y `resolvePendingDeletions` volvería a
+   * borrarlo solo en el próximo arranque — el usuario vería reaparecer el
+   * borrado sin haber hecho nada.
+   */
+  function restaurar(expenseId: string) {
+    updateExpense(expenseId, { isDeleted: false, deletionVotes: [] });
+  }
   const groups   = useGroupStore(s => s.groups);
   const feed     = useActivityFeed(currentUser?.id ?? '');
 
@@ -126,7 +141,7 @@ export default function ActivityScreen() {
                 )}
               </View>
               {events.map((ev, i) => (
-                <EventRow key={i} event={ev} getUserName={getUserName} currentUserId={currentUser?.id ?? ''} />
+                <EventRow key={i} event={ev} getUserName={getUserName} currentUserId={currentUser?.id ?? ''} onRestore={restaurar} />
               ))}
             </View>
           ))
@@ -140,13 +155,18 @@ export default function ActivityScreen() {
 
 function getTs(ev: ActivityKind): number {
   if (ev.kind === 'expense_added' || ev.kind === 'expense_delete_request') return ev.expense.date;
+  // El borrado se ordena por CUÁNDO se borró, no por la fecha del gasto: si no,
+  // un borrado de hoy sobre un gasto viejo quedaría enterrado al fondo del feed
+  // y el usuario no lo vería a tiempo para deshacerlo.
+  if (ev.kind === 'expense_deleted') return ev.expense.updatedAt || ev.expense.date;
   return ev.payment.date;
 }
 
 function EventRow({
-  event, getUserName, currentUserId,
+  event, getUserName, currentUserId, onRestore,
 }: {
   event: ActivityKind;
+  onRestore: (expenseId: string) => void;
   getUserName: (id: string) => string;
   currentUserId: string;
 }) {
@@ -201,6 +221,39 @@ function EventRow({
           </Text>
           <Text style={[Typography.bodyS, { color: c.textTertiary, marginTop: 4 }]}>{ts}</Text>
         </View>
+      </View>
+    );
+  }
+
+  if (event.kind === 'expense_deleted') {
+    const { expense, groupName } = event;
+    return (
+      <View style={[styles.row, { backgroundColor: c.surface, borderColor: c.borderHair }]}>
+        <View style={[styles.iconBtn, { backgroundColor: c.surfaceSunken }]}>
+          <Ionicons name="trash-outline" size={16} color={c.textTertiary} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text
+            style={[Typography.bodyM, { color: c.textSecondary, textDecorationLine: 'line-through' }]}
+            numberOfLines={1}
+          >
+            {t('activity.deleted_title', { desc: expense.description })}
+          </Text>
+          <Text style={[Typography.bodyS, { color: c.textTertiary }]}>
+            {groupName} · {relativeTime(expense.updatedAt || expense.date)}
+          </Text>
+        </View>
+        <Pressable
+          testID={`restore-${expense.id}`}
+          accessibilityRole="button"
+          onPress={() => onRestore(expense.id)}
+          hitSlop={8}
+          style={{ paddingHorizontal: 8, paddingVertical: 4 }}
+        >
+          <Text style={[Typography.bodyS, { color: c.brand.primary, fontWeight: '700' }]}>
+            {t('activity.restore')}
+          </Text>
+        </Pressable>
       </View>
     );
   }
