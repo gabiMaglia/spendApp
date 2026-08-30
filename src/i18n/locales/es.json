@@ -367,7 +367,10 @@
     "action_registered_own": "registraste",
     "action_registered_other": "registró",
     "action_requested_delete": "solicitó borrar",
-    "action_paid": "pagó a"
+    "action_paid": "pagó a",
+    "deleted_title": "Borrado: {{desc}}",
+    "restore": "Restaurar",
+    "restored": "Restaurado"
   },
   "settings": {
     "title": "Ajustes",
