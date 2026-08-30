@@ -275,3 +275,76 @@ describe('purga de scopes fusionados (T-029)', () => {
     expect(purgeMergedScopes(NOW)).toEqual([]);
   });
 });
+
+/**
+ * T-047 — la fusión perdía en silencio dos cosas que NO tienen la forma
+ * `{id, updatedAt}` que asume `mergeAccountData`, y por eso no podían estar en
+ * `MERGEABLE_STORES`: las CLAVES DE GRUPO (`{groupId, key, epoch}`) y los
+ * grupos ARCHIVADOS (`string[]` bajo otra clave del mismo bucket).
+ *
+ * Sin la clave del grupo el dispositivo no puede descifrar sus sobres: los
+ * gastos siguen llegando y no se pueden leer. Es la tercera vez que el mismo
+ * patrón muerde — `personal` ya había desaparecido igual (ver comentario en
+ * accountLink.ts) — así que además hay un guard que vigila la clase.
+ */
+const gk = () => createSecureStorage('groupkeys');
+const grp = () => createSecureStorage('groups');
+
+function writeKeys(uid: string, recs: { groupId: string; key: string; epoch: number }[]) {
+  gk().set(`data_v1::u:${uid}`, JSON.stringify(recs));
+}
+function readKeys(uid: string): { groupId: string; key: string; epoch: number }[] {
+  const raw = gk().getString(`data_v1::u:${uid}`);
+  return raw ? JSON.parse(raw) : [];
+}
+
+describe('T-047 · la fusión no puede perder claves de grupo', () => {
+  beforeEach(() => { gk().clearAll(); grp().clearAll(); });
+
+  it('las claves del origen llegan al destino', () => {
+    writeKeys(APPLE, [{ groupId: 'g1', key: 'aa', epoch: 1 }]);
+    writeKeys(GOOGLE, []);
+    mergeAccounts(APPLE, GOOGLE);
+    expect(readKeys(GOOGLE)).toEqual([{ groupId: 'g1', key: 'aa', epoch: 1 }]);
+  });
+
+  it('no pisa una clave que el destino ya tenía', () => {
+    writeKeys(APPLE, [{ groupId: 'g1', key: 'vieja', epoch: 1 }]);
+    writeKeys(GOOGLE, [{ groupId: 'g2', key: 'propia', epoch: 1 }]);
+    mergeAccounts(APPLE, GOOGLE);
+    const ids = readKeys(GOOGLE).map(k => k.groupId).sort();
+    expect(ids).toEqual(['g1', 'g2']);
+  });
+
+  it('ante el mismo grupo gana la época MAYOR: una clave rotada es la nueva', () => {
+    writeKeys(APPLE, [{ groupId: 'g1', key: 'nueva', epoch: 5 }]);
+    writeKeys(GOOGLE, [{ groupId: 'g1', key: 'vieja', epoch: 2 }]);
+    mergeAccounts(APPLE, GOOGLE);
+    expect(readKeys(GOOGLE)).toEqual([{ groupId: 'g1', key: 'nueva', epoch: 5 }]);
+  });
+
+  it('no degrada a una época anterior', () => {
+    writeKeys(APPLE, [{ groupId: 'g1', key: 'vieja', epoch: 2 }]);
+    writeKeys(GOOGLE, [{ groupId: 'g1', key: 'nueva', epoch: 5 }]);
+    mergeAccounts(APPLE, GOOGLE);
+    expect(readKeys(GOOGLE)).toEqual([{ groupId: 'g1', key: 'nueva', epoch: 5 }]);
+  });
+});
+
+describe('T-047 · los grupos archivados tampoco se pierden', () => {
+  beforeEach(() => { gk().clearAll(); grp().clearAll(); });
+
+  it('se unen los archivados de las dos cuentas, sin duplicar', () => {
+    grp().set(`archived_v1::u:${APPLE}`, JSON.stringify(['g1', 'g2']));
+    grp().set(`archived_v1::u:${GOOGLE}`, JSON.stringify(['g2', 'g3']));
+    mergeAccounts(APPLE, GOOGLE);
+    const raw = grp().getString(`archived_v1::u:${GOOGLE}`);
+    expect(JSON.parse(raw!).sort()).toEqual(['g1', 'g2', 'g3']);
+  });
+
+  it('sin archivados en el origen no rompe nada', () => {
+    grp().set(`archived_v1::u:${GOOGLE}`, JSON.stringify(['g3']));
+    mergeAccounts(APPLE, GOOGLE);
+    expect(JSON.parse(grp().getString(`archived_v1::u:${GOOGLE}`)!)).toEqual(['g3']);
+  });
+});
