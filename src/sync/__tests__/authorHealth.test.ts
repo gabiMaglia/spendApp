@@ -149,8 +149,17 @@ describe('está enchufado', () => {
     expect(linea).toContain('void ');
   });
 
-  it('la pantalla de diagnóstico lo muestra', () => {
-    expect(leer('../../../app/debug/identity.tsx')).toContain('unverifiedAuthors()');
+  it('la pantalla de diagnóstico lo muestra, y EN VIVO', () => {
+    const pantalla = leer('../../../app/debug/identity.tsx');
+    // No alcanza con que lo llame: `conteo` y `sospechas` son variables de
+    // módulo que el sync actualiza por detrás, así que una lectura suelta en
+    // el render deja la pantalla congelada en el valor del montaje — el PO vio
+    // ceros mientras el contador real subía. Tiene que ir por el sondeo.
+    expect(pantalla).toContain('useLiveValue(unverifiedAuthors)');
+    expect(pantalla).toContain('useLiveValue(authorStats)');
+    // Y no puede quedar ninguna lectura suelta de las que se congelan.
+    expect(pantalla).not.toMatch(/=\s*unverifiedAuthors\(\)/);
+    expect(pantalla).not.toMatch(/=\s*authorStats\(\)/);
   });
 });
 

@@ -17,6 +17,7 @@ import {
   registerDeviceKey, fetchAccountKeys, verifyMyKeyRegistered,
 } from '@/src/sync/deviceKeys';
 import { unverifiedAuthors, authorStats } from '@/src/sync/authorHealth';
+import { useLiveValue } from '@/src/hooks/useLiveValue';
 import { blockingFailures } from '@/src/sync/publishHealth';
 import { clockOffsetMs, hasClockReference, clockIsOff } from '@/src/utils/syncedClock';
 import { ensureIdentity } from '@/src/store/identityStore';
@@ -54,10 +55,13 @@ export default function IdentityDebugScreen() {
 
   // Estado del directorio de claves (ADR-004). Sin esto, "no me sincroniza" y
   // "no pude registrar mi clave" se ven exactamente igual.
-  const bloqueantes = blockingFailures();
+  // Los tres viven en variables de módulo que el sync actualiza por detrás.
+  // Leerlos en el render dejaba la pantalla congelada en el valor del montaje:
+  // el sync contaba bien y acá se veían ceros para siempre.
+  const bloqueantes  = useLiveValue(blockingFailures);
   const [directorio, setDirectorio] = React.useState<string>('—');
-  const sinVerificar = unverifiedAuthors();
-  const stats = authorStats();
+  const sinVerificar = useLiveValue(unverifiedAuthors);
+  const stats = useLiveValue(authorStats);
   const [misClaves, setMisClaves] = React.useState<string[]>([]);
 
   const [alta, setAlta] = React.useState<string | null>(null);
