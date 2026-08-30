@@ -667,7 +667,13 @@
     "new_expenses_other": "{{count}} despesas novas foram adicionadas",
     "deletion_requested": "Pediram para apagar “{{description}}”. Você tem 72h para se opor.",
     "joined_title": "Você foi adicionado a um grupo",
-    "joined_body": "Já pode ver “{{group}}”"
+    "joined_body": "Já pode ver “{{group}}”",
+    "inbox_title": "Avisos",
+    "inbox_empty": "Ainda não há avisos",
+    "inbox_empty_hint": "Aqui fica o que aconteceu enquanto você não olhava.",
+    "inbox_mark_all": "Marcar tudo como lido",
+    "inbox_open": "Ver avisos",
+    "inbox_gone": "Isso já não está disponível"
   },
   "fx": {
     "partial_title": "Há saldo que não estamos mostrando",

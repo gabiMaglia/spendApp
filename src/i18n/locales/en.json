@@ -667,7 +667,13 @@
     "new_expenses_other": "{{count}} new expenses were added",
     "deletion_requested": "Someone asked to delete “{{description}}”. You have 72h to object.",
     "joined_title": "You were added to a group",
-    "joined_body": "You can now see “{{group}}”"
+    "joined_body": "You can now see “{{group}}”",
+    "inbox_title": "Alerts",
+    "inbox_empty": "No alerts yet",
+    "inbox_empty_hint": "This is where what happened while you were away shows up.",
+    "inbox_mark_all": "Mark all as read",
+    "inbox_open": "View alerts",
+    "inbox_gone": "That's no longer available"
   },
   "fx": {
     "partial_title": "There's money we're not showing you",

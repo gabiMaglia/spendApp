@@ -14,6 +14,10 @@ import { useFx } from '@/src/store/useFx';
 import { convertMinor } from '@/src/services/fx';
 import { sumConverted } from '@/src/services/fxTotals';
 import { UnconvertedNotice } from '@/src/components/UnconvertedNotice';
+import { NoticeBell } from '@/src/components/NoticeBell';
+import { NoticeInboxSheet } from '@/src/components/NoticeInboxSheet';
+import { useNoticeInboxStore, type StoredNotice } from '@/src/store/noticeInboxStore';
+import { useGroupStore } from '@/src/store/groupStore';
 import { hueForUser } from '@/src/utils/hueForUser';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -68,6 +72,25 @@ export default function AccountScreen() {
   // son verdaderos pero PARCIALES, y eso hay que decirlo (ver el modal).
   const pendientes = gastos.unconverted;
   const [avisoVisto, setAvisoVisto] = useState(false);
+
+  // Bandeja de avisos (T-044). El acuse es LOCAL: no viaja a ningún lado.
+  const inboxItems  = useNoticeInboxStore(st => st.items);
+  const sinLeer     = useNoticeInboxStore(st => st.unreadCount)();
+  const markRead    = useNoticeInboxStore(st => st.markRead);
+  const markAllRead = useNoticeInboxStore(st => st.markAllRead);
+  const [bandeja, setBandeja] = useState(false);
+  const groups = useGroupStore(st => st.groups);
+
+  function abrirAviso(item: StoredNotice) {
+    // El acuse se registra SIEMPRE, aunque el destino ya no exista: si no, un
+    // aviso de un grupo borrado quedaría sin leer para siempre y el badge
+    // nunca bajaría a cero.
+    markRead(item.id);
+    setBandeja(false);
+    const grupo = groups.find(g => g.id === item.notice.groupId && !g.isDeleted);
+    if (!grupo) { alert(t('notifications.inbox_gone')); return; }
+    router.push(`/groups/${grupo.id}` as any);
+  }
   const effectiveBudget =
     (convertMinor(budget.monthlyAmount, budget.currency, cur, fx) ?? 0)
     + totalIncome + (budget.includeOwedToMe ? owedToMeInCur : 0);
@@ -110,14 +133,25 @@ export default function AccountScreen() {
         </View>
 
         {/* Greeting */}
-        <View style={styles.greeting}>
-          <Text style={[Typography.bodyM, { color: c.textSecondary }]}>
-            {t('dashboard.greeting', { name: firstName })}
-          </Text>
-          <Text style={[Typography.display, { color: c.text }]}>
-            {t('dashboard.title')}
-          </Text>
+        <View style={[styles.greeting, { flexDirection: 'row', alignItems: 'flex-start' }]}>
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={[Typography.bodyM, { color: c.textSecondary }]}>
+              {t('dashboard.greeting', { name: firstName })}
+            </Text>
+            <Text style={[Typography.display, { color: c.text }]}>
+              {t('dashboard.title')}
+            </Text>
+          </View>
+          <NoticeBell unread={sinLeer} onPress={() => setBandeja(true)} />
         </View>
+
+        <NoticeInboxSheet
+          visible={bandeja}
+          items={inboxItems}
+          onClose={() => setBandeja(false)}
+          onOpenNotice={abrirAviso}
+          onMarkAll={() => markAllRead()}
+        />
 
         {/* Personal budget card */}
         <Pressable

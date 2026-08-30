@@ -14,6 +14,7 @@ import { materializeRecurring } from '@/src/services/materializeRecurring';
 import { resolvePendingDeletions } from '@/src/services/resolveDeletions';
 import { applyApprovedLeaves } from '@/src/services/applyLeave';
 import { useSettingsStore } from './settingsStore';
+import { useNoticeInboxStore } from './noticeInboxStore';
 
 // (Re)hidrata todos los stores scopeados por cuenta con los datos del usuario
 // activo. Con usuario nulo (deslogueado), cada hydrate lee un scope vacío y deja
@@ -29,6 +30,7 @@ export function rehydrateForActiveUser(): void {
   useCommentStore.getState().hydrate();
   useGroupKeyStore.getState().hydrate();
   useSettingsStore.getState().hydrate();
+  useNoticeInboxStore.getState().hydrate();
 
   // Con los datos de la cuenta ya cargados, se materializan los gastos
   // recurrentes vencidos. Va acá y no en el arranque de la app porque depende

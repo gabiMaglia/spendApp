@@ -5,7 +5,7 @@ import { useGroupStore } from '@/src/store/groupStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { syncedNow } from '@/src/utils/syncedClock';
 import { snapshot, noticesFor, type Snapshot } from '@/src/services/syncNotices';
-import { deliver } from '@/src/services/notifications';
+import { announce } from '@/src/services/notifications';
 import { useAuthStore } from '@/src/store/authStore';
 import { deriveTopic } from './envelopeCrypto';
 import { subscribeTopic, isRelayConfigured } from './relay';
@@ -184,7 +184,7 @@ async function avisarDeLoNuevo(antes: Snapshot, userId: string): Promise<void> {
       userId,
       syncedNow(),
     );
-    if (avisos.length > 0) await deliver(avisos);
+    if (avisos.length > 0) await announce(avisos);
   } catch { /* nunca rompe el sync */ }
 }
 
@@ -404,7 +404,7 @@ export async function drainContactsNow(): Promise<number> {
 
       // T-010. Va DESPUÉS de drenar: recién ahí el grupo tiene nombre. Antes
       // el aviso diría "te agregaron a «»", que es peor que no avisar.
-      void deliver(r.joinedGroups.map(groupId => ({
+      void announce(r.joinedGroups.map(groupId => ({
         kind: 'joined' as const,
         groupId,
         groupName: useGroupStore.getState().getById(groupId)?.name ?? '',
