@@ -9,10 +9,15 @@ import { Typography } from '@/src/constants/typography';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGlobalPersonBalances } from '@/src/store/selectors';
 import { usePersonalStore, toMonthKey } from '@/src/store/personalStore';
+import { useSettingsStore } from '@/src/store/settingsStore';
+import { useCurrenciesInUse } from '@/src/store/currenciesInUse';
+import { convertMinor, ensureRates, readCache, type FxCache } from '@/src/services/fx';
+import { sumConverted } from '@/src/services/fxTotals';
+import { UnconvertedNotice } from '@/src/components/UnconvertedNotice';
 import { hueForUser } from '@/src/utils/hueForUser';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { hapticLight } from '@/src/utils/haptics';
 import { useTranslation } from 'react-i18next';
 import {
@@ -31,22 +36,52 @@ export default function AccountScreen() {
 
   // Personal budget summary for this month
   const { entries: personalEntries, budget } = usePersonalStore();
-  const cur = budget.currency;
+
+  // La moneda la elige el usuario en el menú, ya no la fija el presupuesto.
+  // Antes `cur` era `budget.currency` y todo lo que no coincidiera se
+  // descartaba EN SILENCIO: un gasto en reales daba 0 sin ninguna señal.
+  const cur = useSettingsStore(s => s.displayCurrency);
+  const monedasEnUso = useCurrenciesInUse();
+
+  // Stale-while-revalidate: se pinta con lo que haya en cache y se actualiza
+  // cuando llega la respuesta. `ensureRates` no sale a la red si el usuario
+  // tiene una sola moneda (decisión del PO) ni si la cache sigue vigente.
+  const [fx, setFx] = useState<FxCache | null>(() => readCache());
+  useEffect(() => {
+    let vivo = true;
+    void ensureRates(monedasEnUso, cur).then(r => { if (vivo) setFx(r); });
+    return () => { vivo = false; };
+  }, [monedasEnUso, cur]);
+
   const thisMonth = toMonthKey(Date.now());
   const monthEntries = personalEntries.filter(
-    e => !e.isDeleted && e.currency === cur && toMonthKey(e.date) === thisMonth,
+    e => !e.isDeleted && toMonthKey(e.date) === thisMonth,
   );
-  const totalSpent = monthEntries
-    .filter(e => e.kind !== 'income')
-    .reduce((s, e) => s + e.amount, 0);
-  const totalIncome = monthEntries
-    .filter(e => e.kind === 'income')
-    .reduce((s, e) => s + e.amount, 0);
-  const owedToMeInCur = personBalances
-    .filter(b => b.currency === cur && b.amount > 0)
-    .reduce((s, b) => s + b.amount, 0);
+
+  const gastos = sumConverted(
+    monthEntries.filter(e => e.kind !== 'income').map(e => ({ currency: e.currency, minor: e.amount })),
+    cur, fx,
+  );
+  const ingresos = sumConverted(
+    monthEntries.filter(e => e.kind === 'income').map(e => ({ currency: e.currency, minor: e.amount })),
+    cur, fx,
+  );
+  const aFavor = sumConverted(
+    personBalances.filter(b => b.amount > 0).map(b => ({ currency: b.currency, minor: b.amount })),
+    cur, fx,
+  );
+
+  const totalSpent    = gastos.totalMinor;
+  const totalIncome   = ingresos.totalMinor;
+  const owedToMeInCur = aFavor.totalMinor;
+
+  // Lo que no se pudo convertir. Mientras haya algo acá, los números de arriba
+  // son verdaderos pero PARCIALES, y eso hay que decirlo (ver el modal).
+  const pendientes = gastos.unconverted;
+  const [avisoVisto, setAvisoVisto] = useState(false);
   const effectiveBudget =
-    budget.monthlyAmount + totalIncome + (budget.includeOwedToMe ? owedToMeInCur : 0);
+    (convertMinor(budget.monthlyAmount, budget.currency, cur, fx) ?? 0)
+    + totalIncome + (budget.includeOwedToMe ? owedToMeInCur : 0);
   const budgetPct = effectiveBudget > 0 ? Math.min(totalSpent / effectiveBudget, 1) : 0;
   const hasBudget = budget.monthlyAmount > 0;
 
@@ -147,6 +182,33 @@ export default function AccountScreen() {
             </Text>
           )}
         </Pressable>
+
+        {/* El total de arriba es verdadero pero PARCIAL mientras haya monedas
+            sin cotización. El aviso salta solo la primera vez y esta fila
+            queda para volver a abrirlo: un número incompleto no puede quedar
+            en pantalla sin que se note. */}
+        {pendientes.length > 0 && (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setAvisoVisto(false)}
+            style={{
+              flexDirection: 'row', alignItems: 'center', gap: 6,
+              paddingHorizontal: 4, paddingVertical: 8,
+            }}
+          >
+            <Ionicons name="alert-circle-outline" size={14} color={c.semantic.warning} />
+            <Text style={[Typography.caption, { color: c.semantic.warning, fontWeight: '600' }]}>
+              {t('fx.see_detail')}
+            </Text>
+          </Pressable>
+        )}
+
+        <UnconvertedNotice
+          visible={pendientes.length > 0 && !avisoVisto}
+          display={cur}
+          unconverted={pendientes}
+          onClose={() => setAvisoVisto(true)}
+        />
 
         {/* Grupos balance card */}
         <View style={[styles.card, { backgroundColor: c.surface, borderColor: c.borderHair }]}>

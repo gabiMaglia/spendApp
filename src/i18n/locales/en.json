@@ -56,7 +56,12 @@
     "sign_out_confirm_body": "Are you sure? Your local data stays on the device.",
     "version": "SplitP2P v{{version}} · serverless P2P",
     "language": "Language",
-    "language_auto": "Auto"
+    "language_auto": "Auto",
+    "section_currency": "CURRENCY",
+    "display_currency": "Show my totals in",
+    "rates_updated": "Rates from {{date}}",
+    "rates_never": "No rates yet",
+    "rates_single": "You only use one currency: no rates are requested"
   },
   "auth": {
     "welcome_title": "Split expenses\nwith friends.",
@@ -663,5 +668,12 @@
     "deletion_requested": "Someone asked to delete “{{description}}”. You have 72h to object.",
     "joined_title": "You were added to a group",
     "joined_body": "You can now see “{{group}}”"
+  },
+  "fx": {
+    "partial_title": "There's money we're not showing you",
+    "partial_body": "The total above is only in {{currency}}. We could not fetch exchange rates, so this was left out:",
+    "partial_hint": "It will be added to the total as soon as there is a connection.",
+    "close": "Got it",
+    "see_detail": "See what's missing"
   }
 }
