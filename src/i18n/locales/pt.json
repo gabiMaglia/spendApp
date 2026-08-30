@@ -105,8 +105,6 @@
     "add_expense": "Adicionar gasto",
     "register_payment": "Registrar",
     "register_payment_sub": "um pagamento",
-    "join_group": "Unirme a",
-    "join_group_sub": "um grupo",
     "empty_title": "Todo saldado",
     "empty_body": "No tenés deudas pendientes con nadie.",
     "go_to_profile": "Ir ao meu perfil",
@@ -678,11 +676,11 @@
     "deletion_requested": "Pediram para apagar “{{description}}”. Você tem 72h para se opor.",
     "joined_title": "Você foi adicionado a um grupo",
     "joined_body": "Já pode ver “{{group}}”",
-    "inbox_title": "Avisos",
-    "inbox_empty": "Ainda não há avisos",
+    "inbox_title": "Notificações",
+    "inbox_empty": "Ainda não há notificações",
     "inbox_empty_hint": "Aqui fica o que aconteceu enquanto você não olhava.",
     "inbox_mark_all": "Marcar tudo como lido",
-    "inbox_open": "Ver avisos",
+    "inbox_open": "Ver notificações",
     "inbox_gone": "Isso já não está disponível"
   },
   "fx": {
