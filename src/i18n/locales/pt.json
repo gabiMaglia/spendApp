@@ -146,7 +146,13 @@
     "archive": "Arquivar",
     "unarchive": "Restaurar",
     "empty_archived_title": "Nada arquivado",
-    "empty_archived_body": "Deslize um grupo para a esquerda para tirá-lo da lista principal. Nada é apagado: as despesas e os saldos ficam intactos."
+    "empty_archived_body": "Deslize um grupo para a esquerda para tirá-lo da lista principal. Nada é apagado: as despesas e os saldos ficam intactos.",
+    "deletion_label": "APAGAR DESPESAS",
+    "deletion_consensus": "Com acordo",
+    "deletion_consensus_hint": "Apagar uma despesa de outra pessoa precisa ser solicitado. Os demais têm 72h para objetar. Quem lançou pode apagar na hora.",
+    "deletion_open": "Livre",
+    "deletion_open_hint": "Qualquer pessoa do grupo apaga na hora, e qualquer uma pode restaurar em Atividade.",
+    "deletion_fixed": "Escolhido agora e não muda depois."
   },
   "group_detail": {
     "your_balance": "Tu balance acá",
@@ -296,7 +302,8 @@
     "time_hours": "{{count}} hora",
     "time_hours_plural": "{{count}} horas",
     "time_minutes": "{{count}} minuto",
-    "time_minutes_plural": "{{count}} minutos"
+    "time_minutes_plural": "{{count}} minutos",
+    "delete_body_open": "Será apagada agora. Qualquer pessoa do grupo pode restaurá-la em Atividade."
   },
   "settle": {
     "title": "Registrar pago",

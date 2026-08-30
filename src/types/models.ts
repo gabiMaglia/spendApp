@@ -87,6 +87,8 @@ export interface DeletionVote {
  * antes de que se aplique. Vive en el `Group` para que viaje por el sync como
  * cualquier otro campo.
  */
+export type DeletionMode = 'consensus' | 'open';
+
 export interface LeaveRequest {
   /** Quién se va. */
   userId: string;
@@ -109,6 +111,21 @@ export interface Group extends SyncMeta {
   createdAt: number;
   createdById: string;
   deletionVotes: DeletionVote[];
+  /**
+   * Cómo se borran los gastos de este grupo. Se elige al crearlo (decisión del
+   * PO 2026-08-30) y no cambia después: aflojarlo más tarde relajaría en
+   * retroactivo un acuerdo que el grupo ya había tomado.
+   *
+   * - `consensus` (default): regla #2 — pedir, 72hs para objetar, override del
+   *   creador. Es lo que hace este proyecto desde siempre.
+   * - `open`: como Splitwise — cualquiera del grupo borra al instante y
+   *   cualquiera restaura desde Actividad. La defensa no es impedir sino ver y
+   *   poder deshacer.
+   *
+   * Opcional a propósito: los grupos que existen desde antes no lo tienen y
+   * caen a `consensus`, que es el modo más restrictivo. Nunca se aflojan solos.
+   */
+  deletionMode?: DeletionMode;
   /**
    * Modo de división por defecto del grupo.
    * undefined = sin configuración → se muestran las 3 opciones al crear un gasto.

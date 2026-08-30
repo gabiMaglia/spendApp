@@ -146,7 +146,13 @@
     "archive": "Archive",
     "unarchive": "Restore",
     "empty_archived_title": "Nothing archived",
-    "empty_archived_body": "Swipe a group left to take it off the main list. Nothing is deleted: its expenses and balances stay intact."
+    "empty_archived_body": "Swipe a group left to take it off the main list. Nothing is deleted: its expenses and balances stay intact.",
+    "deletion_label": "DELETING EXPENSES",
+    "deletion_consensus": "With agreement",
+    "deletion_consensus_hint": "Deleting someone else's expense has to be requested. Others have 72h to object. Whoever added it can delete it right away.",
+    "deletion_open": "Open",
+    "deletion_open_hint": "Anyone in the group deletes instantly, and anyone can restore it from Activity.",
+    "deletion_fixed": "Chosen now and cannot be changed later."
   },
   "group_detail": {
     "your_balance": "Your balance here",
@@ -296,7 +302,8 @@
     "time_hours": "{{count}} hour",
     "time_hours_plural": "{{count}} hours",
     "time_minutes": "{{count}} minute",
-    "time_minutes_plural": "{{count}} minutes"
+    "time_minutes_plural": "{{count}} minutes",
+    "delete_body_open": "It will be deleted now. Anyone in the group can restore it from Activity."
   },
   "settle": {
     "title": "Register payment",
