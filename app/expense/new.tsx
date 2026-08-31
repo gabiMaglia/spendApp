@@ -29,8 +29,7 @@ import { useGroupStore } from '@/src/store/groupStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { usePersonalStore, toMonthKey } from '@/src/store/personalStore';
-import { hueForUser } from '@/src/utils/hueForUser';
-import { Avatar } from '@/src/components/Avatar';
+import { UserAvatar } from '@/src/components/UserAvatar';
 import { BottomSheet, SheetOption, SheetOptionAvatar } from '@/src/components/Sheet';
 import { buildSplits } from '@/src/algorithms/buildSplits';
 import type { ExpenseCategory, PersonalCategory } from '@/src/types/models';
@@ -543,7 +542,7 @@ export default function NewExpenseScreen() {
             >
               <Text style={[Typography.label, { color: c.textTertiary, textTransform: 'uppercase' }]}>{t('expense.payer_label')}</Text>
               <View style={styles.rowRight}>
-                <Avatar name={payerName} hue={hueForUser(payerId)} size={24} />
+                <UserAvatar userId={payerId} name={payerName} size={24} />
                 <Text style={[Typography.bodyM, { color: c.text, fontWeight: '600' }]}>{payerName}</Text>
                 <Ionicons name="chevron-down" size={16} color={c.textTertiary} />
               </View>
@@ -640,7 +639,7 @@ export default function NewExpenseScreen() {
                       { backgroundColor: showRest ? c.brand.primarySoft : c.surfaceWarm },
                     ]}
                   >
-                    <Avatar name={name} hue={hueForUser(split.userId)} size={32} />
+                    <UserAvatar userId={split.userId} name={name} size={32} />
                     <Text style={[Typography.bodyM, { flex: 1, color: c.text, fontWeight: '600' }]}>
                       {name}
                     </Text>

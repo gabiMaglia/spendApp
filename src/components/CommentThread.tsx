@@ -9,7 +9,7 @@ import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { hapticLight } from '@/src/utils/haptics';
-import { Avatar } from '@/src/components/Avatar';
+import { UserAvatar } from './UserAvatar';
 import type { ExpenseComment } from '@/src/types/models';
 
 const MAX_LENGTH = 500;
@@ -70,7 +70,7 @@ export function CommentThread({
             const name = authorName(comment.authorId);
             return (
               <View key={comment.id} style={styles.row}>
-                <Avatar name={name} size={28} />
+                <UserAvatar userId={comment.authorId} name={name} size={28} />
                 <View style={styles.bubbleWrap}>
                   <View style={styles.metaRow}>
                     <Text style={[Typography.bodyS, { color: c.text, fontWeight: '600' }]}>

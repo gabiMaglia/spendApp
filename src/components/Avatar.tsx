@@ -79,7 +79,7 @@ const styles = StyleSheet.create({
 // ── AvatarStack ──────────────────────────────────────────────────────────────
 
 interface AvatarStackProps {
-  people: { name: string; hue?: number }[];
+  people: { name: string; hue?: number; photo?: string }[];
   size?: number;
   max?: number;
   ring?: string;
@@ -95,7 +95,7 @@ export function AvatarStack({ people, size = 28, max = 4, ring }: AvatarStackPro
     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
       {shown.map((p, i) => (
         <View key={i} style={{ marginLeft: i === 0 ? 0 : -Math.round(size * 0.3) }}>
-          <Avatar name={p.name} hue={p.hue ?? i} size={size} ring={defaultRing} />
+          <Avatar name={p.name} hue={p.hue ?? i} photo={p.photo} size={size} ring={defaultRing} />
         </View>
       ))}
       {extra > 0 && (

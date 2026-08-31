@@ -26,8 +26,6 @@ import { calculateBalancesByCurrency } from '@/src/algorithms/calculateBalances'
 import { suggestedSettlement } from '@/src/algorithms/settleSuggestion';
 import type { Balance } from '@/src/types/models';
 import { hapticSuccess, hapticWarning, hapticSelection } from '@/src/utils/haptics';
-import { hueForUser } from '@/src/utils/hueForUser';
-import { Avatar } from '@/src/components/Avatar';
 import { UserAvatar } from '@/src/components/UserAvatar';
 import { BottomSheet, SheetOption, SheetOptionAvatar } from '@/src/components/Sheet';
 import { useTranslation } from 'react-i18next';
@@ -424,7 +422,7 @@ export default function SettleNewScreen() {
               </Text>
               {toId ? (
                 <View style={styles.transferUser}>
-                  <Avatar name={getUserName(toId)} hue={hueForUser(toId)} size={36} />
+                  <UserAvatar userId={toId} name={getUserName(toId)} size={36} />
                   <Text style={[Typography.bodyS, { color: c.text, fontWeight: '600', textAlign: 'center' }]} numberOfLines={2}>
                     {getUserName(toId)}
                   </Text>

@@ -15,12 +15,10 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useArchiveStore } from '@/src/store/archiveStore';
-import { useUserStore } from '@/src/store/userStore';
 import { useGroupBalance, useGroupExpenseCount, useGroupsTotalBalance } from '@/src/store/selectors';
 import { Fab, FabRow } from '@/src/components/Fab';
 import { useFx } from '@/src/store/useFx';
 import { sumConverted } from '@/src/services/fxTotals';
-import { hueForUser } from '@/src/utils/hueForUser';
 import { GroupCard } from '@/src/components/GroupCard';
 import { SwipeToArchive } from '@/src/components/SwipeToArchive';
 import { EmptyState } from '@/src/components/EmptyState';
@@ -173,22 +171,16 @@ function GroupRow({
   currentUserId: string;
   onPress: () => void;
 }) {
-  const { getUserName } = useUserStore();
   const balances     = useGroupBalance(group.id, currentUserId);
   const expenseCount = useGroupExpenseCount(group.id);
 
   // Balance principal en la moneda del grupo
   const mainBalance = balances.find(b => b.currency === group.currency)?.amount ?? 0;
 
-  const members = group.memberIds.map(id => ({
-    name: getUserName(id),
-    hue: hueForUser(id),
-  }));
-
   return (
     <GroupCard
       name={group.name}
-      members={members}
+      memberIds={group.memberIds}
       balance={mainBalance}
       currency={group.currency}
       subtitle={`${expenseCount} gastos`}

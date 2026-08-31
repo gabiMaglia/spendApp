@@ -45,3 +45,28 @@ describe('AvatarStack', () => {
     expect(screen.queryByText(/./)).toBeNull();
   });
 });
+
+describe('la foto llega hasta la pila (bug del PO, 31/08)', () => {
+  // La pila dibujaba SIEMPRE iniciales porque su tipo no tenía `photo`: quien
+  // llamaba armaba `{name, hue}` a mano y la foto se perdía en el camino, sin
+  // que nada fallara. Por eso en Contactos se veía la foto nueva y en Grupos
+  // seguían las iniciales.
+  it('con foto NO dibuja las iniciales', () => {
+    render(<AvatarStack people={[{ name: 'Ana López', photo: 'data:image/jpeg;base64,AAAA' }]} />);
+    expect(screen.queryByText('AL')).toBeNull();
+  });
+
+  it('sin foto sigue dibujando las iniciales', () => {
+    render(<AvatarStack people={[{ name: 'Ana López' }]} />);
+    expect(screen.getByText('AL')).toBeTruthy();
+  });
+
+  it('mezcla: cada uno con lo suyo', () => {
+    render(<AvatarStack people={[
+      { name: 'Ana López', photo: 'data:image/jpeg;base64,AAAA' },
+      { name: 'Bob Ruiz' },
+    ]} />);
+    expect(screen.queryByText('AL')).toBeNull();
+    expect(screen.getByText('BR')).toBeTruthy();
+  });
+});

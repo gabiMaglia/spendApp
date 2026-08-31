@@ -19,8 +19,7 @@ import { useExpenseStore } from '@/src/store/expenseStore';
 import { usePaymentStore } from '@/src/store/paymentStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useGroupBalance } from '@/src/store/selectors';
-import { hueForUser } from '@/src/utils/hueForUser';
-import { Avatar } from '@/src/components/Avatar';
+import { UserAvatar } from '@/src/components/UserAvatar';
 import { createInvite, inviteToLink } from '@/src/sync/groupInvite';
 import { ensureIdentity, saveInvite } from '@/src/store/identityStore';
 import { startRelay, announceGroupToContacts } from '@/src/sync/relayEngine';
@@ -300,7 +299,7 @@ export default function GroupDetailScreen() {
           <View style={styles.membersRow}>
             {group.memberIds.map(uid => (
               <View key={uid} style={{ alignItems: 'center', gap: 4 }}>
-                <Avatar name={getUserName(uid)} hue={hueForUser(uid)} size={40} />
+                <UserAvatar userId={uid} name={getUserName(uid)} size={40} />
                 <Text style={[Typography.caption, { color: c.textTertiary }]} numberOfLines={1}>
                   {getUserName(uid).split(' ')[0]}
                 </Text>

@@ -2,7 +2,7 @@ import React from 'react';
 import { useUserStore } from '@/src/store/userStore';
 import { useAuthStore } from '@/src/store/authStore';
 import { hueForUser } from '@/src/utils/hueForUser';
-import { Avatar } from './Avatar';
+import { Avatar, AvatarStack } from './Avatar';
 
 /**
  * El avatar de una persona, resuelto por su id.
@@ -39,4 +39,35 @@ export function UserAvatar({
       ring={ring}
     />
   );
+}
+
+/**
+ * La pila de avatares de un grupo de personas, resuelta por sus ids.
+ *
+ * Misma razón que `UserAvatar`, y el mismo defecto que vino a cerrar: quien
+ * llamaba a `AvatarStack` armaba `{name, hue}` a mano y ahí se perdía la foto,
+ * en silencio y sin que nada fallara. Pasando ids, no hay dónde olvidarse.
+ */
+export function UserAvatarStack({
+  userIds, size = 28, max = 4, ring,
+}: {
+  userIds: readonly string[];
+  size?: number;
+  max?: number;
+  ring?: string;
+}) {
+  const yo       = useAuthStore(s => s.currentUser);
+  const usuarios = useUserStore(s => s.users);
+
+  const people = userIds.map(id => {
+    const guardado = usuarios.find(u => u.id === id);
+    const esMio    = yo?.id === id;
+    return {
+      name:  guardado?.name ?? (esMio ? yo?.name : undefined) ?? '?',
+      hue:   hueForUser(id),
+      photo: esMio ? (yo?.avatar ?? guardado?.avatar) : guardado?.avatar,
+    };
+  });
+
+  return <AvatarStack people={people} size={size} max={max} ring={ring} />;
 }

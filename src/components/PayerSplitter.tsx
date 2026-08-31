@@ -6,7 +6,7 @@ import { Colors } from '@/src/constants/colors';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { Avatar } from '@/src/components/Avatar';
+import { UserAvatar } from './UserAvatar';
 import { formatMoney, minorFactor, type CurrencyCode } from '@/src/constants/currencies';
 import { validatePayers } from '@/src/algorithms/payers';
 import type { Payer } from '@/src/types/models';
@@ -61,7 +61,7 @@ export function PayerSplitter({
 
       {members.map(m => (
         <View key={m.id} style={styles.row}>
-          <Avatar name={m.name} size={28} />
+          <UserAvatar userId={m.id} name={m.name} size={28} />
           <Text style={[Typography.bodyM, styles.name, { color: c.text }]} numberOfLines={1}>
             {m.name}
           </Text>

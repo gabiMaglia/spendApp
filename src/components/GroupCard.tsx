@@ -8,18 +8,19 @@ import { formatMoney } from '@/src/constants/currencies';
 import type { CurrencyCode } from '@/src/constants/currencies';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTranslation } from 'react-i18next';
-import { AvatarStack } from './Avatar';
+import { UserAvatarStack } from './UserAvatar';
 
 interface GroupCardProps {
   name: string;
-  members: { name: string; hue?: number }[];
+  /** Ids, no datos ya resueltos: así la foto no se puede perder por el camino. */
+  memberIds: readonly string[];
   balance: number;
   currency?: CurrencyCode;
   subtitle?: string;
   onPress?: () => void;
 }
 
-export function GroupCard({ name, members, balance, currency = 'ARS', subtitle, onPress }: GroupCardProps) {
+export function GroupCard({ name, memberIds, balance, currency = 'ARS', subtitle, onPress }: GroupCardProps) {
   const { t } = useTranslation();
   const scheme = useColorScheme() ?? 'light';
   const c = Colors[scheme];
@@ -49,9 +50,9 @@ export function GroupCard({ name, members, balance, currency = 'ARS', subtitle, 
           {name}
         </Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
-          <AvatarStack people={members} size={18} max={3} />
+          <UserAvatarStack userIds={memberIds} size={18} max={3} />
           <Text style={[Typography.bodyS, { color: c.textTertiary }]} numberOfLines={1}>
-            {t('groups.members_count', { count: members.length })}
+            {t('groups.members_count', { count: memberIds.length })}
             {subtitle ? ` · ${subtitle}` : ''}
           </Text>
         </View>
