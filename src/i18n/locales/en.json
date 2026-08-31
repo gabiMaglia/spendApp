@@ -567,7 +567,10 @@
     "kind_expense": "Personal expense",
     "kind_income": "Income",
     "kind_group": "From group",
-    "kind_carryover": "Previous balance"
+    "kind_carryover": "Previous balance",
+    "locked_from_group": "Comes from a group expense: edit it there",
+    "locked_derived": "Generated automatically, not editable",
+    "locked_title": "Can't be edited"
   },
   "contact": {
     "title": "Add contact",

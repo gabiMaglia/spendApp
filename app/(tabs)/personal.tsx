@@ -17,6 +17,7 @@ import { useAmountInput } from '@/src/hooks/useAmountInput';
 import { Fab, FabRow } from '@/src/components/Fab';
 import { useAuthStore } from '@/src/store/authStore';
 import { usePersonalStore, toMonthKey, currentMonthKey } from '@/src/store/personalStore';
+import { reasonKey } from '@/src/algorithms/entryOrigin';
 import { useGlobalPersonBalances } from '@/src/store/selectors';
 import { hapticLight, hapticSelection, hapticWarning } from '@/src/utils/haptics';
 import { v4 as uuidv4 } from 'uuid';
@@ -175,7 +176,16 @@ export default function PersonalScreen() {
   }
 
   function handleRemove(entry: PersonalEntry) {
-    if (entry.kind === 'group_replicated') return;
+    // ADR-006: sólo se toca lo que nació de una acción del usuario. Antes esto
+    // miraba `kind === 'group_replicated'` a mano y, sobre todo, **no decía
+    // nada**: el toque no hacía absolutamente nada y eso se lee como que la
+    // app está rota, no como una regla.
+    const motivo = reasonKey(entry);
+    if (motivo) {
+      hapticWarning();
+      Alert.alert(t('personal.locked_title'), t(motivo));
+      return;
+    }
     hapticWarning();
     Alert.alert(
       t('personal.remove_title'),

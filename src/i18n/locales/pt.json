@@ -567,7 +567,10 @@
     "kind_expense": "Despesa pessoal",
     "kind_income": "Receita",
     "kind_group": "Do grupo",
-    "kind_carryover": "Saldo anterior"
+    "kind_carryover": "Saldo anterior",
+    "locked_from_group": "Vem de uma despesa de grupo: edite lá",
+    "locked_derived": "Gerado automaticamente, não editável",
+    "locked_title": "Não pode ser editado"
   },
   "contact": {
     "title": "Adicionar contato",
