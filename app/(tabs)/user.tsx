@@ -11,7 +11,7 @@ import { Colors } from '@/src/constants/colors';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { elegirAvatarDeGaleria } from '@/src/services/avatar';
+import { claveDeFallo, elegirAvatarDeGaleria } from '@/src/services/avatar';
 import { useAuthStore } from '@/src/store/authStore';
 import { useUserStore } from '@/src/store/userStore';
 import { anunciarMiTarjeta } from '@/src/sync/relayEngine';
@@ -52,8 +52,15 @@ export default function UserScreen() {
    * esa huella, así que el cambio se detecta y se reenvía solo.
    */
   async function cambiarFoto() {
-    const foto = await elegirAvatarDeGaleria();
-    if (!foto) return;   // canceló, o la imagen no se pudo procesar
+    const r = await elegirAvatarDeGaleria();
+    if (!r.ok) {
+      // Cancelar no es un error; el resto SÍ se dice. Fallar sin mensaje deja
+      // al usuario tocando un botón que no hace nada.
+      const clave = claveDeFallo(r.motivo);
+      if (clave) Alert.alert(t('profile.photo_error_title'), t(clave));
+      return;
+    }
+    const foto = r.dataUri;
     const yo = useAuthStore.getState().currentUser;
     if (!yo) return;
     const actualizado = { ...yo, avatar: foto, updatedAt: syncedNow() };

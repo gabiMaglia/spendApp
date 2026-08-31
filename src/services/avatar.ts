@@ -11,12 +11,58 @@ export { AVATAR_MAX_BYTES, avatarByteSize, avatarCabe } from './avatarSize';
  * lo importe. Cargarlo recién al usarlo hace que la app siga funcionando sin
  * foto de perfil en vez de no arrancar.
  */
+let manipCache: typeof import('expo-image-manipulator') | null | undefined;
+
 function cargarManipulador(): typeof import('expo-image-manipulator') | null {
+  // Memoizado: en un build sin el módulo, cada intento imprime un error rojo
+  // en dev. Preguntar dos veces por la misma foto lo imprimía dos veces y
+  // hacía parecer que había dos fallas distintas.
+  if (manipCache !== undefined) return manipCache;
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    return require('expo-image-manipulator');
+    manipCache = require('expo-image-manipulator');
   } catch {
-    return null;
+    manipCache = null;
+  }
+  return manipCache ?? null;
+}
+
+/** Solo para tests: el módulo se resuelve una vez por proceso. */
+export function __resetManipulador(): void {
+  manipCache = undefined;
+}
+
+/**
+ * ¿El build de este dispositivo trae el módulo nativo?
+ *
+ * Existe para poder DISTINGUIR "tu app está vieja" de "esa imagen no se pudo
+ * procesar". Sin esta distinción el usuario recibe siempre el mismo mensaje y
+ * se va a probar con otra foto, que nunca va a andar.
+ */
+export function manipuladorDisponible(): boolean {
+  return cargarManipulador() !== null;
+}
+
+/** Por qué no salió la foto. `cancelado` NO es un error: el usuario decidió. */
+export type FalloAvatar = 'cancelado' | 'sin_permiso' | 'sin_modulo' | 'no_procesable';
+
+export type ResultadoAvatar =
+  | { ok: true; dataUri: string }
+  | { ok: false; motivo: FalloAvatar };
+
+/**
+ * Clave i18n del mensaje para cada fallo, o `null` si no hay nada que decir.
+ *
+ * Es un `switch` exhaustivo a propósito: agregar un motivo sin decidir qué se
+ * le muestra al usuario rompe la compilación en vez de fallar en silencio, que
+ * es exactamente el defecto que este cambio vino a corregir.
+ */
+export function claveDeFallo(motivo: FalloAvatar): string | null {
+  switch (motivo) {
+    case 'cancelado':     return null;
+    case 'sin_permiso':   return 'profile.photo_error_permission';
+    case 'sin_modulo':    return 'profile.photo_error_unavailable';
+    case 'no_procesable': return 'profile.photo_error_failed';
   }
 }
 
@@ -64,17 +110,24 @@ export async function achicarAAvatar(uri: string): Promise<string | null> {
  * Sin pantalla de recorte ni confirmación (decisión del PO): se elige y se
  * guarda, igual que cambiar el nombre.
  */
-export async function elegirAvatarDeGaleria(): Promise<string | null> {
+export async function elegirAvatarDeGaleria(): Promise<ResultadoAvatar> {
   const permiso = await ImagePicker.requestMediaLibraryPermissionsAsync();
-  if (!permiso.granted) return null;
+  if (!permiso.granted) return { ok: false, motivo: 'sin_permiso' };
 
   const r = await ImagePicker.launchImageLibraryAsync({
     mediaTypes: ['images'],
     allowsEditing: false,
     quality: 1,          // la compresión real la hace `achicarAAvatar`
   });
-  if (r.canceled || !r.assets?.[0]) return null;
-  return achicarAAvatar(r.assets[0].uri);
+  if (r.canceled || !r.assets?.[0]) return { ok: false, motivo: 'cancelado' };
+
+  // Se pregunta ANTES de intentar: si el módulo nativo no está en el build, el
+  // problema no es la imagen y mandar al usuario a probar con otra es mandarlo
+  // a un callejón sin salida.
+  if (!manipuladorDisponible()) return { ok: false, motivo: 'sin_modulo' };
+
+  const foto = await achicarAAvatar(r.assets[0].uri);
+  return foto ? { ok: true, dataUri: foto } : { ok: false, motivo: 'no_procesable' };
 }
 
 /**

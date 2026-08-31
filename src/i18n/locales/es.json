@@ -64,7 +64,11 @@
     "rates_single": "Usás una sola moneda: no se piden cotizaciones",
     "change_photo": "Cambiar foto",
     "photo_failed": "No se pudo usar esa imagen",
-    "notif_settlements": "Saldos de deudas"
+    "notif_settlements": "Saldos de deudas",
+    "photo_error_title": "No se pudo cambiar la foto",
+    "photo_error_permission": "La app no tiene permiso para ver tus fotos. Activalo desde los ajustes del teléfono.",
+    "photo_error_unavailable": "Esta versión instalada de la app todavía no puede procesar imágenes. Hace falta reinstalarla desde una compilación nueva.",
+    "photo_error_failed": "No se pudo procesar esa imagen. Probá con otra."
   },
   "auth": {
     "welcome_title": "Dividí gastos\nentre amigos.",
