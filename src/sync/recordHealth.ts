@@ -100,6 +100,8 @@ let conteo: RecordStats = { valida: 0, invalida: 0, no_verificable: 0, no_firmab
 let sinFirmaPorTrinquete: Record<RatchetPos, number> = { desconocido: 0, firma: 0 };
 
 let costo = { ops: 0, ms: 0 };
+/** Registros vistos que ya teníamos: la prueba de que SÍ llegó tráfico. */
+let omitidos = 0;
 
 let detalle = new Map<string, RecordObservation>();
 
@@ -117,6 +119,7 @@ function cargar(): void {
       c?: Partial<RecordStats>;
       nv?: Partial<Record<RatchetPos, number>>;
       costo?: { ops?: number; ms?: number };
+      om?: number;
       d?: RecordObservation[];
     };
     for (const v of VEREDICTOS) {
@@ -127,6 +130,7 @@ function cargar(): void {
     }
     if (typeof d.costo?.ops === 'number') costo.ops = d.costo.ops;
     if (typeof d.costo?.ms === 'number') costo.ms = d.costo.ms;
+    if (typeof d.om === 'number') omitidos = d.om;
     for (const o of d.d ?? []) {
       if (o && typeof o.authorId === 'string') detalle.set(claveDetalle(o.groupId, o.authorId), o);
     }
@@ -137,6 +141,7 @@ function cargar(): void {
     conteo = { valida: 0, invalida: 0, no_verificable: 0, no_firmable: 0 };
     sinFirmaPorTrinquete = { desconocido: 0, firma: 0 };
     costo = { ops: 0, ms: 0 };
+    omitidos = 0;
     detalle = new Map();
   }
 }
@@ -146,6 +151,7 @@ function guardar(): void {
     c: conteo,
     nv: sinFirmaPorTrinquete,
     costo,
+    om: omitidos,
     d: [...detalle.values()],
   }));
 }
@@ -212,7 +218,16 @@ export function observeRecord<K extends CoreKind>(
    * casi todo lo que llega ya lo tenemos— esto solo se lleva la mayor parte del
    * costo del ticket.
    */
-  if (local !== undefined && (record.rev ?? 0) <= local.rev) return 'omitido';
+  if (local !== undefined && (record.rev ?? 0) <= local.rev) {
+    // Se cuenta aunque no se verifique. Sin este número, los cuatro veredictos
+    // en cero significan DOS cosas opuestas —«no llegó ningún sobre» y «llegó y
+    // ya lo tenía todo»— y no hay forma de distinguirlas. Es exactamente el
+    // error de medición que este proyecto ya documentó: un contador que vale
+    // cero por dos razones distintas no es una métrica.
+    omitidos++;
+    guardar();
+    return 'omitido';
+  }
 
   const { k, s } = record as { k?: string; s?: string };
   const firmado = Boolean(k && s);
@@ -323,6 +338,19 @@ export function recordStats(): RecordStats {
   return { ...conteo };
 }
 
+/**
+ * Registros que llegaron y ya teníamos, así que ni se verificaron ni se
+ * contaron como veredicto.
+ *
+ * Es el número que vuelve LEÍBLE a los otros cuatro: con los cuatro en cero,
+ * `omitidos > 0` dice «el sync anda, no llegó nada nuevo» y `omitidos === 0`
+ * dice «no llegó ni un sobre». Sin esto son indistinguibles.
+ */
+export function omittedCount(): number {
+  cargar();
+  return omitidos;
+}
+
 /** Los `no_verificable`, partidos por posición del trinquete de su autor. */
 export function unverifiableBreakdown(): Record<RatchetPos, number> {
   cargar();
@@ -376,6 +404,7 @@ export function clearRecordHealth(): void {
   conteo = { valida: 0, invalida: 0, no_verificable: 0, no_firmable: 0 };
   sinFirmaPorTrinquete = { desconocido: 0, firma: 0 };
   costo = { ops: 0, ms: 0 };
+  omitidos = 0;
   detalle = new Map();
   cargado = true;
   writeScoped(storage, RECORD_HEALTH_KEY, '');
@@ -386,6 +415,7 @@ export function reloadRecordHealth(): void {
   conteo = { valida: 0, invalida: 0, no_verificable: 0, no_firmable: 0 };
   sinFirmaPorTrinquete = { desconocido: 0, firma: 0 };
   costo = { ops: 0, ms: 0 };
+  omitidos = 0;
   detalle = new Map();
   cargado = false;
 }

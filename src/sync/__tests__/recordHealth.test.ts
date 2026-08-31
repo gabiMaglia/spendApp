@@ -2,7 +2,7 @@ import { ed25519 } from '@noble/curves/ed25519.js';
 import {
   observeRecord, observeRecords, recordStats, unverifiableBreakdown,
   invalidRecords, verifyCost, benchmarkVerify,
-  clearRecordHealth, reloadRecordHealth, RECORD_HEALTH_KEY,
+  clearRecordHealth, reloadRecordHealth, RECORD_HEALTH_KEY, omittedCount,
 } from '../recordHealth';
 import { signCore } from '../recordSign';
 import { clearVerdictCache, verdictCacheSize } from '../verdictCache';
@@ -420,5 +420,43 @@ describe('observar no puede romper el sync', () => {
     mockGetPeer.mockImplementation(() => { throw new Error('storage roto'); });
     expect(() => observeRecord('expense', firmadoPor(ANA) as never)).not.toThrow();
     expect(recordStats().no_verificable).toBe(1);
+  });
+});
+
+describe('cero legible: distinguir «no llegó nada» de «ya lo tenía»', () => {
+  /**
+   * El PO abrió la pantalla y vio los cuatro contadores en cero. Con eso solo
+   * no se puede saber si el sync está roto o si simplemente no llegó nada
+   * nuevo — y son diagnósticos opuestos. Es el mismo error de medición que
+   * `authorHealth.ts` ya documenta: un contador que vale cero por dos razones
+   * distintas no es una métrica.
+   */
+  beforeEach(() => clearRecordHealth());
+
+  it('un registro que ya tengo se cuenta como omitido, no como veredicto', () => {
+    const r = { ...EXPENSE, rev: 5 } as never;
+    const salida = observeRecord('expense', r, { rev: 5 });
+
+    expect(salida).toBe('omitido');
+    expect(omittedCount()).toBe(1);
+    // Y NO ensucia ninguno de los cuatro veredictos.
+    expect(recordStats()).toEqual({ valida: 0, invalida: 0, no_verificable: 0, no_firmable: 0 });
+  });
+
+  it('sin tráfico ninguno, omitidos también es 0 — que es el otro diagnóstico', () => {
+    expect(omittedCount()).toBe(0);
+    expect(recordStats()).toEqual({ valida: 0, invalida: 0, no_verificable: 0, no_firmable: 0 });
+  });
+
+  it('un registro NUEVO no cuenta como omitido: se verifica', () => {
+    const salida = observeRecord('expense', { ...EXPENSE, rev: 1 } as never, undefined);
+    expect(salida).not.toBe('omitido');
+    expect(omittedCount()).toBe(0);
+  });
+
+  it('sobrevive al reinicio: si no, el diagnóstico se pierde al cerrar la app', () => {
+    observeRecord('expense', { ...EXPENSE, rev: 5 } as never, { rev: 5 });
+    reloadRecordHealth();
+    expect(omittedCount()).toBe(1);
   });
 });

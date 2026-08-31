@@ -23,6 +23,7 @@ import {
 import { signingAuthors } from '@/src/sync/ratchet';
 import { useLiveValue } from '@/src/hooks/useLiveValue';
 import { blockingFailures } from '@/src/sync/publishHealth';
+import { omittedCount } from '@/src/sync/recordHealth';
 import { clockOffsetMs, hasClockReference, clockIsOff } from '@/src/utils/syncedClock';
 import { ensureIdentity } from '@/src/store/identityStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
@@ -73,6 +74,7 @@ export default function IdentityDebugScreen() {
   // Firmas de registro (T-041 · S6). Modo MARCA: se cuenta, no se descarta —
   // todo lo que aparece acá se aplicó y sumó al balance igual.
   const firmas    = useLiveValue(recordStats);
+  const omitidos  = useLiveValue(omittedCount);
   const costo     = useLiveValue(verifyCost);
   const sinFirma  = useLiveValue(unverifiableBreakdown);
   const invalidos = useLiveValue(invalidRecords);
@@ -214,6 +216,12 @@ export default function IdentityDebugScreen() {
               mezclan con los de arriba y su piso NO cuenta para el cierre. */}
           <Row label="no firmables por diseño" value={String(firmas.no_firmable)} c={c} />
           <Row label="autores a los que vimos firmar" value={String(firmantes.length)} c={c} />
+          {/* Sin esta fila, los cuatro contadores en cero significan DOS cosas
+              opuestas: que no llegó ningún sobre, o que llegó y ya lo teníamos
+              todo. Con `omitidos` en 0 y todo lo demás en 0, el sync no está
+              trayendo nada. */}
+          <Row label="ya los tenía (no se recuentan)" value={String(omitidos)} c={c}
+               warn={omitidos === 0 && firmas.valida === 0 && firmas.no_verificable === 0} />
           {invalidos.map(o => (
             <Text key={`${o.groupId}${o.authorId}`} style={[Typography.bodyS, { color: c.textSecondary }]}>
               {o.authorId.slice(0, 8)}… en {o.groupId.slice(0, 8)}… ×{o.count}
