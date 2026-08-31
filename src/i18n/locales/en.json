@@ -313,7 +313,7 @@
     "from_label": "From",
     "to_label": "To",
     "suggestions_label": "Suggestions",
-    "settle_all": "Settle all · {{amount}}",
+    "settle_all": "Settle everything I owe",
     "settle_half": "Half · {{amount}}",
     "settle_other": "Custom amount",
     "date_label": "Date",
@@ -335,7 +335,10 @@
     "all_settled": "This group is all settled up",
     "max": "MAX",
     "max_a11y": "Use the full debt",
-    "outstanding_label": "Outstanding"
+    "outstanding_label": "Outstanding",
+    "settle_all_sub": "{{count}} people · {{amount}}",
+    "settle_one": "Settle with one person",
+    "split_note": "Not enough for everyone: split evenly"
   },
   "delete": {
     "sheet_title": "Delete this expense?",

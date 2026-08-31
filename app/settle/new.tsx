@@ -12,6 +12,7 @@ import { Radius, Spacing } from '@/src/constants/spacing';
 import { ActionButton } from '@/src/components/ActionButton';
 import { Typography } from '@/src/constants/typography';
 import { topeDelSaldo, excedeElTope } from '@/src/algorithms/settleScope';
+import { acreedoresDe, pagosDelReparto, repartoParejo, totalAdeudado } from '@/src/algorithms/repartoSaldo';
 import { formatMoney } from '@/src/constants/currencies';
 import type { CurrencyCode } from '@/src/constants/currencies';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -185,7 +186,21 @@ export default function SettleNewScreen() {
    * pago se registraba en uno solo: así se corrompieron los saldos del PO
    * (T-051). Ahora monto y alcance hablan de lo mismo.
    */
-  const tope       = topeDelSaldo(deudaTotal, maxAmount);
+  /**
+   * A quiénes les debo en ESTE grupo (ADR-006, decisión 2).
+   *
+   * Con más de un acreedor, saldar de a uno obliga a repetir la operación
+   * tantas veces como personas — y a acordarse de todas. El modo "todo" las
+   * cubre de una.
+   */
+  const acreedores = useMemo(
+    () => acreedoresDe(balancesDelGrupo, currentUser?.id ?? ''),
+    [balancesDelGrupo, currentUser],
+  );
+  const deudaEnGrupo = totalAdeudado(acreedores);
+  const [modoTodo, setModoTodo] = useState(false);
+
+  const tope       = modoTodo ? deudaEnGrupo : topeDelSaldo(deudaTotal, maxAmount);
   const exceedsMax = excedeElTope(amount, tope);
   const canSave     = amount > 0 && !exceedsMax && fromId.length > 0 && toId.length > 0 && fromId !== toId && groupId.length > 0;
 
@@ -217,6 +232,27 @@ export default function SettleNewScreen() {
     if (!canSave || !currentUser) return;
     if (exceedsMax) { hapticWarning(); return; }
     hapticSuccess();
+
+    // Modo "todo": un pago por acreedor. Si el monto no cubre la deuda entera,
+    // se reparte parejo — la app OFRECE ese reparto, no lo impone: el usuario
+    // puede volver al modo de a uno y decidir a quién le da cuánto.
+    if (modoTodo) {
+      const reparto = repartoParejo(acreedores, amount);
+      for (const pago of pagosDelReparto(reparto, currentUser.id, groupId, currency)) {
+        addPayment({
+          id:          uuidv4(),
+          ...pago,
+          date:        date.getTime(),
+          createdAt:   Date.now(),
+          createdById: currentUser.id,
+          updatedAt:   syncedNow(),
+          isDeleted:   false,
+        });
+      }
+      router.back();
+      return;
+    }
+
     addPayment({
       id:          uuidv4(),
       groupId,
@@ -247,6 +283,38 @@ export default function SettleNewScreen() {
         </View>
 
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+
+          {/* Con un solo acreedor no hay nada que elegir: mostrar el selector
+              sería un paso vacío. Aparece recién cuando hay a quién repartir. */}
+          {acreedores.length > 1 && (
+            <View style={{ gap: 8 }}>
+              <ActionButton
+                testID="settle-mode-all"
+                label={t('settle.settle_all')}
+                sub={t('settle.settle_all_sub', {
+                  count: acreedores.length,
+                  amount: formatMoney(deudaEnGrupo, currency),
+                })}
+                icon="people-outline"
+                variant={modoTodo ? 'primary' : 'ghost'}
+                full
+                action={() => { hapticSelection(); setModoTodo(true); setAmountMinor(deudaEnGrupo); }}
+              />
+              <ActionButton
+                testID="settle-mode-one"
+                label={t('settle.settle_one')}
+                icon="person-outline"
+                variant={modoTodo ? 'ghost' : 'primary'}
+                full
+                action={() => { hapticSelection(); setModoTodo(false); setAmountMinor(deudaTotal); }}
+              />
+              {modoTodo && amount > 0 && amount < deudaEnGrupo && (
+                <Text style={[Typography.bodyS, { color: c.semantic.warning }]}>
+                  {t('settle.split_note')}
+                </Text>
+              )}
+            </View>
+          )}
 
           {/* Amount */}
           <View style={[styles.amountCard, { backgroundColor: c.surface, borderColor: exceedsMax ? c.semantic.negative : c.borderHair }]}>

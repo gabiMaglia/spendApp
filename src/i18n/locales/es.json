@@ -313,7 +313,7 @@
     "from_label": "De",
     "to_label": "A",
     "suggestions_label": "Sugerencias",
-    "settle_all": "Saldar todo · {{amount}}",
+    "settle_all": "Saldar todo lo que debo",
     "settle_half": "La mitad · {{amount}}",
     "settle_other": "Otro monto",
     "date_label": "Fecha",
@@ -335,7 +335,10 @@
     "all_settled": "En este grupo está todo saldado",
     "max": "MAX",
     "max_a11y": "Poner toda la deuda",
-    "outstanding_label": "Deuda pendiente"
+    "outstanding_label": "Deuda pendiente",
+    "settle_all_sub": "{{count}} personas · {{amount}}",
+    "settle_one": "Saldar a una persona",
+    "split_note": "No alcanza para todos: se reparte parejo"
   },
   "delete": {
     "sheet_title": "¿Eliminar este gasto?",
