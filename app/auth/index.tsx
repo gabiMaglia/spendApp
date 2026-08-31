@@ -13,6 +13,7 @@ import { Typography } from '@/src/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { adoptarAvatarDelProveedor } from '@/src/services/avatar';
 import { useAuthStore } from '@/src/store/authStore';
+import { actualizarMiPerfil } from '@/src/store/miPerfil';
 import { mergeProviderUser } from '@/src/utils/mergeProviderUser';
 import { Button } from '@/src/components/Button';
 
@@ -128,7 +129,11 @@ export default function AuthScreen() {
           if (!foto) return;
           const yo = useAuthStore.getState().currentUser;
           if (!yo || yo.id !== accountId || yo.avatar) return; // ya eligió una: no se pisa
-          useAuthStore.getState().setUser({ ...yo, avatar: foto });
+          // Por `actualizarMiPerfil` y no `setUser` suelto: la foto tiene que
+          // llegar TAMBIÉN a userStore (que es lo que arma el delta de sync) y
+          // anunciarse a los contactos. Con `setUser` solo, la foto de Google
+          // la veía únicamente su dueño y nadie más, para siempre.
+          actualizarMiPerfil({ avatar: foto });
         });
 
         // Directorio de claves (ADR-004): se aprovecha el MISMO id_token del

@@ -13,8 +13,7 @@ import { Typography } from '@/src/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { claveDeFallo, elegirAvatarDeGaleria } from '@/src/services/avatar';
 import { useAuthStore } from '@/src/store/authStore';
-import { useUserStore } from '@/src/store/userStore';
-import { anunciarMiTarjeta } from '@/src/sync/relayEngine';
+import { actualizarMiPerfil } from '@/src/store/miPerfil';
 import { useThemeStore } from '@/src/store/themeStore';
 import { useLangStore, type LanguageChoice } from '@/src/store/langStore';
 import { SUPPORTED_LANGUAGES } from '@/src/i18n';
@@ -32,7 +31,6 @@ import { File, Paths } from 'expo-file-system';
 import {
   buildBackup, serializeBackup, parseBackup, applyBackup, backupFileName,
 } from '@/src/services/backup';
-import { syncedNow } from '@/src/utils/syncedClock';
 
 export default function UserScreen() {
   const scheme = useColorScheme() ?? 'light';
@@ -60,12 +58,7 @@ export default function UserScreen() {
       if (clave) Alert.alert(t('profile.photo_error_title'), t(clave));
       return;
     }
-    const foto = r.dataUri;
-    const yo = useAuthStore.getState().currentUser;
-    if (!yo) return;
-    const actualizado = { ...yo, avatar: foto, updatedAt: syncedNow() };
-    useAuthStore.getState().setUser(actualizado);
-    useUserStore.getState().addOrUpdateUser(actualizado);
+    actualizarMiPerfil({ avatar: r.dataUri });
   }
   const [draftName, setDraftName] = useState('');
 
@@ -76,22 +69,8 @@ export default function UserScreen() {
 
   function handleSaveName() {
     const clean = sanitizeUserName(draftName);
-    if (!clean || !currentUser) return;
-    const actualizado = { ...currentUser, name: clean, updatedAt: syncedNow() };
-    useAuthStore.getState().setUser(actualizado);
-
-    // El nombre vive en DOS lados: authStore (quién soy) y userStore (la lista
-    // de contactos, que es lo que leen las pantallas Y lo que arma el delta de
-    // sync). setUser sólo toca el primero, y la re-hidratación que los alinea
-    // corre únicamente al CAMBIAR de cuenta — no al renombrarse. Sin esta
-    // línea el nombre viejo queda pegado hasta el próximo login, tanto en las
-    // listas propias como en lo que ven los demás.
-    useUserStore.getState().addOrUpdateUser(actualizado);
-
-    // A los contactos con los que no comparto ningún grupo el nombre sólo les
-    // llega por el canal de contactos: el delta de grupo nunca los alcanza.
-    void anunciarMiTarjeta();
-
+    if (!clean) return;
+    if (!actualizarMiPerfil({ name: clean })) return;
     setEditingName(false);
   }
 

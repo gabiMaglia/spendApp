@@ -86,23 +86,48 @@ describe('anunciarMiTarjeta', () => {
  * lógica construida, testeada y que nadie llama. Los tests de arriba prueban
  * que `anunciarMiTarjeta` anda; este prueba que renombrarse la USA.
  */
-describe('la pantalla de perfil engancha el renombre', () => {
-  const src = fs.readFileSync(
-    path.join(__dirname, '../../../app/(tabs)/user.tsx'), 'utf8',
-  );
-  const handler = src.slice(
-    src.indexOf('function handleSaveName'),
-    src.indexOf('function handleSaveName') + 1200,
-  );
+describe('nadie edita su propio perfil por la izquierda', () => {
+  /**
+   * Antes esto miraba el interior de `handleSaveName` buscando las llamadas.
+   * Servía para el renombre y no vio los otros dos casos del MISMO bug:
+   * cambiar la foto, y adoptar la de Google al entrar. Los dos guardaban en
+   * `authStore` y nada más, así que el dato no llegaba a `userStore` —que es lo
+   * que arma el delta de sync— ni se anunciaba a los contactos: lo veía su
+   * dueño y nadie más.
+   *
+   * Ahora hay un solo lugar que edita el perfil propio (`actualizarMiPerfil`) y
+   * el guard vigila la CLASE: ninguna pantalla escribe el usuario por su cuenta.
+   * La excepción es el login, que CREA la sesión en vez de editarla — y ahí la
+   * re-hidratación por cambio de cuenta ya alinea `userStore`.
+   */
+  const APP = path.join(__dirname, '../../../app');
+  const PERMITIDOS = new Set(['auth/index.tsx']);
 
-  it('propaga el nombre a los contactos', () => {
-    expect(handler).toContain('anunciarMiTarjeta()');
+  function tsx(dir: string): string[] {
+    return fs.readdirSync(dir).flatMap(n => {
+      const ruta = path.join(dir, n);
+      if (fs.statSync(ruta).isDirectory()) return tsx(ruta);
+      return /\.tsx$/.test(n) ? [ruta] : [];
+    });
+  }
+
+  it('ninguna pantalla llama `setUser` fuera del login', () => {
+    const culpables: string[] = [];
+    for (const ruta of tsx(APP)) {
+      const rel = path.relative(APP, ruta);
+      if (PERMITIDOS.has(rel)) continue;
+      fs.readFileSync(ruta, 'utf8').split('\n').forEach((linea, i) => {
+        if (/\bsetUser\s*\(/.test(linea)) culpables.push(`${rel}:${i + 1}`);
+      });
+    }
+    expect(culpables).toEqual([]);
   });
 
-  // authStore es "quién soy"; userStore es lo que leen las listas y lo que
-  // arma el delta de sync. Renombrar tiene que tocar los dos.
-  it('actualiza también el userStore, no sólo el authStore', () => {
-    expect(handler).toContain('addOrUpdateUser');
+  it('el login usa `actualizarMiPerfil` para la foto del proveedor', () => {
+    // Es la única escritura del login que NO es la creación de la sesión: pasa
+    // después, cuando la re-hidratación ya corrió y no la va a alinear.
+    const src = fs.readFileSync(path.join(APP, 'auth/index.tsx'), 'utf8');
+    expect(src).toContain('actualizarMiPerfil({ avatar: foto })');
   });
 });
 
