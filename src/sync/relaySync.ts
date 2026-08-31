@@ -5,6 +5,7 @@ import { groupKeyBytes, useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { ensureIdentity } from '@/src/store/identityStore';
 import { signEnvelope, verifyEnvelope } from './envelopeSign';
 import { observeAuthor } from './authorHealth';
+import { refreshPendingAuthors } from './authorKeys';
 
 /**
  * Sync por el relay: arma el sobre cifrado, lo publica y aplica lo que llega.
@@ -167,6 +168,20 @@ export async function drainGroup(
       skipped++;
     }
   }
+
+  /**
+   * Refresco de claves de autor FUERA DE BANDA (T-041 · S4).
+   *
+   * El merge no puede consultar el directorio: `applyDelta` es síncrono. Lo que
+   * hace es encolar los autores que no pudo resolver, y la consulta sale acá,
+   * una vez por vuelta, **sin `await`** — igual que `observeAuthor` arriba. Lo
+   * que aprenda sirve para la próxima vuelta; una clave que todavía no está
+   * produce `no_verificable`, que nunca es un rechazo.
+   *
+   * Con la cola vacía no hace absolutamente nada, que es el caso de hoy: hasta
+   * que S6 verifique en el merge, nadie encola.
+   */
+  void refreshPendingAuthors();
 
   return { ok: true, applied, skipped, cursor: r.cursor };
 }
