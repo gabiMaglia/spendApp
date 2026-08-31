@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import type { CurrencyCode } from '@/src/constants/currencies';
 import type { Expense, Payment } from '@/src/types/models';
 import { calculateBalancesByCurrency } from '@/src/algorithms/calculateBalances';
+import { directedDebts, type DirectedDebt, type Transferencia } from '@/src/algorithms/directedDebts';
 import { simplifyDebts } from '@/src/algorithms/simplifyDebts';
 import { useGroupStore } from './groupStore';
 import { useExpenseStore } from './expenseStore';
@@ -79,6 +80,53 @@ export interface PersonBalance {
   userId: string;
   currency: CurrencyCode;
   amount: number; // positivo = esa persona me debe, negativo = le debo yo
+}
+
+/**
+ * Deuda DIRECCIONAL con cada persona (ADR-006).
+ *
+ * Diferencia clave con `useGlobalPersonBalances`: **simplifica GRUPO POR
+ * GRUPO** y recién después agrega. Aquélla consolida todos los grupos en un
+ * solo pozo y simplifica una vez, y eso es exactamente lo que netea entre
+ * grupos: si en uno le debo 5.000 y en otro me debe 5.000, el pozo dice "cero"
+ * y las dos deudas desaparecen. Acá sobreviven las dos, cada una de su lado.
+ */
+export function useDirectedDebts(currentUserId: string): DirectedDebt[] {
+  const groups   = useGroupStore(s => s.groups);
+  const expenses = useExpenseStore(s => s.expenses);
+  const payments = usePaymentStore(s => s.payments);
+
+  return useMemo(() => {
+    const transferencias: Transferencia[] = [];
+
+    for (const group of groups) {
+      if (group.isDeleted) continue;
+      if (!group.memberIds.includes(currentUserId)) continue;
+
+      const gExpenses = expenses.filter(e => e.groupId === group.id);
+      const gPayments = payments.filter(p => p.groupId === group.id);
+      const balances  = calculateBalancesByCurrency(gExpenses, gPayments, group.memberIds);
+
+      // Una simplificación POR GRUPO: dentro de un grupo netear es correcto
+      // —es una misma cuenta compartida—; entre grupos no.
+      const porMoneda = new Map<CurrencyCode, { userId: string; amount: number }[]>();
+      for (const { userId, balances: bals } of balances) {
+        for (const { currency, amount } of bals) {
+          if (!porMoneda.has(currency)) porMoneda.set(currency, []);
+          porMoneda.get(currency)!.push({ userId, amount });
+        }
+      }
+
+      for (const [currency, saldos] of porMoneda) {
+        const vivos = saldos.filter(b => Math.abs(b.amount) >= 0.01);
+        for (const tx of simplifyDebts(vivos, currency)) {
+          transferencias.push({ ...tx, currency });
+        }
+      }
+    }
+
+    return directedDebts(transferencias, currentUserId);
+  }, [groups, expenses, payments, currentUserId]);
 }
 
 export function useGlobalPersonBalances(currentUserId: string): PersonBalance[] {

@@ -570,7 +570,10 @@
     "kind_carryover": "Saldo anterior",
     "locked_from_group": "Vem de uma despesa de grupo: edite lá",
     "locked_derived": "Gerado automaticamente, não editável",
-    "locked_title": "Não pode ser editado"
+    "locked_title": "Não pode ser editado",
+    "owed_to_me": "Me devem",
+    "i_owe": "Devo",
+    "debts_note": "Não afeta o gasto até ser quitado"
   },
   "contact": {
     "title": "Adicionar contato",

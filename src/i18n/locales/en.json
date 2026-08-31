@@ -570,7 +570,10 @@
     "kind_carryover": "Previous balance",
     "locked_from_group": "Comes from a group expense: edit it there",
     "locked_derived": "Generated automatically, not editable",
-    "locked_title": "Can't be edited"
+    "locked_title": "Can't be edited",
+    "owed_to_me": "Owed to me",
+    "i_owe": "I owe",
+    "debts_note": "Doesn't affect spending until settled"
   },
   "contact": {
     "title": "Add contact",

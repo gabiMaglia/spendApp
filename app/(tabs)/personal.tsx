@@ -18,13 +18,14 @@ import { Fab, FabRow } from '@/src/components/Fab';
 import { useAuthStore } from '@/src/store/authStore';
 import { usePersonalStore, toMonthKey, currentMonthKey } from '@/src/store/personalStore';
 import { reasonKey } from '@/src/algorithms/entryOrigin';
-import { useGlobalPersonBalances } from '@/src/store/selectors';
+import { useDirectedDebts, useGlobalPersonBalances } from '@/src/store/selectors';
 import { hapticLight, hapticSelection, hapticWarning } from '@/src/utils/haptics';
 import { v4 as uuidv4 } from 'uuid';
 import { BottomSheet } from '@/src/components/Sheet';
 import type { PersonalBudget, PersonalEntry } from '@/src/types/models';
 import { useTranslation } from 'react-i18next';
 import i18n from '@/src/i18n';
+import { totalIOwe, totalOwedToMe } from '@/src/algorithms/directedDebts';
 import { syncedNow } from '@/src/utils/syncedClock';
 
 function monthLabel(key: string): string {
@@ -76,21 +77,20 @@ export default function PersonalScreen() {
 
   const cur = budget.currency as CurrencyCode;
 
-  // Money owed to me and by me across all groups in budget currency
-  const owedToMe = useMemo(
-    () => personBalances
-      .filter(b => b.currency === cur && b.amount > 0)
-      .reduce((s, b) => s + b.amount, 0),
-    [personBalances, cur],
-  );
-  const youOwe = useMemo(
-    () => Math.abs(
-      personBalances
-        .filter(b => b.currency === cur && b.amount < 0)
-        .reduce((s, b) => s + b.amount, 0),
-    ),
-    [personBalances, cur],
-  );
+  /**
+   * Cuánto me deben y cuánto debo, DIRECCIONAL (ADR-006).
+   *
+   * Antes salían de `personBalances`, que netea entre grupos: si en uno debía
+   * 5.000 y en otro me debían 5.000, las dos cifras daban 0 y no había nada
+   * que mostrar aunque hubiera dos deudas vivas. Ahora cada lado se cuenta por
+   * separado y NO se compensan.
+   *
+   * Ninguna de las dos toca «lo gastado»: una deuda no es plata que salió del
+   * bolsillo. Recién lo es cuando se salda.
+   */
+  const deudas = useDirectedDebts(currentUser?.id ?? '');
+  const owedToMe = useMemo(() => totalOwedToMe(deudas, cur), [deudas, cur]);
+  const youOwe   = useMemo(() => totalIOwe(deudas, cur), [deudas, cur]);
 
   // Keep an up-to-date ref for owedToMe so the carryover effect can read it without re-triggering
   const owedToMeRef = useRef(owedToMe);
@@ -283,10 +283,26 @@ export default function PersonalScreen() {
           <SummaryChip label={t('personal.summary_income')} amount={totalIncome} currency={cur} positive scheme={scheme} />
           <SummaryChip label={t('personal.summary_personal')} amount={totalExpense} currency={cur} scheme={scheme} />
           <SummaryChip label={t('personal.summary_groups')} amount={totalGroup} currency={cur} scheme={scheme} />
-          {youOwe > 0 && (
-            <SummaryChip label={t('personal.summary_owe')} amount={youOwe} currency={cur} negative scheme={scheme} />
-          )}
         </View>
+
+        {/* Deuda, aparte del resto: no afecta a «lo gastado» hasta que se salde
+            (ADR-006). Mezclarla con los gastos del mes haría creer que ya se
+            pagó algo que todavía se debe. */}
+        {(owedToMe > 0 || youOwe > 0) && (
+          <>
+            <View style={styles.summaryRow}>
+              {owedToMe > 0 && (
+                <SummaryChip label={t('personal.owed_to_me')} amount={owedToMe} currency={cur} positive scheme={scheme} />
+              )}
+              {youOwe > 0 && (
+                <SummaryChip label={t('personal.i_owe')} amount={youOwe} currency={cur} negative scheme={scheme} />
+              )}
+            </View>
+            <Text style={[Typography.caption, styles.sectionLabel, { color: c.textTertiary }]}>
+              {t('personal.debts_note')}
+            </Text>
+          </>
+        )}
 
         {/* Entries list */}
         <Text style={[Typography.label, styles.sectionLabel, { color: c.textTertiary }]}>
