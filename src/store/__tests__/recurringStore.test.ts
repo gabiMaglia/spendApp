@@ -95,11 +95,29 @@ describe('recurringStore', () => {
       expect(useRecurringStore.getState().recurring).toHaveLength(1);
     });
 
+    /**
+     * Desde el merge por niveles (T-041 · S7) la descripción es NÚCLEO y la
+     * ordena `rev`, no `updatedAt`. Una edición de verdad la re-firma su autor
+     * (`signOnEdit`) y sale con `rev` mayor: eso es lo que se simula acá.
+     */
     it('gana la versión más nueva', () => {
       useRecurringStore.getState().addRecurring(template({ description: 'viejo', updatedAt: 1_000 }));
-      useRecurringStore.getState().mergeRecurring([template({ description: 'nuevo', updatedAt: 2_000 })]);
+      const revLocal = useRecurringStore.getState().recurring[0]!.rev!;
+
+      useRecurringStore.getState().mergeRecurring([
+        template({ description: 'nuevo', updatedAt: 2_000, rev: revLocal + 1 }),
+      ]);
 
       expect(useRecurringStore.getState().getById('r1')!.description).toBe('nuevo');
+    });
+
+    it('una versión SIN `rev` no le pisa el núcleo a una firmada', () => {
+      useRecurringStore.getState().addRecurring(template({ description: 'firmada', updatedAt: 1_000 }));
+      useRecurringStore.getState().mergeRecurring([
+        template({ description: 'reestampada', updatedAt: 9_000 }),
+      ]);
+
+      expect(useRecurringStore.getState().getById('r1')!.description).toBe('firmada');
     });
 
     it('no pisa con una más vieja', () => {

@@ -6,6 +6,7 @@ import { useAuthStore } from '@/src/store/authStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { useCommentStore } from '@/src/store/commentStore';
 import { useUserStore } from '@/src/store/userStore';
+import { hasRequested } from '@/src/algorithms/deletionRound';
 import type { Expense, ExpenseComment, User } from '@/src/types/models';
 
 /**
@@ -146,6 +147,11 @@ describe('borrado consensuado', () => {
 
   // Objetar frena a todos; retirar sólo me saca a mí. No son lo mismo y no se
   // pueden ofrecer indistintamente.
+  //
+  // Lo que cambió con el merge por niveles (T-041 · S7): retirar ya no BORRA mi
+  // voto del array —una ausencia vuelve del primer peer que sincronice, con su
+  // `votedAt` original y el plazo vencido— sino que emite el mío. Lo que el
+  // test exige sigue siendo lo mismo: después de retirar, mi pedido no está.
   it('si el pedido es MÍO, la acción es retirarlo, no objetar', () => {
     useExpenseStore.setState({ expenses: [gasto({
       createdById: 'ua', deletionVotes: [pedido('ua')],
@@ -156,7 +162,9 @@ describe('borrado consensuado', () => {
     expect(queryByText('expense.object_delete')).toBeNull();
     fireEvent.press(getByText('expense.withdraw_request'));
 
-    expect(useExpenseStore.getState().expenses[0]!.deletionVotes).toHaveLength(0);
+    const votos = useExpenseStore.getState().expenses[0]!.deletionVotes;
+    expect(votos.filter(v => v.action === 'delete')).toHaveLength(0);
+    expect(hasRequested(useExpenseStore.getState().expenses[0]!, 'ua')).toBe(false);
   });
 
   it('ya objetado, se avisa y no se ofrece objetar de nuevo', () => {

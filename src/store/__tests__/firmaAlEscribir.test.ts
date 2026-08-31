@@ -381,8 +381,11 @@ describe('compatibilidad con un peer que no actualizó', () => {
     delete (viejo as Partial<Expense>).s;
     delete (viejo as Partial<Expense>).rev;
 
-    // Y el mismo id que el mío, con updatedAt mayor: en S5 nadie verifica ni
-    // ordena por `rev` todavía, así que el LWW por `updatedAt` sigue mandando.
+    // Y el mismo id que el mío, con updatedAt mayor. Desde S7 el núcleo lo
+    // ordena `rev`, no `updatedAt`: un núcleo sin `rev` cuenta como 0 y pierde
+    // contra cualquier revisión firmada del mismo id. Es exactamente el ataque
+    // del re-estampado, y no hay forma de distinguirlo de un peer viejo que
+    // edita — el precio está en el §C.3 del plan y se paga acá.
     const pisa = gasto({ description: 'Editado en el peer viejo', updatedAt: mio.updatedAt + 1 });
 
     applyDelta(delta({ expenses: [viejo, pisa] }), YO);
@@ -390,12 +393,15 @@ describe('compatibilidad con un peer que no actualizó', () => {
     const ids = useExpenseStore.getState().expenses.map(e => e.id).sort();
     expect(ids).toEqual(['e1', 'e2']);
 
+    // Lo que el peer viejo trae y no tenemos entra tal cual: sin firma, sin
+    // `rev`, y sin que nadie lo rechace. Es la compatibilidad que importa.
     const e2 = useExpenseStore.getState().expenses.find(e => e.id === 'e2')!;
     expect(e2.description).toBe('De un peer viejo');
     expect(e2.k).toBeUndefined();
 
     const e1 = useExpenseStore.getState().expenses.find(e => e.id === 'e1')!;
-    expect(e1.description).toBe('Editado en el peer viejo');
+    expect(e1.description).toBe('Cena');          // mi núcleo firmado se queda
+    expect(e1.updatedAt).toBe(mio.updatedAt + 1); // y su `updatedAt` entra igual
   });
 
   it('mergear NO firma nada: los registros ajenos entran tal cual llegaron', () => {

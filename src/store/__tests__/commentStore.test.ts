@@ -83,11 +83,28 @@ describe('commentStore', () => {
       expect(out.map(c => c.text).sort()).toEqual(['mío', 'suyo']);
     });
 
-    it('el mismo comentario editado gana por updatedAt mayor', () => {
+    /**
+     * Desde el merge por niveles (T-041 · S7) el texto es NÚCLEO y lo ordena
+     * `rev`, no `updatedAt`: `updatedAt` lo escribe cualquiera y por eso ya no
+     * decide quién escribió el contenido. Una edición de verdad la re-firma su
+     * autor (`signOnEdit`) y sale con `rev` mayor, que es lo que se simula acá.
+     */
+    it('el mismo comentario editado gana', () => {
       useCommentStore.getState().addComment(comment({ text: 'viejo', updatedAt: 1_000 }));
-      useCommentStore.getState().mergeComments([comment({ text: 'nuevo', updatedAt: 2_000 })]);
+      const revLocal = useCommentStore.getState().comments[0]!.rev!;
+
+      useCommentStore.getState().mergeComments([
+        comment({ text: 'nuevo', updatedAt: 2_000, rev: revLocal + 1 }),
+      ]);
 
       expect(useCommentStore.getState().forExpense('e1')[0]!.text).toBe('nuevo');
+    });
+
+    it('una versión SIN `rev` no le pisa el texto a una firmada', () => {
+      useCommentStore.getState().addComment(comment({ text: 'firmado', updatedAt: 1_000 }));
+      useCommentStore.getState().mergeComments([comment({ text: 'reestampado', updatedAt: 9_000 })]);
+
+      expect(useCommentStore.getState().forExpense('e1')[0]!.text).toBe('firmado');
     });
 
     it('no pisa con una versión más vieja', () => {

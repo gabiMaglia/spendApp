@@ -4,6 +4,7 @@ import type { Expense, Payment } from '@/src/types/models';
 import { calculateBalancesByCurrency } from '@/src/algorithms/calculateBalances';
 import { directedDebts, type DirectedDebt, type Transferencia } from '@/src/algorithms/directedDebts';
 import { simplifyDebts } from '@/src/algorithms/simplifyDebts';
+import { deletionRound } from '@/src/algorithms/deletionRound';
 import { useGroupStore } from './groupStore';
 import { useExpenseStore } from './expenseStore';
 import { usePaymentStore } from './paymentStore';
@@ -257,15 +258,20 @@ export function useActivityFeed(currentUserId: string): ActivityKind[] {
         continue;
       }
 
-      // Solicitudes de borrado pendientes
-      const pendingDelete = (expense.deletionVotes ?? []).find(v => v.action === 'delete');
-      if (pendingDelete) {
+      // Solicitudes de borrado pendientes.
+      //
+      // Se lee la RONDA y no los votos sueltos: desde el merge por niveles
+      // (T-041 · S7) el conjunto se une, así que el pedido sigue ahí al lado de
+      // la objeción que lo frenó. Buscar "algún voto de borrado" le avisaría al
+      // usuario de un trámite que ya no va a pasar.
+      const ronda = deletionRound(expense);
+      if (ronda && !ronda.objected) {
         events.push({
           kind: 'expense_delete_request',
           expense,
           groupName: groupName(expense.groupId),
-          requestedByName: getUserName(pendingDelete.userId),
-          _ts: pendingDelete.votedAt,
+          requestedByName: getUserName(ronda.requestedBy),
+          _ts: ronda.requestedAt,
         });
       }
 

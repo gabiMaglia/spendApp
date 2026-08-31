@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { readScoped, writeScoped } from './userScope';
-import { mergeByIdLWW } from './lww';
+import { mergeByIdLevels } from './mergeLevels';
 import { signOnCreate, signOnEdit } from '@/src/sync/signOnWrite';
 import { schedulePublish } from '@/src/sync/relayEngine';
 import { migrateExpenseAmounts } from './moneyMigration';
@@ -61,7 +61,7 @@ export const useExpenseStore = create<ExpenseStoreState>((set, get) => ({
 
   // LWW merge para sync P2P
   mergeExpenses: (incoming) => {
-    const merged = mergeByIdLWW(get().expenses, incoming);
+    const merged = mergeByIdLevels('expense', get().expenses, incoming);
     persist(merged);
     set({ expenses: merged });
   },

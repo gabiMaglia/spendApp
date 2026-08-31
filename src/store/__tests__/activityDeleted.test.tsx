@@ -74,3 +74,32 @@ describe('lo borrado sigue visible en Actividad', () => {
     expect(feed()).toHaveLength(0);
   });
 });
+
+/**
+ * Una ronda de borrado FRENADA no es una solicitud pendiente.
+ *
+ * Con el merge por niveles (T-041 · S7) los votos se unen en vez de pisarse, así
+ * que el pedido de borrado ya no desaparece del registro cuando alguien objeta o
+ * restaura: queda al lado de la objeción, que es lo que hace que el borrado no
+ * vuelva a ejecutarse solo. El feed no puede leer "hay un voto de borrado" como
+ * "hay un borrado pendiente" — le estaría avisando al usuario de un trámite que
+ * ya se frenó.
+ */
+describe('el feed no anuncia rondas ya frenadas', () => {
+  const votos = (extra: object[] = []) => [
+    { userId: 'beto', votedAt: 1_000, action: 'delete' as const },
+    ...extra,
+  ];
+
+  it('un pedido vivo sí aparece', () => {
+    useExpenseStore.setState({ expenses: [gasto({ deletionVotes: votos() as never })] });
+    expect(feed().some(e => e.kind === 'expense_delete_request')).toBe(true);
+  });
+
+  it('un pedido objetado NO aparece', () => {
+    useExpenseStore.setState({ expenses: [gasto({
+      deletionVotes: votos([{ userId: 'ana', votedAt: 2_000, action: 'cancel' }]) as never,
+    })] });
+    expect(feed().some(e => e.kind === 'expense_delete_request')).toBe(false);
+  });
+});

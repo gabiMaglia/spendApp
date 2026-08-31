@@ -16,6 +16,7 @@ import { useGroupStore } from '@/src/store/groupStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { useActivityFeed } from '@/src/store/selectors';
 import { searchActivity } from '@/src/algorithms/searchActivity';
+import { votosAlCancelar } from '@/src/algorithms/deletionRound';
 import type { ActivityKind } from '@/src/store/selectors';
 import { EmptyState } from '@/src/components/EmptyState';
 import { hapticSelection } from '@/src/utils/haptics';
@@ -45,13 +46,19 @@ export default function ActivityScreen() {
    * Deshacer un borrado. Es la contraparte del modo de borrado LIBRE, pero se
    * ofrece en los dos modos: deshacer nunca puede ser más difícil que hacer.
    *
-   * Se limpian los votos además de levantar el tombstone. Si quedaran, un voto
-   * de borrado viejo seguiría vivo y `resolvePendingDeletions` volvería a
-   * borrarlo solo en el próximo arranque — el usuario vería reaparecer el
-   * borrado sin haber hecho nada.
+   * Además del tombstone hay que frenar la ronda, o `resolvePendingDeletions`
+   * vuelve a borrar el gasto solo en el próximo arranque y el usuario ve
+   * reaparecer el borrado sin haber tocado nada. Se frena AGREGANDO mi voto y
+   * no vaciando el conjunto: desde el merge por niveles los votos se unen, así
+   * que un vaciado vuelve del primer peer que sincronice. Ver `votosAlCancelar`.
    */
   function restaurar(expenseId: string) {
-    updateExpense(expenseId, { isDeleted: false, deletionVotes: [] });
+    const gasto = useExpenseStore.getState().expenses.find(e => e.id === expenseId);
+    if (!gasto || !currentUser) return;
+    updateExpense(expenseId, {
+      isDeleted: false,
+      deletionVotes: votosAlCancelar(gasto.deletionVotes, currentUser.id, Date.now()),
+    });
   }
   const groups   = useGroupStore(s => s.groups);
   const feed     = useActivityFeed(currentUser?.id ?? '');

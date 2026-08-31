@@ -27,7 +27,7 @@ import { CategoryIcon } from '@/src/components/CategoryIcon';
 import { Avatar } from '@/src/components/Avatar';
 import { UserAvatar } from '@/src/components/UserAvatar';
 import { hueForUser } from '@/src/utils/hueForUser';
-import { deletionRound, msUntilDeletion, hasObjected, hasRequested } from '@/src/algorithms/deletionRound';
+import { deletionRound, msUntilDeletion, hasObjected, hasRequested, votosAlCancelar } from '@/src/algorithms/deletionRound';
 import type { CategoryKind } from '@/src/constants/colors';
 import { syncedNow } from '@/src/utils/syncedClock';
 
@@ -202,19 +202,28 @@ export default function ExpenseDetailScreen() {
     if (!currentUser || !expense) return;
     hapticLight();
     updateExpense(expense.id, {
-      deletionVotes: [
-        ...votos.filter(v => v.userId !== currentUser.id),
-        { userId: currentUser.id, votedAt: Date.now(), action: 'cancel' },
-      ],
+      deletionVotes: votosAlCancelar(votos, currentUser.id, Date.now()),
     });
   }
 
-  /** Retirar MI pedido. Distinto de objetar: no bloquea, sólo me saco. */
+  /**
+   * Retirar MI pedido.
+   *
+   * Sacar mi voto del array dejó de alcanzar: desde el merge por niveles los
+   * votos se unen y mi voto vuelve del primer peer que sincronice — con su
+   * `votedAt` original, así que el plazo de 72hs ya estaría vencido y el gasto
+   * se borraría solo. Retirar emite un voto, igual que objetar. Ver
+   * `votosAlCancelar`.
+   *
+   * Queda idéntica a `objetarBorrado` y separada a propósito: son dos
+   * intenciones distintas del usuario, con botones y textos distintos, y volver
+   * a distinguirlas necesita una acción propia en `DeletionVote` (S8).
+   */
   function retirarPedido() {
     if (!currentUser || !expense) return;
     hapticLight();
     updateExpense(expense.id, {
-      deletionVotes: votos.filter(v => v.userId !== currentUser.id),
+      deletionVotes: votosAlCancelar(votos, currentUser.id, Date.now()),
     });
   }
 

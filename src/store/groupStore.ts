@@ -1,12 +1,11 @@
 import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { readScoped, writeScoped } from './userScope';
-import { mergeByIdLWW } from './lww';
+import { mergeByIdLevels } from './mergeLevels';
 import { signOnCreate, signOnEdit } from '@/src/sync/signOnWrite';
 import { schedulePublish } from '@/src/sync/relayEngine';
 import type { Group, LeaveRequest } from '@/src/types/models';
 import { mergeDeletionMode } from '@/src/algorithms/deletionPolicy';
-import { mergeApprovals } from '@/src/algorithms/leaveRequest';
 import { syncedNow } from '@/src/utils/syncedClock';
 
 const storage = createSecureStorage('groups');
@@ -142,24 +141,22 @@ export const useGroupStore = create<GroupStoreState>((set, get) => ({
   },
 
   /**
-   * LWW por registro, PERO las aprobaciones de salida se unen.
+   * Merge por niveles (T-041 · S7), más la regla del modo de borrado.
    *
-   * Sin eso, dos personas aprobando en paralelo pierden una de las dos firmas
-   * —gana el registro con `updatedAt` mayor y se lleva puesto al otro— y el
-   * pedido no junta nunca las que necesita. Nadie se entera: simplemente no
-   * pasa nada. Ver `mergeApprovals`.
+   * Las aprobaciones de salida ya no se unen acá: son un campo colaborativo y
+   * las une `mergeLevels` junto con los votos de borrado, en el mismo lugar y
+   * con el mismo criterio. Estaban sueltas en este store desde antes de que
+   * existiera un nivel colaborativo donde ponerlas.
    */
   mergeGroups: (incoming) => {
     const antes = new Map(get().groups.map(g => [g.id, g]));
-    const merged = mergeByIdLWW(get().groups, incoming).map(g => {
+    const merged = mergeByIdLevels('group', get().groups, incoming).map(g => {
       const local = antes.get(g.id);
       const remoto = incoming.find(x => x.id === g.id);
-      const unido = mergeApprovals(local?.leaveRequest, remoto?.leaveRequest);
       // El modo de borrado NO se sincroniza: lo fija quien crea el grupo. Ver
       // `mergeDeletionMode` — sin esto cualquiera afloja el grupo por sync.
       const modo = mergeDeletionMode(antes.has(g.id), local?.deletionMode, remoto?.deletionMode);
-      const base = g.deletionMode === modo ? g : { ...g, deletionMode: modo };
-      return unido === undefined && base.leaveRequest === undefined ? base : { ...base, leaveRequest: unido };
+      return g.deletionMode === modo ? g : { ...g, deletionMode: modo };
     });
     persist(merged);
     set({ groups: merged });

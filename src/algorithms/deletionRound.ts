@@ -1,5 +1,5 @@
 import { mergeDeletionVotes, DELETION_TIMEOUT_MS } from '@/src/sync/SyncEngine';
-import type { Expense } from '@/src/types/models';
+import type { DeletionVote, Expense } from '@/src/types/models';
 
 /**
  * Estado de una solicitud de borrado (regla de negocio #2).
@@ -42,6 +42,39 @@ export function deletionRound(expense: Expense): DeletionRound | null {
     objected: objecion !== undefined,
     objectedBy: objecion?.userId,
   };
+}
+
+/**
+ * Los votos después de que `userId` frena la ronda: objetar, retirar su pedido
+ * o restaurar un gasto ya borrado.
+ *
+ * **Frenar es AGREGAR un voto, no sacar los que hay.** Hasta S6 las tres
+ * pantallas quitaban votos del array —restaurar lo vaciaba entero—, y eso
+ * funcionaba sólo porque el merge pisaba el conjunto: el que tuviera el
+ * `updatedAt` mayor se imponía. Desde el merge por niveles (T-041 · S7) el
+ * conjunto se UNE, y una ausencia no se puede distinguir de un voto que
+ * todavía no nos llegó. Sacar un voto ahora no frena nada: vuelve del primer
+ * peer que sincronice y el gasto se re-borra solo.
+ *
+ * Lo que sí viaja es un voto. El mío reemplaza al mío anterior —`votedAt`
+ * mayor, y `mergeDeletionVotes` colapsa por `userId`—, así que retirar mi
+ * pedido y objetar terminan en el mismo lugar.
+ *
+ * **Consecuencia declarada:** retirar el pedido deja la ronda como OBJETADA y
+ * no como "nunca pedida". Con un pedido de otra persona vivo, retirar el mío ya
+ * no lo deja seguir corriendo. Es más restrictivo que antes y erra hacia no
+ * borrar; distinguir "me saco" de "me opongo" necesita una acción propia en
+ * `DeletionVote`, que es S8.
+ */
+export function votosAlCancelar(
+  votos: readonly DeletionVote[] | undefined,
+  userId: string,
+  now: number,
+): DeletionVote[] {
+  return [
+    ...(votos ?? []).filter(v => v.userId !== userId),
+    { userId, votedAt: now, action: 'cancel' },
+  ];
 }
 
 /** Milisegundos que faltan para el borrado automático. 0 si ya venció. */

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { readScoped, writeScoped } from './userScope';
-import { mergeByIdLWW } from './lww';
+import { mergeByIdLevels } from './mergeLevels';
 import { signOnCreate, signOnEdit } from '@/src/sync/signOnWrite';
 import { schedulePublish } from '@/src/sync/relayEngine';
 import { migratePaymentAmounts } from './moneyMigration';
@@ -70,7 +70,7 @@ export const usePaymentStore = create<PaymentStoreState>((set, get) => ({
 
   // LWW merge para sync P2P
   mergePayments: (incoming) => {
-    const merged = mergeByIdLWW(get().payments, incoming);
+    const merged = mergeByIdLevels('payment', get().payments, incoming);
     persist(merged);
     set({ payments: merged });
   },
