@@ -1,5 +1,5 @@
 import { ed25519 } from '@noble/curves/ed25519.js';
-import { toHex, fromHex } from './envelopeCrypto';
+import { toHex, fromHex, utf8Bytes } from './hexBytes';
 
 /**
  * Firma de los sobres del relay (ADR-003 §2, T-033).
@@ -49,7 +49,7 @@ export function signEnvelope(sealed: string, signingPrivateKey: string): string 
     v: VERSION,
     p: sealed,
     k: toHex(ed25519.getPublicKey(priv)),
-    s: toHex(ed25519.sign(utf8(sealed), priv)),
+    s: toHex(ed25519.sign(utf8Bytes(sealed), priv)),
   };
   return JSON.stringify(wrapper);
 }
@@ -76,21 +76,9 @@ export function verifyEnvelope(raw: string): OpenedEnvelope | null {
   if (wrapper?.v !== VERSION || !wrapper.p || !wrapper.k || !wrapper.s) return null;
 
   try {
-    const ok = ed25519.verify(fromHex(wrapper.s), utf8(wrapper.p), fromHex(wrapper.k));
+    const ok = ed25519.verify(fromHex(wrapper.s), utf8Bytes(wrapper.p), fromHex(wrapper.k));
     return ok ? { sealed: wrapper.p, senderKey: wrapper.k } : null;
   } catch {
     return null; // hex inválido en la firma o en la clave
   }
-}
-
-function utf8(s: string): Uint8Array {
-  const out: number[] = [];
-  for (const ch of s) {
-    const cp = ch.codePointAt(0)!;
-    if (cp < 0x80) out.push(cp);
-    else if (cp < 0x800) out.push(0xc0 | (cp >> 6), 0x80 | (cp & 63));
-    else if (cp < 0x10000) out.push(0xe0 | (cp >> 12), 0x80 | ((cp >> 6) & 63), 0x80 | (cp & 63));
-    else out.push(0xf0 | (cp >> 18), 0x80 | ((cp >> 12) & 63), 0x80 | ((cp >> 6) & 63), 0x80 | (cp & 63));
-  }
-  return new Uint8Array(out);
 }

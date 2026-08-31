@@ -7,6 +7,37 @@ export interface SyncMeta {
   isDeleted: boolean;  // Tombstone — nunca hacer DELETE físico
 }
 
+/**
+ * Firma del NÚCLEO del registro por su autor (T-041).
+ *
+ * Los tres campos son opcionales y así se quedan: todo lo que existe desde
+ * antes de T-041 llega sin ellos y tiene que seguir entrando (R2 del PO,
+ * opción A — el histórico no se re-firma).
+ *
+ * Qué cubre la firma lo decide `src/sync/recordCore.ts`, campo por campo. Lo
+ * colaborativo (`updatedAt`, `isDeleted`, `deletionVotes`, …) queda AFUERA a
+ * propósito: lo escriben terceros que no tienen la privada del autor, y
+ * meterlo adentro rompería el borrado consensuado el primer día.
+ */
+export interface CoreSigned {
+  /**
+   * Contador del núcleo, que **sólo sube el autor** y va ADENTRO de la firma.
+   *
+   * Hace falta porque `updatedAt` está afuera y por lo tanto es libre para
+   * cualquiera: sin `rev`, un tercero toma un núcleo firmado viejo, lo
+   * re-estampa con `updatedAt` mayor y gana el LWW con datos viejos — y la
+   * firma sigue siendo la verdadera del autor, así que ninguna verificación lo
+   * detecta. Ausente = 0 (todo lo de hoy), que es el comportamiento actual.
+   *
+   * Quién lo usa para ordenar el merge es S7; hasta entonces sólo se firma.
+   */
+  rev?: number;
+  /** Pública Ed25519 de quien firmó el núcleo. Va inline, como en el sobre. */
+  k?: string;
+  /** Firma sobre el núcleo canónico. */
+  s?: string;
+}
+
 // ── Entidades ────────────────────────────────────────────────────────────────
 export interface User extends SyncMeta {
   name: string;
@@ -33,7 +64,7 @@ export interface User extends SyncMeta {
  * `Expense` propio, con su fecha, que se puede editar o borrar sin tocar la
  * serie. `lastMaterializedAt` es lo que hace idempotente la materialización.
  */
-export interface RecurringExpense extends SyncMeta {
+export interface RecurringExpense extends SyncMeta, CoreSigned {
   groupId: string;         // '' = movimiento personal
   description: string;
   amount: number;          // entero en menor unidad (ADR-002)
@@ -74,7 +105,7 @@ export interface Payer {
   amount: number;   // entero en menor unidad (ADR-002)
 }
 
-export interface ExpenseComment extends SyncMeta {
+export interface ExpenseComment extends SyncMeta, CoreSigned {
   expenseId: string;
   authorId: string;
   text: string;
@@ -113,7 +144,7 @@ export interface LeaveRequest {
   approvedBy: string[];
 }
 
-export interface Group extends SyncMeta {
+export interface Group extends SyncMeta, CoreSigned {
   name: string;
   memberIds: string[];
   currency: CurrencyCode;
@@ -164,7 +195,7 @@ export interface Split {
   isPaid: boolean;
 }
 
-export interface Expense extends SyncMeta {
+export interface Expense extends SyncMeta, CoreSigned {
   groupId: string;
   description: string;
   amount: number;
@@ -200,7 +231,7 @@ export interface Expense extends SyncMeta {
 }
 
 // Payment = liquidación de deuda. No necesita consenso.
-export interface Payment extends SyncMeta {
+export interface Payment extends SyncMeta, CoreSigned {
   groupId: string;
   fromUserId: string;
   toUserId: string;

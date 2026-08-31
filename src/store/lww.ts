@@ -19,8 +19,15 @@ export type Syncable = { id: string; updatedAt: number };
  * Serialización estable: `JSON.stringify` no garantiza orden de claves entre
  * objetos construidos distinto, y acá la comparación tiene que dar igual en los
  * dos dispositivos.
+ *
+ * Exportada desde T-041: es también lo que se firma (`src/sync/recordCore.ts`).
+ * Reusar ésta y no escribir una segunda es deliberado — dos dispositivos ya
+ * dependen de que dé igual en los dos para desempatar el LWW, así que ya está
+ * probada contra el único requisito que importa. **Si cambia, cambia
+ * `CORE_VERSION`**: las firmas viejas se siguen verificando con el algoritmo
+ * viejo, no se rompen en silencio.
  */
-function canonical(value: unknown): string {
+export function canonical(value: unknown): string {
   if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? 'null';
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
 
