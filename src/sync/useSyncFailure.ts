@@ -1,5 +1,5 @@
 import { useLiveValue } from '@/src/hooks/useLiveValue';
-import { blockingFailures, type PublishFailure } from './publishHealth';
+import { blockingFailures, type BlockingReason, type PublishFailure } from './publishHealth';
 
 /**
  * ¿Este grupo dejó de sincronizar por algo que NO se arregla esperando?
@@ -19,20 +19,29 @@ import { blockingFailures, type PublishFailure } from './publishHealth';
  * próxima publicación; avisar de eso entrenaría al usuario a ignorar el aviso,
  * que es exactamente cómo se vuelve inútil.
  */
-export function useGroupSyncFailure(groupId: string): PublishFailure | null {
+export function useGroupSyncFailure(
+  groupId: string,
+): (PublishFailure & { reason: BlockingReason }) | null {
   const fallos = useLiveValue(blockingFailures, 3_000);
   return fallos.find(f => f.groupId === groupId) ?? null;
 }
 
 /**
- * La razón, como clave de i18n. `switch` exhaustivo sobre las razones que
- * `blockingFailures` deja pasar: si aparece una tercera, esto deja de compilar
- * en vez de mostrar un cartel vacío.
+ * La razón, como clave de i18n.
+ *
+ * `switch` exhaustivo DE VERDAD: el parámetro es la unión `BlockingReason`, no
+ * `string`, y no hay `default`. Si mañana aparece una tercera razón bloqueante,
+ * esto **deja de compilar** y obliga a decidir qué se le muestra al usuario, en
+ * vez de caer a un mensaje genérico que nadie escribió a propósito.
+ *
+ * La primera versión de esta función prometía exactamente eso en un comentario
+ * y no lo cumplía —`reason: string` más un `default` se lo comían todo—, que es
+ * el defecto que este proyecto viene persiguiendo: una protección declarada que
+ * no protege. Lo levantó el Arquitecto revisando T-058.
  */
-export function claveDeFalloDeSync(reason: string): string {
+export function claveDeFalloDeSync(reason: BlockingReason): string {
   switch (reason) {
     case 'too_large': return 'sync.failure_too_large';
     case 'no_key':    return 'sync.failure_no_key';
-    default:          return 'sync.failure_unknown';
   }
 }

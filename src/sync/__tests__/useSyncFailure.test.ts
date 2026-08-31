@@ -1,4 +1,5 @@
 import { claveDeFalloDeSync } from '../useSyncFailure';
+import type { BlockingReason } from '../publishHealth';
 import { recordPublish, clearPublishFailures, blockingFailures } from '../publishHealth';
 
 /**
@@ -44,14 +45,27 @@ describe('qué fallos vale la pena mostrar', () => {
 
 describe('claveDeFalloDeSync', () => {
   it('cada razón bloqueante tiene su propio mensaje', () => {
-    const claves = ['too_large', 'no_key'].map(claveDeFalloDeSync);
-    expect(new Set(claves).size).toBe(2);
+    const razones: BlockingReason[] = ['too_large', 'no_key'];
+    const claves = razones.map(claveDeFalloDeSync);
+    expect(new Set(claves).size).toBe(razones.length);
     expect(claves.every(c => c.startsWith('sync.'))).toBe(true);
   });
 
-  it('una razón desconocida NO deja el cartel vacío', () => {
-    // Preferible un mensaje genérico a un cartel en blanco: el usuario tiene
-    // que enterarse igual de que sus gastos no están saliendo del teléfono.
-    expect(claveDeFalloDeSync('lo_que_sea')).toBe('sync.failure_unknown');
+  /**
+   * No hay test de «razón desconocida» y es a propósito: **no se puede
+   * construir**. El parámetro es la unión `BlockingReason`, no `string`, y no
+   * hay `default`, así que una razón nueva rompe la COMPILACIÓN.
+   *
+   * La primera versión prometía esto en un comentario y no lo cumplía: con
+   * `reason: string` y un `default`, una razón nueva caía a un mensaje genérico
+   * en silencio y el comentario seguía diciendo que era imposible.
+   */
+  it('la exhaustividad la garantiza el tipo, no un test', () => {
+    const todas: Record<BlockingReason, string> = {
+      too_large: claveDeFalloDeSync('too_large'),
+      no_key:    claveDeFalloDeSync('no_key'),
+    };
+    // Si se agrega una razón a `BlockingReason`, este objeto deja de compilar.
+    expect(Object.keys(todas)).toHaveLength(2);
   });
 });

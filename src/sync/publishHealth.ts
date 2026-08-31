@@ -16,6 +16,13 @@ import type { PublishResult } from './relaySync';
  * usuario. Persistirlo obligaría a decidir cuándo limpiarlo y no aporta nada.
  */
 
+/**
+ * Las razones que NO se arreglan solas. Es un tipo y no un comentario porque
+ * `claveDeFalloDeSync` hace un `switch` exhaustivo sobre esto: si aparece una
+ * tercera razón bloqueante, el switch deja de compilar de verdad.
+ */
+export type BlockingReason = 'too_large' | 'no_key';
+
 export type PublishFailure = {
   groupId: string;
   reason: string;
@@ -50,8 +57,11 @@ export function publishFailures(): PublishFailure[] {
  * `too_large` y `no_key` no van a mejorar por sí solos: hace falta que alguien
  * intervenga, así que son los que valen la pena mostrar.
  */
-export function blockingFailures(): PublishFailure[] {
-  return publishFailures().filter(f => f.reason === 'too_large' || f.reason === 'no_key');
+export function blockingFailures(): (PublishFailure & { reason: BlockingReason })[] {
+  return publishFailures().filter(
+    (f): f is PublishFailure & { reason: BlockingReason } =>
+      f.reason === 'too_large' || f.reason === 'no_key',
+  );
 }
 
 export function clearPublishFailures(): void {
