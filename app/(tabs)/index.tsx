@@ -248,7 +248,14 @@ export default function AccountScreen() {
         />
 
         {/* Grupos balance card */}
-        <View style={[styles.card, { backgroundColor: c.surface, borderColor: c.borderHair }]}>
+        {/* Lleva a Grupos, igual que la tarjeta de Personal lleva a Personal:
+            un resumen que no se puede abrir obliga a buscar la tab a mano. */}
+        <Pressable
+          accessibilityRole="button"
+          testID="groups-card"
+          onPress={() => { hapticLight(); router.push('/(tabs)/groups' as any); }}
+          style={[styles.card, { backgroundColor: c.surface, borderColor: c.borderHair }]}
+        >
           <View style={styles.cardHeader}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <Ionicons name="wallet-outline" size={14} color={c.brand.primary} />
@@ -256,6 +263,7 @@ export default function AccountScreen() {
                 {t('dashboard.groups_balance')}
               </Text>
             </View>
+            <Ionicons name="chevron-forward" size={14} color={c.textTertiary} />
           </View>
 
           {/* Un solo neto y cuántos grupos (PO 2026-08-30). Antes eran tres
@@ -289,7 +297,7 @@ export default function AccountScreen() {
               </Text>
             </View>
           </View>
-        </View>
+        </Pressable>
 
         <View style={{ height: Spacing[9] }} />
       </ScrollView>

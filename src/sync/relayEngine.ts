@@ -3,6 +3,7 @@ import { createSecureStorage } from '@/src/utils/secureStorage';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
+import { usePaymentStore } from '@/src/store/paymentStore';
 import { syncedNow } from '@/src/utils/syncedClock';
 import { snapshot, noticesFor, type Snapshot } from '@/src/services/syncNotices';
 import { announce } from '@/src/services/notifications';
@@ -145,7 +146,7 @@ export async function drainNow(groupId: string): Promise<number> {
 
   // Foto previa: es lo que distingue "llegó recién" de "ya estaba". Sin esto
   // cada relectura por cursor volvería a avisar lo mismo.
-  const antes = snapshot(useExpenseStore.getState().expenses, syncedNow());
+  const antes = snapshot(useExpenseStore.getState().expenses, syncedNow(), usePaymentStore.getState().payments);
 
   try {
     const topic = await deriveTopic(fromHex(record.key), record.epoch);
@@ -183,6 +184,7 @@ async function avisarDeLoNuevo(antes: Snapshot, userId: string): Promise<void> {
       useGroupStore.getState().groups,
       userId,
       syncedNow(),
+      usePaymentStore.getState().payments,
     );
     if (avisos.length > 0) await announce(avisos);
   } catch { /* nunca rompe el sync */ }

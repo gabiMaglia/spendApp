@@ -63,7 +63,8 @@
     "rates_never": "Ainda sem cotação",
     "rates_single": "Você usa uma só moeda: nenhuma cotação é solicitada",
     "change_photo": "Alterar foto",
-    "photo_failed": "Não foi possível usar essa imagem"
+    "photo_failed": "Não foi possível usar essa imagem",
+    "notif_settlements": "Quitações de dívidas"
   },
   "auth": {
     "welcome_title": "Divida gastos\ncom amigos.",
@@ -695,7 +696,8 @@
     "inbox_empty_hint": "Aqui fica o que aconteceu enquanto você não olhava.",
     "inbox_mark_all": "Marcar tudo como lido",
     "inbox_open": "Ver notificações",
-    "inbox_gone": "Isso já não está disponível"
+    "inbox_gone": "Isso já não está disponível",
+    "settled": "{{name}} registrou uma quitação de {{amount}}"
   },
   "fx": {
     "partial_title": "Há saldo que não estamos mostrando",

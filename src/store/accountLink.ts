@@ -105,7 +105,7 @@ export function purgeMergedScopes(now: number = Date.now()): string[] {
 }
 
 /** Preferencias por cuenta (toggles de notificación). */
-const SETTINGS_KEYS = ['notif_expenses', 'notif_deletions', 'notif_invites'] as const;
+const SETTINGS_KEYS = ['notif_expenses', 'notif_deletions', 'notif_invites', 'notif_settlements'] as const;
 /**
  * Preferencias de settings que NO son booleanas.
  *

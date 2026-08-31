@@ -1,4 +1,5 @@
-import type { Expense, Group } from '@/src/types/models';
+import type { CurrencyCode } from '@/src/constants/currencies';
+import type { Expense, Group, Payment } from '@/src/types/models';
 import { deletionRound } from '@/src/algorithms/deletionRound';
 
 /**
@@ -28,13 +29,22 @@ export type Notice =
   /** Alguien pidió borrar un gasto y hay que opinar. */
   | { kind: 'deletion'; groupId: string; groupName: string; description: string }
   /** Entramos a un grupo nuevo (nos entregaron la clave). */
-  | { kind: 'joined'; groupId: string; groupName: string };
+  | { kind: 'joined'; groupId: string; groupName: string }
+  /**
+   * Alguien registró un saldo que me involucra (ADR-006, decisión 5).
+   *
+   * Sólo avisa de lo que registró OTRO: un pago propio ya se conoce, y avisarlo
+   * sería contarle al usuario algo que acaba de hacer.
+   */
+  | { kind: 'settled'; groupId: string; groupName: string; amount: number; currency: CurrencyCode };
 
 export type Snapshot = {
   /** Ids de gastos vivos conocidos ANTES de la bajada. */
   expenseIds: string[];
   /** Ids de gastos que ya tenían una ronda de borrado abierta. */
   conBorradoAbierto: string[];
+  /** Ids de pagos vivos conocidos ANTES. Sin esto, un saldo entraba al balance sin anunciarse. */
+  paymentIds: string[];
 };
 
 /** Una ronda abierta es la que existe, todavía no venció y nadie objetó. */
@@ -43,11 +53,12 @@ function borradoPendiente(e: Expense, now: number): boolean {
   return ronda !== null && !ronda.objected && ronda.expiresAt > now;
 }
 
-export function snapshot(expenses: Expense[], now: number): Snapshot {
+export function snapshot(expenses: Expense[], now: number, payments: Payment[] = []): Snapshot {
   const vivos = expenses.filter(e => !e.isDeleted);
   return {
     expenseIds: vivos.map(e => e.id),
     conBorradoAbierto: vivos.filter(e => borradoPendiente(e, now)).map(e => e.id),
+    paymentIds: payments.filter(p => !p.isDeleted).map(p => p.id),
   };
 }
 
@@ -63,6 +74,7 @@ export function noticesFor(
   groups: Group[],
   currentUserId: string,
   now: number,
+  paymentsAfter: Payment[] = [],
 ): Notice[] {
   const conocidos = new Set(before.expenseIds);
   const yaAbiertos = new Set(before.conBorradoAbierto);
@@ -104,5 +116,29 @@ export function noticesFor(
     count,
   }));
 
-  return [...porGastos, ...borrados];
+  /**
+   * Saldos que registró OTRO y me involucran.
+   *
+   * `createdById !== yo` es la condición que importa: un pago propio ya se
+   * conoce, y avisarlo sería contarle al usuario algo que acaba de hacer. Se
+   * avisa en las DOS direcciones —me pagaron, o registraron que yo pagué—
+   * porque en ambas alguien tocó mi saldo sin que yo estuviera mirando.
+   */
+  const conocidos_pagos = new Set(before.paymentIds);
+  const saldos: Notice[] = paymentsAfter
+    .filter(p =>
+      !p.isDeleted &&
+      !conocidos_pagos.has(p.id) &&
+      mios.has(p.groupId) &&
+      p.createdById !== currentUserId &&
+      (p.fromUserId === currentUserId || p.toUserId === currentUserId))
+    .map(p => ({
+      kind: 'settled' as const,
+      groupId: p.groupId,
+      groupName: nombre(p.groupId),
+      amount: p.amount,
+      currency: p.currency,
+    }));
+
+  return [...porGastos, ...borrados, ...saldos];
 }

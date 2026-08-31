@@ -63,7 +63,8 @@
     "rates_never": "Sin cotización todavía",
     "rates_single": "Usás una sola moneda: no se piden cotizaciones",
     "change_photo": "Cambiar foto",
-    "photo_failed": "No se pudo usar esa imagen"
+    "photo_failed": "No se pudo usar esa imagen",
+    "notif_settlements": "Saldos de deudas"
   },
   "auth": {
     "welcome_title": "Dividí gastos\nentre amigos.",
@@ -695,7 +696,8 @@
     "inbox_empty_hint": "Acá queda lo que pasó mientras no mirabas.",
     "inbox_mark_all": "Marcar todo como leído",
     "inbox_open": "Ver notificaciones",
-    "inbox_gone": "Eso ya no está disponible"
+    "inbox_gone": "Eso ya no está disponible",
+    "settled": "{{name}} registró un saldo de {{amount}}"
   },
   "fx": {
     "partial_title": "Hay saldo que no te estamos mostrando",

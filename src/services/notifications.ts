@@ -1,5 +1,6 @@
 import * as Notifications from 'expo-notifications';
 import i18n from '@/src/i18n';
+import { formatMoney } from '@/src/constants/currencies';
 import { useSettingsStore } from '@/src/store/settingsStore';
 import type { Notice } from './syncNotices';
 import { useNoticeInboxStore } from '@/src/store/noticeInboxStore';
@@ -94,6 +95,7 @@ export function isEnabled(notice: Notice): boolean {
     case 'expenses': return s.notifExpenses;
     case 'deletion': return s.notifDeletions;
     case 'joined':   return s.notifInvites;
+    case 'settled':  return s.notifSettlements;
   }
 }
 
@@ -115,6 +117,16 @@ export function textFor(notice: Notice): { title: string; body: string } {
       return {
         title: t('notifications.joined_title'),
         body: t('notifications.joined_body', { group: notice.groupName }),
+      };
+    case 'settled':
+      return {
+        title: notice.groupName,
+        // El monto se formatea con SU moneda, no con la de visualización: un
+        // aviso convertido diría un número que no coincide con el pago real.
+        body: t('notifications.settled', {
+          name: '',
+          amount: formatMoney(notice.amount, notice.currency),
+        }).trim(),
       };
   }
 }

@@ -63,7 +63,8 @@
     "rates_never": "No rates yet",
     "rates_single": "You only use one currency: no rates are requested",
     "change_photo": "Change photo",
-    "photo_failed": "That image couldn't be used"
+    "photo_failed": "That image couldn't be used",
+    "notif_settlements": "Debt settlements"
   },
   "auth": {
     "welcome_title": "Split expenses\nwith friends.",
@@ -695,7 +696,8 @@
     "inbox_empty_hint": "This is where what happened while you were away shows up.",
     "inbox_mark_all": "Mark all as read",
     "inbox_open": "View notifications",
-    "inbox_gone": "That's no longer available"
+    "inbox_gone": "That's no longer available",
+    "settled": "{{name}} recorded a settlement of {{amount}}"
   },
   "fx": {
     "partial_title": "There's money we're not showing you",

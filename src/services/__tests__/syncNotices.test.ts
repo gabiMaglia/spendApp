@@ -1,6 +1,6 @@
 import { snapshot, noticesFor, type Notice } from '../syncNotices';
 import { DELETION_TIMEOUT_MS } from '@/src/sync/SyncEngine';
-import type { Expense, Group } from '@/src/types/models';
+import type { Expense, Group, Payment } from '@/src/types/models';
 
 const YO = 'yo';
 const OTRO = 'ana';
@@ -20,7 +20,7 @@ const grupo = (over: Partial<Group> = {}): Group => ({
   ...over,
 } as unknown as Group);
 
-const vacio = { expenseIds: [], conBorradoAbierto: [] };
+const vacio = { expenseIds: [], conBorradoAbierto: [], paymentIds: [] };
 const kinds = (n: Notice[]) => n.map(x => x.kind).sort();
 
 describe('gastos nuevos', () => {
@@ -39,7 +39,7 @@ describe('gastos nuevos', () => {
   });
 
   it('lo que ya estaba antes no se vuelve a avisar', () => {
-    const antes = { expenseIds: ['e1'], conBorradoAbierto: [] };
+    const antes = { expenseIds: ['e1'], conBorradoAbierto: [], paymentIds: []  };
     expect(noticesFor(antes, [gasto()], [grupo()], YO, AHORA)).toEqual([]);
   });
 
@@ -89,7 +89,7 @@ describe('pedidos de borrado', () => {
     conOver({ deletionVotes: [{ userId, votedAt: at, action: 'delete' }] });
 
   it('avisa cuando otro pide borrar', () => {
-    const antes = { expenseIds: ['e1'], conBorradoAbierto: [] };
+    const antes = { expenseIds: ['e1'], conBorradoAbierto: [], paymentIds: []  };
     const n = noticesFor(antes, [pedido(OTRO)], [grupo()], YO, AHORA);
     expect(n).toEqual([{
       kind: 'deletion', groupId: 'g1', groupName: 'Viaje', description: 'Pizza',
@@ -97,24 +97,24 @@ describe('pedidos de borrado', () => {
   });
 
   it('al que lo pidió no se le avisa su propio pedido', () => {
-    const antes = { expenseIds: ['e1'], conBorradoAbierto: [] };
+    const antes = { expenseIds: ['e1'], conBorradoAbierto: [], paymentIds: []  };
     expect(noticesFor(antes, [pedido(YO)], [grupo()], YO, AHORA)).toEqual([]);
   });
 
   it('una ronda que ya estaba abierta no se vuelve a avisar', () => {
-    const antes = { expenseIds: ['e1'], conBorradoAbierto: ['e1'] };
+    const antes = { expenseIds: ['e1'], conBorradoAbierto: ['e1'], paymentIds: []  };
     expect(noticesFor(antes, [pedido(OTRO)], [grupo()], YO, AHORA)).toEqual([]);
   });
 
   // Ya no hay nada que objetar: avisar sería mandar a una acción imposible.
   it('una ronda vencida no avisa', () => {
-    const antes = { expenseIds: ['e1'], conBorradoAbierto: [] };
+    const antes = { expenseIds: ['e1'], conBorradoAbierto: [], paymentIds: []  };
     const viejo = pedido(OTRO, AHORA - DELETION_TIMEOUT_MS - 1);
     expect(noticesFor(antes, [viejo], [grupo()], YO, AHORA)).toEqual([]);
   });
 
   it('una ronda objetada tampoco', () => {
-    const antes = { expenseIds: ['e1'], conBorradoAbierto: [] };
+    const antes = { expenseIds: ['e1'], conBorradoAbierto: [], paymentIds: []  };
     const objetado = conOver({ deletionVotes: [
       { userId: OTRO, votedAt: AHORA, action: 'delete' },
       { userId: YO, votedAt: AHORA, action: 'cancel' },
@@ -186,5 +186,59 @@ describe('está enchufado al sync', () => {
 
   it('entrar a un grupo nuevo también avisa', () => {
     expect(motor).toMatch(/kind: 'joined'/);
+  });
+});
+
+/**
+ * ADR-006, decisión 5: cuando alguien registra un saldo que me involucra, me
+ * entero. Antes `syncNotices` sólo miraba gastos: un pago aparecía en el
+ * balance sin que nada lo anunciara.
+ */
+describe('avisos de saldo', () => {
+  const pago = (over: Partial<Payment> = {}): Payment => ({
+    id: 'p1', groupId: 'g1', fromUserId: 'beto', toUserId: 'yo',
+    amount: 500_000, currency: 'ARS', date: 0, createdAt: 0,
+    createdById: 'beto', updatedAt: 0, isDeleted: false, ...over,
+  } as Payment);
+
+  const grupos = [{ id: 'g1', name: 'Asado', memberIds: ['yo', 'beto'], isDeleted: false } as Group];
+
+  it('me avisa cuando alguien registra que me pagó', () => {
+    const antes = snapshot([], 0, []);
+    const avisos = noticesFor(antes, [], grupos, 'yo', 0, [pago()]);
+    expect(avisos.some(a => a.kind === 'settled')).toBe(true);
+  });
+
+  it('NO me avisa de un pago que registré yo', () => {
+    // Ya lo sé: lo acabo de hacer.
+    const antes = snapshot([], 0, []);
+    const avisos = noticesFor(antes, [], grupos, 'yo', 0, [pago({ createdById: 'yo' })]);
+    expect(avisos.some(a => a.kind === 'settled')).toBe(false);
+  });
+
+  it('NO me avisa de un pago entre otras dos personas', () => {
+    const antes = snapshot([], 0, []);
+    const avisos = noticesFor(antes, [], grupos, 'yo',
+      0, [pago({ fromUserId: 'beto', toUserId: 'caro', createdById: 'beto' })]);
+    expect(avisos.some(a => a.kind === 'settled')).toBe(false);
+  });
+
+  it('un pago que YA conocía no vuelve a avisar', () => {
+    const antes = snapshot([], 0, [pago()]);
+    const avisos = noticesFor(antes, [], grupos, 'yo', 0, [pago()]);
+    expect(avisos.some(a => a.kind === 'settled')).toBe(false);
+  });
+
+  it('el aviso dice de quién y cuánto', () => {
+    const antes = snapshot([], 0, []);
+    const avisos = noticesFor(antes, [], grupos, 'yo', 0, [pago()]);
+    const a = avisos.find(x => x.kind === 'settled')!;
+    expect(a).toMatchObject({ groupName: 'Asado', amount: 500_000, currency: 'ARS' });
+  });
+
+  it('un pago borrado no avisa', () => {
+    const antes = snapshot([], 0, []);
+    const avisos = noticesFor(antes, [], grupos, 'yo', 0, [pago({ isDeleted: true })]);
+    expect(avisos.some(a => a.kind === 'settled')).toBe(false);
   });
 });

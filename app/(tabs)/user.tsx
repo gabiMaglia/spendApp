@@ -95,6 +95,7 @@ export default function UserScreen() {
     notifExpenses, setNotifExpenses,
     notifDeletions, setNotifDeletions,
     notifInvites, setNotifInvites,
+    notifSettlements, setNotifSettlements,
   } = useSettingsStore();
   const displayCurrency    = useSettingsStore(s => s.displayCurrency);
   const setDisplayCurrency = useSettingsStore(s => s.setDisplayCurrency);
@@ -307,6 +308,12 @@ export default function UserScreen() {
             label={t('profile.notif_invites')}
             value={notifInvites}
             onChange={setNotifInvites}
+          />
+          <Divider color={c.borderHair} />
+          <ToggleRow
+            label={t('profile.notif_settlements')}
+            value={notifSettlements}
+            onChange={setNotifSettlements}
           />
         </View>
 

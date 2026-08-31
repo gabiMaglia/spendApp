@@ -9,6 +9,7 @@ const KEYS = {
   NOTIF_EXPENSES:  'notif_expenses',
   NOTIF_DELETIONS: 'notif_deletions',
   NOTIF_INVITES:   'notif_invites',
+  NOTIF_SETTLEMENTS:'notif_settlements',
   DISPLAY_CURRENCY:'display_currency',
 } as const;
 
@@ -27,12 +28,14 @@ interface SettingsState {
   notifExpenses: boolean;
   notifDeletions: boolean;
   notifInvites: boolean;
+  notifSettlements: boolean;
   displayCurrency: CurrencyCode;
 
   setDisplayCurrency: (code: CurrencyCode) => void;
   setNotifExpenses: (value: boolean) => void;
   setNotifDeletions: (value: boolean) => void;
   setNotifInvites: (value: boolean) => void;
+  setNotifSettlements: (value: boolean) => void;
   hydrate: () => void;
 }
 
@@ -45,6 +48,7 @@ export function createSettingsStore() {
     notifExpenses:  true,
     notifDeletions: true,
     notifInvites:   true,
+    notifSettlements: true,
     displayCurrency: DEFAULT_DISPLAY_CURRENCY,
 
     setDisplayCurrency: (code) => {
@@ -64,12 +68,17 @@ export function createSettingsStore() {
       writeScopedBool(storage, KEYS.NOTIF_INVITES, value);
       set({ notifInvites: value });
     },
+    setNotifSettlements: (value) => {
+      writeScopedBool(storage, KEYS.NOTIF_SETTLEMENTS, value);
+      set({ notifSettlements: value });
+    },
 
     hydrate: () => {
       set({
         notifExpenses:  readScopedBool(storage, KEYS.NOTIF_EXPENSES, true),
         notifDeletions: readScopedBool(storage, KEYS.NOTIF_DELETIONS, true),
         notifInvites:   readScopedBool(storage, KEYS.NOTIF_INVITES, true),
+        notifSettlements: readScopedBool(storage, KEYS.NOTIF_SETTLEMENTS, true),
         // Un código guardado que ya no exista (data vieja, moneda retirada de
         // la lista) cae al default en vez de dejar la app pidiendo una tasa
         // para una moneda que no existe.
