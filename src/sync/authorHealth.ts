@@ -185,11 +185,30 @@ export function unverifiedAuthors(): AuthorObservation[] {
 }
 
 export function clearAuthorObservations(): void {
+  vaciarMemoria();
+  writeScoped(storage, K_MEDICION, '');
+}
+
+/** Vacía lo acumulado en memoria. NO toca el disco. */
+function vaciarMemoria(): void {
   sospechas.clear();
   cache.clear();
   conteo.ok = 0;
   conteo.clave_desconocida = 0;
   conteo.sin_directorio = 0;
   cargado = false;
-  writeScoped(storage, K_MEDICION, '');
+}
+
+/**
+ * Suelta la medición de la cuenta anterior y vuelve a leer del scope activo.
+ * Lo llama `rehydrateForActiveUser` al cambiar de cuenta.
+ *
+ * A diferencia de `clearAuthorObservations`, NO escribe: borrar acá vaciaría la
+ * medición de la cuenta que ENTRA, que es justo lo contrario de lo que se
+ * quiere. Sin esta separación, soltar y borrar serían la misma función y la
+ * cuenta nueva arrancaría siempre en cero — el mismo modo de falla que el
+ * docblock de arriba explica por qué se persiste.
+ */
+export function reloadAuthorHealth(): void {
+  vaciarMemoria();
 }

@@ -20,6 +20,7 @@ import { reloadVerdictCache } from '@/src/sync/verdictCache';
 import { reloadAuthorKeys } from '@/src/sync/authorKeys';
 import { reloadRatchet } from '@/src/sync/ratchet';
 import { reloadRecordHealth } from '@/src/sync/recordHealth';
+import { reloadAuthorHealth } from '@/src/sync/authorHealth';
 
 // (Re)hidrata todos los stores scopeados por cuenta con los datos del usuario
 // activo. Con usuario nulo (deslogueado), cada hydrate lee un scope vacío y deja
@@ -46,11 +47,17 @@ export function rehydrateForActiveUser(): void {
    *
    * Es un hueco que quedó de S3 y S4; cuesta una línea cada uno y dejarlo sería
    * dejar una filtración conocida entre cuentas.
+   *
+   * `authorHealth` es de ADR-004, no de T-041, y por eso se le había escapado a
+   * la revisión que cerró los otros cuatro: la medición de la fase B tenía el
+   * mismo agujero. Lo encontró el guard ampliado de T-055, que es exactamente
+   * para lo que existe.
    */
   reloadVerdictCache();
   reloadAuthorKeys();
   reloadRatchet();
   reloadRecordHealth();
+  reloadAuthorHealth();
 
   // Con los datos de la cuenta ya cargados, se materializan los gastos
   // recurrentes vencidos. Va acá y no en el arranque de la app porque depende

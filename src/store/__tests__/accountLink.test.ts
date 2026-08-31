@@ -421,3 +421,60 @@ describe('la moneda maestra tampoco se pierde al fusionar', () => {
     expect(st().getString(`display_currency::u:${GOOGLE}`)).toBe('CLP');
   });
 });
+
+describe('T-055 · los contactos tampoco se pierden al enlazar cuentas', () => {
+  const usr = () => createSecureStorage('users');
+  const PEERS = 'contact_peers_v1';
+
+  type Peer = { secret: string; wrapPublicKey?: string; identityPublicKey?: string };
+  const writePeers = (uid: string, peers: Record<string, Peer>) =>
+    usr().set(`${PEERS}::u:${uid}`, JSON.stringify(peers));
+  const readPeers = (uid: string): Record<string, Peer> => {
+    const raw = usr().getString(`${PEERS}::u:${uid}`);
+    return raw ? (JSON.parse(raw) as Record<string, Peer>) : {};
+  };
+
+  beforeEach(() => { usr().clearAll(); });
+
+  // Sin el peer, la cuenta destino no le puede mandar la clave de ningún grupo
+  // — y no se arregla solo: una tarjeta que llega por el relay sólo completa
+  // huecos, así que hay que volver a escanear el QR en persona.
+  it('los contactos del origen llegan al destino', () => {
+    writePeers(APPLE, { ana: { secret: 's-ana', wrapPublicKey: 'w-ana' } });
+    mergeAccounts(APPLE, GOOGLE);
+    expect(readPeers(GOOGLE).ana).toEqual({
+      secret: 's-ana', wrapPublicKey: 'w-ana', identityPublicKey: undefined,
+    });
+  });
+
+  it('se unen los de las dos cuentas', () => {
+    writePeers(APPLE,  { ana: { secret: 's-ana' } });
+    writePeers(GOOGLE, { beto: { secret: 's-beto' } });
+    mergeAccounts(APPLE, GOOGLE);
+    expect(Object.keys(readPeers(GOOGLE)).sort()).toEqual(['ana', 'beto']);
+  });
+
+  // Pisar una clave verificada en persona con otra sería degradar la única
+  // verificación fuerte del sistema — la misma regla que `savePeerFromCard`.
+  it('NO pisa una clave que el destino ya tenía; sólo completa huecos', () => {
+    writePeers(APPLE,  { ana: { secret: 's-origen',  identityPublicKey: 'i-origen' } });
+    writePeers(GOOGLE, { ana: { secret: 's-destino', wrapPublicKey: 'w-destino' } });
+    mergeAccounts(APPLE, GOOGLE);
+    expect(readPeers(GOOGLE).ana).toEqual({
+      secret: 's-destino', wrapPublicKey: 'w-destino', identityPublicKey: 'i-origen',
+    });
+  });
+
+  it('un peer sin buzón no entra: no serviría para nada', () => {
+    writePeers(APPLE, { ana: { secret: '' } });
+    mergeAccounts(APPLE, GOOGLE);
+    expect(readPeers(GOOGLE).ana).toBeUndefined();
+  });
+
+  it('un scope corrupto no tumba la fusión', () => {
+    usr().set(`${PEERS}::u:${APPLE}`, 'no es json');
+    writePeers(GOOGLE, { beto: { secret: 's-beto' } });
+    expect(() => mergeAccounts(APPLE, GOOGLE)).not.toThrow();
+    expect(readPeers(GOOGLE).beto.secret).toBe('s-beto');
+  });
+});

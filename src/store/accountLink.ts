@@ -31,6 +31,7 @@ const GROUP_KEYS_KEY       = 'data_v1';
 const ARCHIVED_KEY         = 'archived_v1';
 const INBOX_KEY            = 'inbox_v1';
 const INBOX_MAX            = 200;
+const CONTACT_PEERS_KEY    = 'contact_peers_v1';
 
 /**
  * Fusiona TODOS los datos de `fromAccountId` dentro de `toAccountId`.
@@ -47,6 +48,7 @@ export function mergeAccounts(fromAccountId: string, toAccountId: string): Merge
   mergeNotices(fromAccountId, toAccountId);
   mergeProfiles(fromAccountId, toAccountId);
   mergeSettings(fromAccountId, toAccountId);
+  mergeContactPeers(fromAccountId, toAccountId);
   recordMerge(fromAccountId);
   return report;
 }
@@ -262,6 +264,66 @@ function mergeNotices(fromAccountId: string, toAccountId: string): void {
 }
 
 /**
+ * Contactos: el buzón y las claves públicas de cada persona que escaneamos.
+ *
+ * Se fusiona por la misma razón que `groupkeys`, y es la que salió de mirar el
+ * ciclo de vida completo: **no se puede reconstruir sin volver a escanear el QR
+ * de cada contacto en persona.** Una tarjeta que llega por el relay sólo
+ * completa huecos, nunca reemplaza una clave (`savePeerFromCard`), así que
+ * perder el peer no se arregla solo — la cuenta destino se queda sin poder
+ * mandarle la clave de ningún grupo. Declararlo "reconstruible" hubiera sido
+ * falso.
+ *
+ * Y alcanza con los peers: con la lista en la mano, el destino les anuncia SU
+ * tarjeta (otro `userId`, otra huella, así que `cardYaEnviada` no la frena) y el
+ * canal se rearma solo en los dos sentidos.
+ *
+ * Semántica: unión por `userId`, **el destino gana campo por campo y el origen
+ * sólo completa lo que falte**. Igual que `savePeerFromCard`, y por el mismo
+ * motivo: pisar una clave verificada en persona con otra sería degradar la única
+ * verificación fuerte que tiene el sistema. Las dos cuentas son la misma
+ * persona, así que completar huecos es seguro; reemplazar no.
+ *
+ * NO se fusionan las otras dos claves del módulo, a propósito:
+ *  - `contact_secret_v1` es MI buzón, estable por diseño — adoptar otro
+ *    invalidaría los códigos que esa cuenta ya mostró;
+ *  - `card_sent_v1` es el acuse de MI tarjeta, y la del destino es otra:
+ *    heredarlo no ahorra un envío y podría suprimir uno.
+ */
+function mergeContactPeers(fromAccountId: string, toAccountId: string): void {
+  if (fromAccountId === toAccountId) return;
+  const storage = createSecureStorage('users');
+  const k = (uid: string) => `${CONTACT_PEERS_KEY}::u:${uid}`;
+
+  type PeerInfo = { secret: string; wrapPublicKey?: string; identityPublicKey?: string };
+  const leer = (uid: string): Record<string, PeerInfo> => {
+    const raw = storage.getString(k(uid));
+    if (!raw) return {};
+    try {
+      const v = JSON.parse(raw);
+      return v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, PeerInfo>) : {};
+    } catch {
+      return {}; // scope corrupto: no puede tumbar el resto de la fusión
+    }
+  };
+
+  const origen = leer(fromAccountId);
+  if (Object.keys(origen).length === 0) return;
+
+  const destino = leer(toAccountId);
+  for (const [userId, peer] of Object.entries(origen)) {
+    if (!peer?.secret) continue; // un peer sin buzón no sirve para nada
+    const previo = destino[userId];
+    destino[userId] = {
+      secret:            previo?.secret            ?? peer.secret,
+      wrapPublicKey:     previo?.wrapPublicKey     ?? peer.wrapPublicKey,
+      identityPublicKey: previo?.identityPublicKey ?? peer.identityPublicKey,
+    };
+  }
+  storage.set(k(toAccountId), JSON.stringify(destino));
+}
+
+/**
  * Movimientos personales y presupuesto. Van aparte porque `personalStore` no usa
  * la clave `data_v1` de los demás.
  */
@@ -319,30 +381,61 @@ function mergeProfiles(fromAccountId: string, toAccountId: string): void {
 }
 
 /**
- * Qué hace la fusión con CADA store scopeado por cuenta.
+ * Qué hace la fusión con CADA módulo que persiste scopeado por cuenta.
  *
- * Existe porque la lista de stores a fusionar se enumeraba a mano y se
- * desincronizaba del código: `personal` desapareció en silencio una vez, y
- * `groupkeys` y los archivados otra (T-047). Tres veces el mismo patrón.
+ * Existe porque la lista se enumeraba a mano y se desincronizaba del código:
+ * `personal` desapareció en silencio una vez, y `groupkeys` y los archivados
+ * otra (T-047). El guard `accountCoverage.test.ts` compara esta tabla (y la de
+ * exclusiones) contra lo que de verdad existe en `src/`, recursivo, y falla si
+ * aparece un módulo nuevo sin declarar.
  *
- * El guard `accountCoverage.test.ts` compara esta tabla contra los stores que
- * de verdad existen y falla si aparece uno nuevo sin declarar. Agregar un store
- * scopeado obliga a decidir acá qué pasa cuando dos cuentas se fusionan — que
- * es exactamente la decisión que se venía olvidando.
+ * Las claves son la ruta desde `src/` sin extensión, no el nombre del archivo:
+ * el escaneo dejó de ser de un solo directorio (T-055) y dos módulos con el
+ * mismo basename en carpetas distintas compartirían declaración sin que se note.
  */
 export const COBERTURA_FUSION: Record<string, string> = {
-  groupStore:     'fusionado (MERGEABLE_STORES · groups/data_v1)',
-  expenseStore:   'fusionado (MERGEABLE_STORES · expenses/data_v1)',
-  paymentStore:   'fusionado (MERGEABLE_STORES · payments/data_v1)',
-  userStore:      'fusionado (MERGEABLE_STORES · users/data_v1)',
-  recurringStore: 'fusionado (MERGEABLE_STORES · recurring/data_v1)',
-  commentStore:   'fusionado (MERGEABLE_STORES · comments/data_v1)',
-  personalStore:  'aparte · mergePersonal (usa entries_v1 + budget_v1, no data_v1)',
-  groupKeyStore:  'aparte · mergeGroupKeys (es {groupId,key,epoch}, sin id/updatedAt; gana la época mayor)',
-  archiveStore:   'aparte · mergeArchived (string[] bajo archived_v1, en el bucket groups; unión)',
-  settingsStore:  'aparte · mergeSettings (preferencias, no datos)',
-  noticeInboxStore: 'aparte · mergeNotices (union por id; el acuse gana sobre el no-acuse). Decision del PO 2026-08-30: TODO se fusiona al enlazar cuentas.',
-  userScope:      'no es un store: es el mecanismo de scoping',
+  'store/groupStore':     'fusionado (MERGEABLE_STORES · groups/data_v1)',
+  'store/expenseStore':   'fusionado (MERGEABLE_STORES · expenses/data_v1)',
+  'store/paymentStore':   'fusionado (MERGEABLE_STORES · payments/data_v1)',
+  'store/userStore':      'fusionado (MERGEABLE_STORES · users/data_v1)',
+  'store/recurringStore': 'fusionado (MERGEABLE_STORES · recurring/data_v1)',
+  'store/commentStore':   'fusionado (MERGEABLE_STORES · comments/data_v1)',
+  'store/personalStore':  'aparte · mergePersonal (usa entries_v1 + budget_v1, no data_v1)',
+  'store/groupKeyStore':  'aparte · mergeGroupKeys (es {groupId,key,epoch}, sin id/updatedAt; gana la época mayor)',
+  'store/archiveStore':   'aparte · mergeArchived (string[] bajo archived_v1, en el bucket groups; unión)',
+  'store/settingsStore':  'aparte · mergeSettings (preferencias, no datos)',
+  'store/noticeInboxStore': 'aparte · mergeNotices (union por id; el acuse gana sobre el no-acuse). Decision del PO 2026-08-30: TODO se fusiona al enlazar cuentas.',
+  'sync/contactChannel':  'aparte · mergeContactPeers (contact_peers_v1: unión por userId, el destino gana campo por campo). El secreto propio y el acuse de tarjeta NO se fusionan — ver el docblock de mergeContactPeers.',
+};
+
+/**
+ * Lo que se persiste scopeado por cuenta y **a propósito no se fusiona**, cada
+ * uno con su razón.
+ *
+ * Va en una tabla aparte y no como una nota más en `COBERTURA_FUSION` porque
+ * una exclusión es la decisión peligrosa de las dos: es la que hace callar al
+ * guard. Diluida entre las coberturas se lee igual que un "listo"; acá, junta
+ * con las otras, se audita de un vistazo.
+ *
+ * El guard sólo puede exigir que la razón esté ESCRITA. Que sea cierta lo tiene
+ * que haber verificado quien la escribió — para eso cada una dice cómo se
+ * recupera el dato si se pierde.
+ */
+export const EXCLUIDOS_FUSION: Record<string, string> = {
+  'store/userScope':
+    'No es data: es el mecanismo de scoping. `writeScoped` está acá porque este módulo lo DEFINE, no porque guarde algo propio.',
+  'services/runMigrateReplicated':
+    'Marca one-shot "esta cuenta ya migró sus réplicas" (ADR-006), no data del usuario. Fusionarla no aplica y heredarla no haría falta: todo scope que existe en este device llegó ahí por un `rehydrateForActiveUser`, y ése corre la migración. La cuenta origen ya migró lo suyo antes de que se fusione.',
+  'sync/authorHealth':
+    'Medición de la fase B de ADR-004: cuántos sobres verificaron y cuáles no. Diagnóstico, no data del usuario — el único consumidor es la pantalla DEV `app/debug/identity.tsx`, no gatea ni bloquea nada. Se vuelve a acumular con el uso; sumar los contadores de dos cuentas mezclaría observaciones sobre pares distintos.',
+  'sync/verdictCache':
+    'Caché de veredictos de firma ya calculados (T-041). Reconstruible verificando de nuevo: lo único que cuesta perderla es CPU en la próxima bajada, y los registros vuelven a viajar enteros en cada sobre.',
+  'sync/authorKeys':
+    'Caché de las públicas que el directorio ya devolvió (T-041). Reconstruible: se vuelve a consultar el directorio, que es la fuente de verdad. No contiene nada que el directorio no pueda volver a dar.',
+  'sync/ratchet':
+    'Trinquete "a este autor ya le vimos firmar" (T-041). Hoy NO bloquea nada — decisión R1 del PO: se marca, no se rechaza; su único consumidor es el denominador de la medición en recordHealth. Se retraba solo con la primera firma válida que llegue. OJO: el día que el trinquete pase a gatillar rechazo, esta exclusión deja de ser válida y tiene que moverse a la cobertura.',
+  'sync/recordHealth':
+    'Medición de T-041: cuántos registros verificaron, fallaron o no eran verificables. Mismo caso que authorHealth — diagnóstico para decidir si se enciende el rechazo, no data del usuario, y se reacumula con el uso.',
 };
 
 export { MERGEABLE_STORES };

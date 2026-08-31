@@ -1,4 +1,3 @@
-import * as Notifications from 'expo-notifications';
 import i18n from '@/src/i18n';
 import { formatMoney } from '@/src/constants/currencies';
 import { useSettingsStore } from '@/src/store/settingsStore';
@@ -23,6 +22,30 @@ import { useNoticeInboxStore } from '@/src/store/noticeInboxStore';
  * Acá sólo se traduce y se entrega.
  */
 
+/**
+ * El nativo se carga PEREZOSAMENTE, igual que en `avatar.ts:16-27`.
+ *
+ * Importarlo en el tope lo metía en el camino del sync: `groupStore` →
+ * `relayEngine` → acá. Como todos los stores cuelgan de esa cadena, un build sin
+ * el binario no perdía las notificaciones, no abría la app — que es exactamente
+ * lo que pasó el 30/08 con `expo-image-manipulator`. Cargarlo recién al usarlo
+ * hace que la ausencia DEGRADE en vez de romper.
+ */
+let modCache: typeof import('expo-notifications') | null | undefined;
+
+function cargarNotificaciones(): typeof import('expo-notifications') | null {
+  // Memoizado: en un build sin el módulo, cada intento imprime un error rojo en
+  // dev, y esto se llama una vez por aviso entregado.
+  if (modCache !== undefined) return modCache;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    modCache = require('expo-notifications');
+  } catch {
+    modCache = null;
+  }
+  return modCache ?? null;
+}
+
 let handlerInstalado = false;
 
 /**
@@ -40,18 +63,30 @@ let handlerInstalado = false;
  * `shouldSetBadge: false` a propósito: no hay nada que limpie el número del
  * ícono, así que encenderlo dejaría un badge pegado para siempre. Cuando exista
  * la bandeja de avisos (T-044) el badge pasa a tener dueño y se puede prender.
+ *
+ * Corre a nivel de módulo desde `app/_layout.tsx`, antes del primer render: si
+ * tirara, la app no llegaría a pintar nada. Por eso sin el nativo se va en
+ * silencio — la marca queda en `false` porque no hay handler registrado, y
+ * decir lo contrario sería mentirle al próximo que lea el flag.
  */
 export function installNotificationHandler(): void {
   if (handlerInstalado) return;
-  handlerInstalado = true;
-  Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowBanner: true,
-      shouldShowList:   true,
-      shouldPlaySound:  true,
-      shouldSetBadge:   false,
-    }),
-  });
+  const Notifications = cargarNotificaciones();
+  if (!Notifications) return;
+
+  try {
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowBanner: true,
+        shouldShowList:   true,
+        shouldPlaySound:  true,
+        shouldSetBadge:   false,
+      }),
+    });
+    handlerInstalado = true;
+  } catch {
+    // Registrar la presentación es lo último que puede costar el arranque.
+  }
 }
 
 /** Sólo para tests: permite volver a registrar el handler. */
@@ -72,6 +107,8 @@ let permiso: boolean | undefined;
  */
 export async function ensurePermission(): Promise<boolean> {
   if (permiso !== undefined) return permiso;
+  const Notifications = cargarNotificaciones();
+  if (!Notifications) return (permiso = false); // build sin el nativo
   try {
     const actual = await Notifications.getPermissionsAsync();
     permiso = actual.granted
@@ -142,6 +179,12 @@ export function textFor(notice: Notice): { title: string; body: string } {
 export async function deliver(notices: Notice[]): Promise<number> {
   const queridos = notices.filter(isEnabled);
   if (queridos.length === 0) return 0;
+
+  // El módulo ANTES que el permiso: sin el nativo no hay a quién pedírselo, y
+  // preguntar primero haría que la ausencia se reportara como una negativa del
+  // usuario. Son dos causas distintas de "no salió el aviso".
+  const Notifications = cargarNotificaciones();
+  if (!Notifications) return 0;
   if (!(await ensurePermission())) return 0;
 
   let entregados = 0;
