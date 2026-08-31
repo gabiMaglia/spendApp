@@ -4,6 +4,7 @@ import { readScoped, writeScoped } from './userScope';
 import { mergeByIdLWW } from './lww';
 import { schedulePublish } from '@/src/sync/relayEngine';
 import type { Group, LeaveRequest } from '@/src/types/models';
+import { mergeDeletionMode } from '@/src/algorithms/deletionPolicy';
 import { mergeApprovals } from '@/src/algorithms/leaveRequest';
 import { syncedNow } from '@/src/utils/syncedClock';
 
@@ -148,7 +149,11 @@ export const useGroupStore = create<GroupStoreState>((set, get) => ({
       const local = antes.get(g.id);
       const remoto = incoming.find(x => x.id === g.id);
       const unido = mergeApprovals(local?.leaveRequest, remoto?.leaveRequest);
-      return unido === undefined && g.leaveRequest === undefined ? g : { ...g, leaveRequest: unido };
+      // El modo de borrado NO se sincroniza: lo fija quien crea el grupo. Ver
+      // `mergeDeletionMode` — sin esto cualquiera afloja el grupo por sync.
+      const modo = mergeDeletionMode(antes.has(g.id), local?.deletionMode, remoto?.deletionMode);
+      const base = g.deletionMode === modo ? g : { ...g, deletionMode: modo };
+      return unido === undefined && base.leaveRequest === undefined ? base : { ...base, leaveRequest: unido };
     });
     persist(merged);
     set({ groups: merged });

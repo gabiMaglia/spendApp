@@ -52,3 +52,29 @@ export function puedeRestaurar(
 ): boolean {
   return group.memberIds.includes(quienRestaura);
 }
+
+/**
+ * Con qué modo se queda un grupo cuando llega una versión remota de él.
+ *
+ * **El modo NO se sincroniza.** El `Group` viaja entero en el sobre
+ * (`relaySync.ts:60`) y el merge es LWW: sin esto, cualquier miembro puede
+ * mandar el grupo con `deletionMode: 'open'`, ganarle por `updatedAt`, y a
+ * partir de ahí borrar gastos ajenos al instante sin que nadie lo autorice.
+ * Eso vacía la regla #2 del proyecto por el canal de sync.
+ *
+ * La regla es: **el modo lo fija quien crea el grupo y después no lo mueve
+ * nadie.** Sólo se toma el del sobre la PRIMERA vez que este dispositivo ve el
+ * grupo, que es cómo un miembro nuevo se entera de en qué mundo entró.
+ *
+ * No se pierde ninguna funcionalidad: hoy el modo se elige únicamente al crear
+ * el grupo (`app/groups/new.tsx:81`) y no hay ninguna pantalla para cambiarlo.
+ * El día que se quiera permitir cambiarlo, va a hacer falta autorización de
+ * verdad (T-041), no un campo que gana por timestamp.
+ */
+export function mergeDeletionMode(
+  conocidoLocal: boolean,
+  local: DeletionMode | undefined,
+  remoto: DeletionMode | undefined,
+): DeletionMode | undefined {
+  return conocidoLocal ? local : remoto;
+}
