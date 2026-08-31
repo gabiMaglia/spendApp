@@ -9,6 +9,7 @@ import { useRecurringStore } from './recurringStore';
 import { useCommentStore } from './commentStore';
 import { useGroupKeyStore } from './groupKeyStore';
 import { purgeMergedScopes } from './accountLink';
+import { migrarReplicadosUnaVez } from '@/src/services/runMigrateReplicated';
 import { startRelay } from '@/src/sync/relayEngine';
 import { materializeRecurring } from '@/src/services/materializeRecurring';
 import { resolvePendingDeletions } from '@/src/services/resolveDeletions';
@@ -46,6 +47,10 @@ export function rehydrateForActiveUser(): void {
   // arriba: la firma que faltaba pudo haber llegado por sync mientras la app
   // estaba cerrada.
   applyApprovedLeaves();
+
+  // Migración one-shot de las réplicas de grupo (ADR-006). Va DESPUÉS de que
+  // los stores hidrataron: necesita los gastos y los movimientos ya cargados.
+  migrarReplicadosUnaVez();
 
   // Limpieza tardía de scopes fusionados que ya pasaron el período de gracia.
   purgeMergedScopes();

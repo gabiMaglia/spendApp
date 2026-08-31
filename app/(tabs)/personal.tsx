@@ -26,6 +26,9 @@ import type { PersonalBudget, PersonalEntry } from '@/src/types/models';
 import { useTranslation } from 'react-i18next';
 import i18n from '@/src/i18n';
 import { totalIOwe, totalOwedToMe } from '@/src/algorithms/directedDebts';
+import { useFx } from '@/src/store/useFx';
+import { UnconvertedNotice } from '@/src/components/UnconvertedNotice';
+import { sumConverted } from '@/src/services/fxTotals';
 import { syncedNow } from '@/src/utils/syncedClock';
 
 function monthLabel(key: string): string {
@@ -75,7 +78,15 @@ export default function PersonalScreen() {
     onBlur: onBudgetInputBlur,
   } = useAmountInput(budgetCurrency, budget.monthlyAmount);
 
-  const cur = budget.currency as CurrencyCode;
+  /**
+   * La moneda maestra que el usuario eligió en Perfil, no la del presupuesto.
+   *
+   * Antes era `budget.currency` y el filtro de abajo descartaba EN SILENCIO
+   * toda entrada de otra moneda: cargabas un gasto en reales y Personal no lo
+   * contaba, sin una sola señal. Es el mismo defecto que ya tenía el dashboard.
+   */
+  const { fx, display: cur } = useFx();
+  const [avisoVisto, setAvisoVisto] = useState(false);
 
   /**
    * Cuánto me deben y cuánto debo, DIRECCIONAL (ADR-006).
@@ -146,18 +157,35 @@ export default function PersonalScreen() {
     setSeen(thisMonth);
   }, [lastSeenMonth]); // Only runs when lastSeenMonth changes (once per month)
 
-  // Entries for this month, not deleted, in budget currency
+  // TODAS las del mes, sin filtrar por moneda: lo que no se puede convertir se
+  // informa, no se descarta.
   const monthEntries = useMemo(
-    () => entries.filter(e => !e.isDeleted && e.currency === cur && toMonthKey(e.date) === activeMonth),
-    [entries, cur, activeMonth],
+    () => entries.filter(e => !e.isDeleted && toMonthKey(e.date) === activeMonth),
+    [entries, activeMonth],
   );
 
-  const totalIncome      = monthEntries.filter(e => e.kind === 'income').reduce((s, e) => s + e.amount, 0);
-  const totalExpense     = monthEntries.filter(e => e.kind === 'expense').reduce((s, e) => s + e.amount, 0);
-  const totalGroup       = monthEntries.filter(e => e.kind === 'group_replicated').reduce((s, e) => s + e.amount, 0);
-  const positiveCarryover = monthEntries.filter(e => e.kind === 'carryover' && e.isPositiveCarryover).reduce((s, e) => s + e.amount, 0);
-  const negativeCarryover = monthEntries.filter(e => e.kind === 'carryover' && !e.isPositiveCarryover).reduce((s, e) => s + e.amount, 0);
-  const totalSpent       = totalExpense + totalGroup + negativeCarryover;
+  const sumar = (pred: (e: PersonalEntry) => boolean) =>
+    sumConverted(
+      monthEntries.filter(pred).map(e => ({ currency: e.currency, minor: e.amount })),
+      cur, fx,
+    );
+
+  const income     = sumar(e => e.kind === 'income');
+  const expense    = sumar(e => e.kind === 'expense');
+  const group      = sumar(e => e.kind === 'group_replicated');
+  const carryPos   = sumar(e => e.kind === 'carryover' && !!e.isPositiveCarryover);
+  const carryNeg   = sumar(e => e.kind === 'carryover' && !e.isPositiveCarryover);
+
+  const totalIncome       = income.totalMinor;
+  const totalExpense      = expense.totalMinor;
+  const totalGroup        = group.totalMinor;
+  const positiveCarryover = carryPos.totalMinor;
+  const negativeCarryover = carryNeg.totalMinor;
+  const totalSpent        = totalExpense + totalGroup + negativeCarryover;
+
+  // Lo que no se pudo convertir, para avisarlo igual que en el dashboard: un
+  // número nunca puede ocultar que hay plata que no se está mostrando.
+  const pendientes = [...expense.unconverted, ...group.unconverted];
 
   const baseBudget      = budget.monthlyAmount;
   const effectiveBudget = baseBudget + totalIncome + positiveCarryover + (budget.includeOwedToMe ? owedToMe : 0);
@@ -302,6 +330,15 @@ export default function PersonalScreen() {
               {t('personal.debts_note')}
             </Text>
           </>
+        )}
+
+        {pendientes.length > 0 && (
+          <UnconvertedNotice
+            visible={!avisoVisto}
+            display={cur}
+            unconverted={pendientes}
+            onClose={() => setAvisoVisto(true)}
+          />
         )}
 
         {/* Entries list */}

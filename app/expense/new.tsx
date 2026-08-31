@@ -377,13 +377,17 @@ export default function NewExpenseScreen() {
         updatedAt:       syncedNow(),
         isDeleted:       false,
       });
-      // Replicate my share to personal expenses
-      if (myShare > 0) {
+      // ADR-006: se replica lo que SALIÓ DE MI BOLSILLO, no mi porción.
+      // Si pagó otro, todavía no gasté nada — es una deuda, y se vuelve gasto
+      // recién cuando la salde. Antes se replicaba `myShare` siempre, que
+      // estaba mal en los dos sentidos: de menos si pagaba yo, y de más si
+      // pagaba otro.
+      if (payerFields().paidById === currentUser.id) {
         addPersonalEntry({
           id:                   uuidv4(),
           kind:                 'group_replicated',
           description:          description.trim(),
-          amount:               myShare,
+          amount,
           currency,
           category,
           date:                 date.getTime(),
