@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { readScoped, writeScoped } from './userScope';
 import { mergeByIdLWW } from './lww';
+import { signOnCreate } from '@/src/sync/signOnWrite';
 import { schedulePublish } from '@/src/sync/relayEngine';
 import { useExpenseStore } from './expenseStore';
 
@@ -48,7 +49,7 @@ export const useCommentStore = create<CommentStoreState>((set, get) => ({
       .sort((a, b) => a.createdAt - b.createdAt),
 
   addComment: (comment) => {
-    const comments = [...get().comments, comment];
+    const comments = [...get().comments, signOnCreate('comment', comment)];
     persist(comments);
     set({ comments });
 

@@ -15,10 +15,10 @@ import { syncedNow } from '@/src/utils/syncedClock';
  * borrados: la aprobación que falta puede llegar del otro teléfono en cualquier
  * momento, y el que se va bien puede tener la app cerrada.
  *
- * **Idempotente por construcción**: al aplicar se limpia el pedido, así que una
- * segunda pasada no encuentra nada. Los ids de los pagos son nuevos cada vez,
- * así que aplicar dos veces DUPLICARÍA el reparto — por eso limpiar el pedido
- * es parte de la misma operación y no un paso aparte.
+ * **Idempotente en los dos ejes**: limpiar el pedido evita repetir en ESTE
+ * dispositivo, y el id derivado (ver `idDelPago`) evita duplicar entre dos que
+ * resuelven la misma salida sin haberse visto. Hacen falta los dos: el primero
+ * solo protegía contra la segunda pasada local.
  */
 /**
  * Id DERIVADO del pedido, no aleatorio.
@@ -47,6 +47,16 @@ export function applyApprovedLeaves(now: number = syncedNow()): number {
   for (const group of listos) {
     const req = group.leaveRequest!;
 
+    /**
+     * `derived: true` — estos pagos NO se firman (T-041 · S5).
+     *
+     * El `createdById` es el del que SE VA y esto corre en el device de
+     * cualquiera: firmarlos sería declarar autoría ajena. Y cuando el que
+     * resuelve es el propio saliente, firmarlos dejaría el MISMO id circulando
+     * firmado desde un teléfono y sin firma desde los otros. El modelo de un
+     * registro derivado es `derivedFrom` sobre el `LeaveRequest` firmado, y es
+     * S9 del plan.
+     */
     req.plan.forEach((p, i) => {
       usePaymentStore.getState().addPayment({
         id:          idDelPago(group.id, req, i),
@@ -60,7 +70,7 @@ export function applyApprovedLeaves(now: number = syncedNow()): number {
         createdById: req.userId,
         updatedAt:   now,
         isDeleted:   false,
-      });
+      }, { derived: true });
     });
 
     // Sacar el pedido y al que se va, en una sola escritura: si quedaran

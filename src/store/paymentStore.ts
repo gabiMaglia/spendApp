@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { readScoped, writeScoped } from './userScope';
 import { mergeByIdLWW } from './lww';
+import { signOnCreate, signOnEdit } from '@/src/sync/signOnWrite';
 import { schedulePublish } from '@/src/sync/relayEngine';
 import { migratePaymentAmounts } from './moneyMigration';
 import type { Payment } from '@/src/types/models';
@@ -12,11 +13,18 @@ const KEY = 'data_v1';
 // Guard de idempotencia de la conversión float→entero de montos (ADR-002 §6).
 const MONEY_MIGRATION_KEY = 'money_int_v1_done';
 
+/**
+ * Un pago DERIVADO no lo declara este dispositivo: sale de un plan de salida ya
+ * aprobado y lo materializa cualquiera que corra la resolución. Ver S9 del plan
+ * de T-041 (`derivedFrom`).
+ */
+export interface AddPaymentOpts { derived?: boolean }
+
 interface PaymentStoreState {
   payments: Payment[];
   isLoading: boolean;
   getByGroupId: (groupId: string) => Payment[];
-  addPayment: (payment: Payment) => void;
+  addPayment: (payment: Payment, opts?: AddPaymentOpts) => void;
   updatePayment: (id: string, patch: Partial<Payment>) => void;
   mergePayments: (incoming: Payment[]) => void;
   hydrate: () => void;
@@ -35,8 +43,12 @@ export const usePaymentStore = create<PaymentStoreState>((set, get) => ({
 
   // Saldar una deuda tiene que verse del otro lado igual que un gasto: si no,
   // el que pagó ve su saldo en cero y el otro le sigue reclamando.
-  addPayment: (payment) => {
-    const payments = [...get().payments, payment];
+  addPayment: (payment, opts) => {
+    // `derived` = pago emitido en nombre de otro a partir de un plan de salida
+    // (`applyLeave`). No se firma: su autoría no es de este device aunque el
+    // `createdById` coincida con la sesión. Ver `signOnCreate`.
+    const nuevo = opts?.derived ? payment : signOnCreate('payment', payment);
+    const payments = [...get().payments, nuevo];
     persist(payments);
     set({ payments });
 
@@ -45,7 +57,9 @@ export const usePaymentStore = create<PaymentStoreState>((set, get) => ({
 
   updatePayment: (id, patch) => {
     const payments = get().payments.map(p =>
-      p.id === id ? { ...p, ...patch, updatedAt: syncedNow() } : p,
+      p.id === id
+        ? signOnEdit('payment', p, { ...p, ...patch, updatedAt: syncedNow() })
+        : p,
     );
     persist(payments);
     set({ payments });

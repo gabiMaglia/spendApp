@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { readScoped, writeScoped } from './userScope';
 import { mergeByIdLWW } from './lww';
+import { signOnCreate, signOnEdit } from '@/src/sync/signOnWrite';
 import { schedulePublish } from '@/src/sync/relayEngine';
 import { migrateExpenseAmounts } from './moneyMigration';
 import type { Expense } from '@/src/types/models';
@@ -35,7 +36,9 @@ export const useExpenseStore = create<ExpenseStoreState>((set, get) => ({
     get().expenses.filter(e => e.groupId === groupId && !e.isDeleted),
 
   addExpense: (expense) => {
-    const expenses = [...get().expenses, expense];
+    // Se firma acá y no en la pantalla: un gasto entra por `new.tsx`, por el
+    // escaneo de recibo y por las recurrentes, y los tres pasan por este punto.
+    const expenses = [...get().expenses, signOnCreate('expense', expense)];
     persist(expenses);
     set({ expenses });
     // Se avisa al motor de sync. Va con debounce: cargar un gasto dispara
@@ -45,7 +48,9 @@ export const useExpenseStore = create<ExpenseStoreState>((set, get) => ({
 
   updateExpense: (id, patch) => {
     const expenses = get().expenses.map(e =>
-      e.id === id ? { ...e, ...patch, updatedAt: syncedNow() } : e,
+      e.id === id
+        ? signOnEdit('expense', e, { ...e, ...patch, updatedAt: syncedNow() })
+        : e,
     );
     persist(expenses);
     set({ expenses });

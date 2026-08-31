@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { readScoped, writeScoped } from './userScope';
 import { mergeByIdLWW } from './lww';
+import { signOnCreate, signOnEdit } from '@/src/sync/signOnWrite';
 import type { RecurringExpense } from '@/src/types/models';
 import { syncedNow } from '@/src/utils/syncedClock';
 
@@ -34,14 +35,16 @@ export const useRecurringStore = create<RecurringStoreState>((set, get) => ({
   active: () => get().recurring.filter(r => !r.isDeleted && r.isActive),
 
   addRecurring: (r) => {
-    const recurring = [...get().recurring, r];
+    const recurring = [...get().recurring, signOnCreate('recurring', r)];
     persist(recurring);
     set({ recurring });
   },
 
   updateRecurring: (id, patch) => {
     const recurring = get().recurring.map(r =>
-      r.id === id ? { ...r, ...patch, updatedAt: syncedNow() } : r,
+      r.id === id
+        ? signOnEdit('recurring', r, { ...r, ...patch, updatedAt: syncedNow() })
+        : r,
     );
     persist(recurring);
     set({ recurring });

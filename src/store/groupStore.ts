@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { readScoped, writeScoped } from './userScope';
 import { mergeByIdLWW } from './lww';
+import { signOnCreate, signOnEdit } from '@/src/sync/signOnWrite';
 import { schedulePublish } from '@/src/sync/relayEngine';
 import type { Group, LeaveRequest } from '@/src/types/models';
 import { mergeDeletionMode } from '@/src/algorithms/deletionPolicy';
@@ -49,7 +50,7 @@ export const useGroupStore = create<GroupStoreState>((set, get) => ({
   getById: (id) => get().groups.find(g => g.id === id),
 
   addGroup: (group) => {
-    const groups = [...get().groups, group];
+    const groups = [...get().groups, signOnCreate('group', group)];
     persist(groups);
     set({ groups });
 
@@ -57,8 +58,13 @@ export const useGroupStore = create<GroupStoreState>((set, get) => ({
   },
 
   updateGroup: (id, patch) => {
+    // Del grupo se firma sólo `id`/`createdAt`/`createdById`: nada de lo que
+    // pasa por acá los toca, así que `signOnEdit` no re-firma. Se llama igual
+    // para que el día que el núcleo del grupo crezca, esto no quede mudo.
     const groups = get().groups.map(g =>
-      g.id === id ? { ...g, ...patch, updatedAt: syncedNow() } : g,
+      g.id === id
+        ? signOnEdit('group', g, { ...g, ...patch, updatedAt: syncedNow() })
+        : g,
     );
     persist(groups);
     set({ groups });
