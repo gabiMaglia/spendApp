@@ -249,6 +249,33 @@ const pendientes = new Set<string>();
 const ultimaConsulta = new Map<string, number>();
 
 /**
+ * **Claves presentadas por las que ya le preguntamos al directorio** (D2).
+ *
+ * `enEspera`: la clave se vio, no la cubríamos, y la consulta todavía no volvió.
+ * `preguntadas`: la consulta volvió **con respuesta** y la clave siguió sin
+ * quedar cubierta.
+ *
+ * La distinción entre las dos es la que evita acusar a un autor honesto. Un peer
+ * que reinstaló presenta una clave que no tenemos: mientras nadie le preguntó al
+ * directorio por ELLA, lo único honesto que se puede decir es "no sé". Recién
+ * cuando el directorio contestó y la clave sigue afuera hay una señal.
+ *
+ * Se registra por clave y no por autor a propósito: una respuesta del directorio
+ * de hace diez minutos es ANTERIOR a la reinstalación y no dice nada sobre el
+ * teléfono nuevo. Con el registro por autor, la primera consulta de la vida
+ * habilitaría la acusación para siempre — que es exactamente el bug que D2
+ * levanta.
+ */
+const enEspera = new Map<string, Set<string>>();
+const preguntadas = new Map<string, Set<string>>();
+
+function anotar(mapa: Map<string, Set<string>>, autor: string, clave: string): void {
+  const actual = mapa.get(autor);
+  if (actual) actual.add(clave);
+  else mapa.set(autor, new Set([clave]));
+}
+
+/**
  * Anota que a este autor hay que preguntarle al directorio. **Síncrona y sin
  * red**: acá no se consulta nada, sólo se encola. La consulta pasa fuera de
  * banda, al drenar.
@@ -275,10 +302,32 @@ export function pendingAuthorRefreshes(): readonly string[] {
  */
 export function authorKeysFor(authorId: string, presentedKey?: string): readonly string[] {
   const keys = resolveAuthorKeys(authorId);
-  if (keys.length === 0 || (presentedKey && !keys.includes(presentedKey))) {
+  const sinCubrir = presentedKey !== undefined && !keys.includes(presentedKey);
+
+  if (keys.length === 0 || sinCubrir) {
     scheduleAuthorRefresh(authorId);
+    // Se anota QUÉ clave quedó sin cubrir, no sólo que hay que preguntar: sin
+    // eso no se puede distinguir después "el directorio ya contestó sobre esta
+    // clave" de "contestó sobre el autor, antes de que ésta existiera" (D2).
+    if (sinCubrir && authorId) anotar(enEspera, authorId, presentedKey!);
   }
   return keys;
+}
+
+/**
+ * ¿El directorio ya contestó sobre esta clave presentada y siguió sin cubrirla?
+ *
+ * **Es la condición de D2 para poder decir `invalida`.** Mientras devuelva
+ * `false`, lo honesto es `no_verificable`: el juego de claves que tenemos puede
+ * estar viejo, y una reinstalación legítima se ve exactamente igual que una
+ * suplantación hasta que el directorio habla.
+ *
+ * Vive en memoria como el resto de la cola. Después de un reinicio vuelve a
+ * `false`, o sea que la medición arranca conservadora y se gana el derecho a
+ * acusar recién cuando volvió a preguntar. Es la dirección correcta del error.
+ */
+export function authorKeyWasAsked(authorId: string, presentedKey: string): boolean {
+  return preguntadas.get(authorId)?.has(presentedKey) ?? false;
 }
 
 /**
@@ -307,6 +356,18 @@ export async function refreshAuthorKeys(authorId: string): Promise<readonly stri
     const conocidas = knownAuthorKeys(authorId);
     const nuevas = traidas.filter(k => ES_PUBLICA.test(k) && !conocidas.includes(k));
     for (const k of nuevas) rememberAuthorKey(authorId, k);
+
+    /**
+     * Hubo RESPUESTA: lo que estaba en espera pasa a preguntado, aunque el
+     * directorio haya venido vacío. Sólo acá, y sólo en esta rama — un corte de
+     * red, un módulo ausente o un cooldown no son una respuesta, y tratarlos
+     * como tal convertiría un problema de conectividad en una acusación (D2).
+     */
+    const espera = enEspera.get(authorId);
+    if (espera) {
+      for (const k of espera) if (!nuevas.includes(k)) anotar(preguntadas, authorId, k);
+      enEspera.delete(authorId);
+    }
     return nuevas;
   } catch {
     return [];
@@ -339,4 +400,6 @@ export function __resetAuthorSources(): void {
 function olvidarPendientes(): void {
   pendientes.clear();
   ultimaConsulta.clear();
+  enEspera.clear();
+  preguntadas.clear();
 }

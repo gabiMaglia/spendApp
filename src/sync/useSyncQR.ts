@@ -6,6 +6,7 @@ import { useRecurringStore } from '@/src/store/recurringStore';
 import { useCommentStore } from '@/src/store/commentStore';
 import { usePersonalStore } from '@/src/store/personalStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
+import { observeRecords, type LocalCore } from './recordHealth';
 
 /**
  * Versión de FEATURES del delta, aparte de `version` (que es el formato).
@@ -66,12 +67,62 @@ export function buildDelta(currentUserId: string): SyncDelta {
 }
 
 /**
+ * Qué `rev` tenemos ya de cada id, para el descarte barato de la medición.
+ *
+ * `rev` ausente cuenta como 0 —es todo lo anterior a T-041— y por eso el mapa
+ * guarda el número y no el registro: hay que poder distinguir "no lo tenemos"
+ * de "lo tenemos sin `rev`", que son cosas distintas y se veían iguales.
+ */
+function revLocal<T extends { id: string; rev?: number }>(
+  lista: readonly T[],
+): (id: string) => LocalCore {
+  const previos = new Map<string, number>();
+  for (const r of lista) previos.set(r.id, r.rev ?? 0);
+  return id => {
+    const rev = previos.get(id);
+    return rev === undefined ? undefined : { rev };
+  };
+}
+
+/**
+ * **El gate de T-041 · S6: se verifica, se cuenta, y no cambia nada** (R1).
+ *
+ * Va acá y no en `drainGroup` porque las tres puertas de entrada —el relay, el
+ * QR y el pairing P2P— desembocan en `applyDelta`: en el transporte quedarían
+ * dos bypass.
+ *
+ * Corre **antes** de los merges a propósito: el descarte por `rev` compara
+ * contra lo que este device tiene ahora, y después de mergear ya sería tarde.
+ *
+ * Y va envuelta en un `try`: la medición no puede tener poder de veto ni por
+ * accidente. Si observar explota, el merge corre igual — un registro que no se
+ * pudo medir se muestra y suma como cualquier otro.
+ */
+function observeDelta(delta: SyncDelta): void {
+  try {
+    observeRecords('group', delta.groups, revLocal(useGroupStore.getState().groups));
+    observeRecords('expense', delta.expenses, revLocal(useExpenseStore.getState().expenses));
+    observeRecords('payment', delta.payments, revLocal(usePaymentStore.getState().payments));
+    observeRecords('comment', delta.comments ?? [], revLocal(useCommentStore.getState().comments));
+    observeRecords('recurring', delta.recurring ?? [],
+      revLocal(useRecurringStore.getState().recurring));
+  } catch {
+    // `users`, `personal` y `groupKeys` no entran: los dos primeros no tienen
+    // núcleo económico firmable y los `PersonalEntry` no viajan por el relay
+    // (§9 del plan); las claves de grupo tienen su propia autenticación por el
+    // canal de contactos.
+  }
+}
+
+/**
  * Aplica un delta recibido del otro dispositivo.
  * Usa LWW (Last-Write-Wins) por updatedAt en cada store.
  * También vincula usuarios placeholder con la cuenta real del remitente.
  */
 export function applyDelta(delta: SyncDelta, currentUserId: string): void {
   if (delta.version !== 1) return;
+
+  observeDelta(delta);
 
   useGroupStore.getState().mergeGroups(delta.groups);
   useExpenseStore.getState().mergeExpenses(delta.expenses);

@@ -16,6 +16,10 @@ import { resolvePendingDeletions } from '@/src/services/resolveDeletions';
 import { applyApprovedLeaves } from '@/src/services/applyLeave';
 import { useSettingsStore } from './settingsStore';
 import { useNoticeInboxStore } from './noticeInboxStore';
+import { reloadVerdictCache } from '@/src/sync/verdictCache';
+import { reloadAuthorKeys } from '@/src/sync/authorKeys';
+import { reloadRatchet } from '@/src/sync/ratchet';
+import { reloadRecordHealth } from '@/src/sync/recordHealth';
 
 // (Re)hidrata todos los stores scopeados por cuenta con los datos del usuario
 // activo. Con usuario nulo (deslogueado), cada hydrate lee un scope vacío y deja
@@ -32,6 +36,21 @@ export function rehydrateForActiveUser(): void {
   useGroupKeyStore.getState().hydrate();
   useSettingsStore.getState().hydrate();
   useNoticeInboxStore.getState().hydrate();
+
+  /**
+   * Las cachés y la medición de T-041 también son POR CUENTA, y no son stores:
+   * viven en variables de módulo con lectura perezosa desde el scope activo.
+   * Sin soltarlas acá, una cuenta que entra después de otra en el mismo arranque
+   * seguiría leyendo los veredictos, las claves y los contadores de la anterior
+   * —y peor, `guardar()` los escribiría bajo el scope de la nueva.
+   *
+   * Es un hueco que quedó de S3 y S4; cuesta una línea cada uno y dejarlo sería
+   * dejar una filtración conocida entre cuentas.
+   */
+  reloadVerdictCache();
+  reloadAuthorKeys();
+  reloadRatchet();
+  reloadRecordHealth();
 
   // Con los datos de la cuenta ya cargados, se materializan los gastos
   // recurrentes vencidos. Va acá y no en el arranque de la app porque depende
