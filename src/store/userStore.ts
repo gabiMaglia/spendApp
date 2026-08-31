@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { readScoped, writeScoped } from './userScope';
 import { mergeByIdLWW } from './lww';
+import { preservarAvatar } from './userAvatar';
 import type { User } from '@/src/types/models';
 import { syncedNow } from '@/src/utils/syncedClock';
 
@@ -42,14 +43,18 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
     const idx = current.findIndex(u => u.id === user.id);
     const users = idx === -1
       ? [...current, user]
-      : current.map(u => u.id === user.id ? { ...u, ...user } : u);
+      : current.map(u => u.id === user.id ? preservarAvatar(u, { ...u, ...user }) : u);
     persist(users);
     set({ users });
   },
 
   // LWW merge para sync P2P — propaga perfiles de otros usuarios
   mergeUsers: (incoming) => {
-    const merged = mergeByIdLWW(get().users, incoming);
+    // Los previos se leen ANTES del merge: después de mergear ya no está lo que
+    // había, que es justo contra lo que hay que proteger la foto.
+    const previos = new Map(get().users.map(u => [u.id, u]));
+    const merged = mergeByIdLWW(get().users, incoming)
+      .map(u => preservarAvatar(previos.get(u.id), u));
     persist(merged);
     set({ users: merged });
   },
