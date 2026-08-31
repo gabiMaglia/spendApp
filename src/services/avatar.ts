@@ -1,5 +1,24 @@
-import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
+import { AVATAR_CALIDAD, AVATAR_LADO, avatarCabe } from './avatarSize';
+
+export { AVATAR_MAX_BYTES, avatarByteSize, avatarCabe } from './avatarSize';
+
+/**
+ * El manipulador se carga PEREZOSAMENTE.
+ *
+ * Es un módulo nativo: en un dispositivo cuyo build no lo incluye todavía,
+ * importarlo arriba de todo tumba el archivo entero — y con él, cualquiera que
+ * lo importe. Cargarlo recién al usarlo hace que la app siga funcionando sin
+ * foto de perfil en vez de no arrancar.
+ */
+function cargarManipulador(): typeof import('expo-image-manipulator') | null {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    return require('expo-image-manipulator');
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Foto de perfil: se guarda como BYTES propios, no como URL del proveedor.
@@ -14,28 +33,6 @@ import * as ImagePicker from 'expo-image-picker';
  * el tamaño, y por eso el redimensionado NO es opcional.
  */
 
-/** 96 px alcanza para el círculo más grande de la app (56) en pantallas @2x/@3x. */
-const LADO = 96;
-const CALIDAD = 0.7;
-
-/**
- * Tope duro. La tarjeta de contacto viaja en CADA sync: una foto de teléfono
- * son 2-5 MB y degradaría la sincronización de todos, no solo la propia.
- * A 96×96 con calidad 0.7 el resultado ronda los 4-6 KB.
- */
-export const AVATAR_MAX_BYTES = 24_000;
-
-/** Bytes reales de una imagen en data URI (base64 infla ~4/3). */
-export function avatarByteSize(dataUri: string): number {
-  const base64 = dataUri.includes(',') ? dataUri.slice(dataUri.indexOf(',') + 1) : dataUri;
-  const relleno = base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0;
-  return Math.max(0, Math.floor((base64.length * 3) / 4) - relleno);
-}
-
-export function avatarCabe(dataUri: string): boolean {
-  return avatarByteSize(dataUri) <= AVATAR_MAX_BYTES;
-}
-
 /**
  * Achica cualquier imagen al cuadrado del avatar y la devuelve como data URI.
  * `null` si no se pudo — nunca se devuelve la original sin achicar, que es
@@ -43,10 +40,12 @@ export function avatarCabe(dataUri: string): boolean {
  */
 export async function achicarAAvatar(uri: string): Promise<string | null> {
   try {
-    const r = await ImageManipulator.manipulateAsync(
+    const manip = cargarManipulador();
+    if (!manip) return null;   // build sin el módulo: se sigue con iniciales
+    const r = await manip.manipulateAsync(
       uri,
-      [{ resize: { width: LADO, height: LADO } }],
-      { compress: CALIDAD, format: ImageManipulator.SaveFormat.JPEG, base64: true },
+      [{ resize: { width: AVATAR_LADO, height: AVATAR_LADO } }],
+      { compress: AVATAR_CALIDAD, format: manip.SaveFormat.JPEG, base64: true },
     );
     if (!r.base64) return null;
     const dataUri = `data:image/jpeg;base64,${r.base64}`;

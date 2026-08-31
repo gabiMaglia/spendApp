@@ -1,7 +1,7 @@
 import * as Crypto from 'expo-crypto';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { readScoped, writeScoped } from '@/src/store/userScope';
-import { avatarCabe } from '@/src/services/avatar';
+import { avatarCabe } from '@/src/services/avatarSize';
 import { useAuthStore } from '@/src/store/authStore';
 import { useUserStore } from '@/src/store/userStore';
 import { sealEnvelope, openEnvelope, toHex, fromHex } from './envelopeCrypto';
