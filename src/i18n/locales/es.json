@@ -500,7 +500,11 @@
     "pair_paste_label": "Pegar código del otro",
     "pair_paste_placeholder": "Pegá el código acá…",
     "pair_paste_submit": "Continuar",
-    "peer_outdated": "El otro dispositivo tiene una versión anterior de la app. Los gastos que pagaron varias personas se le van a ver distinto hasta que la actualice."
+    "peer_outdated": "El otro dispositivo tiene una versión anterior de la app. Los gastos que pagaron varias personas se le van a ver distinto hasta que la actualice.",
+    "failure_title": "Este grupo dejó de sincronizar",
+    "failure_too_large": "El grupo acumuló demasiada información para enviarla de una vez. Tus gastos están guardados en este teléfono, pero los demás no los están recibiendo.",
+    "failure_no_key": "Falta la clave de este grupo en este dispositivo. Pedile a alguien del grupo que te vuelva a compartir el acceso.",
+    "failure_unknown": "Tus gastos están guardados en este teléfono, pero no se están enviando al resto del grupo."
   },
   "categories": {
     "food": "Comida",

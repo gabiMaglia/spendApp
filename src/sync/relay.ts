@@ -25,7 +25,30 @@ import { recordServerTime } from '@/src/utils/syncedClock';
 const URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const ANON = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 
-/** Tope del ADR (256 KB), replicado como CHECK en la tabla. */
+/**
+ * Tope del ADR (256 KB), replicado como CHECK en la tabla.
+ *
+ * **OJO: el presupuesto real de datos NO son 256 KB, son ~196 KB.** Lo que se
+ * mide acá es el payload que llega a `publish`, y ése ya viene en base64:
+ * `sealEnvelope` devuelve base64 (`envelopeCrypto.ts:61`), así que el JSON se
+ * infla ×4/3 ANTES de compararse contra este número. Un delta de 200 KB de JSON
+ * son 266 KB en el cable y se rechaza.
+ *
+ * Está escrito acá porque costó descubrirlo dos veces (T-056/T-058) y no estaba
+ * en ningún lado. Medido con arné real —stores sembrados, sellado y firmado—,
+ * no estimado:
+ *
+ * | Grupo                          | En el cable | % del tope |
+ * |--------------------------------|-------------|------------|
+ * | 5 personas, 30 gastos          |    89 KB    |     34 %   |
+ * | 5 personas, 200 gastos (6 m)   |   320 KB    |    122 %   |
+ * | 8 personas, 500 gastos         |   868 KB    |    331 %   |
+ *
+ * O sea: **un grupo ordinario ya lo pasa**, y quitarle todas las fotos NO lo
+ * salva (105 %) — el término dominante son los gastos. Ver T-058 en el backlog;
+ * la solución no es filtrar por fecha (el sobre lleva ESTADO a propósito, y tres
+ * mecanismos dependen de eso).
+ */
 export const MAX_PAYLOAD_BYTES = 262_144;
 
 export type Envelope = {

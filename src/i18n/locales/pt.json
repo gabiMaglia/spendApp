@@ -500,7 +500,11 @@
     "pair_paste_label": "Colar o código do outro",
     "pair_paste_placeholder": "Cole o código aqui…",
     "pair_paste_submit": "Continuar",
-    "peer_outdated": "O outro dispositivo está com uma versão anterior. As despesas pagas por várias pessoas vão aparecer diferentes lá até ele atualizar."
+    "peer_outdated": "O outro dispositivo está com uma versão anterior. As despesas pagas por várias pessoas vão aparecer diferentes lá até ele atualizar.",
+    "failure_title": "Este grupo parou de sincronizar",
+    "failure_too_large": "O grupo acumulou informação demais para enviar de uma vez. Suas despesas estão salvas neste telefone, mas os outros não estão recebendo.",
+    "failure_no_key": "Falta a chave deste grupo neste dispositivo. Peça a alguém do grupo para compartilhar o acesso novamente.",
+    "failure_unknown": "Suas despesas estão salvas neste telefone, mas não estão chegando ao resto do grupo."
   },
   "categories": {
     "food": "Comida",

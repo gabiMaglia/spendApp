@@ -20,6 +20,8 @@ import { usePaymentStore } from '@/src/store/paymentStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useGroupBalance } from '@/src/store/selectors';
 import { UserAvatar } from '@/src/components/UserAvatar';
+import { SyncWarningBanner } from '@/src/components/SyncWarningBanner';
+import { useGroupSyncFailure, claveDeFalloDeSync } from '@/src/sync/useSyncFailure';
 import { createInvite, inviteToLink } from '@/src/sync/groupInvite';
 import { ensureIdentity, saveInvite } from '@/src/store/identityStore';
 import { startRelay, announceGroupToContacts } from '@/src/sync/relayEngine';
@@ -43,6 +45,7 @@ export default function GroupDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const scheme = useColorScheme() ?? 'light';
   const { t } = useTranslation();
+  const falloDeSync = useGroupSyncFailure(id as string);
   const c = Colors[scheme];
 
   const { currentUser } = useAuthStore();
@@ -275,6 +278,15 @@ export default function GroupDetailScreen() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+
+        {/* Va ARRIBA del balance a propósito: si este grupo no está viajando,
+            el número de abajo es el de este teléfono y nada más. */}
+        {falloDeSync && (
+          <SyncWarningBanner
+            title={t('sync.failure_title')}
+            body={t(claveDeFalloDeSync(falloDeSync.reason))}
+          />
+        )}
 
         {/* Balance card */}
         <View style={[styles.balanceCard, { backgroundColor: c.surface, borderColor: c.borderHair }]}>

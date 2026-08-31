@@ -500,7 +500,11 @@
     "pair_paste_label": "Paste the other code",
     "pair_paste_placeholder": "Paste the code here…",
     "pair_paste_submit": "Continue",
-    "peer_outdated": "The other device is running an older version. Expenses paid by several people will look different there until it updates."
+    "peer_outdated": "The other device is running an older version. Expenses paid by several people will look different there until it updates.",
+    "failure_title": "This group stopped syncing",
+    "failure_too_large": "The group built up more data than fits in one send. Your expenses are saved on this phone, but the others aren't receiving them.",
+    "failure_no_key": "This device is missing the group's key. Ask someone in the group to share access with you again.",
+    "failure_unknown": "Your expenses are saved on this phone, but they aren't reaching the rest of the group."
   },
   "categories": {
     "food": "Food",
