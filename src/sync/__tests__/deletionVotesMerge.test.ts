@@ -126,7 +126,7 @@ describe('resolveDeletionVotes — deshacer le gana al forzado anterior (R3)', (
 describe('la ronda se lee igual después de unir', () => {
   it('el pedido más viejo de la ronda define el vencimiento', () => {
     const votos = mergeDeletionVoteSets([pide('beto', 100)], [objeta('caro', 900)]);
-    const ronda = deletionRound({ deletionVotes: votos } as Expense);
+    const ronda = deletionRound({ deletionVotes: votos } as Expense, 1_000);
     expect(ronda?.requestedAt).toBe(100);
     expect(ronda?.status === 'objected').toBe(true);
   });

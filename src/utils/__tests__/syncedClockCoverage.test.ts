@@ -50,3 +50,47 @@ describe('el reloj corregido se usa en TODAS partes', () => {
     expect(culpables).toEqual([]);
   });
 });
+
+/**
+ * **Y lo mismo para `votedAt`** (T-059).
+ *
+ * `votedAt` no es sólo la fecha que se muestra: decide qué ronda de borrado
+ * está viva, qué votos sobreviven al merge y cuándo se cumplen las 72hs. Un
+ * punto de emisión que vuelva a `Date.now()` reabre el mismo agujero que el de
+ * `updatedAt` —el teléfono con la hora adelantada le gana a todos— y falla
+ * igual de en silencio.
+ *
+ * Se enumera desde los llamadores de `emitirVoto`, que es el ÚNICO punto de
+ * escritura de `deletionVotes` (`src/services/deletionVotes.ts`): si mañana
+ * aparece una pantalla nueva que vota, entra sola.
+ */
+const EMISORES = execSync(
+  `grep -rl "emitirVoto(" src app | grep -v __tests__ || true`,
+  { encoding: 'utf8' },
+).split('\n').filter(Boolean);
+
+describe('los votos de borrado también salen del reloj corregido', () => {
+  it('encuentra los puntos de emisión', () => {
+    // `deletionVotes.ts` (la definición) más al menos una pantalla que la usa.
+    expect(EMISORES.length).toBeGreaterThan(1);
+  });
+
+  it('ninguna emisión se fecha con `Date.now()`', () => {
+    const culpables: string[] = [];
+
+    for (const archivo of EMISORES) {
+      const texto = readFileSync(archivo, 'utf8');
+      // `emitirVoto(gasto, id, 'accion', Date.now())`, con espacios variables.
+      if (/emitirVoto\([^)]*Date\.now\(\)/.test(texto)) culpables.push(archivo);
+    }
+
+    expect(culpables).toEqual([]);
+  });
+
+  it('ni por la puerta de atrás, escribiendo el campo a mano', () => {
+    const culpables = ARCHIVOS
+      .filter(a => /votedAt:\s*Date\.now\(\)/.test(readFileSync(a, 'utf8')));
+
+    expect(culpables).toEqual([]);
+  });
+});

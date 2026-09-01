@@ -1,6 +1,7 @@
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { useCommentStore } from '@/src/store/commentStore';
 import { resolveDeletionVotes } from '@/src/sync/SyncEngine';
+import { syncedNow } from '@/src/utils/syncedClock';
 import type { Expense } from '@/src/types/models';
 
 /**
@@ -17,7 +18,7 @@ import type { Expense } from '@/src/types/models';
  * por su cuenta porque los votos viajan por el sync; el tombstone que resulte
  * se resuelve por LWW como cualquier otro.
  */
-export function resolvePendingDeletions(now: number = Date.now()): number {
+export function resolvePendingDeletions(now: number = syncedNow()): number {
   const store = useExpenseStore.getState();
   const vencidas: Expense[] = store.expenses.filter(e =>
     !e.isDeleted &&

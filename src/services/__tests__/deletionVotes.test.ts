@@ -21,6 +21,8 @@ jest.mock('@/src/sync/relayEngine', () => ({ schedulePublish: jest.fn(), deviceI
 
 const T0 = Date.UTC(2026, 8, 1, 12);
 const HORA = 3_600_000;
+/** Cuándo LEE la app: después de todos los votos del archivo (T-059). */
+const LEIDO = T0 + 6 * HORA;
 
 const gasto = (votes: DeletionVote[], over: Partial<Expense> = {}): Expense => ({
   id: 'e1', groupId: 'g1', description: 'Cena', amount: 1000, currency: 'ARS',
@@ -90,7 +92,7 @@ describe('ninguna acción frena SACANDO votos', () => {
     const salida = emitirVoto(gasto(dosPedidos), 'beto', 'withdraw', T0 + 2 * HORA);
 
     expect(salida.filter(v => v.userId === 'caro' && accionDe(v) === 'delete')).toHaveLength(1);
-    expect(deletionRound(gasto(salida))!.status).toBe('open');
+    expect(deletionRound(gasto(salida), LEIDO)!.status).toBe('open');
   });
 });
 
@@ -127,7 +129,7 @@ describe('convergencia: el orden de llegada no cambia el resultado', () => {
 
     expect(huella(uno)).toBe(huella(dos));
     expect(huella(uno)).toBe(huella(tres));
-    expect(deletionRound(gasto(uno))?.status).toBe(deletionRound(gasto(dos))?.status);
+    expect(deletionRound(gasto(uno), LEIDO)?.status).toBe(deletionRound(gasto(dos), LEIDO)?.status);
   });
 
   /**
@@ -145,6 +147,6 @@ describe('convergencia: el orden de llegada no cambia el resultado', () => {
     const unido = mergeDeletionVoteSets(restaurado, forzado);
 
     expect(resolveDeletionVotes(gasto(unido), [], T0 + 10 * 24 * HORA)).toBe(false);
-    expect(deletionRound(gasto(unido))!.status).toBe('restored');
+    expect(deletionRound(gasto(unido), LEIDO)!.status).toBe('restored');
   });
 });

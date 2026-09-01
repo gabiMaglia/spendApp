@@ -25,6 +25,7 @@ import { ActivityLine } from '@/src/components/ActivityLine';
 import type { ActivityKind } from '@/src/store/selectors';
 import { EmptyState } from '@/src/components/EmptyState';
 import { hapticSelection } from '@/src/utils/haptics';
+import { syncedNow } from '@/src/utils/syncedClock';
 
 function relativeTime(ts: number): string {
   const diffMs  = Date.now() - ts;
@@ -65,11 +66,16 @@ export default function ActivityScreen() {
     if (!gasto || !currentUser) return;
     updateExpense(expenseId, {
       isDeleted: false,
-      deletionVotes: emitirVoto(gasto, currentUser.id, 'restore', Date.now()),
+      deletionVotes: emitirVoto(gasto, currentUser.id, 'restore', syncedNow()),
     });
   }
   const groups   = useGroupStore(s => s.groups);
   const feed     = useActivityFeed(currentUser?.id ?? '');
+
+  // Una sola lectura del reloj corregido por render: qué ronda está vigente
+  // depende de la hora (T-059) y las filas del feed no pueden contestar cada
+  // una contra un instante distinto.
+  const ahora = syncedNow();
   const [query, setQuery] = useState('');
 
   const ALL_FILTER = '__all__';
@@ -113,7 +119,7 @@ export default function ActivityScreen() {
 
   const votosDelFeed = filteredFeed.flatMap(ev => {
     if (ev.kind !== 'expense_delete_request' && ev.kind !== 'expense_restored') return [];
-    const vote = attributedVote(deletionRound(ev.expense), ev.expense.deletionVotes ?? []);
+    const vote = attributedVote(deletionRound(ev.expense, ahora), ev.expense.deletionVotes ?? []);
     return vote ? [{ expenseId: ev.expense.id, vote }] : [];
   });
 
@@ -127,7 +133,7 @@ export default function ActivityScreen() {
     if (ev.kind === 'expense_added' || ev.kind === 'expense_deleted') {
       return marcaDeGasto[ev.expense.id] ?? 'pendiente';
     }
-    const vote = attributedVote(deletionRound(ev.expense), ev.expense.deletionVotes ?? []);
+    const vote = attributedVote(deletionRound(ev.expense, ahora), ev.expense.deletionVotes ?? []);
     return vote ? marcaDeVoto[voteRefKey(ev.expense.id, vote)] ?? 'pendiente' : 'pendiente';
   }
 

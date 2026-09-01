@@ -3,6 +3,13 @@ import { DELETION_TIMEOUT_MS } from '@/src/sync/SyncEngine';
 import type { DeletionVote, Expense } from '@/src/types/models';
 
 const AHORA = Date.UTC(2026, 7, 17, 12);
+/**
+ * Cuándo LEE la app. Desde T-059 la ronda vigente depende del reloj —un
+ * `votedAt` posterior a ahora no puede ser el enunciado vigente— así que el
+ * instante de lectura va siempre explícito, y acá cae después de todos los
+ * votos del archivo.
+ */
+const LEIDO = AHORA + 3_600_000;
 
 const gasto = (votes: DeletionVote[]): Expense => ({
   id: 'e1', groupId: 'g1', description: 'Cena', amount: 1000, currency: 'ARS',
@@ -16,15 +23,15 @@ const objeta   = (userId: string, at = AHORA): DeletionVote => ({ userId, votedA
 
 describe('ronda de borrado', () => {
   it('sin votos no hay ronda', () => {
-    expect(deletionRound(gasto([]))).toBeNull();
+    expect(deletionRound(gasto([]), LEIDO)).toBeNull();
   });
 
   it('un gasto sin el campo tampoco rompe', () => {
-    expect(deletionRound({ ...gasto([]), deletionVotes: undefined as any })).toBeNull();
+    expect(deletionRound({ ...gasto([]), deletionVotes: undefined as any }, LEIDO)).toBeNull();
   });
 
   it('un pedido abre la ronda y fija el vencimiento a 72hs', () => {
-    const r = deletionRound(gasto([pide('beto')]))!;
+    const r = deletionRound(gasto([pide('beto')]), LEIDO)!;
 
     expect(r.requestedBy).toBe('beto');
     expect(r.expiresAt).toBe(AHORA + DELETION_TIMEOUT_MS);
@@ -33,14 +40,14 @@ describe('ronda de borrado', () => {
 
   // El plazo cuenta desde el PRIMER pedido: es desde cuándo la gente tuvo aviso.
   it('con dos pedidos manda el más viejo', () => {
-    const r = deletionRound(gasto([pide('beto', AHORA + 5000), pide('caro', AHORA)]))!;
+    const r = deletionRound(gasto([pide('beto', AHORA + 5000), pide('caro', AHORA)]), LEIDO)!;
 
     expect(r.requestedBy).toBe('caro');
     expect(r.requestedAt).toBe(AHORA);
   });
 
   it('una objeción mata la ronda y se sabe quién fue', () => {
-    const r = deletionRound(gasto([pide('beto'), objeta('caro')]))!;
+    const r = deletionRound(gasto([pide('beto'), objeta('caro')]), LEIDO)!;
 
     expect(r.status).toBe('objected');
     expect(r.stoppedBy).toBe('caro');
@@ -48,7 +55,7 @@ describe('ronda de borrado', () => {
 
   it('el último voto de cada persona es el que vale', () => {
     // Caro objetó y después se arrepintió y pidió el borrado.
-    const r = deletionRound(gasto([pide('beto'), objeta('caro', AHORA), pide('caro', AHORA + 1000)]))!;
+    const r = deletionRound(gasto([pide('beto'), objeta('caro', AHORA), pide('caro', AHORA + 1000)]), LEIDO)!;
 
     expect(r.status).toBe('open');
   });
@@ -56,12 +63,12 @@ describe('ronda de borrado', () => {
 
 describe('cuánto falta', () => {
   it('cuenta hacia atrás', () => {
-    const r = deletionRound(gasto([pide('beto')]))!;
+    const r = deletionRound(gasto([pide('beto')]), LEIDO)!;
     expect(msUntilDeletion(r, AHORA + 3600_000)).toBe(DELETION_TIMEOUT_MS - 3600_000);
   });
 
   it('nunca es negativo', () => {
-    const r = deletionRound(gasto([pide('beto')]))!;
+    const r = deletionRound(gasto([pide('beto')]), LEIDO)!;
     expect(msUntilDeletion(r, AHORA + DELETION_TIMEOUT_MS * 2)).toBe(0);
   });
 });
@@ -70,9 +77,9 @@ describe('quién hizo qué', () => {
   it('reconoce a quien pidió y a quien objetó', () => {
     const e = gasto([pide('beto'), objeta('caro')]);
 
-    expect(hasRequested(e, 'beto')).toBe(true);
-    expect(hasObjected(e, 'caro')).toBe(true);
-    expect(hasObjected(e, 'beto')).toBe(false);
-    expect(hasRequested(e, 'caro')).toBe(false);
+    expect(hasRequested(e, 'beto', LEIDO)).toBe(true);
+    expect(hasObjected(e, 'caro', LEIDO)).toBe(true);
+    expect(hasObjected(e, 'beto', LEIDO)).toBe(false);
+    expect(hasRequested(e, 'caro', LEIDO)).toBe(false);
   });
 });

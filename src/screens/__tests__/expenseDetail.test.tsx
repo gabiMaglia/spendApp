@@ -164,7 +164,7 @@ describe('borrado consensuado', () => {
 
     const votos = useExpenseStore.getState().expenses[0]!.deletionVotes;
     expect(votos.filter(v => v.action === 'delete')).toHaveLength(0);
-    expect(hasRequested(useExpenseStore.getState().expenses[0]!, 'ua')).toBe(false);
+    expect(hasRequested(useExpenseStore.getState().expenses[0]!, 'ua', Date.now())).toBe(false);
   });
 
   it('ya objetado, se avisa y no se ofrece objetar de nuevo', () => {

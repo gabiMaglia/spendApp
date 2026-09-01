@@ -2,6 +2,7 @@ import { resolvePendingDeletions } from '../resolveDeletions';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { useCommentStore } from '@/src/store/commentStore';
 import { DELETION_TIMEOUT_MS } from '@/src/sync/SyncEngine';
+import { recordServerTime, clearClockOffset } from '@/src/utils/syncedClock';
 import type { DeletionVote, Expense, ExpenseComment } from '@/src/types/models';
 
 jest.mock('@/src/sync/relayEngine', () => ({ schedulePublish: jest.fn(), deviceId: () => 'dev' }));
@@ -94,5 +95,40 @@ describe('vencimiento de las solicitudes de borrado', () => {
     ]});
 
     expect(resolvePendingDeletions(VENCIDO)).toBe(2);
+  });
+});
+
+/**
+ * **El vencimiento se decide con el reloj corregido, no con el del teléfono**
+ * (T-059 · ADR-005).
+ *
+ * Este es el único lugar donde el reloj llega a borrar un gasto: `resolvePendingDeletions`
+ * corre sola en cada arranque y después de cada sync, con el `now` que ella
+ * misma se busca. Si ese `now` sale de `Date.now()`, un teléfono con la hora
+ * mal puesta borra antes de tiempo o no borra nunca — y nadie ve un error.
+ */
+describe('el plazo se cuenta contra el reloj corregido', () => {
+  afterEach(clearClockOffset);
+
+  it('una hora atrasada no le regala tiempo extra a la solicitud', () => {
+    // El teléfono está 2hs atrasado respecto del relay.
+    const local = Date.now();
+    recordServerTime(new Date(local + 2 * 3_600_000).toISOString(), local);
+
+    // Para el teléfono el pedido tiene 71hs: no vencería. Para la hora real
+    // tiene 73hs, y es la que vale.
+    useExpenseStore.setState({ expenses: [gasto('e1', [
+      { userId: 'beto', votedAt: local - (DELETION_TIMEOUT_MS - 3_600_000), action: 'delete' },
+    ])] });
+
+    expect(resolvePendingDeletions()).toBe(1);
+  });
+
+  it('y sin referencia del relay sigue funcionando como siempre', () => {
+    useExpenseStore.setState({ expenses: [gasto('e1', [
+      { userId: 'beto', votedAt: Date.now() - (DELETION_TIMEOUT_MS - 3_600_000), action: 'delete' },
+    ])] });
+
+    expect(resolvePendingDeletions()).toBe(0);
   });
 });

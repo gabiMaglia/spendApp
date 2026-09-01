@@ -49,7 +49,7 @@ export type Snapshot = {
 
 /** Una ronda abierta es la que existe, todavía no venció y nadie objetó. */
 function borradoPendiente(e: Expense, now: number): boolean {
-  const ronda = deletionRound(e);
+  const ronda = deletionRound(e, now);
   return ronda !== null && ronda.status === 'open' && ronda.expiresAt > now;
 }
 
@@ -97,7 +97,7 @@ export function noticesFor(
     // Un pedido de borrado que se abrió en esta bajada. El que lo pidió ya sabe.
     if (!yaAbiertos.has(e.id) && borradoPendiente(e, now)) {
       // El que lo pidió ya sabe: no se le avisa de su propia solicitud.
-      if (deletionRound(e)!.requestedBy !== currentUserId) {
+      if (deletionRound(e, now)!.requestedBy !== currentUserId) {
         borrados.push({
           kind: 'deletion',
           groupId: e.groupId,

@@ -1,5 +1,7 @@
 import { canonical } from '@/src/store/lww';
-import { accionDe, frenaLaRonda, rondaDe, rondaVigente } from './voteCore';
+import {
+  accionDe, enElFuturo, frenaLaRonda, masNuevoPorFecha, rondaDe, rondaVigente,
+} from './voteCore';
 import type { DeletionVote, Expense, SyncMeta } from '@/src/types/models';
 
 /** Ventana para objetar un borrado (regla de negocio #2). */
@@ -35,17 +37,33 @@ export class SyncEngine {
 /**
  * Desde cuándo cuenta la ronda abierta en este conjunto.
  *
- * La ronda la abre el pedido de borrado más VIEJO del conjunto — es la misma
- * definición que ya usa `deletionRound()` para calcular el vencimiento, y es
- * desde cuándo la gente tuvo aviso. `undefined` = no hay ninguna ronda abierta.
+ * Es la misma definición de dos pasos que usa `rondaVigente()`: la apertura de
+ * cada ronda es su pedido más VIEJO —desde cuándo la gente tuvo aviso— y entre
+ * rondas manda la que abrió más tarde. `undefined` = no hay ninguna ronda.
+ *
+ * **Los dos pasos hacen falta desde T-059**: antes esto era el pedido más viejo
+ * del conjunto entero, y funcionaba porque la poda dejaba una sola ronda por
+ * lado. Ahora las rondas nombradas conviven, y con un solo `min` la unión de
+ * dos conjuntos devolvía una apertura MÁS VIEJA que uno de sus dos insumos —
+ * así que podar dependía del orden en que se hubiera mergeado, que es
+ * exactamente la divergencia que esta función existe para evitar.
+ *
+ * Por fecha pelada, sin juzgar credibilidad: acá no hay reloj, y meterlo haría
+ * que dos teléfonos guardaran arrays distintos según cuándo mergearon.
  */
 function aperturaDeRonda(votes: readonly DeletionVote[]): number | undefined {
-  let apertura: number | undefined;
+  const aperturas = new Map<string, DeletionVote>();
   for (const v of votes) {
     if (accionDe(v) !== 'delete') continue;
-    if (apertura === undefined || v.votedAt < apertura) apertura = v.votedAt;
+    const previa = aperturas.get(rondaDe(v));
+    if (previa === undefined || masNuevoPorFecha(previa, v)) aperturas.set(rondaDe(v), v);
   }
-  return apertura;
+
+  let apertura: DeletionVote | undefined;
+  for (const v of aperturas.values()) {
+    if (apertura === undefined || masNuevoPorFecha(v, apertura)) apertura = v;
+  }
+  return apertura?.votedAt;
 }
 
 /**
@@ -71,6 +89,31 @@ function aperturaDeRonda(votes: readonly DeletionVote[]): number | undefined {
  * El resultado sale ORDENADO y sin duplicados: los dos dispositivos tienen que
  * guardar exactamente el mismo array, o el desempate canónico del LWW elegiría
  * distinto en cada uno.
+ *
+ * **La poda por tiempo es sólo para los votos que no saben nombrar su ronda**
+ * (T-059). El corte lo fija la apertura más nueva del conjunto y `votedAt` lo
+ * escribe el que vota: un teléfono con el reloj adelantado ponía el corte en
+ * 2027 y **borraba del conjunto el pedido real del otro lado**, no sólo le
+ * ganaba la ronda. Contra eso no hay capa de lectura que valga — el voto ya no
+ * está.
+ *
+ * Las rondas NOMBRADAS pueden dejar de podarse porque desde S8 separarlas no
+ * depende del tiempo: cada voto dice a qué ronda pertenece, la apertura de cada
+ * ronda es su propio pedido más viejo y una objeción de otra ronda no frena la
+ * de ahora (`rondaVigente`). El corte por tiempo lo siguen necesitando el
+ * histórico y el peer que no actualizó, que caen en la ronda sintética `''`:
+ * ahí sí, sin poda, una objeción vieja bloquearía todo pedido futuro y un
+ * pedido viejo vencería al instante al reabrirse — el bug que S7 cerró.
+ *
+ * **Lo que queda expuesto, y es el lado seguro**: un `votedAt` del futuro
+ * todavía puede podar votos SIN `roundId`. No alcanza para borrar nada — esa
+ * ronda tiene el vencimiento en el futuro, así que no vence nunca — y para
+ * taparlo habría que mirar el reloj acá, que es justo lo que rompe la
+ * convergencia.
+ *
+ * **Esta función sigue siendo pura**: no mira el reloj. Un corte que dependiera
+ * de "ahora" haría que dos teléfonos guardaran arrays distintos según cuándo
+ * mergearon, y el desempate canónico del LWW elegiría distinto en cada uno.
  */
 export function mergeDeletionVoteSets(
   a: readonly DeletionVote[] | undefined,
@@ -85,7 +128,7 @@ export function mergeDeletionVoteSets(
 
   const porContenido = new Map<string, DeletionVote>();
   for (const v of [...A, ...B]) {
-    if (desde !== undefined && v.votedAt < desde) continue;
+    if (desde !== undefined && v.votedAt < desde && rondaDe(v) === '') continue;
     porContenido.set(canonical(v), v);
   }
 
@@ -103,25 +146,47 @@ export function mergeDeletionVoteSets(
  * pisara el de la de ahora. Lo que no trae `roundId` —todo lo anterior a S8 y
  * todo lo de un peer sin actualizar— cae en la ronda sintética `''`, que es
  * exactamente el comportamiento de antes.
+ *
+ * **Cuál es el último enunciado de una persona no lo decide la fecha mayor sino
+ * la fecha creíble mayor** (T-059): si no, quien abrió una ronda con el reloj
+ * adelantado no puede retirarla nunca —su propio retiro queda "anterior" a su
+ * pedido— y el pedido sigue colgado hasta que el tiempo real alcance su reloj.
  */
-export function mergeDeletionVotes(votes: DeletionVote[]): DeletionVote[] {
+export function mergeDeletionVotes(votes: DeletionVote[], now: number): DeletionVote[] {
   const map = new Map<string, DeletionVote>();
   for (const vote of votes) {
     const clave = `${rondaDe(vote)}\u0000${vote.userId}`;
     const existing = map.get(clave);
-    if (!existing || vote.votedAt > existing.votedAt) {
+    if (!existing || ultimoEntre(vote, existing, now)) {
       map.set(clave, vote);
     }
   }
   return Array.from(map.values());
 }
 
+/**
+ * ¿`a` es el enunciado vigente frente a `b`?
+ *
+ * Un `votedAt` del futuro no lo es frente a uno creíble; entre dos igual de
+ * creíbles manda la fecha (T-059). Vive acá y no en `voteCore` porque acá se
+ * compara siempre entre enunciados de LA MISMA PERSONA — los votos de personas
+ * distintas no se comparan nunca por fecha (regla 2 de `resolveDeletionVotes`).
+ */
+function ultimoEntre(a: DeletionVote, b: DeletionVote, now: number): boolean {
+  const futuroA = enElFuturo(a, now);
+  const futuroB = enElFuturo(b, now);
+  if (futuroA !== futuroB) return futuroB;
+  return masNuevoPorFecha(a, b);
+}
+
 /** El último voto de esta persona, mire la ronda que mire. */
-function ultimoDe(vigentes: DeletionVote[], userId: string): DeletionVote | undefined {
+function ultimoDe(
+  vigentes: DeletionVote[], userId: string, now: number,
+): DeletionVote | undefined {
   let ultimo: DeletionVote | undefined;
   for (const v of vigentes) {
     if (v.userId !== userId) continue;
-    if (!ultimo || v.votedAt > ultimo.votedAt) ultimo = v;
+    if (!ultimo || ultimoEntre(v, ultimo, now)) ultimo = v;
   }
   return ultimo;
 }
@@ -156,17 +221,20 @@ export function resolveDeletionVotes(
   _memberIds: string[],
   now: number = Date.now(),
 ): boolean {
-  const vigentes = mergeDeletionVotes(expense.deletionVotes ?? []);
+  const vigentes = mergeDeletionVotes(expense.deletionVotes ?? [], now);
 
-  const delCreador = ultimoDe(vigentes, expense.createdById);
+  const delCreador = ultimoDe(vigentes, expense.createdById, now);
   if (delCreador && accionDe(delCreador) === 'delete' && delCreador.forced) {
+    // "Posterior" con el reloj en la mano (T-059): si el `forced` viene con
+    // fecha del futuro, ningún `restore` real sería posterior y el borrado
+    // quedaría indeshacible — la contraparte que R3 le pone al override.
     const deshecho = vigentes.some(
-      v => frenaLaRonda(v) && v.votedAt > delCreador.votedAt,
+      v => frenaLaRonda(v) && ultimoEntre(v, delCreador, now),
     );
     if (!deshecho) return true;
   }
 
-  const ronda = rondaVigente(vigentes);
+  const ronda = rondaVigente(vigentes, now);
   if (ronda === null || ronda.freno !== undefined) return false;
 
   return now - ronda.apertura.votedAt > DELETION_TIMEOUT_MS;

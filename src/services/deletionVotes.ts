@@ -90,7 +90,7 @@ export function emitirVoto(
   // hay ronda o cuando la abrió alguien anterior a S8, que es la ronda `''`.
   const roundId = abre
     ? roundIdFor(expense.id, userId, now)
-    : deletionRound(expense)?.roundId || undefined;
+    : deletionRound(expense, now)?.roundId || undefined;
 
   const voto: DeletionVote = {
     userId,

@@ -5,6 +5,7 @@ import { calculateBalancesByCurrency } from '@/src/algorithms/calculateBalances'
 import { directedDebts, type DirectedDebt, type Transferencia } from '@/src/algorithms/directedDebts';
 import { simplifyDebts } from '@/src/algorithms/simplifyDebts';
 import { deletionRound } from '@/src/algorithms/deletionRound';
+import { syncedNow } from '@/src/utils/syncedClock';
 import { useGroupStore } from './groupStore';
 import { useExpenseStore } from './expenseStore';
 import { usePaymentStore } from './paymentStore';
@@ -247,6 +248,11 @@ export function useActivityFeed(currentUserId: string): ActivityKind[] {
 
     const events: (ActivityKind & { _ts: number })[] = [];
 
+    // Una sola lectura del reloj corregido para todo el feed: qué ronda está
+    // vigente depende de la hora (T-059), y dos gastos del mismo render no
+    // pueden contestar contra relojes distintos.
+    const ahora = syncedNow();
+
     for (const expense of expenses) {
       if (!myGroupIds.has(expense.groupId)) continue;
 
@@ -271,7 +277,7 @@ export function useActivityFeed(currentUserId: string): ActivityKind[] {
       // (T-041 · S7) el conjunto se une, así que el pedido sigue ahí al lado de
       // la objeción que lo frenó. Buscar "algún voto de borrado" le avisaría al
       // usuario de un trámite que ya no va a pasar.
-      const ronda = deletionRound(expense);
+      const ronda = deletionRound(expense, ahora);
       if (ronda && ronda.status === 'open') {
         events.push({
           kind: 'expense_delete_request',

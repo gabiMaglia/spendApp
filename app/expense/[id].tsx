@@ -88,7 +88,11 @@ export default function ExpenseDetailScreen() {
    * atribuye** (lo declaró un tercero). Marcar la banda con el veredicto del
    * gasto sería marcar otra cosa.
    */
-  const ronda = expense ? deletionRound(expense) : null;
+  // Una sola lectura del reloj corregido por render: desde T-059 qué ronda
+  // está vigente depende de la hora, y la banda, los botones y el contador
+  // tienen que contestar todos contra el mismo instante.
+  const ahora = syncedNow();
+  const ronda = expense ? deletionRound(expense, ahora) : null;
 
   const marcaDeGasto = useRecordTrust('expense', expense ? [expense] : [])[expense?.id ?? ''];
 
@@ -153,8 +157,8 @@ export default function ExpenseDetailScreen() {
   const splits = expense.splits ?? [];
 
   const hayPedido = ronda !== null && ronda.status === 'open';
-  const yoPedi    = currentUser ? hasRequested(expense, currentUser.id) : false;
-  const yoObjete  = currentUser ? hasObjected(expense, currentUser.id) : false;
+  const yoPedi    = currentUser ? hasRequested(expense, currentUser.id, ahora) : false;
+  const yoObjete  = currentUser ? hasObjected(expense, currentUser.id, ahora) : false;
 
   /**
    * Pedir el borrado ABRE UNA RONDA NUEVA: se limpian los votos anteriores.
@@ -166,7 +170,7 @@ export default function ExpenseDetailScreen() {
   function pedirBorrado() {
     if (!currentUser || !expense) return;
     updateExpense(expense.id, {
-      deletionVotes: emitirVoto(expense, currentUser.id, 'delete', Date.now()),
+      deletionVotes: emitirVoto(expense, currentUser.id, 'delete', syncedNow()),
     });
   }
 
@@ -174,7 +178,7 @@ export default function ExpenseDetailScreen() {
   function forzarBorrado() {
     if (!currentUser || !expense) return;
     updateExpense(expense.id, {
-      deletionVotes: emitirVoto(expense, currentUser.id, 'force', Date.now()),
+      deletionVotes: emitirVoto(expense, currentUser.id, 'force', syncedNow()),
       isDeleted: true,
     });
     // Cascada: si no, los comentarios quedan huérfanos apuntando a un gasto
@@ -227,7 +231,7 @@ export default function ExpenseDetailScreen() {
     if (!currentUser || !expense) return;
     hapticLight();
     updateExpense(expense.id, {
-      deletionVotes: emitirVoto(expense, currentUser.id, 'object', Date.now()),
+      deletionVotes: emitirVoto(expense, currentUser.id, 'object', syncedNow()),
     });
   }
 
@@ -242,12 +246,12 @@ export default function ExpenseDetailScreen() {
     if (!currentUser || !expense) return;
     hapticLight();
     updateExpense(expense.id, {
-      deletionVotes: emitirVoto(expense, currentUser.id, 'withdraw', Date.now()),
+      deletionVotes: emitirVoto(expense, currentUser.id, 'withdraw', syncedNow()),
     });
   }
 
   const nombreDe = (uid: string) => (uid === currentUser?.id ? t('common.you') : getUserName(uid));
-  const restante = ronda ? formatearRestante(msUntilDeletion(ronda)) : '';
+  const restante = ronda ? formatearRestante(msUntilDeletion(ronda, ahora)) : '';
 
   // Restaurar y objetar frenan las dos, pero no son lo mismo y el cartel no
   // puede contar una historia que no pasó (R-Q2 del PO).

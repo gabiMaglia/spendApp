@@ -90,7 +90,7 @@ describe('mergeDeletionVotes', () => {
       { userId: 'u1', votedAt: 100, action: 'delete' as const },
       { userId: 'u1', votedAt: 200, action: 'cancel' as const },
     ];
-    const result = mergeDeletionVotes(votes);
+    const result = mergeDeletionVotes(votes, 1_000);
     expect(result).toHaveLength(1);
     expect(result[0]!.action).toBe('cancel');
   });
@@ -100,7 +100,7 @@ describe('mergeDeletionVotes', () => {
       { userId: 'u1', votedAt: 100, action: 'delete' as const },
       { userId: 'u2', votedAt: 100, action: 'delete' as const },
     ];
-    expect(mergeDeletionVotes(votes)).toHaveLength(2);
+    expect(mergeDeletionVotes(votes, 1_000)).toHaveLength(2);
   });
 });
 

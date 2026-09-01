@@ -1,5 +1,5 @@
 import { mergeDeletionVotes, DELETION_TIMEOUT_MS } from '@/src/sync/SyncEngine';
-import { accionDe, rondaVigente } from '@/src/sync/voteCore';
+import { accionDe, esDeLaRonda, rondaVigente } from '@/src/sync/voteCore';
 import type { Expense } from '@/src/types/models';
 
 /**
@@ -36,9 +36,17 @@ export type DeletionRound = {
   stoppedBy?: string;
 };
 
-/** `null` si no hay ninguna solicitud abierta. */
-export function deletionRound(expense: Expense): DeletionRound | null {
-  const ronda = rondaVigente(mergeDeletionVotes(expense.deletionVotes ?? []));
+/**
+ * `null` si no hay ninguna solicitud abierta.
+ *
+ * **`now` es obligatorio y no tiene default a propósito** (T-059). Leer la
+ * ronda dejó de ser una decisión sólo sobre el conjunto: un `votedAt` posterior
+ * a *ahora* no puede ser el enunciado vigente, y sin un reloj no hay forma de
+ * saber cuál es cuál. En producción se pasa `syncedNow()` (ADR-005); un default
+ * acá lo dejaría salir del reloj del teléfono sin que se note.
+ */
+export function deletionRound(expense: Expense, now: number): DeletionRound | null {
+  const ronda = rondaVigente(mergeDeletionVotes(expense.deletionVotes ?? [], now), now);
   if (ronda === null) return null;
 
   const { apertura, freno } = ronda;
@@ -53,18 +61,37 @@ export function deletionRound(expense: Expense): DeletionRound | null {
 }
 
 /** Milisegundos que faltan para el borrado automático. 0 si ya venció. */
-export function msUntilDeletion(round: DeletionRound, now: number = Date.now()): number {
+export function msUntilDeletion(round: DeletionRound, now: number): number {
   return Math.max(0, round.expiresAt - now);
 }
 
+/**
+ * ¿El último enunciado de esta persona EN LA RONDA VIGENTE es lo que se
+ * pregunta?
+ *
+ * Acotado a la ronda a propósito (T-059). Antes alcanzaba con mirar el conjunto
+ * entero porque la poda del merge dejaba una sola ronda; desde que las rondas
+ * nombradas conviven, no acotar haría que una objeción de una ronda ya cerrada
+ * dijera «ya objetaste» en la de ahora y le escondiera el botón a alguien que
+ * todavía no dijo nada.
+ */
+function enLaRonda(
+  expense: Expense, userId: string, now: number, accion: 'object' | 'delete',
+): boolean {
+  const vigentes = mergeDeletionVotes(expense.deletionVotes ?? [], now);
+  const ronda = rondaVigente(vigentes, now);
+  if (ronda === null) return false;
+
+  return vigentes.some(v =>
+    v.userId === userId && accionDe(v) === accion && esDeLaRonda(v, ronda.roundId));
+}
+
 /** ¿El último enunciado de esta persona es una objeción? */
-export function hasObjected(expense: Expense, userId: string): boolean {
-  return mergeDeletionVotes(expense.deletionVotes ?? [])
-    .some(v => v.userId === userId && accionDe(v) === 'object');
+export function hasObjected(expense: Expense, userId: string, now: number): boolean {
+  return enLaRonda(expense, userId, now, 'object');
 }
 
 /** ¿Esta persona es quien pidió el borrado y no lo retiró? */
-export function hasRequested(expense: Expense, userId: string): boolean {
-  return mergeDeletionVotes(expense.deletionVotes ?? [])
-    .some(v => v.userId === userId && accionDe(v) === 'delete');
+export function hasRequested(expense: Expense, userId: string, now: number): boolean {
+  return enLaRonda(expense, userId, now, 'delete');
 }

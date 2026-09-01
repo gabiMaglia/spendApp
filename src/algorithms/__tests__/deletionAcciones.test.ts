@@ -21,6 +21,13 @@ import type { DeletionVote, Expense } from '@/src/types/models';
 
 const T0 = Date.UTC(2026, 8, 1, 12);
 const HORA = 3_600_000;
+/**
+ * Cuándo LEE la app. Desde T-059 la ronda vigente depende del reloj —un
+ * `votedAt` posterior a ahora no puede ser el enunciado vigente— así que el
+ * instante de lectura se pasa siempre explícito. Acá está después de todos los
+ * votos del archivo: nada de esto habla del futuro.
+ */
+const LEIDO = T0 + 6 * HORA;
 
 const gasto = (votes: DeletionVote[], over: Partial<Expense> = {}): Expense => ({
   id: 'e1', groupId: 'g1', description: 'Cena', amount: 1000, currency: 'ARS',
@@ -38,7 +45,7 @@ const restaura = (u: string, at: number, r = 'r1'): DeletionVote => ({ userId: u
 
 describe('objetar frena la ronda de TODOS', () => {
   it('la ronda queda objetada y se sabe quién la frenó', () => {
-    const r = deletionRound(gasto([pide('beto', T0), objeta('caro', T0 + HORA)]))!;
+    const r = deletionRound(gasto([pide('beto', T0), objeta('caro', T0 + HORA)]), LEIDO)!;
 
     expect(r.status).toBe('objected');
     expect(r.stoppedBy).toBe('caro');
@@ -57,7 +64,7 @@ describe('retirar saca MI pedido y nada más (R-Q1)', () => {
    */
   it('con el pedido de otra persona vivo, la ronda SIGUE', () => {
     const e = gasto([pide('beto', T0), pide('caro', T0 + HORA), retira('beto', T0 + 2 * HORA)]);
-    const r = deletionRound(e)!;
+    const r = deletionRound(e, LEIDO)!;
 
     expect(r.status).toBe('open');
     expect(r.requestedBy).toBe('caro');
@@ -69,7 +76,7 @@ describe('retirar saca MI pedido y nada más (R-Q1)', () => {
    * ventana para objetar.
    */
   it('el vencimiento se recuenta desde el pedido que queda', () => {
-    const r = deletionRound(gasto([pide('beto', T0), pide('caro', T0 + HORA), retira('beto', T0 + 2 * HORA)]))!;
+    const r = deletionRound(gasto([pide('beto', T0), pide('caro', T0 + HORA), retira('beto', T0 + 2 * HORA)]), LEIDO)!;
 
     expect(r.requestedAt).toBe(T0 + HORA);
     expect(r.expiresAt).toBe(T0 + HORA + DELETION_TIMEOUT_MS);
@@ -83,21 +90,21 @@ describe('retirar saca MI pedido y nada más (R-Q1)', () => {
   it('si era el único pedido, la ronda queda como NUNCA PEDIDA, no como objetada', () => {
     const e = gasto([pide('beto', T0), retira('beto', T0 + HORA)]);
 
-    expect(deletionRound(e)).toBeNull();
+    expect(deletionRound(e, LEIDO)).toBeNull();
     expect(resolveDeletionVotes(e, [], T0 + DELETION_TIMEOUT_MS * 2)).toBe(false);
   });
 
   it('retirar no me deja marcado como objetor ni como solicitante', () => {
     const e = gasto([pide('beto', T0), retira('beto', T0 + HORA)]);
 
-    expect(hasRequested(e, 'beto')).toBe(false);
-    expect(hasObjected(e, 'beto')).toBe(false);
+    expect(hasRequested(e, 'beto', LEIDO)).toBe(false);
+    expect(hasObjected(e, 'beto', LEIDO)).toBe(false);
   });
 });
 
 describe('restaurar tiene su PROPIO estado (R-Q2)', () => {
   it('la ronda queda `restored`, no `objected`', () => {
-    const r = deletionRound(gasto([fuerza('ana', T0), restaura('beto', T0 + HORA)], { isDeleted: false }))!;
+    const r = deletionRound(gasto([fuerza('ana', T0), restaura('beto', T0 + HORA)], { isDeleted: false }), LEIDO)!;
 
     expect(r.status).toBe('restored');
     expect(r.stoppedBy).toBe('beto');
@@ -115,7 +122,7 @@ describe('restaurar tiene su PROPIO estado (R-Q2)', () => {
 
   it('quien restaura NO queda contado como objetor', () => {
     const e = gasto([fuerza('ana', T0), restaura('beto', T0 + HORA)]);
-    expect(hasObjected(e, 'beto')).toBe(false);
+    expect(hasObjected(e, 'beto', LEIDO)).toBe(false);
   });
 });
 
@@ -144,14 +151,14 @@ describe('un peer que no actualizó sigue entendiéndose con nosotros', () => {
     ({ userId: u, votedAt: at, action });
 
   it('su `cancel` sin `roundId` ni firma frena la ronda igual', () => {
-    const r = deletionRound(gasto([pide('beto', T0), sinNada('caro', T0 + HORA, 'cancel')]))!;
+    const r = deletionRound(gasto([pide('beto', T0), sinNada('caro', T0 + HORA, 'cancel')]), LEIDO)!;
 
     expect(r.status).toBe('objected');
     expect(r.stoppedBy).toBe('caro');
   });
 
   it('su `delete` sin `roundId` abre ronda igual', () => {
-    const r = deletionRound(gasto([sinNada('beto', T0, 'delete')]))!;
+    const r = deletionRound(gasto([sinNada('beto', T0, 'delete')]), LEIDO)!;
 
     expect(r.status).toBe('open');
     expect(r.requestedBy).toBe('beto');
@@ -223,14 +230,14 @@ describe('un voto que no verifica cuenta igual', () => {
   it('una objeción con firma que no cierra frena la ronda lo mismo', () => {
     const e = gasto([pide('beto', T0), conFirmaFalsa(objeta('caro', T0 + HORA))]);
 
-    expect(deletionRound(e)!.status).toBe('objected');
+    expect(deletionRound(e, LEIDO)!.status).toBe('objected');
     expect(resolveDeletionVotes(e, [], T0 + DELETION_TIMEOUT_MS * 2)).toBe(false);
   });
 
   it('y un pedido con firma que no cierra abre la ronda lo mismo', () => {
     const e = gasto([conFirmaFalsa(pide('beto', T0))]);
 
-    expect(deletionRound(e)!.requestedBy).toBe('beto');
+    expect(deletionRound(e, LEIDO)!.requestedBy).toBe('beto');
     expect(resolveDeletionVotes(e, [], T0 + DELETION_TIMEOUT_MS + 1)).toBe(true);
   });
 
@@ -243,7 +250,7 @@ describe('un voto que no verifica cuenta igual', () => {
 describe('los votos se colapsan por (ronda, persona)', () => {
   it('el último voto de cada persona DENTRO de su ronda es el que vale', () => {
     const e = gasto([pide('beto', T0), objeta('caro', T0 + HORA), pide('caro', T0 + 2 * HORA)]);
-    expect(deletionRound(e)!.status).toBe('open');
+    expect(deletionRound(e, LEIDO)!.status).toBe('open');
   });
 
   /**
@@ -253,7 +260,7 @@ describe('los votos se colapsan por (ronda, persona)', () => {
    */
   it('la objeción de una ronda vieja no frena la ronda nueva', () => {
     const e = gasto([objeta('caro', T0, 'r0'), pide('beto', T0 + HORA, 'r1')]);
-    expect(deletionRound(e)!.status).toBe('open');
+    expect(deletionRound(e, LEIDO)!.status).toBe('open');
   });
 
   /**
@@ -279,7 +286,7 @@ describe('los votos se colapsan por (ronda, persona)', () => {
    */
   it('un voto de una ronda vieja no pisa el pedido nuevo de la misma persona', () => {
     const e = gasto([objeta('beto', T0 + 5 * HORA, 'r0'), pide('beto', T0, 'r1')]);
-    const r = deletionRound(e);
+    const r = deletionRound(e, LEIDO);
 
     expect(r).not.toBeNull();
     expect(r!.status).toBe('open');
@@ -295,7 +302,7 @@ describe('los votos se colapsan por (ronda, persona)', () => {
       pide('beto', T0, 'r0'), objeta('dana', T0 + HORA, 'r0'),
       pide('caro', T0 + 2 * HORA, 'r1'),
     ]);
-    const r = deletionRound(e)!;
+    const r = deletionRound(e, LEIDO)!;
 
     expect(r.roundId).toBe('r1');
     expect(r.requestedBy).toBe('caro');

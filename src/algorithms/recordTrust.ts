@@ -1,4 +1,4 @@
-import { frenaLaRonda, rondaDe } from '@/src/sync/voteCore';
+import { esDeLaRonda, frenaLaRonda } from '@/src/sync/voteCore';
 import type { RecordVerdict } from '@/src/sync/recordHealth';
 import type { DeletionRound } from './deletionRound';
 import type { DeletionVote } from '@/src/types/models';
@@ -98,7 +98,7 @@ export function attributedVote(
    */
   const deLaRonda = votes.filter(v =>
     v.userId === persona &&
-    (rondaDe(v) === round.roundId || rondaDe(v) === '') &&
+    esDeLaRonda(v, round.roundId) &&
     (round.status === 'open' ? !frenaLaRonda(v) : frenaLaRonda(v)),
   );
 
