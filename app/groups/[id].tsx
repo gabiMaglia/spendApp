@@ -29,6 +29,9 @@ import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { BalancePill } from '@/src/components/BalancePill';
 import { BottomSheet, SheetOption, SheetOptionAvatar } from '@/src/components/Sheet';
 import { Fab, FabRow } from '@/src/components/Fab';
+import { TrustMark } from '@/src/components/TrustMark';
+import { useRecordTrust } from '@/src/hooks/useRecordTrust';
+import { isMarked, type TrustState } from '@/src/algorithms/recordTrust';
 import { canLeaveGroup } from '@/src/algorithms/canLeaveGroup';
 import { approvalProgress } from '@/src/algorithms/leaveRequest';
 import { applyApprovedLeaves } from '@/src/services/applyLeave';
@@ -108,6 +111,22 @@ export default function GroupDetailScreen() {
     }
     return items.sort((a, b) => b.ts - a.ts);
   }, [allExpenses, allPayments, id]);
+
+  /**
+   * **La marca de T-041, por fila visible** (S10, decisión D8).
+   *
+   * Verificar cuesta 37,57 ms medidos en el teléfono del PO, así que se
+   * verifica lo que esta pantalla está mostrando y nada más — nunca el sobre
+   * entero al recibirlo. El hook difiere el trabajo fuera del render y lo
+   * abandona al salir; acá sólo se leen las marcas ya resueltas.
+   *
+   * Sin `useMemo`: lo que la cola mira para saber si el conjunto cambió es el
+   * contenido de cada fila, no la identidad del array.
+   */
+  const gastosDelTimeline = timeline.flatMap(i => (i.type === 'expense' ? [i.data] : []));
+  const pagosDelTimeline  = timeline.flatMap(i => (i.type === 'payment' ? [i.data] : []));
+  const marcaDeGasto = useRecordTrust('expense', gastosDelTimeline);
+  const marcaDePago  = useRecordTrust('payment', pagosDelTimeline);
 
   const balances    = useGroupBalance(id ?? '', currentUser?.id ?? '');
   const avance      = group?.leaveRequest
@@ -341,6 +360,7 @@ export default function GroupDetailScreen() {
                   expense={item.data}
                   currentUserId={currentUser?.id ?? ''}
                   getUserName={getUserName}
+                  trust={marcaDeGasto[item.data.id]}
                 />
               ) : (
                 <PaymentRow
@@ -348,6 +368,7 @@ export default function GroupDetailScreen() {
                   payment={item.data}
                   currentUserId={currentUser?.id ?? ''}
                   getUserName={getUserName}
+                  trust={marcaDePago[item.data.id]}
                 />
               ),
             )}
@@ -577,11 +598,13 @@ export default function GroupDetailScreen() {
 }
 
 function ExpenseRow({
-  expense, currentUserId, getUserName,
+  expense, currentUserId, getUserName, trust,
 }: {
   expense: Expense;
   currentUserId: string;
   getUserName: (id: string) => string;
+  /** Marca de T-041. `undefined` = la cola todavía no llegó a esta fila. */
+  trust?: TrustState;
 }) {
   const scheme = useColorScheme() ?? 'light';
   const { t } = useTranslation();
@@ -612,6 +635,10 @@ function ExpenseRow({
         <Text style={[Typography.bodyS, { color: c.textTertiary }]}>
           {getUserName(expense.paidById)} · {dateLabel}
         </Text>
+        {/* Marcado, pero se muestra y suma igual: es la invariante de R1. */}
+        {isMarked(trust ?? 'pendiente') && (
+          <TrustMark label={t('trust.badge')} size="sm" />
+        )}
       </View>
       <View style={{ alignItems: 'flex-end' }}>
         <Text style={[Typography.amountS, {
@@ -628,11 +655,13 @@ function ExpenseRow({
 }
 
 function PaymentRow({
-  payment, currentUserId, getUserName,
+  payment, currentUserId, getUserName, trust,
 }: {
   payment: Payment;
   currentUserId: string;
   getUserName: (id: string) => string;
+  /** Marca de T-041. `undefined` = la cola todavía no llegó a esta fila. */
+  trust?: TrustState;
 }) {
   const scheme = useColorScheme() ?? 'light';
   const { t } = useTranslation();
@@ -654,6 +683,9 @@ function PaymentRow({
         <Text style={[Typography.bodyS, { color: c.textTertiary }]}>
           {t('group_detail.payment_label')} · {dateLabel}
         </Text>
+        {isMarked(trust ?? 'pendiente') && (
+          <TrustMark label={t('trust.badge')} size="sm" />
+        )}
       </View>
       <Text style={[Typography.amountS, { color: c.semantic.positive }]}>
         {formatMoney(payment.amount, payment.currency)}

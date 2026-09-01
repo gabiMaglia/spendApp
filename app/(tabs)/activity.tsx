@@ -16,6 +16,10 @@ import { useGroupStore } from '@/src/store/groupStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { useActivityFeed } from '@/src/store/selectors';
 import { searchActivity } from '@/src/algorithms/searchActivity';
+import { deletionRound } from '@/src/algorithms/deletionRound';
+import { attributedVote, isMarked, type TrustState } from '@/src/algorithms/recordTrust';
+import { TrustMark } from '@/src/components/TrustMark';
+import { useRecordTrust, useVoteTrust, voteRefKey } from '@/src/hooks/useRecordTrust';
 import { emitirVoto } from '@/src/services/deletionVotes';
 import { ActivityLine } from '@/src/components/ActivityLine';
 import type { ActivityKind } from '@/src/store/selectors';
@@ -78,6 +82,54 @@ export default function ActivityScreen() {
     ? feed
     : feed.filter(ev => ev.groupName === activeFilter);
   const filteredFeed = searchActivity(porGrupo, query, getUserName);
+
+  /**
+   * **La marca de T-041 en el feed** (S10). R1 lo pide con todas las letras: un
+   * registro que no verifica *salta en el feed de actividad*.
+   *
+   * Se verifica sólo lo que el feed está mostrando (D8), y se separan dos cosas
+   * que firman personas distintas:
+   *
+   *  - las filas de un **registro** (gasto agregado, gasto borrado, pago) llevan
+   *    el veredicto del núcleo, que declaró su autor;
+   *  - las filas de una **ronda** (pedido de borrado, restauración) llevan el
+   *    del voto que la fila atribuye — «Ana pidió borrar» es un enunciado de
+   *    Ana, no del autor del gasto.
+   *
+   * La marca se suma a la fila; no se agrega un evento nuevo. Un evento aparte
+   * duplicaría el mismo gasto —«agregado» y «no verificado»— y R1 pide que
+   * aparezca *como cualquier gasto*, marcado.
+   *
+   * **Sin `useMemo`, a propósito.** Lo que la cola usa para saber si el conjunto
+   * cambió no es la identidad de estos arrays sino el contenido de cada fila
+   * (`useRecordTrust`), así que memoizarlos no evitaría un solo reinicio: sería
+   * ceremonia que aparenta ser una garantía. Se comprobó rompiéndolo.
+   */
+  const gastosDelFeed = filteredFeed.flatMap(ev =>
+    ev.kind === 'expense_added' || ev.kind === 'expense_deleted' ? [ev.expense] : []);
+
+  const pagosDelFeed = filteredFeed.flatMap(ev =>
+    ev.kind === 'payment_made' ? [ev.payment] : []);
+
+  const votosDelFeed = filteredFeed.flatMap(ev => {
+    if (ev.kind !== 'expense_delete_request' && ev.kind !== 'expense_restored') return [];
+    const vote = attributedVote(deletionRound(ev.expense), ev.expense.deletionVotes ?? []);
+    return vote ? [{ expenseId: ev.expense.id, vote }] : [];
+  });
+
+  const marcaDeGasto = useRecordTrust('expense', gastosDelFeed);
+  const marcaDePago  = useRecordTrust('payment', pagosDelFeed);
+  const marcaDeVoto  = useVoteTrust(votosDelFeed);
+
+  /** Qué marca le toca a cada fila, según qué firma es la que la sostiene. */
+  function marcaDeEvento(ev: ActivityKind): TrustState {
+    if (ev.kind === 'payment_made') return marcaDePago[ev.payment.id] ?? 'pendiente';
+    if (ev.kind === 'expense_added' || ev.kind === 'expense_deleted') {
+      return marcaDeGasto[ev.expense.id] ?? 'pendiente';
+    }
+    const vote = attributedVote(deletionRound(ev.expense), ev.expense.deletionVotes ?? []);
+    return vote ? marcaDeVoto[voteRefKey(ev.expense.id, vote)] ?? 'pendiente' : 'pendiente';
+  }
 
   const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
   const yesterdayStart = new Date(todayStart); yesterdayStart.setDate(yesterdayStart.getDate() - 1);
@@ -178,7 +230,14 @@ export default function ActivityScreen() {
                 )}
               </View>
               {events.map((ev, i) => (
-                <EventRow key={i} event={ev} getUserName={getUserName} currentUserId={currentUser?.id ?? ''} onRestore={restaurar} />
+                <EventRow
+                  key={i}
+                  event={ev}
+                  trust={marcaDeEvento(ev)}
+                  getUserName={getUserName}
+                  currentUserId={currentUser?.id ?? ''}
+                  onRestore={restaurar}
+                />
               ))}
             </View>
           ))
@@ -204,9 +263,11 @@ function getTs(ev: ActivityKind): number {
 }
 
 function EventRow({
-  event, getUserName, currentUserId, onRestore,
+  event, trust, getUserName, currentUserId, onRestore,
 }: {
   event: ActivityKind;
+  /** Marca de T-041. `pendiente` = la cola todavía no llegó a esta fila. */
+  trust: TrustState;
   onRestore: (expenseId: string) => void;
   getUserName: (id: string) => string;
   currentUserId: string;
@@ -214,6 +275,14 @@ function EventRow({
   const { t } = useTranslation();
   const scheme = useColorScheme() ?? 'light';
   const c = Colors[scheme];
+
+  /**
+   * La marca de la fila. Se dibuja debajo del texto, sin cambiar nada más: el
+   * evento se muestra igual y el gasto sigue sumando al balance (R1).
+   */
+  const marca = isMarked(trust)
+    ? <TrustMark label={t('trust.badge')} size="sm" testID={`trust-${event.kind}`} />
+    : null;
 
   if (event.kind === 'expense_added') {
     const { expense, groupName } = event;
@@ -230,7 +299,10 @@ function EventRow({
         <View style={[styles.rowIcon, { backgroundColor: '#0A6E8F' }]}>
           <Ionicons name="add-outline" size={18} color="#fff" />
         </View>
-        <ActivityLine who={who} action={action} subject={`${expense.description} · ${groupName}`} ts={ts} />
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <ActivityLine who={who} action={action} subject={`${expense.description} · ${groupName}`} ts={ts} />
+          {marca}
+        </View>
         <Text style={[Typography.amountM, { color: c.text }]}>
           {formatMoney(expense.amount, expense.currency)}
         </Text>
@@ -247,12 +319,15 @@ function EventRow({
         <View style={[styles.rowIcon, { backgroundColor: '#D4A24A' }]}>
           <Ionicons name="warning-outline" size={18} color="#fff" />
         </View>
-        <ActivityLine
-          who={requestedByName}
-          action={t('activity.action_requested_delete')}
-          subject={`“${expense.description}” · ${groupName}`}
-          ts={ts}
-        />
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <ActivityLine
+            who={requestedByName}
+            action={t('activity.action_requested_delete')}
+            subject={`“${expense.description}” · ${groupName}`}
+            ts={ts}
+          />
+          {marca}
+        </View>
       </View>
     );
   }
@@ -274,6 +349,7 @@ function EventRow({
           <Text style={[Typography.bodyS, { color: c.textTertiary }]}>
             {groupName} · {relativeTime(expense.updatedAt || expense.date)}
           </Text>
+          {marca}
         </View>
         <Pressable
           testID={`restore-${expense.id}`}
@@ -297,12 +373,15 @@ function EventRow({
         <View style={[styles.iconBtn, { backgroundColor: c.surfaceSunken }]}>
           <Ionicons name="arrow-undo-outline" size={16} color={c.textTertiary} />
         </View>
-        <ActivityLine
-          who={restoredByName}
-          action={t('activity.action_restored')}
-          subject={`“${expense.description}” · ${groupName}`}
-          ts={relativeTime(expense.updatedAt || expense.date)}
-        />
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <ActivityLine
+            who={restoredByName}
+            action={t('activity.action_restored')}
+            subject={`“${expense.description}” · ${groupName}`}
+            ts={relativeTime(expense.updatedAt || expense.date)}
+          />
+          {marca}
+        </View>
       </View>
     );
   }
@@ -327,6 +406,7 @@ function EventRow({
           <Text style={{ color: c.textSecondary }}> · {groupName}</Text>
         </Text>
         <Text style={[Typography.bodyS, { color: c.textTertiary, marginTop: 4 }]}>{ts}</Text>
+        {marca}
       </View>
       <Text style={[Typography.amountM, { color: '#2E8B57' }]}>
         {formatMoney(payment.amount, payment.currency)}

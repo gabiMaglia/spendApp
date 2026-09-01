@@ -28,6 +28,9 @@ import { Avatar } from '@/src/components/Avatar';
 import { UserAvatar } from '@/src/components/UserAvatar';
 import { hueForUser } from '@/src/utils/hueForUser';
 import { deletionRound, msUntilDeletion, hasObjected, hasRequested } from '@/src/algorithms/deletionRound';
+import { TrustMark } from '@/src/components/TrustMark';
+import { useRecordTrust, useVoteTrust, voteRefKey } from '@/src/hooks/useRecordTrust';
+import { attributedVote, isMarked } from '@/src/algorithms/recordTrust';
 import { emitirVoto } from '@/src/services/deletionVotes';
 import type { CategoryKind } from '@/src/constants/colors';
 import { syncedNow } from '@/src/utils/syncedClock';
@@ -75,6 +78,29 @@ export default function ExpenseDetailScreen() {
       day: 'numeric', month: 'long', year: 'numeric',
     });
   }, [expense]);
+
+  /**
+   * **La marca de T-041** (S10). Los tres hooks van ACÁ ARRIBA, antes del early
+   * return: uno después de un return condicional rompe el orden entre renders.
+   *
+   * Se verifican dos cosas distintas y las firma gente distinta: el **núcleo del
+   * gasto** (lo declaró su autor) y el **voto que la banda de la ronda
+   * atribuye** (lo declaró un tercero). Marcar la banda con el veredicto del
+   * gasto sería marcar otra cosa.
+   */
+  const ronda = expense ? deletionRound(expense) : null;
+
+  const marcaDeGasto = useRecordTrust('expense', expense ? [expense] : [])[expense?.id ?? ''];
+
+  /**
+   * Sólo el voto que se muestra, no los de la ronda entera: a 37,57 ms medidos
+   * en el device del PO, verificar lo que no está en pantalla es tiempo de hilo
+   * regalado. Es la misma regla de D8 aplicada adentro de una pantalla.
+   */
+  const votoDeLaRonda = attributedVote(ronda, expense?.deletionVotes ?? []);
+  const marcaDeVoto = useVoteTrust(
+    expense && votoDeLaRonda ? [{ expenseId: expense.id, vote: votoDeLaRonda }] : [],
+  );
 
   if (!expense) {
     return (
@@ -126,7 +152,6 @@ export default function ExpenseDetailScreen() {
   // abre y no hay forma de ver el gasto ni de arreglarlo.
   const splits = expense.splits ?? [];
 
-  const ronda = deletionRound(expense);
   const hayPedido = ronda !== null && ronda.status === 'open';
   const yoPedi    = currentUser ? hasRequested(expense, currentUser.id) : false;
   const yoObjete  = currentUser ? hasObjected(expense, currentUser.id) : false;
@@ -279,6 +304,13 @@ export default function ExpenseDetailScreen() {
           <Text style={[Typography.bodyS, { color: c.textTertiary, marginTop: 4 }]}>
             {dateStr}
           </Text>
+          {/* Marcado, pero se muestra entero y suma al balance igual: es la
+              invariante de R1. La marca informa, no esconde ni bloquea. */}
+          {isMarked(marcaDeGasto ?? 'pendiente') && (
+            <View style={{ marginTop: Spacing[2] }}>
+              <TrustMark label={t('trust.expense')} />
+            </View>
+          )}
         </View>
 
         {/* Mi balance en este gasto */}
@@ -393,6 +425,16 @@ export default function ExpenseDetailScreen() {
               }]}>
                 {cuerpoDeRonda}
               </Text>
+              {/* Quién pidió/objetó/restauró se muestra igual —el override del
+                  creador se honra SIEMPRE (R3)—; lo que agrega la marca es si
+                  esa firma cerró. Atribuir, no bloquear. */}
+              {votoDeLaRonda && isMarked(
+                marcaDeVoto[voteRefKey(expense.id, votoDeLaRonda)] ?? 'pendiente',
+              ) && (
+                <View style={{ marginTop: Spacing[2] }}>
+                  <TrustMark label={t('trust.vote')} size="sm" />
+                </View>
+              )}
             </View>
           </View>
         )}

@@ -721,5 +721,11 @@
     "see_detail": "See what's missing",
     "partial_spent": "Spent",
     "partial_owed": "Owed to you"
+  },
+  "trust": {
+    "badge": "Unverified",
+    "expense": "We couldn't verify who entered this",
+    "payment": "We couldn't verify who recorded this payment",
+    "vote": "We couldn't verify who requested this"
   }
 }

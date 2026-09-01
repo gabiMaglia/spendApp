@@ -721,5 +721,11 @@
     "see_detail": "Ver o que falta",
     "partial_spent": "Gasto",
     "partial_owed": "A favor"
+  },
+  "trust": {
+    "badge": "Sem verificar",
+    "expense": "Não foi possível verificar quem lançou isto",
+    "payment": "Não foi possível verificar quem registrou este pagamento",
+    "vote": "Não foi possível verificar quem solicitou isto"
   }
 }
