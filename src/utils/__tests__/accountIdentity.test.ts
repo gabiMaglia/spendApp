@@ -228,8 +228,9 @@ describe('«mantener separada» sobrevive al próximo login (T-048)', () => {
 
     const r = resolveAccount(ix, GOOGLE, MAIL);
 
-    expect(r.kind).toBe('linked');
-    expect(r.accountId).toBe(APPLE);
+    // El `toEqual` completo y no `r.accountId`: la unión no tiene ese campo en
+    // la rama `confirm`, y afirmarlo tras un `expect(kind)` no estrecha el tipo.
+    expect(r).toEqual({ kind: 'linked', accountId: APPLE, previousAccountId: GOOGLE });
   });
 
   it('la decisión no toca la cuenta que ya existía', () => {
