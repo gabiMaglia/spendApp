@@ -1,7 +1,7 @@
-import { createSecureStorage } from '@/src/utils/secureStorage';
-import { createStorage } from '@/src/utils/createStorage';
+import { createSecureStorage, type SecureId } from '@/src/utils/secureStorage';
+import { createStorage, type SimpleStorage } from '@/src/utils/createStorage';
 import { mergeAccountData, type MergeReport } from './mergeAccountData';
-import { profileKey } from './authKeys';
+import { AUTH_KEYS } from './authKeys';
 import { mergeProviderUser } from '@/src/utils/mergeProviderUser';
 import type { User } from '@/src/types/models';
 
@@ -25,13 +25,77 @@ import type { User } from '@/src/types/models';
 const MERGEABLE_STORES = ['groups', 'expenses', 'payments', 'users', 'recurring', 'comments'] as const;
 
 const DATA_KEY = 'data_v1';
-const PERSONAL_ENTRIES_KEY = 'entries_v1';
-const PERSONAL_BUDGET_KEY  = 'budget_v1';
-const GROUP_KEYS_KEY       = 'data_v1';
-const ARCHIVED_KEY         = 'archived_v1';
-const INBOX_KEY            = 'inbox_v1';
-const INBOX_MAX            = 200;
-const CONTACT_PEERS_KEY    = 'contact_peers_v1';
+const INBOX_MAX = 200;
+
+// ---------------------------------------------------------------------------
+// FUENTE ÚNICA: qué datos toca la fusión, y por lo tanto qué tiene que purgar.
+// ---------------------------------------------------------------------------
+/**
+ * **Una sola lista, y se llena sola.**
+ *
+ * Antes esto eran DOS listas escritas a mano —lo que `mergeAccounts` copia y lo
+ * que `purgeMergedScopes` borra— y se desincronizaron sin que nada fallara: la
+ * purga dejaba para siempre las claves de grupo, los archivados, la bandeja, el
+ * perfil, las preferencias y los contactos del scope absorbido. No era una fuga
+ * entre cuentas (nadie lee ese scope) pero contradecía la política de gracia de
+ * 30 días que este mismo archivo declara: el usuario cree que después del plazo
+ * no queda nada y quedaba casi todo.
+ *
+ * El arreglo no podía ser una TERCERA lista. Cada dato que la fusión toca
+ * declara su ranura con `ranura()`, que **se auto-registra**: agregar algo
+ * nuevo lo mete en la purga sin que nadie se acuerde. Es la misma clase de bug
+ * que T-055, y la misma forma de cerrarla.
+ */
+type Ranura = {
+  /** Nombre legible, para diagnóstico y para el guard. */
+  nombre: string;
+  /** Bucket de storage. */
+  bucket: string;
+  /** Clave sin scopear. */
+  base: string;
+  /** El bucket donde vive. Perezoso: los storages se abren en el bootstrap. */
+  storage: () => SimpleStorage;
+  /** La clave COMPLETA, ya scopeada, de una cuenta. */
+  key: (uid: string) => string;
+};
+
+const RANURAS: Ranura[] = [];
+
+/** Las ranuras registradas. Sólo lectura — se llena por `ranura()`. */
+export const RANURAS_FUSION: readonly Ranura[] = RANURAS;
+
+/**
+ * Declara una ranura scopeada por cuenta y devuelve su generador de claves.
+ *
+ * **Es la única forma de armar una clave scopeada en este archivo.** Un test
+ * estático lo exige: si alguien vuelve a armar el sufijo de scope a mano,
+ * falla — porque esa es exactamente la manera de agregar algo a la fusión sin
+ * que la purga se entere.
+ */
+function ranura(
+  bucket: string, base: string, opts: { claro?: boolean } = {},
+): (uid: string) => string {
+  const abrir = opts.claro
+    ? () => createStorage(bucket)
+    : () => createSecureStorage(bucket as SecureId);
+  const key = (uid: string) => `${base}${SUFIJO}${uid}`;
+  RANURAS.push({ nombre: `${bucket}/${base}`, bucket, base, storage: abrir, key });
+  return key;
+}
+
+/** El sufijo de scope. Vive acá para que `ranura()` sea el único que lo arma. */
+const SUFIJO = '::u:';
+
+
+// Las ranuras, en el mismo orden en que la fusión las toca.
+for (const name of MERGEABLE_STORES) ranura(name, DATA_KEY);
+const kPersonalEntries = ranura('personal', 'entries_v1');
+const kPersonalBudget  = ranura('personal', 'budget_v1');
+const kGroupKeys       = ranura('groupkeys', DATA_KEY);
+const kArchived        = ranura('groups', 'archived_v1');
+const kInbox           = ranura('notices', 'inbox_v1');
+const kContactPeers    = ranura('users', 'contact_peers_v1');
+const kProfile         = ranura('auth', AUTH_KEYS.PROFILE);
 
 /**
  * Fusiona TODOS los datos de `fromAccountId` dentro de `toAccountId`.
@@ -84,6 +148,21 @@ function recordMerge(scope: string, now: number = Date.now()): void {
 }
 
 /**
+ * La cuenta activa, leída del storage y NO de `authStore`.
+ *
+ * Importar el store desde acá cerraría un ciclo (`authStore` → `accountLink`).
+ * Además esto corre en el arranque, antes de que el store esté hidratado.
+ */
+function scopeActivo(): string | null {
+  try {
+    const raw = createSecureStorage('auth').getString(AUTH_KEYS.USER);
+    return raw ? (JSON.parse(raw) as { id?: string }).id ?? null : null;
+  } catch {
+    return null; // dato corrupto: no se purga nada, que es el lado seguro
+  }
+}
+
+/**
  * Borra los datos de los scopes fusionados hace más de `MERGE_GRACE_DAYS`.
  * Se llama en el arranque; devuelve los scopes purgados.
  */
@@ -93,17 +172,28 @@ export function purgeMergedScopes(now: number = Date.now()): string[] {
   const expired = log.filter(e => now - e.at >= graceMs);
   if (expired.length === 0) return [];
 
-  for (const { scope } of expired) {
-    for (const name of MERGEABLE_STORES) {
-      createSecureStorage(name).delete(`${DATA_KEY}::u:${scope}`);
-    }
-    const personal = createSecureStorage('personal');
-    personal.delete(`${PERSONAL_ENTRIES_KEY}::u:${scope}`);
-    personal.delete(`${PERSONAL_BUDGET_KEY}::u:${scope}`);
+  /**
+   * **Nunca se purga el scope en el que estamos parados.**
+   *
+   * No debería poder pasar —al fusionar, el índice de identidad reapunta el
+   * proveedor a la cuenta destino— pero `confirmLink` puede dejar una entrada
+   * vieja apuntando al scope absorbido, y ahí sí se entra con esa sesión. Como
+   * borrar es irreversible, el caso raro se resuelve NO borrando: la entrada
+   * del log se queda y se reintenta en el próximo arranque.
+   */
+  const activo = scopeActivo();
+  const aPurgar = expired.filter(e => e.scope !== activo);
+  if (aPurgar.length === 0) return [];
+
+  for (const { scope } of aPurgar) {
+    // Recorre la FUENTE ÚNICA: lo que la fusión copia es exactamente lo que
+    // esto borra, y una ranura nueva entra sola. Antes eran dos listas a mano.
+    for (const r of RANURAS) r.storage().delete(r.key(scope));
   }
 
-  writeMergeLog(log.filter(e => now - e.at < graceMs));
-  return expired.map(e => e.scope);
+  const purgados = new Set(aPurgar.map(e => e.scope));
+  writeMergeLog(log.filter(e => now - e.at < graceMs || !purgados.has(e.scope)));
+  return aPurgar.map(e => e.scope);
 }
 
 /** Preferencias por cuenta (toggles de notificación). */
@@ -119,6 +209,17 @@ const SETTINGS_KEYS = ['notif_expenses', 'notif_deletions', 'notif_invites', 'no
 const SETTINGS_STRING_KEYS = ['display_currency'] as const;
 
 /**
+ * Las preferencias viven EN CLARO (`createStorage`), no en el bucket cifrado:
+ * son toggles de baja sensibilidad que se leen sincrónicamente al importar.
+ * Igual son por cuenta, así que la purga también tiene que alcanzarlas.
+ */
+const kSetting: Record<string, (uid: string) => string> = Object.fromEntries(
+  [...SETTINGS_KEYS, ...SETTINGS_STRING_KEYS].map(
+    key => [key, ranura('settings', key, { claro: true })],
+  ),
+);
+
+/**
  * Las preferencias son booleanos sueltos, no una lista, así que tampoco pasan
  * por `mergeAccountData`. Sin esto los toggles volvían al default al enlazar.
  * Gana el destino: sólo se adopta la preferencia del origen si el destino nunca
@@ -129,19 +230,19 @@ function mergeSettings(fromAccountId: string, toAccountId: string): void {
   const storage = createStorage('settings');
 
   for (const key of SETTINGS_KEYS) {
-    const target = storage.getBoolean(`${key}::u:${toAccountId}`);
+    const target = storage.getBoolean(kSetting[key]!(toAccountId));
     if (target !== undefined) continue;
 
-    const source = storage.getBoolean(`${key}::u:${fromAccountId}`);
-    if (source !== undefined) storage.set(`${key}::u:${toAccountId}`, source);
+    const source = storage.getBoolean(kSetting[key]!(fromAccountId));
+    if (source !== undefined) storage.set(kSetting[key]!(toAccountId), source);
   }
 
   // Misma semántica que arriba: sólo se adopta si el destino no eligió nada.
   // Nunca se pisa una preferencia que el usuario ya fijó en esta cuenta.
   for (const key of SETTINGS_STRING_KEYS) {
-    if (storage.getString(`${key}::u:${toAccountId}`) !== undefined) continue;
-    const source = storage.getString(`${key}::u:${fromAccountId}`);
-    if (source !== undefined) storage.set(`${key}::u:${toAccountId}`, source);
+    if (storage.getString(kSetting[key]!(toAccountId)) !== undefined) continue;
+    const source = storage.getString(kSetting[key]!(fromAccountId));
+    if (source !== undefined) storage.set(kSetting[key]!(toAccountId), source);
   }
 }
 
@@ -161,7 +262,7 @@ function mergeSettings(fromAccountId: string, toAccountId: string): void {
 function mergeGroupKeys(fromAccountId: string, toAccountId: string): void {
   if (fromAccountId === toAccountId) return;
   const storage = createSecureStorage('groupkeys');
-  const k = (uid: string) => `${GROUP_KEYS_KEY}::u:${uid}`;
+  const k = kGroupKeys;
 
   const leer = (uid: string): { groupId: string; key: string; epoch: number }[] => {
     const raw = storage.getString(k(uid));
@@ -197,7 +298,7 @@ function mergeGroupKeys(fromAccountId: string, toAccountId: string): void {
 function mergeArchived(fromAccountId: string, toAccountId: string): void {
   if (fromAccountId === toAccountId) return;
   const storage = createSecureStorage('groups');
-  const k = (uid: string) => `${ARCHIVED_KEY}::u:${uid}`;
+  const k = kArchived;
 
   const leer = (uid: string): string[] => {
     const raw = storage.getString(k(uid));
@@ -232,7 +333,7 @@ function mergeArchived(fromAccountId: string, toAccountId: string): void {
 function mergeNotices(fromAccountId: string, toAccountId: string): void {
   if (fromAccountId === toAccountId) return;
   const storage = createSecureStorage('notices');
-  const k = (uid: string) => `${INBOX_KEY}::u:${uid}`;
+  const k = kInbox;
 
   type Item = { id: string; createdAt: number; readAt: number | null };
   const leer = (uid: string): Item[] => {
@@ -293,7 +394,7 @@ function mergeNotices(fromAccountId: string, toAccountId: string): void {
 function mergeContactPeers(fromAccountId: string, toAccountId: string): void {
   if (fromAccountId === toAccountId) return;
   const storage = createSecureStorage('users');
-  const k = (uid: string) => `${CONTACT_PEERS_KEY}::u:${uid}`;
+  const k = kContactPeers;
 
   type PeerInfo = { secret: string; wrapPublicKey?: string; identityPublicKey?: string };
   const leer = (uid: string): Record<string, PeerInfo> => {
@@ -331,13 +432,13 @@ function mergePersonal(fromAccountId: string, toAccountId: string, report: Merge
   if (fromAccountId === toAccountId) return;
   const storage = createSecureStorage('personal');
 
-  const sub = mergeAccountData([[storage, PERSONAL_ENTRIES_KEY]], fromAccountId, toAccountId);
-  report.counts.personal = sub.counts[PERSONAL_ENTRIES_KEY] ?? 0;
+  const sub = mergeAccountData([[storage, 'entries_v1']], fromAccountId, toAccountId);
+  report.counts.personal = sub.counts['entries_v1'] ?? 0;
   if (!sub.sourceWasEmpty) report.sourceWasEmpty = false;
 
   // El presupuesto es un objeto, no una lista: sólo se adopta si el destino no
   // tiene uno propio (no se pisa un presupuesto que el usuario ya configuró).
-  const budgetKey = (uid: string) => `${PERSONAL_BUDGET_KEY}::u:${uid}`;
+  const budgetKey = kPersonalBudget;
   const sourceBudget = storage.getString(budgetKey(fromAccountId));
   const targetBudget = storage.getString(budgetKey(toAccountId));
   if (sourceBudget !== undefined && targetBudget === undefined) {
@@ -347,7 +448,7 @@ function mergePersonal(fromAccountId: string, toAccountId: string, report: Merge
 
 /**
  * El perfil (nombre y email de la cuenta) va aparte de los demás stores: no es
- * una lista bajo `data_v1` sino un objeto suelto bajo `profile::u:<id>`, así que
+ * una lista bajo `data_v1` sino un objeto suelto bajo la ranura del perfil, así que
  * `mergeAccountData` no lo alcanza. Sin esto, enlazar dos cuentas descartaba el
  * nombre que el usuario había editado a mano en la cuenta absorbida.
  *
@@ -360,7 +461,7 @@ function mergeProfiles(fromAccountId: string, toAccountId: string): void {
 
   const storage = createSecureStorage('auth');
   const read = (uid: string): User | null => {
-    const raw = storage.getString(profileKey(uid));
+    const raw = storage.getString(kProfile(uid));
     if (!raw) return null;
     try { return JSON.parse(raw) as User; } catch { return null; }
   };
@@ -377,7 +478,7 @@ function mergeProfiles(fromAccountId: string, toAccountId: string): void {
     avatarUrl:    target?.avatarUrl ?? source.avatarUrl,
   });
 
-  storage.set(profileKey(toAccountId), JSON.stringify(merged));
+  storage.set(kProfile(toAccountId), JSON.stringify(merged));
 }
 
 /**
