@@ -16,7 +16,8 @@ import { useGroupStore } from '@/src/store/groupStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { useActivityFeed } from '@/src/store/selectors';
 import { searchActivity } from '@/src/algorithms/searchActivity';
-import { votosAlCancelar } from '@/src/algorithms/deletionRound';
+import { emitirVoto } from '@/src/services/deletionVotes';
+import { ActivityLine } from '@/src/components/ActivityLine';
 import type { ActivityKind } from '@/src/store/selectors';
 import { EmptyState } from '@/src/components/EmptyState';
 import { hapticSelection } from '@/src/utils/haptics';
@@ -50,14 +51,17 @@ export default function ActivityScreen() {
    * vuelve a borrar el gasto solo en el próximo arranque y el usuario ve
    * reaparecer el borrado sin haber tocado nada. Se frena AGREGANDO mi voto y
    * no vaciando el conjunto: desde el merge por niveles los votos se unen, así
-   * que un vaciado vuelve del primer peer que sincronice. Ver `votosAlCancelar`.
+   * que un vaciado vuelve del primer peer que sincronice.
+   *
+   * Y el voto es un `restore` propio, no una objeción (R-Q2 del PO): en el feed
+   * esto tiene que decir «restauró», que es lo que pasó.
    */
   function restaurar(expenseId: string) {
     const gasto = useExpenseStore.getState().expenses.find(e => e.id === expenseId);
     if (!gasto || !currentUser) return;
     updateExpense(expenseId, {
       isDeleted: false,
-      deletionVotes: votosAlCancelar(gasto.deletionVotes, currentUser.id, Date.now()),
+      deletionVotes: emitirVoto(gasto, currentUser.id, 'restore', Date.now()),
     });
   }
   const groups   = useGroupStore(s => s.groups);
@@ -191,7 +195,11 @@ function getTs(ev: ActivityKind): number {
   // El borrado se ordena por CUÁNDO se borró, no por la fecha del gasto: si no,
   // un borrado de hoy sobre un gasto viejo quedaría enterrado al fondo del feed
   // y el usuario no lo vería a tiempo para deshacerlo.
-  if (ev.kind === 'expense_deleted') return ev.expense.updatedAt || ev.expense.date;
+  // Y lo restaurado, por cuándo volvió: es un evento de ahora sobre un gasto
+  // que puede ser viejo.
+  if (ev.kind === 'expense_deleted' || ev.kind === 'expense_restored') {
+    return ev.expense.updatedAt || ev.expense.date;
+  }
   return ev.payment.date;
 }
 
@@ -222,14 +230,7 @@ function EventRow({
         <View style={[styles.rowIcon, { backgroundColor: '#0A6E8F' }]}>
           <Ionicons name="add-outline" size={18} color="#fff" />
         </View>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={[Typography.bodyM, { color: c.text, lineHeight: 20 }]}>
-            <Text style={{ fontWeight: '700' }}>{who}</Text>
-            {` ${action} `}
-            <Text style={{ color: c.textSecondary }}>{expense.description} · {groupName}</Text>
-          </Text>
-          <Text style={[Typography.bodyS, { color: c.textTertiary, marginTop: 4 }]}>{ts}</Text>
-        </View>
+        <ActivityLine who={who} action={action} subject={`${expense.description} · ${groupName}`} ts={ts} />
         <Text style={[Typography.amountM, { color: c.text }]}>
           {formatMoney(expense.amount, expense.currency)}
         </Text>
@@ -246,14 +247,12 @@ function EventRow({
         <View style={[styles.rowIcon, { backgroundColor: '#D4A24A' }]}>
           <Ionicons name="warning-outline" size={18} color="#fff" />
         </View>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={[Typography.bodyM, { color: c.text, lineHeight: 20 }]}>
-            <Text style={{ fontWeight: '700' }}>{requestedByName}</Text>
-            {` ${t('activity.action_requested_delete')} `}
-            <Text style={{ color: c.textSecondary }}>{`“${expense.description}” · ${groupName}`}</Text>
-          </Text>
-          <Text style={[Typography.bodyS, { color: c.textTertiary, marginTop: 4 }]}>{ts}</Text>
-        </View>
+        <ActivityLine
+          who={requestedByName}
+          action={t('activity.action_requested_delete')}
+          subject={`“${expense.description}” · ${groupName}`}
+          ts={ts}
+        />
       </View>
     );
   }
@@ -287,6 +286,23 @@ function EventRow({
             {t('activity.restore')}
           </Text>
         </Pressable>
+      </View>
+    );
+  }
+
+  if (event.kind === 'expense_restored') {
+    const { expense, groupName, restoredByName } = event;
+    return (
+      <View style={[styles.row, { backgroundColor: c.surface, borderColor: c.borderHair }]}>
+        <View style={[styles.iconBtn, { backgroundColor: c.surfaceSunken }]}>
+          <Ionicons name="arrow-undo-outline" size={16} color={c.textTertiary} />
+        </View>
+        <ActivityLine
+          who={restoredByName}
+          action={t('activity.action_restored')}
+          subject={`“${expense.description}” · ${groupName}`}
+          ts={relativeTime(expense.updatedAt || expense.date)}
+        />
       </View>
     );
   }

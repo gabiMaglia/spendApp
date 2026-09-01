@@ -27,7 +27,8 @@ import { CategoryIcon } from '@/src/components/CategoryIcon';
 import { Avatar } from '@/src/components/Avatar';
 import { UserAvatar } from '@/src/components/UserAvatar';
 import { hueForUser } from '@/src/utils/hueForUser';
-import { deletionRound, msUntilDeletion, hasObjected, hasRequested, votosAlCancelar } from '@/src/algorithms/deletionRound';
+import { deletionRound, msUntilDeletion, hasObjected, hasRequested } from '@/src/algorithms/deletionRound';
+import { emitirVoto } from '@/src/services/deletionVotes';
 import type { CategoryKind } from '@/src/constants/colors';
 import { syncedNow } from '@/src/utils/syncedClock';
 
@@ -123,11 +124,10 @@ export default function ExpenseDetailScreen() {
   // Un registro que llega por sync puede no traer estos campos (versión vieja
   // del otro lado, o dato a medio escribir). Sin los `?? []` la pantalla no
   // abre y no hay forma de ver el gasto ni de arreglarlo.
-  const votos  = expense.deletionVotes ?? [];
   const splits = expense.splits ?? [];
 
   const ronda = deletionRound(expense);
-  const hayPedido = ronda !== null && !ronda.objected;
+  const hayPedido = ronda !== null && ronda.status === 'open';
   const yoPedi    = currentUser ? hasRequested(expense, currentUser.id) : false;
   const yoObjete  = currentUser ? hasObjected(expense, currentUser.id) : false;
 
@@ -141,7 +141,7 @@ export default function ExpenseDetailScreen() {
   function pedirBorrado() {
     if (!currentUser || !expense) return;
     updateExpense(expense.id, {
-      deletionVotes: [{ userId: currentUser.id, votedAt: Date.now(), action: 'delete' }],
+      deletionVotes: emitirVoto(expense, currentUser.id, 'delete', Date.now()),
     });
   }
 
@@ -149,7 +149,7 @@ export default function ExpenseDetailScreen() {
   function forzarBorrado() {
     if (!currentUser || !expense) return;
     updateExpense(expense.id, {
-      deletionVotes: [{ userId: currentUser.id, votedAt: Date.now(), action: 'delete', forced: true }],
+      deletionVotes: emitirVoto(expense, currentUser.id, 'force', Date.now()),
       isDeleted: true,
     });
     // Cascada: si no, los comentarios quedan huérfanos apuntando a un gasto
@@ -202,33 +202,39 @@ export default function ExpenseDetailScreen() {
     if (!currentUser || !expense) return;
     hapticLight();
     updateExpense(expense.id, {
-      deletionVotes: votosAlCancelar(votos, currentUser.id, Date.now()),
+      deletionVotes: emitirVoto(expense, currentUser.id, 'object', Date.now()),
     });
   }
 
   /**
-   * Retirar MI pedido.
+   * Retirar MI pedido, que desde S8 es una acción PROPIA y no una objeción
+   * disfrazada: si otra persona sigue queriendo borrar, su ronda sigue viva.
    *
-   * Sacar mi voto del array dejó de alcanzar: desde el merge por niveles los
-   * votos se unen y mi voto vuelve del primer peer que sincronice — con su
-   * `votedAt` original, así que el plazo de 72hs ya estaría vencido y el gasto
-   * se borraría solo. Retirar emite un voto, igual que objetar. Ver
-   * `votosAlCancelar`.
-   *
-   * Queda idéntica a `objetarBorrado` y separada a propósito: son dos
-   * intenciones distintas del usuario, con botones y textos distintos, y volver
-   * a distinguirlas necesita una acción propia en `DeletionVote` (S8).
+   * Lo que no cambió: frenar es AGREGAR un voto, nunca sacar los que hay. Ver
+   * `src/services/deletionVotes.ts`.
    */
   function retirarPedido() {
     if (!currentUser || !expense) return;
     hapticLight();
     updateExpense(expense.id, {
-      deletionVotes: votosAlCancelar(votos, currentUser.id, Date.now()),
+      deletionVotes: emitirVoto(expense, currentUser.id, 'withdraw', Date.now()),
     });
   }
 
   const nombreDe = (uid: string) => (uid === currentUser?.id ? t('common.you') : getUserName(uid));
   const restante = ronda ? formatearRestante(msUntilDeletion(ronda)) : '';
+
+  // Restaurar y objetar frenan las dos, pero no son lo mismo y el cartel no
+  // puede contar una historia que no pasó (R-Q2 del PO).
+  const frenada = ronda !== null && ronda.status !== 'open';
+  const tituloDeRonda = !ronda ? '' :
+    ronda.status === 'restored' ? t('expense.delete_restored_title', { name: nombreDe(ronda.stoppedBy!) }) :
+    ronda.status === 'objected' ? t('expense.delete_objected_title', { name: nombreDe(ronda.stoppedBy!) }) :
+    t('expense.delete_pending_title');
+  const cuerpoDeRonda = !ronda ? '' :
+    ronda.status === 'restored' ? t('expense.delete_restored_body') :
+    ronda.status === 'objected' ? t('expense.delete_objected_body') :
+    t('expense.delete_pending_body', { name: nombreDe(ronda.requestedBy), time: restante });
 
   const myShare = splits.find(s => s.userId === currentUser?.id)?.amount ?? 0;
   const isPayer = expense.paidById === currentUser?.id;
@@ -366,33 +372,26 @@ export default function ExpenseDetailScreen() {
         {ronda && !expense.isDeleted && (
           <View style={[
             styles.section, styles.warningSection,
-            ronda.objected
+            frenada
               ? { backgroundColor: c.surfaceSunken, borderColor: c.borderHair }
               : { backgroundColor: c.semantic.warningSoft, borderColor: c.semantic.warning },
           ]}>
             <Ionicons
-              name={ronda.objected ? 'hand-left-outline' : 'time-outline'}
+              name={frenada ? 'hand-left-outline' : 'time-outline'}
               size={18}
-              color={ronda.objected ? c.textSecondary : c.semantic.warning}
+              color={frenada ? c.textSecondary : c.semantic.warning}
             />
             <View style={{ flex: 1 }}>
               <Text style={[Typography.bodyM, {
-                color: ronda.objected ? c.text : c.semantic.warning, fontWeight: '600',
+                color: frenada ? c.text : c.semantic.warning, fontWeight: '600',
               }]}>
-                {ronda.objected
-                  ? t('expense.delete_objected_title', { name: nombreDe(ronda.objectedBy!) })
-                  : t('expense.delete_pending_title')}
+                {tituloDeRonda}
               </Text>
               <Text style={[Typography.bodyS, {
-                color: ronda.objected ? c.textSecondary : c.semantic.warning,
+                color: frenada ? c.textSecondary : c.semantic.warning,
                 marginTop: 2, opacity: 0.9,
               }]}>
-                {ronda.objected
-                  ? t('expense.delete_objected_body')
-                  : t('expense.delete_pending_body', {
-                      name: nombreDe(ronda.requestedBy),
-                      time: restante,
-                    })}
+                {cuerpoDeRonda}
               </Text>
             </View>
           </View>

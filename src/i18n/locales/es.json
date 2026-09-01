@@ -309,7 +309,9 @@
     "time_hours_plural": "{{count}} horas",
     "time_minutes": "{{count}} minuto",
     "time_minutes_plural": "{{count}} minutos",
-    "delete_body_open": "Se borra ahora. Cualquiera del grupo puede restaurarlo desde Actividad."
+    "delete_body_open": "Se borra ahora. Cualquiera del grupo puede restaurarlo desde Actividad.",
+    "delete_restored_title": "{{name}} restauró este gasto",
+    "delete_restored_body": "El borrado quedó sin efecto. Para volver a intentarlo hay que pedirlo de nuevo."
   },
   "settle": {
     "title": "Registrar pago",
@@ -384,7 +386,8 @@
     "restore": "Restaurar",
     "restored": "Restaurado",
     "search_placeholder": "Buscar por descripción, persona o grupo",
-    "search_empty": "Nada coincide con “{{q}}”"
+    "search_empty": "Nada coincide con “{{q}}”",
+    "action_restored": "restauró"
   },
   "settings": {
     "title": "Ajustes",

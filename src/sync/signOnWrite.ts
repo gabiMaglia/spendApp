@@ -1,5 +1,6 @@
 import { canonicalCore, type CoreKind, type CoreRecord } from './recordCore';
 import { signCore } from './recordSign';
+import { privadaDelAparato } from './devicePrivateKey';
 import { activeUserId } from '@/src/store/userScope';
 import { syncedNow } from '@/src/utils/syncedClock';
 
@@ -56,38 +57,6 @@ export function authorOf<K extends CoreKind>(kind: K, record: CoreRecord[K]): st
 function esMio<K extends CoreKind>(kind: K, record: CoreRecord[K]): boolean {
   const uid = activeUserId();
   return uid !== null && authorOf(kind, record) === uid;
-}
-
-/**
- * El módulo de identidad se carga PEREZOSAMENTE, y con eso se paga una deuda
- * conocida: `identityStore` arrastra `groupInvite` → `expo-crypto`, que es
- * nativo. Importarlo arriba lo metería en el camino del sync desde los cinco
- * stores, y un build sin ese binario no fallaría en la pantalla de gastos:
- * fallaría en el arranque. Es el mismo patrón que `src/services/avatar.ts` y la
- * misma razón por la que `src/sync/hexBytes.ts` no importa nada.
- */
-type ModuloIdentidad = typeof import('@/src/store/identityStore');
-let moduloCache: ModuloIdentidad | null | undefined;
-
-function privadaDelAparato(): string | null {
-  if (moduloCache === undefined) {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      moduloCache = require('@/src/store/identityStore') as ModuloIdentidad;
-    } catch {
-      moduloCache = null;
-    }
-  }
-  if (!moduloCache) return null;
-
-  try {
-    return moduloCache.ensureIdentity().privateKey || null;
-  } catch {
-    // Storage cifrado que no abrió, generación de clave que falló. Se degrada a
-    // "sin firma", nunca a una excepción: acá arriba hay un usuario guardando
-    // un gasto.
-    return null;
-  }
 }
 
 function sinFirma<K extends CoreKind>(record: CoreRecord[K]): CoreRecord[K] {

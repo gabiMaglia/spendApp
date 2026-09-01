@@ -1,4 +1,5 @@
 import { canonical } from '@/src/store/lww';
+import { accionDe, frenaLaRonda, rondaDe, rondaVigente } from './voteCore';
 import type { DeletionVote, Expense, SyncMeta } from '@/src/types/models';
 
 /** Ventana para objetar un borrado (regla de negocio #2). */
@@ -41,7 +42,7 @@ export class SyncEngine {
 function aperturaDeRonda(votes: readonly DeletionVote[]): number | undefined {
   let apertura: number | undefined;
   for (const v of votes) {
-    if (v.action !== 'delete') continue;
+    if (accionDe(v) !== 'delete') continue;
     if (apertura === undefined || v.votedAt < apertura) apertura = v.votedAt;
   }
   return apertura;
@@ -94,60 +95,79 @@ export function mergeDeletionVoteSets(
 }
 
 /**
- * Merge de votos por userId: gana el de mayor votedAt.
+ * Los votos VIGENTES: el último enunciado de cada persona en cada ronda.
+ *
+ * Colapsa por `(roundId, userId)` y no sólo por `userId` (T-041 · S8): una
+ * persona puede tener votos en dos rondas a la vez mientras el conjunto se
+ * está uniendo, y colapsarlos entre sí dejaría que su voto de una ronda vieja
+ * pisara el de la de ahora. Lo que no trae `roundId` —todo lo anterior a S8 y
+ * todo lo de un peer sin actualizar— cae en la ronda sintética `''`, que es
+ * exactamente el comportamiento de antes.
  */
 export function mergeDeletionVotes(votes: DeletionVote[]): DeletionVote[] {
   const map = new Map<string, DeletionVote>();
   for (const vote of votes) {
-    const existing = map.get(vote.userId);
+    const clave = `${rondaDe(vote)}\u0000${vote.userId}`;
+    const existing = map.get(clave);
     if (!existing || vote.votedAt > existing.votedAt) {
-      map.set(vote.userId, vote);
+      map.set(clave, vote);
     }
   }
   return Array.from(map.values());
 }
 
+/** El último voto de esta persona, mire la ronda que mire. */
+function ultimoDe(vigentes: DeletionVote[], userId: string): DeletionVote | undefined {
+  let ultimo: DeletionVote | undefined;
+  for (const v of vigentes) {
+    if (v.userId !== userId) continue;
+    if (!ultimo || v.votedAt > ultimo.votedAt) ultimo = v;
+  }
+  return ultimo;
+}
+
 /**
- * Determina si un gasto debe borrarse definitivamente.
- * Reglas:
- *  1. El creador puede forzar el borrado inmediato (forced=true).
- *  2. Si algún miembro votó 'cancel', el borrado no procede.
- *  3. Si hay al menos un voto 'delete' y pasaron 72hs sin objeciones, se borra.
+ * ¿Este gasto tiene que quedar borrado?
+ *
+ * Tres reglas, y la del medio es la que S8 tuvo que escribir explícita:
+ *
+ * 1. **El override del creador se honra SIEMPRE** (R3 del PO), verifique su
+ *    firma o no. Su contraparte es deshacerlo en un toque: un `object` o un
+ *    `restore` posteriores lo anulan. Sin eso, restaurar un borrado forzado no
+ *    funcionaría nunca —desde S7 los votos se unen en vez de pisarse, así que
+ *    el `forced` sobrevive y `resolvePendingDeletions` re-borra el gasto en el
+ *    próximo arranque.
+ *
+ * 2. **Un voto sólo habla por quien lo firmó.** `object` y `restore` son
+ *    enunciados sobre la RONDA y la frenan para todos; `withdraw` retira el
+ *    pedido de su autor y nada más. Por eso un `withdraw` no compite contra el
+ *    `delete` de otra persona: los `votedAt` de personas distintas no se
+ *    comparan entre sí. Decidirlo por el `votedAt` mayor —un LWW entre votos—
+ *    le daría a cualquiera un veto sin atribución sobre el pedido ajeno, que es
+ *    justo lo que `object` existe para hacer de forma visible; y volvería a ser
+ *    "sacar votos" con otro nombre, que es el bug que S7 cerró.
+ *
+ * 3. **72hs desde la apertura de la ronda vigente.** Si el que abrió se retira,
+ *    el plazo se recuenta desde el pedido que queda: es igual o posterior, así
+ *    que la ventana para objetar nunca se acorta.
  */
 export function resolveDeletionVotes(
   expense: Expense,
   _memberIds: string[],
   now: number = Date.now(),
 ): boolean {
-  const latestVotes = mergeDeletionVotes(expense.deletionVotes ?? []);
+  const vigentes = mergeDeletionVotes(expense.deletionVotes ?? []);
 
-  // El creador puede forzar borrado inmediato (regla #2, y R3 del PO: se honra
-  // SIEMPRE, verifique su firma o no).
-  //
-  // Salvo que alguien lo haya DESHECHO después. Sin esta condición, restaurar
-  // un borrado forzado no funciona nunca: desde S7 el conjunto de votos se une
-  // en vez de pisarse, así que el `forced` sobrevive para siempre y
-  // `resolvePendingDeletions` vuelve a borrar el gasto en el próximo arranque.
-  // No debilita el override —al forzarlo, borra— sino que le da la contraparte
-  // que el PO pidió junto con él: deshacer en un toque.
-  const creatorVote = latestVotes.find(v => v.userId === expense.createdById);
-  if (creatorVote?.action === 'delete' && creatorVote.forced) {
-    const deshecho = latestVotes.some(
-      v => v.action === 'cancel' && v.votedAt > creatorVote.votedAt,
+  const delCreador = ultimoDe(vigentes, expense.createdById);
+  if (delCreador && accionDe(delCreador) === 'delete' && delCreador.forced) {
+    const deshecho = vigentes.some(
+      v => frenaLaRonda(v) && v.votedAt > delCreador.votedAt,
     );
     if (!deshecho) return true;
   }
 
-  // Si hay algún voto de cancelación, no borrar
-  const hasCancelVote = latestVotes.some(v => v.action === 'cancel');
-  if (hasCancelVote) return false;
+  const ronda = rondaVigente(vigentes);
+  if (ronda === null || ronda.freno !== undefined) return false;
 
-  // Timeout: ¿hay voto de borrado y pasaron 72hs?
-  const deleteVotes = latestVotes.filter(v => v.action === 'delete');
-  if (deleteVotes.length > 0) {
-    const oldest = Math.min(...deleteVotes.map(v => v.votedAt));
-    return now - oldest > DELETION_TIMEOUT_MS;
-  }
-
-  return false;
+  return now - ronda.apertura.votedAt > DELETION_TIMEOUT_MS;
 }

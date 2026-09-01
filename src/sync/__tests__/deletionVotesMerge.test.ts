@@ -128,6 +128,6 @@ describe('la ronda se lee igual después de unir', () => {
     const votos = mergeDeletionVoteSets([pide('beto', 100)], [objeta('caro', 900)]);
     const ronda = deletionRound({ deletionVotes: votos } as Expense);
     expect(ronda?.requestedAt).toBe(100);
-    expect(ronda?.objected).toBe(true);
+    expect(ronda?.status === 'objected').toBe(true);
   });
 });

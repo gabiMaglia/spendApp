@@ -309,7 +309,9 @@
     "time_hours_plural": "{{count}} hours",
     "time_minutes": "{{count}} minute",
     "time_minutes_plural": "{{count}} minutes",
-    "delete_body_open": "It will be deleted now. Anyone in the group can restore it from Activity."
+    "delete_body_open": "It will be deleted now. Anyone in the group can restore it from Activity.",
+    "delete_restored_title": "{{name}} restored this expense",
+    "delete_restored_body": "The deletion was undone. To try again someone has to request it anew."
   },
   "settle": {
     "title": "Register payment",
@@ -384,7 +386,8 @@
     "restore": "Restore",
     "restored": "Restored",
     "search_placeholder": "Search by description, person or group",
-    "search_empty": "Nothing matches “{{q}}”"
+    "search_empty": "Nothing matches “{{q}}”",
+    "action_restored": "restored"
   },
   "settings": {
     "title": "Settings",

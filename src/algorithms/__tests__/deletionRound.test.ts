@@ -28,7 +28,7 @@ describe('ronda de borrado', () => {
 
     expect(r.requestedBy).toBe('beto');
     expect(r.expiresAt).toBe(AHORA + DELETION_TIMEOUT_MS);
-    expect(r.objected).toBe(false);
+    expect(r.status).toBe('open');
   });
 
   // El plazo cuenta desde el PRIMER pedido: es desde cuándo la gente tuvo aviso.
@@ -42,15 +42,15 @@ describe('ronda de borrado', () => {
   it('una objeción mata la ronda y se sabe quién fue', () => {
     const r = deletionRound(gasto([pide('beto'), objeta('caro')]))!;
 
-    expect(r.objected).toBe(true);
-    expect(r.objectedBy).toBe('caro');
+    expect(r.status).toBe('objected');
+    expect(r.stoppedBy).toBe('caro');
   });
 
   it('el último voto de cada persona es el que vale', () => {
     // Caro objetó y después se arrepintió y pidió el borrado.
     const r = deletionRound(gasto([pide('beto'), objeta('caro', AHORA), pide('caro', AHORA + 1000)]))!;
 
-    expect(r.objected).toBe(false);
+    expect(r.status).toBe('open');
   });
 });
 

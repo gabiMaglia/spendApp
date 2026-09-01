@@ -50,7 +50,7 @@ export type Snapshot = {
 /** Una ronda abierta es la que existe, todavía no venció y nadie objetó. */
 function borradoPendiente(e: Expense, now: number): boolean {
   const ronda = deletionRound(e);
-  return ronda !== null && !ronda.objected && ronda.expiresAt > now;
+  return ronda !== null && ronda.status === 'open' && ronda.expiresAt > now;
 }
 
 export function snapshot(expenses: Expense[], now: number, payments: Payment[] = []): Snapshot {

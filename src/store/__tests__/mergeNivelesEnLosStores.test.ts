@@ -7,7 +7,7 @@ import { useCommentStore } from '../commentStore';
 import { useRecurringStore } from '../recurringStore';
 import { useGroupStore } from '../groupStore';
 import { useUserStore } from '../userStore';
-import { votosAlCancelar } from '@/src/algorithms/deletionRound';
+import { emitirVoto } from '@/src/services/deletionVotes';
 import { resolvePendingDeletions } from '@/src/services/resolveDeletions';
 import type { Expense, Payment, User } from '@/src/types/models';
 
@@ -268,7 +268,7 @@ describe('restaurar sobrevive a un sync que trae el voto de vuelta', () => {
     // Beto restaura desde Actividad.
     useExpenseStore.getState().updateExpense('e1', {
       isDeleted: false,
-      deletionVotes: votosAlCancelar(forzado().deletionVotes, 'beto', 2_000),
+      deletionVotes: emitirVoto(forzado(), 'beto', 'restore', 2_000),
     });
 
     // Y el teléfono de Ana republica su copia, que todavía tiene el borrado.
@@ -283,7 +283,7 @@ describe('restaurar sobrevive a un sync que trae el voto de vuelta', () => {
     useExpenseStore.setState({ expenses: [forzado()] });
     useExpenseStore.getState().updateExpense('e1', {
       isDeleted: false,
-      deletionVotes: votosAlCancelar(forzado().deletionVotes, 'beto', 2_000),
+      deletionVotes: emitirVoto(forzado(), 'beto', 'restore', 2_000),
     });
     useExpenseStore.getState().mergeExpenses([forzado()]);
 

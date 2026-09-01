@@ -112,11 +112,45 @@ export interface ExpenseComment extends SyncMeta, CoreSigned {
   createdAt: number;
 }
 
+/**
+ * Un voto de la ronda de borrado (regla de negocio #2).
+ *
+ * **Cuatro acciones** desde T-041 · S8 (R-Q1/R-Q2 del PO): pedir el borrado,
+ * objetarlo, retirar el pedido propio y restaurar un gasto ya borrado. La
+ * acción semántica se lee con `accionDe()` (`src/sync/voteCore.ts`) y NO
+ * directamente de `action`, porque las cuatro no entran en un solo campo sin
+ * romper a los peers que no actualizaron:
+ *
+ * - `action` es el token que lee un peer viejo, que sólo conoce `delete` y
+ *   `cancel`. Objetar y restaurar viajan los dos como `cancel` — allá las dos
+ *   tienen que frenar, y una acción que ese lado no conoce es un voto que no
+ *   frena nada: el gasto se borraría solo en su teléfono y el tombstone
+ *   volvería por el sync.
+ * - `intent` distingue restaurar de objetar para el que sí actualizó. Ausente
+ *   = objetar, que es lo que emiten los peers viejos y lo que emitimos nosotros
+ *   al objetar.
+ * - `withdraw` sí puede ser un token propio: para un peer viejo es un voto que
+ *   no dice nada, y "no dice nada" es justo el resultado correcto — retirar
+ *   saca el pedido de su autor por el colapso por persona, y no frena a nadie
+ *   más.
+ *
+ * `roundId`, `k` y `s` son opcionales por R2: lo viejo y lo de un peer sin
+ * actualizar sigue entrando y sigue contando.
+ */
 export interface DeletionVote {
   userId: string;
   votedAt: number;
-  action: 'delete' | 'cancel';
+  /** Token de compatibilidad. La acción semántica sale de `accionDe()`. */
+  action: 'delete' | 'cancel' | 'withdraw';
+  /** Qué frenó exactamente un `cancel`. Ausente = objetar. */
+  intent?: 'restore';
+  /** Contra qué ronda se emitió. Va ADENTRO de la firma. */
+  roundId?: string;
   forced?: boolean; // solo el creador puede marcar forced=true
+  /** Pública del firmante del voto (T-041 · S8). */
+  k?: string;
+  /** Firma del enunciado del voto, no del conjunto. Ver `voteCore.ts`. */
+  s?: string;
 }
 
 /**

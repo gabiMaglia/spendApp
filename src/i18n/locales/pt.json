@@ -309,7 +309,9 @@
     "time_hours_plural": "{{count}} horas",
     "time_minutes": "{{count}} minuto",
     "time_minutes_plural": "{{count}} minutos",
-    "delete_body_open": "Será apagada agora. Qualquer pessoa do grupo pode restaurá-la em Atividade."
+    "delete_body_open": "Será apagada agora. Qualquer pessoa do grupo pode restaurá-la em Atividade.",
+    "delete_restored_title": "{{name}} restaurou esta despesa",
+    "delete_restored_body": "A exclusão foi desfeita. Para tentar de novo é preciso pedir outra vez."
   },
   "settle": {
     "title": "Registrar pago",
@@ -384,7 +386,8 @@
     "restore": "Restaurar",
     "restored": "Restaurado",
     "search_placeholder": "Buscar por descrição, pessoa ou grupo",
-    "search_empty": "Nada corresponde a “{{q}}”"
+    "search_empty": "Nada corresponde a “{{q}}”",
+    "action_restored": "restaurou"
   },
   "settings": {
     "title": "Ajustes",

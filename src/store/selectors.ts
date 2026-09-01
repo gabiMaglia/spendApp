@@ -218,7 +218,14 @@ export type ActivityKind =
    * esto borrar era irreversible. Splitwise hace lo mismo: se deshace en un
    * toque desde el feed de actividad.
    */
-  | { kind: 'expense_deleted';        expense: Expense; groupName: string };
+  | { kind: 'expense_deleted';        expense: Expense; groupName: string }
+  /**
+   * Un gasto que estaba borrado y volvió. Tiene evento propio y no se cuenta
+   * como una objeción (R-Q2 del PO): son dos cosas distintas y el feed es
+   * justamente la mitad «ver» del principio que gobierna T-041 — «prevenir no
+   * es la defensa; ver y poder deshacer, sí».
+   */
+  | { kind: 'expense_restored';       expense: Expense; groupName: string; restoredByName: string };
 
 export function useActivityFeed(currentUserId: string): ActivityKind[] {
   const groups   = useGroupStore(s => s.groups);
@@ -265,13 +272,28 @@ export function useActivityFeed(currentUserId: string): ActivityKind[] {
       // la objeción que lo frenó. Buscar "algún voto de borrado" le avisaría al
       // usuario de un trámite que ya no va a pasar.
       const ronda = deletionRound(expense);
-      if (ronda && !ronda.objected) {
+      if (ronda && ronda.status === 'open') {
         events.push({
           kind: 'expense_delete_request',
           expense,
           groupName: groupName(expense.groupId),
           requestedByName: getUserName(ronda.requestedBy),
           _ts: ronda.requestedAt,
+        });
+      }
+
+      // El gasto está vivo y su ronda terminó en un `restore`: alguien deshizo
+      // un borrado. Se fecha por `updatedAt` y no por la fecha del gasto, igual
+      // que su hermano `expense_deleted`: lo que se registra es CUÁNDO volvió.
+      // Si no, un gasto viejo restaurado hoy quedaría enterrado al fondo del
+      // feed y nadie se enteraría de que alguien lo devolvió al libro.
+      if (ronda && ronda.status === 'restored' && ronda.stoppedBy) {
+        events.push({
+          kind: 'expense_restored',
+          expense,
+          groupName: groupName(expense.groupId),
+          restoredByName: getUserName(ronda.stoppedBy),
+          _ts: expense.updatedAt || expense.date,
         });
       }
 
