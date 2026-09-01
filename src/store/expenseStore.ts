@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { readScoped, writeScoped } from './userScope';
 import { mergeByIdLevels } from './mergeLevels';
+import { preservarRecibo } from '@/src/sync/soloLocal';
 import { signOnCreate, signOnEdit } from '@/src/sync/signOnWrite';
 import { schedulePublish } from '@/src/sync/relayEngine';
 import { migrateExpenseAmounts } from './moneyMigration';
@@ -61,7 +62,11 @@ export const useExpenseStore = create<ExpenseStoreState>((set, get) => ({
 
   // LWW merge para sync P2P
   mergeExpenses: (incoming) => {
-    const merged = mergeByIdLevels('expense', get().expenses, incoming);
+    // El recibo es del APARATO y ya no viaja: un entrante sin él no puede
+    // borrar el nuestro. Sin esto, sacarlo del sobre destruiría recibos.
+    const locales = new Map(get().expenses.map(e => [e.id, e]));
+    const conRecibo = incoming.map(e => preservarRecibo(e, locales.get(e.id)));
+    const merged = mergeByIdLevels('expense', get().expenses, conRecibo);
     persist(merged);
     set({ expenses: merged });
   },

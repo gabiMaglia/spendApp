@@ -7,6 +7,7 @@ import { useCommentStore } from '@/src/store/commentStore';
 import { usePersonalStore } from '@/src/store/personalStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { observeRecords, type LocalCore } from './recordHealth';
+import { sinAvatarUrl, sinCamposLocales } from './soloLocal';
 
 /**
  * Versión de FEATURES del delta, aparte de `version` (que es el formato).
@@ -56,9 +57,10 @@ export function buildDelta(currentUserId: string): SyncDelta {
     fromUserId:  currentUserId,
     timestamp:   Date.now(),
     groups:      useGroupStore.getState().groups,
-    expenses:    useExpenseStore.getState().expenses,
+    // Sin los campos que no significan nada en el otro teléfono. Ver `soloLocal`.
+    expenses:    sinCamposLocales(useExpenseStore.getState().expenses),
     payments:    usePaymentStore.getState().payments,
-    users:       useUserStore.getState().users,
+    users:       sinAvatarUrl(useUserStore.getState().users),
     recurring:   useRecurringStore.getState().recurring,
     comments:    useCommentStore.getState().comments,
     groupKeys:   useGroupKeyStore.getState().keys,
