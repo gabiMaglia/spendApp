@@ -1,5 +1,5 @@
 import {
-  resolveAccount, confirmLink, normalizeEmail,
+  resolveAccount, confirmLink, keepSeparate, normalizeEmail,
   type AccountIndex, type KnownAccount,
 } from '../accountIdentity';
 
@@ -192,5 +192,79 @@ describe('candidatas para preguntar — sin molestar a personas distintas', () =
 
   it('device limpio ⇒ cuenta nueva sin molestar', () => {
     expect(resolveAccount(memoryIndex([]), GOOGLE, MAIL).kind).toBe('new');
+  });
+});
+
+
+describe('«mantener separada» sobrevive al próximo login (T-048)', () => {
+  /**
+   * **Era la puerta de entrada del defecto de T-048**, y de una línea: elegir
+   * «mantener separada» actuaba la decisión (se entraba con la cuenta propia)
+   * pero no la REGISTRABA. En el login siguiente el proveedor no estaba en el
+   * índice, así que el paso 1 —el que corta y respeta la decisión— no lo
+   * encontraba, y si el email coincidía con otra cuenta el paso 2 lo absorbía
+   * **sin preguntar**.
+   *
+   * O sea: el usuario decía «separadas» y la app las juntaba igual, un login
+   * después. Y el scope absorbido, con sus grupos adentro, es exactamente lo
+   * que produce el defecto que ADR-008 tiene que resolver.
+   */
+  it('el segundo login NO absorbe la cuenta que el usuario separó', () => {
+    const ix = memoryIndex();
+    ix.link(APPLE, APPLE, MAIL);          // ya existe una cuenta con ese mail
+
+    // El usuario entra con Google, mismo mail, y elige mantenerlas separadas.
+    keepSeparate(ix, GOOGLE, MAIL);
+
+    // Segundo login con Google: tiene que seguir siendo su propia cuenta.
+    expect(resolveAccount(ix, GOOGLE, MAIL)).toEqual({ kind: 'existing', accountId: GOOGLE });
+  });
+
+  it('sin registrar la decisión, el segundo login la absorbía', () => {
+    // El comportamiento viejo, escrito como test para que se vea la diferencia:
+    // sin `keepSeparate`, el mismo segundo login engancha con la otra cuenta.
+    const ix = memoryIndex();
+    ix.link(APPLE, APPLE, MAIL);
+
+    const r = resolveAccount(ix, GOOGLE, MAIL);
+
+    expect(r.kind).toBe('linked');
+    expect(r.accountId).toBe(APPLE);
+  });
+
+  it('la decisión no toca la cuenta que ya existía', () => {
+    const ix = memoryIndex();
+    ix.link(APPLE, APPLE, MAIL);
+
+    keepSeparate(ix, GOOGLE, MAIL);
+
+    expect(resolveAccount(ix, APPLE, MAIL)).toEqual({ kind: 'existing', accountId: APPLE });
+  });
+
+  it('NO le roba el email a la cuenta que ya existía', () => {
+    // El usuario dijo «separadas», no «hacete dueño de mi email». Si el mapeo
+    // se pisara, un tercer proveedor con el mismo mail se engancharía a la
+    // cuenta recién separada en vez de a la original.
+    const ix = memoryIndex();
+    ix.link(APPLE, APPLE, MAIL);
+
+    keepSeparate(ix, GOOGLE, MAIL);
+
+    expect(ix.getAccountByEmail(MAIL)).toBe(APPLE);
+  });
+
+  it('si el email está libre SÍ lo registra: es su propia cuenta', () => {
+    const ix = memoryIndex();
+    ix.link(APPLE, APPLE);            // cuenta sin mail conocido (Apple)
+
+    keepSeparate(ix, GOOGLE, MAIL);
+
+    expect(ix.getAccountByEmail(MAIL)).toBe(GOOGLE);
+  });
+
+  it('sin email también se registra: Apple no lo manda en el re-login', () => {
+    const ix = memoryIndex();
+    keepSeparate(ix, APPLE, null);
+    expect(resolveAccount(ix, APPLE, null)).toEqual({ kind: 'existing', accountId: APPLE });
   });
 });

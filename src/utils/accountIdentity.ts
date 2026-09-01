@@ -140,6 +140,35 @@ export function resolveAccount(
  * Quién sabe si hay algo para traer es `mergeAccountData`, que con un origen
  * vacío no hace nada.
  */
+/**
+ * El usuario eligió **mantener la cuenta separada**. Registra el proveedor
+ * apuntando a su propia cuenta.
+ *
+ * Sin esto, el proveedor no queda en el índice y el paso 1 de `resolveAccount`
+ * —el que corta y respeta la decisión— no lo encuentra en el próximo login. Si
+ * para entonces el email coincide con otra cuenta, el paso 2 lo **absorbe sin
+ * preguntar**: el usuario dijo «separadas» y la app las junta igual, un login
+ * después. Ése es el único camino que produce un scope con datos y sin entrada
+ * de proveedor, y de ahí sale el defecto de T-048.
+ *
+ * **El email se registra sólo si está libre.** Registrarlo siempre parecía lo
+ * simétrico con el paso 4 —una cuenta nueva sí lo registra— pero acá pisaría el
+ * mapeo de la cuenta que YA existía: el usuario dijo «separadas», no «hacete
+ * dueño de este email», y a partir de ahí un tercer proveedor con el mismo mail
+ * se engancharía a la cuenta recién separada en vez de a la original. Lo
+ * destapó una mutación que no tumbaba nada: la línea que pasaba el email no
+ * estaba justificada.
+ */
+export function keepSeparate(
+  index: AccountIndex,
+  providerId: string,
+  email?: string | null,
+): void {
+  const normalized = normalizeEmail(email);
+  const libre = normalized !== undefined && index.getAccountByEmail(normalized) === null;
+  index.link(providerId, providerId, libre ? normalized : undefined);
+}
+
 export function confirmLink(
   index: AccountIndex,
   providerId: string,

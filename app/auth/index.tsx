@@ -29,7 +29,7 @@ export default function AuthScreen() {
   const { t } = useTranslation();
   const scheme = useColorScheme() ?? 'light';
   const c = Colors[scheme];
-  const { setUser, getStoredProfile, resolveAccount, confirmAccountLink } = useAuthStore();
+  const { setUser, getStoredProfile, resolveAccount, confirmAccountLink, keepAccountSeparate } = useAuthStore();
 
   const [appleAvailable, setAppleAvailable] = useState(false);
 
@@ -73,7 +73,14 @@ export default function AuthScreen() {
         {
           text: t('auth.link_separate'),
           style: 'cancel',
-          onPress: () => onResolved(providerId), // cuenta propia
+          onPress: () => {
+            // Registrar la decisión, no sólo actuarla: sin esto el próximo
+            // login no encuentra el proveedor en el índice y, si el email
+            // coincide con otra cuenta, la absorbe sin preguntar. El usuario
+            // dijo «separadas» y la app las junta igual, un login después.
+            keepAccountSeparate(providerId, email);
+            onResolved(providerId);
+          },
         },
         {
           text: t('auth.link_confirm'),

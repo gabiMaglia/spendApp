@@ -3,6 +3,7 @@ import { createSecureStorage } from '@/src/utils/secureStorage';
 import type { User } from '@/src/types/models';
 import {
   resolveAccount as resolveAccountPure, confirmLink as confirmLinkPure,
+  keepSeparate as keepSeparatePure,
   type AccountIndex, type AccountResolution, type KnownAccount,
 } from '@/src/utils/accountIdentity';
 import { mergeAccounts } from './accountLink';
@@ -86,6 +87,8 @@ interface AuthState {
   resolveAccount: (providerId: string, email?: string | null) => AccountResolution;
   /** El usuario confirmó que la cuenta es suya: vincula y FUSIONA los datos. */
   confirmAccountLink: (providerId: string, targetAccountId: string) => void;
+  /** El usuario eligió mantenerlas separadas: se registra para que la decisión SOBREVIVA. */
+  keepAccountSeparate: (providerId: string, email?: string | null) => void;
   setIsPro: (isPro: boolean) => void;
   setLoading: (loading: boolean) => void;
   signOut: () => void;
@@ -139,6 +142,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       mergeAccounts(r.previousAccountId, r.accountId);
     }
     return r;
+  },
+
+  keepAccountSeparate: (providerId, email) => {
+    keepSeparatePure(accountIndex, providerId, email);
   },
 
   confirmAccountLink: (providerId, targetAccountId) => {
