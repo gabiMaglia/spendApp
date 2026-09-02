@@ -347,6 +347,14 @@
     "settle_one": "Quitar com uma pessoa",
     "split_note": "Não dá para todos: divide-se igualmente"
   },
+  "settlement": {
+    "did_you_receive": "Você recebeu esse dinheiro?",
+    "confirm": "Sim, recebi",
+    "reject": "Não recebi",
+    "waiting": "Aguardando a confirmação de {{name}}",
+    "rejected": "{{name}} diz que não recebeu",
+    "pending_badge": "Sem confirmar"
+  },
   "delete": {
     "sheet_title": "¿Eliminar este gasto?",
     "request_title": "Solicitar eliminación",

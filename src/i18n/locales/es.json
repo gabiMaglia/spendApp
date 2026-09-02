@@ -347,6 +347,14 @@
     "settle_one": "Saldar a una persona",
     "split_note": "No alcanza para todos: se reparte parejo"
   },
+  "settlement": {
+    "did_you_receive": "¿Recibiste esta plata?",
+    "confirm": "Sí, la recibí",
+    "reject": "No la recibí",
+    "waiting": "Esperando que {{name}} confirme",
+    "rejected": "{{name}} dice que no lo recibió",
+    "pending_badge": "Sin confirmar"
+  },
   "delete": {
     "sheet_title": "¿Eliminar este gasto?",
     "request_title": "Solicitar eliminación",

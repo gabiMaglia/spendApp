@@ -30,6 +30,8 @@ import { BalancePill } from '@/src/components/BalancePill';
 import { BottomSheet, SheetOption, SheetOptionAvatar } from '@/src/components/Sheet';
 import { Fab, FabRow } from '@/src/components/Fab';
 import { TrustMark } from '@/src/components/TrustMark';
+import { SettlementAcuse } from '@/src/components/SettlementAcuse';
+import { useSaldadoAcuse } from '@/src/hooks/useSaldadoAcuse';
 import { useRecordTrust } from '@/src/hooks/useRecordTrust';
 import { isMarked, type TrustState } from '@/src/algorithms/recordTrust';
 import { canLeaveGroup } from '@/src/algorithms/canLeaveGroup';
@@ -667,14 +669,32 @@ function PaymentRow({
   const { t } = useTranslation();
   const c = Colors[scheme];
 
+  const acuse     = useSaldadoAcuse(payment, currentUserId);
   const fromName  = payment.fromUserId === currentUserId ? t('common.you') : getUserName(payment.fromUserId);
   const toName    = payment.toUserId   === currentUserId ? t('common.you') : getUserName(payment.toUserId);
   const dateLabel = new Date(payment.date).toLocaleDateString(i18n.language, { day: 'numeric', month: 'short' });
 
+  /**
+   * Un saldado sin acuse NO se pinta de verde cerrado (T-064).
+   *
+   * El verde y el tilde son el lenguaje de "esto ya está"; usarlos mientras se
+   * espera la confirmación contradice en el color lo que el texto de abajo
+   * dice, y el color es lo que se lee primero. Rechazado va en negativo: la
+   * deuda volvió.
+   */
+  const cerrado  = acuse.estado === 'efectivo';
+  const negativo = acuse.estado === 'rechazado';
+  const tono     = negativo ? c.semantic.negative : cerrado ? c.semantic.positive : c.textTertiary;
+  const colorDelMonto = negativo ? c.semantic.negative : cerrado ? c.semantic.positive : c.textSecondary;
+
   return (
-    <View style={[styles.expenseRow, { backgroundColor: c.semantic.positiveSoft, borderColor: c.semantic.positive + '33' }]}>
-      <View style={[styles.expenseIcon, { backgroundColor: c.semantic.positive + '22' }]}>
-        <Ionicons name="checkmark-circle-outline" size={18} color={c.semantic.positive} />
+    <View style={[styles.expenseRow, { backgroundColor: cerrado ? c.semantic.positiveSoft : c.surface, borderColor: tono + '33' }]}>
+      <View style={[styles.expenseIcon, { backgroundColor: tono + '22' }]}>
+        <Ionicons
+          name={negativo ? 'close-circle-outline' : cerrado ? 'checkmark-circle-outline' : 'time-outline'}
+          size={18}
+          color={tono}
+        />
       </View>
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={[Typography.bodyM, { color: c.text, fontWeight: '600' }]} numberOfLines={1}>
@@ -686,8 +706,18 @@ function PaymentRow({
         {isMarked(trust ?? 'pendiente') && (
           <TrustMark label={t('trust.badge')} size="sm" />
         )}
+        {/* T-064: mientras espera el acuse, el saldado no se dibuja como
+            cerrado. Un pago `efectivo` no agrega nada acá. */}
+        <SettlementAcuse
+          testID={`acuse-${payment.id}`}
+          estado={acuse.estado}
+          meToca={acuse.meToca}
+          nombreDeQuienCobra={toName}
+          onConfirmar={acuse.confirmar}
+          onRechazar={acuse.rechazar}
+        />
       </View>
-      <Text style={[Typography.amountS, { color: c.semantic.positive }]}>
+      <Text style={[Typography.amountS, { color: colorDelMonto }]}>
         {formatMoney(payment.amount, payment.currency)}
       </Text>
     </View>

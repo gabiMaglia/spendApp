@@ -347,6 +347,14 @@
     "settle_one": "Settle with one person",
     "split_note": "Not enough for everyone: split evenly"
   },
+  "settlement": {
+    "did_you_receive": "Did you receive this money?",
+    "confirm": "Yes, I got it",
+    "reject": "I didn't get it",
+    "waiting": "Waiting for {{name}} to confirm",
+    "rejected": "{{name}} says they never got it",
+    "pending_badge": "Unconfirmed"
+  },
   "delete": {
     "sheet_title": "Delete this expense?",
     "request_title": "Request deletion",
