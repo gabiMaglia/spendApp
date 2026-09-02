@@ -18,7 +18,7 @@ App móvil de división de gastos (Expo / React Native) que funciona **100% sin 
 | Lenguaje | TypeScript estricto |
 | Almacenamiento local | MMKV (rápido, sincrónico) + WatermelonDB (queries reactivas) |
 | OCR (Pro) | `@react-native-ml-kit/text-recognition` — on-device, offline, sin API key |
-| Sincronización P2P | WebRTC (internet, auto) / BLE (proximidad) |
+| Sincronización P2P | WebRTC (internet, auto) + relay cifrado (Supabase). **BLE está PLANEADO, no implementado** — no hay ninguna dependencia de Bluetooth en el proyecto (verificado 2026-09-02) |
 | Autenticación | Expo Auth Session → Google OAuth + Sign in with Apple |
 | Estado global | Zustand |
 | i18n | `expo-localization` + `i18next` + `react-i18next` |
@@ -153,7 +153,7 @@ app/
 src/
   db/               ← Modelos WatermelonDB y schema
   sync/             ← SyncEngine (merge CRDT, tombstones, delta)
-  p2p/              ← useP2PConnection hook (WebRTC / BLE)
+  p2p/              ← emparejamiento WebRTC por QR (sdpCodec, usePairingSession). BLE no existe todavía
   auth/             ← useAuth hook (Google, Apple)
   store/            ← Zustand stores (groups, expenses, balances)
   algorithms/       ← calculateBalances(), simplifyDebts()

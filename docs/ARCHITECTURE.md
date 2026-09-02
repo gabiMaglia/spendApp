@@ -2,7 +2,7 @@
 
 ## Principio general
 
-Toda la información vive en la base de datos embebida del dispositivo. La app funciona al 100% sin internet. Cuando dos dispositivos se encuentran (por internet, BLE o Wi-Fi local), intercambian solo los cambios que el otro no tiene (delta sync).
+Toda la información vive en la base de datos embebida del dispositivo. La app funciona al 100% sin internet. Cuando dos dispositivos se encuentran (hoy: por internet vía relay cifrado, o WebRTC directo escaneando un QR; BLE está planeado y no implementado), intercambian solo los cambios que el otro no tiene (delta sync).
 
 No hay servidor central. No hay base de datos compartida en la nube.
 
@@ -256,7 +256,7 @@ Un "token de invitación" contiene `groupId` + clave de cifrado AES-256 del grup
 | Canal | Cuándo usarlo | Librería |
 |---|---|---|
 | WebRTC automático | App en primer plano con internet | `react-native-webrtc` + STUN de Google |
-| BLE | Usuarios cerca sin internet | `react-native-ble-plx` |
+| BLE | Usuarios cerca sin internet | `react-native-ble-plx` — **NO IMPLEMENTADO.** No está en `package.json` ni hay código que lo use. Lo que existe para el caso sin internet es el emparejamiento WebRTC por QR (`src/p2p/`) |
 | Wi-Fi Local | Misma red local | mDNS / Bonjour |
 
 La sync se intenta automáticamente:
@@ -288,7 +288,7 @@ Para que dos teléfonos establezcan una conexión WebRTC necesitan intercambiar 
 ### Seguridad del canal
 
 - La clave de cifrado simétrico del grupo se genera al crear el grupo y viaja en el token de invitación (QR o deep link).
-- Todo payload se cifra con AES-256-GCM usando esa clave antes de enviarse por WebRTC DataChannel o BLE.
+- Todo payload se cifra con XChaCha20-Poly1305 usando esa clave antes de enviarse por el relay o por WebRTC DataChannel (`envelopeCrypto.ts`). BLE no existe todavía.
 - El servidor de signaling solo ve el `groupId` (sin contenido ni identidades reales).
 - Sin la clave del grupo, un tercero no puede leer los datos en tránsito.
 
