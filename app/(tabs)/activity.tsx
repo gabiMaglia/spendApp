@@ -263,23 +263,32 @@ function EventRow({
     warn?: boolean;
     onPress?: () => void;
   }) => {
-    const Container: any = opts.onPress ? Pressable : View;
-    return (
-      <Container
-        onPress={opts.onPress}
-        style={({ pressed }: { pressed?: boolean } = {}) => [
-          styles.row,
-          {
-            borderBottomWidth: last ? 0 : 1,
-            // `hair` y no `hair2`: el divisor tenue está calibrado para filas de
-            // una línea, y estas llevan dos más el timestamp. A esa altura el
-            // 5,5% se pierde y las filas se leen como una sola.
-            borderBottomColor: c.hair,
-            backgroundColor: opts.warn ? c.semantic.warningSoft : 'transparent',
-          },
-          pressed && { backgroundColor: c.bgGrouped },
-        ]}
-      >
+    /**
+     * **`View` no acepta una función como `style`; `Pressable` sí.**
+     *
+     * Estaban compartiendo un `Container: any` con un `style={({pressed}) =>
+     * [...]}`, así que toda fila SIN `onPress` —pedido de borrado, pago,
+     * borrado— se renderizaba con la función ignorada y por lo tanto **sin un
+     * solo estilo**: sin `flexDirection: row`, sin padding, sin borde y sin
+     * gap. El ícono quedaba arriba y el texto pegado al borde izquierdo. El
+     * `any` del Container es lo que impidió que TypeScript lo dijera.
+     *
+     * Ahora las dos ramas son explícitas y el array base se arma una sola vez.
+     */
+    const base = [
+      styles.row,
+      {
+        borderBottomWidth: last ? 0 : 1,
+        // `hair` y no `hair2`: el divisor tenue está calibrado para filas de
+        // una línea, y estas llevan dos más el timestamp. A esa altura el
+        // 5,5% se pierde y las filas se leen como una sola.
+        borderBottomColor: c.hair,
+        backgroundColor: opts.warn ? c.semantic.warningSoft : 'transparent',
+      },
+    ];
+
+    const contenido = (
+      <>
         <View style={[styles.rowIcon, { backgroundColor: opts.bg }]}>
           <Ionicons name={opts.icon} size={16} color={opts.tint} />
         </View>
@@ -288,7 +297,21 @@ function EventRow({
           {marca}
         </View>
         {opts.right}
-      </Container>
+      </>
+    );
+
+    if (!opts.onPress) {
+      return <View testID="activity-row" style={base}>{contenido}</View>;
+    }
+
+    return (
+      <Pressable
+        testID="activity-row"
+        onPress={opts.onPress}
+        style={({ pressed }) => [...base, pressed && { backgroundColor: c.bgGrouped }]}
+      >
+        {contenido}
+      </Pressable>
     );
   };
 
