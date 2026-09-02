@@ -25,11 +25,12 @@ import { Fab, FabRow } from '@/src/components/Fab';
 import { EmptyState } from '@/src/components/EmptyState';
 import { BottomSheet } from '@/src/components/Sheet';
 import { Band, BandRow, SectionLabel, SplitStat } from '@/src/components/Band';
-import { CollapsibleHeader, HeaderAvatar, HeaderCurrency } from '@/src/components/CollapsibleHeader';
+import { CollapsibleHeader, HeaderAvatar, HeaderCurrency, useHeaderPadding } from '@/src/components/CollapsibleHeader';
 import { syncedNow } from '@/src/utils/syncedClock';
 
 export default function FriendsScreen() {
   const { t } = useTranslation();
+  const headerPad = useHeaderPadding();
   const scheme = useColorScheme() ?? 'light';
   const c = Colors[scheme];
   const { currentUser } = useAuthStore();
@@ -94,7 +95,7 @@ export default function FriendsScreen() {
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
         onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: false })}
-        contentContainerStyle={{ paddingTop: Spacing.headerH, paddingBottom: 150 }}
+        contentContainerStyle={{ paddingTop: headerPad, paddingBottom: 150 }}
       >
         <Text style={[Typography.display, styles.title, { color: c.text }]}>{t('friends.title')}</Text>
 

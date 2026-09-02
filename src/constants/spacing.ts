@@ -18,7 +18,6 @@ export const Spacing = {
   /** Padding vertical de una fila de banda. */
   rowPadV:   14,
   /** Alto del header fijo (status 44 + nav 52). */
-  headerH:   96,
 } as const;
 
 export const Radius = {

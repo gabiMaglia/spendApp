@@ -7,7 +7,7 @@ import i18n from '@/src/i18n';
 import { Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { Band, BandLink, Meter, SectionLabel, SplitStat } from '@/src/components/Band';
-import { CollapsibleHeader, HeaderAvatar, HeaderCurrency } from '@/src/components/CollapsibleHeader';
+import { CollapsibleHeader, HeaderAvatar, HeaderCurrency, useHeaderPadding } from '@/src/components/CollapsibleHeader';
 import { GroupCard } from '@/src/components/GroupCard';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGlobalPersonBalances, useGroupBalance, useGroupExpenseCount } from '@/src/store/selectors';
@@ -35,6 +35,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function AccountScreen() {
   const { t } = useTranslation();
+  const headerPad = useHeaderPadding();
   const scheme = useColorScheme() ?? 'light';
   const c = Colors[scheme];
   const { currentUser } = useAuthStore();
@@ -122,7 +123,7 @@ export default function AccountScreen() {
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
         onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: false })}
-        contentContainerStyle={{ paddingTop: Spacing.headerH, paddingBottom: 150 }}
+        contentContainerStyle={{ paddingTop: headerPad, paddingBottom: 150 }}
       >
         {/* Saludo + título: scrollean, el header los recoge en compacto */}
         <View style={styles.greeting}>

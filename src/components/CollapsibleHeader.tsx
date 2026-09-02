@@ -18,6 +18,25 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
  * `<BlurView intensity={...} tint={scheme}>`; los valores de opacidad de acá
  * están calculados para que el resultado sea equivalente sin blur.
  */
+/** Alto de la barra, sin el notch. El header real mide esto + `insets.top`. */
+export const HEADER_BAR_H = 52;
+
+/**
+ * Cuánto padding necesita el contenido para arrancar DEBAJO del header.
+ *
+ * Reemplaza a `Spacing.headerH`, que era un 96 fijo y **se quedaba corto en
+ * cualquier teléfono con notch**: el header mide `insets.top + 52`, o sea entre
+ * 99 y 111 en un iPhone moderno. El título grande de cada tab no estaba pegado
+ * al header — estaba tapado por él.
+ *
+ * Un número fijo no puede resolver esto: el inset lo decide el aparato. Por eso
+ * es un hook y no una constante.
+ */
+export function useHeaderPadding(aire = Spacing[4]): number {
+  const insets = useSafeAreaInsets();
+  return insets.top + HEADER_BAR_H + aire;
+}
+
 export function CollapsibleHeader({
   title, scrollY, right, left,
 }: {

@@ -19,7 +19,7 @@ import {
   Band, BandRow, Meter, SectionLabel, SplitStat,
 } from '@/src/components/Band';
 import {
-  CollapsibleHeader, HeaderAvatar, HeaderCurrency,
+  CollapsibleHeader, HeaderAvatar, HeaderCurrency, useHeaderPadding,
 } from '@/src/components/CollapsibleHeader';
 import { useAuthStore } from '@/src/store/authStore';
 import { usePersonalStore, toMonthKey, currentMonthKey } from '@/src/store/personalStore';
@@ -66,6 +66,7 @@ const ENTRY_KIND_META = {
 
 export default function PersonalScreen() {
   const scheme = useColorScheme() ?? 'light';
+  const headerPad = useHeaderPadding();
   const { t } = useTranslation();
   const c = Colors[scheme];
 
@@ -217,7 +218,7 @@ export default function PersonalScreen() {
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
         onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: false })}
-        contentContainerStyle={{ paddingTop: Spacing.headerH, paddingBottom: 140 }}
+        contentContainerStyle={{ paddingTop: headerPad, paddingBottom: 140 }}
       >
         {/* Título grande: vive en el contenido y scrollea; el header lo recoge. */}
         <View style={styles.titleRow}>

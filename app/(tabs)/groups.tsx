@@ -20,12 +20,13 @@ import { GroupCard } from '@/src/components/GroupCard';
 import { SwipeToArchive } from '@/src/components/SwipeToArchive';
 import { EmptyState } from '@/src/components/EmptyState';
 import { Band, Segmented, SplitStat } from '@/src/components/Band';
-import { CollapsibleHeader, HeaderAvatar, HeaderCurrency } from '@/src/components/CollapsibleHeader';
+import { CollapsibleHeader, HeaderAvatar, HeaderCurrency, useHeaderPadding } from '@/src/components/CollapsibleHeader';
 import { hapticLight } from '@/src/utils/haptics';
 import type { Group } from '@/src/types/models';
 
 export default function GroupsScreen() {
   const { t } = useTranslation();
+  const headerPad = useHeaderPadding();
   const scheme = useColorScheme() ?? 'light';
   const c = Colors[scheme];
   const { currentUser } = useAuthStore();
@@ -64,7 +65,7 @@ export default function GroupsScreen() {
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
         onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: false })}
-        contentContainerStyle={{ paddingTop: Spacing.headerH, paddingBottom: 150 }}
+        contentContainerStyle={{ paddingTop: headerPad, paddingBottom: 150 }}
       >
         <Text style={[Typography.display, styles.title, { color: c.text }]}>{t('groups.title')}</Text>
 

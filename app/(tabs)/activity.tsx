@@ -25,7 +25,7 @@ import { ActivityLine } from '@/src/components/ActivityLine';
 import type { ActivityKind } from '@/src/store/selectors';
 import { EmptyState } from '@/src/components/EmptyState';
 import { Band, SectionLabel } from '@/src/components/Band';
-import { CollapsibleHeader, HeaderAvatar } from '@/src/components/CollapsibleHeader';
+import { CollapsibleHeader, HeaderAvatar, useHeaderPadding } from '@/src/components/CollapsibleHeader';
 import { hapticSelection } from '@/src/utils/haptics';
 import { syncedNow } from '@/src/utils/syncedClock';
 
@@ -44,6 +44,7 @@ function relativeTime(ts: number): string {
 
 export default function ActivityScreen() {
   const { t } = useTranslation();
+  const headerPad = useHeaderPadding();
   const scheme = useColorScheme() ?? 'light';
   const c = Colors[scheme];
   const { currentUser } = useAuthStore();
@@ -122,7 +123,7 @@ export default function ActivityScreen() {
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
         onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: false })}
-        contentContainerStyle={{ paddingTop: Spacing.headerH, paddingBottom: 120 }}
+        contentContainerStyle={{ paddingTop: headerPad, paddingBottom: 120 }}
       >
         <Text style={[Typography.display, styles.title, { color: c.text }]}>{t('activity.title')}</Text>
 
@@ -270,7 +271,10 @@ function EventRow({
           styles.row,
           {
             borderBottomWidth: last ? 0 : 1,
-            borderBottomColor: c.hair2,
+            // `hair` y no `hair2`: el divisor tenue está calibrado para filas de
+            // una línea, y estas llevan dos más el timestamp. A esa altura el
+            // 5,5% se pierde y las filas se leen como una sola.
+            borderBottomColor: c.hair,
             backgroundColor: opts.warn ? c.semantic.warningSoft : 'transparent',
           },
           pressed && { backgroundColor: c.bgGrouped },

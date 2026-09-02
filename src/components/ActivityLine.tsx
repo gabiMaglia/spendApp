@@ -31,7 +31,14 @@ export function ActivityLine({ who, action, subject, ts }: ActivityLineProps) {
 
   return (
     <View style={{ flex: 1, minWidth: 0 }}>
-      <Text style={[Typography.bodyM, { color: c.text, lineHeight: 20 }]}>
+      {/* **Dos renglones como techo.** Sin esto, una descripción larga junto al
+          nombre del grupo se parte en tres o cuatro, la fila se estira, y el
+          separador —pensado para filas de una línea— deja de alcanzar para
+          distinguir dónde termina una y empieza la otra. Reportado por el PO
+          después del reskin: «no deja ver dónde termina una noti y empieza
+          otra». Se corta el texto, no se achica la tipografía: lo que importa
+          es quién y qué, y eso entra siempre al principio. */}
+      <Text numberOfLines={2} style={[Typography.bodyM, { color: c.text, lineHeight: 20 }]}>
         <Text style={{ fontWeight: '700' }}>{who}</Text>
         {` ${action} `}
         <Text style={{ color: c.textSecondary }}>{subject}</Text>

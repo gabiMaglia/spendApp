@@ -26,7 +26,7 @@ import { CurrencyPicker } from '@/src/components/CurrencyPicker';
 import { useCurrenciesInUse } from '@/src/store/currenciesInUse';
 import { needsRates, readCache } from '@/src/services/fx';
 import { Band, BandRow, SectionLabel, Segmented, SoonBadge } from '@/src/components/Band';
-import { CollapsibleHeader } from '@/src/components/CollapsibleHeader';
+import { CollapsibleHeader, useHeaderPadding } from '@/src/components/CollapsibleHeader';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Sharing from 'expo-sharing';
 import { File, Paths } from 'expo-file-system';
@@ -36,6 +36,7 @@ import {
 
 export default function UserScreen() {
   const scheme = useColorScheme() ?? 'light';
+  const headerPad = useHeaderPadding();
   const c = Colors[scheme];
   const { t, i18n } = useTranslation();
   const { currentUser, isPro, signOut } = useAuthStore();
@@ -154,7 +155,7 @@ export default function UserScreen() {
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
         onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: false })}
-        contentContainerStyle={{ paddingTop: Spacing.headerH, paddingBottom: 120 }}
+        contentContainerStyle={{ paddingTop: headerPad, paddingBottom: 120 }}
       >
         <Text style={[Typography.display, styles.title, { color: c.text }]}>{t('profile.title')}</Text>
 
