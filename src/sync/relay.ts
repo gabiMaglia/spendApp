@@ -26,30 +26,42 @@ const URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const ANON = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 
 /**
- * Tope del ADR (256 KB), replicado como CHECK en la tabla.
+ * Tope del sobre: **1 MB**, replicado como CHECK en la tabla y en la policy de
+ * INSERT (`supabase/006_payload_limit.sql`, corrida por el PO el 2026-09-01).
  *
- * **OJO: el presupuesto real de datos NO son 256 KB, son ~196 KB.** Lo que se
- * mide acá es el payload que llega a `publish`, y ése ya viene en base64:
+ * **Este número tiene que moverse junto con los dos del SQL, y el servidor
+ * primero.** Al revés, la app cree que puede mandar 1 MB, choca contra un
+ * servidor más chico y el publish falla.
+ *
+ * **OJO: el presupuesto real de datos NO es 1 MB, son ~786 KB.** Lo que se mide
+ * acá es el payload que llega a `publish`, y ése ya viene en base64:
  * `sealEnvelope` devuelve base64 (`envelopeCrypto.ts:61`), así que el JSON se
- * infla ×4/3 ANTES de compararse contra este número. Un delta de 200 KB de JSON
- * son 266 KB en el cable y se rechaza.
+ * infla ×4/3 ANTES de compararse contra este número. Costó descubrirlo dos
+ * veces (T-056/T-058) y no estaba escrito en ningún lado.
  *
- * Está escrito acá porque costó descubrirlo dos veces (T-056/T-058) y no estaba
- * en ningún lado. Medido con arné real —stores sembrados, sellado y firmado—,
- * no estimado:
+ * **De dónde salían los 256 KB viejos:** de una línea del engram marcada «no
+ * verificados, verificar en el spike», heredada de los límites de Supabase
+ * *Realtime* — y los sobres no viajan por Realtime, se leen por REST. Se probó
+ * el proyecto real con sondas de 1 KB a 8 MB y ninguna dio 413. **El tope
+ * siempre fue nuestro.**
+ *
+ * Medido con arné real —stores sembrados, sellado y firmado—, no estimado
+ * (`__tests__/tamanoDelSobre.bench.test.ts`):
  *
  * | Grupo                          | En el cable | % del tope |
  * |--------------------------------|-------------|------------|
- * | 5 personas, 30 gastos          |    89 KB    |     34 %   |
- * | 5 personas, 200 gastos (6 m)   |   320 KB    |    122 %   |
- * | 8 personas, 500 gastos         |   868 KB    |    331 %   |
+ * | 5 personas, 30 gastos          |    86 KB    |      8 %   |
+ * | 5 personas, 200 gastos (6 m)   |   313 KB    |     31 %   |
+ * | 5 personas, 700 gastos         |   982 KB    |     96 %   |
+ * | 8 personas, 700 gastos         |  1190 KB    |    116 %   |
  *
- * O sea: **un grupo ordinario ya lo pasa**, y quitarle todas las fotos NO lo
- * salva (105 %) — el término dominante son los gastos. Ver T-058 en el backlog;
- * la solución no es filtrar por fecha (el sobre lleva ESTADO a propósito, y tres
+ * O sea: **la pared se corrió de ~160 gastos a ~720, no desapareció.** El sobre
+ * sigue creciendo O(gastos) y sigue habiendo un número a partir del cual el
+ * grupo deja de sincronizar para siempre. El arreglo de fondo es ADR-007; la
+ * solución NO es filtrar por fecha (el sobre lleva ESTADO a propósito, y tres
  * mecanismos dependen de eso).
  */
-export const MAX_PAYLOAD_BYTES = 262_144;
+export const MAX_PAYLOAD_BYTES = 1_048_576;
 
 export type Envelope = {
   seq: number;

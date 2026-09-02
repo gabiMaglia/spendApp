@@ -98,18 +98,37 @@ describe('presupuesto real del sobre', () => {
   });
 
   /**
-   * **Este es el hallazgo de T-058.** No falla el test: documenta el número, y
-   * si algún día un cambio lo hace entrar, este aserto se cae y obliga a mirar
-   * por qué — que es justo lo que queremos que pase.
+   * **El hallazgo de T-058, y su desenlace.**
+   *
+   * Hasta el 2026-09-01 este test exigía lo CONTRARIO —que 5 personas con 200
+   * gastos NO entraran, al 122%— y decía por escrito: «si algún día un cambio
+   * lo hace entrar, este aserto se cae y obliga a mirar por qué». Pasó
+   * exactamente eso: el PO corrió `006_payload_limit.sql` y el tope subió de
+   * 256 KB a 1 MB. El mismo grupo ahora va al **30,6%**.
+   *
+   * Se invierte el aserto en vez de borrarlo: el número que importa sigue
+   * siendo éste, y que un grupo ordinario entre con aire es justamente lo que
+   * hay que defender de una regresión.
    */
-  it('un grupo de 5 personas con 6 meses de uso NO entra', () => {
-    const r = medir(5, 200);
-    expect(r.porcentaje).toBeGreaterThan(100);
+  it('un grupo de 5 personas con 6 meses de uso YA entra, con aire', () => {
+    expect(medir(5, 200).porcentaje).toBeLessThan(40);
   });
 
-  it('quitarle TODAS las fotos no lo salva: pesan los gastos, no los avatares', () => {
-    // Es la razón por la que el arreglo no puede ser "achicar los avatares".
-    expect(medir(5, 200, false).porcentaje).toBeGreaterThan(100);
+  it('y entra igual sin ninguna foto: el margen no lo daban los avatares', () => {
+    expect(medir(5, 200, false).porcentaje).toBeLessThan(40);
+  });
+
+  /**
+   * **Dónde está la pared ahora.** Subir el tope compró tiempo, no lo arregló:
+   * el sobre sigue creciendo O(gastos) y sigue habiendo un número a partir del
+   * cual el grupo deja de sincronizar para siempre. Está acá para que el día
+   * que alguien lo cruce, lo cruce sabiendo.
+   *
+   * 5 personas ≈ 720 gastos · 8 personas ≈ 600. El arreglo de fondo es ADR-007.
+   */
+  it('la pared se corrió, no desapareció', () => {
+    expect(medir(5, 700).porcentaje).toBeLessThan(100);
+    expect(medir(8, 700).porcentaje).toBeGreaterThan(100);
   });
 
   it('el sobre crece con la cantidad de gastos, sin techo', () => {
@@ -121,3 +140,4 @@ describe('presupuesto real del sobre', () => {
     expect(porGasto).toBeGreaterThan(500);
   });
 });
+

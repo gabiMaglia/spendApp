@@ -35,7 +35,7 @@ jest.mock('../relay', () => {
     __buzones: buzones,
     __estado: estado,
     __reset: () => { buzones.clear(); seq = 0; estado.sinRed = false; },
-    MAX_PAYLOAD_BYTES: 262_144,
+    MAX_PAYLOAD_BYTES: 1_048_576,
     isRelayConfigured: () => true,
     subscribeTopic: () => () => {},
     sendEnvelope: async (topic: string, payload: string, sender: string) => {

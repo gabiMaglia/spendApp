@@ -24,7 +24,7 @@ describe('byteLength — bytes reales, no unidades UTF-16', () => {
   });
 
   it('el tope coincide con el CHECK de la tabla (256 KB)', () => {
-    expect(MAX_PAYLOAD_BYTES).toBe(262144);
+    expect(MAX_PAYLOAD_BYTES).toBe(1048576);
   });
 });
 
