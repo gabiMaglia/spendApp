@@ -36,6 +36,18 @@ const INVENTARIO: Record<string, string> = {
   restored:  'alguien restauró un gasto que yo tenía borrado',
   joined:    'nos entregaron la clave de un grupo nuevo',
   settled:   'alguien registró un saldo que me involucra',
+  /**
+   * **El único de la lista que pide hacer algo, y entra igual — con una razón.**
+   *
+   * La regla del casillero dice «sin nada que decidir», y acá hay que decidir.
+   * Pero lo que llega a la bandeja no es la decisión: es **enterarse**. La
+   * decisión se toma en la fila del pago, con el monto y la persona delante.
+   * Un modal en el arranque para esto sería justo lo que el PO pidió no hacer.
+   *
+   * Sin este aviso, D2 del plan de T-064 —el pendiente no vence nunca— dejaría
+   * el saldado esperando a alguien que no se enteró de que lo esperan.
+   */
+  settlement_pending: 'alguien dice que me pagó y falta que yo lo confirme',
   sync_down: 'un grupo dejó de sincronizar por algo que no se arregla esperando',
 };
 
@@ -102,6 +114,7 @@ describe('el texto de los avisos nuevos, en es/en/pt', () => {
   it.each([
     ['notifications.restored', '{{description}}'],
     ['notifications.sync_down_title', '{{group}}'],
+    ['notifications.settlement_pending', '{{amount}}'],
   ])('%s lleva su interpolado en los tres idiomas', (clave, marca) => {
     const [seccion, k] = clave.split('.');
     for (const [lang, dict] of Object.entries(dicts)) {
@@ -112,6 +125,7 @@ describe('el texto de los avisos nuevos, en es/en/pt', () => {
   it.each([
     ['notifications', 'restored'],
     ['notifications', 'sync_down_title'],
+    ['notifications', 'settlement_pending'],
     ['sync', 'failure_too_large'],
     ['sync', 'failure_no_key'],
   ])('%s.%s está traducido, no copiado del español', (seccion, k) => {

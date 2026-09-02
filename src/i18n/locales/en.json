@@ -714,6 +714,7 @@
     "inbox_open": "View notifications",
     "inbox_gone": "That's no longer available",
     "settled": "{{name}} recorded a settlement of {{amount}}",
+    "settlement_pending": "Someone says they paid you {{amount}}. Confirm whether you received it.",
     "sync_down_title": "«{{group}}» stopped syncing"
   },
   "fx": {

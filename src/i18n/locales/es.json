@@ -714,6 +714,7 @@
     "inbox_open": "Ver notificaciones",
     "inbox_gone": "Eso ya no está disponible",
     "settled": "{{name}} registró un saldo de {{amount}}",
+    "settlement_pending": "Alguien dice que te pagó {{amount}}. Confirmá si lo recibiste.",
     "sync_down_title": "«{{group}}» dejó de sincronizar"
   },
   "fx": {

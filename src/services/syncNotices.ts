@@ -1,6 +1,7 @@
 import type { CurrencyCode } from '@/src/constants/currencies';
 import type { Expense, Group, Payment } from '@/src/types/models';
 import { deletionRound } from '@/src/algorithms/deletionRound';
+import { requiereConfirmacion } from '@/src/algorithms/settlementStatus';
 // Sólo el tipo: `publishHealth` no puede entrar al grafo de módulos de acá.
 import type { BlockingReason } from '@/src/sync/publishHealth';
 
@@ -47,6 +48,21 @@ export type Notice =
    * sería contarle al usuario algo que acaba de hacer.
    */
   | { kind: 'settled'; groupId: string; groupName: string; amount: number; currency: CurrencyCode }
+  /**
+   * Alguien dice que me pagó y **falta que yo lo confirme** (T-064).
+   *
+   * Es el mismo evento que `settled` visto desde el otro lado del mostrador, y
+   * por eso son excluyentes: en un grupo consensuado, quien cobra recibe ESTE
+   * aviso —que pide una acción— y no el otro, que sólo informa. Mandar los dos
+   * por un solo pago sería contarle dos veces lo mismo y dejarle sin saber cuál
+   * atender.
+   *
+   * Es el único aviso de la bandeja que pide hacer algo, y sin él D2 del plan
+   * —el pendiente no vence nunca— deja al saldado esperando a alguien que no se
+   * enteró de que lo esperan.
+   */
+  | { kind: 'settlement_pending'; groupId: string; groupName: string; paymentId: string;
+      amount: number; currency: CurrencyCode }
   /**
    * Este grupo dejó de sincronizar por algo que NO se arregla esperando
    * (T-058). El banner del detalle del grupo ya lo dice, pero es contextual: si
@@ -187,13 +203,28 @@ export function noticesFor(
       mios.has(p.groupId) &&
       p.createdById !== currentUserId &&
       (p.fromUserId === currentUserId || p.toUserId === currentUserId))
-    .map(p => ({
-      kind: 'settled' as const,
-      groupId: p.groupId,
-      groupName: nombre(p.groupId),
-      amount: p.amount,
-      currency: p.currency,
-    }));
+    .map((p): Notice => {
+      // En un grupo consensuado, quien COBRA no recibe un aviso informativo:
+      // recibe el que le pide confirmar. Ver `settlement_pending`.
+      const grupo = groups.find(g => g.id === p.groupId);
+      if (p.toUserId === currentUserId && requiereConfirmacion(p, grupo)) {
+        return {
+          kind: 'settlement_pending' as const,
+          groupId: p.groupId,
+          groupName: nombre(p.groupId),
+          paymentId: p.id,
+          amount: p.amount,
+          currency: p.currency,
+        };
+      }
+      return {
+        kind: 'settled' as const,
+        groupId: p.groupId,
+        groupName: nombre(p.groupId),
+        amount: p.amount,
+        currency: p.currency,
+      };
+    });
 
   return [...porGastos, ...pedidosDeBorrado, ...restauraciones, ...saldos];
 }

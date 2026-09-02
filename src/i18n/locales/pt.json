@@ -714,6 +714,7 @@
     "inbox_open": "Ver notificações",
     "inbox_gone": "Isso já não está disponível",
     "settled": "{{name}} registrou uma quitação de {{amount}}",
+    "settlement_pending": "Alguém diz que te pagou {{amount}}. Confirme se você recebeu.",
     "sync_down_title": "«{{group}}» parou de sincronizar"
   },
   "fx": {

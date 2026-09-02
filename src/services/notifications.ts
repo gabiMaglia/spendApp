@@ -138,6 +138,10 @@ export function isEnabled(notice: Notice): boolean {
     case 'restored': return s.notifDeletions;
     case 'joined':   return s.notifInvites;
     case 'settled':  return s.notifSettlements;
+    // Mismo dominio que `settled`, mismo toggle: son el mismo evento visto
+    // desde los dos lados. Dos interruptores darían la forma de apagar
+    // justamente el que pide hacer algo y dejar prendido el que sólo informa.
+    case 'settlement_pending': return s.notifSettlements;
     /**
      * **Sin toggle, a propósito.** «Este grupo dejó de sincronizar» no es una
      * preferencia: es la app admitiendo que dejó de hacer lo suyo, y es el caso
@@ -182,6 +186,15 @@ export function textFor(notice: Notice): { title: string; body: string } {
           name: '',
           amount: formatMoney(notice.amount, notice.currency),
         }).trim(),
+      };
+    case 'settlement_pending':
+      return {
+        title: notice.groupName,
+        // El monto va con SU moneda, no con la de visualización: acá el número
+        // es lo que la persona tiene que reconocer como recibido o no.
+        body: t('notifications.settlement_pending', {
+          amount: formatMoney(notice.amount, notice.currency),
+        }),
       };
     case 'sync_down':
       return {
