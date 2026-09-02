@@ -11,7 +11,9 @@ import { UserAvatar } from './UserAvatar';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useSettingsStore } from '@/src/store/settingsStore';
-import { useNoticeInboxStore, type StoredNotice } from '@/src/store/noticeInboxStore';
+import {
+  useNoticeInboxStore, useUnreadNoticeCount, type StoredNotice,
+} from '@/src/store/noticeInboxStore';
 import { hapticLight } from '@/src/utils/haptics';
 
 /**
@@ -43,7 +45,7 @@ export function TabHeader({ title, scrollY }: { title: string; scrollY: Animated
   const groups      = useGroupStore(s => s.groups);
 
   const inboxItems  = useNoticeInboxStore(s => s.items);
-  const sinLeer     = useNoticeInboxStore(s => s.unreadCount)();
+  const sinLeer     = useUnreadNoticeCount();
   const markRead    = useNoticeInboxStore(s => s.markRead);
   const markAllRead = useNoticeInboxStore(s => s.markAllRead);
 

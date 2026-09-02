@@ -41,7 +41,16 @@ export default function IdentityDebugScreen() {
   const scheme = useColorScheme() ?? 'light';
   const c = Colors[scheme];
 
-  const snapshot = useAuthStore(st => st.identitySnapshot)();
+  /**
+   * `identitySnapshot` lee de MMKV, no del estado del store, así que
+   * seleccionarlo y llamarlo no suscribe a nada: leía disco en CADA render y
+   * nunca se actualizaba al cambiar de cuenta. Es la misma forma rota que el
+   * contador de avisos, encontrada por el guard de `sinLeerDelStore`.
+   *
+   * `useLiveValue` es lo que esta misma pantalla ya usa para los contadores de
+   * la fase B, por la misma razón: valores que viven fuera de React.
+   */
+  const snapshot = useLiveValue(() => useAuthStore.getState().identitySnapshot());
   const groups = useGroupStore(st => st.groups);
   const expenses = useExpenseStore(st => st.expenses);
 

@@ -49,6 +49,17 @@ interface NoticeInboxState {
   clear: () => void;
 }
 
+/**
+ * **Qué cuenta como «sin leer». Una sola definición.**
+ *
+ * La usan el hook de React y el método del store, que antes tenían la misma
+ * cuenta escrita dos veces — la clase de duplicación que ya nos costó T-055,
+ * T-057 y T-060.
+ */
+export function contarSinLeer(items: readonly StoredNotice[]): number {
+  return items.reduce((n, i) => n + (i.readAt === null ? 1 : 0), 0);
+}
+
 export function createNoticeInboxStore() {
   return create<NoticeInboxState>((set, get) => {
     const persist = (items: StoredNotice[]) => {
@@ -89,7 +100,7 @@ export function createNoticeInboxStore() {
         set({ items });
       },
 
-      unreadCount: () => get().items.reduce((n, i) => n + (i.readAt === null ? 1 : 0), 0),
+      unreadCount: () => contarSinLeer(get().items),
 
       hydrate: () => {
         const raw = readScoped(storage, KEY);
@@ -108,3 +119,27 @@ export function createNoticeInboxStore() {
 }
 
 export const useNoticeInboxStore = createNoticeInboxStore();
+
+/**
+ * **El contador de avisos sin leer, para la UI.**
+ *
+ * Existe porque el patrón anterior estaba roto de dos formas a la vez:
+ *
+ * ```ts
+ * const sinLeer = useNoticeInboxStore(s => s.unreadCount)();
+ * ```
+ *
+ * 1. **Se suscribe a la FUNCIÓN**, cuya referencia nunca cambia. Esa
+ *    suscripción no dispara un re-render nunca; lo que redibujaba el badge era
+ *    otra suscripción del mismo componente, por casualidad.
+ * 2. **`unreadCount()` lee `get()` durante el render**, salteándose el snapshot
+ *    suscrito. Con seis headers montados a la vez, cada uno puede renderizar
+ *    contra un estado distinto — y el PO vio exactamente eso: contadores
+ *    distintos en tabs distintas.
+ *
+ * Acá se selecciona el NÚMERO. Zustand vuelve a renderizar cuando el número
+ * cambia, y todos los headers leen el mismo snapshot.
+ */
+export function useUnreadNoticeCount(): number {
+  return useNoticeInboxStore(s => contarSinLeer(s.items));
+}
