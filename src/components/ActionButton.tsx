@@ -7,7 +7,7 @@ import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
-export type ActionButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
+export type ActionButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'plain';
 export type ActionButtonSize = 'sm' | 'md' | 'lg';
 
 export interface ActionButtonProps {
@@ -56,11 +56,25 @@ export function ActionButton({
   const c = Colors[scheme];
   const inactivo = disabled || loading;
 
-  const paleta: Record<ActionButtonVariant, { bg: string; fg: string; border: string }> = {
+  const paleta: Record<
+    ActionButtonVariant,
+    { bg: string; fg: string; border: string; fgOpacity?: number }
+  > = {
     primary:   { bg: c.brand.primary,  fg: '#FFFFFF',          border: c.brand.primary },
     secondary: { bg: 'transparent',    fg: c.brand.primary,    border: c.brand.primary },
     ghost:     { bg: c.surfaceSunken,  fg: c.text,             border: 'transparent' },
     danger:    { bg: 'transparent',    fg: c.semantic.negative, border: c.semantic.negative },
+    /**
+     * Sin caja: letras sueltas, atenuadas, sobre el fondo de quien lo aloje.
+     *
+     * Existe para las afordancias que viven DENTRO de otro control y no deben
+     * competir con él —el "MAX" del input de monto es el caso—, donde un chip
+     * con fondo pelea visualmente con el número, que es lo que el usuario está
+     * mirando. Sin padding horizontal a propósito: el que lo usa fija la
+     * separación con el `gap` de su fila y le sale el número que pidió, no ese
+     * número más el padding de adentro.
+     */
+    plain:     { bg: 'transparent',    fg: c.text,             border: 'transparent', fgOpacity: 0.5 },
   };
   const p = paleta[variant];
 
@@ -75,10 +89,13 @@ export function ActionButton({
       // `sm` es más chico que el objetivo táctil mínimo por definición: el
       // hitSlop lo compensa acá y no en cada pantalla que lo use, que es donde
       // se olvidaría.
-      hitSlop={size === 'sm' ? 10 : undefined}
+      // `plain` no tiene padding NI fondo, así que lo tocable es literalmente el
+      // alto del texto: necesita más hitSlop que `sm` para llegar a los 44.
+      hitSlop={variant === 'plain' ? 16 : size === 'sm' ? 10 : undefined}
       style={[
         styles.base,
         size === 'lg' ? styles.lg : size === 'sm' ? styles.sm : styles.md,
+        variant === 'plain' && styles.plain,
         full && { alignSelf: 'stretch' },
         { backgroundColor: p.bg, borderColor: p.border },
         inactivo && styles.inactivo,
@@ -90,7 +107,13 @@ export function ActionButton({
         : icon && <Ionicons name={icon} size={size === 'lg' ? 20 : size === 'sm' ? 14 : 18} color={p.fg} />}
 
       <View style={size === 'sm' ? undefined : styles.textos}>
-        <Text style={[size === 'sm' ? Typography.caption : Typography.bodyM, { color: p.fg, fontWeight: '700' }]} numberOfLines={1}>
+        <Text
+          style={[
+            size === 'sm' ? Typography.caption : Typography.bodyM,
+            { color: p.fg, fontWeight: '700', opacity: p.fgOpacity ?? 1 },
+          ]}
+          numberOfLines={1}
+        >
           {label}
         </Text>
         {sub && (
@@ -118,5 +141,9 @@ const styles = StyleSheet.create({
   lg:       { paddingVertical: 16, paddingHorizontal: Spacing[5], minHeight: 52 },
   // El texto empuja la flecha al borde y deja el ícono pegado a la izquierda.
   textos:   { flex: 1, gap: 1 },
+  // Ni caja ni padding lateral: la separación la pone la fila que lo contiene.
+  // El `hitSlop` de `sm` sigue dando el área táctil, que acá es lo único que
+  // queda entre el dedo y un texto de 12px.
+  plain:    { paddingHorizontal: 0, paddingVertical: 0, borderWidth: 0 },
   inactivo: { opacity: 0.45 },
 });

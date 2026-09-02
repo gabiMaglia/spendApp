@@ -54,6 +54,40 @@ describe('ActionButton', () => {
   });
 });
 
+// `plain` se dibuja como texto suelto: sin caja, sin borde, atenuado. Es
+// exactamente la variante en la que es fácil que quede de adorno, así que lo
+// que se prueba es lo único que la distingue de un `<Text>`.
+describe('variante plain', () => {
+  it('responde al toque igual que cualquier otro botón', () => {
+    const accion = jest.fn();
+    const { getByText } = render(
+      <ActionButton action={accion} label="MAX" variant="plain" size="sm" />,
+    );
+    fireEvent.press(getByText('MAX'));
+    expect(accion).toHaveBeenCalledTimes(1);
+  });
+
+  it('deshabilitado no dispara', () => {
+    const accion = jest.fn();
+    const { getByTestId } = render(
+      <ActionButton action={accion} label="MAX" variant="plain" size="sm" disabled testID="max" />,
+    );
+    fireEvent.press(getByTestId('max'));
+    expect(accion).not.toHaveBeenCalled();
+  });
+
+  it('sigue siendo un botón para el lector de pantalla', () => {
+    const { getByTestId } = render(
+      <ActionButton
+        action={() => {}} label="MAX" variant="plain" size="sm"
+        testID="max" accessibilityLabel="Poner toda la deuda"
+      />,
+    );
+    expect(getByTestId('max').props.accessibilityRole).toBe('button');
+    expect(getByTestId('max').props.accessibilityLabel).toBe('Poner toda la deuda');
+  });
+});
+
 describe('ButtonRack', () => {
   it('renderiza los botones que le pasan', () => {
     const { getByText } = render(

@@ -126,8 +126,13 @@ describe('el monto llega puesto', () => {
   it('sin deuda no se ofrece el atajo', () => {
     useExpenseStore.setState({ expenses: [] });
 
-    const { queryByText } = render(<SettleNewScreen />);
+    const { queryByText, queryByTestId } = render(<SettleNewScreen />);
     expect(queryByText(/settle\.whole_debt/)).toBeNull();
+    // MAX volvió a la fila del monto (PO 2026-09-01) y por eso dejó de heredar
+    // la condición de la fila de la deuda: ahora la repite. Dos copias de
+    // `deudaTotal > 0` pueden separarse — un MAX que aparece sin deuda pone un
+    // cero en el input y habilita guardar. Esto ata las dos.
+    expect(queryByTestId('settle-max')).toBeNull();
   });
 
   // Mejor decirlo que dejar un formulario mudo con un cero.

@@ -149,7 +149,6 @@ export default function SettleNewScreen() {
   );
 
   const todoSaldado = balancesDelGrupo.length > 0 && balancesDelGrupo.every(b => b.amount === 0);
-  const yaEsElTotal = deudaTotal > 0 && amount === deudaTotal;
 
   /**
    * El monto llega YA PUESTO al elegir a la persona, como en Splitwise: saldar
@@ -320,26 +319,39 @@ export default function SettleNewScreen() {
               {currency}
             </Text>
             <View style={styles.amountRow}>
-              <Text style={[styles.currencySymbol, { color: c.textTertiary }]}>$</Text>
-              <TextInput
-                value={amountStr}
-                onChangeText={setAmountStr}
-                onBlur={onAmountBlur}
-                keyboardType="decimal-pad"
-                placeholder="0"
-                placeholderTextColor={c.textTertiary}
-                style={[Typography.amountXL, { color: exceedsMax ? c.semantic.negative : c.text }]}
-                returnKeyType="done"
-              />
+              <View style={styles.amountGroup}>
+                <Text style={[styles.currencySymbol, { color: c.textTertiary }]}>$</Text>
+                <TextInput
+                  value={amountStr}
+                  onChangeText={setAmountStr}
+                  onBlur={onAmountBlur}
+                  keyboardType="decimal-pad"
+                  placeholder="0"
+                  placeholderTextColor={c.textTertiary}
+                  style={[Typography.amountXL, { color: exceedsMax ? c.semantic.negative : c.text }]}
+                  returnKeyType="done"
+                />
+              </View>
+              {deudaTotal > 0 && (
+                <ActionButton
+                  testID="settle-max"
+                  size="sm"
+                  variant="plain"
+                  label={t('settle.max')}
+                  accessibilityLabel={t('settle.max_a11y')}
+                  action={() => { hapticSelection(); setAmountMinor(tope); }}
+                />
+              )}
             </View>
-            {/* La deuda y su atajo, en una fila propia de ancho completo.
-                MAX estuvo dentro de la fila del monto y se cortaba en pantallas
-                angostas: competía por el ancho con una tipografía enorme dentro
-                de un contenedor centrado, que no se estira. Acá está siempre
-                visible y, además, pegado al número que va a poner. */}
+            {/* Sólo la deuda pendiente: el atajo MAX volvió arriba, al lado del
+                número que va a escribir (pedido del PO). Lo que lo había echado
+                de ahí era que se cortaba en pantallas angostas — la fila se
+                encogía al contenido dentro de una tarjeta centrada. Eso ahora
+                no puede pasar: la fila es `stretch` y el que cede ancho es el
+                monto (`flexShrink: 1`), nunca el botón. */}
             {deudaTotal > 0 && (
               <View style={styles.outstandingRow}>
-                <View testID="settle-outstanding" style={{ flexDirection: 'row', gap: 6, flex: 1 }}>
+                <View testID="settle-outstanding" style={{ flexDirection: 'row', gap: 6 }}>
                   <Text style={[Typography.bodyS, { color: c.textTertiary }]} numberOfLines={1}>
                     {t('settle.outstanding_label')}
                   </Text>
@@ -350,14 +362,6 @@ export default function SettleNewScreen() {
                     {formatMoney(deudaTotal, currency)}
                   </Text>
                 </View>
-                <ActionButton
-                  testID="settle-max"
-                  size="sm"
-                  variant={yaEsElTotal ? 'secondary' : 'ghost'}
-                  label={t('settle.max')}
-                  accessibilityLabel={t('settle.max_a11y')}
-                  action={() => { hapticSelection(); setAmountMinor(tope); }}
-                />
               </View>
             )}
 
@@ -566,13 +570,22 @@ const styles = StyleSheet.create({
     borderRadius: Radius.lg, borderWidth: 1,
     paddingVertical: 20, alignItems: 'center', gap: 4,
   },
-  amountRow:      { flexDirection: 'row', alignItems: 'flex-end', gap: 6 },
+  // `stretch` + `center`: la fila ocupa todo el ancho de la tarjeta y centra su
+  // contenido, en vez de encogerse a él. Es lo que impide que MAX se salga por
+  // el borde cuando el monto es largo — antes la fila crecía con el número.
+  amountRow:      {
+    alignSelf: 'stretch', flexDirection: 'row',
+    alignItems: 'flex-end', justifyContent: 'center',
+    gap: Spacing[4], paddingHorizontal: Spacing[4],
+  },
+  // El monto es el que cede ancho si no entra todo; MAX no se toca.
+  amountGroup:    { flexDirection: 'row', alignItems: 'flex-end', gap: 6, flexShrink: 1 },
   // Ancho completo dentro de una tarjeta centrada: sin `alignSelf: stretch` la
   // fila se encoge al contenido y el botón se sale del borde.
   outstandingRow: {
     alignSelf: 'stretch', flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'space-between', gap: 8,
-    paddingHorizontal: 16, marginTop: 8,
+    justifyContent: 'center', gap: 8,
+    paddingHorizontal: Spacing[4], marginTop: 8,
   },
   currencySymbol: { fontSize: 28, fontWeight: '400', lineHeight: 48, paddingBottom: 6 },
   maxHint:        {
