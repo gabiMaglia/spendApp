@@ -3,6 +3,7 @@ import { formatMoney } from '@/src/constants/currencies';
 import { useSettingsStore } from '@/src/store/settingsStore';
 import type { Notice } from './syncNotices';
 import { useNoticeInboxStore } from '@/src/store/noticeInboxStore';
+import { claveDeFalloDeSync } from '@/src/sync/publishHealth';
 
 /**
  * Entrega de notificaciones locales (T-010).
@@ -131,8 +132,20 @@ export function isEnabled(notice: Notice): boolean {
   switch (notice.kind) {
     case 'expenses': return s.notifExpenses;
     case 'deletion': return s.notifDeletions;
+    // Restaurar es la contraparte de borrar: mismo dominio, mismo toggle. Dos
+    // interruptores para las dos mitades de una misma ronda sólo darían la
+    // forma de apagar la buena noticia y dejar la mala.
+    case 'restored': return s.notifDeletions;
     case 'joined':   return s.notifInvites;
     case 'settled':  return s.notifSettlements;
+    /**
+     * **Sin toggle, a propósito.** «Este grupo dejó de sincronizar» no es una
+     * preferencia: es la app admitiendo que dejó de hacer lo suyo, y es el caso
+     * donde no saber sale más caro (T-058: el grupo deja de viajar para
+     * siempre). Avisa UNA vez por caída —`syncDownNotices` se encarga— así que
+     * no puede volverse la clase de ruido que un toggle existe para apagar.
+     */
+    case 'sync_down': return true;
   }
 }
 
@@ -150,6 +163,11 @@ export function textFor(notice: Notice): { title: string; body: string } {
         title: notice.groupName,
         body: t('notifications.deletion_requested', { description: notice.description }),
       };
+    case 'restored':
+      return {
+        title: notice.groupName,
+        body: t('notifications.restored', { description: notice.description }),
+      };
     case 'joined':
       return {
         title: t('notifications.joined_title'),
@@ -164,6 +182,15 @@ export function textFor(notice: Notice): { title: string; body: string } {
           name: '',
           amount: formatMoney(notice.amount, notice.currency),
         }).trim(),
+      };
+    case 'sync_down':
+      return {
+        // El grupo va en el TÍTULO junto al hecho: «Asado» solo, como en los
+        // demás, escondería lo único que importa leer de un vistazo.
+        title: t('notifications.sync_down_title', { group: notice.groupName }),
+        // Mismo texto que el banner del grupo, de la misma función. Dos
+        // redacciones para el mismo problema se contradicen sin que nadie mire.
+        body: t(claveDeFalloDeSync(notice.reason)),
       };
   }
 }

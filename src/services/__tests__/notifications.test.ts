@@ -113,3 +113,49 @@ describe('texto', () => {
     expect(new Set(cuerpos).size).toBe(3);
   });
 });
+
+const restaurado: Notice = { kind: 'restored', groupId: 'g1', groupName: 'Viaje', description: 'Pizza' };
+const caido: Notice = { kind: 'sync_down', groupId: 'g1', groupName: 'Viaje', reason: 'too_large' };
+
+describe('avisos nuevos', () => {
+  /** Restaurar es la contraparte de borrar: mismo toggle, mismo dominio. */
+  it('la restauración mira el toggle de borrados', () => {
+    useSettingsStore.setState({ notifDeletions: false });
+    expect(isEnabled(restaurado)).toBe(false);
+    useSettingsStore.setState({ notifDeletions: true });
+    expect(isEnabled(restaurado)).toBe(true);
+  });
+
+  /**
+   * «Este grupo dejó de sincronizar» no es una preferencia: es la app
+   * admitiendo que dejó de hacer lo suyo, y es el caso donde no saber sale más
+   * caro. Avisa una vez por caída, así que no puede volverse ruido.
+   */
+  it('el grupo caído no depende de ningún toggle', () => {
+    useSettingsStore.setState({
+      notifExpenses: false, notifDeletions: false, notifInvites: false, notifSettlements: false,
+    });
+    expect(isEnabled(caido)).toBe(true);
+  });
+
+  it('cada aviso nuevo tiene su propio texto', () => {
+    const textos = [restaurado, caido].map(n => textFor(n));
+    expect(textos.every(t => t.title && t.body)).toBe(true);
+    expect(new Set(textos.map(t => t.body)).size).toBe(2);
+  });
+
+  it('la restauración nombra el gasto', () => {
+    expect(textFor(restaurado).body).toContain('Pizza');
+  });
+
+  /**
+   * El cuerpo sale de la MISMA función que el banner del grupo
+   * (`claveDeFalloDeSync`). Dos textos escritos aparte se desincronizan: el
+   * usuario leería una cosa en la bandeja y otra al entrar al grupo.
+   */
+  it('el grupo caído dice qué pasó, distinto por razón', () => {
+    const otra = textFor({ ...caido, reason: 'no_key' } as Notice);
+    expect(textFor(caido).body).not.toBe(otra.body);
+    expect(textFor(caido).title).toContain('Viaje');
+  });
+});

@@ -23,6 +23,41 @@ import type { PublishResult } from './relaySync';
  */
 export type BlockingReason = 'too_large' | 'no_key';
 
+/**
+ * ¿Esta razón es de las que no se arreglan esperando?
+ *
+ * Única definición: la usan `blockingFailures` (qué mostrar en pantalla) y
+ * `syncDownNotices` (qué mandar a la bandeja). Escrita dos veces se
+ * desincroniza, y el modo de falla sería el peor posible — el banner diciendo
+ * que el grupo está caído y la bandeja callada, o al revés.
+ */
+export function esBloqueante(reason: string): reason is BlockingReason {
+  return reason === 'too_large' || reason === 'no_key';
+}
+
+/**
+ * La razón, como clave de i18n.
+ *
+ * `switch` exhaustivo DE VERDAD: el parámetro es la unión `BlockingReason`, no
+ * `string`, y no hay `default`. Si mañana aparece una tercera razón bloqueante,
+ * esto **deja de compilar** y obliga a decidir qué se le muestra al usuario, en
+ * vez de caer a un mensaje genérico que nadie escribió a propósito.
+ *
+ * La primera versión de esta función prometía exactamente eso en un comentario
+ * y no lo cumplía —`reason: string` más un `default` se lo comían todo—, que es
+ * el defecto que este proyecto viene persiguiendo: una protección declarada que
+ * no protege. Lo levantó el Arquitecto revisando T-058.
+ *
+ * Vive acá, junto al tipo, y no en el hook: el aviso de la bandeja necesita el
+ * mismo texto que el banner y no puede arrastrar React para conseguirlo.
+ */
+export function claveDeFalloDeSync(reason: BlockingReason): string {
+  switch (reason) {
+    case 'too_large': return 'sync.failure_too_large';
+    case 'no_key':    return 'sync.failure_no_key';
+  }
+}
+
 export type PublishFailure = {
   groupId: string;
   reason: string;
@@ -59,8 +94,7 @@ export function publishFailures(): PublishFailure[] {
  */
 export function blockingFailures(): (PublishFailure & { reason: BlockingReason })[] {
   return publishFailures().filter(
-    (f): f is PublishFailure & { reason: BlockingReason } =>
-      f.reason === 'too_large' || f.reason === 'no_key',
+    (f): f is PublishFailure & { reason: BlockingReason } => esBloqueante(f.reason),
   );
 }
 

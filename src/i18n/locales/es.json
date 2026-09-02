@@ -311,7 +311,8 @@
     "time_minutes_plural": "{{count}} minutos",
     "delete_body_open": "Se borra ahora. Cualquiera del grupo puede restaurarlo desde Actividad.",
     "delete_restored_title": "{{name}} restauró este gasto",
-    "delete_restored_body": "El borrado quedó sin efecto. Para volver a intentarlo hay que pedirlo de nuevo."
+    "delete_restored_body": "El borrado quedó sin efecto. Para volver a intentarlo hay que pedirlo de nuevo.",
+    "free_over": "Ya pasaste los gratis de hoy. Por ahora seguís cargando igual; más adelante hará falta ver un anuncio o activar Pro."
   },
   "settle": {
     "title": "Registrar pago",
@@ -703,6 +704,7 @@
     "new_expenses_one": "Se agregó 1 gasto nuevo",
     "new_expenses_other": "Se agregaron {{count}} gastos nuevos",
     "deletion_requested": "Pidieron borrar «{{description}}». Tenés 72hs para objetar.",
+    "restored": "Restauraron «{{description}}»",
     "joined_title": "Te agregaron a un grupo",
     "joined_body": "Ya podés ver «{{group}}»",
     "inbox_title": "Notificaciones",
@@ -711,7 +713,8 @@
     "inbox_mark_all": "Marcar todo como leído",
     "inbox_open": "Ver notificaciones",
     "inbox_gone": "Eso ya no está disponible",
-    "settled": "{{name}} registró un saldo de {{amount}}"
+    "settled": "{{name}} registró un saldo de {{amount}}",
+    "sync_down_title": "«{{group}}» dejó de sincronizar"
   },
   "fx": {
     "partial_title": "Hay saldo que no te estamos mostrando",

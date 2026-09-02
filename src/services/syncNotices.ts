@@ -1,6 +1,8 @@
 import type { CurrencyCode } from '@/src/constants/currencies';
 import type { Expense, Group, Payment } from '@/src/types/models';
 import { deletionRound } from '@/src/algorithms/deletionRound';
+// Sólo el tipo: `publishHealth` no puede entrar al grafo de módulos de acá.
+import type { BlockingReason } from '@/src/sync/publishHealth';
 
 /**
  * Qué avisar después de un sync (T-010).
@@ -28,6 +30,14 @@ export type Notice =
   | { kind: 'expenses'; groupId: string; groupName: string; count: number }
   /** Alguien pidió borrar un gasto y hay que opinar. */
   | { kind: 'deletion'; groupId: string; groupName: string; description: string }
+  /**
+   * Alguien deshizo un borrado que este teléfono ya había aplicado.
+   *
+   * Es la contraparte que faltaba: avisar el borrado y callar la restauración
+   * dejaba al usuario creyendo enterrado un gasto que volvió a contar en su
+   * balance. La mala noticia llegaba y la buena no.
+   */
+  | { kind: 'restored'; groupId: string; groupName: string; description: string }
   /** Entramos a un grupo nuevo (nos entregaron la clave). */
   | { kind: 'joined'; groupId: string; groupName: string }
   /**
@@ -36,7 +46,17 @@ export type Notice =
    * Sólo avisa de lo que registró OTRO: un pago propio ya se conoce, y avisarlo
    * sería contarle al usuario algo que acaba de hacer.
    */
-  | { kind: 'settled'; groupId: string; groupName: string; amount: number; currency: CurrencyCode };
+  | { kind: 'settled'; groupId: string; groupName: string; amount: number; currency: CurrencyCode }
+  /**
+   * Este grupo dejó de sincronizar por algo que NO se arregla esperando
+   * (T-058). El banner del detalle del grupo ya lo dice, pero es contextual: si
+   * no entrás a ESE grupo, no te enterás de que tus gastos no le están llegando
+   * a nadie. Es el caso donde no saber sale más caro.
+   *
+   * Quién decide que una caída merece aviso —y que avise UNA vez y no una por
+   * intento— vive en `sync/syncDownNotices.ts`.
+   */
+  | { kind: 'sync_down'; groupId: string; groupName: string; reason: BlockingReason };
 
 export type Snapshot = {
   /** Ids de gastos vivos conocidos ANTES de la bajada. */
@@ -45,6 +65,14 @@ export type Snapshot = {
   conBorradoAbierto: string[];
   /** Ids de pagos vivos conocidos ANTES. Sin esto, un saldo entraba al balance sin anunciarse. */
   paymentIds: string[];
+  /**
+   * Ids de gastos que este teléfono tenía BORRADOS.
+   *
+   * Es lo que convierte una restauración en un evento en vez de un estado: sin
+   * esto, un device que entra tarde y baja el historial completo anunciaría
+   * restauraciones de hace meses como si acabaran de pasar.
+   */
+  borrados: string[];
 };
 
 /** Una ronda abierta es la que existe, todavía no venció y nadie objetó. */
@@ -59,6 +87,7 @@ export function snapshot(expenses: Expense[], now: number, payments: Payment[] =
     expenseIds: vivos.map(e => e.id),
     conBorradoAbierto: vivos.filter(e => borradoPendiente(e, now)).map(e => e.id),
     paymentIds: payments.filter(p => !p.isDeleted).map(p => p.id),
+    borrados: expenses.filter(e => e.isDeleted).map(e => e.id),
   };
 }
 
@@ -78,19 +107,24 @@ export function noticesFor(
 ): Notice[] {
   const conocidos = new Set(before.expenseIds);
   const yaAbiertos = new Set(before.conBorradoAbierto);
+  const teniaBorrados = new Set(before.borrados);
   const nombre = (id: string) => groups.find(g => g.id === id)?.name ?? '';
 
   // Un grupo que no está en la lista no es mío: no se avisa nada de él.
   const mios = new Set(groups.filter(g => !g.isDeleted).map(g => g.id));
 
   const nuevosPorGrupo = new Map<string, number>();
-  const borrados: Notice[] = [];
+  const pedidosDeBorrado: Notice[] = [];
+  const restauraciones: Notice[] = [];
 
   for (const e of expensesAfter) {
     if (e.isDeleted || !mios.has(e.groupId)) continue;
 
     // Regla 1: lo que cargué yo no se avisa, aunque vuelva por el sync.
-    if (!conocidos.has(e.id) && e.createdById !== currentUserId) {
+    // Y lo que yo tenía borrado y volvió no es NUEVO: es el mismo de antes.
+    // Sin esa segunda mitad, una restauración salía por duplicado — «1 gasto
+    // nuevo» y «lo restauraron» por el mismo evento.
+    if (!conocidos.has(e.id) && !teniaBorrados.has(e.id) && e.createdById !== currentUserId) {
       nuevosPorGrupo.set(e.groupId, (nuevosPorGrupo.get(e.groupId) ?? 0) + 1);
     }
 
@@ -98,8 +132,29 @@ export function noticesFor(
     if (!yaAbiertos.has(e.id) && borradoPendiente(e, now)) {
       // El que lo pidió ya sabe: no se le avisa de su propia solicitud.
       if (deletionRound(e, now)!.requestedBy !== currentUserId) {
-        borrados.push({
+        pedidosDeBorrado.push({
           kind: 'deletion',
+          groupId: e.groupId,
+          groupName: nombre(e.groupId),
+          description: e.description,
+        });
+      }
+    }
+
+    /**
+     * Una restauración que ACABA de llegar.
+     *
+     * La condición que la hace un evento es `teniaBorrados`: el gasto tiene que
+     * haber estado borrado en ESTE teléfono. Mirar sólo el estado de la ronda
+     * avisaría de nuevo en cada recálculo, y le anunciaría a un device recién
+     * llegado restauraciones que pasaron hace meses.
+     */
+    if (teniaBorrados.has(e.id)) {
+      const ronda = deletionRound(e, now);
+      // Quien restauró ya sabe: no se le cuenta lo que acaba de hacer.
+      if (ronda?.status === 'restored' && ronda.stoppedBy !== currentUserId) {
+        restauraciones.push({
+          kind: 'restored',
           groupId: e.groupId,
           groupName: nombre(e.groupId),
           description: e.description,
@@ -140,5 +195,5 @@ export function noticesFor(
       currency: p.currency,
     }));
 
-  return [...porGastos, ...borrados, ...saldos];
+  return [...porGastos, ...pedidosDeBorrado, ...restauraciones, ...saldos];
 }

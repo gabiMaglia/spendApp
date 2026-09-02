@@ -535,6 +535,8 @@ export const EXCLUIDOS_FUSION: Record<string, string> = {
     'Caché de las públicas que el directorio ya devolvió (T-041). Reconstruible: se vuelve a consultar el directorio, que es la fuente de verdad. No contiene nada que el directorio no pueda volver a dar.',
   'sync/ratchet':
     'Trinquete "a este autor ya le vimos firmar" (T-041). Hoy NO bloquea nada — decisión R1 del PO: se marca, no se rechaza; su único consumidor es el denominador de la medición en recordHealth. Se retraba solo con la primera firma válida que llegue. OJO: el día que el trinquete pase a gatillar rechazo, esta exclusión deja de ser válida y tiene que moverse a la cobertura.',
+  'sync/syncDownNotices':
+    'Acuse local "a este grupo ya le avisé que dejó de sincronizar", para no repetir el aviso en cada intento de publicación. Mismo caso que `card_sent_v1`: es el registro de algo que YA se le dijo a esta persona en este teléfono, no data suya. Si se pierde, el peor efecto es un aviso repetido; heredar el de otra cuenta sería peor — suprimiría el primer aviso de una caída que la cuenta destino todavía no vio.',
   'sync/recordHealth':
     'Medición de T-041: cuántos registros verificaron, fallaron o no eran verificables. Mismo caso que authorHealth — diagnóstico para decidir si se enciende el rechazo, no data del usuario, y se reacumula con el uso.',
 };

@@ -20,7 +20,7 @@ const grupo = (over: Partial<Group> = {}): Group => ({
   ...over,
 } as unknown as Group);
 
-const vacio = { expenseIds: [], conBorradoAbierto: [], paymentIds: [] };
+const vacio = { expenseIds: [], conBorradoAbierto: [], paymentIds: [], borrados: [] };
 const kinds = (n: Notice[]) => n.map(x => x.kind).sort();
 
 describe('gastos nuevos', () => {
@@ -39,7 +39,7 @@ describe('gastos nuevos', () => {
   });
 
   it('lo que ya estaba antes no se vuelve a avisar', () => {
-    const antes = { expenseIds: ['e1'], conBorradoAbierto: [], paymentIds: []  };
+    const antes = { expenseIds: ['e1'], conBorradoAbierto: [], paymentIds: [], borrados: [] };
     expect(noticesFor(antes, [gasto()], [grupo()], YO, AHORA)).toEqual([]);
   });
 
@@ -89,7 +89,7 @@ describe('pedidos de borrado', () => {
     conOver({ deletionVotes: [{ userId, votedAt: at, action: 'delete' }] });
 
   it('avisa cuando otro pide borrar', () => {
-    const antes = { expenseIds: ['e1'], conBorradoAbierto: [], paymentIds: []  };
+    const antes = { expenseIds: ['e1'], conBorradoAbierto: [], paymentIds: [], borrados: [] };
     const n = noticesFor(antes, [pedido(OTRO)], [grupo()], YO, AHORA);
     expect(n).toEqual([{
       kind: 'deletion', groupId: 'g1', groupName: 'Viaje', description: 'Pizza',
@@ -97,24 +97,24 @@ describe('pedidos de borrado', () => {
   });
 
   it('al que lo pidió no se le avisa su propio pedido', () => {
-    const antes = { expenseIds: ['e1'], conBorradoAbierto: [], paymentIds: []  };
+    const antes = { expenseIds: ['e1'], conBorradoAbierto: [], paymentIds: [], borrados: [] };
     expect(noticesFor(antes, [pedido(YO)], [grupo()], YO, AHORA)).toEqual([]);
   });
 
   it('una ronda que ya estaba abierta no se vuelve a avisar', () => {
-    const antes = { expenseIds: ['e1'], conBorradoAbierto: ['e1'], paymentIds: []  };
+    const antes = { expenseIds: ['e1'], conBorradoAbierto: ['e1'], paymentIds: [], borrados: [] };
     expect(noticesFor(antes, [pedido(OTRO)], [grupo()], YO, AHORA)).toEqual([]);
   });
 
   // Ya no hay nada que objetar: avisar sería mandar a una acción imposible.
   it('una ronda vencida no avisa', () => {
-    const antes = { expenseIds: ['e1'], conBorradoAbierto: [], paymentIds: []  };
+    const antes = { expenseIds: ['e1'], conBorradoAbierto: [], paymentIds: [], borrados: [] };
     const viejo = pedido(OTRO, AHORA - DELETION_TIMEOUT_MS - 1);
     expect(noticesFor(antes, [viejo], [grupo()], YO, AHORA)).toEqual([]);
   });
 
   it('una ronda objetada tampoco', () => {
-    const antes = { expenseIds: ['e1'], conBorradoAbierto: [], paymentIds: []  };
+    const antes = { expenseIds: ['e1'], conBorradoAbierto: [], paymentIds: [], borrados: [] };
     const objetado = conOver({ deletionVotes: [
       { userId: OTRO, votedAt: AHORA, action: 'delete' },
       { userId: YO, votedAt: AHORA, action: 'cancel' },
@@ -125,6 +125,95 @@ describe('pedidos de borrado', () => {
   it('un gasto nuevo que además viene con pedido de borrado avisa las dos cosas', () => {
     const n = noticesFor(vacio, [pedido(OTRO)], [grupo()], YO, AHORA);
     expect(kinds(n)).toEqual(['deletion', 'expenses']);
+  });
+});
+
+/**
+ * La asimetría que se venía arrastrando: te avisaban cuando te borraban un
+ * gasto y NO cuando te lo restauraban. Al revés de lo útil — la mala noticia
+ * llegaba y la buena no, así que el usuario seguía creyendo borrado algo que
+ * volvió a contar en su balance.
+ *
+ * Es un aviso **por evento**: se dispara por la transición «lo tenía borrado y
+ * volvió», no por el estado `restored` de la ronda. Recalcular la ronda no
+ * puede volver a avisar, y un device que entra tarde y baja el historial
+ * completo no anuncia restauraciones de hace meses.
+ */
+describe('restauraciones', () => {
+  const OTRO2 = 'beto';
+
+  /** Ronda pedida por `pidio` y frenada con un `restore` de `restauro`. */
+  const restaurado = (pidio: string, restauro: string) => conOver({
+    isDeleted: false,
+    deletionVotes: [
+      { userId: pidio, votedAt: AHORA - 1000, action: 'delete' },
+      { userId: restauro, votedAt: AHORA, action: 'cancel', intent: 'restore' },
+    ],
+  });
+
+  /** Lo tenía borrado en el device: es la única forma de que «volvió» sea un evento. */
+  const loTeniaBorrado = {
+    expenseIds: [], conBorradoAbierto: [], paymentIds: [], borrados: ['e1'],
+  };
+
+  it('avisa cuando otro restaura un gasto que yo tenía borrado', () => {
+    const n = noticesFor(loTeniaBorrado, [restaurado(YO, OTRO)], [grupo()], YO, AHORA);
+    expect(n).toEqual([{
+      kind: 'restored', groupId: 'g1', groupName: 'Viaje', description: 'Pizza',
+    }]);
+  });
+
+  it('al que restauró no se le avisa su propia restauración', () => {
+    const n = noticesFor(loTeniaBorrado, [restaurado(OTRO, YO)], [grupo()], YO, AHORA);
+    expect(n).toEqual([]);
+  });
+
+  /**
+   * El aviso es por el EVENTO. Volver a correr las reglas sobre el mismo estado
+   * —que es lo que pasa en cada bajada por cursor— no puede reavisar: en la
+   * foto de ahora el gasto ya está vivo, no borrado.
+   */
+  it('recalcular la ronda NO vuelve a avisar', () => {
+    const gastoVivo = restaurado(YO, OTRO);
+    const despues = snapshot([gastoVivo], AHORA);
+    expect(noticesFor(despues, [gastoVivo], [grupo()], YO, AHORA)).toEqual([]);
+  });
+
+  /**
+   * Un device que entra al grupo y baja el estado completo ve la ronda ya
+   * restaurada. No la tenía borrada: no le pasó nada, se está enterando.
+   */
+  it('un gasto que nunca tuve borrado no avisa restauración aunque su ronda diga `restored`', () => {
+    const n = noticesFor(vacio, [restaurado(OTRO, OTRO2)], [grupo()], YO, AHORA);
+    expect(kinds(n)).toEqual(['expenses']);
+  });
+
+  /**
+   * Un gasto que yo tenía borrado y volvió NO es un gasto nuevo: es el mismo de
+   * antes. Sin esto la restauración salía por duplicado —«1 gasto nuevo» + «lo
+   * restauraron»— por el mismo evento, que es justo el ruido que se evita.
+   */
+  it('el gasto restaurado no cuenta además como gasto nuevo', () => {
+    const n = noticesFor(loTeniaBorrado, [restaurado(YO, OTRO)], [grupo()], YO, AHORA);
+    expect(kinds(n)).toEqual(['restored']);
+  });
+
+  it('una objeción no es una restauración', () => {
+    const objetado = conOver({ deletionVotes: [
+      { userId: OTRO, votedAt: AHORA - 1000, action: 'delete' },
+      { userId: OTRO2, votedAt: AHORA, action: 'cancel' },
+    ] });
+    expect(noticesFor(loTeniaBorrado, [objetado], [grupo()], YO, AHORA)).toEqual([]);
+  });
+
+  it('un gasto de un grupo que no tengo no avisa su restauración', () => {
+    const ajeno = { ...restaurado(YO, OTRO), groupId: 'gX' };
+    expect(noticesFor(loTeniaBorrado, [ajeno], [grupo()], YO, AHORA)).toEqual([]);
+  });
+
+  it('la foto previa marca los gastos que estaban borrados', () => {
+    const s = snapshot([gasto(), conOver({ id: 'e2', isDeleted: true })], AHORA);
+    expect(s.borrados).toEqual(['e2']);
   });
 });
 

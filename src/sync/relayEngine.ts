@@ -10,8 +10,9 @@ import { announce } from '@/src/services/notifications';
 import { useAuthStore } from '@/src/store/authStore';
 import { deriveTopic } from './envelopeCrypto';
 import { subscribeTopic, isRelayConfigured } from './relay';
-import { publishToGroup, drainGroup } from './relaySync';
+import { publishToGroup, drainGroup, type PublishResult } from './relaySync';
 import { recordPublish } from './publishHealth';
+import { noticeDeCaida } from './syncDownNotices';
 import { resolvePendingDeletions } from '@/src/services/resolveDeletions';
 import { applyApprovedLeaves } from '@/src/services/applyLeave';
 import { fromHex } from './envelopeCrypto';
@@ -116,14 +117,35 @@ export function schedulePublish(groupId: string, delay = PUBLISH_DEBOUNCE_MS): v
 export async function publishNow(groupId: string): Promise<void> {
   const userId = useAuthStore.getState().currentUser?.id;
   if (!userId) return;
+
   // Un fallo de red no puede romper la app: se reintentará en el próximo cambio
   // o cuando el usuario vuelva a abrirla. Pero SE ANOTA: tragárselo sin dejar
   // rastro es lo que produjo dos veces "no me llega nada" sin nada que mirar.
+  let result: PublishResult;
   try {
-    recordPublish(groupId, await publishToGroup(groupId, userId, deviceId()));
+    result = await publishToGroup(groupId, userId, deviceId());
   } catch (e) {
-    recordPublish(groupId, { ok: false, reason: 'network', detail: String(e) });
+    result = { ok: false, reason: 'network', detail: String(e) };
   }
+
+  recordPublish(groupId, result);
+  void avisarSiDejoDeSincronizar(groupId, result);
+}
+
+/**
+ * Anotar el fallo lo hace visible SÓLO para quien entra a ese grupo. Esto es lo
+ * que hace que el usuario se entere sin entrar — que es el punto: si no abrís el
+ * grupo, no te enterás de que tus gastos no le están llegando a nadie.
+ *
+ * Va sin `await` y envuelto: un aviso que no sale es una molestia, una
+ * publicación que se cae por un aviso es un bug.
+ */
+async function avisarSiDejoDeSincronizar(groupId: string, result: PublishResult): Promise<void> {
+  try {
+    const grupo = useGroupStore.getState().groups.find(g => g.id === groupId);
+    const aviso = noticeDeCaida(groupId, grupo?.name ?? '', result);
+    if (aviso) await announce([aviso]);
+  } catch { /* nunca rompe la publicación */ }
 }
 
 /** Sólo para tests: cancela los envíos pendientes. */

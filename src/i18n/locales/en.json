@@ -311,7 +311,8 @@
     "time_minutes_plural": "{{count}} minutes",
     "delete_body_open": "It will be deleted now. Anyone in the group can restore it from Activity.",
     "delete_restored_title": "{{name}} restored this expense",
-    "delete_restored_body": "The deletion was undone. To try again someone has to request it anew."
+    "delete_restored_body": "The deletion was undone. To try again someone has to request it anew.",
+    "free_over": "You've used up today's free ones. For now you can keep adding; later this will need an ad or Pro."
   },
   "settle": {
     "title": "Register payment",
@@ -703,6 +704,7 @@
     "new_expenses_one": "1 new expense was added",
     "new_expenses_other": "{{count}} new expenses were added",
     "deletion_requested": "Someone asked to delete “{{description}}”. You have 72h to object.",
+    "restored": "«{{description}}» was restored",
     "joined_title": "You were added to a group",
     "joined_body": "You can now see “{{group}}”",
     "inbox_title": "Notifications",
@@ -711,7 +713,8 @@
     "inbox_mark_all": "Mark all as read",
     "inbox_open": "View notifications",
     "inbox_gone": "That's no longer available",
-    "settled": "{{name}} recorded a settlement of {{amount}}"
+    "settled": "{{name}} recorded a settlement of {{amount}}",
+    "sync_down_title": "«{{group}}» stopped syncing"
   },
   "fx": {
     "partial_title": "There's money we're not showing you",

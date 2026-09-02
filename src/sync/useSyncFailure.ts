@@ -29,19 +29,9 @@ export function useGroupSyncFailure(
 /**
  * La razón, como clave de i18n.
  *
- * `switch` exhaustivo DE VERDAD: el parámetro es la unión `BlockingReason`, no
- * `string`, y no hay `default`. Si mañana aparece una tercera razón bloqueante,
- * esto **deja de compilar** y obliga a decidir qué se le muestra al usuario, en
- * vez de caer a un mensaje genérico que nadie escribió a propósito.
- *
- * La primera versión de esta función prometía exactamente eso en un comentario
- * y no lo cumplía —`reason: string` más un `default` se lo comían todo—, que es
- * el defecto que este proyecto viene persiguiendo: una protección declarada que
- * no protege. Lo levantó el Arquitecto revisando T-058.
+ * Se re-exporta —no se define acá— para que el aviso de la bandeja pueda usar
+ * el MISMO texto que este banner sin arrastrar React al camino del sync. Dos
+ * mapeos escritos aparte se desincronizan, y el usuario leería una cosa en la
+ * bandeja y otra al entrar al grupo.
  */
-export function claveDeFalloDeSync(reason: BlockingReason): string {
-  switch (reason) {
-    case 'too_large': return 'sync.failure_too_large';
-    case 'no_key':    return 'sync.failure_no_key';
-  }
-}
+export { claveDeFalloDeSync } from './publishHealth';
