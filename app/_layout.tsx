@@ -114,7 +114,7 @@ export default function RootLayout() {
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <AuthGuard />
       <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="auth"   options={{ headerShown: false }} />
+        <Stack.Screen name="auth/index" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="groups/[id]"  options={{ headerShown: false }} />
         <Stack.Screen name="groups/new"   options={{ presentation: 'modal', headerShown: false }} />
@@ -124,7 +124,6 @@ export default function RootLayout() {
         <Stack.Screen name="expense/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="settle/new"   options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="contact/add"   options={{ presentation: 'modal', headerShown: false }} />
-        <Stack.Screen name="settings"     options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="sync/index"   options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="sync/webrtc"  options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="debug/webrtc" options={{ presentation: 'modal', headerShown: false }} />
