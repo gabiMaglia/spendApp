@@ -26,6 +26,7 @@ import type { PersonalBudget, PersonalEntry } from '@/src/types/models';
 import { useTranslation } from 'react-i18next';
 import i18n from '@/src/i18n';
 import { totalIOwe, totalOwedToMe } from '@/src/algorithms/directedDebts';
+import { repartirDelMes, type BucketPersonal } from '@/src/algorithms/personalMonth';
 import { useFx } from '@/src/store/useFx';
 import { UnconvertedNotice } from '@/src/components/UnconvertedNotice';
 import { sumConverted } from '@/src/services/fxTotals';
@@ -170,11 +171,15 @@ export default function PersonalScreen() {
       cur, fx,
     );
 
-  const income     = sumar(e => e.kind === 'income');
-  const expense    = sumar(e => e.kind === 'expense');
-  const group      = sumar(e => e.kind === 'group_replicated');
-  const carryPos   = sumar(e => e.kind === 'carryover' && !!e.isPositiveCarryover);
-  const carryNeg   = sumar(e => e.kind === 'carryover' && !e.isPositiveCarryover);
+  // La clasificación vive en `personalMonth` y la comparte el dashboard. Estaba
+  // duplicada, con criterios distintos, y ahí nació el bug del carryover.
+  const baldes     = repartirDelMes(monthEntries);
+  const porBalde   = (b: BucketPersonal) => sumar(e => baldes[b].includes(e));
+  const income     = porBalde('income');
+  const expense    = porBalde('expense');
+  const group      = porBalde('group');
+  const carryPos   = porBalde('carryPos');
+  const carryNeg   = porBalde('carryNeg');
 
   const totalIncome       = income.totalMinor;
   const totalExpense      = expense.totalMinor;

@@ -13,6 +13,10 @@ import { useSettingsStore } from '@/src/store/settingsStore';
 import { useFx } from '@/src/store/useFx';
 import { convertMinor } from '@/src/services/fx';
 import { sumConverted } from '@/src/services/fxTotals';
+import type { PersonalEntry } from '@/src/types/models';
+import {
+  repartirDelMes, BALDES_GASTADOS, BALDES_DISPONIBLES, type BucketPersonal,
+} from '@/src/algorithms/personalMonth';
 import { UnconvertedNotice } from '@/src/components/UnconvertedNotice';
 import { NoticeBell } from '@/src/components/NoticeBell';
 import { CurrencySheet } from '@/src/components/CurrencyPicker';
@@ -52,21 +56,26 @@ export default function AccountScreen() {
     e => !e.isDeleted && toMonthKey(e.date) === thisMonth,
   );
 
-  const gastos = sumConverted(
-    monthEntries.filter(e => e.kind !== 'income').map(e => ({ currency: e.currency, minor: e.amount })),
-    cur, fx,
-  );
-  const ingresos = sumConverted(
-    monthEntries.filter(e => e.kind === 'income').map(e => ({ currency: e.currency, minor: e.amount })),
-    cur, fx,
-  );
+  // La clasificación es COMPARTIDA con la pestaña Personal (`personalMonth`).
+  // Acá decía `kind !== 'income'`, que barre todo lo que no sea un ingreso —
+  // carryover positivo incluido— así que el sobrante del mes anterior aparecía
+  // como GASTADO y además no se acreditaba en disponible: contado dos veces mal.
+  const baldes = repartirDelMes(monthEntries);
+  const aMonto = (e: PersonalEntry) => ({ currency: e.currency, minor: e.amount });
+  const deBaldes = (cuales: readonly BucketPersonal[]) =>
+    sumConverted(cuales.flatMap(b => baldes[b]).map(aMonto), cur, fx);
+
+  const gastos   = deBaldes(BALDES_GASTADOS);
+  const ingresos = deBaldes(BALDES_DISPONIBLES);
   const aFavor = sumConverted(
     personBalances.filter(b => b.amount > 0).map(b => ({ currency: b.currency, minor: b.amount })),
     cur, fx,
   );
 
   const totalSpent    = gastos.totalMinor;
-  const totalIncome   = ingresos.totalMinor;
+  // «Acreditado», no «ingresos»: además del sueldo del mes incluye el sobrante
+  // del mes anterior. Llamarlo income invitaba justo al error que se arregló.
+  const totalAcreditado = ingresos.totalMinor;
   const owedToMeInCur = aFavor.totalMinor;
 
   // Lo que no se pudo convertir. Mientras haya algo acá, los números de arriba
@@ -105,7 +114,7 @@ export default function AccountScreen() {
   }
   const effectiveBudget =
     (convertMinor(budget.monthlyAmount, budget.currency, cur, fx) ?? 0)
-    + totalIncome + (budget.includeOwedToMe ? owedToMeInCur : 0);
+    + totalAcreditado + (budget.includeOwedToMe ? owedToMeInCur : 0);
   const budgetPct = effectiveBudget > 0 ? Math.min(totalSpent / effectiveBudget, 1) : 0;
   const hasBudget = budget.monthlyAmount > 0;
 
@@ -207,7 +216,7 @@ export default function AccountScreen() {
               <Text style={[Typography.caption, { color: c.textTertiary }]}>{t('dashboard.spent')}</Text>
               {/* Rojo si hay deuda (gastos > ingresos); negro si los ingresos alcanzan (decisión PO). */}
               <MoneyText minor={totalSpent} code={cur} style={[Typography.amountM, {
-                color: totalIncome >= totalSpent ? c.text : c.semantic.negative,
+                color: totalAcreditado >= totalSpent ? c.text : c.semantic.negative,
               }]} />
             </View>
             {hasBudget && (
