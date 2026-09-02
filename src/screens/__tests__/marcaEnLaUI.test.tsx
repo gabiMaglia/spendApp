@@ -163,8 +163,9 @@ describe('la marca en la lista del grupo', () => {
 
     // El balance que la PANTALLA muestra, no el que calcularía un algoritmo al
     // costado: lo que hay que probar es que la marca no le restó nada a lo que
-    // el usuario ve. Beto no puso nada y le tocan 500,00 de los 1.000,00 de Ana.
-    expect(getAllByText(/500,00/).length).toBeGreaterThan(0);
+    // el usuario ve. Beto no puso nada y le tocan 500 de los 1.000 de Ana.
+    // Sin los «,00»: los centavos en cero no se muestran (PO 2026-09-02).
+    expect(getAllByText(/\b500\b/).length).toBeGreaterThan(0);
     expect(getByText('group_detail.you_owe_short')).toBeTruthy();
   });
 

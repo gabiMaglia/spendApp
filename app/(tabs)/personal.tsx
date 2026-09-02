@@ -17,7 +17,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAmountInput } from '@/src/hooks/useAmountInput';
 import { Fab, FabRow } from '@/src/components/Fab';
 import {
-  Band, BandRow, Meter, SectionLabel, SplitStat,
+  Band, BandRow, Meter, SectionLabel, SplitStat, StatLead,
 } from '@/src/components/Band';
 import { useHeaderPadding } from '@/src/components/CollapsibleHeader';
 import { useAuthStore } from '@/src/store/authStore';
@@ -300,44 +300,68 @@ export default function PersonalScreen() {
           </Band>
         )}
 
-        {/* Chips de resumen como banda hundida de 3 celdas */}
-        <SplitStat
+        {/* El ingreso a lo ancho y los dos gastos abajo (PO 2026-09-02). En una
+            sola fila de tres, un ingreso y dos gastos se leen como comparables
+            entre sí, y no lo son: los de abajo salen del de arriba. */}
+        <StatLead
           sunken
+          lead={{
+            label: t('personal.summary_income'),
+            value: `+${formatMoney(totalIncome, cur)}`,
+            color: c.semantic.positive,
+          }}
           items={[
-            { label: t('personal.summary_income'),   value: `+${formatMoney(totalIncome, cur)}`, color: c.semantic.positive },
             { label: t('personal.summary_personal'), value: formatMoney(totalExpense, cur) },
             { label: t('personal.summary_groups'),   value: formatMoney(totalGroup, cur) },
           ]}
         />
 
-        {/* Deuda direccional: banda propia, nunca mezclada con lo gastado (ADR-006) */}
-        {(owedToMe > 0 || youOwe > 0) && (
-          <Band>
-            <View style={styles.debtRow}>
-              <Ionicons name="alert-circle-outline" size={15} color={c.semantic.positive} />
-              <Text style={[Typography.bodyS, { color: c.textSecondary, flex: 1 }]}>
-                {owedToMe > 0 && (
-                  <Text>
-                    {t('personal.owed_to_me')}{' '}
-                    <Text style={{ fontWeight: '700', color: c.semantic.positive }}>
-                      {formatMoney(owedToMe, cur)}
-                    </Text>
-                    {'. '}
-                  </Text>
-                )}
-                {youOwe > 0 && (
-                  <Text>
-                    {t('personal.i_owe')}{' '}
-                    <Text style={{ fontWeight: '700', color: c.semantic.negative }}>
-                      {formatMoney(youOwe, cur)}
-                    </Text>
-                    {'. '}
-                  </Text>
-                )}
-                {t('personal.debts_note')}
-              </Text>
-            </View>
-          </Band>
+        {/* Deuda direccional: banda propia, nunca mezclada con lo gastado
+            (ADR-006). Era un párrafo con los montos embebidos en la frase; el
+            PO pidió una caja con los números afuera, y agregó el que faltaba:
+            cuánto queda disponible DESPUÉS de pagar lo que se debe. Ese número
+            es el que decide si podés gastar, y antes había que restarlo a mano. */}
+        {youOwe > 0 ? (
+          <SplitStat
+            items={[
+              ...(owedToMe > 0
+                ? [{
+                    label: t('personal.owed_to_me'),
+                    value: formatMoney(owedToMe, cur),
+                    color: c.semantic.positive,
+                  }]
+                : []),
+              {
+                label: t('personal.i_owe'),
+                value: formatMoney(youOwe, cur),
+                color: c.semantic.negative,
+              },
+              {
+                label: t('personal.available_after_debts'),
+                value: formatMoney(Math.abs(remaining - youOwe), cur),
+                // En rojo cuando pagar lo que debés te deja en negativo: es
+                // justamente el caso en el que el número importa.
+                color: remaining - youOwe >= 0 ? c.semantic.positive : c.semantic.negative,
+              },
+            ]}
+          />
+        ) : owedToMe > 0 ? (
+          <SplitStat
+            items={[{
+              label: t('personal.owed_to_me'),
+              value: formatMoney(owedToMe, cur),
+              color: c.semantic.positive,
+            }]}
+          />
+        ) : null}
+
+        {/* La aclaración sobrevive al párrafo que la contenía: la deuda NO
+            afecta lo gastado hasta que se salda (ADR-006), y sin decirlo los
+            números de arriba parecerían no cerrar. */}
+        {(youOwe > 0 || owedToMe > 0) && (
+          <Text style={[Typography.caption, styles.debtsNote, { color: c.textTertiary }]}>
+            {t('personal.debts_note')}
+          </Text>
         )}
 
         {pendientes.length > 0 && (
@@ -489,6 +513,7 @@ function EntryRow({
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
+  debtsNote: { paddingHorizontal: Spacing.screenPad, marginTop: 6 },
   upper: { textTransform: 'uppercase' },
   titleRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
@@ -502,10 +527,6 @@ const styles = StyleSheet.create({
   meterPad:  { paddingHorizontal: Spacing.screenPad, paddingTop: 15, paddingBottom: 16 },
   meterTop:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   meterEmpty:{ alignItems: 'center', gap: 10, paddingVertical: Spacing[6], paddingHorizontal: Spacing[6] },
-  debtRow:   {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingHorizontal: Spacing.screenPad, paddingVertical: 11,
-  },
   emptyBox:  { alignItems: 'center', justifyContent: 'center', padding: Spacing[6] },
   entryIcon: { width: 36, height: 36, borderRadius: Radius.sm, alignItems: 'center', justifyContent: 'center' },
   budgetInput: {

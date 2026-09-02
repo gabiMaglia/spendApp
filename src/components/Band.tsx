@@ -197,6 +197,56 @@ export function StatGrid({
   );
 }
 
+/**
+ * **Un indicador principal a lo ancho, y dos abajo** (PO 2026-09-02).
+ *
+ * Es la forma de un total con su desglose: el de arriba es de otra naturaleza
+ * que los dos de abajo —un ingreso contra dos gastos— y ponerlos en la misma
+ * fila los hace parecer comparables entre sí. A lo ancho, el primero se lee
+ * como el encabezado de los otros dos.
+ */
+export function StatLead({
+  lead, items, sunken,
+}: {
+  lead: StatItem;
+  items: [StatItem, StatItem];
+  sunken?: boolean;
+}) {
+  const c = useC();
+
+  const cuerpo = (it: StatItem, extra?: ViewStyle) => (
+    <View
+      key={it.label}
+      style={[
+        { flex: 1, paddingVertical: Spacing[4], paddingHorizontal: Spacing.screenPad },
+        extra,
+      ]}
+    >
+      <Text style={[Typography.label, { color: c.textTertiary, textTransform: 'uppercase' }]}>
+        {it.label}
+      </Text>
+      <Text
+        style={[Typography.amountM, { color: it.color ?? c.text }]}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.75}
+      >
+        {it.value}
+      </Text>
+    </View>
+  );
+
+  return (
+    <Band sunken={sunken}>
+      {cuerpo(lead)}
+      <View style={{ flexDirection: 'row' }}>
+        {cuerpo(items[0], { borderTopWidth: 1, borderTopColor: c.hair, borderRightWidth: 1, borderRightColor: c.hair })}
+        {cuerpo(items[1], { borderTopWidth: 1, borderTopColor: c.hair })}
+      </View>
+    </Band>
+  );
+}
+
 /** Barra de progreso plana de 4-5pt. */
 export function Meter({ pct, color, height = 5 }: { pct: number; color?: string; height?: number }) {
   const c = useC();

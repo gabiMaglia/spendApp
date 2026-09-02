@@ -179,3 +179,61 @@ describe('todas las monedas se leen con la misma convención', () => {
     setFormatLanguage('es');
   });
 });
+
+/**
+ * **Los centavos en cero no se muestran** (PO 2026-09-02).
+ *
+ * La mayoría de los montos de la app son redondos, y dos ceros repetidos en
+ * cada fila de una lista son ruido que compite con los dígitos que sí cambian.
+ */
+describe('centavos en cero', () => {
+  beforeEach(() => setFormatLanguage('es'));
+
+  it('un monto redondo sale sin decimales', () => {
+    expect(formatMoney(123400, 'ARS')).toBe('$1.234');
+  });
+
+  it('uno con centavos los conserva enteros', () => {
+    expect(formatMoney(123456, 'ARS')).toBe('$1.234,56');
+  });
+
+  // Medio peso no es cero: se muestra.
+  it('cincuenta centavos se muestran', () => {
+    expect(formatMoney(50, 'ARS')).toBe('$0,50');
+  });
+
+  it('un centavo también', () => {
+    expect(formatMoney(1, 'ARS')).toBe('$0,01');
+  });
+
+  it('cero es cero, sin coma', () => {
+    expect(formatMoney(0, 'ARS')).toBe('$0');
+  });
+
+  it('las monedas sin decimales no cambian', () => {
+    expect(formatMoney(1234567, 'PYG')).toBe('₲1.234.567');
+    expect(formatMoney(1234567, 'CLP')).toBe('$1.234.567');
+  });
+
+  it('vale en los tres idiomas', () => {
+    setFormatLanguage('en');
+    expect(formatMoney(123400, 'USD')).toBe('US$1,234');
+    setFormatLanguage('pt');
+    expect(formatMoney(123400, 'BRL')).toBe('R$1.234');
+    setFormatLanguage('es');
+  });
+
+  // Un monto grande no cambia la regla. (La versión anterior de este comentario
+  // decía que decidir sobre el float fallaría acá: no falla, y una mutación lo
+  // demostró. El comentario se corrigió en vez de inventarle un caso.)
+  it('un monto grande y redondo tampoco muestra centavos', () => {
+    expect(formatMoney(999_999_999_00, 'ARS')).toBe('$999.999.999');
+  });
+
+  // No se pierde precisión: el ida y vuelta sigue cerrando.
+  it('sacar los ceros no rompe el ida y vuelta', () => {
+    for (const m of [123400, 100, 0, 999_999_999_00]) {
+      expect(parseMoney(formatMoney(m, 'ARS'), 'ARS', 'es')).toBe(m);
+    }
+  });
+});

@@ -579,8 +579,9 @@
     "budget_empty": "Defina um orçamento mensal para ver seu progresso",
     "budget_configure": "Definir orçamento →",
     "summary_income": "Receitas",
-    "summary_personal": "Pessoal",
-    "summary_groups": "Grupos",
+    "summary_personal": "Gasto pessoal",
+    "summary_groups": "Gasto em grupos",
+    "available_after_debts": "Sobra após pagar",
     "summary_owe": "Devo",
     "movements_count": "MOVIMENTOS ({{count}})",
     "no_movements": "Sem movimentos em {{month}}",
@@ -603,7 +604,7 @@
     "locked_title": "Não pode ser editado",
     "owed_to_me": "Me devem",
     "i_owe": "Devo",
-    "debts_note": "Não afeta o gasto até ser quitado"
+    "debts_note": "Não afeta o gasto até ser acertado"
   },
   "contact": {
     "title": "Adicionar contato",

@@ -95,14 +95,43 @@ export function getFormatLanguage(): AppLang {
   return idiomaDeSalida;
 }
 
-// Formatea un monto (ENTERO en menor unidad) con Intl.NumberFormat — SIEMPRE
-// usar esto, nunca .toFixed() ni división/multiplicación manual.
+/**
+ * Formatea un monto (ENTERO en menor unidad) con `Intl.NumberFormat` — SIEMPRE
+ * usar esto, nunca `.toFixed()` ni división/multiplicación manual.
+ *
+ * **Los centavos en cero no se muestran** (PO 2026-09-02): `$1.234,00` sale
+ * como `$1.234`, y `$1.234,50` se mantiene entero. La mayoría de los montos de
+ * la app son redondos, y dos ceros repetidos en cada fila de una lista son
+ * ruido que compite con los dígitos que sí cambian.
+ *
+ * **No se pierde precisión ni se rompe el ida y vuelta**: el valor guardado
+ * sigue siendo el entero en menor unidad, y `parseMoney` de un texto sin
+ * separador decimal devuelve exactamente ese entero (regla 3 de F-16b: «sin
+ * separador → sin decimales»). El test de invariante lo exige.
+ */
 export function formatAmount(minor: number, code: CurrencyCode): string {
   const currency = getCurrency(code);
   const value = minor / minorFactor(code);
+
+  /**
+   * Se decide sobre el ENTERO en menor unidad, que es el valor de registro.
+   *
+   * Con las monedas de hoy —0 o 2 decimales— mirar el float daría lo mismo:
+   * dividir un entero por 100 dentro del rango seguro es exacto. Una mutación
+   * que lo cambiaba a `value % 1 === 0` sobrevivió a la suite, y es correcto
+   * que sobreviva. Se deja sobre el entero igual porque no depende de esa
+   * garantía: el día que entre una moneda de 3 decimales, o que un cálculo
+   * llegue arriba de 2^53, sigue siendo obviamente cierto sin tener que
+   * volver a razonarlo.
+   */
+  const sinCentavos = currency.decimals === 0
+    || minor % minorFactor(code) === 0;
+
+  const decimales = sinCentavos ? 0 : currency.decimals;
+
   return new Intl.NumberFormat(LOCALE_DE_SALIDA[idiomaDeSalida], {
-    minimumFractionDigits: currency.decimals,
-    maximumFractionDigits: currency.decimals,
+    minimumFractionDigits: decimales,
+    maximumFractionDigits: decimales,
   }).format(Math.abs(value));
 }
 

@@ -579,8 +579,9 @@
     "budget_empty": "Set a monthly budget to track your progress",
     "budget_configure": "Set budget →",
     "summary_income": "Income",
-    "summary_personal": "Personal",
-    "summary_groups": "Groups",
+    "summary_personal": "Personal spending",
+    "summary_groups": "Group spending",
+    "available_after_debts": "Left after paying",
     "summary_owe": "I owe",
     "movements_count": "MOVEMENTS ({{count}})",
     "no_movements": "No movements in {{month}}",
@@ -603,7 +604,7 @@
     "locked_title": "Can't be edited",
     "owed_to_me": "Owed to me",
     "i_owe": "I owe",
-    "debts_note": "Doesn't affect spending until settled"
+    "debts_note": "Doesn't affect spending until it's settled"
   },
   "contact": {
     "title": "Add contact",
