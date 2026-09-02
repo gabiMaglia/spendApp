@@ -6,7 +6,8 @@ import { derivedOriginOf } from './derivedRecords';
 import type { CoreKind, CoreRecord } from './recordCore';
 import type { RecordVerdict } from './recordHealth';
 import type { CoreVerdict } from './recordSign';
-import type { DeletionVote } from '@/src/types/models';
+import { fielALaPlantilla, origenRecurrenteDe } from '@/src/algorithms/derivedRecurring';
+import type { DeletionVote, Expense, RecurringExpense } from '@/src/types/models';
 
 /**
  * **El veredicto de una fila que el usuario está mirando** (T-041 · S10).
@@ -44,14 +45,25 @@ import type { DeletionVote } from '@/src/types/models';
  */
 export function checkRecord<K extends CoreKind>(
   kind: K, record: CoreRecord[K],
+  /**
+   * Cómo encontrar la plantilla de un gasto materializado. Lo trae quien llama
+   * —la pantalla, que ya lee ese store— y no se importa acá: `trustCheck` está
+   * a un paso del merge y meterle un store más es cómo se arma un ciclo.
+   */
+  plantilla?: (templateId: string) => RecurringExpense | undefined,
 ): RecordVerdict {
   const { k, s } = record as { k?: string; s?: string };
 
-  // Sin firma hay dos casos distintos y no se pueden mezclar: el histórico, que
-  // no se re-firma nunca (R2, opción A), y el que nadie puede firmar por diseño
-  // (D4). Los dos llevan marca, pero son cosas distintas y la medición los
+  // Sin firma hay TRES casos y no se pueden mezclar: el histórico, que no se
+  // re-firma nunca (R2, opción A); el derivado que SÍ se puede atribuir contra
+  // su plantilla firmada (S9); y el que no se puede atribuir de ninguna forma
+  // (D4). Los tres llevan marca, pero son cosas distintas y la medición los
   // cuenta aparte.
   if (!k || !s) {
+    if (kind === 'expense' && plantilla) {
+      const heredado = veredictoHeredadoDeLaPlantilla(record as unknown as Expense, plantilla);
+      if (heredado) return heredado;
+    }
     return derivedOriginOf(kind, record) !== null ? 'no_firmable' : 'no_verificable';
   }
 
@@ -71,6 +83,36 @@ export function checkRecord<K extends CoreKind>(
  * Los votos no pasan por la caché de veredictos, que es de núcleos: son pocos
  * —los de la ronda vigente de un gasto abierto— y se pagan una vez por vista.
  */
+/**
+ * **Un gasto materializado hereda el veredicto de su plantilla** (S9 · D5).
+ *
+ * Nadie lo firmó y nadie podía: lo emite el primer device que abre la app
+ * después del vencimiento. Pero deriva ENTERO de la plantilla, que sí está
+ * firmada — así que si el gasto es fiel a la plantilla y la firma de la
+ * plantilla cierra, el gasto es tan atribuible como ella.
+ *
+ * Devuelve `undefined` cuando no aplica —no es derivado, no está la plantilla,
+ * o no le es fiel— y ahí el llamador sigue con la clasificación de siempre. No
+ * se devuelve `invalida` en ese caso a propósito: que falte la plantilla es
+ * falta de información, no una acusación, y es el caso normal de quien entró al
+ * grupo después.
+ */
+function veredictoHeredadoDeLaPlantilla(
+  expense: Expense,
+  buscar: (templateId: string) => RecurringExpense | undefined,
+): RecordVerdict | undefined {
+  const origen = origenRecurrenteDe(expense.id);
+  if (!origen) return undefined;
+
+  const template = buscar(origen.templateId);
+  if (!template) return undefined;
+  if (!fielALaPlantilla(expense, template, origen.vencimiento)) return undefined;
+
+  // La plantilla se verifica por el camino normal, con caché: es un registro
+  // firmado como cualquier otro.
+  return checkRecord('recurring', template);
+}
+
 export function checkVote(expenseId: string, vote: DeletionVote): CoreVerdict {
   return verifyVote(expenseId, vote, authorKeysFor(vote.userId, vote.k));
 }

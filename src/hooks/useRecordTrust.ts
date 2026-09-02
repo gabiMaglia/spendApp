@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { checkRecord, checkVote } from '@/src/sync/trustCheck';
+import { useRecurringStore } from '@/src/store/recurringStore';
 import { canonicalCore } from '@/src/sync/recordCore';
 import { canonicalVote } from '@/src/sync/voteCore';
 import { trustOf, type TrustState } from '@/src/algorithms/recordTrust';
@@ -137,12 +138,21 @@ function firmaDeRegistro<K extends CoreKind>(kind: K, record: CoreRecord[K]): st
 export function useRecordTrust<K extends CoreKind>(
   kind: K, records: readonly CoreRecord[K][],
 ): Readonly<Record<string, TrustState>> {
+  const plantillas = useRecurringStore(st => st.recurring);
+  const buscarPlantilla = useCallback(
+    (templateId: string) => plantillas.find(t => t.id === templateId),
+    [plantillas],
+  );
+
   // La firma se calcula UNA vez por fila y sirve para las dos mitades: encolar
   // el trabajo y leer su resultado.
   const filas = records.map(record => ({
     id: record.id,
     firma: firmaDeRegistro(kind, record),
-    verificar: () => checkRecord(kind, record),
+    // Los gastos materializados no los firmó nadie, pero heredan el veredicto
+    // de su plantilla, que sí está firmada (S9 · D5). Sin este buscador
+    // quedarían marcados para siempre como no atribuibles.
+    verificar: () => checkRecord(kind, record, buscarPlantilla),
   }));
 
   const veredictos = useVeredictos(filas);
