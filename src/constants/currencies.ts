@@ -45,13 +45,62 @@ export function toMinorUnits(amount: number, code: CurrencyCode): number {
   return Math.round(amount * minorFactor(code));
 }
 
+/**
+ * **El locale con el que se formatea: uno solo, el del idioma de la app.**
+ *
+ * Hasta el 2026-09-02 se usaba el locale de cada MONEDA (F-16b.1, que el
+ * backlog registra como «asimetría entrada/salida aceptada»). El resultado en
+ * pantalla lo destruye: en la misma lista de balances, `US$1,234.56` y
+ * `€1234,56` — **la coma significa "miles" en una fila y "decimales" en la de
+ * abajo**. El PO lo levantó viéndolo renderizado.
+ *
+ * Y era asimétrico con la entrada: `parseMoney` ya toma el separador decimal
+ * del IDIOMA (es/pt → coma, en → punto), así que tipeabas `1234,56` con coma
+ * decimal y la app te devolvía `US$1,234.56` con coma de miles. El mismo número
+ * escrito de dos formas por la misma app.
+ *
+ * **No hay una convención mundial que copiar.** ISO 80000-1 recomienda espacio
+ * fino para los miles justamente porque coma y punto son ambiguos entre países,
+ * y admite las dos como marca decimal. El mundo está partido: coma-miles en
+ * EE.UU., Reino Unido, México, Perú, Japón y China; punto-miles en Alemania,
+ * España y casi toda Sudamérica; espacio en Francia y Rusia. Lo único
+ * defendible es ser **consistente para quien mira**: la moneda aporta el
+ * símbolo y cuántos decimales, el lector aporta cómo se agrupan los dígitos.
+ *
+ * Un locale canónico por idioma, no por país: la app soporta tres idiomas, no
+ * veinte regiones, e inventar más precisión de la que hay sería falsa.
+ */
+const LOCALE_DE_SALIDA: Record<AppLang, string> = {
+  es: 'es-AR',   // punto miles, coma decimal
+  en: 'en-US',   // coma miles, punto decimal
+  pt: 'pt-BR',   // punto miles, coma decimal
+};
+
+let idiomaDeSalida: AppLang = 'es';
+
+/**
+ * Fija el idioma con el que se formatea la plata. Lo llama la capa de i18n al
+ * arrancar y en cada cambio de idioma.
+ *
+ * Es una variable de módulo y no un `import` de i18n a propósito: `src/i18n`
+ * arrastra `expo-localization`, que es nativo, y este archivo lo importan los
+ * stores y el camino del sync. Meter un módulo nativo ahí es lo que ya tumbó la
+ * app entera dos veces (ver `src/services/avatar.ts`).
+ */
+export function setFormatLanguage(lang: AppLang): void {
+  idiomaDeSalida = lang;
+}
+
+export function getFormatLanguage(): AppLang {
+  return idiomaDeSalida;
+}
+
 // Formatea un monto (ENTERO en menor unidad) con Intl.NumberFormat — SIEMPRE
-// usar esto, nunca .toFixed() ni división/multiplicación manual. Usa el `locale`
-// de la MONEDA (no el idioma de la app) — es de salida, no de entrada (F-16b.1).
+// usar esto, nunca .toFixed() ni división/multiplicación manual.
 export function formatAmount(minor: number, code: CurrencyCode): string {
   const currency = getCurrency(code);
   const value = minor / minorFactor(code);
-  return new Intl.NumberFormat(currency.locale, {
+  return new Intl.NumberFormat(LOCALE_DE_SALIDA[idiomaDeSalida], {
     minimumFractionDigits: currency.decimals,
     maximumFractionDigits: currency.decimals,
   }).format(Math.abs(value));

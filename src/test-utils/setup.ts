@@ -100,3 +100,21 @@ jest.mock('react-native-safe-area-context', () =>
   // namespace. Sin esto el módulo queda envuelto y `SafeAreaView` llega
   // `undefined`, con un error que habla de imports mezclados y no de esto.
   require('react-native-safe-area-context/jest/mock').default);
+
+/**
+ * **El idioma del entorno de test es 'es', fijo.**
+ *
+ * `expo-localization` devuelve el idioma de la MÁQUINA que corre los tests, y
+ * desde T-066 el formateo de plata sigue al idioma de la app. Sin fijarlo, un
+ * aserto sobre «3.000» pasa en una máquina en español y falla en una en inglés
+ * —donde da «3,000»—: el tipo de test que está verde acá y rojo en CI, por algo
+ * que no tiene nada que ver con lo que el test prueba.
+ *
+ * Se mockea la FUENTE y no el resultado: fijar sólo el formateo dejaría el
+ * idioma de i18n corriendo por su cuenta, y el init de i18n vuelve a pisar el
+ * formateo al arrancar. Una sola perilla, sin carrera entre las dos.
+ */
+jest.mock('expo-localization', () => ({
+  getLocales: () => [{ languageCode: 'es', languageTag: 'es-AR', regionCode: 'AR' }],
+  getCalendars: () => [{ timeZone: 'America/Argentina/Buenos_Aires' }],
+}));

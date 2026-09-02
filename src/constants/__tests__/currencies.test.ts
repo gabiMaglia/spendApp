@@ -1,4 +1,4 @@
-import { formatMoney, hasDecimals, minorFactor, parseMoney } from '../currencies';
+import { formatMoney, hasDecimals, minorFactor, parseMoney, setFormatLanguage } from '../currencies';
 
 describe('minorFactor', () => {
   it('returns 100 for currencies with 2 decimals', () => {
@@ -98,7 +98,84 @@ describe('invariante parseMoney(formatMoney(m, c), c, lang) === m', () => {
     { m: 15000023, c: 'BRL', lang: 'pt' },
   ];
 
+  /**
+   * Desde T-066 el formateo también tiene idioma, así que la invariante se
+   * enuncia completa: **leer y escribir con el MISMO idioma no pierde plata.**
+   *
+   * Antes `formatMoney` usaba el locale de la moneda y `parseMoney` el idioma
+   * de la app, y esta invariante pasaba por casualidad — el caso USD/en la
+   * cumplía porque en-US coincidía con el locale del dólar. Con el idioma en
+   * español, `formatMoney(150000,'USD')` daba `US$1,500.00` y parsearlo en
+   * español devolvía **150**: tres órdenes de magnitud, en silencio.
+   */
   it.each(cases)('round-trips $m $c ($lang)', ({ m, c, lang }) => {
+    setFormatLanguage(lang);
     expect(parseMoney(formatMoney(m, c), c, lang)).toBe(m);
+  });
+
+  // El caso que el bug producía: formatear en un idioma y parsear en otro.
+  // No se puede arreglar en `parseMoney` —`US$1,500.00` es ambiguo sin saber
+  // quién lo escribió—, así que la app no puede permitirse mezclarlos.
+  it('formatear en un idioma y parsear en otro SÍ pierde plata', () => {
+    setFormatLanguage('en');
+    const enIngles = formatMoney(150000, 'USD');   // US$1,500.00
+    expect(parseMoney(enIngles, 'USD', 'es')).not.toBe(150000);
+    setFormatLanguage('es');
+  });
+});
+
+/**
+ * **Un solo separador por pantalla, siempre.**
+ *
+ * Es el bug que el PO levantó viéndolo renderizado: `US$1,234.56` arriba y
+ * `€1234,56` abajo, en la misma lista de balances. **La coma significaba
+ * "miles" en una fila y "decimales" en la de al lado.** Venía de formatear cada
+ * moneda con SU locale en vez de con el idioma de quien mira.
+ *
+ * No hay convención mundial que copiar —ISO 80000-1 recomienda espacio fino
+ * justamente porque coma y punto son ambiguos entre países—, así que lo único
+ * defendible es ser consistente para el lector.
+ */
+describe('todas las monedas se leen con la misma convención', () => {
+  const MONEDAS = ['ARS', 'USD', 'EUR', 'BRL', 'CLP', 'BOB', 'PYG', 'UYU', 'PEN'] as const;
+
+  /** Los separadores que quedan tras sacar dígitos y símbolo. */
+  const separadores = (s: string) => [...s.replace(/[\d\s]/g, '')].filter(c => c === '.' || c === ',');
+
+  it.each(['es', 'en', 'pt'] as const)('en %s, ninguna moneda usa otro separador', lang => {
+    setFormatLanguage(lang);
+    const miles = lang === 'en' ? ',' : '.';
+
+    for (const code of MONEDAS) {
+      // 1.234.567,89 en es/pt · 1,234,567.89 en en — con miles Y decimales.
+      const texto = formatMoney(123456789, code);
+      const usados = new Set(separadores(texto));
+      expect(`${lang} ${code} ${texto}`).toBe(`${lang} ${code} ${texto}`);
+      // El separador de miles tiene que ser el del idioma, en TODAS.
+      expect(`${code}: ${usados.has(miles)}`).toBe(`${code}: true`);
+    }
+    setFormatLanguage('es');
+  });
+
+  // El caso concreto de la captura del PO: dólar y euro, uno al lado del otro.
+  it('el dólar y el euro no se contradicen', () => {
+    setFormatLanguage('es');
+    expect(formatMoney(123456, 'USD')).toBe('US$1.234,56');
+    expect(formatMoney(123456, 'EUR')).toBe('€1.234,56');
+
+    setFormatLanguage('en');
+    expect(formatMoney(123456, 'USD')).toBe('US$1,234.56');
+    expect(formatMoney(123456, 'EUR')).toBe('€1,234.56');
+    setFormatLanguage('es');
+  });
+
+  // Las de cero decimales no pueden quedar con una coma decimal huérfana.
+  it('CLP y PYG no muestran decimales en ningún idioma', () => {
+    for (const lang of ['es', 'en', 'pt'] as const) {
+      setFormatLanguage(lang);
+      expect(`${lang} CLP: ${formatMoney(1234567, 'CLP')}`).not.toMatch(/[.,]\d\d$/);
+      expect(`${lang} PYG: ${formatMoney(1234567, 'PYG')}`).not.toMatch(/[.,]\d\d$/);
+    }
+    setFormatLanguage('es');
   });
 });

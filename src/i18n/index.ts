@@ -3,6 +3,7 @@ import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 
 import { createStorage } from '@/src/utils/createStorage';
+import { setFormatLanguage } from '@/src/constants/currencies';
 import en from './locales/en.json';
 import es from './locales/es.json';
 import pt from './locales/pt.json';
@@ -42,5 +43,24 @@ i18n.use(initReactI18next).init({
   interpolation: { escapeValue: false },
   compatibilityJSON: 'v4',
 });
+
+/**
+ * El formateo de plata sigue al idioma (T-066).
+ *
+ * Va acá y no en `langStore` porque `langStore` es UNO de los caminos que
+ * cambian el idioma —el otro es el arranque, con la preferencia persistida o la
+ * del dispositivo— y el evento de i18next cubre los dos. Cablearlo en el store
+ * dejaría el arranque sin sincronizar y nadie lo notaría: el default es 'es' y
+ * la mayoría de los usuarios están en 'es'.
+ */
+function sincronizarFormatoDeMoneda(lng: string): void {
+  const idioma = SUPPORTED_LANGUAGES.includes(lng as SupportedLanguage)
+    ? (lng as SupportedLanguage)
+    : 'es';
+  setFormatLanguage(idioma);
+}
+
+sincronizarFormatoDeMoneda(i18n.language);
+i18n.on('languageChanged', sincronizarFormatoDeMoneda);
 
 export default i18n;
