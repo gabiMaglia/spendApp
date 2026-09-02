@@ -24,7 +24,7 @@ const ANA = { id: 'ana', name: 'Ana' } as User;
 /** 8 avisos sin leer, como los que reportó el PO. */
 const SIN_LEER = Array.from({ length: 8 }, (_, i) => ({
   id: `n${i}`,
-  at: 1_000 + i,
+  createdAt: 1_000 + i,
   readAt: null,
   notice: { kind: 'expenses' as const, groupId: 'g1', groupName: 'Asado', count: 1 },
 }));
