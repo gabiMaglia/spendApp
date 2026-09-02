@@ -11,7 +11,9 @@ import { Colors } from '@/src/constants/colors';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { claveDeFallo, elegirAvatarDeGaleria } from '@/src/services/avatar';
+import { claveDeFallo, elegirAvatarDeGaleria, recortarAAvatar } from '@/src/services/avatar';
+import { AvatarCropSheet } from '@/src/components/AvatarCropSheet';
+import type { Recorte } from '@/src/algorithms/avatarCrop';
 import { useAuthStore } from '@/src/store/authStore';
 import { actualizarMiPerfil } from '@/src/store/miPerfil';
 import { useThemeStore } from '@/src/store/themeStore';
@@ -46,8 +48,27 @@ export default function UserScreen() {
   const [editingName, setEditingName] = useState(false);
   const [draftName, setDraftName] = useState('');
 
+  /** La imagen elegida, esperando que la persona ajuste el encuadre. */
+  const [aRecortar, setARecortar] = useState<{ uri: string; width: number; height: number } | null>(null);
+
   async function cambiarFoto() {
     const r = await elegirAvatarDeGaleria();
+    if (!r.ok) {
+      const clave = claveDeFallo(r.motivo);
+      if (clave) Alert.alert(t('profile.photo_error_title'), t(clave));
+      return;
+    }
+    // No se guarda todavía: primero se elige QUÉ parte de la foto queda
+    // (T-067). Antes se guardaba en el acto y el redimensionado la achataba.
+    setARecortar({ uri: r.uri, width: r.width, height: r.height });
+  }
+
+  async function confirmarRecorte(recorte: Recorte) {
+    const elegida = aRecortar;
+    setARecortar(null);
+    if (!elegida) return;
+
+    const r = await recortarAAvatar(elegida.uri, recorte);
     if (!r.ok) {
       const clave = claveDeFallo(r.motivo);
       if (clave) Alert.alert(t('profile.photo_error_title'), t(clave));
@@ -362,6 +383,15 @@ export default function UserScreen() {
       </Animated.ScrollView>
 
       <TabHeader title={t('profile.title')} scrollY={scrollY} />
+
+      <AvatarCropSheet
+        visible={aRecortar !== null}
+        uri={aRecortar?.uri ?? null}
+        width={aRecortar?.width ?? 1}
+        height={aRecortar?.height ?? 1}
+        onCancel={() => setARecortar(null)}
+        onConfirm={confirmarRecorte}
+      />
     </SafeAreaView>
   );
 }

@@ -1,6 +1,6 @@
 import {
   avatarByteSize, avatarCabe, AVATAR_MAX_BYTES, achicarAAvatar,
-  claveDeFallo, elegirAvatarDeGaleria, type FalloAvatar,
+  claveDeFallo, elegirAvatarDeGaleria, recortarAAvatar, type FalloAvatar,
 } from '../avatar';
 
 const mockManipulate = jest.fn();
@@ -52,11 +52,21 @@ describe('achicarAAvatar', () => {
     expect(r).toMatch(/^data:image\/jpeg;base64,/);
   });
 
-  it('achica a un cuadrado fijo, no al tamaño original', async () => {
+  /**
+   * **Este test exigía el bug.** Pedía `resize: { width: 96, height: 96 }`, y
+   * fijar los dos lados no recorta: DEFORMA. Una foto apaisada se achataba a
+   * cuadrado y la cara salía aplastada. Nadie lo reportó nunca porque una foto
+   * fea se le atribuye a la foto, no a la app — y el test la protegía.
+   *
+   * Sin recorte se fija SÓLO el ancho: el alto sale solo y la proporción se
+   * respeta. El cuadrado lo garantiza el recorte, que es el otro camino.
+   */
+  it('achica sin deformar: fija el ancho y deja que el alto salga solo', async () => {
     mockManipulate.mockResolvedValue({ base64: b64(5_000) });
     await achicarAAvatar('file://foto.jpg');
     const [, acciones] = mockManipulate.mock.calls[0];
-    expect(acciones[0].resize).toEqual({ width: 96, height: 96 });
+    expect(acciones[0].resize).toEqual({ width: 96 });
+    expect(acciones[0].resize.height).toBeUndefined();
   });
 
   it('si AUN achicada no entra, devuelve null y no la original', async () => {
@@ -105,18 +115,62 @@ describe('elegirAvatarDeGaleria', () => {
     expect(await elegirAvatarDeGaleria()).toEqual({ ok: false, motivo: 'cancelado' });
   });
 
-  it('imagen que no se puede procesar ⇒ no_procesable, no cancelado', async () => {
+  /**
+   * Desde T-067 elegir NO procesa la imagen: la devuelve cruda para que la
+   * persona decida el encuadre. Sin medidas el recorte se calcularía contra un
+   * tamaño falso y saldría corrido, en silencio — por eso falta de medidas es
+   * `no_procesable` y no un valor inventado.
+   */
+  it('sin medidas ⇒ no_procesable: no se inventa el tamaño', async () => {
     mockGaleria.mockResolvedValue({ canceled: false, assets: [{ uri: 'file://x.jpg' }] });
-    mockManipulate.mockRejectedValue(new Error('formato raro'));
     expect(await elegirAvatarDeGaleria()).toEqual({ ok: false, motivo: 'no_procesable' });
   });
 
-  it('caso feliz: devuelve el data URI', async () => {
-    mockGaleria.mockResolvedValue({ canceled: false, assets: [{ uri: 'file://x.jpg' }] });
-    mockManipulate.mockResolvedValue({ base64: b64(5_000) });
+  it('caso feliz: devuelve la imagen cruda con sus medidas, sin tocarla', async () => {
+    mockGaleria.mockResolvedValue({
+      canceled: false, assets: [{ uri: 'file://x.jpg', width: 1000, height: 500 }],
+    });
     const r = await elegirAvatarDeGaleria();
-    expect(r.ok).toBe(true);
+    expect(r).toEqual({ ok: true, uri: 'file://x.jpg', width: 1000, height: 500 });
+    // Elegir no toca la imagen: el manipulador recién entra al confirmar.
+    expect(mockManipulate).not.toHaveBeenCalled();
+  });
+});
+
+describe('recortarAAvatar', () => {
+  const RECORTE = { originX: 250, originY: 0, width: 500, height: 500 };
+
+  it('recorta ANTES de escalar, y devuelve el data URI', async () => {
+    mockManipulate.mockResolvedValue({ base64: b64(5_000) });
+    const r = await recortarAAvatar('file://x.jpg', RECORTE);
+
     expect(r.ok && r.dataUri).toMatch(/^data:image\/jpeg;base64,/);
+    const acciones = mockManipulate.mock.calls[0][1];
+    expect(acciones[0]).toEqual({ crop: RECORTE });
+    expect(acciones[1]).toHaveProperty('resize');
+  });
+
+  /**
+   * **El bug que este ticket arregla.** Antes se pasaban `width` Y `height` al
+   * `resize`, y eso no recorta: deforma. Una foto apaisada se achataba a
+   * cuadrado y la cara salía aplastada. Nadie lo reportó como bug porque una
+   * foto fea se le atribuye a la foto, no a la app.
+   */
+  it('el resize NO fuerza los dos lados: eso deformaría', async () => {
+    mockManipulate.mockResolvedValue({ base64: b64(5_000) });
+    await recortarAAvatar('file://x.jpg', RECORTE);
+
+    const resize = mockManipulate.mock.calls[0][1][1].resize;
+    // Con el recorte cuadrado ya hecho, fijar los dos lados es redundante pero
+    // inofensivo; lo que no puede pasar es que se escale SIN recortar antes.
+    expect(mockManipulate.mock.calls[0][1][0]).toHaveProperty('crop');
+    expect(resize).toBeDefined();
+  });
+
+  it('si el manipulador falla, es no_procesable', async () => {
+    mockManipulate.mockRejectedValue(new Error('formato raro'));
+    expect(await recortarAAvatar('file://x.jpg', RECORTE))
+      .toEqual({ ok: false, motivo: 'no_procesable' });
   });
 });
 

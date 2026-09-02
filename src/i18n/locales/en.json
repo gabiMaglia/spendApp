@@ -63,6 +63,8 @@
     "rates_never": "No rates yet",
     "rates_single": "You only use one currency: no rates are requested",
     "change_photo": "Change photo",
+    "crop_title": "Adjust your photo",
+    "crop_hint": "Drag to move, pinch to zoom.",
     "photo_failed": "That image couldn't be used",
     "notif_settlements": "Debt settlements",
     "photo_error_title": "Couldn't change the photo",

@@ -63,6 +63,8 @@
     "rates_never": "Sin cotización todavía",
     "rates_single": "Usás una sola moneda: no se piden cotizaciones",
     "change_photo": "Cambiar foto",
+    "crop_title": "Ajustá tu foto",
+    "crop_hint": "Arrastrá para mover, pellizcá para acercar.",
     "photo_failed": "No se pudo usar esa imagen",
     "notif_settlements": "Saldos de deudas",
     "photo_error_title": "No se pudo cambiar la foto",

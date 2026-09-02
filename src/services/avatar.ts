@@ -1,4 +1,5 @@
 import * as ImagePicker from 'expo-image-picker';
+import type { Recorte } from '@/src/algorithms/avatarCrop';
 import { AVATAR_CALIDAD, AVATAR_LADO, avatarCabe } from './avatarSize';
 
 export { AVATAR_MAX_BYTES, avatarByteSize, avatarCabe } from './avatarSize';
@@ -83,14 +84,29 @@ export function claveDeFallo(motivo: FalloAvatar): string | null {
  * Achica cualquier imagen al cuadrado del avatar y la devuelve como data URI.
  * `null` si no se pudo — nunca se devuelve la original sin achicar, que es
  * justamente lo que no puede viajar.
+ *
+ * **`recorte` no es opcional por gusto.** Sin él se pasaban `width` Y `height`
+ * al `resize`, y eso no recorta: **deforma**. Una foto apaisada se achataba a
+ * cuadrado y la cara salía aplastada. Nadie lo reportó como bug porque una foto
+ * fea se le atribuye a la foto, no a la app. Con recorte se toma un cuadrado
+ * de verdad y recién ahí se escala, que preserva las proporciones.
  */
-export async function achicarAAvatar(uri: string): Promise<string | null> {
+export async function achicarAAvatar(
+  uri: string, recorte?: Recorte,
+): Promise<string | null> {
   try {
     const manip = cargarManipulador();
     if (!manip) return null;   // build sin el módulo: se sigue con iniciales
+
+    const acciones = recorte
+      ? [{ crop: recorte }, { resize: { width: AVATAR_LADO, height: AVATAR_LADO } }]
+      // Sin recorte —la foto que viene del proveedor, que ya es cuadrada— se
+      // fija SÓLO el ancho: el alto sale solo y la proporción se respeta.
+      : [{ resize: { width: AVATAR_LADO } }];
+
     const r = await manip.manipulateAsync(
       uri,
-      [{ resize: { width: AVATAR_LADO, height: AVATAR_LADO } }],
+      acciones,
       { compress: AVATAR_CALIDAD, format: manip.SaveFormat.JPEG, base64: true },
     );
     if (!r.base64) return null;
@@ -110,7 +126,23 @@ export async function achicarAAvatar(uri: string): Promise<string | null> {
  * Sin pantalla de recorte ni confirmación (decisión del PO): se elige y se
  * guarda, igual que cambiar el nombre.
  */
-export async function elegirAvatarDeGaleria(): Promise<ResultadoAvatar> {
+export type ElegidaParaRecortar =
+  | { ok: true; uri: string; width: number; height: number }
+  | { ok: false; motivo: FalloAvatar };
+
+/**
+ * Abre la galería y devuelve la imagen **sin procesar**, con sus medidas.
+ *
+ * El recorte lo decide la persona en la hoja de ajuste (T-067) y por eso acá no
+ * se toca la imagen. El docblock anterior decía «sin pantalla de recorte ni
+ * confirmación (decisión del PO)»: el PO la pidió el 2026-09-02, después de ver
+ * que las fotos apaisadas salían achatadas.
+ *
+ * Las medidas vienen de `ImagePicker`. Si no las trae —pasa—, se devuelve
+ * `no_procesable` en vez de inventarlas: sin medidas el recorte se calcularía
+ * contra un tamaño falso y saldría corrido, en silencio.
+ */
+export async function elegirAvatarDeGaleria(): Promise<ElegidaParaRecortar> {
   const permiso = await ImagePicker.requestMediaLibraryPermissionsAsync();
   if (!permiso.granted) return { ok: false, motivo: 'sin_permiso' };
 
@@ -126,7 +158,14 @@ export async function elegirAvatarDeGaleria(): Promise<ResultadoAvatar> {
   // a un callejón sin salida.
   if (!manipuladorDisponible()) return { ok: false, motivo: 'sin_modulo' };
 
-  const foto = await achicarAAvatar(r.assets[0].uri);
+  const a = r.assets[0];
+  if (!a.width || !a.height) return { ok: false, motivo: 'no_procesable' };
+  return { ok: true, uri: a.uri, width: a.width, height: a.height };
+}
+
+/** Confirma el recorte elegido y devuelve la foto lista para guardar. */
+export async function recortarAAvatar(uri: string, recorte: Recorte): Promise<ResultadoAvatar> {
+  const foto = await achicarAAvatar(uri, recorte);
   return foto ? { ok: true, dataUri: foto } : { ok: false, motivo: 'no_procesable' };
 }
 

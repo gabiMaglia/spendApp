@@ -63,6 +63,8 @@
     "rates_never": "Ainda sem cotação",
     "rates_single": "Você usa uma só moeda: nenhuma cotação é solicitada",
     "change_photo": "Alterar foto",
+    "crop_title": "Ajuste sua foto",
+    "crop_hint": "Arraste para mover, belisque para aproximar.",
     "photo_failed": "Não foi possível usar essa imagem",
     "notif_settlements": "Quitações de dívidas",
     "photo_error_title": "Não foi possível trocar a foto",
