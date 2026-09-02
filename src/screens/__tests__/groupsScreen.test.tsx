@@ -87,3 +87,44 @@ describe('archivar', () => {
     expect(getByText('groups.empty_archived_title')).toBeTruthy();
   });
 });
+
+/**
+ * **Cambiar de pestaña cambia lo de ABAJO, no lo de arriba** (PO 2026-09-02).
+ *
+ * El bloque de totales estaba condicionado a que la lista tuviera items, así que
+ * al pasar a Archivados —normalmente vacío— desaparecía entero y el segmentado y
+ * la lista saltaban hacia arriba. Se lee como si la pantalla se rompiera.
+ */
+describe('el encabezado no se mueve al cambiar de pestaña', () => {
+  it('los totales siguen ahí con la pestaña de archivados vacía', () => {
+    const r = render(<GroupsScreen />);
+    expect(r.getByText('groups.stat_owed_to_you')).toBeTruthy();
+
+    fireEvent.press(r.getByText('groups.tab_archived'));
+
+    expect(r.getByText('groups.stat_owed_to_you')).toBeTruthy();
+    expect(r.getByText('groups.stat_groups')).toBeTruthy();
+    // Y la lista de abajo sí cambió: no hay nada archivado.
+    expect(r.getByText('groups.empty_archived_title')).toBeTruthy();
+  });
+
+  /**
+   * El contador cuenta los ACTIVOS, no los visibles. Los dos saldos de al lado
+   * son globales y no se mueven: un número que cambia junto a dos que no, se lee
+   * como un error de la app.
+   */
+  it('el contador de grupos no cambia con la pestaña', () => {
+    // DOS activos y UNO archivado a propósito: con uno y uno, las dos pestañas
+    // dicen «1» y el test pasa igual contando lo visible — que es justo el bug.
+    // Lo descubrió una mutación que sobrevivió.
+    useGroupStore.setState({
+      groups: [grupo('g1', 'Asado'), grupo('g2', 'Viaje'), grupo('g3', 'Finde')],
+    });
+    useArchiveStore.setState({ archivedIds: ['g3'] });
+    const r = render(<GroupsScreen />);
+
+    expect(r.getByText('2')).toBeTruthy();   // dos activos
+    fireEvent.press(r.getByText('groups.tab_archived'));
+    expect(r.getByText('2')).toBeTruthy();   // sigue diciendo dos, no uno
+  });
+});

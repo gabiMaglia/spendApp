@@ -59,6 +59,12 @@ export default function GroupsScreen() {
     [myGroups, archivedIds, tabActual],
   );
 
+  /** Los grupos activos. No depende de la pestaña, y eso es a propósito. */
+  const activos = useMemo(
+    () => myGroups.filter(g => !archivedIds.includes(g.id)).length,
+    [myGroups, archivedIds],
+  );
+
   return (
     <SafeAreaView edges={['bottom']} style={[styles.safe, { backgroundColor: c.bg }]}>
       <Animated.ScrollView
@@ -69,15 +75,22 @@ export default function GroupsScreen() {
       >
         <Text style={[Typography.display, styles.title, { color: c.text }]}>{t('groups.title')}</Text>
 
-        {visibles.length > 0 && (
-          <SplitStat
-            items={[
-              { label: 'Te deben', value: formatMoney(owedToYou, cur), color: c.semantic.positive },
-              { label: 'Debés',    value: formatMoney(youOwe, cur),    color: c.textSecondary },
-              { label: 'Grupos',   value: String(visibles.length) },
-            ]}
-          />
-        )}
+        {/* **Todo lo de arriba del segmentado no depende de la pestaña.**
+            Antes este bloque estaba condicionado a que la lista tuviera items,
+            así que al pasar a Archivados —normalmente vacío— desaparecía y el
+            segmentado y la lista saltaban hacia arriba. Cambiar de pestaña tiene
+            que cambiar sólo lo de abajo (pedido del PO).
+
+            Por la misma razón el contador cuenta los grupos ACTIVOS y no los
+            visibles: los saldos de al lado son globales y no se mueven, y un
+            número que cambia al lado de dos que no, se lee como un error. */}
+        <SplitStat
+          items={[
+            { label: t('groups.stat_owed_to_you'), value: formatMoney(owedToYou, cur), color: c.semantic.positive },
+            { label: t('groups.stat_you_owe'),     value: formatMoney(youOwe, cur),    color: c.textSecondary },
+            { label: t('groups.stat_groups'),      value: String(activos) },
+          ]}
+        />
 
         <View style={styles.segPad}>
           <Segmented
