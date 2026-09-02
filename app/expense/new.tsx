@@ -31,6 +31,8 @@ import { useExpenseStore } from '@/src/store/expenseStore';
 import { usePersonalStore, toMonthKey } from '@/src/store/personalStore';
 import { UserAvatar } from '@/src/components/UserAvatar';
 import { BottomSheet, SheetOption, SheetOptionAvatar } from '@/src/components/Sheet';
+import { ActionButton } from '@/src/components/ActionButton';
+import { ButtonRack } from '@/src/components/ButtonRack';
 import { Band, SectionLabel, Segmented } from '@/src/components/Band';
 import { DetailHeader } from '@/src/components/CollapsibleHeader';
 import { buildSplits } from '@/src/algorithms/buildSplits';
@@ -739,17 +741,20 @@ export default function NewExpenseScreen() {
             </View>
           )}
 
-          {/* Save button */}
-          <Pressable
-            onPress={handleSave}
-            disabled={!canSave}
-            style={[styles.saveBtn, styles.savePad, { backgroundColor: canSave ? c.brand.primary : c.bgGrouped }]}
-          >
-            <Text style={[Typography.bodyL, { color: canSave ? '#fff' : c.textDisabled, fontWeight: '700' }]}>
-              {/* El botón NO promete un anuncio que no existe. */}
-              {!isEditMode && needsAd ? t('expense.save_with_ad') : t('expense.save')}
-            </Text>
-          </Pressable>
+          {/* El botón de la app, no un Pressable con estilo propio. Es la regla
+              del proyecto y es lo que hace que «guardar» se vea y se sienta
+              igual en las cinco pantallas que guardan algo. */}
+          <ButtonRack placement="inline">
+            <ActionButton
+              testID="expense-save"
+              size="lg"
+              full
+              disabled={!canSave}
+              action={handleSave}
+              // El botón NO promete un anuncio que no existe.
+              label={!isEditMode && needsAd ? t('expense.save_with_ad') : t('expense.save')}
+            />
+          </ButtonRack>
 
           <View style={{ height: Spacing[4] }} />
         </ScrollView>
@@ -887,12 +892,9 @@ export default function NewExpenseScreen() {
             { color: c.text, backgroundColor: c.bgGrouped },
           ]}
         />
-        <Pressable
-          onPress={() => setShowNote(false)}
-          style={[styles.saveBtn, { backgroundColor: c.brand.primary, marginTop: 12 }]}
-        >
-          <Text style={[Typography.bodyL, { color: '#fff', fontWeight: '700' }]}>{t('common.done')}</Text>
-        </Pressable>
+        <ButtonRack placement="inline" style={{ marginTop: 12 }}>
+          <ActionButton size="lg" full label={t('common.done')} action={() => setShowNote(false)} />
+        </ButtonRack>
       </BottomSheet>
 
     </SafeAreaView>
@@ -908,7 +910,6 @@ const styles = StyleSheet.create({
   scroll:       { paddingTop: Spacing[4], paddingBottom: Spacing[4] },
   segPad:       { paddingHorizontal: Spacing.screenPad, paddingBottom: 14 },
   recurrencePad:{ paddingHorizontal: Spacing.screenPad, paddingVertical: Spacing[4] },
-  savePad:      { marginHorizontal: Spacing.screenPad },
   inlineLink:   { alignSelf: 'flex-start', paddingHorizontal: Spacing.screenPad, paddingTop: 10 },
 
   noGroupsState: {
@@ -967,8 +968,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.screenPad, paddingVertical: 13,
     marginTop: Spacing[4],
   },
-
-  saveBtn:      { borderRadius: Radius.lg, height: 52, alignItems: 'center', justifyContent: 'center' },
 
   bottomBar:    {
     flexDirection: 'row', alignItems: 'center',

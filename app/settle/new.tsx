@@ -12,6 +12,8 @@ import { DetailHeader } from '@/src/components/CollapsibleHeader';
 
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { ActionButton } from '@/src/components/ActionButton';
+import { ButtonRack } from '@/src/components/ButtonRack';
+import { Band, BandRow } from '@/src/components/Band';
 import { Typography } from '@/src/constants/typography';
 import { topeDelSaldo, excedeElTope } from '@/src/algorithms/settleScope';
 import { acreedoresDe, pagosDelReparto, repartoParejo, totalAdeudado } from '@/src/algorithms/repartoSaldo';
@@ -310,7 +312,8 @@ export default function SettleNewScreen() {
           )}
 
           {/* Amount */}
-          <View style={[styles.amountCard, { backgroundColor: c.surface, borderColor: exceedsMax ? c.semantic.negative : c.hair }]}>
+          <Band style={exceedsMax ? { borderColor: c.semantic.negative } : undefined}>
+          <View style={styles.amountCard}>
             <Text style={[Typography.label, { color: c.textTertiary, textTransform: 'uppercase' }]}>
               {currency}
             </Text>
@@ -387,9 +390,11 @@ export default function SettleNewScreen() {
               </View>
             )}
           </View>
+          </Band>
 
-          {/* From → To */}
-          <View style={[styles.transferCard, { backgroundColor: c.surface, borderColor: c.hair }]}>
+          {/* Quién le paga a quién */}
+          <Band>
+          <View style={styles.transferCard}>
             <Pressable
               onPress={isPrefilled ? undefined : () => setShowFrom(true)}
               style={styles.transferSide}
@@ -432,43 +437,45 @@ export default function SettleNewScreen() {
               )}
             </Pressable>
           </View>
+          </Band>
 
-          {/* Group & date row */}
-          <View style={styles.metaRow}>
-            <Pressable
-              onPress={() => { hapticSelection(); setShowGroup(true); }}
-              style={[styles.metaChip, { backgroundColor: c.surface, borderColor: c.hair, flex: 1 }]}
-            >
-              <Ionicons name="people-outline" size={14} color={c.textSecondary} />
-              <Text style={[Typography.bodyS, { color: c.text, fontWeight: '600', flex: 1 }]} numberOfLines={1}>
+          {/* Grupo y fecha: filas de banda, no chips sueltos */}
+          <Band>
+            <BandRow onPress={() => { hapticSelection(); setShowGroup(true); }}>
+              <Ionicons name="people-outline" size={17} color={c.textSecondary} />
+              <Text style={[Typography.bodyM, { color: c.textSecondary, flex: 1 }]}>
+                {t('expense.group_label')}
+              </Text>
+              <Text style={[Typography.bodyM, { color: c.text, fontWeight: '600' }]} numberOfLines={1}>
                 {group?.name ?? t('expense.no_group_short')}
               </Text>
-              <Ionicons name="chevron-down" size={14} color={c.textTertiary} />
-            </Pressable>
-
-            <Pressable
-              onPress={() => { hapticSelection(); setShowDate(true); }}
-              style={[styles.metaChip, { backgroundColor: c.surface, borderColor: c.hair }]}
-            >
-              <Ionicons name="calendar-outline" size={14} color={c.textSecondary} />
-              <Text style={[Typography.bodyS, { color: c.text, fontWeight: '600' }]}>
+              <Ionicons name="chevron-forward" size={16} color={c.textTertiary} />
+            </BandRow>
+            <BandRow last onPress={() => { hapticSelection(); setShowDate(true); }}>
+              <Ionicons name="calendar-outline" size={17} color={c.textSecondary} />
+              <Text style={[Typography.bodyM, { color: c.textSecondary, flex: 1 }]}>
+                {t('settle.date_label')}
+              </Text>
+              <Text style={[Typography.bodyM, { color: c.text, fontWeight: '600' }]}>
                 {formatDate(date)}
               </Text>
-            </Pressable>
-          </View>
+              <Ionicons name="chevron-forward" size={16} color={c.textTertiary} />
+            </BandRow>
+          </Band>
 
-          {/* Save */}
-          <Pressable
-            onPress={handleSave}
-            disabled={!canSave}
-            style={[styles.saveBtn, { backgroundColor: canSave ? c.brand.primary : c.bgGrouped }]}
-          >
-            <Text style={[Typography.bodyL, {
-              color: canSave ? '#fff' : c.textDisabled, fontWeight: '700',
-            }]}>
-              {t('settle.title')}
-            </Text>
-          </Pressable>
+          {/* El botón de la app, no un Pressable con estilo propio: es la
+              regla del proyecto y lo que hace que «guardar» se vea igual en
+              todas las pantallas. */}
+          <ButtonRack>
+            <ActionButton
+              testID="settle-save"
+              label={t('settle.title')}
+              size="lg"
+              full
+              disabled={!canSave}
+              action={handleSave}
+            />
+          </ButtonRack>
         </ScrollView>
       </KeyboardAvoidingView>
 
@@ -556,10 +563,8 @@ const styles = StyleSheet.create({
   },
   safe:           { flex: 1 },
   scroll:         { paddingHorizontal: Spacing.screenPad, paddingTop: Spacing[4], gap: Spacing[3] },
-  amountCard:     {
-    borderRadius: Radius.lg, borderWidth: 1,
-    paddingVertical: 20, alignItems: 'center', gap: 4,
-  },
+  // Sin borde ni fondo: los pone `Band`. Acá queda sólo el ritmo interno.
+  amountCard:     { paddingVertical: 20, alignItems: 'center', gap: 4 },
   // `stretch` + `center`: la fila ocupa todo el ancho de la tarjeta y centra su
   // contenido, en vez de encogerse a él. Es lo que impide que MAX se salga por
   // el borde cuando el monto es largo — antes la fila crecía con el número.
@@ -582,11 +587,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 5,
     paddingHorizontal: 12, paddingVertical: 5, borderRadius: Radius.full, marginTop: 4,
   },
-  transferCard:   {
-    flexDirection: 'row', alignItems: 'center',
-    borderRadius: Radius.lg, borderWidth: 1,
-    padding: Spacing[4],
-  },
+  // Ídem: la caja es de `Band`, esto es sólo el reparto en dos columnas.
+  transferCard:   { flexDirection: 'row', alignItems: 'center', padding: Spacing[4] },
   transferSide:   { flex: 1, alignItems: 'center' },
   transferUser:   { alignItems: 'center', gap: 6, maxWidth: 90 },
   arrowBox:       {
@@ -594,11 +596,4 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
     marginHorizontal: 8,
   },
-  metaRow:        { flexDirection: 'row', gap: 10 },
-  metaChip:       {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 14, paddingVertical: 10,
-    borderRadius: Radius.full, borderWidth: 1,
-  },
-  saveBtn:        { borderRadius: Radius.lg, paddingVertical: 16, alignItems: 'center' },
 });
