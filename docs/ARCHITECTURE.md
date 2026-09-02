@@ -209,7 +209,25 @@ interface Payment extends SyncMeta {
 }
 ```
 
-`Payment` es un tipo de `Expense` con `type: 'payment'` y `splits` pre-calculados que cancelan el balance entre dos usuarios. No necesita consenso para registrarse — cualquier miembro puede declarar que pagó.
+`Payment` es un tipo de `Expense` con `type: 'payment'` y `splits` pre-calculados que cancelan el balance entre dos usuarios. Cualquier miembro puede **declarar** que pagó.
+
+### El acuse de recibo (T-064, 2026-09-01)
+
+Esta sección decía «no necesita consenso para registrarse» y **eso ya no es cierto en un grupo `consensus`**. Declarar el pago no lo efectiviza: quien **cobra** tiene que acusar recibo.
+
+| Estado | Cuenta en el balance | Cómo se llega |
+|---|---|---|
+| `efectivo` | sí | grupo `open`, o lo declaró quien cobra, o hay acuse `confirm` |
+| `pendiente` | **sí** | lo declaró quien paga y todavía no hay acuse |
+| `rechazado` | **no** | quien cobra dijo que no lo recibió ⇒ la deuda vuelve |
+
+Que `pendiente` cuente es deliberado (D1): quien ya transfirió la plata **no puede quedar de deudor** mientras espera. Lo que no hace es mostrarse como cerrado — la fila lo dice, y quien cobra recibe el aviso `settlement_pending`.
+
+**No hay plazo automático** (D2). A diferencia del borrado consensuado, acá el silencio no consiente. La contracara es que un pago falso le borra la deuda al que lo declara hasta que el otro actúe, y por eso **el rechazo no es opcional**: es el único freno que existe.
+
+El acuse es un registro **firmado y colaborativo**, no un campo de estado: `SettlementConfirmation` con `k`/`s`, unido en el merge como los votos de borrado. Un `status` guardado sería LWW y cualquier peer lo pisaría republicando con `updatedAt` mayor — la trampa exacta de T-053. `paymentId` va adentro de la firma, o un "sí, lo recibí" de mil pesos valdría para uno de cien mil.
+
+Ver `engram/plans/T-064.md` para las tres decisiones del PO y `src/algorithms/settlementStatus.ts` para el derivador.
 
 ---
 
