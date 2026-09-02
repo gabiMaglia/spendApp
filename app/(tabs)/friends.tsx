@@ -25,7 +25,8 @@ import { Fab, FabRow } from '@/src/components/Fab';
 import { EmptyState } from '@/src/components/EmptyState';
 import { BottomSheet } from '@/src/components/Sheet';
 import { Band, BandRow, SectionLabel, SplitStat } from '@/src/components/Band';
-import { CollapsibleHeader, HeaderAvatar, HeaderCurrency, useHeaderPadding } from '@/src/components/CollapsibleHeader';
+import { TabHeader } from '@/src/components/TabHeader';
+import { useHeaderPadding } from '@/src/components/CollapsibleHeader';
 import { syncedNow } from '@/src/utils/syncedClock';
 
 export default function FriendsScreen() {
@@ -159,12 +160,7 @@ export default function FriendsScreen() {
         )}
       </Animated.ScrollView>
 
-      <CollapsibleHeader
-        title={t('friends.title')}
-        scrollY={scrollY}
-        left={<HeaderAvatar initials={(currentUser?.name ?? '?').slice(0, 2).toUpperCase()} />}
-        right={<HeaderCurrency code={cur} />}
-      />
+      <TabHeader title={t('friends.title')} scrollY={scrollY} />
 
       <FabRow>
         <Fab

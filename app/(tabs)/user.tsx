@@ -26,7 +26,8 @@ import { CurrencyPicker } from '@/src/components/CurrencyPicker';
 import { useCurrenciesInUse } from '@/src/store/currenciesInUse';
 import { needsRates, readCache } from '@/src/services/fx';
 import { Band, BandRow, SectionLabel, Segmented, SoonBadge } from '@/src/components/Band';
-import { CollapsibleHeader, useHeaderPadding } from '@/src/components/CollapsibleHeader';
+import { TabHeader } from '@/src/components/TabHeader';
+import { useHeaderPadding } from '@/src/components/CollapsibleHeader';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Sharing from 'expo-sharing';
 import { File, Paths } from 'expo-file-system';
@@ -360,7 +361,7 @@ export default function UserScreen() {
         </Text>
       </Animated.ScrollView>
 
-      <CollapsibleHeader title={t('profile.title')} scrollY={scrollY} />
+      <TabHeader title={t('profile.title')} scrollY={scrollY} />
     </SafeAreaView>
   );
 }

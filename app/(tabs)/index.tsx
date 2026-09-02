@@ -7,12 +7,12 @@ import i18n from '@/src/i18n';
 import { Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { Band, BandLink, Meter, SectionLabel, SplitStat } from '@/src/components/Band';
-import { CollapsibleHeader, HeaderAvatar, HeaderCurrency, useHeaderPadding } from '@/src/components/CollapsibleHeader';
+import { TabHeader } from '@/src/components/TabHeader';
+import { useHeaderPadding } from '@/src/components/CollapsibleHeader';
 import { GroupCard } from '@/src/components/GroupCard';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGlobalPersonBalances, useGroupBalance, useGroupExpenseCount } from '@/src/store/selectors';
 import { usePersonalStore, toMonthKey } from '@/src/store/personalStore';
-import { useSettingsStore } from '@/src/store/settingsStore';
 import { useFx } from '@/src/store/useFx';
 import { convertMinor } from '@/src/services/fx';
 import { sumConverted } from '@/src/services/fxTotals';
@@ -21,10 +21,6 @@ import {
   repartirDelMes, BALDES_GASTADOS, BALDES_DISPONIBLES, type BucketPersonal,
 } from '@/src/algorithms/personalMonth';
 import { UnconvertedNotice } from '@/src/components/UnconvertedNotice';
-import { NoticeBell } from '@/src/components/NoticeBell';
-import { CurrencySheet } from '@/src/components/CurrencyPicker';
-import { NoticeInboxSheet } from '@/src/components/NoticeInboxSheet';
-import { useNoticeInboxStore, type StoredNotice } from '@/src/store/noticeInboxStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { router } from 'expo-router';
 import React, { useMemo, useRef, useState } from 'react';
@@ -73,13 +69,6 @@ export default function AccountScreen() {
   const pendientesFav = aFavor.unconverted;
   const [avisoVisto, setAvisoVisto] = useState(false);
 
-  const inboxItems  = useNoticeInboxStore(st => st.items);
-  const sinLeer     = useNoticeInboxStore(st => st.unreadCount)();
-  const markRead    = useNoticeInboxStore(st => st.markRead);
-  const markAllRead = useNoticeInboxStore(st => st.markAllRead);
-  const [bandeja, setBandeja] = useState(false);
-  const [monedas, setMonedas] = useState(false);
-  const setDisplayCurrency = useSettingsStore(st => st.setDisplayCurrency);
   const groups = useGroupStore(st => st.groups);
 
   const misGrupos = useMemo(
@@ -87,13 +76,6 @@ export default function AccountScreen() {
     [groups, currentUser],
   );
 
-  function abrirAviso(item: StoredNotice) {
-    markRead(item.id);
-    setBandeja(false);
-    const grupo = groups.find(g => g.id === item.notice.groupId && !g.isDeleted);
-    if (!grupo) { alert(t('notifications.inbox_gone')); return; }
-    router.push(`/groups/${grupo.id}` as any);
-  }
 
   const effectiveBudget =
     (convertMinor(budget.monthlyAmount, budget.currency, cur, fx) ?? 0)
@@ -235,39 +217,7 @@ export default function AccountScreen() {
         )}
       </Animated.ScrollView>
 
-      <CollapsibleHeader
-        title={t('dashboard.title')}
-        scrollY={scrollY}
-        left={
-          <Pressable
-            onPress={() => { hapticLight(); router.push('/(tabs)/user' as any); }}
-            accessibilityRole="button"
-            accessibilityLabel={t('dashboard.go_to_profile')}
-            hitSlop={8}
-          >
-            <HeaderAvatar initials={(currentUser?.name ?? '?').slice(0, 2).toUpperCase()} />
-          </Pressable>
-        }
-        right={
-          <>
-            <NoticeBell unread={sinLeer} onPress={() => setBandeja(true)} />
-            <HeaderCurrency code={cur} onPress={() => setMonedas(true)} />
-          </>
-        }
-      />
-      <CurrencySheet
-        visible={monedas}
-        value={cur}
-        onChange={setDisplayCurrency}
-        onClose={() => setMonedas(false)}
-      />
-      <NoticeInboxSheet
-        visible={bandeja}
-        items={inboxItems}
-        onClose={() => setBandeja(false)}
-        onOpenNotice={abrirAviso}
-        onMarkAll={() => markAllRead()}
-      />
+      <TabHeader title={t('dashboard.title')} scrollY={scrollY} />
 
       <FabRow>
         <Fab

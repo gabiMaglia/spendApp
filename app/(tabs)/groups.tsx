@@ -20,7 +20,8 @@ import { GroupCard } from '@/src/components/GroupCard';
 import { SwipeToArchive } from '@/src/components/SwipeToArchive';
 import { EmptyState } from '@/src/components/EmptyState';
 import { Band, Segmented, SplitStat } from '@/src/components/Band';
-import { CollapsibleHeader, HeaderAvatar, HeaderCurrency, useHeaderPadding } from '@/src/components/CollapsibleHeader';
+import { TabHeader } from '@/src/components/TabHeader';
+import { useHeaderPadding } from '@/src/components/CollapsibleHeader';
 import { hapticLight } from '@/src/utils/haptics';
 import type { Group } from '@/src/types/models';
 
@@ -136,12 +137,7 @@ export default function GroupsScreen() {
         )}
       </Animated.ScrollView>
 
-      <CollapsibleHeader
-        title={t('groups.title')}
-        scrollY={scrollY}
-        left={<HeaderAvatar initials={(currentUser?.name ?? '?').slice(0, 2).toUpperCase()} />}
-        right={<HeaderCurrency code={cur} />}
-      />
+      <TabHeader title={t('groups.title')} scrollY={scrollY} />
 
       <FabRow>
         <Fab

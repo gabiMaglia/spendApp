@@ -25,7 +25,8 @@ import { ActivityLine } from '@/src/components/ActivityLine';
 import type { ActivityKind } from '@/src/store/selectors';
 import { EmptyState } from '@/src/components/EmptyState';
 import { Band, SectionLabel } from '@/src/components/Band';
-import { CollapsibleHeader, HeaderAvatar, useHeaderPadding } from '@/src/components/CollapsibleHeader';
+import { TabHeader } from '@/src/components/TabHeader';
+import { useHeaderPadding } from '@/src/components/CollapsibleHeader';
 import { hapticSelection } from '@/src/utils/haptics';
 import { syncedNow } from '@/src/utils/syncedClock';
 
@@ -214,11 +215,7 @@ export default function ActivityScreen() {
         )}
       </Animated.ScrollView>
 
-      <CollapsibleHeader
-        title={t('activity.title')}
-        scrollY={scrollY}
-        left={<HeaderAvatar initials={(currentUser?.name ?? '?').slice(0, 2).toUpperCase()} />}
-      />
+      <TabHeader title={t('activity.title')} scrollY={scrollY} />
     </SafeAreaView>
   );
 }

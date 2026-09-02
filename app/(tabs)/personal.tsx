@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { TabHeader } from '@/src/components/TabHeader';
 import {
   Alert, Animated, Pressable, StyleSheet, Text, TextInput, View,
 } from 'react-native';
@@ -18,9 +19,7 @@ import { Fab, FabRow } from '@/src/components/Fab';
 import {
   Band, BandRow, Meter, SectionLabel, SplitStat,
 } from '@/src/components/Band';
-import {
-  CollapsibleHeader, HeaderAvatar, HeaderCurrency, useHeaderPadding,
-} from '@/src/components/CollapsibleHeader';
+import { useHeaderPadding } from '@/src/components/CollapsibleHeader';
 import { useAuthStore } from '@/src/store/authStore';
 import { usePersonalStore, toMonthKey, currentMonthKey } from '@/src/store/personalStore';
 import { reasonKey } from '@/src/algorithms/entryOrigin';
@@ -375,12 +374,7 @@ export default function PersonalScreen() {
         )}
       </Animated.ScrollView>
 
-      <CollapsibleHeader
-        title={t('personal.title')}
-        scrollY={scrollY}
-        left={<HeaderAvatar initials={(currentUser?.name ?? '?').slice(0, 2).toUpperCase()} />}
-        right={<HeaderCurrency code={cur} />}
-      />
+      <TabHeader title={t('personal.title')} scrollY={scrollY} />
 
       <FabRow>
         <Fab
