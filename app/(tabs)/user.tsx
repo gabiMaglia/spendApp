@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
-  Alert, Linking, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View,
+  Alert, Animated, Linking, Pressable, StyleSheet, Switch, Text, TextInput, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -25,6 +25,8 @@ import { BottomSheet } from '@/src/components/Sheet';
 import { CurrencyPicker } from '@/src/components/CurrencyPicker';
 import { useCurrenciesInUse } from '@/src/store/currenciesInUse';
 import { needsRates, readCache } from '@/src/services/fx';
+import { Band, BandRow, SectionLabel, Segmented, SoonBadge } from '@/src/components/Band';
+import { CollapsibleHeader } from '@/src/components/CollapsibleHeader';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Sharing from 'expo-sharing';
 import { File, Paths } from 'expo-file-system';
@@ -37,30 +39,20 @@ export default function UserScreen() {
   const c = Colors[scheme];
   const { t, i18n } = useTranslation();
   const { currentUser, isPro, signOut } = useAuthStore();
+  const scrollY = useRef(new Animated.Value(0)).current;
 
-  // Edición de nombre — sheet controlado, cross-platform (Alert.prompt no
-  // existe en Android). Prefill con el nombre actual al abrir.
   const [editingName, setEditingName] = useState(false);
+  const [draftName, setDraftName] = useState('');
 
-  /**
-   * Cambiar la foto de perfil.
-   *
-   * Se guarda en el usuario y se anuncia a los contactos igual que el nombre:
-   * `announceContactCards` compara la huella de la tarjeta, y la foto entra en
-   * esa huella, así que el cambio se detecta y se reenvía solo.
-   */
   async function cambiarFoto() {
     const r = await elegirAvatarDeGaleria();
     if (!r.ok) {
-      // Cancelar no es un error; el resto SÍ se dice. Fallar sin mensaje deja
-      // al usuario tocando un botón que no hace nada.
       const clave = claveDeFallo(r.motivo);
       if (clave) Alert.alert(t('profile.photo_error_title'), t(clave));
       return;
     }
     actualizarMiPerfil({ avatar: r.dataUri });
   }
-  const [draftName, setDraftName] = useState('');
 
   function openEditName() {
     setDraftName(currentUser?.name ?? '');
@@ -74,9 +66,6 @@ export default function UserScreen() {
     setEditingName(false);
   }
 
-  // Notification preferences — persistidas en MMKV vía settingsStore.
-  // La ENTREGA de notificaciones se difiere a Sprint 3 (T-010); estos toggles
-  // solo guardan la preferencia para no mentirle al usuario.
   const {
     notifExpenses, setNotifExpenses,
     notifDeletions, setNotifDeletions,
@@ -86,15 +75,11 @@ export default function UserScreen() {
   const displayCurrency    = useSettingsStore(s => s.displayCurrency);
   const setDisplayCurrency = useSettingsStore(s => s.setDisplayCurrency);
 
-  // La fecha de cotización se lee de la cache al vuelo: es informativa y no
-  // justifica un store propio ni un re-render extra.
   const monedasEnUso = useCurrenciesInUse();
   const fxCache      = readCache();
 
-  // Appearance
   const { themeChoice, setThemeChoice } = useThemeStore();
 
-  // Language — 'auto' sigue el idioma del dispositivo; el resto fija el idioma.
   const { choice: langChoice, setLanguage } = useLangStore();
   const langOptions: LanguageChoice[] = ['auto', ...SUPPORTED_LANGUAGES];
   const langLabel = (opt: LanguageChoice) =>
@@ -115,7 +100,6 @@ export default function UserScreen() {
     Linking.openURL('https://apps.apple.com/app/id000000000');
   }
 
-  // ── Backup export/import .splitp2p (T-011) ──────────────────────────────
   async function handleExport() {
     try {
       const file = new File(Paths.cache, backupFileName());
@@ -135,13 +119,10 @@ export default function UserScreen() {
 
   async function handleImport() {
     try {
-      const res = await DocumentPicker.getDocumentAsync({
-        type: '*/*',
-        copyToCacheDirectory: true,
-      });
+      const res = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
       if (res.canceled || !res.assets?.[0]) return;
       const raw = await new File(res.assets[0].uri).text();
-      const backup = parseBackup(raw); // valida antes de confirmar
+      const backup = parseBackup(raw);
       Alert.alert(
         t('backup.import_confirm_title'),
         t('backup.import_confirm_body'),
@@ -168,45 +149,48 @@ export default function UserScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: c.bg }]}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+    <SafeAreaView edges={['bottom']} style={[styles.safe, { backgroundColor: c.bg }]}>
+      <Animated.ScrollView
+        showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: false })}
+        contentContainerStyle={{ paddingTop: Spacing.headerH, paddingBottom: 120 }}
+      >
+        <Text style={[Typography.display, styles.title, { color: c.text }]}>{t('profile.title')}</Text>
 
-        <Text style={[Typography.display, styles.pageTitle, { color: c.text }]}>{t('profile.title')}</Text>
-
-        {/* ── Mi cuenta ────────────────────────────────────────────────── */}
-        <View style={[styles.profileCard, { backgroundColor: c.surface, borderColor: c.borderHair }]}>
-          {/* Tocar la foto la cambia. Mismo camino que el nombre: se elige y
-              se guarda, sin recorte ni confirmación (decisión del PO), y el
-              cambio viaja solo en la próxima tarjeta de contacto. */}
-          <Pressable
-            testID="change-photo"
-            accessibilityRole="button"
-            accessibilityLabel={t('profile.change_photo')}
-            onPress={cambiarFoto}
-            hitSlop={8}
-          >
-            <Avatar
-              name={currentUser?.name ?? '?'}
-              hue={hueForUser(currentUser?.id ?? '')}
-              photo={currentUser?.avatar}
-              size={56}
-            />
-          </Pressable>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={[Typography.bodyL, { color: c.text, fontWeight: '700' }]} numberOfLines={1}>
-              {currentUser?.name ?? t('profile.no_name')}
-            </Text>
-            <Text style={[Typography.bodyS, { color: c.textTertiary }]} numberOfLines={1}>
-              {currentUser?.email ?? ''}
-            </Text>
-          </View>
-          <Pressable hitSlop={10} onPress={openEditName}>
-            <Ionicons name="pencil-outline" size={18} color={c.textTertiary} />
-          </Pressable>
-        </View>
+        {/* Mi cuenta */}
+        <Band>
+          <BandRow last>
+            <Pressable
+              testID="change-photo"
+              accessibilityRole="button"
+              accessibilityLabel={t('profile.change_photo')}
+              onPress={cambiarFoto}
+              hitSlop={8}
+            >
+              <Avatar
+                name={currentUser?.name ?? '?'}
+                hue={hueForUser(currentUser?.id ?? '')}
+                photo={currentUser?.avatar}
+                size={52}
+              />
+            </Pressable>
+            <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+              <Text style={[Typography.h3, { color: c.text }]} numberOfLines={1}>
+                {currentUser?.name ?? t('profile.no_name')}
+              </Text>
+              <Text style={[Typography.caption, { color: c.textTertiary }]} numberOfLines={1}>
+                {currentUser?.email ?? ''}
+              </Text>
+            </View>
+            <Pressable hitSlop={10} onPress={openEditName}>
+              <Ionicons name="pencil-outline" size={17} color={c.textTertiary} />
+            </Pressable>
+          </BandRow>
+        </Band>
 
         <BottomSheet visible={editingName} onClose={() => setEditingName(false)}>
-          <Text style={[Typography.bodyL, { color: c.text, fontWeight: '700', marginBottom: Spacing[3] }]}>
+          <Text style={[Typography.h3, { color: c.text, marginBottom: Spacing[3] }]}>
             {t('profile.edit_name_title')}
           </Text>
           <TextInput
@@ -214,137 +198,90 @@ export default function UserScreen() {
             onChangeText={setDraftName}
             placeholder={t('profile.edit_name_placeholder')}
             placeholderTextColor={c.textTertiary}
-            style={[
-              styles.nameInput,
-              { color: c.text, borderColor: c.borderHair, backgroundColor: c.surfaceSunken },
-            ]}
+            style={[styles.nameInput, { color: c.text, borderColor: c.hair, backgroundColor: c.bgGrouped }]}
             autoFocus
             maxLength={60}
             returnKeyType="done"
             onSubmitEditing={handleSaveName}
           />
           <View style={styles.sheetActions}>
-            <Pressable
-              style={[styles.sheetBtn, { backgroundColor: c.surfaceSunken }]}
-              onPress={() => setEditingName(false)}
-            >
-              <Text style={[Typography.bodyM, { color: c.text, fontWeight: '600' }]}>
-                {t('common.cancel')}
-              </Text>
+            <Pressable style={[styles.sheetBtn, { backgroundColor: c.bgGrouped }]} onPress={() => setEditingName(false)}>
+              <Text style={{ fontSize: 15, fontWeight: '600', color: c.text }}>{t('common.cancel')}</Text>
             </Pressable>
             <Pressable
-              style={[
-                styles.sheetBtn,
-                { backgroundColor: c.brand.primary, opacity: sanitizeUserName(draftName) ? 1 : 0.5 },
-              ]}
+              style={[styles.sheetBtn, {
+                backgroundColor: c.brand.primary,
+                opacity: sanitizeUserName(draftName) ? 1 : 0.5,
+              }]}
               onPress={handleSaveName}
               disabled={!sanitizeUserName(draftName)}
             >
-              <Text style={[Typography.bodyM, { color: '#fff', fontWeight: '700' }]}>
-                {t('common.save')}
-              </Text>
+              <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff' }}>{t('common.save')}</Text>
             </Pressable>
           </View>
         </BottomSheet>
 
-        {/* ── Plan ─────────────────────────────────────────────────────── */}
+        {/* Plan */}
         <SectionLabel label={t('profile.section_plan')} />
-        <View style={[styles.section, { borderColor: c.borderHair }]}>
-          <View style={[styles.row, { backgroundColor: c.surface }]}>
-            <View style={{ flex: 1 }}>
-              <Text style={[Typography.bodyM, { color: c.text, fontWeight: '600' }]}>
+        <Band>
+          <BandRow last>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={[Typography.bodyL, { color: c.text }]}>
                 {isPro ? t('profile.plan_pro') : t('profile.plan_free')}
               </Text>
               {!isPro && (
-                <Text style={[Typography.bodyS, { color: c.textTertiary }]}>
-                  {t('profile.free_daily')}
-                </Text>
+                <Text style={[Typography.caption, { color: c.textTertiary }]}>{t('profile.free_daily')}</Text>
               )}
             </View>
             {isPro ? (
-              <View style={[styles.proBadge, { backgroundColor: c.brand.primary }]}>
-                <Text style={[Typography.caption, { color: '#fff', fontWeight: '700' }]}>PRO</Text>
+              <View style={[styles.pill, { backgroundColor: c.brand.primary }]}>
+                <Text style={{ fontSize: 11, fontWeight: '700', color: '#fff' }}>PRO</Text>
               </View>
             ) : (
-              <Pressable style={[styles.upgradeBtn, { backgroundColor: c.brand.primary }]}>
-                <Text style={[Typography.bodyS, { color: '#fff', fontWeight: '700' }]}>
-                  {t('profile.try_pro')}
-                </Text>
+              <Pressable style={[styles.pill, { backgroundColor: c.brand.primary }]}>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: '#fff' }}>{t('profile.try_pro')}</Text>
               </Pressable>
             )}
-          </View>
-        </View>
+          </BandRow>
+        </Band>
 
-        {/* ── Notificaciones ───────────────────────────────────────────── */}
+        {/* Notificaciones */}
         <SectionLabel label={t('profile.section_notifications')} />
-        <View style={[styles.section, { borderColor: c.borderHair }]}>
-          <ToggleRow
-            label={t('profile.notif_expenses')}
-            value={notifExpenses}
-            onChange={setNotifExpenses}
-          />
-          <Divider color={c.borderHair} />
-          <ToggleRow
-            label={t('profile.notif_deletions')}
-            value={notifDeletions}
-            onChange={setNotifDeletions}
-          />
-          <Divider color={c.borderHair} />
-          <ToggleRow
-            label={t('profile.notif_invites')}
-            value={notifInvites}
-            onChange={setNotifInvites}
-          />
-          <Divider color={c.borderHair} />
-          <ToggleRow
-            label={t('profile.notif_settlements')}
-            value={notifSettlements}
-            onChange={setNotifSettlements}
-          />
-        </View>
+        <Band>
+          <ToggleRow label={t('profile.notif_expenses')}    value={notifExpenses}    onChange={setNotifExpenses} />
+          <ToggleRow label={t('profile.notif_deletions')}   value={notifDeletions}   onChange={setNotifDeletions} />
+          <ToggleRow label={t('profile.notif_invites')}     value={notifInvites}     onChange={setNotifInvites} />
+          <ToggleRow label={t('profile.notif_settlements')} value={notifSettlements} onChange={setNotifSettlements} last />
+        </Band>
 
-        {/* ── Apariencia ───────────────────────────────────────────────── */}
+        {/* Apariencia */}
         <SectionLabel label={t('profile.section_appearance')} />
-        <View style={[styles.section, { borderColor: c.borderHair }]}>
-          <View style={[styles.row, { backgroundColor: c.surface, justifyContent: 'space-between' }]}>
-            <Text style={[Typography.bodyM, { color: c.text, fontWeight: '600' }]}>{t('profile.theme')}</Text>
-            <View style={[styles.themeSegment, { backgroundColor: c.surfaceSunken }]}>
-              {(['auto', 'light', 'dark'] as const).map(opt => (
-                <Pressable
-                  key={opt}
-                  onPress={() => setThemeChoice(opt)}
-                  style={[
-                    styles.themeTab,
-                    themeChoice === opt && { backgroundColor: c.surface },
-                  ]}
-                >
-                  <Text style={[Typography.caption, {
-                    color:      themeChoice === opt ? c.text : c.textTertiary,
-                    fontWeight: themeChoice === opt ? '700' : '500',
-                  }]}>
-                    {opt === 'auto' ? t('profile.theme_auto') : opt === 'light' ? t('profile.theme_light') : t('profile.theme_dark')}
-                  </Text>
-                </Pressable>
-              ))}
+        <Band>
+          <BandRow>
+            <Text style={[Typography.bodyL, { color: c.text, flex: 1 }]}>{t('profile.theme')}</Text>
+            <Segmented
+              compact
+              value={themeChoice}
+              onChange={setThemeChoice}
+              options={[
+                { key: 'auto',  label: t('profile.theme_auto') },
+                { key: 'light', label: t('profile.theme_light') },
+                { key: 'dark',  label: t('profile.theme_dark') },
+              ]}
+            />
+          </BandRow>
+          <BandRow last>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={[Typography.bodyL, { color: c.text }]}>{t('profile.skins')}</Text>
+              <Text style={[Typography.caption, { color: c.textTertiary }]}>{t('profile.coming_soon')}</Text>
             </View>
-          </View>
-          <Divider color={c.borderHair} />
-          <View style={[styles.row, { backgroundColor: c.surface }]}>
-            <View style={{ flex: 1 }}>
-              <Text style={[Typography.bodyM, { color: c.text, fontWeight: '600' }]}>{t('profile.skins')}</Text>
-              <Text style={[Typography.bodyS, { color: c.textTertiary }]}>{t('profile.coming_soon')}</Text>
-            </View>
-            <View style={[styles.soonBadge, { backgroundColor: c.surfaceSunken }]}>
-              <Text style={[Typography.caption, { color: c.textTertiary, fontWeight: '600' }]}>
-                SOON
-              </Text>
-            </View>
-          </View>
-        </View>
+            <SoonBadge />
+          </BandRow>
+        </Band>
 
-        {/* ── Moneda ───────────────────────────────────────────────────── */}
+        {/* Moneda */}
         <SectionLabel label={t('profile.section_currency')} />
-        <View style={[styles.section, { borderColor: c.borderHair }]}>
+        <Band>
           <CurrencyPicker
             value={displayCurrency}
             onChange={setDisplayCurrency}
@@ -352,221 +289,131 @@ export default function UserScreen() {
             ratesNeeded={needsRates(monedasEnUso, displayCurrency)}
             locale={i18n.language}
           />
-        </View>
+        </Band>
 
-        {/* ── Idioma ───────────────────────────────────────────────────── */}
+        {/* Idioma */}
         <SectionLabel label={t('profile.section_language')} />
-        <View style={[styles.section, { borderColor: c.borderHair }]}>
-          <View style={[styles.row, { backgroundColor: c.surface, justifyContent: 'space-between' }]}>
-            <Text style={[Typography.bodyM, { color: c.text, fontWeight: '600' }]}>
-              {t('profile.language')}
-            </Text>
-            <View style={[styles.themeSegment, { backgroundColor: c.surfaceSunken }]}>
-              {langOptions.map(opt => (
-                <Pressable
-                  key={opt}
-                  onPress={() => setLanguage(opt)}
-                  style={[
-                    styles.themeTab,
-                    langChoice === opt && { backgroundColor: c.surface },
-                  ]}
-                >
-                  <Text style={[Typography.caption, {
-                    color:      langChoice === opt ? c.text : c.textTertiary,
-                    fontWeight: langChoice === opt ? '700' : '500',
-                  }]}>
-                    {langLabel(opt)}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-          </View>
-        </View>
+        <Band>
+          <BandRow last>
+            <Text style={[Typography.bodyL, { color: c.text, flex: 1 }]}>{t('profile.language')}</Text>
+            <Segmented
+              compact
+              value={langChoice}
+              onChange={setLanguage}
+              options={langOptions.map(opt => ({ key: opt, label: langLabel(opt) }))}
+            />
+          </BandRow>
+        </Band>
 
-        {/* ── Tienda ───────────────────────────────────────────────────── */}
+        {/* Tienda */}
         <SectionLabel label={t('profile.section_store')} />
-        <View style={[styles.section, { borderColor: c.borderHair }]}>
-          <LinkRow
-            label={t('profile.rate')}
-            icon="star-outline"
-            onPress={handleRateApp}
-          />
-          <Divider color={c.borderHair} />
-          <LinkRow
-            label={t('profile.feedback')}
-            icon="chatbubble-outline"
-            onPress={handleRateApp}
-          />
-        </View>
+        <Band>
+          <LinkRow label={t('profile.rate')}     icon="star-outline"      onPress={handleRateApp} />
+          <LinkRow label={t('profile.feedback')} icon="chatbubble-outline" onPress={handleRateApp} last />
+        </Band>
 
-        {/* ── Copia de seguridad ───────────────────────────────────────── */}
+        {/* Copia de seguridad */}
         <SectionLabel label={t('backup.section')} />
-        <View style={[styles.section, { borderColor: c.borderHair }]}>
-          <LinkRow label={t('backup.export')} icon="download-outline" onPress={handleExport} />
-          <Divider color={c.borderHair} />
-          <LinkRow label={t('backup.import')} icon="cloud-upload-outline" onPress={handleImport} />
-        </View>
+        <Band>
+          <LinkRow label={t('backup.export')} icon="download-outline"     onPress={handleExport} />
+          <LinkRow label={t('backup.import')} icon="cloud-upload-outline" onPress={handleImport} last />
+        </Band>
 
-        {/* ── Seguridad ────────────────────────────────────────────────── */}
+        {/* Seguridad */}
         <SectionLabel label={t('profile.section_security')} />
-        <View style={[styles.section, { borderColor: c.borderHair }]}>
-          <View style={[styles.row, { backgroundColor: c.surface }]}>
-            <View style={{ flex: 1 }}>
-              <Text style={[Typography.bodyM, { color: c.text, fontWeight: '600' }]}>
-                {t('profile.biometric')}
-              </Text>
-              <Text style={[Typography.bodyS, { color: c.textTertiary }]}>
-                {t('profile.biometric_sub')}
-              </Text>
+        <Band>
+          <BandRow last>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={[Typography.bodyL, { color: c.text }]}>{t('profile.biometric')}</Text>
+              <Text style={[Typography.caption, { color: c.textTertiary }]}>{t('profile.biometric_sub')}</Text>
             </View>
-            <View style={[styles.soonBadge, { backgroundColor: c.surfaceSunken }]}>
-              <Text style={[Typography.caption, { color: c.textTertiary, fontWeight: '600' }]}>
-                SOON
-              </Text>
-            </View>
-          </View>
-        </View>
+            <SoonBadge />
+          </BandRow>
+        </Band>
 
-        {/* ── Cerrar sesión ────────────────────────────────────────────── */}
-        <Pressable
-          onPress={handleSignOut}
-          style={[styles.signOutBtn, { backgroundColor: c.surface, borderColor: c.borderHair }]}
-        >
-          <Ionicons name="log-out-outline" size={18} color={c.semantic.negative} />
-          <Text style={[Typography.bodyM, { color: c.semantic.negative, fontWeight: '600' }]}>
-            {t('profile.sign_out')}
-          </Text>
-        </Pressable>
+        <View style={{ paddingHorizontal: Spacing.screenPad, paddingTop: 26 }}>
+          <Pressable
+            onPress={handleSignOut}
+            style={[styles.signOutBtn, { backgroundColor: c.surface, borderColor: c.hair }]}
+          >
+            <Ionicons name="log-out-outline" size={17} color={c.semantic.negative} />
+            <Text style={{ fontSize: 14, fontWeight: '700', color: c.semantic.negative }}>
+              {t('profile.sign_out')}
+            </Text>
+          </Pressable>
+        </View>
 
         {__DEV__ && (
           <>
             <SectionLabel label="DEV" />
-            <View style={[styles.section, { borderColor: c.borderHair }]}>
-              <LinkRow
-                label="WebRTC spike"
-                icon="hardware-chip-outline"
-                onPress={() => router.push('/debug/webrtc' as any)}
-              />
-              <LinkRow
-                label="Identidad de cuentas"
-                icon="finger-print-outline"
-                onPress={() => router.push('/debug/identity' as any)}
-              />
-              <LinkRow
-                label="Relay (buzón)"
-                icon="cloud-upload-outline"
-                onPress={() => router.push('/debug/relay' as any)}
-              />
-            </View>
+            <Band>
+              <LinkRow label="WebRTC spike"          icon="hardware-chip-outline" onPress={() => router.push('/debug/webrtc' as any)} />
+              <LinkRow label="Identidad de cuentas"  icon="finger-print-outline"  onPress={() => router.push('/debug/identity' as any)} />
+              <LinkRow label="Relay (buzón)"         icon="cloud-upload-outline"  onPress={() => router.push('/debug/relay' as any)} last />
+            </Band>
           </>
         )}
 
         <Text style={[Typography.caption, styles.version, { color: c.textTertiary }]}>
           {t('profile.version', { version: '1.0.0' })}
         </Text>
+      </Animated.ScrollView>
 
-        <View style={{ height: Spacing[6] }} />
-      </ScrollView>
+      <CollapsibleHeader title={t('profile.title')} scrollY={scrollY} />
     </SafeAreaView>
   );
 }
 
-// ── Sub-components ────────────────────────────────────────────────────────────
-
-function SectionLabel({ label }: { label: string }) {
-  const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
-  return (
-    <Text style={[Typography.label, styles.sectionLabel, { color: c.textTertiary }]}>
-      {label}
-    </Text>
-  );
-}
-
-function Divider({ color }: { color: string }) {
-  return <View style={[styles.divider, { backgroundColor: color }]} />;
-}
-
 function ToggleRow({
-  label, value, onChange,
-}: {
-  label: string; value: boolean; onChange: (v: boolean) => void;
-}) {
+  label, value, onChange, last,
+}: { label: string; value: boolean; onChange: (v: boolean) => void; last?: boolean }) {
   const scheme = useColorScheme() ?? 'light';
   const c = Colors[scheme];
   return (
-    <View style={[styles.row, { backgroundColor: c.surface }]}>
-      <Text style={[Typography.bodyM, { color: c.text, fontWeight: '600', flex: 1 }]}>{label}</Text>
+    <BandRow last={last}>
+      <Text style={[Typography.bodyL, { color: c.text, flex: 1 }]}>{label}</Text>
       <Switch
         value={value}
         onValueChange={onChange}
-        trackColor={{ false: c.borderStrong, true: c.brand.primary }}
+        trackColor={{ false: c.hair, true: c.brand.primary }}
         thumbColor="#fff"
       />
-    </View>
+    </BandRow>
   );
 }
 
 function LinkRow({
-  label, icon, onPress,
+  label, icon, onPress, last,
 }: {
   label: string;
   icon: React.ComponentProps<typeof Ionicons>['name'];
   onPress: () => void;
+  last?: boolean;
 }) {
   const scheme = useColorScheme() ?? 'light';
   const c = Colors[scheme];
   return (
-    <Pressable onPress={onPress} style={[styles.row, { backgroundColor: c.surface }]}>
-      <Ionicons name={icon} size={18} color={c.textSecondary} />
-      <Text style={[Typography.bodyM, { color: c.text, fontWeight: '600', flex: 1 }]}>{label}</Text>
-      <Ionicons name="chevron-forward" size={16} color={c.textTertiary} />
-    </Pressable>
+    <BandRow onPress={onPress} last={last}>
+      <Ionicons name={icon} size={17} color={c.textSecondary} />
+      <Text style={[Typography.bodyL, { color: c.text, flex: 1 }]}>{label}</Text>
+      <Ionicons name="chevron-forward" size={15} color={c.textTertiary} />
+    </BandRow>
   );
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
-
 const styles = StyleSheet.create({
-  safe:          { flex: 1 },
-  scroll:        { paddingTop: Spacing[3] },
-  pageTitle:     { paddingHorizontal: Spacing.screenPad, marginBottom: Spacing[4] },
-  profileCard:   {
-    flexDirection: 'row', alignItems: 'center', gap: 14,
-    marginHorizontal: Spacing.screenPad, marginBottom: Spacing[4],
-    padding: Spacing[4], borderRadius: Radius.lg, borderWidth: 1,
-  },
-  sectionLabel:  {
-    paddingHorizontal: Spacing.screenPad,
-    marginBottom: Spacing[1], marginTop: Spacing[1],
-  },
-  section:       {
-    marginHorizontal: Spacing.screenPad, marginBottom: Spacing[4],
-    borderRadius: Radius.lg, borderWidth: 1, overflow: 'hidden',
-  },
-  row:           {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingHorizontal: Spacing[4], paddingVertical: 14,
-  },
-  divider:       { height: StyleSheet.hairlineWidth, marginLeft: Spacing[4] },
-  proBadge:      { paddingHorizontal: 10, paddingVertical: 4, borderRadius: Radius.full },
-  upgradeBtn:    { paddingHorizontal: 14, paddingVertical: 8, borderRadius: Radius.full },
-  themeSegment:  { flexDirection: 'row', padding: 3, borderRadius: Radius.md, gap: 2 },
-  themeTab:      { paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radius.sm },
-  soonBadge:     { paddingHorizontal: 10, paddingVertical: 4, borderRadius: Radius.full },
-  nameInput:     {
+  safe:      { flex: 1 },
+  title:     { paddingHorizontal: Spacing.screenPad, paddingBottom: 16 },
+  pill:      { paddingHorizontal: 14, paddingVertical: 7, borderRadius: Radius.full },
+  nameInput: {
     borderWidth: 1, borderRadius: Radius.md,
-    paddingHorizontal: Spacing[4], paddingVertical: 12,
-    fontSize: 16,
+    paddingHorizontal: Spacing[4], paddingVertical: 12, fontSize: 16,
   },
-  sheetActions:  { flexDirection: 'row', gap: Spacing[2], marginTop: Spacing[4] },
-  sheetBtn:      {
-    flex: 1, alignItems: 'center', paddingVertical: 12, borderRadius: Radius.md,
-  },
-  signOutBtn:    {
+  sheetActions: { flexDirection: 'row', gap: Spacing[2], marginTop: Spacing[4] },
+  sheetBtn:     { flex: 1, alignItems: 'center', paddingVertical: 12, borderRadius: Radius.md },
+  signOutBtn:   {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    marginHorizontal: Spacing.screenPad, marginBottom: Spacing[3],
-    padding: Spacing[4], borderRadius: Radius.lg, borderWidth: 1,
+    height: 48, borderRadius: Radius.lg, borderWidth: 1,
   },
-  version:       { textAlign: 'center', marginBottom: Spacing[2] },
+  version:      { textAlign: 'center', marginTop: 18 },
 });

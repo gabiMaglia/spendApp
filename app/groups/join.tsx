@@ -181,10 +181,14 @@ export default function JoinGroupScreen() {
 
 const styles = StyleSheet.create({
   safe:    { flex: 1 },
-  header:  { paddingHorizontal: Spacing.screenPad, paddingVertical: Spacing[3] },
+  header:  { paddingHorizontal: Spacing.screenPad, height: 52, justifyContent: 'center' },
   body:    { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing[3], paddingHorizontal: Spacing[7] },
   icon:    { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center' },
   centro:  { textAlign: 'center' },
-  cta:     { marginTop: Spacing[5], paddingVertical: Spacing[4], paddingHorizontal: Spacing[7], borderRadius: Radius.md, minWidth: 200, alignItems: 'center' },
-  ctaText: { color: '#fff', fontWeight: '600' },
+  cta:     {
+    marginTop: Spacing[5], height: 52, paddingHorizontal: Spacing[7],
+    borderRadius: Radius.lg, minWidth: 200,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  ctaText: { color: '#fff', fontWeight: '700', fontSize: 15 },
 });

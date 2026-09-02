@@ -8,6 +8,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { v4 as uuidv4 } from 'uuid';
 
 import { Colors } from '@/src/constants/colors';
+import { DetailHeader } from '@/src/components/CollapsibleHeader';
+
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { ActionButton } from '@/src/components/ActionButton';
 import { Typography } from '@/src/constants/typography';
@@ -271,14 +273,7 @@ export default function SettleNewScreen() {
     <SafeAreaView style={[styles.safe, { backgroundColor: c.bg }]}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
 
-        {/* Header */}
-        <View style={[styles.header, { borderBottomColor: c.borderHair }]}>
-          <Pressable onPress={() => router.back()} hitSlop={12} style={styles.headerBtn}>
-            <Ionicons name="close" size={24} color={c.text} />
-          </Pressable>
-          <Text style={[Typography.h3, { color: c.text }]}>{t('settle.title')}</Text>
-          <View style={styles.headerBtn} />
-        </View>
+        <DetailHeader icon="close" title={t('settle.title')} onBack={() => router.back()} />
 
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
 
@@ -315,7 +310,7 @@ export default function SettleNewScreen() {
           )}
 
           {/* Amount */}
-          <View style={[styles.amountCard, { backgroundColor: c.surface, borderColor: exceedsMax ? c.semantic.negative : c.borderHair }]}>
+          <View style={[styles.amountCard, { backgroundColor: c.surface, borderColor: exceedsMax ? c.semantic.negative : c.hair }]}>
             <Text style={[Typography.label, { color: c.textTertiary, textTransform: 'uppercase' }]}>
               {currency}
             </Text>
@@ -377,7 +372,7 @@ export default function SettleNewScreen() {
 
 
             {maxAmount !== undefined && (
-              <View style={[styles.maxHint, { backgroundColor: exceedsMax ? c.semantic.negativeSoft : c.surfaceSunken }]}>
+              <View style={[styles.maxHint, { backgroundColor: exceedsMax ? c.semantic.negativeSoft : c.bgGrouped }]}>
                 <Ionicons
                   name={exceedsMax ? 'warning-outline' : 'information-circle-outline'}
                   size={13}
@@ -394,7 +389,7 @@ export default function SettleNewScreen() {
           </View>
 
           {/* From → To */}
-          <View style={[styles.transferCard, { backgroundColor: c.surface, borderColor: c.borderHair }]}>
+          <View style={[styles.transferCard, { backgroundColor: c.surface, borderColor: c.hair }]}>
             <Pressable
               onPress={isPrefilled ? undefined : () => setShowFrom(true)}
               style={styles.transferSide}
@@ -414,7 +409,7 @@ export default function SettleNewScreen() {
               )}
             </Pressable>
 
-            <View style={[styles.arrowBox, { backgroundColor: c.surfaceSunken }]}>
+            <View style={[styles.arrowBox, { backgroundColor: c.bgGrouped }]}>
               <Ionicons name="arrow-forward" size={18} color={c.textSecondary} />
             </View>
 
@@ -442,7 +437,7 @@ export default function SettleNewScreen() {
           <View style={styles.metaRow}>
             <Pressable
               onPress={() => { hapticSelection(); setShowGroup(true); }}
-              style={[styles.metaChip, { backgroundColor: c.surface, borderColor: c.borderHair, flex: 1 }]}
+              style={[styles.metaChip, { backgroundColor: c.surface, borderColor: c.hair, flex: 1 }]}
             >
               <Ionicons name="people-outline" size={14} color={c.textSecondary} />
               <Text style={[Typography.bodyS, { color: c.text, fontWeight: '600', flex: 1 }]} numberOfLines={1}>
@@ -453,7 +448,7 @@ export default function SettleNewScreen() {
 
             <Pressable
               onPress={() => { hapticSelection(); setShowDate(true); }}
-              style={[styles.metaChip, { backgroundColor: c.surface, borderColor: c.borderHair }]}
+              style={[styles.metaChip, { backgroundColor: c.surface, borderColor: c.hair }]}
             >
               <Ionicons name="calendar-outline" size={14} color={c.textSecondary} />
               <Text style={[Typography.bodyS, { color: c.text, fontWeight: '600' }]}>
@@ -466,7 +461,7 @@ export default function SettleNewScreen() {
           <Pressable
             onPress={handleSave}
             disabled={!canSave}
-            style={[styles.saveBtn, { backgroundColor: canSave ? c.brand.primary : c.surfaceSunken }]}
+            style={[styles.saveBtn, { backgroundColor: canSave ? c.brand.primary : c.bgGrouped }]}
           >
             <Text style={[Typography.bodyL, {
               color: canSave ? '#fff' : c.textDisabled, fontWeight: '700',
@@ -560,12 +555,6 @@ const styles = StyleSheet.create({
     borderRadius: Radius.full, borderWidth: 1,
   },
   safe:           { flex: 1 },
-  header:         {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: Spacing.screenPad, paddingVertical: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  headerBtn:      { width: 40, alignItems: 'center' },
   scroll:         { paddingHorizontal: Spacing.screenPad, paddingTop: Spacing[4], gap: Spacing[3] },
   amountCard:     {
     borderRadius: Radius.lg, borderWidth: 1,

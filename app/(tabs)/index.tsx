@@ -1,19 +1,22 @@
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { UserAvatar } from '@/src/components/UserAvatar';
 import { Fab, FabRow } from '@/src/components/Fab';
 import { Colors } from '@/src/constants/colors';
 import { MoneyText } from '@/src/components/MoneyText';
+import { formatMoney } from '@/src/constants/currencies';
 import i18n from '@/src/i18n';
-import { Radius, Spacing } from '@/src/constants/spacing';
+import { Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
+import { Band, BandLink, Meter, SectionLabel, SplitStat } from '@/src/components/Band';
+import { CollapsibleHeader, HeaderAvatar, HeaderCurrency } from '@/src/components/CollapsibleHeader';
+import { GroupCard } from '@/src/components/GroupCard';
 import { useAuthStore } from '@/src/store/authStore';
-import { useGlobalPersonBalances } from '@/src/store/selectors';
+import { useGlobalPersonBalances, useGroupBalance, useGroupExpenseCount } from '@/src/store/selectors';
 import { usePersonalStore, toMonthKey } from '@/src/store/personalStore';
 import { useSettingsStore } from '@/src/store/settingsStore';
 import { useFx } from '@/src/store/useFx';
 import { convertMinor } from '@/src/services/fx';
 import { sumConverted } from '@/src/services/fxTotals';
-import type { PersonalEntry } from '@/src/types/models';
+import type { PersonalEntry, Group } from '@/src/types/models';
 import {
   repartirDelMes, BALDES_GASTADOS, BALDES_DISPONIBLES, type BucketPersonal,
 } from '@/src/algorithms/personalMonth';
@@ -23,15 +26,11 @@ import { CurrencySheet } from '@/src/components/CurrencyPicker';
 import { NoticeInboxSheet } from '@/src/components/NoticeInboxSheet';
 import { useNoticeInboxStore, type StoredNotice } from '@/src/store/noticeInboxStore';
 import { useGroupStore } from '@/src/store/groupStore';
-import { hueForUser } from '@/src/utils/hueForUser';
-import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { hapticLight } from '@/src/utils/haptics';
 import { useTranslation } from 'react-i18next';
-import {
-  Pressable, ScrollView, StyleSheet, Text, View,
-} from 'react-native';
+import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function AccountScreen() {
@@ -43,23 +42,16 @@ export default function AccountScreen() {
   const personBalances = useGlobalPersonBalances(currentUser?.id ?? '');
   const firstName = currentUser?.name?.split(' ')[0] ?? 'vos';
 
-  // Personal budget summary for this month
   const { entries: personalEntries, budget } = usePersonalStore();
-
-  // La moneda la elige el usuario en el menú, ya no la fija el presupuesto.
-  // Antes `cur` era `budget.currency` y todo lo que no coincidiera se
-  // descartaba EN SILENCIO: un gasto en reales daba 0 sin ninguna señal.
   const { fx, display: cur } = useFx();
+
+  const scrollY = useRef(new Animated.Value(0)).current;
 
   const thisMonth = toMonthKey(Date.now());
   const monthEntries = personalEntries.filter(
     e => !e.isDeleted && toMonthKey(e.date) === thisMonth,
   );
 
-  // La clasificación es COMPARTIDA con la pestaña Personal (`personalMonth`).
-  // Acá decía `kind !== 'income'`, que barre todo lo que no sea un ingreso —
-  // carryover positivo incluido— así que el sobrante del mes anterior aparecía
-  // como GASTADO y además no se acreditaba en disponible: contado dos veces mal.
   const baldes = repartirDelMes(monthEntries);
   const aMonto = (e: PersonalEntry) => ({ currency: e.currency, minor: e.amount });
   const deBaldes = (cuales: readonly BucketPersonal[]) =>
@@ -72,19 +64,14 @@ export default function AccountScreen() {
     cur, fx,
   );
 
-  const totalSpent    = gastos.totalMinor;
-  // «Acreditado», no «ingresos»: además del sueldo del mes incluye el sobrante
-  // del mes anterior. Llamarlo income invitaba justo al error que se arregló.
+  const totalSpent      = gastos.totalMinor;
   const totalAcreditado = ingresos.totalMinor;
-  const owedToMeInCur = aFavor.totalMinor;
+  const owedToMeInCur   = aFavor.totalMinor;
 
-  // Lo que no se pudo convertir. Mientras haya algo acá, los números de arriba
-  // son verdaderos pero PARCIALES, y eso hay que decirlo (ver el modal).
   const pendientes    = gastos.unconverted;
   const pendientesFav = aFavor.unconverted;
   const [avisoVisto, setAvisoVisto] = useState(false);
 
-  // Bandeja de avisos (T-044). El acuse es LOCAL: no viaja a ningún lado.
   const inboxItems  = useNoticeInboxStore(st => st.items);
   const sinLeer     = useNoticeInboxStore(st => st.unreadCount)();
   const markRead    = useNoticeInboxStore(st => st.markRead);
@@ -94,32 +81,25 @@ export default function AccountScreen() {
   const setDisplayCurrency = useSettingsStore(st => st.setDisplayCurrency);
   const groups = useGroupStore(st => st.groups);
 
-  // Los grupos donde el usuario participa de verdad. Un grupo borrado o uno
-  // del que ya salió no cuenta: el número tiene que coincidir con lo que ve
-  // en la pestaña Grupos.
   const misGrupos = useMemo(
     () => groups.filter(g => !g.isDeleted && !!currentUser && g.memberIds.includes(currentUser.id)),
     [groups, currentUser],
   );
 
   function abrirAviso(item: StoredNotice) {
-    // El acuse se registra SIEMPRE, aunque el destino ya no exista: si no, un
-    // aviso de un grupo borrado quedaría sin leer para siempre y el badge
-    // nunca bajaría a cero.
     markRead(item.id);
     setBandeja(false);
     const grupo = groups.find(g => g.id === item.notice.groupId && !g.isDeleted);
     if (!grupo) { alert(t('notifications.inbox_gone')); return; }
     router.push(`/groups/${grupo.id}` as any);
   }
+
   const effectiveBudget =
     (convertMinor(budget.monthlyAmount, budget.currency, cur, fx) ?? 0)
     + totalAcreditado + (budget.includeOwedToMe ? owedToMeInCur : 0);
   const budgetPct = effectiveBudget > 0 ? Math.min(totalSpent / effectiveBudget, 1) : 0;
   const hasBudget = budget.monthlyAmount > 0;
 
-  // Antes filtraba `p.currency === 'ARS'` LITERAL: cualquiera cuyos grupos no
-  // fueran en pesos argentinos veía 0 para siempre en «te deben» y «debés».
   const deben = sumConverted(
     personBalances.filter(p => p.amount > 0).map(p => ({ currency: p.currency, minor: p.amount })),
     cur, fx,
@@ -132,121 +112,99 @@ export default function AccountScreen() {
   const youOwe    = debo.totalMinor;
   const net = owedToYou - youOwe;
 
+  const barColor = budgetPct >= 1 ? c.semantic.negative
+    : budgetPct >= 0.8 ? c.semantic.warning
+    : c.brand.primary;
+
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: c.bg }]}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-
-        {/* Header */}
-        <View style={styles.header}>
-          {/* El avatar lleva al perfil "Yo" (decisión PO). No se mueve de acá. */}
-          <Pressable
-            onPress={() => { hapticLight(); router.push('/(tabs)/user' as any); }}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel={t('dashboard.go_to_profile')}
-          >
-            <UserAvatar userId={currentUser?.id ?? ''} name={currentUser?.name} size={36} />
-          </Pressable>
-
-          {/* Campana y selector de moneda a la altura del avatar (T-050), mismo tamaño visual. */}
-          <View style={styles.headerControls}>
-            <NoticeBell unread={sinLeer} onPress={() => setBandeja(true)} />
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t('profile.display_currency')}
-              testID="currency-button"
-              onPress={() => setMonedas(true)}
-              hitSlop={8}
-              style={[styles.currencyBtn, { backgroundColor: c.surfaceSunken, borderColor: c.borderHair }]}
-            >
-              <Text style={[Typography.caption, { color: c.textSecondary, fontWeight: '700' }]}>
-                {cur}
-              </Text>
-            </Pressable>
-          </View>
-        </View>
-
-        {/* Greeting */}
+    <SafeAreaView edges={['bottom']} style={[styles.safe, { backgroundColor: c.bg }]}>
+      <Animated.ScrollView
+        showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: false })}
+        contentContainerStyle={{ paddingTop: Spacing.headerH, paddingBottom: 150 }}
+      >
+        {/* Saludo + título: scrollean, el header los recoge en compacto */}
         <View style={styles.greeting}>
-          <Text style={[Typography.bodyM, { color: c.textSecondary }]}>
+          <Text style={[Typography.bodyS, { color: c.textTertiary }]}>
             {t('dashboard.greeting', { name: firstName })}
           </Text>
-          <Text style={[Typography.display, { color: c.text }]}>
-            {t('dashboard.title')}
-          </Text>
+          <Text style={[Typography.display, { color: c.text }]}>{t('dashboard.title')}</Text>
         </View>
 
-        <CurrencySheet
-          visible={monedas}
-          value={cur}
-          onChange={setDisplayCurrency}
-          onClose={() => setMonedas(false)}
+        {/* Banda de deuda direccional: los dos lados no se netean (ADR-006) */}
+        <SplitStat
+          items={[
+            { label: t('friends.owed_to_you'), value: formatMoney(owedToYou, cur), color: c.semantic.positive },
+            { label: t('friends.you_owe'),     value: formatMoney(youOwe, cur),    color: c.textSecondary },
+          ]}
         />
 
-        <NoticeInboxSheet
-          visible={bandeja}
-          items={inboxItems}
-          onClose={() => setBandeja(false)}
-          onOpenNotice={abrirAviso}
-          onMarkAll={() => markAllRead()}
-        />
+        {/* Fila de neto */}
+        <Band sunken>
+          <Pressable
+            accessibilityRole="button"
+            testID="groups-card"
+            onPress={() => { hapticLight(); router.push('/(tabs)/groups' as any); }}
+            style={styles.netRow}
+          >
+            <Text style={[Typography.caption, { color: c.textSecondary, flex: 1 }]}>
+              {t('dashboard.groups_balance')} ·{' '}
+              {misGrupos.length === 1
+                ? t('dashboard.groups_count_one')
+                : t('dashboard.groups_count', { count: misGrupos.length })}
+            </Text>
+            <MoneyText
+              minor={net}
+              code={cur}
+              prefix={net > 0 ? '+' : ''}
+              style={[Typography.amountS, {
+                color: net > 0 ? c.semantic.positive : net < 0 ? c.semantic.negative : c.text,
+              }]}
+            />
+          </Pressable>
+        </Band>
 
-        {/* Personal budget card */}
-        <Pressable
-          onPress={() => { hapticLight(); router.push('/(tabs)/personal' as any); }}
-          style={[styles.card, { backgroundColor: c.surface, borderColor: c.borderHair }]}
-        >
-          <View style={styles.cardHeader}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Ionicons name="analytics-outline" size={14} color={c.brand.primary} />
-              <Text style={[Typography.caption, { color: c.textTertiary, textTransform: 'uppercase', letterSpacing: 0.4 }]}>
-                {t('dashboard.personal_label')} · {new Date().toLocaleString(i18n.language, { month: 'long' })}
+        {/* Personal del mes */}
+        <SectionLabel
+          label={`${t('dashboard.personal_label')} · ${new Date().toLocaleString(i18n.language, { month: 'long' })}`}
+          right={<BandLink label={t('dashboard.see_month', { defaultValue: 'Ver mes' })} onPress={() => router.push('/(tabs)/personal' as any)} />}
+        />
+        <Band>
+          <Pressable
+            onPress={() => { hapticLight(); router.push('/(tabs)/personal' as any); }}
+            style={styles.personalPad}
+          >
+            <View style={styles.personalTop}>
+              <MoneyText
+                minor={totalSpent}
+                code={cur}
+                style={[Typography.amountL, {
+                  color: totalAcreditado >= totalSpent ? c.text : c.semantic.negative,
+                }]}
+              />
+              <Text style={[Typography.caption, { color: c.textTertiary }]}>
+                {t('dashboard.spent')}
               </Text>
             </View>
-            <Ionicons name="chevron-forward" size={14} color={c.textTertiary} />
-          </View>
 
-          <View style={styles.statRow}>
-            <View style={styles.stat}>
-              <Text style={[Typography.caption, { color: c.textTertiary }]}>{t('dashboard.balance_favor')}</Text>
-              <MoneyText minor={owedToMeInCur} code={cur} style={[Typography.amountM, { color: c.semantic.positive }]} />
-            </View>
-            <View style={[styles.statDivider, { backgroundColor: c.borderHair }]} />
-            <View style={styles.stat}>
-              <Text style={[Typography.caption, { color: c.textTertiary }]}>{t('dashboard.spent')}</Text>
-              {/* Rojo si hay deuda (gastos > ingresos); negro si los ingresos alcanzan (decisión PO). */}
-              <MoneyText minor={totalSpent} code={cur} style={[Typography.amountM, {
-                color: totalAcreditado >= totalSpent ? c.text : c.semantic.negative,
-              }]} />
-            </View>
-            {hasBudget && (
+            {hasBudget ? (
               <>
-                <View style={[styles.statDivider, { backgroundColor: c.borderHair }]} />
-                <View style={styles.stat}>
-                  <Text style={[Typography.caption, { color: c.textTertiary }]}>{t('dashboard.available')}</Text>
-                  <MoneyText minor={Math.max(effectiveBudget - totalSpent, 0)} code={cur} style={[Typography.amountM, {
-                    color: effectiveBudget - totalSpent >= 0 ? c.semantic.positive : c.semantic.negative,
-                  }]} />
+                <View style={{ marginTop: 13, marginBottom: 9 }}>
+                  <Meter pct={budgetPct} color={barColor} height={4} />
                 </View>
+                <Text style={[Typography.caption, { color: c.textTertiary }]}>
+                  {t('dashboard.available')}{' '}
+                  {formatMoney(Math.max(effectiveBudget - totalSpent, 0), cur)} · {formatMoney(effectiveBudget, cur)}
+                </Text>
               </>
+            ) : (
+              <Text style={[Typography.caption, { color: c.brand.primary, marginTop: 10, fontWeight: '700' }]}>
+                {t('dashboard.set_budget')}
+              </Text>
             )}
-          </View>
-
-          {hasBudget ? (
-            <View style={[styles.barTrack, { backgroundColor: c.surfaceSunken }]}>
-              <View style={[styles.barFill, {
-                width: `${Math.round(budgetPct * 100)}%` as any,
-                backgroundColor: budgetPct >= 1 ? c.semantic.negative
-                  : budgetPct >= 0.8 ? c.semantic.warning
-                  : c.semantic.positive,
-              }]} />
-            </View>
-          ) : (
-            <Text style={[Typography.caption, { color: c.brand.primary }]}>
-              {t('dashboard.set_budget')}
-            </Text>
-          )}
-        </Pressable>
+          </Pressable>
+        </Band>
 
         <UnconvertedNotice
           visible={(pendientes.length > 0 || pendientesFav.length > 0) && !avisoVisto}
@@ -256,62 +214,60 @@ export default function AccountScreen() {
           onClose={() => setAvisoVisto(true)}
         />
 
-        {/* Grupos balance card */}
-        {/* Lleva a Grupos, igual que la tarjeta de Personal lleva a Personal:
-            un resumen que no se puede abrir obliga a buscar la tab a mano. */}
-        <Pressable
-          accessibilityRole="button"
-          testID="groups-card"
-          onPress={() => { hapticLight(); router.push('/(tabs)/groups' as any); }}
-          style={[styles.card, { backgroundColor: c.surface, borderColor: c.borderHair }]}
-        >
-          <View style={styles.cardHeader}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Ionicons name="wallet-outline" size={14} color={c.brand.primary} />
-              <Text style={[Typography.caption, { color: c.textTertiary, textTransform: 'uppercase', letterSpacing: 0.4 }]}>
-                {t('dashboard.groups_balance')}
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={14} color={c.textTertiary} />
-          </View>
-
-          {/* Un solo neto y cuántos grupos (PO 2026-08-30). Antes eran tres
-              cifras —te deben, debés y neto— y las dos primeras son deducibles
-              del detalle: acá lo que se quiere saber de un vistazo es si estás
-              a favor o en contra, no el desglose.
-              `code` sale de la moneda elegida: estaba HARDCODEADO en "ARS",
-              así que los montos se convertían bien y se mostraban con el
-              símbolo equivocado. */}
-          <View style={styles.statRow}>
-            <View style={styles.stat}>
-              <Text style={[Typography.caption, { color: c.textTertiary }]}>{t('dashboard.net')}</Text>
-              <MoneyText
-                minor={net}
-                code={cur}
-                prefix={net > 0 ? '+' : ''}
-                style={[Typography.amountM, {
-                  color: net > 0 ? c.semantic.positive : net < 0 ? c.semantic.negative : c.text,
-                }]}
+        {/* Grupos */}
+        <SectionLabel
+          label={t('tabs.groups')}
+          right={<BandLink label={t('groups.new_group')} onPress={() => router.push('/groups/new' as any)} />}
+        />
+        {misGrupos.length > 0 && (
+          <Band>
+            {misGrupos.map((g, i) => (
+              <HomeGroupRow
+                key={g.id}
+                group={g}
+                currentUserId={currentUser?.id ?? ''}
+                last={i === misGrupos.length - 1}
+                onPress={() => router.push(`/groups/${g.id}` as any)}
               />
-            </View>
-            <View style={[styles.statDivider, { backgroundColor: c.borderHair }]} />
-            <View style={styles.stat}>
-              {/* Etiqueta propia: `groups_balance` ya titula la tarjeta entera
-                  y repetirla acá no decía qué era este número. */}
-              <Text style={[Typography.caption, { color: c.textTertiary }]}>{t('dashboard.groups_count_label')}</Text>
-              <Text testID="groups-count" style={[Typography.amountM, { color: c.text }]}>
-                {misGrupos.length === 1
-                  ? t('dashboard.groups_count_one')
-                  : t('dashboard.groups_count', { count: misGrupos.length })}
-              </Text>
-            </View>
-          </View>
-        </Pressable>
+            ))}
+          </Band>
+        )}
+      </Animated.ScrollView>
 
-        <View style={{ height: Spacing[9] }} />
-      </ScrollView>
+      <CollapsibleHeader
+        title={t('dashboard.title')}
+        scrollY={scrollY}
+        left={
+          <Pressable
+            onPress={() => { hapticLight(); router.push('/(tabs)/user' as any); }}
+            accessibilityRole="button"
+            accessibilityLabel={t('dashboard.go_to_profile')}
+            hitSlop={8}
+          >
+            <HeaderAvatar initials={(currentUser?.name ?? '?').slice(0, 2).toUpperCase()} />
+          </Pressable>
+        }
+        right={
+          <>
+            <NoticeBell unread={sinLeer} onPress={() => setBandeja(true)} />
+            <HeaderCurrency code={cur} onPress={() => setMonedas(true)} />
+          </>
+        }
+      />
+      <CurrencySheet
+        visible={monedas}
+        value={cur}
+        onChange={setDisplayCurrency}
+        onClose={() => setMonedas(false)}
+      />
+      <NoticeInboxSheet
+        visible={bandeja}
+        items={inboxItems}
+        onClose={() => setBandeja(false)}
+        onOpenNotice={abrirAviso}
+        onMarkAll={() => markAllRead()}
+      />
 
-      {/* FAB */}
       <FabRow>
         <Fab
           onPress={() => router.push('/expense/new')}
@@ -324,37 +280,33 @@ export default function AccountScreen() {
   );
 }
 
+/** Fila de grupo del home: resuelve su propio balance y conteo de gastos. */
+function HomeGroupRow({
+  group, currentUserId, onPress, last,
+}: { group: Group; currentUserId: string; onPress: () => void; last?: boolean }) {
+  const balances     = useGroupBalance(group.id, currentUserId);
+  const expenseCount = useGroupExpenseCount(group.id);
+  const mainBalance  = balances.find(b => b.currency === group.currency)?.amount ?? 0;
+  return (
+    <GroupCard
+      name={group.name}
+      memberIds={group.memberIds}
+      balance={mainBalance}
+      currency={group.currency}
+      subtitle={`${expenseCount} gastos`}
+      onPress={onPress}
+      last={last}
+    />
+  );
+}
+
 const styles = StyleSheet.create({
-  safe:      { flex: 1 },
-  scroll:    { paddingTop: Spacing[2] },
-  header:    {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: Spacing.screenPad, paddingBottom: Spacing[3],
+  safe: { flex: 1 },
+  greeting: { paddingHorizontal: Spacing.screenPad, paddingBottom: 18, gap: 1 },
+  netRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingHorizontal: Spacing.screenPad, paddingVertical: 11,
   },
-  // Campana + selector de moneda, agrupados a la altura del avatar (T-050).
-  headerControls: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  greeting:  { paddingHorizontal: Spacing.screenPad, marginBottom: Spacing[5], gap: 2 },
-  // El código de moneda entra en 3 letras; el círculo se dimensiona para la
-  // más ancha y no cambia de tamaño al elegir otra.
-  // Mismo diámetro que el avatar (36) para que los 3 controles del header
-  // se vean del mismo tamaño (T-050).
-  currencyBtn: {
-    width: 36, height: 36, borderRadius: 18, borderWidth: 1,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  card:        {
-    marginHorizontal: Spacing.screenPad, marginBottom: Spacing[4],
-    borderRadius: Radius.xl, borderWidth: 1,
-    padding: Spacing[4], gap: 12,
-  },
-  cardHeader:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  statRow:     { flexDirection: 'row', alignItems: 'center' },
-  stat:        { flex: 1, alignItems: 'center', gap: 3 },
-  statDivider: { width: StyleSheet.hairlineWidth, height: 36, marginHorizontal: 4 },
-  quickIcon: {
-    width: 40, height: 40, borderRadius: Radius.md,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  barTrack:    { height: 8, borderRadius: 4, overflow: 'hidden' },
-  barFill:     { height: 8, borderRadius: 4 },
+  personalPad: { paddingHorizontal: Spacing.screenPad, paddingTop: 14, paddingBottom: 16 },
+  personalTop: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 },
 });

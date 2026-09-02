@@ -9,6 +9,8 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import QRCode from 'react-native-qrcode-svg';
 
 import { Colors } from '@/src/constants/colors';
+import { DetailHeader } from '@/src/components/CollapsibleHeader';
+
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -146,17 +148,10 @@ export default function AddContactScreen() {
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: c.bg }]}>
 
-      {/* Header */}
-      <View style={[styles.header, { borderBottomColor: c.borderHair }]}>
-        <Pressable onPress={() => router.back()} hitSlop={12} style={styles.headerBtn}>
-          <Ionicons name="close" size={24} color={c.text} />
-        </Pressable>
-        <Text style={[Typography.h3, { color: c.text }]}>{t('contact.title')}</Text>
-        <View style={styles.headerBtn} />
-      </View>
+      <DetailHeader icon="close" title={t('contact.title')} onBack={() => router.back()} />
 
       {/* Mode tabs */}
-      <View style={[styles.tabs, { backgroundColor: c.surfaceSunken }]}>
+      <View style={[styles.tabs, { backgroundColor: c.bgGrouped }]}>
         <Pressable
           onPress={() => { hapticLight(); setMode('my_qr'); setScanned(false); }}
           style={[styles.tab, mode === 'my_qr' && { backgroundColor: c.surface }]}
@@ -198,14 +193,14 @@ export default function AddContactScreen() {
               </Text>
 
               <View style={styles.dividerRow}>
-                <View style={[styles.dividerLine, { backgroundColor: c.borderHair }]} />
+                <View style={[styles.dividerLine, { backgroundColor: c.hair }]} />
                 <Text style={[Typography.caption, { color: c.textTertiary, paddingHorizontal: 10 }]}>{t('contact.or')}</Text>
-                <View style={[styles.dividerLine, { backgroundColor: c.borderHair }]} />
+                <View style={[styles.dividerLine, { backgroundColor: c.hair }]} />
               </View>
 
               <Pressable
                 onPress={handleShare}
-                style={[styles.shareBtn, { backgroundColor: c.surface, borderColor: c.borderHair }]}
+                style={[styles.shareBtn, { backgroundColor: c.surface, borderColor: c.hair }]}
               >
                 <Ionicons name="share-outline" size={20} color={c.brand.primary} />
                 <Text style={[Typography.bodyM, { color: c.brand.primary, fontWeight: '700' }]}>
@@ -286,12 +281,6 @@ function parseDeepLinkContact(raw: string): ContactPayload | null {
 
 const styles = StyleSheet.create({
   safe:       { flex: 1 },
-  header:     {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: Spacing.screenPad, paddingVertical: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  headerBtn:  { width: 40 },
   tabs:       {
     flexDirection: 'row', margin: Spacing.screenPad,
     borderRadius: Radius.md, padding: 4, gap: 4,

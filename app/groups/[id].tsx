@@ -26,7 +26,6 @@ import { createInvite, inviteToLink } from '@/src/sync/groupInvite';
 import { ensureIdentity, saveInvite } from '@/src/store/identityStore';
 import { startRelay, announceGroupToContacts } from '@/src/sync/relayEngine';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
-import { BalancePill } from '@/src/components/BalancePill';
 import { BottomSheet, SheetOption, SheetOptionAvatar } from '@/src/components/Sheet';
 import { Fab, FabRow } from '@/src/components/Fab';
 import { TrustMark } from '@/src/components/TrustMark';
@@ -37,6 +36,8 @@ import { isMarked, type TrustState } from '@/src/algorithms/recordTrust';
 import { canLeaveGroup } from '@/src/algorithms/canLeaveGroup';
 import { approvalProgress } from '@/src/algorithms/leaveRequest';
 import { applyApprovedLeaves } from '@/src/services/applyLeave';
+import { Band, BandRow, SectionLabel } from '@/src/components/Band';
+import { DetailHeader } from '@/src/components/CollapsibleHeader';
 import type { Expense, Payment } from '@/src/types/models';
 import { useTranslation } from 'react-i18next';
 import i18n from '@/src/i18n';
@@ -57,23 +58,17 @@ export default function GroupDetailScreen() {
   const ensureKey    = useGroupKeyStore(st => st.ensureKey);
   const approveLeave = useGroupStore(st => st.approveLeave);
   const cancelLeave  = useGroupStore(st => st.cancelLeave);
-  const deleteGroup = useGroupStore(st => st.deleteGroup);
-  const leaveGroup  = useGroupStore(st => st.leaveGroup);
+  const deleteGroup  = useGroupStore(st => st.deleteGroup);
+  const leaveGroup   = useGroupStore(st => st.leaveGroup);
   const group        = useGroupStore(s => s.groups.find(g => g.id === id));
   const updateGroup  = useGroupStore(s => s.updateGroup);
   const allExpenses  = useExpenseStore(s => s.expenses);
 
-  /**
-   * ¿Hay algo que saldar? Sin un solo gasto no hay deuda posible, y ofrecer
-   * "saldar" en un grupo vacío manda a una pantalla que no puede hacer nada.
-   * Los borrados no cuentan: un grupo cuyo único gasto se borró vuelve a estar
-   * vacío.
-   */
   const tieneGastos = useMemo(
     () => allExpenses.some(e => e.groupId === id && !e.isDeleted),
     [allExpenses, id],
   );
-  const allPayments  = usePaymentStore(s => s.payments);
+  const allPayments = usePaymentStore(s => s.payments);
   const { getUserName, addOrUpdateUser } = useUserStore();
   const allUsers = useUserStore(s => s.users);
 
@@ -81,7 +76,6 @@ export default function GroupDetailScreen() {
   const [inviteName, setInviteName] = useState('');
   const [sinApp, setSinApp] = useState(false);
 
-  /** Contactos que todavía no están en el grupo. */
   const contactosDisponibles = useMemo(
     () => allUsers.filter(u =>
       !u.isDeleted && u.id !== currentUser?.id && !(group?.memberIds ?? []).includes(u.id),
@@ -89,11 +83,6 @@ export default function GroupDetailScreen() {
     [allUsers, group, currentUser],
   );
 
-  /**
-   * Sumar a un contacto: le llega la clave del grupo por el canal que abrió el
-   * QR y el grupo le aparece solo. Esto es lo que "agregar miembro" tenía que
-   * haber sido desde el principio.
-   */
   function handleAddContact(userId: string) {
     if (!group) return;
     hapticSuccess();
@@ -114,17 +103,6 @@ export default function GroupDetailScreen() {
     return items.sort((a, b) => b.ts - a.ts);
   }, [allExpenses, allPayments, id]);
 
-  /**
-   * **La marca de T-041, por fila visible** (S10, decisión D8).
-   *
-   * Verificar cuesta 37,57 ms medidos en el teléfono del PO, así que se
-   * verifica lo que esta pantalla está mostrando y nada más — nunca el sobre
-   * entero al recibirlo. El hook difiere el trabajo fuera del render y lo
-   * abandona al salir; acá sólo se leen las marcas ya resueltas.
-   *
-   * Sin `useMemo`: lo que la cola mira para saber si el conjunto cambió es el
-   * contenido de cada fila, no la identidad del array.
-   */
   const gastosDelTimeline = timeline.flatMap(i => (i.type === 'expense' ? [i.data] : []));
   const pagosDelTimeline  = timeline.flatMap(i => (i.type === 'payment' ? [i.data] : []));
   const marcaDeGasto = useRecordTrust('expense', gastosDelTimeline);
@@ -136,82 +114,45 @@ export default function GroupDetailScreen() {
     : { got: 0, need: 0 };
   const mainBalance = balances.find(b => b.currency === group?.currency)?.amount ?? 0;
 
-  /**
-   * Comparte un link de invitación por el canal que el usuario elija (mail,
-   * SMS, copiar, lo que ofrezca el sistema). Es el ÚNICO camino posible para
-   * alguien con quien todavía no intercambiaste nada: no hay canal interno por
-   * donde avisarle, porque establecerlo es justamente lo que hace la invitación.
-   */
   const [menuVisible, setMenuVisible] = useState(false);
 
   async function handleShareInvite() {
     if (!group || !currentUser) return;
     hapticLight();
-
-    // La clave del grupo se crea acá si no existía: sin ella no hay nada que
-    // cifrar y el grupo no puede sincronizarse.
     ensureKey(group.id);
     const identidad = ensureIdentity();
-
     const invite = createInvite(group.id, group.name, identidad.publicKey);
     saveInvite(invite);
-
-    // Reabre las suscripciones para incluir el buzón de ESTA invitación. Sin
-    // esto sólo se escucharían las que existían al arrancar la app, y quien
-    // reciba el link se quedaría esperando hasta que reiniciemos.
     void startRelay();
-
     try {
       await Share.share({
-        message: t('group_detail.invite_message', {
-          group: group.name,
-          link: inviteToLink(invite),
-        }),
+        message: t('group_detail.invite_message', { group: group.name, link: inviteToLink(invite) }),
       });
     } catch { /* el usuario canceló el share sheet */ }
   }
 
-  /**
-   * Salir del grupo, con la regla de negocio puesta de verdad.
-   *
-   * Hasta acá `canLeaveGroup` existía y estaba testeado, pero **no lo llamaba
-   * nadie**: se salía con saldo abierto y los números dejaban de cerrar en
-   * silencio — al sacarte de `memberIds`, tu saldo desaparece del cálculo y las
-   * cuentas de los que quedan ya no suman.
-   */
   function handleLeave() {
     if (!group || !currentUser) return;
 
-    const otros = group.memberIds.filter(id => id !== currentUser.id);
+    const otros = group.memberIds.filter(mid => mid !== currentUser.id);
     const veredicto = canLeaveGroup(
       balances.map(b => ({ currency: b.currency, amount: b.amount })),
       otros,
     );
 
     if (veredicto.kind === 'last_member_with_balance') {
-      // No hay a quién pasarle el saldo. Ofrecer "salir" acá sería mentir.
       Alert.alert(t('group_detail.leave_blocked_title'), t('group_detail.leave_last_member'));
       return;
     }
 
     if (veredicto.kind === 'needs_absorption') {
-      // Dos salidas posibles y las dos honestas: saldar la deuda, o repartirla
-      // entre los que quedan con la aprobación de todos.
       Alert.alert(
         t('group_detail.leave_blocked_title'),
-        t('group_detail.leave_needs_settle', {
-          currencies: veredicto.currencies.join(', '),
-        }),
+        t('group_detail.leave_needs_settle', { currencies: veredicto.currencies.join(', ') }),
         [
           { text: t('common.cancel'), style: 'cancel' },
-          {
-            text: t('group_detail.settle_debts'),
-            onPress: () => router.push(`/settle/new?groupId=${group.id}` as any),
-          },
-          {
-            text: t('leave.title'),
-            onPress: () => router.push(`/groups/leave?id=${group.id}` as any),
-          },
+          { text: t('group_detail.settle_debts'), onPress: () => router.push(`/settle/new?groupId=${group.id}` as any) },
+          { text: t('leave.title'), onPress: () => router.push(`/groups/leave?id=${group.id}` as any) },
         ],
       );
       return;
@@ -253,20 +194,13 @@ export default function GroupDetailScreen() {
     setInviteName('');
     setInviteVisible(false);
     setSinApp(false);
-    Alert.alert(
-      t('group_detail.member_added_title'),
-      t('group_detail.without_app_warning'),
-    );
+    Alert.alert(t('group_detail.member_added_title'), t('group_detail.without_app_warning'));
   }
 
   if (!group) {
     return (
-      <SafeAreaView style={[styles.safe, { backgroundColor: c.bg }]}>
-        <View style={styles.header}>
-          <Pressable onPress={() => router.back()} hitSlop={12}>
-            <Ionicons name="arrow-back" size={24} color={c.text} />
-          </Pressable>
-        </View>
+      <SafeAreaView edges={['bottom']} style={[styles.safe, { backgroundColor: c.bg }]}>
+        <DetailHeader title="" onBack={() => router.back()} />
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <Text style={[Typography.bodyM, { color: c.textTertiary }]}>{t('group_detail.not_found')}</Text>
         </View>
@@ -274,34 +208,29 @@ export default function GroupDetailScreen() {
     );
   }
 
+  const balanceColor = mainBalance > 0 ? c.semantic.positive
+    : mainBalance < 0 ? c.semantic.negative
+    : c.textSecondary;
+
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: c.bg }]}>
-      <View style={[styles.header, { borderBottomColor: c.borderHair }]}>
-        <Pressable onPress={() => router.back()} hitSlop={12}>
-          <Ionicons name="arrow-back" size={24} color={c.text} />
-        </Pressable>
-        <Text style={[Typography.h3, { color: c.text, flex: 1, textAlign: 'center' }]} numberOfLines={1}>
-          {group.name}
-        </Text>
-        {/* Todo lo que no es de uso diario vive acá: agregar gente, invitar por
-            link y borrar el grupo. Antes estaban sueltos en la pantalla, con
-            "eliminar grupo" a un toque de distancia de cualquiera. */}
-        <Pressable
-          testID="group-options"
-          accessibilityRole="button"
-          accessibilityLabel={t('group_detail.options')}
-          onPress={() => setMenuVisible(true)}
-          hitSlop={12}
-          style={{ width: 32, alignItems: 'flex-end' }}
-        >
-          <Ionicons name="ellipsis-vertical" size={20} color={c.text} />
-        </Pressable>
-      </View>
+    <SafeAreaView edges={['bottom']} style={[styles.safe, { backgroundColor: c.bg }]}>
+      <DetailHeader
+        title={group.name}
+        onBack={() => router.back()}
+        right={
+          <Pressable
+            testID="group-options"
+            accessibilityRole="button"
+            accessibilityLabel={t('group_detail.options')}
+            onPress={() => setMenuVisible(true)}
+            hitSlop={12}
+          >
+            <Ionicons name="ellipsis-horizontal" size={20} color={c.text} />
+          </Pressable>
+        }
+      />
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-
-        {/* Va ARRIBA del balance a propósito: si este grupo no está viajando,
-            el número de abajo es el de este teléfono y nada más. */}
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 150 }}>
         {falloDeSync && (
           <SyncWarningBanner
             title={t('sync.failure_title')}
@@ -309,53 +238,52 @@ export default function GroupDetailScreen() {
           />
         )}
 
-        {/* Balance card */}
-        <View style={[styles.balanceCard, { backgroundColor: c.surface, borderColor: c.borderHair }]}>
-          <Text style={[Typography.label, { color: c.textTertiary, textTransform: 'uppercase' }]}>
-            {t('group_detail.balance_label')}
-          </Text>
-          <View style={styles.balanceRow}>
-            <BalancePill amount={mainBalance} currency={group.currency} size="lg" />
-            <Text style={[Typography.bodyS, { color: c.textTertiary }]}>
-              {mainBalance > 0 ? t('group_detail.owe_you') : mainBalance < 0 ? t('group_detail.you_owe_short') : t('group_detail.settled_up')}
+        {/* Balance: banda, no tarjeta. La cifra es lo primero que se lee. */}
+        <Band>
+          <View style={styles.balancePad}>
+            <Text style={[Typography.label, styles.upper, { color: c.textTertiary }]}>
+              {t('group_detail.balance_label')}
+            </Text>
+            <Text style={[Typography.amountXL, { color: balanceColor, marginTop: 2 }]}>
+              {mainBalance > 0 ? '+' : ''}{formatMoney(mainBalance, group.currency)}
+            </Text>
+            <Text style={[Typography.caption, { color: c.textTertiary, marginTop: 4 }]}>
+              {mainBalance > 0 ? t('group_detail.owe_you')
+                : mainBalance < 0 ? t('group_detail.you_owe_short')
+                : t('group_detail.settled_up')}
             </Text>
           </View>
-        </View>
+        </Band>
 
-        {/* Members */}
-        <View style={styles.membersSection}>
-          <View style={styles.membersHeader}>
-            <Text style={[Typography.label, { color: c.textTertiary }]}>
-              {t('group_detail.members_label', { count: group.memberIds.length })}
-            </Text>
-          </View>
-          <View style={styles.membersRow}>
+        {/* Miembros */}
+        <SectionLabel label={t('group_detail.members_label', { count: group.memberIds.length })} />
+        <Band>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.members}>
             {group.memberIds.map(uid => (
-              <View key={uid} style={{ alignItems: 'center', gap: 4 }}>
+              <View key={uid} style={{ alignItems: 'center', gap: 5, width: 56 }}>
                 <UserAvatar userId={uid} name={getUserName(uid)} size={40} />
                 <Text style={[Typography.caption, { color: c.textTertiary }]} numberOfLines={1}>
                   {getUserName(uid).split(' ')[0]}
                 </Text>
               </View>
             ))}
-          </View>
-        </View>
+          </ScrollView>
+        </Band>
 
-        {/* Timeline: expenses + payments */}
-        <Text style={[Typography.label, styles.sectionLabel, { color: c.textTertiary }]}>
-          {t('group_detail.activity_label', { count: timeline.length })}
-        </Text>
-
+        {/* Timeline */}
+        <SectionLabel label={t('group_detail.activity_label', { count: timeline.length })} />
         {timeline.length === 0 ? (
-          <View style={[styles.emptyBox, { backgroundColor: c.surface, borderColor: c.borderHair }]}>
-            <Ionicons name="receipt-outline" size={28} color={c.textTertiary} />
-            <Text style={[Typography.bodyM, { color: c.textTertiary, marginTop: 8 }]}>
-              {t('group_detail.no_activity')}
-            </Text>
-          </View>
+          <Band>
+            <View style={styles.emptyBox}>
+              <Ionicons name="receipt-outline" size={26} color={c.textTertiary} />
+              <Text style={[Typography.bodyM, { color: c.textTertiary, marginTop: 8 }]}>
+                {t('group_detail.no_activity')}
+              </Text>
+            </View>
+          </Band>
         ) : (
-          <View style={{ gap: Spacing.cardGap }}>
-            {timeline.map(item =>
+          <Band>
+            {timeline.map((item, i) =>
               item.type === 'expense' ? (
                 <ExpenseRow
                   key={item.data.id}
@@ -363,6 +291,7 @@ export default function GroupDetailScreen() {
                   currentUserId={currentUser?.id ?? ''}
                   getUserName={getUserName}
                   trust={marcaDeGasto[item.data.id]}
+                  last={i === timeline.length - 1}
                 />
               ) : (
                 <PaymentRow
@@ -371,87 +300,74 @@ export default function GroupDetailScreen() {
                   currentUserId={currentUser?.id ?? ''}
                   getUserName={getUserName}
                   trust={marcaDePago[item.data.id]}
+                  last={i === timeline.length - 1}
                 />
               ),
             )}
-          </View>
+          </Band>
         )}
 
-        {/* Pedido de salida pendiente. Todos tienen que aprobar antes de que
-            alguien se coma un saldo ajeno. */}
+        {/* Pedido de salida pendiente */}
         {group?.leaveRequest && currentUser && (
-          <View style={{ paddingHorizontal: Spacing.screenPad, marginTop: Spacing[4] }}>
-            <View style={[styles.leaveCard, { backgroundColor: c.semantic.warningSoft, borderColor: c.semantic.warning }]}>
-              <Text style={[Typography.bodyM, { color: c.semantic.warning, fontWeight: '600' }]}>
-                {group.leaveRequest.userId === currentUser.id
-                  ? t('leave.pending_mine', avance)
-                  : t('leave.pending_title', { name: getUserName(group.leaveRequest.userId) })}
-              </Text>
-              {group.leaveRequest.userId !== currentUser.id && (
-                <Text style={[Typography.bodyS, { color: c.semantic.warning, marginTop: 2, opacity: 0.9 }]}>
-                  {t('leave.pending_body', avance)}
-                </Text>
+          <>
+            <SectionLabel label={t('leave.title')} />
+            <Band>
+              <View style={[styles.leaveNote, { backgroundColor: c.semantic.warningSoft }]}>
+                <Ionicons name="warning-outline" size={15} color={c.semantic.warning} />
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text style={[Typography.bodyS, { color: c.semantic.warning, fontWeight: '700' }]}>
+                    {group.leaveRequest.userId === currentUser.id
+                      ? t('leave.pending_mine', avance)
+                      : t('leave.pending_title', { name: getUserName(group.leaveRequest.userId) })}
+                  </Text>
+                  {group.leaveRequest.userId !== currentUser.id && (
+                    <Text style={[Typography.caption, { color: c.semantic.warning }]}>
+                      {t('leave.pending_body', avance)}
+                    </Text>
+                  )}
+                </View>
+              </View>
+
+              {group.leaveRequest.userId === currentUser.id ? (
+                <BandRow onPress={() => cancelLeave(group.id)} last>
+                  <Text style={[Typography.bodyL, { color: c.textSecondary, flex: 1, textAlign: 'center' }]}>
+                    {t('leave.withdraw')}
+                  </Text>
+                </BandRow>
+              ) : !group.leaveRequest.approvedBy.includes(currentUser.id) && (
+                <BandRow
+                  last
+                  onPress={() => {
+                    hapticSuccess();
+                    approveLeave(group.id, currentUser.id);
+                    applyApprovedLeaves();
+                  }}
+                >
+                  <View style={styles.approveRow}>
+                    <Ionicons name="checkmark-circle-outline" size={18} color={c.brand.primary} />
+                    <Text style={[Typography.bodyL, { color: c.brand.primary }]}>{t('leave.approve')}</Text>
+                  </View>
+                </BandRow>
               )}
-            </View>
-
-            {group.leaveRequest.userId === currentUser.id ? (
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => cancelLeave(group.id)}
-                style={[styles.inviteRow, { borderColor: c.borderHair, marginTop: Spacing[2] }]}
-              >
-                <Text style={[Typography.bodyM, { color: c.textSecondary, fontWeight: '600' }]}>
-                  {t('leave.withdraw')}
-                </Text>
-              </Pressable>
-            ) : !group.leaveRequest.approvedBy.includes(currentUser.id) && (
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => {
-                  hapticSuccess();
-                  approveLeave(group.id, currentUser.id);
-                  // Si la mía era la que faltaba, se aplica ya: hacer esperar
-                  // al próximo arranque para algo que acaba de completarse
-                  // deja a todos mirando una pantalla que no cambia.
-                  applyApprovedLeaves();
-                }}
-                style={[styles.inviteRow, { borderColor: c.brand.primary, marginTop: Spacing[2] }]}
-              >
-                <Ionicons name="checkmark-circle-outline" size={18} color={c.brand.primary} />
-                <Text style={[Typography.bodyM, { color: c.brand.primary, fontWeight: '600' }]}>
-                  {t('leave.approve')}
-                </Text>
-              </Pressable>
-            )}
-          </View>
+            </Band>
+          </>
         )}
-
       </ScrollView>
 
-      {/* Botonera fija abajo: la acción principal de la pantalla no puede
-          depender de cuánto scrolleaste. Margen inferior de 24 pedido por el
-          PO, sobre el padding lateral de siempre. */}
-      {/* Botonera flotante, el patrón de Personal: el secundario a la
-          izquierda y el primario a la derecha, donde cae el pulgar. Antes
-          "agregar gasto" era un FAB propio y "saldar" una barra pegada abajo
-          — se pisaban. */}
       {group && currentUser && group.memberIds.includes(currentUser.id) && (
         <FabRow>
           {tieneGastos && (
-          <Fab
-            testID="settle-debts"
-            variant="secondary"
-            icon="swap-horizontal-outline"
-            label={t('group_detail.settle_debts')}
-            onPress={() => {
-              hapticLight();
-              router.push(`/settle/new?groupId=${group.id}` as any);
-            }}
-            backgroundColor={c.surface}
-            borderColor={c.brand.primary + '44'}
-            iconColor={c.brand.primary}
-            textColor={c.brand.primary}
-          />
+            <Fab
+              testID="settle-debts"
+              variant="secondary"
+              icon="swap-horizontal-outline"
+              label={t('group_detail.settle_debts')}
+              onPress={() => { hapticLight(); router.push(`/settle/new?groupId=${group.id}` as any); }}
+              backgroundColor={c.brand.primarySoft}
+              borderColor={c.hair}
+              iconColor={c.brand.primary}
+              textColor={c.brand.primary}
+            />
           )}
           <Fab
             testID="add-expense"
@@ -466,7 +382,6 @@ export default function GroupDetailScreen() {
         </FabRow>
       )}
 
-      {/* Menú de los 3 puntos */}
       <BottomSheet visible={menuVisible} onClose={() => setMenuVisible(false)}>
         {group && currentUser && group.memberIds.includes(currentUser.id) && (
           <>
@@ -517,7 +432,6 @@ export default function GroupDetailScreen() {
         )}
       </BottomSheet>
 
-      {/* Modal — Invitar miembro */}
       <Modal
         visible={inviteVisible}
         transparent
@@ -528,15 +442,12 @@ export default function GroupDetailScreen() {
           <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setInviteVisible(false)} />
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
             <View style={[styles.sheet, { backgroundColor: c.surface }]}>
-              <View style={[styles.handle, { backgroundColor: c.borderHair }]} />
+              <View style={[styles.handle, { backgroundColor: c.hair }]} />
 
               <Text style={[Typography.h3, { color: c.text, marginBottom: 6 }]}>
                 {t('group_detail.add_member_title')}
               </Text>
 
-              {/* Los contactos van PRIMERO: son los únicos que van a poder ver
-                  el grupo de verdad. Antes la única opción era escribir un
-                  nombre, que crea a alguien inalcanzable. */}
               {contactosDisponibles.length > 0 && (
                 <>
                   <Text style={[Typography.bodyS, { color: c.textSecondary, marginBottom: 12 }]}>
@@ -554,14 +465,12 @@ export default function GroupDetailScreen() {
                 </>
               )}
 
-              {/* Alguien que no usa la app. Se puede, pero se dice lo que pasa:
-                  entra en los repartos y no va a ver nada. */}
               <Pressable
                 accessibilityRole="button"
                 onPress={() => setSinApp(v => !v)}
                 style={{ marginTop: contactosDisponibles.length > 0 ? Spacing[5] : 0, marginBottom: Spacing[2] }}
               >
-                <Text style={[Typography.bodyS, { color: c.brand.primary, fontWeight: '600' }]}>
+                <Text style={{ fontSize: 12.5, fontWeight: '700', color: c.brand.primary }}>
                   {t('group_detail.add_without_app')}
                 </Text>
               </Pressable>
@@ -576,16 +485,21 @@ export default function GroupDetailScreen() {
                     onChangeText={setInviteName}
                     placeholder={t('group_detail.name_placeholder')}
                     placeholderTextColor={c.textTertiary}
-                    style={[styles.input, { backgroundColor: c.surfaceSunken, color: c.text, borderColor: c.border }]}
+                    style={[styles.input, { backgroundColor: c.bgGrouped, color: c.text, borderColor: c.hair }]}
                     returnKeyType="done"
                     onSubmitEditing={handleAddMember}
                   />
                   <Pressable
                     accessibilityRole="button"
                     onPress={handleAddMember}
-                    style={[styles.confirmBtn, { backgroundColor: inviteName.trim() ? c.brand.primary : c.surfaceSunken }]}
+                    style={[styles.confirmBtn, {
+                      backgroundColor: inviteName.trim() ? c.brand.primary : c.bgGrouped,
+                    }]}
                   >
-                    <Text style={[Typography.bodyM, { color: inviteName.trim() ? '#fff' : c.textTertiary, fontWeight: '600' }]}>
+                    <Text style={{
+                      fontSize: 15, fontWeight: '700',
+                      color: inviteName.trim() ? '#fff' : c.textTertiary,
+                    }}>
                       {t('group_detail.add_to_group')}
                     </Text>
                   </Pressable>
@@ -600,13 +514,13 @@ export default function GroupDetailScreen() {
 }
 
 function ExpenseRow({
-  expense, currentUserId, getUserName, trust,
+  expense, currentUserId, getUserName, trust, last,
 }: {
   expense: Expense;
   currentUserId: string;
   getUserName: (id: string) => string;
-  /** Marca de T-041. `undefined` = la cola todavía no llegó a esta fila. */
   trust?: TrustState;
+  last?: boolean;
 }) {
   const scheme = useColorScheme() ?? 'light';
   const { t } = useTranslation();
@@ -620,29 +534,20 @@ function ExpenseRow({
     : -(myShare?.amount ?? 0);
 
   return (
-    <Pressable
-      onPress={() => router.push(`/expense/${expense.id}` as any)}
-      style={({ pressed }) => [
-        styles.expenseRow,
-        { backgroundColor: c.surface, borderColor: c.borderHair, opacity: pressed ? 0.85 : 1 },
-      ]}
-    >
-      <View style={[styles.expenseIcon, { backgroundColor: c.surfaceSunken }]}>
-        <Ionicons name="receipt-outline" size={18} color={c.textSecondary} />
+    <BandRow last={last} onPress={() => router.push(`/expense/${expense.id}` as any)}>
+      <View style={[styles.rowIcon, { backgroundColor: c.hair2 }]}>
+        <Ionicons name="receipt-outline" size={17} color={c.textTertiary} />
       </View>
-      <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={[Typography.bodyM, { color: c.text, fontWeight: '600' }]} numberOfLines={1}>
+      <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+        <Text style={[Typography.bodyL, { color: c.text }]} numberOfLines={1}>
           {expense.description}
         </Text>
-        <Text style={[Typography.bodyS, { color: c.textTertiary }]}>
+        <Text style={[Typography.caption, { color: c.textTertiary }]} numberOfLines={1}>
           {getUserName(expense.paidById)} · {dateLabel}
         </Text>
-        {/* Marcado, pero se muestra y suma igual: es la invariante de R1. */}
-        {isMarked(trust ?? 'pendiente') && (
-          <TrustMark label={t('trust.badge')} size="sm" />
-        )}
+        {isMarked(trust ?? 'pendiente') && <TrustMark label={t('trust.badge')} size="sm" />}
       </View>
-      <View style={{ alignItems: 'flex-end' }}>
+      <View style={{ alignItems: 'flex-end', gap: 3 }}>
         <Text style={[Typography.amountS, {
           color: netForMe > 0 ? c.semantic.positive : netForMe < 0 ? c.semantic.negative : c.textTertiary,
         }]}>
@@ -652,18 +557,18 @@ function ExpenseRow({
           {t('group_detail.total_suffix', { amount: formatMoney(expense.amount, expense.currency) })}
         </Text>
       </View>
-    </Pressable>
+    </BandRow>
   );
 }
 
 function PaymentRow({
-  payment, currentUserId, getUserName, trust,
+  payment, currentUserId, getUserName, trust, last,
 }: {
   payment: Payment;
   currentUserId: string;
   getUserName: (id: string) => string;
-  /** Marca de T-041. `undefined` = la cola todavía no llegó a esta fila. */
   trust?: TrustState;
+  last?: boolean;
 }) {
   const scheme = useColorScheme() ?? 'light';
   const { t } = useTranslation();
@@ -674,40 +579,29 @@ function PaymentRow({
   const toName    = payment.toUserId   === currentUserId ? t('common.you') : getUserName(payment.toUserId);
   const dateLabel = new Date(payment.date).toLocaleDateString(i18n.language, { day: 'numeric', month: 'short' });
 
-  /**
-   * Un saldado sin acuse NO se pinta de verde cerrado (T-064).
-   *
-   * El verde y el tilde son el lenguaje de "esto ya está"; usarlos mientras se
-   * espera la confirmación contradice en el color lo que el texto de abajo
-   * dice, y el color es lo que se lee primero. Rechazado va en negativo: la
-   * deuda volvió.
-   */
+  // T-064: sin acuse, el saldado NO se pinta como cerrado.
   const cerrado  = acuse.estado === 'efectivo';
   const negativo = acuse.estado === 'rechazado';
   const tono     = negativo ? c.semantic.negative : cerrado ? c.semantic.positive : c.textTertiary;
   const colorDelMonto = negativo ? c.semantic.negative : cerrado ? c.semantic.positive : c.textSecondary;
 
   return (
-    <View style={[styles.expenseRow, { backgroundColor: cerrado ? c.semantic.positiveSoft : c.surface, borderColor: tono + '33' }]}>
-      <View style={[styles.expenseIcon, { backgroundColor: tono + '22' }]}>
+    <BandRow last={last}>
+      <View style={[styles.rowIcon, { backgroundColor: cerrado ? c.semantic.positiveSoft : c.hair2 }]}>
         <Ionicons
           name={negativo ? 'close-circle-outline' : cerrado ? 'checkmark-circle-outline' : 'time-outline'}
-          size={18}
+          size={17}
           color={tono}
         />
       </View>
-      <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={[Typography.bodyM, { color: c.text, fontWeight: '600' }]} numberOfLines={1}>
+      <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+        <Text style={[Typography.bodyL, { color: c.text }]} numberOfLines={1}>
           {t('group_detail.paid_to', { from: fromName, to: toName })}
         </Text>
-        <Text style={[Typography.bodyS, { color: c.textTertiary }]}>
+        <Text style={[Typography.caption, { color: c.textTertiary }]}>
           {t('group_detail.payment_label')} · {dateLabel}
         </Text>
-        {isMarked(trust ?? 'pendiente') && (
-          <TrustMark label={t('trust.badge')} size="sm" />
-        )}
-        {/* T-064: mientras espera el acuse, el saldado no se dibuja como
-            cerrado. Un pago `efectivo` no agrega nada acá. */}
+        {isMarked(trust ?? 'pendiente') && <TrustMark label={t('trust.badge')} size="sm" />}
         <SettlementAcuse
           testID={`acuse-${payment.id}`}
           estado={acuse.estado}
@@ -720,46 +614,24 @@ function PaymentRow({
       <Text style={[Typography.amountS, { color: colorDelMonto }]}>
         {formatMoney(payment.amount, payment.currency)}
       </Text>
-    </View>
+    </BandRow>
   );
 }
 
 const styles = StyleSheet.create({
-  inviteRow:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 24, padding: 14, borderWidth: 1, borderRadius: 14 },
-  leaveCard:  { borderRadius: Radius.md, borderWidth: 1, padding: Spacing[4] },
-  dangerZone: { marginTop: 32, alignItems: 'center' },
-  dangerRow:  { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12 },
-  safe:           { flex: 1 },
-  header:         {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: Spacing.screenPad, paddingVertical: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth, gap: 12,
+  safe:        { flex: 1 },
+  upper:       { textTransform: 'uppercase' },
+  balancePad:  { paddingHorizontal: Spacing.screenPad, paddingTop: 18, paddingBottom: 18 },
+  members:     { paddingHorizontal: Spacing.screenPad, paddingVertical: 14, gap: 14 },
+  emptyBox:    { alignItems: 'center', justifyContent: 'center', padding: Spacing[6] },
+  rowIcon:     { width: 36, height: 36, borderRadius: Radius.sm, alignItems: 'center', justifyContent: 'center' },
+  leaveNote:   {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 9,
+    paddingHorizontal: Spacing.screenPad, paddingVertical: 13,
   },
-  scroll:         { paddingTop: Spacing[4] },
-  balanceCard:    {
-    marginHorizontal: Spacing.screenPad, marginBottom: Spacing[4],
-    padding: Spacing[4], borderRadius: Radius.lg, borderWidth: 1, gap: 8,
-  },
-  balanceRow:     { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  membersSection: { paddingHorizontal: Spacing.screenPad, marginBottom: Spacing[4] },
-  membersHeader:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  addMemberBtn:   { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: Radius.full },
-  membersRow:     { flexDirection: 'row', flexWrap: 'wrap', gap: 14 },
-  sectionLabel:   { paddingHorizontal: Spacing.screenPad, marginBottom: Spacing[2] },
-  emptyBox:       {
-    marginHorizontal: Spacing.screenPad,
-    alignItems: 'center', justifyContent: 'center',
-    padding: Spacing[6], borderRadius: Radius.lg, borderWidth: 1,
-  },
-  expenseRow:     {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    marginHorizontal: Spacing.screenPad,
-    padding: Spacing.cardPad, borderRadius: Radius.lg, borderWidth: 1,
-  },
-  expenseIcon:    { width: 40, height: 40, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
-  // Modal
+  approveRow:  { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   modalRoot:   { flex: 1, justifyContent: 'flex-end' },
-  sheet:       { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
+  sheet:       { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 40 },
   handle:      { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
   input:       {
     height: 50, borderRadius: Radius.md, borderWidth: 1,

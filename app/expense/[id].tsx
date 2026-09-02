@@ -272,7 +272,7 @@ export default function ExpenseDetailScreen() {
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: c.bg }]}>
       {/* Header */}
-      <View style={[styles.header, { borderBottomColor: c.borderHair }]}>
+      <View style={[styles.header, { borderBottomColor: c.hair }]}>
         <Pressable onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={24} color={c.brand.primary} />
         </Pressable>
@@ -318,7 +318,7 @@ export default function ExpenseDetailScreen() {
         </View>
 
         {/* Mi balance en este gasto */}
-        <View style={[styles.section, { backgroundColor: c.surface, borderColor: c.borderHair }]}>
+        <View style={[styles.section, { backgroundColor: c.surface, borderColor: c.hair }]}>
           <Text style={[Typography.caption, { color: c.textTertiary, textTransform: 'uppercase', marginBottom: 12 }]}>
             {t('expense.your_balance')}
           </Text>
@@ -331,7 +331,7 @@ export default function ExpenseDetailScreen() {
                 {isPayer ? t('common.you') : getUserName(expense.paidById)}
               </Text>
             </View>
-            <View style={styles.balanceDivider} />
+            <View style={[styles.balanceDivider, { backgroundColor: c.hair }]} />
             <View style={styles.balanceCol}>
               <Text style={[Typography.caption, { color: c.textTertiary }]}>
                 {t('expense.your_share')}
@@ -340,7 +340,7 @@ export default function ExpenseDetailScreen() {
                 {formatMoney(myShare, expense.currency)}
               </Text>
             </View>
-            <View style={styles.balanceDivider} />
+            <View style={[styles.balanceDivider, { backgroundColor: c.hair }]} />
             <View style={styles.balanceCol}>
               <Text style={[Typography.caption, { color: c.textTertiary }]}>
                 {t('expense.net')}
@@ -356,7 +356,7 @@ export default function ExpenseDetailScreen() {
         </View>
 
         {/* Splits */}
-        <View style={[styles.section, { backgroundColor: c.surface, borderColor: c.borderHair }]}>
+        <View style={[styles.section, { backgroundColor: c.surface, borderColor: c.hair }]}>
           <Text style={[Typography.caption, { color: c.textTertiary, textTransform: 'uppercase', marginBottom: 12 }]}>
             {t('expense.split_detail')}
           </Text>
@@ -370,7 +370,7 @@ export default function ExpenseDetailScreen() {
                 key={split.userId}
                 style={[
                   styles.splitRow,
-                  i < splits.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.borderHair },
+                  i < splits.length - 1 && { borderBottomWidth: 1, borderBottomColor: c.hair2 },
                 ]}
               >
                 <UserAvatar userId={split.userId} name={name} size={36} />
@@ -394,7 +394,7 @@ export default function ExpenseDetailScreen() {
 
         {/* Nota */}
         {expense.note ? (
-          <View style={[styles.section, { backgroundColor: c.surface, borderColor: c.borderHair }]}>
+          <View style={[styles.section, { backgroundColor: c.surface, borderColor: c.hair }]}>
             <Text style={[Typography.caption, { color: c.textTertiary, textTransform: 'uppercase', marginBottom: 8 }]}>
               {t('expense.note')}
             </Text>
@@ -409,7 +409,7 @@ export default function ExpenseDetailScreen() {
           <View style={[
             styles.section, styles.warningSection,
             frenada
-              ? { backgroundColor: c.surfaceSunken, borderColor: c.borderHair }
+              ? { backgroundColor: c.bgGrouped, borderColor: c.hair }
               : { backgroundColor: c.semantic.warningSoft, borderColor: c.semantic.warning },
           ]}>
             <Ionicons
@@ -464,7 +464,7 @@ export default function ExpenseDetailScreen() {
               <Pressable
                 accessibilityRole="button"
                 onPress={retirarPedido}
-                style={[styles.actionBtn, { borderColor: c.borderHair, backgroundColor: c.surface }]}
+                style={[styles.actionBtn, { borderColor: c.hair, backgroundColor: c.surface }]}
               >
                 <Text style={[Typography.bodyM, { color: c.textSecondary, fontWeight: '600' }]}>
                   {t('expense.withdraw_request')}
@@ -508,21 +508,23 @@ const styles = StyleSheet.create({
   safe:     { flex: 1 },
   header:   {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: Spacing.screenPad, paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: Spacing.screenPad, height: 52,
+    borderBottomWidth: 1,
   },
   backBtn:    { width: 40, height: 40, alignItems: 'flex-start', justifyContent: 'center' },
   headerRight:{ flexDirection: 'row', alignItems: 'center' },
   iconBtn:    { width: 36, height: 40, alignItems: 'center', justifyContent: 'center' },
   scroll:   { paddingTop: Spacing[4] },
   hero:     { alignItems: 'center', paddingHorizontal: Spacing.screenPad, marginBottom: Spacing[5] },
+  // Banda, no tarjeta: borde a borde, hairline arriba y abajo, sin radio.
   section:  {
-    marginHorizontal: Spacing.screenPad, marginBottom: Spacing[4],
-    borderRadius: Radius.lg, borderWidth: 1, padding: Spacing[4],
+    marginBottom: Spacing[4],
+    borderTopWidth: 1, borderBottomWidth: 1,
+    paddingHorizontal: Spacing.screenPad, paddingVertical: Spacing[4],
   },
   balanceRow:    { flexDirection: 'row', alignItems: 'center' },
   balanceCol:    { flex: 1, alignItems: 'center' },
-  balanceDivider:{ width: StyleSheet.hairlineWidth, height: 32, backgroundColor: '#E0D9D0' },
+  balanceDivider:{ width: 1, height: 32 },
   splitRow:      { flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
   warningSection:{ flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
   actionBtn:     {

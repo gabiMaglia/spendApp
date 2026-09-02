@@ -1,4 +1,4 @@
-// Grid de 4px — equivalente a --sp-space-* y --sp-r-*
+// Grid de 4px. El reskin no cambia el espaciado; sí baja los radios.
 export const Spacing = {
   0:  0,
   1:  4,
@@ -15,14 +15,18 @@ export const Spacing = {
   cardPad:   16,
   cardGap:   10,
   tapTarget: 44,
+  /** Padding vertical de una fila de banda. */
+  rowPadV:   14,
+  /** Alto del header fijo (status 44 + nav 52). */
+  headerH:   96,
 } as const;
 
 export const Radius = {
   xs:   6,
-  sm:   10,
-  md:   14,
-  lg:   18,
-  xl:   22,
-  '2xl':28,
+  sm:   8,
+  md:   11,
+  lg:   12,
+  xl:   14,
+  '2xl':16,
   full: 9999,
 } as const;

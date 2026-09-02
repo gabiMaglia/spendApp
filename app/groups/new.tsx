@@ -9,6 +9,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { hapticSelection, hapticSuccess } from '@/src/utils/haptics';
 
 import { Colors } from '@/src/constants/colors';
+import { DetailHeader } from '@/src/components/CollapsibleHeader';
+
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import type { DeletionMode } from '@/src/types/models';
@@ -95,27 +97,21 @@ export default function NewGroupScreen() {
     <SafeAreaView style={[styles.safe, { backgroundColor: c.bg }]}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
 
-        {/* Header */}
-        <View style={[styles.header, { borderBottomColor: c.borderHair }]}>
-          <Pressable onPress={() => router.back()} hitSlop={12} style={styles.headerSide}>
-            <Ionicons name="close" size={24} color={c.text} />
-          </Pressable>
-          <Text style={[Typography.h3, { color: c.text }]}>{t('groups.new_title')}</Text>
-          <Pressable
-            onPress={handleSave}
-            disabled={!canSave}
-            hitSlop={12}
-            style={styles.headerSide}
-          >
-            <Text style={[Typography.bodyM, {
-              color: canSave ? c.brand.primary : c.textDisabled,
-              fontWeight: '700',
-              textAlign: 'right',
-            }]}>
-              {t('common.create')}
-            </Text>
-          </Pressable>
-        </View>
+        <DetailHeader
+          icon="close"
+          title={t('groups.new_title')}
+          onBack={() => router.back()}
+          right={
+            <Pressable onPress={handleSave} disabled={!canSave} hitSlop={12}>
+              <Text style={{
+                fontSize: 15, fontWeight: '700', textAlign: 'right',
+                color: canSave ? c.brand.primary : c.textDisabled,
+              }}>
+                {t('common.create')}
+              </Text>
+            </Pressable>
+          }
+        />
 
         <ScrollView
           contentContainerStyle={styles.scroll}
@@ -123,7 +119,7 @@ export default function NewGroupScreen() {
           showsVerticalScrollIndicator={false}
         >
           {/* Group name */}
-          <View style={[styles.inputCard, { backgroundColor: c.surface, borderColor: c.borderHair }]}>
+          <View style={[styles.inputCard, { backgroundColor: c.surface, borderColor: c.hair }]}>
             <Ionicons name="people-outline" size={18} color={c.textTertiary} />
             <TextInput
               placeholder={t('groups.name_placeholder')}
@@ -149,7 +145,7 @@ export default function NewGroupScreen() {
                   styles.currencyChip,
                   {
                     backgroundColor: currency === code ? c.brand.primary : c.surface,
-                    borderColor:     currency === code ? c.brand.primary : c.borderHair,
+                    borderColor:     currency === code ? c.brand.primary : c.hair,
                   },
                 ]}
               >
@@ -181,7 +177,7 @@ export default function NewGroupScreen() {
                 onPress={() => { hapticSelection(); setDeletionMode(op.modo); }}
                 style={[styles.deletionOption, {
                   backgroundColor: elegido ? c.brand.primarySoft : c.surface,
-                  borderColor:     elegido ? c.brand.primary : c.borderHair,
+                  borderColor:     elegido ? c.brand.primary : c.hair,
                 }]}
               >
                 <Ionicons
@@ -226,7 +222,7 @@ export default function NewGroupScreen() {
 
           {/* Contactos existentes */}
           {contacts.length === 0 ? (
-            <View style={[styles.noContacts, { backgroundColor: c.surfaceSunken, borderColor: c.borderHair }]}>
+            <View style={[styles.noContacts, { backgroundColor: c.bgGrouped, borderColor: c.hair }]}>
               <Ionicons name="people-outline" size={24} color={c.textTertiary} />
               <Text style={[Typography.bodyM, { color: c.textTertiary, textAlign: 'center' }]}>
                 {t('groups.no_contacts')}
@@ -280,7 +276,7 @@ function MemberRow({
       onPress={locked ? undefined : onToggle}
       style={({ pressed }) => [
         styles.memberRow,
-        { backgroundColor: c.surface, borderColor: c.borderHair, opacity: pressed && !locked ? 0.8 : 1 },
+        { backgroundColor: c.surface, borderColor: c.hair, opacity: pressed && !locked ? 0.8 : 1 },
       ]}
     >
       <UserAvatar userId={id} name={name} size={38} />
@@ -303,12 +299,6 @@ function MemberRow({
 
 const styles = StyleSheet.create({
   safe:         { flex: 1 },
-  header:       {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: Spacing.screenPad, paddingVertical: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  headerSide:   { width: 56 },
   scroll:       { paddingHorizontal: Spacing.screenPad, paddingTop: Spacing[4] },
   sectionLabel: { marginTop: Spacing[5], marginBottom: Spacing[2] },
   inputCard:    {

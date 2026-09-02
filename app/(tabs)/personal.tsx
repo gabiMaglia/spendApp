@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
+  Alert, Animated, Pressable, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -15,6 +15,12 @@ import type { CurrencyCode } from '@/src/constants/currencies';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAmountInput } from '@/src/hooks/useAmountInput';
 import { Fab, FabRow } from '@/src/components/Fab';
+import {
+  Band, BandRow, Meter, SectionLabel, SplitStat,
+} from '@/src/components/Band';
+import {
+  CollapsibleHeader, HeaderAvatar, HeaderCurrency,
+} from '@/src/components/CollapsibleHeader';
 import { useAuthStore } from '@/src/store/authStore';
 import { usePersonalStore, toMonthKey, currentMonthKey } from '@/src/store/personalStore';
 import { reasonKey } from '@/src/algorithms/entryOrigin';
@@ -22,7 +28,7 @@ import { useDirectedDebts, useGlobalPersonBalances } from '@/src/store/selectors
 import { hapticLight, hapticSelection, hapticWarning } from '@/src/utils/haptics';
 import { v4 as uuidv4 } from 'uuid';
 import { BottomSheet } from '@/src/components/Sheet';
-import type { PersonalBudget, PersonalEntry } from '@/src/types/models';
+import type { PersonalEntry } from '@/src/types/models';
 import { useTranslation } from 'react-i18next';
 import i18n from '@/src/i18n';
 import { totalIOwe, totalOwedToMe } from '@/src/algorithms/directedDebts';
@@ -64,14 +70,14 @@ export default function PersonalScreen() {
   const c = Colors[scheme];
 
   const { currentUser } = useAuthStore();
-  const { entries, budget, removeEntry, setBudget, addEntry, lastSeenMonth, setLastSeenMonth } = usePersonalStore();
-  const personBalances = useGlobalPersonBalances(currentUser?.id ?? '');
+  const { entries, budget, removeEntry, setBudget, lastSeenMonth } = usePersonalStore();
+  useGlobalPersonBalances(currentUser?.id ?? '');
 
   const today = toMonthKey(Date.now());
   const [activeMonth, setActiveMonth] = useState(today);
   const [showBudgetSheet, setShowBudgetSheet] = useState(false);
   const [includeOwedToMe, setIncludeOwedToMe] = useState(budget.includeOwedToMe);
-  const [budgetCurrency, setBudgetCurrency] = useState<CurrencyCode>(budget.currency);
+  const [budgetCurrency] = useState<CurrencyCode>(budget.currency);
   const {
     text: budgetInput,
     minor: budgetAmount,
@@ -79,59 +85,42 @@ export default function PersonalScreen() {
     onBlur: onBudgetInputBlur,
   } = useAmountInput(budgetCurrency, budget.monthlyAmount);
 
-  /**
-   * La moneda maestra que el usuario eligió en Perfil, no la del presupuesto.
-   *
-   * Antes era `budget.currency` y el filtro de abajo descartaba EN SILENCIO
-   * toda entrada de otra moneda: cargabas un gasto en reales y Personal no lo
-   * contaba, sin una sola señal. Es el mismo defecto que ya tenía el dashboard.
-   */
+  /** Scroll del header colapsable. */
+  const scrollY = useRef(new Animated.Value(0)).current;
+
   const { fx, display: cur } = useFx();
   const [avisoVisto, setAvisoVisto] = useState(false);
 
-  /**
-   * Cuánto me deben y cuánto debo, DIRECCIONAL (ADR-006).
-   *
-   * Antes salían de `personBalances`, que netea entre grupos: si en uno debía
-   * 5.000 y en otro me debían 5.000, las dos cifras daban 0 y no había nada
-   * que mostrar aunque hubiera dos deudas vivas. Ahora cada lado se cuenta por
-   * separado y NO se compensan.
-   *
-   * Ninguna de las dos toca «lo gastado»: una deuda no es plata que salió del
-   * bolsillo. Recién lo es cuando se salda.
-   */
   const deudas = useDirectedDebts(currentUser?.id ?? '');
   const owedToMe = useMemo(() => totalOwedToMe(deudas, cur), [deudas, cur]);
   const youOwe   = useMemo(() => totalIOwe(deudas, cur), [deudas, cur]);
 
-  // Keep an up-to-date ref for owedToMe so the carryover effect can read it without re-triggering
   const owedToMeRef = useRef(owedToMe);
   useEffect(() => { owedToMeRef.current = owedToMe; }, [owedToMe]);
 
-  // Month-rollover: when a new month is detected, create a carryover entry from the prev month's balance
+  // Month-rollover: sin cambios respecto del original (ADR-005/006).
   useEffect(() => {
     const thisMonth = currentMonthKey();
     if (!lastSeenMonth || lastSeenMonth >= thisMonth) return;
 
     const { entries: allEntries, budget: curBudget, addEntry: add, setLastSeenMonth: setSeen } =
       usePersonalStore.getState();
-    const c = curBudget.currency;
+    const cy = curBudget.currency;
 
-    // Guard: don't create duplicate carryovers
     const alreadyCarried = allEntries.some(
       e => !e.isDeleted && e.kind === 'carryover' && toMonthKey(e.date) === thisMonth,
     );
     if (alreadyCarried) { setSeen(thisMonth); return; }
 
     const prevEntries = allEntries.filter(
-      e => !e.isDeleted && e.currency === c && toMonthKey(e.date) === lastSeenMonth,
+      e => !e.isDeleted && e.currency === cy && toMonthKey(e.date) === lastSeenMonth,
     );
 
-    const prevIncome      = prevEntries.filter(e => e.kind === 'income').reduce((s, e) => s + e.amount, 0);
-    const prevExpense     = prevEntries.filter(e => e.kind === 'expense').reduce((s, e) => s + e.amount, 0);
-    const prevGroup       = prevEntries.filter(e => e.kind === 'group_replicated').reduce((s, e) => s + e.amount, 0);
-    const prevPosCarry    = prevEntries.filter(e => e.kind === 'carryover' && e.isPositiveCarryover).reduce((s, e) => s + e.amount, 0);
-    const prevNegCarry    = prevEntries.filter(e => e.kind === 'carryover' && !e.isPositiveCarryover).reduce((s, e) => s + e.amount, 0);
+    const prevIncome   = prevEntries.filter(e => e.kind === 'income').reduce((s, e) => s + e.amount, 0);
+    const prevExpense  = prevEntries.filter(e => e.kind === 'expense').reduce((s, e) => s + e.amount, 0);
+    const prevGroup    = prevEntries.filter(e => e.kind === 'group_replicated').reduce((s, e) => s + e.amount, 0);
+    const prevPosCarry = prevEntries.filter(e => e.kind === 'carryover' && e.isPositiveCarryover).reduce((s, e) => s + e.amount, 0);
+    const prevNegCarry = prevEntries.filter(e => e.kind === 'carryover' && !e.isPositiveCarryover).reduce((s, e) => s + e.amount, 0);
 
     const prevEffective = curBudget.monthlyAmount + prevIncome + prevPosCarry +
       (curBudget.includeOwedToMe ? owedToMeRef.current : 0);
@@ -141,25 +130,23 @@ export default function PersonalScreen() {
     if (Math.abs(prevRemaining) >= 0.01) {
       const firstOfMonth = new Date(`${thisMonth}-01T12:00:00`).getTime();
       add({
-        id:                 uuidv4(),
-        kind:               'carryover',
+        id:                  uuidv4(),
+        kind:                'carryover',
         isPositiveCarryover: prevRemaining > 0,
-        description:        `Saldo de ${monthLabel(lastSeenMonth)}`,
-        amount:             Math.abs(prevRemaining),
-        currency:           c,
-        category:           'other',
-        date:               firstOfMonth,
-        createdAt:          Date.now(),
-        updatedAt:          syncedNow(),
-        isDeleted:          false,
+        description:         `Saldo de ${monthLabel(lastSeenMonth)}`,
+        amount:              Math.abs(prevRemaining),
+        currency:            cy,
+        category:            'other',
+        date:                firstOfMonth,
+        createdAt:           Date.now(),
+        updatedAt:           syncedNow(),
+        isDeleted:           false,
       });
     }
 
     setSeen(thisMonth);
-  }, [lastSeenMonth]); // Only runs when lastSeenMonth changes (once per month)
+  }, [lastSeenMonth]);
 
-  // TODAS las del mes, sin filtrar por moneda: lo que no se puede convertir se
-  // informa, no se descarta.
   const monthEntries = useMemo(
     () => entries.filter(e => !e.isDeleted && toMonthKey(e.date) === activeMonth),
     [entries, activeMonth],
@@ -171,15 +158,13 @@ export default function PersonalScreen() {
       cur, fx,
     );
 
-  // La clasificación vive en `personalMonth` y la comparte el dashboard. Estaba
-  // duplicada, con criterios distintos, y ahí nació el bug del carryover.
-  const baldes     = repartirDelMes(monthEntries);
-  const porBalde   = (b: BucketPersonal) => sumar(e => baldes[b].includes(e));
-  const income     = porBalde('income');
-  const expense    = porBalde('expense');
-  const group      = porBalde('group');
-  const carryPos   = porBalde('carryPos');
-  const carryNeg   = porBalde('carryNeg');
+  const baldes   = repartirDelMes(monthEntries);
+  const porBalde = (b: BucketPersonal) => sumar(e => baldes[b].includes(e));
+  const income   = porBalde('income');
+  const expense  = porBalde('expense');
+  const group    = porBalde('group');
+  const carryPos = porBalde('carryPos');
+  const carryNeg = porBalde('carryNeg');
 
   const totalIncome       = income.totalMinor;
   const totalExpense      = expense.totalMinor;
@@ -188,8 +173,6 @@ export default function PersonalScreen() {
   const negativeCarryover = carryNeg.totalMinor;
   const totalSpent        = totalExpense + totalGroup + negativeCarryover;
 
-  // Lo que no se pudo convertir, para avisarlo igual que en el dashboard: un
-  // número nunca puede ocultar que hay plata que no se está mostrando.
   const pendientes = [...expense.unconverted, ...group.unconverted];
 
   const baseBudget      = budget.monthlyAmount;
@@ -200,7 +183,9 @@ export default function PersonalScreen() {
 
   const barColor = pct >= 1 ? c.semantic.negative
     : pct >= 0.8 ? c.semantic.warning
-    : c.semantic.positive;
+    : c.brand.primary;
+
+  const atCurrentMonth = activeMonth >= today;
 
   function handleSaveBudget() {
     setBudget({ currency: budgetCurrency, monthlyAmount: budgetAmount, includeOwedToMe });
@@ -209,10 +194,6 @@ export default function PersonalScreen() {
   }
 
   function handleRemove(entry: PersonalEntry) {
-    // ADR-006: sólo se toca lo que nació de una acción del usuario. Antes esto
-    // miraba `kind === 'group_replicated'` a mano y, sobre todo, **no decía
-    // nada**: el toque no hacía absolutamente nada y eso se lee como que la
-    // app está rota, no como una regla.
     const motivo = reasonKey(entry);
     if (motivo) {
       hapticWarning();
@@ -231,110 +212,132 @@ export default function PersonalScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: c.bg }]}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-
-        {/* Header */}
-        <View style={styles.header}>
+    <SafeAreaView edges={['bottom']} style={[styles.safe, { backgroundColor: c.bg }]}>
+      <Animated.ScrollView
+        showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: false })}
+        contentContainerStyle={{ paddingTop: Spacing.headerH, paddingBottom: 140 }}
+      >
+        {/* Título grande: vive en el contenido y scrollea; el header lo recoge. */}
+        <View style={styles.titleRow}>
           <Text style={[Typography.display, { color: c.text }]}>{t('personal.title')}</Text>
           <Pressable
             onPress={() => { hapticLight(); setShowBudgetSheet(true); }}
-            style={[styles.iconBtn, { backgroundColor: c.surfaceSunken }]}
+            style={[styles.iconBtn, { backgroundColor: c.bgGrouped }]}
           >
-            <Ionicons name="settings-outline" size={18} color={c.text} />
+            <Ionicons name="settings-outline" size={17} color={c.textSecondary} />
           </Pressable>
         </View>
 
-        {/* Month navigator */}
+        {/* Navegador de mes */}
         <View style={styles.monthNav}>
           <Pressable onPress={() => { hapticSelection(); setActiveMonth(prevMonth(activeMonth)); }} hitSlop={12}>
-            <Ionicons name="chevron-back" size={20} color={c.textSecondary} />
+            <Ionicons name="chevron-back" size={19} color={c.textSecondary} />
           </Pressable>
-          <Text style={[Typography.bodyL, { color: c.text, fontWeight: '700' }]}>
+          <Text style={{ fontSize: 15, fontWeight: '700', color: c.text }}>
             {monthLabel(activeMonth)}
           </Text>
           <Pressable
             onPress={() => { hapticSelection(); setActiveMonth(nextMonth(activeMonth)); }}
-            disabled={activeMonth >= today}
+            disabled={atCurrentMonth}
             hitSlop={12}
+            style={{ opacity: atCurrentMonth ? 0.3 : 1 }}
           >
-            <Ionicons name="chevron-forward" size={20} color={activeMonth >= today ? c.textDisabled : c.textSecondary} />
+            <Ionicons name="chevron-forward" size={19} color={c.textSecondary} />
           </Pressable>
         </View>
 
-        {/* Budget meter */}
+        {/* Banda medidor */}
         {hasBudget ? (
-          <View style={[styles.meterCard, { backgroundColor: c.surface, borderColor: c.borderHair }]}>
-            <View style={styles.meterTop}>
-              <View>
-                <Text style={[Typography.caption, { color: c.textTertiary, textTransform: 'uppercase' }]}>
-                  {t('personal.spent')}
-                </Text>
-                <MoneyText minor={totalSpent} code={cur} style={[Typography.amountM, { color: c.text }]} />
+          <Band>
+            <View style={styles.meterPad}>
+              <View style={styles.meterTop}>
+                <View>
+                  <Text style={[Typography.label, styles.upper, { color: c.textTertiary }]}>
+                    {t('personal.spent')}
+                  </Text>
+                  <MoneyText minor={totalSpent} code={cur} style={[Typography.amountM, { color: c.text }]} />
+                </View>
+                <View style={{ alignItems: 'flex-end', flexShrink: 0, marginLeft: 16 }}>
+                  <Text style={[Typography.label, styles.upper, { color: c.textTertiary }]}>
+                    {remaining >= 0 ? t('personal.available') : t('personal.exceeded')}
+                  </Text>
+                  <MoneyText
+                    minor={Math.abs(remaining)}
+                    code={cur}
+                    style={[Typography.amountM, { color: remaining >= 0 ? c.semantic.positive : c.semantic.negative }]}
+                  />
+                </View>
               </View>
-              <View style={{ alignItems: 'flex-end' }}>
-                <Text style={[Typography.caption, { color: c.textTertiary, textTransform: 'uppercase' }]}>
-                  {remaining >= 0 ? t('personal.available') : t('personal.exceeded')}
-                </Text>
-                <MoneyText minor={Math.abs(remaining)} code={cur} style={[Typography.amountM, { color: remaining >= 0 ? barColor : c.semantic.negative }]} />
+
+              <View style={{ marginTop: 14, marginBottom: 10 }}>
+                <Meter pct={pct} color={barColor} />
               </View>
+
+              <Text style={[Typography.caption, { color: c.textTertiary, textAlign: 'center' }]}>
+                {t('personal.budget_progress', { pct: Math.round(pct * 100), amount: formatMoney(effectiveBudget, cur) })}
+                {budget.includeOwedToMe && owedToMe > 0
+                  ? t('personal.budget_includes_owed', { amount: formatMoney(owedToMe, cur) })
+                  : ''}
+              </Text>
             </View>
-            {/* Progress bar */}
-            <View style={[styles.barTrack, { backgroundColor: c.surfaceSunken }]}>
-              <View style={[styles.barFill, { width: `${Math.round(pct * 100)}%` as any, backgroundColor: barColor }]} />
-            </View>
-            <Text style={[Typography.caption, { color: c.textTertiary, textAlign: 'center' }]}>
-              {t('personal.budget_progress', { pct: Math.round(pct * 100), amount: formatMoney(effectiveBudget, cur) })}
-              {budget.includeOwedToMe && owedToMe > 0 ? t('personal.budget_includes_owed', { amount: formatMoney(owedToMe, cur) }) : ''}
-            </Text>
-            {youOwe > 0 && (
-              <View style={[styles.debtBadge, { backgroundColor: c.semantic.negativeSoft }]}>
-                <Ionicons name="warning-outline" size={12} color={c.semantic.negative} />
-                <Text style={[Typography.caption, { color: c.semantic.negative }]}>
-                  {t('personal.debt_note', { amount: formatMoney(youOwe, cur) })}
-                </Text>
-              </View>
-            )}
-          </View>
+          </Band>
         ) : (
-          <Pressable
-            onPress={() => { hapticLight(); setShowBudgetSheet(true); }}
-            style={[styles.meterCard, styles.meterEmpty, { backgroundColor: c.surface, borderColor: c.borderHair }]}
-          >
-            <Ionicons name="bar-chart-outline" size={28} color={c.textTertiary} />
-            <Text style={[Typography.bodyM, { color: c.textSecondary, textAlign: 'center' }]}>
-              {t('personal.budget_empty')}
-            </Text>
-            <Text style={[Typography.bodyS, { color: c.brand.primary, fontWeight: '700' }]}>
-              {t('personal.budget_configure')}
-            </Text>
-          </Pressable>
+          <Band>
+            <Pressable
+              onPress={() => { hapticLight(); setShowBudgetSheet(true); }}
+              style={styles.meterEmpty}
+            >
+              <Ionicons name="bar-chart-outline" size={26} color={c.textTertiary} />
+              <Text style={[Typography.bodyM, { color: c.textSecondary, textAlign: 'center' }]}>
+                {t('personal.budget_empty')}
+              </Text>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: c.brand.primary }}>
+                {t('personal.budget_configure')}
+              </Text>
+            </Pressable>
+          </Band>
         )}
 
-        {/* Summary chips */}
-        <View style={styles.summaryRow}>
-          <SummaryChip label={t('personal.summary_income')} amount={totalIncome} currency={cur} positive scheme={scheme} />
-          <SummaryChip label={t('personal.summary_personal')} amount={totalExpense} currency={cur} scheme={scheme} />
-          <SummaryChip label={t('personal.summary_groups')} amount={totalGroup} currency={cur} scheme={scheme} />
-        </View>
+        {/* Chips de resumen como banda hundida de 3 celdas */}
+        <SplitStat
+          sunken
+          items={[
+            { label: t('personal.summary_income'),   value: `+${formatMoney(totalIncome, cur)}`, color: c.semantic.positive },
+            { label: t('personal.summary_personal'), value: formatMoney(totalExpense, cur) },
+            { label: t('personal.summary_groups'),   value: formatMoney(totalGroup, cur) },
+          ]}
+        />
 
-        {/* Deuda, aparte del resto: no afecta a «lo gastado» hasta que se salde
-            (ADR-006). Mezclarla con los gastos del mes haría creer que ya se
-            pagó algo que todavía se debe. */}
+        {/* Deuda direccional: banda propia, nunca mezclada con lo gastado (ADR-006) */}
         {(owedToMe > 0 || youOwe > 0) && (
-          <>
-            <View style={styles.summaryRow}>
-              {owedToMe > 0 && (
-                <SummaryChip label={t('personal.owed_to_me')} amount={owedToMe} currency={cur} positive scheme={scheme} />
-              )}
-              {youOwe > 0 && (
-                <SummaryChip label={t('personal.i_owe')} amount={youOwe} currency={cur} negative scheme={scheme} />
-              )}
+          <Band>
+            <View style={styles.debtRow}>
+              <Ionicons name="alert-circle-outline" size={15} color={c.semantic.positive} />
+              <Text style={[Typography.bodyS, { color: c.textSecondary, flex: 1 }]}>
+                {owedToMe > 0 && (
+                  <Text>
+                    {t('personal.owed_to_me')}{' '}
+                    <Text style={{ fontWeight: '700', color: c.semantic.positive }}>
+                      {formatMoney(owedToMe, cur)}
+                    </Text>
+                    {'. '}
+                  </Text>
+                )}
+                {youOwe > 0 && (
+                  <Text>
+                    {t('personal.i_owe')}{' '}
+                    <Text style={{ fontWeight: '700', color: c.semantic.negative }}>
+                      {formatMoney(youOwe, cur)}
+                    </Text>
+                    {'. '}
+                  </Text>
+                )}
+                {t('personal.debts_note')}
+              </Text>
             </View>
-            <Text style={[Typography.caption, styles.sectionLabel, { color: c.textTertiary }]}>
-              {t('personal.debts_note')}
-            </Text>
-          </>
+          </Band>
         )}
 
         {pendientes.length > 0 && (
@@ -346,34 +349,38 @@ export default function PersonalScreen() {
           />
         )}
 
-        {/* Entries list */}
-        <Text style={[Typography.label, styles.sectionLabel, { color: c.textTertiary }]}>
-          {t('personal.movements_count', { count: monthEntries.length })}
-        </Text>
+        <SectionLabel label={t('personal.movements_count', { count: monthEntries.length })} />
 
         {monthEntries.length === 0 ? (
-          <View style={[styles.emptyBox, { backgroundColor: c.surface, borderColor: c.borderHair }]}>
-            <Ionicons name="receipt-outline" size={28} color={c.textTertiary} />
-            <Text style={[Typography.bodyM, { color: c.textTertiary, marginTop: 8, textAlign: 'center' }]}>
-              {t('personal.no_movements', { month: monthLabel(activeMonth) })}
-            </Text>
-          </View>
+          <Band>
+            <View style={styles.emptyBox}>
+              <Ionicons name="receipt-outline" size={26} color={c.textTertiary} />
+              <Text style={[Typography.bodyM, { color: c.textTertiary, marginTop: 8, textAlign: 'center' }]}>
+                {t('personal.no_movements', { month: monthLabel(activeMonth) })}
+              </Text>
+            </View>
+          </Band>
         ) : (
-          <View style={{ gap: Spacing.cardGap, paddingHorizontal: Spacing.screenPad }}>
-            {[...monthEntries].sort((a, b) => b.date - a.date).map(entry => (
+          <Band>
+            {[...monthEntries].sort((a, b) => b.date - a.date).map((entry, i, arr) => (
               <EntryRow
                 key={entry.id}
                 entry={entry}
+                last={i === arr.length - 1}
                 onRemove={() => handleRemove(entry)}
               />
             ))}
-          </View>
+          </Band>
         )}
+      </Animated.ScrollView>
 
-        <View style={{ height: 120 }} />
-      </ScrollView>
+      <CollapsibleHeader
+        title={t('personal.title')}
+        scrollY={scrollY}
+        left={<HeaderAvatar initials={(currentUser?.name ?? '?').slice(0, 2).toUpperCase()} />}
+        right={<HeaderCurrency code={cur} />}
+      />
 
-      {/* FAB — dos acciones */}
       <FabRow>
         <Fab
           variant="secondary"
@@ -381,7 +388,7 @@ export default function PersonalScreen() {
           icon="trending-up-outline"
           label={t('personal.fab_income')}
           backgroundColor={c.semantic.positiveSoft}
-          borderColor={c.semantic.positive + '44'}
+          borderColor={c.hair}
           iconColor={c.semantic.positive}
           textColor={c.semantic.positive}
         />
@@ -393,18 +400,17 @@ export default function PersonalScreen() {
         />
       </FabRow>
 
-      {/* Budget settings sheet */}
       <BottomSheet visible={showBudgetSheet} onClose={() => setShowBudgetSheet(false)}>
         <Text style={[Typography.h3, { color: c.text, marginBottom: 6 }]}>{t('personal.budget_sheet_title')}</Text>
         <Text style={[Typography.bodyS, { color: c.textSecondary, marginBottom: 20 }]}>
           {t('personal.budget_reset_note')}
         </Text>
 
-        <Text style={[Typography.label, { color: c.textTertiary, marginBottom: 8, textTransform: 'uppercase' }]}>
+        <Text style={[Typography.label, styles.upper, { color: c.textTertiary, marginBottom: 8 }]}>
           {t('personal.amount')}
         </Text>
-        <View style={[styles.budgetInput, { backgroundColor: c.surfaceSunken, borderColor: c.border }]}>
-          <Text style={[Typography.bodyL, { color: c.textTertiary }]}>$</Text>
+        <View style={[styles.budgetInput, { backgroundColor: c.bgGrouped, borderColor: c.hair }]}>
+          <Text style={[Typography.bodyM, { color: c.textTertiary }]}>$</Text>
           <TextInput
             value={budgetInput}
             onChangeText={setBudgetInput}
@@ -412,66 +418,35 @@ export default function PersonalScreen() {
             keyboardType="decimal-pad"
             placeholder="0"
             placeholderTextColor={c.textTertiary}
-            style={[Typography.bodyL, { flex: 1, color: c.text, padding: 0 }]}
+            style={[Typography.bodyM, { flex: 1, color: c.text, padding: 0 }]}
             returnKeyType="done"
           />
         </View>
 
-        {/* Include owed-to-me toggle */}
         <Pressable
           onPress={() => { hapticSelection(); setIncludeOwedToMe(v => !v); }}
-          style={[styles.toggleRow, { backgroundColor: c.surfaceSunken, borderColor: c.border }]}
+          style={[styles.toggleRow, { backgroundColor: c.bgGrouped, borderColor: c.hair }]}
         >
           <View style={{ flex: 1, gap: 2 }}>
-            <Text style={[Typography.bodyM, { color: c.text, fontWeight: '600' }]}>
-              {t('personal.include_owed')}
-            </Text>
-            <Text style={[Typography.bodyS, { color: c.textSecondary }]}>
-              {t('personal.include_owed_sub')}
-            </Text>
+            <Text style={[Typography.bodyL, { color: c.text }]}>{t('personal.include_owed')}</Text>
+            <Text style={[Typography.bodyS, { color: c.textSecondary }]}>{t('personal.include_owed_sub')}</Text>
           </View>
-          <View style={[
-            styles.toggle,
-            { backgroundColor: includeOwedToMe ? c.brand.primary : c.border },
-          ]}>
+          <View style={[styles.toggle, { backgroundColor: includeOwedToMe ? c.brand.primary : c.hair }]}>
             <View style={[styles.toggleKnob, includeOwedToMe && styles.toggleKnobOn]} />
           </View>
         </Pressable>
 
-        <Pressable
-          onPress={handleSaveBudget}
-          style={[styles.saveBtn, { backgroundColor: c.brand.primary, marginTop: 16 }]}
-        >
-          <Text style={[Typography.bodyM, { color: '#fff', fontWeight: '700' }]}>{t('personal.save_budget')}</Text>
+        <Pressable onPress={handleSaveBudget} style={[styles.saveBtn, { backgroundColor: c.brand.primary }]}>
+          <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff' }}>{t('personal.save_budget')}</Text>
         </Pressable>
       </BottomSheet>
     </SafeAreaView>
   );
 }
 
-function SummaryChip({
-  label, amount, currency, positive, negative, scheme,
-}: {
-  label: string; amount: number; currency: CurrencyCode;
-  positive?: boolean; negative?: boolean; scheme: 'light' | 'dark';
-}) {
-  const c = Colors[scheme];
-  const textColor = positive ? c.semantic.positive : negative ? c.semantic.negative : c.text;
-  return (
-    <View style={[summaryStyles.chip, { backgroundColor: c.surface, borderColor: c.borderHair }]}>
-      <Text style={[Typography.caption, { color: c.textTertiary }]}>{label}</Text>
-      <Text style={[Typography.bodyS, { color: textColor, fontWeight: '700' }]}>
-        {positive ? '+' : negative ? '-' : ''}{formatMoney(amount, currency)}
-      </Text>
-    </View>
-  );
-}
-
-const summaryStyles = StyleSheet.create({
-  chip: { flex: 1, alignItems: 'center', gap: 3, padding: 10, borderRadius: Radius.md, borderWidth: 1 },
-});
-
-function EntryRow({ entry, onRemove }: { entry: PersonalEntry; onRemove: () => void }) {
+function EntryRow({
+  entry, onRemove, last,
+}: { entry: PersonalEntry; onRemove: () => void; last?: boolean }) {
   const scheme = useColorScheme() ?? 'light';
   const { t } = useTranslation();
   const c = Colors[scheme];
@@ -481,96 +456,74 @@ function EntryRow({ entry, onRemove }: { entry: PersonalEntry; onRemove: () => v
   const isReadOnly  = entry.kind === 'group_replicated' || isCarryover;
   const dateLabel   = new Date(entry.date).toLocaleDateString(i18n.language, { day: 'numeric', month: 'short' });
 
-  const iconBg    = isPositive ? c.semantic.positiveSoft
-    : isReadOnly ? c.surfaceSunken : c.semantic.negativeSoft;
-  const iconColor = isPositive ? c.semantic.positive
-    : isReadOnly ? c.textTertiary : c.semantic.negative;
+  const iconBg    = isPositive ? c.semantic.positiveSoft : c.hair2;
+  const iconColor = isPositive ? c.semantic.positive : c.textTertiary;
   const amountColor = isPositive ? c.semantic.positive
     : isCarryover ? c.semantic.negative : c.text;
 
   return (
-    <View style={[
-      entryStyles.row,
-      { backgroundColor: c.surface, borderColor: c.borderHair },
-      isPositive && { borderColor: c.semantic.positive + '44' },
-    ]}>
-      <View style={[entryStyles.iconBox, { backgroundColor: iconBg }]}>
-        <Ionicons name={meta.icon} size={18} color={iconColor} />
+    <BandRow last={last}>
+      <View style={[styles.entryIcon, { backgroundColor: iconBg }]}>
+        <Ionicons name={meta.icon} size={17} color={iconColor} />
       </View>
-      <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={[Typography.bodyM, { color: c.text, fontWeight: '600' }]} numberOfLines={1}>
+      <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+        <Text style={[Typography.bodyL, { color: c.text }]} numberOfLines={1}>
           {entry.description}
         </Text>
-        <Text style={[Typography.caption, { color: c.textTertiary }]}>
+        <Text style={[Typography.caption, { color: c.textTertiary }]} numberOfLines={1}>
           {t(meta.labelKey)}
           {entry.sourceGroupName ? ` · ${entry.sourceGroupName}` : ''}
           {' · '}{dateLabel}
         </Text>
       </View>
-      <View style={{ alignItems: 'flex-end', gap: 4 }}>
+      <View style={{ alignItems: 'flex-end', gap: 5 }}>
         <Text style={[Typography.amountS, { color: amountColor }]}>
           {isPositive ? '+' : '-'}{formatMoney(entry.amount, entry.currency)}
         </Text>
-        {!isReadOnly && (
-          <Pressable onPress={onRemove} hitSlop={8}>
-            <Ionicons name="trash-outline" size={14} color={c.textTertiary} />
-          </Pressable>
-        )}
-        {isReadOnly && (
-          <Ionicons name="lock-closed-outline" size={12} color={c.textTertiary} />
-        )}
+        {isReadOnly
+          ? <Ionicons name="lock-closed-outline" size={12} color={c.textTertiary} />
+          : (
+            <Pressable onPress={onRemove} hitSlop={8}>
+              <Ionicons name="trash-outline" size={14} color={c.textTertiary} />
+            </Pressable>
+          )}
       </View>
-    </View>
+    </BandRow>
   );
 }
 
-const entryStyles = StyleSheet.create({
-  row: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    padding: Spacing.cardPad, borderRadius: Radius.lg, borderWidth: 1,
-  },
-  iconBox: { width: 38, height: 38, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
-});
-
 const styles = StyleSheet.create({
-  safe:        { flex: 1 },
-  scroll:      { paddingTop: Spacing[2] },
-  header:      {
+  safe: { flex: 1 },
+  upper: { textTransform: 'uppercase' },
+  titleRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: Spacing.screenPad, paddingBottom: Spacing[3],
+    paddingHorizontal: Spacing.screenPad, paddingBottom: 14,
   },
-  iconBtn:     { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  monthNav:    {
+  iconBtn: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  monthNav: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: Spacing.screenPad, marginBottom: Spacing[4],
+    paddingHorizontal: Spacing.screenPad, paddingBottom: 16,
   },
-  meterCard:   {
-    marginHorizontal: Spacing.screenPad, marginBottom: Spacing[4],
-    borderRadius: Radius.lg, borderWidth: 1, padding: Spacing[4], gap: 12,
+  meterPad:  { paddingHorizontal: Spacing.screenPad, paddingTop: 15, paddingBottom: 16 },
+  meterTop:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  meterEmpty:{ alignItems: 'center', gap: 10, paddingVertical: Spacing[6], paddingHorizontal: Spacing[6] },
+  debtRow:   {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: Spacing.screenPad, paddingVertical: 11,
   },
-  meterEmpty:  { alignItems: 'center', gap: 10 },
-  meterTop:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  barTrack:    { height: 10, borderRadius: 5, overflow: 'hidden' },
-  barFill:     { height: 10, borderRadius: 5 },
-  debtBadge:   { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: Radius.sm, paddingHorizontal: 10, paddingVertical: 6 },
-  summaryRow:  { flexDirection: 'row', gap: 8, paddingHorizontal: Spacing.screenPad, marginBottom: Spacing[4] },
-  sectionLabel:{ paddingHorizontal: Spacing.screenPad, marginBottom: Spacing[2] },
-  emptyBox:    {
-    marginHorizontal: Spacing.screenPad,
-    alignItems: 'center', justifyContent: 'center',
-    padding: Spacing[6], borderRadius: Radius.lg, borderWidth: 1,
-  },
+  emptyBox:  { alignItems: 'center', justifyContent: 'center', padding: Spacing[6] },
+  entryIcon: { width: 36, height: 36, borderRadius: Radius.sm, alignItems: 'center', justifyContent: 'center' },
   budgetInput: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    borderRadius: Radius.lg, borderWidth: 1,
+    borderRadius: Radius.md, borderWidth: 1,
     paddingHorizontal: 16, paddingVertical: 14, marginBottom: 16,
   },
-  toggleRow:   {
+  toggleRow: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    borderRadius: Radius.lg, borderWidth: 1, padding: 14,
+    borderRadius: Radius.md, borderWidth: 1, padding: 14,
   },
-  toggle:      { width: 44, height: 26, borderRadius: 13, padding: 3 },
-  toggleKnob:  { width: 20, height: 20, borderRadius: 10, backgroundColor: '#fff' },
-  toggleKnobOn:{ transform: [{ translateX: 18 }] },
-  saveBtn:     { borderRadius: Radius.md, paddingVertical: 14, alignItems: 'center' },
+  toggle:      { width: 42, height: 25, borderRadius: 13, padding: 3 },
+  toggleKnob:  { width: 19, height: 19, borderRadius: 10, backgroundColor: '#fff' },
+  toggleKnobOn:{ transform: [{ translateX: 17 }] },
+  saveBtn:     { borderRadius: Radius.md, paddingVertical: 14, alignItems: 'center', marginTop: 16 },
 });

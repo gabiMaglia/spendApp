@@ -6,22 +6,25 @@ export const FontFamily = Platform.select({
   default: { sans: 'System', mono: 'monospace' },
 })!;
 
-// Escala tipográfica — equivalente a tokens.css --sp-fs-* / --sp-lh-*
+// Escala tipográfica — reskin "flat bands".
+// Sin serif ni fuente custom: la del sistema. Los montos siempre tabulares.
 export const Typography = {
-  display: { fontSize: 34, lineHeight: 41, fontWeight: '700' as const, letterSpacing: -0.4 },
-  h1:      { fontSize: 28, lineHeight: 34, fontWeight: '700' as const, letterSpacing: -0.3 },
-  h2:      { fontSize: 22, lineHeight: 28, fontWeight: '600' as const, letterSpacing: -0.2 },
-  h3:      { fontSize: 18, lineHeight: 24, fontWeight: '600' as const, letterSpacing: -0.1 },
-  bodyL:   { fontSize: 17, lineHeight: 22, fontWeight: '400' as const },
+  display: { fontSize: 30, lineHeight: 35, fontWeight: '700' as const, letterSpacing: -0.6 },
+  h1:      { fontSize: 26, lineHeight: 32, fontWeight: '700' as const, letterSpacing: -0.4 },
+  h2:      { fontSize: 21, lineHeight: 27, fontWeight: '700' as const, letterSpacing: -0.3 },
+  h3:      { fontSize: 17, lineHeight: 23, fontWeight: '700' as const, letterSpacing: -0.2 },
+  /** Fila principal de lista (nombre de grupo, contacto, movimiento). */
+  bodyL:   { fontSize: 15, lineHeight: 20, fontWeight: '600' as const },
   bodyM:   { fontSize: 15, lineHeight: 20, fontWeight: '400' as const },
-  bodyS:   { fontSize: 13, lineHeight: 18, fontWeight: '400' as const },
-  caption: { fontSize: 12, lineHeight: 16, fontWeight: '500' as const },
-  label:   { fontSize: 11, lineHeight: 14, fontWeight: '600' as const, letterSpacing: 0.6 },
+  bodyS:   { fontSize: 12.5, lineHeight: 17, fontWeight: '400' as const },
+  caption: { fontSize: 11.5, lineHeight: 15, fontWeight: '500' as const },
+  /** Etiqueta de sección: SIEMPRE uppercase + textTertiary. */
+  label:   { fontSize: 10.5, lineHeight: 13, fontWeight: '600' as const, letterSpacing: 1 },
 
-  // Montos — tabular nums, siempre bold
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  amountXL: { fontSize: 48, lineHeight: 52, fontWeight: '700' as const, letterSpacing: -1.5, fontVariant: ['tabular-nums'] as any },
-  amountL:  { fontSize: 28, lineHeight: 32, fontWeight: '700' as const, letterSpacing: -0.8, fontVariant: ['tabular-nums'] as any },
-  amountM:  { fontSize: 17, lineHeight: 20, fontWeight: '700' as const, fontVariant: ['tabular-nums'] as any },
-  amountS:  { fontSize: 14, lineHeight: 18, fontWeight: '700' as const, fontVariant: ['tabular-nums'] as any },
+  amountXL: { fontSize: 30, lineHeight: 36, fontWeight: '700' as const, letterSpacing: -0.6, fontVariant: ['tabular-nums'] as any },
+  amountL:  { fontSize: 24, lineHeight: 31, fontWeight: '700' as const, letterSpacing: -0.4, fontVariant: ['tabular-nums'] as any },
+  /** Cifra de banda (GASTADO / DISPONIBLE / TE DEBEN). */
+  amountM:  { fontSize: 22, lineHeight: 30, fontWeight: '700' as const, letterSpacing: -0.4, fontVariant: ['tabular-nums'] as any },
+  amountS:  { fontSize: 14.5, lineHeight: 18, fontWeight: '700' as const, fontVariant: ['tabular-nums'] as any },
 } as const;

@@ -1,6 +1,5 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/src/constants/colors';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
@@ -8,115 +7,94 @@ import { formatMoney } from '@/src/constants/currencies';
 import type { CurrencyCode } from '@/src/constants/currencies';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTranslation } from 'react-i18next';
-import { UserAvatarStack } from './UserAvatar';
 
 interface GroupCardProps {
   name: string;
-  /** Ids, no datos ya resueltos: así la foto no se puede perder por el camino. */
   memberIds: readonly string[];
   balance: number;
   currency?: CurrencyCode;
   subtitle?: string;
   onPress?: () => void;
+  /** Última fila de la banda: sin divisor inferior. */
+  last?: boolean;
+  /** Chevron a la derecha (lista de la tab Grupos; en el home no va). */
+  chevron?: boolean;
 }
 
-export function GroupCard({ name, memberIds, balance, currency = 'ARS', subtitle, onPress }: GroupCardProps) {
+/**
+ * Fila de grupo del reskin: ya NO es una tarjeta.
+ *
+ * Es una fila de banda (hairline inferior, sin radio ni sombra) con avatar
+ * cuadrado de inicial, y a la derecha el tag de estado en uppercase sobre el
+ * monto. El stack de avatares se fue: en una fila de 62pt competía con el monto
+ * y el conteo de miembros ya lo dice el subtítulo.
+ */
+export function GroupCard({
+  name, memberIds, balance, currency = 'ARS', subtitle, onPress, last, chevron,
+}: GroupCardProps) {
   const { t } = useTranslation();
   const scheme = useColorScheme() ?? 'light';
   const c = Colors[scheme];
 
   const settled  = balance === 0;
   const positive = balance > 0;
+  const amountColor = settled ? c.textTertiary : positive ? c.semantic.positive : c.semantic.negative;
 
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [
-        styles.card,
-        { backgroundColor: c.surface, borderColor: c.borderHair, opacity: pressed ? 0.85 : 1 },
+        styles.row,
+        { borderBottomColor: c.hair2, borderBottomWidth: last ? 0 : 1 },
+        pressed && { backgroundColor: c.bgGrouped },
       ]}
     >
-      {/* Group tile */}
       <View style={[styles.tile, { backgroundColor: c.brand.primarySoft }]}>
-        <Ionicons name="people-outline" size={22} color={c.brand.primaryOnSoft} />
-      </View>
-
-      {/* Info */}
-      <View style={styles.info}>
-        <Text
-          style={[Typography.bodyL, { color: c.text, fontWeight: '600' }]}
-          numberOfLines={1}
-        >
-          {name}
+        <Text style={{ fontSize: 14, fontWeight: '700', color: c.brand.primary }}>
+          {name.slice(0, 1).toUpperCase()}
         </Text>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
-          <UserAvatarStack userIds={memberIds} size={18} max={3} />
-          <Text style={[Typography.bodyS, { color: c.textTertiary }]} numberOfLines={1}>
-            {t('groups.members_count', { count: memberIds.length })}
-            {subtitle ? ` · ${subtitle}` : ''}
-          </Text>
-        </View>
       </View>
 
-      {/* Balance */}
-      <View style={styles.balanceCol}>
-        {settled ? (
-          <View style={[styles.settledPill, { backgroundColor: c.surfaceSunken }]}>
-            <Text style={[Typography.caption, { color: c.textTertiary, fontWeight: '600' }]}>
-              {t('common.settled')}
-            </Text>
-          </View>
-        ) : (
-          <>
-            <Text style={[Typography.caption, {
-              color: positive ? c.semantic.positive : c.semantic.negative,
-              fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4,
-            }]}>
-              {positive ? t('dashboard.owes_you') : t('dashboard.you_owe_person')}
-            </Text>
-            <Text style={[Typography.amountM, {
-              color: positive ? c.semantic.positive : c.semantic.negative,
-            }]}>
-              {formatMoney(Math.abs(balance), currency)}
-            </Text>
-          </>
-        )}
+      <View style={styles.info}>
+        <Text style={[Typography.bodyL, { color: c.text }]} numberOfLines={1}>{name}</Text>
+        <Text style={[Typography.caption, { color: c.textTertiary }]} numberOfLines={1}>
+          {t('groups.members_count', { count: memberIds.length })}
+          {subtitle ? ` · ${subtitle}` : ''}
+        </Text>
       </View>
+
+      <View style={styles.balanceCol}>
+        <Text style={[Typography.label, {
+          color: c.textTertiary, textTransform: 'uppercase', fontSize: 9.5, marginBottom: 3,
+        }]}>
+          {settled
+            ? t('common.settled')
+            : positive ? t('dashboard.owes_you') : t('dashboard.you_owe_person')}
+        </Text>
+        <Text style={[Typography.amountS, { color: amountColor }]}>
+          {formatMoney(Math.abs(balance), currency)}
+        </Text>
+      </View>
+
+      {chevron && (
+        <Text style={{ fontSize: 17, color: c.textTertiary, marginLeft: 2 }}>›</Text>
+      )}
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
+  row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
-    padding: Spacing.cardPad,
-    borderRadius: Radius.lg,
-    borderWidth: 1,
+    gap: 13,
+    paddingHorizontal: Spacing.screenPad,
+    paddingVertical: Spacing.rowPadV,
   },
   tile: {
-    width: 48,
-    height: 48,
-    borderRadius: Radius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
+    width: 38, height: 38, borderRadius: Radius.sm,
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
-  info: {
-    flex: 1,
-    minWidth: 0,
-    marginRight: 8,
-  },
-  balanceCol: {
-    alignItems: 'flex-end',
-    gap: 2,
-    flexShrink: 0,
-    maxWidth: 120,
-  },
-  settledPill: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 99,
-  },
+  info: { flex: 1, minWidth: 0, marginRight: 8, gap: 2 },
+  balanceCol: { alignItems: 'flex-end', flexShrink: 0, maxWidth: 130 },
 });

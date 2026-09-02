@@ -31,6 +31,8 @@ import { useExpenseStore } from '@/src/store/expenseStore';
 import { usePersonalStore, toMonthKey } from '@/src/store/personalStore';
 import { UserAvatar } from '@/src/components/UserAvatar';
 import { BottomSheet, SheetOption, SheetOptionAvatar } from '@/src/components/Sheet';
+import { Band, SectionLabel, Segmented } from '@/src/components/Band';
+import { DetailHeader } from '@/src/components/CollapsibleHeader';
 import { buildSplits } from '@/src/algorithms/buildSplits';
 import type { ExpenseCategory, PersonalCategory } from '@/src/types/models';
 import { syncedNow } from '@/src/utils/syncedClock';
@@ -436,16 +438,11 @@ export default function NewExpenseScreen() {
     <SafeAreaView style={[styles.safe, { backgroundColor: c.bg }]}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
 
-        {/* Header */}
-        <View style={[styles.header, { borderBottomColor: c.borderHair }]}>
-          <Pressable onPress={() => router.back()} hitSlop={12} style={styles.headerBtn}>
-            <Ionicons name="close" size={24} color={c.text} />
-          </Pressable>
-          <Text style={[Typography.h3, { color: c.text }]}>
-            {isEditMode ? t('expense.edit_title') : isIncome ? t('expense.new_income_title') : t('expense.new_title')}
-          </Text>
-          <View style={styles.headerBtn} />
-        </View>
+        <DetailHeader
+          icon="close"
+          title={isEditMode ? t('expense.edit_title') : isIncome ? t('expense.new_income_title') : t('expense.new_title')}
+          onBack={() => router.back()}
+        />
 
         {/* Scrollable body */}
         <ScrollView
@@ -456,14 +453,21 @@ export default function NewExpenseScreen() {
         >
           {/* Toggle Gasto/Ingreso — solo en modo Personal (F-G2) */}
           {incomeAllowed && (
-            <View style={[styles.segmented, { backgroundColor: c.surfaceSunken, marginBottom: 12 }]}>
-              <SegTab label={t('expense.kind_expense')} active={!isIncome} onPress={() => switchEntryKind('expense')} />
-              <SegTab label={t('expense.kind_income')} active={isIncome}  onPress={() => switchEntryKind('income')} />
+            <View style={styles.segPad}>
+              <Segmented
+                value={isIncome ? 'income' : 'expense'}
+                onChange={switchEntryKind}
+                options={[
+                  { key: 'expense', label: t('expense.kind_expense') },
+                  { key: 'income',  label: t('expense.kind_income') },
+                ]}
+              />
             </View>
           )}
 
           {/* Description input */}
-          <View style={[styles.inputCard, { backgroundColor: c.surface, borderColor: c.borderHair }]}>
+          <Band>
+            <View style={styles.inputRow}>
             <Ionicons name="create-outline" size={18} color={c.textTertiary} style={{ marginTop: 1 }} />
             <TextInput
               placeholder={isIncome ? t('expense.income_desc_placeholder') : t('expense.description_placeholder')}
@@ -473,7 +477,8 @@ export default function NewExpenseScreen() {
               style={[Typography.bodyL, styles.descInput, { color: c.text }]}
               returnKeyType="next"
             />
-          </View>
+            </View>
+          </Band>
 
           {/* Category chips */}
           <ScrollView
@@ -491,7 +496,7 @@ export default function NewExpenseScreen() {
                     styles.categoryChip,
                     {
                       backgroundColor: active ? c.brand.primary : c.surface,
-                      borderColor:     active ? c.brand.primary : c.borderHair,
+                      borderColor:     active ? c.brand.primary : c.hair,
                     },
                   ]}
                 >
@@ -508,7 +513,8 @@ export default function NewExpenseScreen() {
           </ScrollView>
 
           {/* Amount input */}
-          <View style={[styles.amountCard, { backgroundColor: c.surface, borderColor: c.borderHair }]}>
+          <Band>
+            <View style={styles.amountPad}>
             <Text style={[Typography.label, { color: c.textTertiary, textTransform: 'uppercase' }]}>
               {currency}
             </Text>
@@ -525,13 +531,15 @@ export default function NewExpenseScreen() {
                 returnKeyType="done"
               />
             </View>
-          </View>
+            </View>
+          </Band>
 
           {/* Payer + repartos: SOLO con grupo. Sin grupo = gasto personal. (F-G) */}
           {hasGroup && (<>
           {/* Payer */}
           {multiPayer ? (
-            <View style={[styles.row, { backgroundColor: c.surface, borderColor: c.borderHair, flexDirection: 'column', alignItems: 'stretch', gap: Spacing[2] }]}>
+            <Band>
+            <View style={[styles.row, { flexDirection: 'column', alignItems: 'stretch', gap: Spacing[2] }]}>
               <PayerSplitter
                 members={members.map(uid => ({ id: uid, name: getUserName(uid) }))}
                 value={payers}
@@ -543,10 +551,12 @@ export default function NewExpenseScreen() {
                 <Text style={[Typography.bodyS, { color: c.brand.primary }]}>{t('payers.single')}</Text>
               </Pressable>
             </View>
+            </Band>
           ) : (
+            <Band>
             <Pressable
               onPress={() => setShowPayer(true)}
-              style={[styles.row, { backgroundColor: c.surface, borderColor: c.borderHair }]}
+              style={styles.row}
             >
               <Text style={[Typography.label, { color: c.textTertiary, textTransform: 'uppercase' }]}>{t('expense.payer_label')}</Text>
               <View style={styles.rowRight}>
@@ -555,6 +565,7 @@ export default function NewExpenseScreen() {
                 <Ionicons name="chevron-down" size={16} color={c.textTertiary} />
               </View>
             </Pressable>
+            </Band>
           )}
 
           {!multiPayer && (
@@ -569,7 +580,7 @@ export default function NewExpenseScreen() {
                 setMultiPayer(true);
               }}
               hitSlop={8}
-              style={{ alignSelf: 'flex-start' }}
+              style={styles.inlineLink}
             >
               <Text style={[Typography.bodyS, { color: c.brand.primary }]}>{t('payers.multiple')}</Text>
             </Pressable>
@@ -577,43 +588,37 @@ export default function NewExpenseScreen() {
 
           {/* Split section */}
           <View style={styles.splitSection}>
-            <Text style={[Typography.label, { color: c.textTertiary, textTransform: 'uppercase' }]}>
-              {t('expense.split_how')}
-            </Text>
+            <SectionLabel label={t('expense.split_how')} />
 
-            {/* Mode tabs */}
-            <View style={[styles.segmented, { backgroundColor: c.surfaceSunken }]}>
-              <SegTab
-                label={t('expense.split_mode_equal')}
-                active={splitMode === 'equal'}
-                onPress={() => handleSplitModeChange('equal')}
-              />
-              <SegTab
-                label={t('expense.split_mode_percentage')}
-                active={splitMode === 'percentage'}
-                onPress={() => handleSplitModeChange('percentage')}
+            <View style={styles.segPad}>
+              <Segmented
+                value={splitMode}
+                onChange={handleSplitModeChange}
+                options={[
+                  { key: 'equal',      label: t('expense.split_mode_equal') },
+                  { key: 'percentage', label: t('expense.split_mode_percentage') },
+                ]}
               />
             </View>
 
             {/* Percentage sub-mode */}
             {splitMode === 'percentage' && (
               <>
-                <View style={[styles.subSegmented, { backgroundColor: c.surfaceSunken }]}>
-                  <SegTab
-                    label={t('expense.percent_same')}
-                    active={percentSub === 'same'}
-                    onPress={() => handlePercentSubChange('same')}
-                  />
-                  <SegTab
-                    label={t('expense.percent_custom')}
-                    active={percentSub === 'custom'}
-                    onPress={() => handlePercentSubChange('custom')}
+                <View style={styles.segPad}>
+                  <Segmented
+                    compact
+                    value={percentSub}
+                    onChange={handlePercentSubChange}
+                    options={[
+                      { key: 'same',   label: t('expense.percent_same') },
+                      { key: 'custom', label: t('expense.percent_custom') },
+                    ]}
                   />
                 </View>
 
                 {percentSub === 'same' && (
                   <View style={styles.samePercentRow}>
-                    <View style={[styles.samePercentBox, { backgroundColor: c.surfaceSunken, borderColor: c.border }]}>
+                    <View style={[styles.samePercentBox, { backgroundColor: c.bgGrouped, borderColor: c.hair }]}>
                       <TextInput
                         value={samePercent}
                         onChangeText={setSamePercent}
@@ -633,7 +638,7 @@ export default function NewExpenseScreen() {
             )}
 
             {/* Member rows */}
-            <View style={styles.memberList}>
+            <Band>
               {splits.map((split, i) => {
                 const name    = getUserName(split.userId);
                 const isLast  = split.isLast;
@@ -644,7 +649,11 @@ export default function NewExpenseScreen() {
                     key={split.userId}
                     style={[
                       styles.memberRow,
-                      { backgroundColor: showRest ? c.brand.primarySoft : c.surfaceWarm },
+                      {
+                        backgroundColor: showRest ? c.brand.primarySoft : 'transparent',
+                        borderBottomWidth: i === splits.length - 1 ? 0 : 1,
+                        borderBottomColor: c.hair2,
+                      },
                     ]}
                   >
                     <UserAvatar userId={split.userId} name={name} size={32} />
@@ -698,22 +707,25 @@ export default function NewExpenseScreen() {
               })}
 
               {percentError && (
-                <View style={[styles.errorRow, { backgroundColor: c.semantic.errorSoft }]}>
+                <View style={[styles.errorRow, { backgroundColor: c.semantic.errorSoft, borderTopWidth: 1, borderTopColor: c.hair2 }]}>
                   <Ionicons name="warning-outline" size={16} color={c.semantic.error} />
                   <Text style={[Typography.bodyS, { color: c.semantic.error, flex: 1 }]}>
                     {t('expense.percent_over_100')}
                   </Text>
                 </View>
               )}
-            </View>
+            </Band>
           </View>
           </>)}
 
           {/* Free tier notice — only shown when creating */}
           {!isEditMode && !isPro && (
-            <View style={[styles.tierRow, { backgroundColor: c.semantic.warningSoft }]}>
+            <View style={[styles.tierRow, {
+              backgroundColor: c.semantic.warningSoft,
+              borderTopWidth: 1, borderBottomWidth: 1, borderColor: c.hair,
+            }]}>
               <Ionicons name="information-circle-outline" size={16} color={c.semantic.warning} />
-              <Text style={[Typography.bodyS, { color: '#8A6420', flex: 1 }]}>
+              <Text style={[Typography.bodyS, { color: c.semantic.warning, flex: 1 }]}>
                 {t('expense.free_count', { count: dailyCount })}{' '}
                 {pasoElTope ? t('expense.free_over') : ''}
               </Text>
@@ -722,7 +734,7 @@ export default function NewExpenseScreen() {
 
           {/* Repetición — sólo al crear; editar una ocurrencia no toca la serie. */}
           {!isEditMode && (
-            <View style={{ marginBottom: Spacing[4] }}>
+            <View style={styles.recurrencePad}>
               <RecurrencePicker value={recurrence} onChange={setRecurrence} />
             </View>
           )}
@@ -731,7 +743,7 @@ export default function NewExpenseScreen() {
           <Pressable
             onPress={handleSave}
             disabled={!canSave}
-            style={[styles.saveBtn, { backgroundColor: canSave ? c.brand.primary : c.surfaceSunken }]}
+            style={[styles.saveBtn, styles.savePad, { backgroundColor: canSave ? c.brand.primary : c.bgGrouped }]}
           >
             <Text style={[Typography.bodyL, { color: canSave ? '#fff' : c.textDisabled, fontWeight: '700' }]}>
               {/* El botón NO promete un anuncio que no existe. */}
@@ -743,7 +755,7 @@ export default function NewExpenseScreen() {
         </ScrollView>
 
         {/* Bottom bar */}
-        <View style={[styles.bottomBar, { backgroundColor: c.surface, borderTopColor: c.borderHair }]}>
+        <View style={[styles.bottomBar, { backgroundColor: c.surface, borderTopColor: c.hair }]}>
           {/* Left: attachments */}
           <View style={styles.bottomLeft}>
             <Pressable onPress={handleCamera} hitSlop={10}>
@@ -765,7 +777,7 @@ export default function NewExpenseScreen() {
             </Pressable>
           </View>
 
-          <View style={[styles.vDivider, { backgroundColor: c.border }]} />
+          <View style={[styles.vDivider, { backgroundColor: c.hair2 }]} />
 
           {/* Selector de grupo — oculto en modo Ingreso (F-G2) */}
           {!isIncome && (<>
@@ -784,7 +796,7 @@ export default function NewExpenseScreen() {
             {!isEditMode && <Ionicons name="chevron-up" size={14} color={c.textTertiary} />}
           </Pressable>
 
-          <View style={[styles.vDivider, { backgroundColor: c.border }]} />
+          <View style={[styles.vDivider, { backgroundColor: c.hair2 }]} />
           </>)}
 
           {/* Right: date */}
@@ -872,7 +884,7 @@ export default function NewExpenseScreen() {
           style={[
             Typography.bodyM,
             styles.noteInput,
-            { color: c.text, backgroundColor: c.surfaceSunken },
+            { color: c.text, backgroundColor: c.bgGrouped },
           ]}
         />
         <Pressable
@@ -887,34 +899,17 @@ export default function NewExpenseScreen() {
   );
 }
 
-// ── Sub-components ────────────────────────────────────────────────────────────
-
-function SegTab({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
-  const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
-  return (
-    <Pressable
-      onPress={onPress}
-      style={[styles.segTab, active && { backgroundColor: c.surface }]}
-    >
-      <Text style={[Typography.bodyS, { fontWeight: '600', color: active ? c.text : c.textSecondary }]}>
-        {label}
-      </Text>
-    </Pressable>
-  );
-}
-
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   safe:         { flex: 1 },
-  header:       {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: Spacing.screenPad, paddingVertical: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  headerBtn:    { width: 28, alignItems: 'center' },
-  scroll:       { paddingHorizontal: Spacing.screenPad, paddingTop: Spacing[4], gap: Spacing[3] },
+  // El scroll ya no tiene padding lateral: cada banda llega borde a borde y el
+  // aire vive adentro de la fila.
+  scroll:       { paddingTop: Spacing[4], paddingBottom: Spacing[4] },
+  segPad:       { paddingHorizontal: Spacing.screenPad, paddingBottom: 14 },
+  recurrencePad:{ paddingHorizontal: Spacing.screenPad, paddingVertical: Spacing[4] },
+  savePad:      { marginHorizontal: Spacing.screenPad },
+  inlineLink:   { alignSelf: 'flex-start', paddingHorizontal: Spacing.screenPad, paddingTop: 10 },
 
   noGroupsState: {
     flex: 1, alignItems: 'center', justifyContent: 'center',
@@ -932,51 +927,56 @@ const styles = StyleSheet.create({
     borderRadius: Radius.full, borderWidth: 1,
   },
 
-  inputCard:    {
+  inputRow:     {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    borderRadius: Radius.lg, borderWidth: 1,
-    paddingHorizontal: 16, paddingVertical: 14,
+    paddingHorizontal: Spacing.screenPad, paddingVertical: 15,
   },
   descInput:    { flex: 1, padding: 0, fontWeight: '500' },
-  amountCard:   {
-    borderRadius: Radius.lg, borderWidth: 1,
-    paddingVertical: 20, alignItems: 'center', gap: 4,
-  },
+  amountPad:    { paddingVertical: 22, alignItems: 'center', gap: 4 },
   amountRow:    { flexDirection: 'row', alignItems: 'flex-end', gap: 6 },
-  currencySymbol: { fontSize: 28, fontWeight: '400', lineHeight: 48, paddingBottom: 6, color: '#8B8275' },
+  // 20pt, no 28: con la escala nueva el símbolo descolgaba de la cifra.
+  currencySymbol: { fontSize: 20, fontWeight: '400', lineHeight: 34, paddingBottom: 4 },
 
   row:          {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    borderRadius: Radius.lg, borderWidth: 1,
-    paddingHorizontal: 16, paddingVertical: 13,
+    paddingHorizontal: Spacing.screenPad, paddingVertical: 15,
   },
   rowRight:     { flexDirection: 'row', alignItems: 'center', gap: 8 },
 
-  splitSection: { gap: Spacing[2] },
-  segmented:    { flexDirection: 'row', padding: 3, borderRadius: Radius.md, gap: 2 },
-  subSegmented: { flexDirection: 'row', padding: 3, borderRadius: Radius.md, gap: 2 },
-  segTab:       { flex: 1, paddingVertical: 8, borderRadius: Radius.sm, alignItems: 'center' },
-  samePercentRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 4 },
+  splitSection: {},
+  samePercentRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    paddingHorizontal: Spacing.screenPad, paddingBottom: 14,
+  },
   samePercentBox: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 18, paddingVertical: 10,
     borderRadius: Radius.lg, borderWidth: 1,
   },
-  memberList:   { gap: 6 },
-  memberRow:    { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: Radius.md },
+  memberRow:    {
+    flexDirection: 'row', alignItems: 'center', gap: 11,
+    paddingHorizontal: Spacing.screenPad, paddingVertical: 13,
+  },
   percentBox:   { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  errorRow:     { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: Radius.md },
-  tierRow:      { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: Radius.md },
+  errorRow:     {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: Spacing.screenPad, paddingVertical: 13,
+  },
+  tierRow:      {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: Spacing.screenPad, paddingVertical: 13,
+    marginTop: Spacing[4],
+  },
 
-  saveBtn:      { borderRadius: Radius.lg, paddingVertical: 16, alignItems: 'center' },
+  saveBtn:      { borderRadius: Radius.lg, height: 52, alignItems: 'center', justifyContent: 'center' },
 
   bottomBar:    {
     flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 12, height: 52,
-    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 12, height: 56,
+    borderTopWidth: 1,
   },
   bottomLeft:   { flexDirection: 'row', alignItems: 'center', gap: 18, paddingHorizontal: 6 },
-  vDivider:     { width: StyleSheet.hairlineWidth, height: 22, marginHorizontal: 10 },
+  vDivider:     { width: 1, height: 22, marginHorizontal: 10 },
   bottomGroup:  { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 6 },
   bottomDate:   { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 6 },
 

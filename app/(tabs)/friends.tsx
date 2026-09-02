@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import {
-  Alert, KeyboardAvoidingView, Platform, Pressable,
-  ScrollView, StyleSheet, Text, TextInput, View,
+  Alert, Animated, KeyboardAvoidingView, Platform, Pressable,
+  StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -19,13 +19,13 @@ import { sumConverted } from '@/src/services/fxTotals';
 import { useAuthStore } from '@/src/store/authStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useGlobalPersonBalances } from '@/src/store/selectors';
-import { hueForUser } from '@/src/utils/hueForUser';
-import { hapticLight, hapticSuccess, hapticWarning } from '@/src/utils/haptics';
-import { Avatar } from '@/src/components/Avatar';
+import { hapticSuccess, hapticWarning, hapticLight } from '@/src/utils/haptics';
 import { UserAvatar } from '@/src/components/UserAvatar';
 import { Fab, FabRow } from '@/src/components/Fab';
 import { EmptyState } from '@/src/components/EmptyState';
 import { BottomSheet } from '@/src/components/Sheet';
+import { Band, BandRow, SectionLabel, SplitStat } from '@/src/components/Band';
+import { CollapsibleHeader, HeaderAvatar, HeaderCurrency } from '@/src/components/CollapsibleHeader';
 import { syncedNow } from '@/src/utils/syncedClock';
 
 export default function FriendsScreen() {
@@ -36,6 +36,7 @@ export default function FriendsScreen() {
   const { users, addOrUpdateUser, removeUser } = useUserStore();
 
   const personBalances = useGlobalPersonBalances(currentUser?.id ?? '');
+  const scrollY = useRef(new Animated.Value(0)).current;
 
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState('');
@@ -46,8 +47,6 @@ export default function FriendsScreen() {
     [users, currentUser],
   );
 
-  // `'ARS'` estaba hardcodeado acá: con grupos en otra moneda esto daba 0
-  // siempre. Ahora se convierte a la moneda que el usuario eligió en Perfil.
   const { fx, display: cur } = useFx();
   const deben = sumConverted(
     personBalances.filter(p => p.amount > 0).map(p => ({ currency: p.currency, minor: p.amount })),
@@ -90,41 +89,24 @@ export default function FriendsScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: c.bg }]}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-
-        {/* Agregar contacto vive SOLO en el FAB (PO 2026-08-30): estaba
-            también como botón circular arriba y como banner de QR, tres
-            entradas para lo mismo en una pantalla. */}
-
+    <SafeAreaView edges={['bottom']} style={[styles.safe, { backgroundColor: c.bg }]}>
+      <Animated.ScrollView
+        showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: false })}
+        contentContainerStyle={{ paddingTop: Spacing.headerH, paddingBottom: 150 }}
+      >
         <Text style={[Typography.display, styles.title, { color: c.text }]}>{t('friends.title')}</Text>
 
-        {/* Balance summary — solo si hay deudas */}
         {(owedToYou > 0 || youOwe > 0) && (
-          <View style={[styles.summaryCard, { backgroundColor: c.surface, borderColor: c.borderHair }]}>
-            <View style={styles.summaryRow}>
-              <View style={styles.summaryCol}>
-                <Text style={[Typography.caption, { color: c.textTertiary, textTransform: 'uppercase' }]}>
-                  {t('friends.owed_to_you')}
-                </Text>
-                <Text style={[Typography.amountM, { color: c.semantic.positive, marginTop: 2 }]}>
-                  {formatMoney(owedToYou, cur)}
-                </Text>
-              </View>
-              <View style={[styles.summaryDivider, { backgroundColor: c.borderHair }]} />
-              <View style={styles.summaryCol}>
-                <Text style={[Typography.caption, { color: c.textTertiary, textTransform: 'uppercase' }]}>
-                  {t('friends.you_owe')}
-                </Text>
-                <Text style={[Typography.amountM, { color: c.semantic.negative, marginTop: 2 }]}>
-                  {formatMoney(youOwe, cur)}
-                </Text>
-              </View>
-            </View>
-          </View>
+          <SplitStat
+            items={[
+              { label: t('friends.owed_to_you'), value: formatMoney(owedToYou, cur), color: c.semantic.positive },
+              { label: t('friends.you_owe'),     value: formatMoney(youOwe, cur),    color: c.textSecondary },
+            ]}
+          />
         )}
 
-        {/* Contacts list */}
         {contacts.length === 0 ? (
           <EmptyState
             iconName="people-outline"
@@ -136,42 +118,53 @@ export default function FriendsScreen() {
                 style={[styles.addBtn, { backgroundColor: c.brand.primary }]}
               >
                 <Ionicons name="qr-code-outline" size={16} color="#fff" />
-                <Text style={[Typography.bodyM, { color: '#fff', fontWeight: '700' }]}>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff' }}>
                   {t('friends.add_by_qr')}
                 </Text>
               </Pressable>
             }
           />
         ) : (
-          <View style={styles.list}>
-            {contacts.map(contact => {
-              const balance = personBalances.find(b => b.userId === contact.id);
-              return (
-                <ContactRow
-                  key={contact.id}
-                  userId={contact.id}
-                  name={contact.name}
-                  amount={balance?.amount}
-                  currency={balance?.currency ?? 'ARS'}
-                  onRemove={() => handleRemove(contact.id, contact.name)}
-                  onSettle={() => router.push({
-                    pathname: '/settle/new',
-                    params: {
-                      toId:      contact.id,
-                      maxAmount: String(Math.abs(balance?.amount ?? 0)),
-                      currency:  balance?.currency ?? 'ARS',
-                    },
-                  } as any)}
-                />
-              );
-            })}
-          </View>
+          <>
+            <SectionLabel label={t('friends.contacts_count', { count: contacts.length, defaultValue: `Contactos (${contacts.length})` })} />
+            <Band>
+              {contacts.map((contact, i) => {
+                const balance = personBalances.find(b => b.userId === contact.id);
+                return (
+                  <ContactRow
+                    key={contact.id}
+                    userId={contact.id}
+                    name={contact.name}
+                    amount={balance?.amount}
+                    currency={balance?.currency ?? 'ARS'}
+                    last={i === contacts.length - 1}
+                    onRemove={() => handleRemove(contact.id, contact.name)}
+                    onSettle={() => router.push({
+                      pathname: '/settle/new',
+                      params: {
+                        toId:      contact.id,
+                        maxAmount: String(Math.abs(balance?.amount ?? 0)),
+                        currency:  balance?.currency ?? 'ARS',
+                      },
+                    } as any)}
+                  />
+                );
+              })}
+            </Band>
+            <Text style={[Typography.caption, styles.footnote, { color: c.textTertiary }]}>
+              {t('friends.qr_note', { defaultValue: 'Los contactos se agregan escaneando un QR: la identidad viaja entre dispositivos, no hay servidor de usuarios.' })}
+            </Text>
+          </>
         )}
+      </Animated.ScrollView>
 
-        <View style={{ height: Spacing[9] }} />
-      </ScrollView>
+      <CollapsibleHeader
+        title={t('friends.title')}
+        scrollY={scrollY}
+        left={<HeaderAvatar initials={(currentUser?.name ?? '?').slice(0, 2).toUpperCase()} />}
+        right={<HeaderCurrency code={cur} />}
+      />
 
-      {/* FAB — agregar contacto por QR */}
       <FabRow>
         <Fab
           onPress={() => router.push('/contact/add' as any)}
@@ -181,19 +174,13 @@ export default function FriendsScreen() {
         />
       </FabRow>
 
-      {/* Sheet — nuevo contacto */}
-      <BottomSheet
-        visible={showAdd}
-        onClose={() => { setShowAdd(false); setNewName(''); }}
-      >
+      <BottomSheet visible={showAdd} onClose={() => { setShowAdd(false); setNewName(''); }}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <Text style={[Typography.h3, { color: c.text, marginBottom: 6 }]}>
-            {t('friends.new_contact')}
-          </Text>
+          <Text style={[Typography.h3, { color: c.text, marginBottom: 6 }]}>{t('friends.new_contact')}</Text>
           <Text style={[Typography.bodyS, { color: c.textSecondary, marginBottom: 20 }]}>
             {t('friends.new_contact_hint')}
           </Text>
-          <View style={[styles.inputRow, { backgroundColor: c.surfaceSunken, borderColor: c.border }]}>
+          <View style={[styles.inputRow, { backgroundColor: c.bgGrouped, borderColor: c.hair }]}>
             <Ionicons name="person-outline" size={18} color={c.textTertiary} />
             <TextInput
               ref={inputRef}
@@ -201,7 +188,7 @@ export default function FriendsScreen() {
               onChangeText={setNewName}
               placeholder={t('friends.name_placeholder')}
               placeholderTextColor={c.textTertiary}
-              style={[Typography.bodyL, { flex: 1, color: c.text, padding: 0 }]}
+              style={[Typography.bodyM, { flex: 1, color: c.text, padding: 0 }]}
               returnKeyType="done"
               onSubmitEditing={handleAddContact}
               autoFocus
@@ -211,14 +198,14 @@ export default function FriendsScreen() {
             onPress={handleAddContact}
             disabled={!newName.trim()}
             style={[styles.confirmBtn, {
-              backgroundColor: newName.trim() ? c.brand.primary : c.surfaceSunken,
+              backgroundColor: newName.trim() ? c.brand.primary : c.bgGrouped,
               marginTop: 14,
             }]}
           >
-            <Text style={[Typography.bodyM, {
+            <Text style={{
+              fontSize: 15, fontWeight: '700',
               color: newName.trim() ? '#fff' : c.textTertiary,
-              fontWeight: '700',
-            }]}>
+            }}>
               {t('common.add')}
             </Text>
           </Pressable>
@@ -229,11 +216,11 @@ export default function FriendsScreen() {
 }
 
 function ContactRow({
-  userId, name, amount, currency, onRemove, onSettle,
+  userId, name, amount, currency, onRemove, onSettle, last,
 }: {
   userId: string; name: string;
   amount?: number; currency: string;
-  onRemove: () => void; onSettle: () => void;
+  onRemove: () => void; onSettle: () => void; last?: boolean;
 }) {
   const { t } = useTranslation();
   const scheme = useColorScheme() ?? 'light';
@@ -243,84 +230,54 @@ function ContactRow({
   const canSettle  = amount !== undefined && amount < 0;
 
   return (
-    <View style={[styles.contactRow, { backgroundColor: c.surface, borderColor: c.borderHair }]}>
-      <UserAvatar userId={userId} name={name} size={44} />
-      <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={[Typography.bodyL, { color: c.text, fontWeight: '600' }]} numberOfLines={1}>
-          {name}
-        </Text>
+    <BandRow last={last}>
+      <UserAvatar userId={userId} name={name} size={42} />
+      <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+        <Text style={[Typography.bodyL, { color: c.text }]} numberOfLines={1}>{name}</Text>
         {hasBalance ? (
-          <Text style={[Typography.bodyS, {
-            color: positive ? c.semantic.positive : c.semantic.negative,
-            fontWeight: '600',
-          }]}>
+          <Text
+            style={{
+              fontSize: 11.5, fontWeight: '600',
+              color: positive ? c.semantic.positive : c.semantic.negative,
+            }}
+            numberOfLines={1}
+          >
             {positive ? t('friends.owes_you') : t('friends.you_owe_them')}
             {formatMoney(Math.abs(amount!), currency as any)}
           </Text>
         ) : (
-          <Text style={[Typography.bodyS, { color: c.textTertiary }]}>
+          <Text style={{ fontSize: 11.5, fontWeight: '600', color: c.textTertiary }}>
             {t('common.settled')}
           </Text>
         )}
       </View>
-      <View style={styles.rowActions}>
-        {canSettle && (
-          <Pressable
-            onPress={onSettle}
-            style={[styles.actionChip, { backgroundColor: c.brand.primarySoft }]}
-          >
-            <Text style={[Typography.caption, { color: c.brand.primary, fontWeight: '700' }]}>
-              {t('friends.settle')}
-            </Text>
-          </Pressable>
-        )}
-        <Pressable onPress={onRemove} hitSlop={8} style={styles.removeBtn}>
-          <Ionicons name="trash-outline" size={18} color={c.textTertiary} />
+      {canSettle && (
+        <Pressable onPress={onSettle} style={[styles.actionChip, { backgroundColor: c.brand.primarySoft }]}>
+          <Text style={{ fontSize: 11, fontWeight: '700', color: c.brand.primary }}>
+            {t('friends.settle')}
+          </Text>
         </Pressable>
-      </View>
-    </View>
+      )}
+      <Pressable onPress={onRemove} hitSlop={8}>
+        <Ionicons name="trash-outline" size={16} color={c.textTertiary} />
+      </Pressable>
+    </BandRow>
   );
 }
 
 const styles = StyleSheet.create({
-  safe:          { flex: 1 },
-  scroll:        { paddingTop: Spacing[2] },
-  header:        {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end',
-    paddingHorizontal: Spacing.screenPad, paddingBottom: Spacing[3],
-  },
-  iconBtn:       { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  title:         { paddingHorizontal: Spacing.screenPad, marginBottom: Spacing[4] },
-  summaryCard:   {
-    marginHorizontal: Spacing.screenPad, marginBottom: Spacing[4],
-    borderRadius: Radius.lg, borderWidth: 1, padding: Spacing[4],
-  },
-  summaryRow:    { flexDirection: 'row', alignItems: 'center' },
-  summaryCol:    { flex: 1, alignItems: 'center' },
-  summaryDivider:{ width: 1, height: 36, marginHorizontal: 4 },
-  list:          { paddingHorizontal: Spacing.screenPad, gap: Spacing.cardGap },
-  contactRow:    {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    padding: Spacing.cardPad, borderRadius: Radius.lg, borderWidth: 1,
-  },
-  rowActions:    { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  actionChip:    { paddingHorizontal: 10, paddingVertical: 5, borderRadius: Radius.full },
-  removeBtn:     { padding: 4 },
-  addBtn:        {
+  safe:       { flex: 1 },
+  title:      { paddingHorizontal: Spacing.screenPad, paddingBottom: 16 },
+  footnote:   { paddingHorizontal: Spacing.screenPad, paddingTop: 14, lineHeight: 17 },
+  actionChip: { paddingHorizontal: 11, paddingVertical: 6, borderRadius: Radius.full },
+  addBtn:     {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingHorizontal: 20, paddingVertical: 12, borderRadius: Radius.full,
+    paddingHorizontal: 18, paddingVertical: 13, borderRadius: Radius.lg,
   },
-  qrBanner:      {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    marginHorizontal: Spacing.screenPad, marginBottom: Spacing[4],
-    padding: Spacing[4], borderRadius: Radius.lg, borderWidth: 1,
-  },
-  // Sheet
-  inputRow:      {
+  inputRow:   {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    borderRadius: Radius.lg, borderWidth: 1,
-    paddingHorizontal: 14, paddingVertical: 13,
-    marginBottom: 4,
+    borderRadius: Radius.md, borderWidth: 1,
+    paddingHorizontal: 14, paddingVertical: 13, marginBottom: 4,
   },
-  confirmBtn:    { borderRadius: Radius.md, paddingVertical: 14, alignItems: 'center' },
+  confirmBtn: { borderRadius: Radius.md, paddingVertical: 14, alignItems: 'center' },
 });

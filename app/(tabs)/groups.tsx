@@ -1,14 +1,11 @@
-import React, { useMemo, useState } from 'react';
-import {
-  Pressable, ScrollView, StyleSheet, Text, View,
-} from 'react-native';
+import React, { useMemo, useRef, useState } from 'react';
+import { Animated, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { Ionicons } from '@expo/vector-icons';
 
 import { Colors } from '@/src/constants/colors';
-import { Radius, Spacing } from '@/src/constants/spacing';
+import { Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { formatMoney } from '@/src/constants/currencies';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -22,6 +19,8 @@ import { sumConverted } from '@/src/services/fxTotals';
 import { GroupCard } from '@/src/components/GroupCard';
 import { SwipeToArchive } from '@/src/components/SwipeToArchive';
 import { EmptyState } from '@/src/components/EmptyState';
+import { Band, Segmented, SplitStat } from '@/src/components/Band';
+import { CollapsibleHeader, HeaderAvatar, HeaderCurrency } from '@/src/components/CollapsibleHeader';
 import { hapticLight } from '@/src/utils/haptics';
 import type { Group } from '@/src/types/models';
 
@@ -35,14 +34,14 @@ export default function GroupsScreen() {
   const setArchived = useArchiveStore(s => s.setArchived);
   const groupTotals = useGroupsTotalBalance(currentUser?.id ?? '');
 
-  // Buscaba LITERALMENTE la fila 'ARS' y caía a 0 con `?? 0` cuando no
-  // existía: un grupo en reales daba 0 en los dos marcadores, siempre.
+  const scrollY = useRef(new Animated.Value(0)).current;
+
   const { fx, display: cur } = useFx();
   const deben = sumConverted(
-    groupTotals.map(t => ({ currency: t.currency, minor: t.owedToYou })), cur, fx,
+    groupTotals.map(g => ({ currency: g.currency, minor: g.owedToYou })), cur, fx,
   );
   const debo = sumConverted(
-    groupTotals.map(t => ({ currency: t.currency, minor: t.youOwe })), cur, fx,
+    groupTotals.map(g => ({ currency: g.currency, minor: g.youOwe })), cur, fx,
   );
   const owedToYou = deben.totalMinor;
   const youOwe    = debo.totalMinor;
@@ -60,70 +59,36 @@ export default function GroupsScreen() {
   );
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: c.bg }]}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+    <SafeAreaView edges={['bottom']} style={[styles.safe, { backgroundColor: c.bg }]}>
+      <Animated.ScrollView
+        showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: false })}
+        contentContainerStyle={{ paddingTop: Spacing.headerH, paddingBottom: 150 }}
+      >
+        <Text style={[Typography.display, styles.title, { color: c.text }]}>{t('groups.title')}</Text>
 
-        {/* Crear grupo vive SOLO en el FAB, como en el resto de las tabs
-            (PO 2026-08-30). */}
-        <View style={styles.titleRow}>
-          <Text style={[Typography.display, { color: c.text }]}>{t('groups.title')}</Text>
-        </View>
-
-        {/* Balance summary */}
         {visibles.length > 0 && (
-          <View style={[styles.summaryCard, { backgroundColor: c.surface, borderColor: c.borderHair }]}>
-            <View style={styles.summaryRow}>
-              <View style={styles.summaryCol}>
-                <Text style={[Typography.caption, { color: c.textTertiary, textTransform: 'uppercase' }]}>
-                  Te deben
-                </Text>
-                <Text style={[Typography.amountM, { color: c.semantic.positive, marginTop: 2 }]}>
-                  {formatMoney(owedToYou, cur)}
-                </Text>
-              </View>
-              <View style={[styles.summaryDivider, { backgroundColor: c.borderHair }]} />
-              <View style={styles.summaryCol}>
-                <Text style={[Typography.caption, { color: c.textTertiary, textTransform: 'uppercase' }]}>
-                  Debés
-                </Text>
-                <Text style={[Typography.amountM, { color: c.semantic.negative, marginTop: 2 }]}>
-                  {formatMoney(youOwe, cur)}
-                </Text>
-              </View>
-              <View style={[styles.summaryDivider, { backgroundColor: c.borderHair }]} />
-              <View style={styles.summaryCol}>
-                <Text style={[Typography.caption, { color: c.textTertiary, textTransform: 'uppercase' }]}>
-                  Grupos
-                </Text>
-                <Text style={[Typography.amountM, { color: c.text, marginTop: 2 }]}>
-                  {visibles.length}
-                </Text>
-              </View>
-            </View>
-          </View>
+          <SplitStat
+            items={[
+              { label: 'Te deben', value: formatMoney(owedToYou, cur), color: c.semantic.positive },
+              { label: 'Debés',    value: formatMoney(youOwe, cur),    color: c.textSecondary },
+              { label: 'Grupos',   value: String(visibles.length) },
+            ]}
+          />
         )}
 
-        {/* Pestañas. Estaban dibujadas pero no filtraban nada. */}
-        <View style={styles.section}>
-          <View style={[styles.segmented, { backgroundColor: c.surfaceSunken }]}>
-            {(['activos', 'archivados'] as const).map(tab => (
-              <Pressable
-                key={tab}
-                accessibilityRole="button"
-                onPress={() => { hapticLight(); setTab(tab); }}
-                style={[styles.segTab, tab === tabActual && { backgroundColor: c.surface }]}
-              >
-                <Text style={[Typography.bodyS, {
-                  color: tab === tabActual ? c.text : c.textSecondary, fontWeight: '600',
-                }]}>
-                  {tab === 'activos' ? t('groups.tab_active') : t('groups.tab_archived')}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
+        <View style={styles.segPad}>
+          <Segmented
+            value={tabActual}
+            onChange={v => { hapticLight(); setTab(v); }}
+            options={[
+              { key: 'activos',     label: t('groups.tab_active') },
+              { key: 'archivados',  label: t('groups.tab_archived') },
+            ]}
+          />
         </View>
 
-        {/* Group list */}
         {visibles.length === 0 ? (
           <EmptyState
             iconName={tabActual === 'archivados' ? 'archive-outline' : 'people-outline'}
@@ -131,25 +96,38 @@ export default function GroupsScreen() {
             body={tabActual === 'archivados' ? t('groups.empty_archived_body') : t('groups.empty_body')}
           />
         ) : (
-          <View style={[styles.list, styles.section]}>
-            {visibles.map(g => (
-              <SwipeToArchive
-                key={g.id}
-                archived={tabActual === 'archivados'}
-                onAction={() => setArchived(g.id, tabActual === 'activos')}
-              >
-                <GroupRow
-                  group={g}
-                  currentUserId={currentUser?.id ?? ''}
-                  onPress={() => router.push(`/groups/${g.id}` as any)}
-                />
-              </SwipeToArchive>
-            ))}
-          </View>
+          <>
+            <Band>
+              {visibles.map((g, i) => (
+                <SwipeToArchive
+                  key={g.id}
+                  archived={tabActual === 'archivados'}
+                  onAction={() => setArchived(g.id, tabActual === 'activos')}
+                >
+                  <GroupRow
+                    group={g}
+                    currentUserId={currentUser?.id ?? ''}
+                    last={i === visibles.length - 1}
+                    onPress={() => router.push(`/groups/${g.id}` as any)}
+                  />
+                </SwipeToArchive>
+              ))}
+            </Band>
+            <Text style={[Typography.caption, styles.footnote, { color: c.textTertiary }]}>
+              {tabActual === 'activos'
+                ? t('groups.swipe_hint', { defaultValue: 'Deslizá un grupo a la izquierda para archivarlo.' })
+                : t('groups.archived_hint', { defaultValue: 'Los grupos archivados no suman a los balances ni aparecen en Actividad.' })}
+            </Text>
+          </>
         )}
+      </Animated.ScrollView>
 
-        <View style={{ height: Spacing[9] }} />
-      </ScrollView>
+      <CollapsibleHeader
+        title={t('groups.title')}
+        scrollY={scrollY}
+        left={<HeaderAvatar initials={(currentUser?.name ?? '?').slice(0, 2).toUpperCase()} />}
+        right={<HeaderCurrency code={cur} />}
+      />
 
       <FabRow>
         <Fab
@@ -165,17 +143,11 @@ export default function GroupsScreen() {
 }
 
 function GroupRow({
-  group, currentUserId, onPress,
-}: {
-  group: Group;
-  currentUserId: string;
-  onPress: () => void;
-}) {
+  group, currentUserId, onPress, last,
+}: { group: Group; currentUserId: string; onPress: () => void; last?: boolean }) {
   const balances     = useGroupBalance(group.id, currentUserId);
   const expenseCount = useGroupExpenseCount(group.id);
-
-  // Balance principal en la moneda del grupo
-  const mainBalance = balances.find(b => b.currency === group.currency)?.amount ?? 0;
+  const mainBalance  = balances.find(b => b.currency === group.currency)?.amount ?? 0;
 
   return (
     <GroupCard
@@ -185,35 +157,15 @@ function GroupRow({
       currency={group.currency}
       subtitle={`${expenseCount} gastos`}
       onPress={onPress}
+      last={last}
+      chevron
     />
   );
 }
 
 const styles = StyleSheet.create({
-  safe:      { flex: 1 },
-  scroll:    { paddingTop: Spacing[2] },
-  header:    {
-    flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.screenPad, paddingBottom: Spacing[3],
-  },
-  titleRow:  { paddingHorizontal: Spacing.screenPad, marginBottom: Spacing[3] },
-  addButton: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  section:   { paddingHorizontal: Spacing.screenPad, marginBottom: Spacing[4] },
-  segmented: { flexDirection: 'row', padding: 3, borderRadius: Radius.md, gap: 2 },
-  segTab:    { flex: 1, height: 32, paddingHorizontal: 14, borderRadius: Radius.sm, alignItems: 'center', justifyContent: 'center' },
-  summaryCard:    {
-    marginHorizontal: Spacing.screenPad, marginBottom: Spacing[4],
-    borderRadius: Radius.lg, borderWidth: 1, padding: Spacing[4],
-  },
-  summaryRow:     { flexDirection: 'row', alignItems: 'center' },
-  summaryCol:     { flex: 1, alignItems: 'center' },
-  summaryDivider: { width: 1, height: 36, marginHorizontal: 4 },
-  list:      { gap: Spacing.cardGap },
-  infoBanner:{
-    flexDirection: 'row', gap: 12, alignItems: 'flex-start',
-    marginHorizontal: Spacing.screenPad, marginBottom: Spacing[4],
-    borderRadius: Radius.md, padding: 14,
-  },
-  infoIcon:  { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  safe:     { flex: 1 },
+  title:    { paddingHorizontal: Spacing.screenPad, paddingBottom: 16 },
+  segPad:   { paddingHorizontal: Spacing.screenPad, paddingTop: 16, paddingBottom: 14 },
+  footnote: { paddingHorizontal: Spacing.screenPad, paddingTop: 14, lineHeight: 17 },
 });

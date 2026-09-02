@@ -133,7 +133,7 @@ export default function LeaveGroupScreen() {
         </Text>
 
         {/* Lo que hay que repartir */}
-        <View style={[styles.card, { backgroundColor: c.surface, borderColor: c.borderHair }]}>
+        <View style={[styles.card, { backgroundColor: c.surface, borderColor: c.hair }]}>
           <Text style={[Typography.label, { color: c.textTertiary, textTransform: 'uppercase' }]}>
             {t('leave.your_balance')}
           </Text>
@@ -164,7 +164,7 @@ export default function LeaveGroupScreen() {
             accessibilityState={{ checked: absorben.includes(uid) }}
             onPress={() => toggle(uid)}
             style={[styles.row, {
-              backgroundColor: absorben.includes(uid) ? c.brand.primarySoft : c.surfaceSunken,
+              backgroundColor: absorben.includes(uid) ? c.brand.primarySoft : c.bgGrouped,
             }]}
           >
             <UserAvatar userId={uid} name={getUserName(uid)} size={32} />
@@ -188,7 +188,7 @@ export default function LeaveGroupScreen() {
         ))}
 
         {/* Cómo se reparte */}
-        <View style={[styles.segmented, { backgroundColor: c.surfaceSunken }]}>
+        <View style={[styles.segmented, { backgroundColor: c.bgGrouped }]}>
           {MODOS.map(m => (
             <Pressable
               key={m.id}
@@ -207,7 +207,7 @@ export default function LeaveGroupScreen() {
 
         {/* Qué va a pasar, en plata. Sin esto el usuario aprueba a ciegas. */}
         {plan.length > 0 && (
-          <View style={[styles.card, { backgroundColor: c.surface, borderColor: c.borderHair }]}>
+          <View style={[styles.card, { backgroundColor: c.surface, borderColor: c.hair }]}>
             <Text style={[Typography.label, { color: c.textTertiary, textTransform: 'uppercase' }]}>
               {t('leave.preview')}
             </Text>
@@ -239,7 +239,7 @@ export default function LeaveGroupScreen() {
           disabled={!cierra}
           onPress={confirmar}
           style={[styles.cta, {
-            backgroundColor: cierra ? c.brand.primary : c.surfaceSunken,
+            backgroundColor: cierra ? c.brand.primary : c.bgGrouped,
           }]}
         >
           <Text style={[Typography.bodyM, {
@@ -261,20 +261,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: Spacing.screenPad, paddingVertical: Spacing[3],
   },
-  scroll:    { paddingHorizontal: Spacing.screenPad, gap: Spacing[4] },
-  card:      { borderRadius: Radius.md, borderWidth: 1, padding: Spacing[4] },
+  scroll:    { paddingHorizontal: Spacing.screenPad, gap: Spacing[4], paddingTop: Spacing[4] },
+  // Banda embutida: sin radio, hairline arriba y abajo, borde a borde.
+  card:      {
+    marginHorizontal: -Spacing.screenPad,
+    borderTopWidth: 1, borderBottomWidth: 1,
+    paddingHorizontal: Spacing.screenPad, paddingVertical: Spacing[4],
+  },
   row:       {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    padding: 12, borderRadius: Radius.md,
+    padding: 13, borderRadius: Radius.sm,
   },
   pct:       {
     borderWidth: 1, borderRadius: Radius.sm, paddingHorizontal: 10,
     paddingVertical: 4, minWidth: 56, textAlign: 'right',
   },
-  segmented: { flexDirection: 'row', borderRadius: Radius.md, padding: 3 },
-  segTab:    { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: Radius.sm },
+  segmented: { flexDirection: 'row', borderRadius: Radius.md, padding: 4, gap: 4 },
+  segTab:    { flex: 1, alignItems: 'center', height: 32, justifyContent: 'center', borderRadius: 8 },
   cta:       {
-    paddingVertical: Spacing[4], borderRadius: Radius.md,
-    alignItems: 'center', marginTop: Spacing[2],
+    height: 52, borderRadius: Radius.lg,
+    alignItems: 'center', justifyContent: 'center', marginTop: Spacing[2],
   },
 });
