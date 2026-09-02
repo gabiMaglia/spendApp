@@ -83,7 +83,7 @@ export default function NewExpenseScreen() {
   const c = Colors[scheme];
 
   const { currentUser, isPro } = useAuthStore();
-  const { requiresRewardedAd, getDailyCount, incrementCount } = useTierStore();
+  const { requiresRewardedAd, superoElTope, getDailyCount, incrementCount } = useTierStore();
   const { addExpense, updateExpense } = useExpenseStore();
   const { addEntry: addPersonalEntry, updateReplicatedEntry } = usePersonalStore();
   const { getUserName } = useUserStore();
@@ -171,6 +171,11 @@ export default function NewExpenseScreen() {
   const members  = group?.memberIds ?? [];
   const currency: CurrencyCode = currencyForAmount;
   const dailyCount = currentUser ? getDailyCount(currentUser.id) : 0;
+  // Dos cosas distintas, y confundirlas era el bug: `superoElTope` es la REGLA
+  // (pasaste los 4 del día) y sirve para contárselo al usuario; `needsAd` es si
+  // hay que mostrarle un anuncio ANTES de guardar, que hoy es siempre false
+  // porque no existe el sistema de anuncios. Ver `ADS_DISPONIBLES`.
+  const pasoElTope = !isEditMode && currentUser ? superoElTope(currentUser.id, isPro) : false;
   const needsAd    = !isEditMode && currentUser ? requiresRewardedAd(currentUser.id, isPro) : false;
 
   // ── Computed splits ────────────────────────────────────────────────────────
@@ -321,8 +326,11 @@ export default function NewExpenseScreen() {
       return;
     }
 
+    // Cuando exista el anuncio, acá va: mostrarlo y guardar recién al terminar.
+    // Hasta entonces `needsAd` es siempre false — un `return` seco dejaba el
+    // botón muerto y la app sin poder guardar gastos, en silencio.
     if (needsAd) return;
-    hapticSuccess(); // TODO: rewarded ad gate
+    hapticSuccess();
 
     const splitPayload = splits.map(s => ({
       userId: s.userId,
@@ -707,7 +715,7 @@ export default function NewExpenseScreen() {
               <Ionicons name="information-circle-outline" size={16} color={c.semantic.warning} />
               <Text style={[Typography.bodyS, { color: '#8A6420', flex: 1 }]}>
                 {t('expense.free_count', { count: dailyCount })}{' '}
-                {needsAd ? t('expense.free_next') : ''}
+                {pasoElTope ? t('expense.free_over') : ''}
               </Text>
             </View>
           )}
@@ -726,6 +734,7 @@ export default function NewExpenseScreen() {
             style={[styles.saveBtn, { backgroundColor: canSave ? c.brand.primary : c.surfaceSunken }]}
           >
             <Text style={[Typography.bodyL, { color: canSave ? '#fff' : c.textDisabled, fontWeight: '700' }]}>
+              {/* El botón NO promete un anuncio que no existe. */}
               {!isEditMode && needsAd ? t('expense.save_with_ad') : t('expense.save')}
             </Text>
           </Pressable>

@@ -5,32 +5,82 @@ const storage = createStorage('tier');
 
 const FREE_DAILY_FREE_EXPENSES = 4;
 
-function todayKey(userId: string): string {
-  const today = new Date().toISOString().split('T')[0]; // 'YYYY-MM-DD' UTC
-  return `expense_count_${userId}_${today}`;
+/**
+ * **¿Existe un sistema de anuncios en esta build?**
+ *
+ * Hoy NO: `react-native-google-mobile-ads` no está instalado y no hay app id de
+ * AdMob en la config. La regla de negocio #6 está escrita —4 gastos gratis por
+ * día, del 5to en adelante un anuncio recompensado— pero la mitad que le da
+ * salida al usuario nunca se construyó.
+ *
+ * Mientras esto sea `false`, **el tope NO bloquea**. El contador sigue contando
+ * y la regla queda entera: lo único que no se hace es cerrar una puerta que
+ * nadie puede cruzar.
+ *
+ * El motivo es concreto y no es filosofía: hasta hoy, del 5to gasto del día en
+ * adelante el botón decía «Ver anuncio y guardar», el usuario lo tocaba y
+ * `handleSave` hacía `if (needsAd) return` — **no pasaba nada, nunca**. La app
+ * dejaba de poder guardar gastos, en silencio, y sin ninguna forma de seguir.
+ * Un tope que no se puede satisfacer no es un tope: es la app rota.
+ *
+ * El día que AdMob entre, esto pasa a `true` y todo lo demás ya está. Hay un
+ * test que se cae si alguien lo enciende sin haber conectado un anuncio.
+ */
+export const ADS_DISPONIBLES = false;
+
+/**
+ * La clave del día, en hora LOCAL.
+ *
+ * Antes usaba `toISOString()`, que es UTC: para el PO (UTC−3) el contador se
+ * reiniciaba **a las 21:00**, no a medianoche. Cuatro gastos a las 20:00 y otros
+ * cuatro a las 21:30 eran «dos días» para la app y el mismo día para él.
+ */
+function todayKey(userId: string, now: Date = new Date()): string {
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `expense_count_${userId}_${y}-${m}-${d}`;
 }
 
+/** Cuántos gastos lleva hoy. Expuesta para poder testear el corte del día. */
+export function dailyCountAt(userId: string, now: Date): number {
+  const raw = storage.getString(todayKey(userId, now));
+  return raw ? parseInt(raw, 10) : 0;
+}
+
+/**
+ * ¿Este gasto necesita un anuncio para poder guardarse?
+ *
+ * Con `ADS_DISPONIBLES` en `false` devuelve siempre `false`: ver
+ * `ADS_DISPONIBLES`. Lo que decide si el usuario ya pasó el tope —y lo que la
+ * UI usa para contarle en qué anda— es `superoElTope`.
+ */
 interface TierState {
   getDailyCount: (userId: string) => number;
+  /** Pasó los 4 del día. Es la REGLA, independiente de si hay anuncios. */
+  superoElTope: (userId: string, isPro: boolean) => boolean;
+  /** Hay que mostrar un anuncio antes de guardar. Hoy siempre `false`. */
   requiresRewardedAd: (userId: string, isPro: boolean) => boolean;
-  incrementCount: (userId: string) => void;
+  incrementCount: (userId: string, now?: Date) => void;
 }
 
 export const useTierStore = create<TierState>(() => ({
-  getDailyCount: (userId) => {
-    const raw = storage.getString(todayKey(userId));
-    return raw ? parseInt(raw, 10) : 0;
+  getDailyCount: (userId) => dailyCountAt(userId, new Date()),
+
+  superoElTope: (userId, isPro) => {
+    if (isPro) return false;
+    return dailyCountAt(userId, new Date()) >= FREE_DAILY_FREE_EXPENSES;
   },
 
   requiresRewardedAd: (userId, isPro) => {
+    // La puerta sólo se cierra si existe la llave.
+    if (!ADS_DISPONIBLES) return false;
     if (isPro) return false;
-    const raw = storage.getString(todayKey(userId));
-    const count = raw ? parseInt(raw, 10) : 0;
-    return count >= FREE_DAILY_FREE_EXPENSES;
+    return dailyCountAt(userId, new Date()) >= FREE_DAILY_FREE_EXPENSES;
   },
 
-  incrementCount: (userId) => {
-    const key = todayKey(userId);
+  incrementCount: (userId, now = new Date()) => {
+    const key = todayKey(userId, now);
     const current = storage.getString(key);
     const count = current ? parseInt(current, 10) : 0;
     storage.set(key, String(count + 1));
