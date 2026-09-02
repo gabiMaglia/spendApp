@@ -1,3 +1,4 @@
+import { normalizarAprobacion } from '@/src/sync/leaveApprovalCore';
 import { approversNeeded, isApprovedByAll, approvalProgress, mergeApprovals } from '../leaveRequest';
 import type { Group, LeaveRequest } from '@/src/types/models';
 
@@ -97,6 +98,10 @@ describe('el store de grupos', () => {
     useGroupStore.getState().approveLeave('g1', 'beto');
     useGroupStore.getState().approveLeave('g1', 'beto');
 
-    expect(useGroupStore.getState().getById('g1')!.leaveRequest!.approvedBy).toEqual(['beto']);
+    // Desde T-065 la aprobación es un objeto FIRMADO, no un id pelado. Lo que
+    // este test cuida sigue siendo lo mismo: aprobar dos veces deja UNA.
+    const cs = useGroupStore.getState().getById('g1')!.leaveRequest!.approvedBy;
+    expect(cs).toHaveLength(1);
+    expect(normalizarAprobacion(cs[0]).userId).toBe('beto');
   });
 });

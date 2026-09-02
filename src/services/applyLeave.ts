@@ -1,6 +1,8 @@
 import { useGroupStore } from '@/src/store/groupStore';
 import { usePaymentStore } from '@/src/store/paymentStore';
 import { isApprovedByAll } from '@/src/algorithms/leaveRequest';
+import { authorKeysFor } from '@/src/sync/authorKeys';
+import { verifyLeaveApproval } from '@/src/sync/leaveApprovalSign';
 import type { Group, LeaveRequest } from '@/src/types/models';
 import { syncedNow } from '@/src/utils/syncedClock';
 
@@ -40,8 +42,32 @@ function idDelPago(groupId: string, req: LeaveRequest, i: number): string {
 export function applyApprovedLeaves(now: number = syncedNow()): number {
   const store = useGroupStore.getState();
 
+  /**
+   * **Acá la firma AUTORIZA, no informa** (T-065).
+   *
+   * Es la excepción declarada a la política del PO de marcar y nunca rechazar
+   * (R1 de T-041), y la razón es concreta: marcar sirve cuando la persona puede
+   * juzgar lo que ve, y esto ocurre solo —al arrancar y después de cada sync,
+   * en el teléfono de todos— materializando pagos que mueven saldo. No hay
+   * nadie mirando cuando pasa.
+   *
+   * Sin esto, quien se va escribe los ids de todos los demás en `approvedBy`
+   * —el conjunto se une sin preguntar quién escribió cada entrada— y la salida
+   * se aprueba sola. Reproducido con test antes de tocar nada.
+   *
+   * El costo es acotado: como mucho una verificación por miembro del grupo, y
+   * sólo cuando hay un pedido de salida vivo. No es el camino del merge, donde
+   * los 18 ms por operación sí importarían (D9).
+   */
+  const verificaAprobacion = (grupo: Group) => (a: Parameters<typeof verifyLeaveApproval>[2]) =>
+    verifyLeaveApproval(
+      grupo.id, grupo.leaveRequest!, a, authorKeysFor(a.userId, a.k),
+    ) === 'valida';
+
   const listos: Group[] = store.groups.filter(g =>
-    !g.isDeleted && g.leaveRequest !== undefined && isApprovedByAll(g, g.leaveRequest),
+    !g.isDeleted
+    && g.leaveRequest !== undefined
+    && isApprovedByAll(g, g.leaveRequest, verificaAprobacion(g)),
   );
 
   for (const group of listos) {

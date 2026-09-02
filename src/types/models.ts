@@ -163,6 +163,35 @@ export interface DeletionVote {
  */
 export type DeletionMode = 'consensus' | 'open';
 
+/**
+ * La aprobación FIRMADA de una salida (T-065).
+ *
+ * Antes esto era un `string` pelado con el id del que aprobaba, y ahí estaba el
+ * agujero: el conjunto se une en el merge sin preguntar quién escribió cada id,
+ * así que **el que se iba podía escribir los ids de todos los demás** y
+ * auto-aprobarse la salida. Eso dispara `applyApprovedLeaves` en el teléfono de
+ * todos y materializa los pagos de absorción: plata moviéndose con cero
+ * autorización. Reproducido con test antes de tocar nada.
+ */
+export interface LeaveApproval {
+  /** Quién aprueba. */
+  userId: string;
+  /** `syncedNow()` (ADR-005), nunca `Date.now()` — ver T-059. */
+  approvedAt: number;
+  /** Pública del firmante (T-041). */
+  k?: string;
+  /** Firma del enunciado de ESTA aprobación, no del conjunto. */
+  s?: string;
+}
+
+/**
+ * Una entrada del conjunto de aprobaciones.
+ *
+ * El `string` es lo que manda un peer anterior a T-065. Se conserva para no
+ * trabar una salida en curso, y sólo cuenta en pedidos viejos: ver `v`.
+ */
+export type ApprovalEntry = string | LeaveApproval;
+
 export interface LeaveRequest {
   /** Quién se va. */
   userId: string;
@@ -170,12 +199,22 @@ export interface LeaveRequest {
   plan: { fromUserId: string; toUserId: string; amount: number; currency: CurrencyCode }[];
   requestedAt: number;
   /**
+   * Versión del pedido. Ausente = anterior a T-065, donde las aprobaciones no
+   * estaban firmadas y no había forma de exigirlo sin trabar salidas en curso.
+   *
+   * **En un pedido `v: 2` sólo cuentan las aprobaciones que VERIFICAN.** Es el
+   * mismo patrón que las rondas de borrado de T-041 S8: lo nuevo es seguro
+   * desde el primer día y lo viejo se vence solo, en vez de una migración que
+   * rompa a quien esté a mitad de camino.
+   */
+  v?: 2;
+  /**
    * Quiénes ya aprobaron. Es un conjunto que sólo CRECE, y por eso se puede
    * unir sin perder nada cuando dos personas aprueban sin haberse sincronizado
    * — si se resolviera por LWW como el resto del registro, una de las dos
    * aprobaciones se perdería y el pedido no se completaría nunca.
    */
-  approvedBy: string[];
+  approvedBy: ApprovalEntry[];
 }
 
 export interface Group extends SyncMeta, CoreSigned {

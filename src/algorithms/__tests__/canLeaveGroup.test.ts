@@ -1,4 +1,4 @@
-import { canLeaveGroup, hasAllApprovals } from '../canLeaveGroup';
+import { canLeaveGroup } from '../canLeaveGroup';
 
 const BOB = 'ub', CAR = 'uc';
 
@@ -39,20 +39,3 @@ describe('canLeaveGroup', () => {
   });
 });
 
-describe('hasAllApprovals', () => {
-  it('falta uno ⇒ no alcanza', () => {
-    expect(hasAllApprovals([BOB, CAR], [BOB])).toBe(false);
-  });
-
-  it('están todos ⇒ alcanza', () => {
-    expect(hasAllApprovals([BOB, CAR], [CAR, BOB])).toBe(true);
-  });
-
-  it('aprobaciones de más no molestan', () => {
-    expect(hasAllApprovals([BOB], [BOB, 'ux'])).toBe(true);
-  });
-
-  it('sin aprobadores necesarios, alcanza trivialmente', () => {
-    expect(hasAllApprovals([], [])).toBe(true);
-  });
-});

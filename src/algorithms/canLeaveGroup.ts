@@ -31,8 +31,3 @@ export function canLeaveGroup(
   return { kind: 'needs_absorption', currencies, approversNeeded: otherMemberIds };
 }
 
-/** ¿Están todas las aprobaciones necesarias? */
-export function hasAllApprovals(needed: string[], approvedBy: string[]): boolean {
-  const set = new Set(approvedBy);
-  return needed.every(id => set.has(id));
-}

@@ -1,4 +1,5 @@
 import React from 'react';
+import { normalizarAprobacion } from '@/src/sync/leaveApprovalCore';
 import { fireEvent, render } from '@testing-library/react-native';
 import { Alert } from 'react-native';
 import GroupDetailScreen from '@/app/groups/[id]';
@@ -62,7 +63,10 @@ describe('pedido de salida ajeno', () => {
     const r = render(<GroupDetailScreen />);
     fireEvent.press(r.getByText('leave.approve'));
 
-    expect(useGroupStore.getState().getById('g1')!.leaveRequest!.approvedBy).toEqual(['beto']);
+    // «Mi firma» ahora es literal: desde T-065 la aprobación se firma.
+    const cs = useGroupStore.getState().getById('g1')!.leaveRequest!.approvedBy;
+    expect(cs).toHaveLength(1);
+    expect(normalizarAprobacion(cs[0]).userId).toBe('beto');
   });
 
   it('ya habiendo aprobado, no se ofrece aprobar de nuevo', () => {

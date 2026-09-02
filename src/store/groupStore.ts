@@ -7,6 +7,10 @@ import { schedulePublish } from '@/src/sync/relayEngine';
 import type { Group, LeaveRequest } from '@/src/types/models';
 import { mergeDeletionMode } from '@/src/algorithms/deletionPolicy';
 import { syncedNow } from '@/src/utils/syncedClock';
+import { privadaDelAparato } from '@/src/sync/devicePrivateKey';
+import { signLeaveApproval } from '@/src/sync/leaveApprovalSign';
+import { yaAprobo } from '@/src/algorithms/leaveRequest';
+import type { LeaveApproval } from '@/src/types/models';
 
 const storage = createSecureStorage('groups');
 const KEY = 'data_v1';
@@ -105,7 +109,19 @@ export const useGroupStore = create<GroupStoreState>((set, get) => ({
   requestLeave: (id, userId, plan) => {
     const groups = get().groups.map(g => g.id === id ? {
       ...g,
-      leaveRequest: { userId, plan, requestedAt: Date.now(), approvedBy: [] },
+      leaveRequest: {
+        userId, plan,
+        // `syncedNow()` y no `Date.now()`: este timestamp identifica la ronda,
+        // va ADENTRO de cada firma de aprobación y forma parte del id derivado
+        // de los pagos de absorción. Un reloj adelantado acá los desalinea
+        // todos. Es la misma clase de T-059.
+        requestedAt: syncedNow(),
+        approvedBy: [],
+        // Marca el pedido como "las aprobaciones tienen que venir firmadas"
+        // (T-065). Los pedidos sin `v` siguen contando sin firma, para no
+        // trabar una salida ya en curso; se vencen solos.
+        v: 2 as const,
+      },
       updatedAt: syncedNow(),
     } : g);
     persist(groups);
@@ -116,12 +132,36 @@ export const useGroupStore = create<GroupStoreState>((set, get) => ({
   approveLeave: (id, userId) => {
     const groups = get().groups.map(g => {
       if (g.id !== id || !g.leaveRequest) return g;
-      if (g.leaveRequest.approvedBy.includes(userId)) return g; // idempotente
+      if (yaAprobo(g.leaveRequest, userId)) return g; // idempotente
+
+      /**
+       * La aprobación va FIRMADA (T-065). Sin firma, el conjunto se une sin
+       * preguntar quién escribió cada id y el que se va escribe los de todos
+       * los demás: `isApprovedByAll` da `true` sin una sola aprobación real y
+       * los pagos de absorción se materializan en el teléfono de todos.
+       *
+       * Si no hay privada, la aprobación se escribe igual pero sin firmar. En
+       * un pedido `v: 2` **no va a contar**, y eso es lo correcto: es preferible
+       * que la salida espere a que el dispositivo tenga identidad antes que
+       * mover plata con una autorización que nadie puede atribuir.
+       */
+      const aprobacion: LeaveApproval = { userId, approvedAt: syncedNow() };
+      const priv = privadaDelAparato();
+      const firmada = priv
+        ? (() => {
+            try {
+              return { ...aprobacion, ...signLeaveApproval(g.id, g.leaveRequest!, aprobacion, priv) };
+            } catch {
+              return aprobacion;
+            }
+          })()
+        : aprobacion;
+
       return {
         ...g,
         leaveRequest: {
           ...g.leaveRequest,
-          approvedBy: [...g.leaveRequest.approvedBy, userId],
+          approvedBy: [...g.leaveRequest.approvedBy, firmada],
         },
         updatedAt: syncedNow(),
       };

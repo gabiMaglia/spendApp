@@ -79,3 +79,24 @@ jest.mock('expo-secure-store', () => ({
   getItemAsync: jest.fn(),
   deleteItemAsync: jest.fn(),
 }));
+
+/**
+ * `react-native-safe-area-context` necesita un provider en el árbol y los tests
+ * renderizan pantallas sueltas, sin `<SafeAreaProvider>`. No hacía falta hasta
+ * el reskin del 2026-09-02 (`f8186f9`), que metió `useSafeAreaInsets` en
+ * `CollapsibleHeader` — un componente que ahora usa casi toda la app. Sin esto,
+ * 48 tests de 8 suites mueren con «No safe area value available» y el mensaje no
+ * dice nada sobre lo que el test estaba probando.
+ *
+ * Se usa el mock OFICIAL del paquete (`jest/mock`) en vez de uno propio: si el
+ * día de mañana la librería agrega un hook, el mock de ellos lo trae y el
+ * nuestro sería un archivo más que se desactualiza en silencio.
+ *
+ * Va acá y no en cada test a propósito: son 8 suites hoy y todas las pantallas
+ * mañana.
+ */
+jest.mock('react-native-safe-area-context', () =>
+  // `.default`: el mock del paquete exporta un objeto por default, no un
+  // namespace. Sin esto el módulo queda envuelto y `SafeAreaView` llega
+  // `undefined`, con un error que habla de imports mezclados y no de esto.
+  require('react-native-safe-area-context/jest/mock').default);

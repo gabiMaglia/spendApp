@@ -30,6 +30,9 @@ import { BottomSheet, SheetOption, SheetOptionAvatar } from '@/src/components/Sh
 import { Fab, FabRow } from '@/src/components/Fab';
 import { TrustMark } from '@/src/components/TrustMark';
 import { SettlementAcuse } from '@/src/components/SettlementAcuse';
+import { yaAprobo } from '@/src/algorithms/leaveRequest';
+import { verifyLeaveApproval } from '@/src/sync/leaveApprovalSign';
+import { authorKeysFor } from '@/src/sync/authorKeys';
 import { useSaldadoAcuse } from '@/src/hooks/useSaldadoAcuse';
 import { useRecordTrust } from '@/src/hooks/useRecordTrust';
 import { isMarked, type TrustState } from '@/src/algorithms/recordTrust';
@@ -109,9 +112,22 @@ export default function GroupDetailScreen() {
   const marcaDePago  = useRecordTrust('payment', pagosDelTimeline);
 
   const balances    = useGroupBalance(id ?? '', currentUser?.id ?? '');
-  const avance      = group?.leaveRequest
-    ? approvalProgress(group, group.leaveRequest)
-    : { got: 0, need: 0 };
+
+  /**
+   * El «2 de 3» cuenta las aprobaciones que VERIFICAN (T-065), igual que el que
+   * decide aplicar la salida. Si contara las crudas, un pedido con aprobaciones
+   * forjadas mostraría «3 de 3» y no pasaría nada nunca — el peor de los
+   * mundos: la pantalla diciendo que está listo y la app sin moverse.
+   *
+   * Se memoiza contra el pedido: son como mucho tantas verificaciones como
+   * miembros, y sólo mientras hay una salida pendiente.
+   */
+  const avance = useMemo(() => {
+    if (!group?.leaveRequest) return { got: 0, need: 0 };
+    return approvalProgress(group, group.leaveRequest, a =>
+      verifyLeaveApproval(group.id, group.leaveRequest!, a, authorKeysFor(a.userId, a.k)) === 'valida',
+    );
+  }, [group]);
   const mainBalance = balances.find(b => b.currency === group?.currency)?.amount ?? 0;
 
   const [menuVisible, setMenuVisible] = useState(false);
@@ -334,7 +350,7 @@ export default function GroupDetailScreen() {
                     {t('leave.withdraw')}
                   </Text>
                 </BandRow>
-              ) : !group.leaveRequest.approvedBy.includes(currentUser.id) && (
+              ) : !yaAprobo(group.leaveRequest, currentUser.id) && (
                 <BandRow
                   last
                   onPress={() => {
