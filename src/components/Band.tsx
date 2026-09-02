@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import { Pressable, StyleSheet, Text, View, type ViewStyle, ScrollView } from 'react-native';
 
 import { Colors } from '@/src/constants/colors';
 import { Spacing } from '@/src/constants/spacing';
@@ -101,10 +101,12 @@ export function BandRow({
  * Banda de estadísticas partida por divisores verticales.
  * 2 columnas = alineadas a la izquierda; 3 o más = centradas.
  */
+export type StatItem = { label: string; value: string; color?: string };
+
 export function SplitStat({
   items, sunken,
 }: {
-  items: { label: string; value: string; color?: string }[];
+  items: StatItem[];
   sunken?: boolean;
 }) {
   const c = useC();
@@ -135,6 +137,66 @@ export function SplitStat({
   );
 }
 
+/**
+ * **Cuatro indicadores en grilla 2×2** (PO 2026-09-02).
+ *
+ * `SplitStat` reparte N celdas en UNA fila: con cuatro, cada una queda de un
+ * cuarto de ancho y los montos con miles no entran — se cortan o bajan de
+ * cuerpo hasta ser ilegibles. La grilla les da la mitad del ancho a cada una y
+ * mantiene el mismo lenguaje: etiqueta chica en versalitas, número grande,
+ * hairlines separando.
+ *
+ * Toma exactamente cuatro porque la grilla es 2×2 y un hueco vacío se ve como
+ * un error. Si algún día hacen falta seis, es otro componente.
+ */
+export function StatGrid({
+  items, sunken,
+}: {
+  items: [StatItem, StatItem, StatItem, StatItem];
+  sunken?: boolean;
+}) {
+  const c = useC();
+
+  const celda = (it: StatItem, i: number) => (
+    <View
+      key={it.label}
+      style={{
+        flex: 1,
+        paddingVertical: Spacing[4],
+        paddingHorizontal: Spacing.screenPad,
+        // Sin el borde derecho en la segunda columna: cerraría la banda por
+        // adentro y se leería como una tabla, no como un bloque.
+        borderRightWidth: i % 2 === 0 ? 1 : 0,
+        borderRightColor: c.hair,
+        // Y sin el de arriba en la primera fila, por lo mismo.
+        borderTopWidth: i > 1 ? 1 : 0,
+        borderTopColor: c.hair,
+      }}
+    >
+      <Text style={[Typography.label, { color: c.textTertiary, textTransform: 'uppercase' }]}>
+        {it.label}
+      </Text>
+      <Text
+        style={[Typography.amountM, { color: it.color ?? c.text }]}
+        numberOfLines={1}
+        // Un monto largo se achica antes que cortarse: en plata, «$12.4…» no
+        // es un número más chico, es un número que no se puede leer.
+        adjustsFontSizeToFit
+        minimumFontScale={0.75}
+      >
+        {it.value}
+      </Text>
+    </View>
+  );
+
+  return (
+    <Band sunken={sunken}>
+      <View style={{ flexDirection: 'row' }}>{items.slice(0, 2).map(celda)}</View>
+      <View style={{ flexDirection: 'row' }}>{items.slice(2, 4).map((it, i) => celda(it, i + 2))}</View>
+    </Band>
+  );
+}
+
 /** Barra de progreso plana de 4-5pt. */
 export function Meter({ pct, color, height = 5 }: { pct: number; color?: string; height?: number }) {
   const c = useC();
@@ -152,15 +214,85 @@ export function Meter({ pct, color, height = 5 }: { pct: number; color?: string;
 }
 
 /** Control segmentado (Activos/Archivados, Tema, Idioma). */
+/**
+ * `control` — la pastilla, para elegir DENTRO de un formulario (cómo dividir un
+ * gasto, qué tema). `tabs` — plano, para separar el contenido de una PANTALLA
+ * (Activos/Archivados, los filtros de Actividad).
+ *
+ * Son dos trabajos distintos y por eso son dos looks. Una pastilla con sombra a
+ * nivel de página compite con el contenido y contradice el reskin plano; un
+ * subrayado adentro de un formulario no se lee como algo que se toca.
+ */
+export type SegmentedVariant = 'control' | 'tabs';
+
 export function Segmented<T extends string>({
-  options, value, onChange, compact,
+  options, value, onChange, compact, variant = 'control', scroll,
 }: {
   options: { key: T; label: string }[];
   value: T;
   onChange: (v: T) => void;
   compact?: boolean;
+  variant?: SegmentedVariant;
+  /**
+   * Para cuando las opciones son muchas y de largo variable —los filtros por
+   * grupo de Actividad—. Sin esto, N pestañas con `flex: 1` se aprietan hasta
+   * que los nombres se cortan.
+   */
+  scroll?: boolean;
 }) {
   const c = useC();
+
+  if (variant === 'tabs') {
+    const items = options.map(o => {
+      const on = o.key === value;
+      return (
+        <Pressable
+          key={o.key}
+          accessibilityRole="tab"
+          accessibilityState={{ selected: on }}
+          onPress={() => onChange(o.key)}
+          style={scroll ? styles.tabsItemScroll : styles.tabsItem}
+        >
+          <Text
+            numberOfLines={1}
+            style={{
+              fontSize: 13.5,
+              fontWeight: on ? '700' : '500',
+              color: on ? c.brand.primary : c.textTertiary,
+            }}
+          >
+            {o.label}
+          </Text>
+          {/* La barra se dibuja SIEMPRE, transparente cuando no está activa:
+              si sólo existiera en la activa, el texto saltaría 2pt al cambiar
+              de pestaña. */}
+          <View
+            style={[
+              styles.tabsBar,
+              { backgroundColor: on ? c.brand.primary : 'transparent' },
+            ]}
+          />
+        </Pressable>
+      );
+    });
+
+    if (scroll) {
+      return (
+        <View style={[styles.tabsWrap, { borderBottomColor: c.hair }]}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.tabsScrollContent}
+          >
+            {items}
+          </ScrollView>
+        </View>
+      );
+    }
+
+    return <View style={[styles.tabsWrap, { borderBottomColor: c.hair }]}>{items}</View>;
+  }
+
   return (
     <View style={[styles.segWrap, { backgroundColor: c.hair2, borderRadius: compact ? 9 : 11 }]}>
       {options.map(o => {
@@ -216,6 +348,15 @@ const styles = StyleSheet.create({
     paddingBottom: 9,
   },
   segWrap: { flexDirection: 'row', padding: 4, gap: 4 },
+  // Variante `tabs`: sin caja, sin sombra. La hairline de abajo es lo que la
+  // hace leer como una barra de pestañas y no como dos textos sueltos.
+  tabsWrap: { flexDirection: 'row', borderBottomWidth: 1 },
+  tabsItem: { flex: 1, alignItems: 'center', gap: 7, paddingTop: 10 },
+  // En scroll el ítem se dimensiona a su texto: `flex: 1` adentro de un
+  // ScrollView horizontal colapsa a cero.
+  tabsItemScroll: { alignItems: 'center', gap: 7, paddingTop: 10, paddingHorizontal: 4 },
+  tabsScrollContent: { paddingHorizontal: Spacing.screenPad - 4, gap: 14 },
+  tabsBar:  { height: 2, alignSelf: 'stretch', marginHorizontal: 12, borderRadius: 1 },
   segTab: {
     flex: 1, height: 32, borderRadius: 8,
     alignItems: 'center', justifyContent: 'center',

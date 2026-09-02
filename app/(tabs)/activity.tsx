@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Animated, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Animated, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -24,7 +24,7 @@ import { emitirVoto } from '@/src/services/deletionVotes';
 import { ActivityLine } from '@/src/components/ActivityLine';
 import type { ActivityKind } from '@/src/store/selectors';
 import { EmptyState } from '@/src/components/EmptyState';
-import { Band, SectionLabel } from '@/src/components/Band';
+import { Band, SectionLabel, Segmented } from '@/src/components/Band';
 import { TabHeader } from '@/src/components/TabHeader';
 import { useHeaderPadding } from '@/src/components/CollapsibleHeader';
 import { hapticSelection } from '@/src/utils/haptics';
@@ -152,27 +152,19 @@ export default function ActivityScreen() {
           )}
         </View>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
-          {allGroupNames.map(f => {
-            const on = activeFilter === f;
-            return (
-              <Pressable
-                key={f}
-                onPress={() => { hapticSelection(); setActiveFilter(f); }}
-                style={[
-                  styles.chip,
-                  on
-                    ? { backgroundColor: c.brand.primary, borderColor: c.brand.primary }
-                    : { backgroundColor: c.surface, borderColor: c.hair },
-                ]}
-              >
-                <Text style={{ fontSize: 12.5, fontWeight: '600', color: on ? '#fff' : c.textSecondary }}>
-                  {f === ALL_FILTER ? t('activity.filter_all') : f}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+        {/* Mismo lenguaje que el selector de Grupos: pestañas planas con
+            subrayado, no chips con relleno. Un chip lleno en verde de marca
+            compite con los montos del feed, que es lo que hay que leer. */}
+        <Segmented
+          variant="tabs"
+          scroll
+          value={activeFilter}
+          onChange={f => { hapticSelection(); setActiveFilter(f); }}
+          options={allGroupNames.map(f => ({
+            key: f,
+            label: f === ALL_FILTER ? t('activity.filter_all') : f,
+          }))}
+        />
 
         {feed.length === 0 ? (
           <EmptyState iconName="time-outline" title={t('activity.empty_title')} body={t('activity.empty_body')} />
@@ -427,8 +419,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 13, height: 40,
     borderRadius: Radius.md, borderWidth: 1,
   },
-  filters:     { paddingHorizontal: Spacing.screenPad, gap: 7, paddingBottom: 2 },
-  chip:        { paddingHorizontal: 13, paddingVertical: 7, borderRadius: Radius.full, borderWidth: 1 },
   unseenBadge: { paddingHorizontal: 9, paddingVertical: 3, borderRadius: Radius.full },
   row:         {
     flexDirection: 'row', gap: 13, alignItems: 'flex-start',

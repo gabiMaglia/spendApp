@@ -12,6 +12,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useArchiveStore } from '@/src/store/archiveStore';
+import { useExpenseStore } from '@/src/store/expenseStore';
 import { useGroupBalance, useGroupExpenseCount, useGroupsTotalBalance } from '@/src/store/selectors';
 import { Fab, FabRow } from '@/src/components/Fab';
 import { useFx } from '@/src/store/useFx';
@@ -19,7 +20,7 @@ import { sumConverted } from '@/src/services/fxTotals';
 import { GroupCard } from '@/src/components/GroupCard';
 import { SwipeToArchive } from '@/src/components/SwipeToArchive';
 import { EmptyState } from '@/src/components/EmptyState';
-import { Band, Segmented, SplitStat } from '@/src/components/Band';
+import { Band, Segmented, StatGrid } from '@/src/components/Band';
 import { TabHeader } from '@/src/components/TabHeader';
 import { useHeaderPadding } from '@/src/components/CollapsibleHeader';
 import { hapticLight } from '@/src/utils/haptics';
@@ -61,9 +62,18 @@ export default function GroupsScreen() {
   );
 
   /** Los grupos activos. No depende de la pestaña, y eso es a propósito. */
-  const activos = useMemo(
-    () => myGroups.filter(g => !archivedIds.includes(g.id)).length,
+  const idsActivos = useMemo(
+    () => new Set(myGroups.filter(g => !archivedIds.includes(g.id)).map(g => g.id)),
     [myGroups, archivedIds],
+  );
+
+  /**
+   * Gastos vivos de los grupos activos. Como los otros tres indicadores, no
+   * depende de la pestaña: los cuatro describen tu situación, no la lista que
+   * estás mirando.
+   */
+  const gastos = useExpenseStore(
+    s => s.expenses.filter(e => !e.isDeleted && idsActivos.has(e.groupId)).length,
   );
 
   return (
@@ -85,16 +95,22 @@ export default function GroupsScreen() {
             Por la misma razón el contador cuenta los grupos ACTIVOS y no los
             visibles: los saldos de al lado son globales y no se mueven, y un
             número que cambia al lado de dos que no, se lee como un error. */}
-        <SplitStat
+        {/* Cuatro indicadores en 2×2 (PO 2026-09-02). Ninguno depende de la
+            pestaña: describen tu situación, no la lista de abajo. Cambiar de
+            Activos a Archivados tiene que mover SOLO lo que está debajo del
+            selector. */}
+        <StatGrid
           items={[
+            { label: t('groups.stat_groups'),  value: String(idsActivos.size) },
+            { label: t('groups.stat_expenses'), value: String(gastos) },
             { label: t('groups.stat_owed_to_you'), value: formatMoney(owedToYou, cur), color: c.semantic.positive },
             { label: t('groups.stat_you_owe'),     value: formatMoney(youOwe, cur),    color: c.textSecondary },
-            { label: t('groups.stat_groups'),      value: String(activos) },
           ]}
         />
 
         <View style={styles.segPad}>
           <Segmented
+            variant="tabs"
             value={tabActual}
             onChange={v => { hapticLight(); setTab(v); }}
             options={[

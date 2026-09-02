@@ -128,6 +128,7 @@
     "stat_owed_to_you": "Te deben",
     "stat_you_owe": "Debés",
     "stat_groups": "Grupos",
+    "stat_expenses": "Gastos",
     "new_group": "Nuevo grupo",
     "members_count": "{{count}} miembros",
     "expenses_count": "{{count}} gastos",
