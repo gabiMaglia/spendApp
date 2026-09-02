@@ -97,6 +97,7 @@ const PAYMENT_SLOTS: Record<keyof Payment, CoreSlot> = {
   note: 'core',           // C.1e: el §1 lo había olvidado. Es del autor.
   createdAt: 'core',
   createdById: 'core',
+  confirmations: 'fuera', // T-064: el acuse lo escribe quien COBRA, no el autor
   rev: 'core',
 
   updatedAt: 'fuera',

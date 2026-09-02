@@ -59,6 +59,7 @@ export const PAYMENT: Required<Payment> = {
   rev: 2_000,
   k: '',
   s: '',
+  confirmations: [],
 };
 
 export const COMMENT: Required<ExpenseComment> = {

@@ -3,6 +3,7 @@ import type { CurrencyCode } from '@/src/constants/currencies';
 import type { Expense, Group, Payment, Transaction } from '@/src/types/models';
 import { calculateBalances, RATE_SCALE } from './calculateBalances';
 import { simplifyDebts } from './simplifyDebts';
+import { pagosQueCuentan } from './settlementStatus';
 
 export interface PersonBalance {
   userId: string;
@@ -51,8 +52,9 @@ export function calculateGlobalBalances(
       }
     }
 
-    // Aplicar pagos directos
-    const groupPayments = payments.filter(p => p.groupId === group.id && !p.isDeleted);
+    // Aplicar pagos directos. Pasa por `pagosQueCuentan` y no por un filtro a
+    // mano: un saldado que el cobrador rechazó no puede sumar acá (T-064).
+    const groupPayments = pagosQueCuentan(payments, group).filter(p => !p.isDeleted);
     for (const payment of groupPayments) {
       const currency = payment.targetCurrency ?? payment.currency;
       const amount = payment.targetCurrency && payment.exchangeRate

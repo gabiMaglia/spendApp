@@ -4,6 +4,7 @@ import type { Expense, Payment } from '@/src/types/models';
 import { calculateBalancesByCurrency } from '@/src/algorithms/calculateBalances';
 import { directedDebts, type DirectedDebt, type Transferencia } from '@/src/algorithms/directedDebts';
 import { simplifyDebts } from '@/src/algorithms/simplifyDebts';
+import { pagosQueCuentan } from '@/src/algorithms/settlementStatus';
 import { deletionRound } from '@/src/algorithms/deletionRound';
 import { syncedNow } from '@/src/utils/syncedClock';
 import { useGroupStore } from './groupStore';
@@ -26,7 +27,7 @@ export function useGroupBalance(groupId: string, userId: string): GroupBalanceEn
   return useMemo(() => {
     if (!group) return [];
     const expenses = allExpenses.filter(e => e.groupId === groupId);
-    const payments = allPayments.filter(p => p.groupId === groupId);
+    const payments = pagosQueCuentan(allPayments, group);
     const balances = calculateBalancesByCurrency(expenses, payments, group.memberIds);
     return balances.find(b => b.userId === userId)?.balances ?? [];
   }, [group, allExpenses, allPayments, groupId, userId]);
@@ -58,7 +59,7 @@ export function useGroupsTotalBalance(userId: string): GroupsTotalBalance[] {
     for (const group of groups) {
       if (group.isDeleted) continue;
       const gExpenses = expenses.filter(e => e.groupId === group.id);
-      const gPayments = payments.filter(p => p.groupId === group.id);
+      const gPayments = pagosQueCuentan(payments, group);
       const balances  = calculateBalancesByCurrency(gExpenses, gPayments, group.memberIds);
       const entry     = balances.find(b => b.userId === userId);
       if (!entry) continue;
@@ -106,7 +107,7 @@ export function useDirectedDebts(currentUserId: string): DirectedDebt[] {
       if (!group.memberIds.includes(currentUserId)) continue;
 
       const gExpenses = expenses.filter(e => e.groupId === group.id);
-      const gPayments = payments.filter(p => p.groupId === group.id);
+      const gPayments = pagosQueCuentan(payments, group);
       const balances  = calculateBalancesByCurrency(gExpenses, gPayments, group.memberIds);
 
       // Una simplificación POR GRUPO: dentro de un grupo netear es correcto
@@ -156,7 +157,7 @@ export function useGlobalPersonBalances(currentUserId: string): PersonBalance[] 
       if (!group.memberIds.includes(currentUserId)) continue;
 
       const gExpenses = expenses.filter(e => e.groupId === group.id);
-      const gPayments = payments.filter(p => p.groupId === group.id);
+      const gPayments = pagosQueCuentan(payments, group);
       const balances  = calculateBalancesByCurrency(gExpenses, gPayments, group.memberIds);
 
       for (const { userId, balances: bals } of balances) {

@@ -2,7 +2,7 @@ import { canonical, type Syncable } from './lww';
 import { canonicalCore, coreFieldsOf, type CoreKind, type CoreRecord } from '@/src/sync/recordCore';
 import { mergeDeletionVoteSets } from '@/src/sync/SyncEngine';
 import { mergeApprovals } from '@/src/algorithms/leaveRequest';
-import type { DeletionVote, LeaveRequest } from '@/src/types/models';
+import type { DeletionVote, LeaveRequest, SettlementConfirmation } from '@/src/types/models';
 
 /**
  * **Merge por niveles** (T-041 · S7).
@@ -67,6 +67,36 @@ function mismosVotos(a: readonly DeletionVote[], b: readonly DeletionVote[]): bo
   return a.length === b.length && a.every((v, i) => canonical(v) === canonical(b[i]));
 }
 
+/**
+ * Los acuses de recibo de un saldado (T-064).
+ *
+ * Se unen por contenido canónico, igual que los votos: son aportes de personas
+ * distintas y elegir uno perdería el de alguien. **No se colapsa por usuario
+ * acá**: cuál manda lo decide `estadoDelSaldado`, que ordena por `confirmedAt`
+ * y sabe que sólo cuenta el acuse de quien cobra. Un merge que ya eligiera
+ * estaría decidiendo con menos información que la que tiene el derivador.
+ */
+const unirAcuses: Union = (local, remoto) => {
+  const a = local as SettlementConfirmation[] | undefined;
+  const b = remoto as SettlementConfirmation[] | undefined;
+  if (a === undefined && b === undefined) return undefined;
+
+  const porContenido = new Map<string, SettlementConfirmation>();
+  for (const c of [...(a ?? []), ...(b ?? [])]) porContenido.set(canonical(c), c);
+
+  const unido = [...porContenido]
+    .sort(([ka, ca], [kb, cb]) =>
+      ca.confirmedAt - cb.confirmedAt || (ka < kb ? -1 : ka > kb ? 1 : 0))
+    .map(([, c]) => c);
+
+  // Misma referencia cuando no cambió nada: sin esto cada drenado del relay
+  // produce un array nuevo por cada pago, y con él un re-render y una escritura
+  // a disco cada 20 segundos. Es la lección de `unirVotos`, no una micro-opt.
+  if (a !== undefined && a.length === unido.length
+      && a.every((c, i) => canonical(c) === canonical(unido[i]))) return a;
+  return unido;
+};
+
 const unirAprobaciones: Union = (local, remoto) => {
   const a = local as LeaveRequest | undefined;
   const unido = mergeApprovals(a, remoto as LeaveRequest | undefined);
@@ -88,7 +118,7 @@ const unirAprobaciones: Union = (local, remoto) => {
  */
 const COLABORATIVOS: Record<CoreKind, readonly (readonly [string, Union])[]> = {
   expense: [['deletionVotes', unirVotos]],
-  payment: [],
+  payment: [['confirmations', unirAcuses]],
   comment: [],
   recurring: [],
   group: [['deletionVotes', unirVotos], ['leaveRequest', unirAprobaciones]],

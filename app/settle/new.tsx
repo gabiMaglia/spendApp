@@ -23,6 +23,7 @@ import { useUserStore } from '@/src/store/userStore';
 import { usePaymentStore } from '@/src/store/paymentStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { calculateBalancesByCurrency } from '@/src/algorithms/calculateBalances';
+import { pagosQueCuentan } from '@/src/algorithms/settlementStatus';
 import { suggestedSettlement } from '@/src/algorithms/settleSuggestion';
 import type { Balance } from '@/src/types/models';
 import { hapticSuccess, hapticWarning, hapticSelection } from '@/src/utils/haptics';
@@ -130,7 +131,7 @@ export default function SettleNewScreen() {
 
     const porMoneda = calculateBalancesByCurrency(
       allExpenses.filter(e => e.groupId === group.id && !e.isDeleted),
-      allPayments.filter(p => p.groupId === group.id && !p.isDeleted),
+      pagosQueCuentan(allPayments, group).filter(p => !p.isDeleted),
       group.memberIds,
     );
     return porMoneda.map(u => ({

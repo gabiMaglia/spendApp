@@ -23,7 +23,6 @@ export interface AddPaymentOpts { derived?: boolean }
 interface PaymentStoreState {
   payments: Payment[];
   isLoading: boolean;
-  getByGroupId: (groupId: string) => Payment[];
   addPayment: (payment: Payment, opts?: AddPaymentOpts) => void;
   updatePayment: (id: string, patch: Partial<Payment>) => void;
   mergePayments: (incoming: Payment[]) => void;
@@ -37,9 +36,6 @@ function persist(payments: Payment[]) {
 export const usePaymentStore = create<PaymentStoreState>((set, get) => ({
   payments: [],
   isLoading: true,
-
-  getByGroupId: (groupId) =>
-    get().payments.filter(p => p.groupId === groupId && !p.isDeleted),
 
   // Saldar una deuda tiene que verse del otro lado igual que un gasto: si no,
   // el que pagó ve su saldo en cero y el otro le sigue reclamando.

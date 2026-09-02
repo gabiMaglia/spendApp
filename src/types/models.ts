@@ -265,6 +265,27 @@ export interface Expense extends SyncMeta, CoreSigned {
 }
 
 // Payment = liquidación de deuda. No necesita consenso.
+/**
+ * El acuse de quien COBRA sobre un saldado (T-064).
+ *
+ * No es un campo de estado en el `Payment` a propósito: un `status` guardado
+ * sería LWW y cualquier peer lo pisa republicando el registro con `updatedAt`
+ * mayor. **Es exactamente T-053** —así viajaba el modo de borrado del grupo, y
+ * cualquiera lo bajaba de `consensus` a `open`—. Acá el acuse es un aporte
+ * colaborativo firmado, como los votos de borrado: se une, no se elige.
+ */
+export interface SettlementConfirmation {
+  /** Quién acusa. Al derivar el estado sólo vale el del `toUserId`. */
+  userId: string;
+  /** `syncedNow()` (ADR-005), nunca `Date.now()` — ver T-059. */
+  confirmedAt: number;
+  action: 'confirm' | 'reject';
+  /** Pública del firmante del acuse (T-041). */
+  k?: string;
+  /** Firma del enunciado del acuse, no del conjunto. */
+  s?: string;
+}
+
 export interface Payment extends SyncMeta, CoreSigned {
   groupId: string;
   fromUserId: string;
@@ -277,6 +298,13 @@ export interface Payment extends SyncMeta, CoreSigned {
   createdAt: number;
   createdById: string;
   note?: string;
+  /**
+   * Acuses de recibo. Sólo se miran en grupos `consensus` y sólo cuando el pago
+   * lo declaró quien paga: si lo declaró quien cobra, ya está dicho (D3).
+   *
+   * Fuera del núcleo firmado: lo escribe quien cobra, no el autor del pago.
+   */
+  confirmations?: SettlementConfirmation[];
 }
 
 // ── Gastos personales & presupuesto ──────────────────────────────────────────
