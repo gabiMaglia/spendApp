@@ -1,5 +1,5 @@
 import { createSecureStorage, type SecureId } from '@/src/utils/secureStorage';
-import { createStorage, type SimpleStorage } from '@/src/utils/createStorage';
+import { bucketsAbiertos, createStorage, type SimpleStorage } from '@/src/utils/createStorage';
 import { mergeAccountData, type MergeReport } from './mergeAccountData';
 import { AUTH_KEYS } from './authKeys';
 import { mergeProviderUser } from '@/src/utils/mergeProviderUser';
@@ -186,8 +186,34 @@ export function purgeMergedScopes(now: number = Date.now()): string[] {
   if (aPurgar.length === 0) return [];
 
   for (const { scope } of aPurgar) {
-    // Recorre la FUENTE ÚNICA: lo que la fusión copia es exactamente lo que
-    // esto borra, y una ranura nueva entra sola. Antes eran dos listas a mano.
+    /**
+     * **Se BARRE, no se enumera** (T-060).
+     *
+     * Antes esto recorría `RANURAS`, o sea lo que la FUSIÓN copia. Y «excluido
+     * de fusionarse» no es «excluido de borrarse»: las nueve entradas de
+     * `EXCLUIDOS_FUSION` son datos scopeados por cuenta que la fusión no hereda
+     * a propósito, y que la purga tampoco tocaba — quedaban para siempre,
+     * contra la política de gracia de 30 días que este archivo declara.
+     *
+     * El arreglo no podía ser una lista más. Es la TERCERA vez que la misma
+     * clase de bug aparece: T-055 (un guard que sólo miraba `src/store`),
+     * T-057 (fusión y purga desincronizadas) y ésta. Las tres eran una lista
+     * que alguien tenía que acordarse de actualizar.
+     *
+     * Barrer el sufijo de la cuenta en cada bucket abierto no depende de que
+     * nadie se acuerde de nada: si una clave lleva el scope, se va. El registro
+     * de buckets también se llena solo (`bucketsAbiertos`).
+     */
+    const sufijo = `${SUFIJO}${scope}`;
+    for (const bucket of bucketsAbiertos().values()) {
+      for (const key of bucket.getAllKeys()) {
+        if (key.endsWith(sufijo)) bucket.delete(key);
+      }
+    }
+
+    // Las ranuras igual, por si un bucket todavía no se abrió en este arranque:
+    // un módulo con import perezoso no está registrado hasta que alguien lo
+    // toca, y la purga corre temprano.
     for (const r of RANURAS) r.storage().delete(r.key(scope));
   }
 

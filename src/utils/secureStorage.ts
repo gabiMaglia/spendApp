@@ -3,6 +3,7 @@ import {
   loadMMKVClass,
   logStorageFailure,
   type SimpleStorage,
+  registrarBucket,
 } from './createStorage';
 import { getOrCreateEncryptionKey } from './encryptionKey';
 
@@ -97,10 +98,15 @@ class SecureLazyStorage implements SimpleStorage {
   getNumber(k: string) { return this.impl().getNumber(k); }
   delete(k: string) { this.impl().delete(k); }
   contains(k: string) { return this.impl().contains(k); }
+  getAllKeys() { return this.impl().getAllKeys(); }
   clearAll() { this.impl().clearAll(); }
 }
 
 /** Storage CIFRADO at-rest para datos sensibles. Ver SECURE_IDS. */
 export function createSecureStorage(id: SecureId): SimpleStorage {
-  return new SecureLazyStorage(id);
+  // Se registra el PROXY, no la instancia cifrada: el bucket real todavía no
+  // existe cuando esto corre (se crea en el bootstrap) y el proxy ya sabe
+  // encontrarlo. Sin registrar, la purga por barrido no vería los buckets
+  // cifrados, que son justo donde vive la data del usuario.
+  return registrarBucket(id, new SecureLazyStorage(id));
 }

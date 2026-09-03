@@ -38,6 +38,11 @@ jest.mock('react-native-mmkv', () => {
         getBoolean: (key: string) => store.get(key) as boolean | undefined,
         delete: (key: string) => store.delete(key),
         contains: (key: string) => store.has(key),
+        // La purga de scopes BARRE el bucket buscando el sufijo de la cuenta
+        // en vez de enumerar qué guardó cada módulo (T-060). Sin esto en el
+        // mock, el barrido no existe en los tests y el bug que cierra volvería
+        // sin que nada fallara.
+        getAllKeys: () => [...store.keys()],
         clearAll: () => store.clear(),
         recrypt: (_key?: string) => {},
       };

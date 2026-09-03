@@ -9,6 +9,7 @@ export class MemoryStorage {
   getNumber(key: string): number | undefined   { return this.store.get(key) as number  | undefined; }
   delete(key: string)  { this.store.delete(key); }
   contains(key: string): boolean { return this.store.has(key); }
+  getAllKeys(): string[] { return [...this.store.keys()]; }
   clearAll() { this.store.clear(); }
 }
 
@@ -19,6 +20,15 @@ export interface SimpleStorage {
   getNumber(key: string): number | undefined;
   delete(key: string): void;
   contains(key: string): boolean;
+  /**
+   * Todas las claves del bucket.
+   *
+   * Existe para que la purga de scopes NO dependa de una lista (T-060): puede
+   * BARRER el bucket buscando el sufijo de la cuenta en vez de enumerar qué
+   * guardó cada módulo. Enumerar es lo que se desincronizó tres veces seguidas
+   * — T-055, T-057 y T-060 son el mismo bug con distinta lista.
+   */
+  getAllKeys(): string[];
   clearAll(): void;
 }
 
@@ -66,17 +76,47 @@ export function loadMMKVClass(): any | null {
 // Storage en claro (sin cifrar). Para datos NO sensibles con lectura síncrona
 // al importar (tema, idioma, settings, tier). Los datos financieros usan
 // createSecureStorage (cifrado) — ver src/utils/secureStorage.ts.
+/**
+ * **Todos los buckets que la app llegó a abrir.**
+ *
+ * Se llena solo: abrir un bucket lo registra. Existe para que la purga de
+ * scopes (T-060) pueda BARRER en vez de enumerar — enumerar es lo que se
+ * desincronizó tres veces (T-055, T-057, T-060), siempre igual: una lista que
+ * alguien tenía que acordarse de actualizar.
+ *
+ * Un bucket entra cuando su módulo se importa, y todos los que guardan data por
+ * cuenta se importan en el arranque, antes de que la purga corra.
+ */
+const BUCKETS = new Map<string, SimpleStorage>();
+
+export function bucketsAbiertos(): ReadonlyMap<string, SimpleStorage> {
+  return BUCKETS;
+}
+
+/** Sólo para tests: olvida los buckets registrados. */
+export function __resetBuckets(): void {
+  BUCKETS.clear();
+}
+
 export function createStorage(id: string): SimpleStorage {
+  const yaAbierto = BUCKETS.get(id);
+  if (yaAbierto) return yaAbierto;
+
   const MMKV = loadMMKVClass();
-  if (!MMKV) return new MemoryStorage();
+  if (!MMKV) return registrarBucket(id, new MemoryStorage());
   try {
     const mmkv = new MMKV({ id });
     // Prueba de humo: forzamos un acceso nativo para que un fallo de linkeo
     // (JSI) salte ACÁ y no más tarde silenciosamente.
     mmkv.contains('__probe__');
-    return mmkv;
+    return registrarBucket(id, mmkv);
   } catch (e) {
     logStorageFailure(id, e);
-    return new MemoryStorage();
+    return registrarBucket(id, new MemoryStorage());
   }
+}
+
+export function registrarBucket(id: string, storage: SimpleStorage): SimpleStorage {
+  BUCKETS.set(id, storage);
+  return storage;
 }

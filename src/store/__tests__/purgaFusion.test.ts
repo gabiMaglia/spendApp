@@ -146,3 +146,91 @@ describe('(b) nadie puede armar una clave scopeada por fuera de la fuente única
     expect(perfil?.key(APPLE)).toBe(profileKey(APPLE));
   });
 });
+
+/**
+ * **T-060: «excluido de fusionarse» no es «excluido de borrarse».**
+ *
+ * `EXCLUIDOS_FUSION` declara nueve módulos que guardan data scopeada por cuenta
+ * y que la fusión NO hereda a propósito —cachés, mediciones, acuses locales—.
+ * La purga tampoco los tocaba, porque recorría lo que la fusión copia. Quedaban
+ * bajo el scope absorbido **para siempre**, contra la política de gracia de 30
+ * días que `accountLink` declara.
+ *
+ * Es la TERCERA vez que aparece la misma clase: T-055 (un guard que sólo miraba
+ * `src/store`), T-057 (fusión y purga como dos listas a mano) y ésta. Por eso
+ * el arreglo no es otra lista: la purga **barre** el sufijo de la cuenta en
+ * cada bucket abierto. Si una clave lleva el scope, se va — sin que nadie tenga
+ * que acordarse de declararla.
+ */
+describe('(d) T-060 · la purga alcanza lo que la fusión NO copia', () => {
+  /** Las dos que el backlog nombró, más una de cada bucket excluido. */
+  const EXCLUIDAS: [string, string][] = [
+    ['notices', 'sync_down_v1'],
+    ['users',   'card_sent_v1'],
+    ['users',   'author_keys_v1'],
+    ['users',   'record_verdicts_v1'],
+    ['users',   'ratchet_v1'],
+  ];
+
+  const claveDe = (base: string, uid: string) => `${base}::u:${uid}`;
+
+  function sembrarExcluidas(uid: string): void {
+    for (const [bucket, base] of EXCLUIDAS) {
+      createSecureStorage(bucket as never).set(claveDe(base, uid), `sembrado:${uid}`);
+    }
+  }
+
+  function excluidasQueQuedan(uid: string): string[] {
+    return EXCLUIDAS
+      .filter(([bucket, base]) => createSecureStorage(bucket as never).contains(claveDe(base, uid)))
+      .map(([bucket, base]) => `${bucket}/${base}`);
+  }
+
+  it('las claves excluidas de la fusión SÍ se purgan', () => {
+    sembrarTodo(APPLE);
+    sembrarExcluidas(APPLE);
+    mergeAccounts(APPLE, GOOGLE);
+
+    expect(excluidasQueQuedan(APPLE)).toHaveLength(EXCLUIDAS.length);   // siguen ahí durante la gracia
+    purgeMergedScopes(TARDE);
+
+    expect(excluidasQueQuedan(APPLE)).toEqual([]);
+  });
+
+  it('y no se lleva puestas las del scope que se queda', () => {
+    sembrarExcluidas(APPLE);
+    sembrarExcluidas(GOOGLE);
+    mergeAccounts(APPLE, GOOGLE);
+
+    purgeMergedScopes(TARDE);
+
+    expect(excluidasQueQuedan(GOOGLE)).toHaveLength(EXCLUIDAS.length);
+  });
+
+  /**
+   * El barrido es por SUFIJO exacto. Dos cuentas cuyos ids comparten el final
+   * —o una clave que casualmente termine parecido— no pueden confundirse.
+   */
+  it('no borra el scope de una cuenta cuyo id termina parecido', () => {
+    const parecido = `x${APPLE}`;
+    createSecureStorage('notices').set(claveDe('sync_down_v1', parecido), 'ajeno');
+    sembrarExcluidas(APPLE);
+    mergeAccounts(APPLE, GOOGLE);
+
+    purgeMergedScopes(TARDE);
+
+    expect(createSecureStorage('notices').contains(claveDe('sync_down_v1', parecido))).toBe(true);
+  });
+
+  // Una clave sin scope —de antes del aislamiento por cuenta— no le pertenece
+  // a nadie y no se toca.
+  it('no toca las claves sin scope', () => {
+    createSecureStorage('notices').set('inbox_v1', 'legacy');
+    sembrarTodo(APPLE);
+    mergeAccounts(APPLE, GOOGLE);
+
+    purgeMergedScopes(TARDE);
+
+    expect(createSecureStorage('notices').contains('inbox_v1')).toBe(true);
+  });
+});
