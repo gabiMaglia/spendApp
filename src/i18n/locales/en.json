@@ -332,7 +332,6 @@
     "date_label": "Date",
     "currency_label": "Currency",
     "note_placeholder": "Mercado Pago transfer…",
-    "confirmation": "Confirming sets your balance with {{name}} to $0 in this group. Recorded instantly and synced.",
     "exchange_rate_label": "Exchange rate",
     "exchange_rate_source": "{{source}} · updated {{time}} ago",
     "equivalent": "Equivalent to",

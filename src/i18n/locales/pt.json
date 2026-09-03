@@ -332,7 +332,6 @@
     "date_label": "Data",
     "currency_label": "Moeda",
     "note_placeholder": "Transferência Pix…",
-    "confirmation": "Ao confirmar, seu saldo com {{name}} passa a zero neste grupo. É registrado na hora e sincronizado com os outros membros.",
     "exchange_rate_label": "Taxa de câmbio",
     "exchange_rate_source": "{{source}} · atualizado há {{time}}",
     "equivalent": "Equivale a",
