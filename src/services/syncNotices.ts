@@ -158,17 +158,29 @@ export function noticesFor(
     }
 
     /**
-     * Una restauración que ACABA de llegar.
+     * Un gasto que ACABA de volver de estar borrado.
      *
-     * La condición que la hace un evento es `teniaBorrados`: el gasto tiene que
-     * haber estado borrado en ESTE teléfono. Mirar sólo el estado de la ronda
+     * La condición que lo hace un evento es `teniaBorrados`: tiene que haber
+     * estado borrado en ESTE teléfono. Mirar sólo el estado de la ronda
      * avisaría de nuevo en cada recálculo, y le anunciaría a un device recién
      * llegado restauraciones que pasaron hace meses.
+     *
+     * **Antes también exigía que la ronda quedara en `restored`, y eso dejaba
+     * un camino mudo** (T-061): un peer que manda `isDeleted: false` con un
+     * `updatedAt` mayor —LWW puro, sin voto de restauración— hace reaparecer el
+     * gasto sin abrir ninguna ronda. El gasto volvía a contar en el balance y
+     * no se enteraba nadie. Es el caso MÁS necesitado de aviso, no el menos:
+     * cuando hay voto por lo menos queda quién y por qué.
+     *
+     * El arreglo saca una condición en vez de agregar un caso. Llegar acá ya
+     * significa que el gasto está vivo —el `continue` de arriba descarta los
+     * borrados— y `teniaBorrados` significa que antes no lo estaba. Eso ES la
+     * restauración. Lo único que sigue exceptuado es haberla hecho uno mismo.
      */
     if (teniaBorrados.has(e.id)) {
       const ronda = deletionRound(e, now);
-      // Quien restauró ya sabe: no se le cuenta lo que acaba de hacer.
-      if (ronda?.status === 'restored' && ronda.stoppedBy !== currentUserId) {
+      const loRestauréYo = ronda?.status === 'restored' && ronda.stoppedBy === currentUserId;
+      if (!loRestauréYo) {
         restauraciones.push({
           kind: 'restored',
           groupId: e.groupId,

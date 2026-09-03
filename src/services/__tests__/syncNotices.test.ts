@@ -198,12 +198,47 @@ describe('restauraciones', () => {
     expect(kinds(n)).toEqual(['restored']);
   });
 
-  it('una objeción no es una restauración', () => {
+  /**
+   * Frenar un borrado que NUNCA se aplicó en este teléfono no es una
+   * restauración: no cambió nada de lo que el usuario veía. Lo que lo hace un
+   * evento es haberlo tenido borrado, no el estado de la ronda.
+   */
+  it('una objeción a un borrado que nunca se aplicó acá no avisa', () => {
     const objetado = conOver({ deletionVotes: [
       { userId: OTRO, votedAt: AHORA - 1000, action: 'delete' },
       { userId: OTRO2, votedAt: AHORA, action: 'cancel' },
     ] });
-    expect(noticesFor(loTeniaBorrado, [objetado], [grupo()], YO, AHORA)).toEqual([]);
+    const nuncaLoTuveBorrado = {
+      expenseIds: ['e1'], conBorradoAbierto: ['e1'], paymentIds: [], borrados: [],
+    };
+    expect(noticesFor(nuncaLoTuveBorrado, [objetado], [grupo()], YO, AHORA)).toEqual([]);
+  });
+
+  /**
+   * **T-061.** Un peer manda `isDeleted: false` con un `updatedAt` mayor —LWW
+   * puro, sin voto de restauración— y el gasto reaparece sin abrir ninguna
+   * ronda. Vuelve a contar en el balance.
+   *
+   * Antes la condición exigía que la ronda quedara en `restored`, así que este
+   * camino era MUDO. Y es el más necesitado de aviso, no el menos: cuando hay
+   * voto por lo menos queda quién y por qué; acá no queda nada.
+   */
+  it('un gasto que vuelve por LWW puro, SIN voto, también avisa', () => {
+    const volvioSolo = conOver({ isDeleted: false, deletionVotes: [] });
+    expect(noticesFor(loTeniaBorrado, [volvioSolo], [grupo()], YO, AHORA)).toEqual([{
+      kind: 'restored', groupId: 'g1', groupName: 'Viaje', description: 'Pizza',
+    }]);
+  });
+
+  // Volver con una ronda que quedó a medias —pedido y objeción, sin `restore`—
+  // sigue siendo el gasto reapareciendo en mi teléfono.
+  it('y también si vuelve con una ronda que no terminó en restaurado', () => {
+    const objetadoYVivo = conOver({ isDeleted: false, deletionVotes: [
+      { userId: OTRO, votedAt: AHORA - 1000, action: 'delete' },
+      { userId: OTRO2, votedAt: AHORA, action: 'cancel' },
+    ] });
+    expect(kinds(noticesFor(loTeniaBorrado, [objetadoYVivo], [grupo()], YO, AHORA)))
+      .toEqual(['restored']);
   });
 
   it('un gasto de un grupo que no tengo no avisa su restauración', () => {
