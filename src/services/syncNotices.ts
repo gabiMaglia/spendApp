@@ -74,6 +74,33 @@ export type Notice =
    */
   | { kind: 'sync_down'; groupId: string; groupName: string; reason: BlockingReason };
 
+/**
+ * ¿Este aviso pide que el usuario HAGA algo, o sólo informa? (T-062)
+ *
+ * Sólo `deletion`, `settlement_pending` y `sync_down` tienen algo que el
+ * usuario deba resolver; el resto es historia. Switch exhaustivo A PROPÓSITO,
+ * sin `default`: el tipo de retorno obliga a cubrir los siete casos, así que
+ * agregar un `kind` a `Notice` sin decidir acá no compila (mismo patrón que
+ * `claveDeFalloDeSync` en `sync/useSyncFailure.ts`).
+ *
+ * Es la cuarta vez que este repo necesita esta clasificación — T-055, T-057,
+ * T-060 y la clasificación por descarte de T-063 — y todas las anteriores
+ * eran una lista aparte que se desincronizaba del tipo. Ésta no puede.
+ */
+export function esAccionable(kind: Notice['kind']): boolean {
+  switch (kind) {
+    case 'deletion':
+    case 'settlement_pending':
+    case 'sync_down':
+      return true;
+    case 'expenses':
+    case 'settled':
+    case 'restored':
+    case 'joined':
+      return false;
+  }
+}
+
 export type Snapshot = {
   /** Ids de gastos vivos conocidos ANTES de la bajada. */
   expenseIds: string[];

@@ -1,4 +1,4 @@
-import { snapshot, noticesFor, type Notice } from '../syncNotices';
+import { snapshot, noticesFor, esAccionable, type Notice } from '../syncNotices';
 import { DELETION_TIMEOUT_MS } from '@/src/sync/SyncEngine';
 import type { Expense, Group, Payment } from '@/src/types/models';
 
@@ -364,5 +364,26 @@ describe('avisos de saldo', () => {
     const antes = snapshot([], 0, []);
     const avisos = noticesFor(antes, [], grupos, 'yo', 0, [pago({ isDeleted: true })]);
     expect(avisos.some(a => a.kind === 'settled')).toBe(false);
+  });
+});
+
+describe('esAccionable (T-062)', () => {
+  it('deletion, settlement_pending y sync_down piden acción; el resto sólo informa', () => {
+    // `Record<Notice['kind'], boolean>` en vez de dos ejemplos sueltos: si se
+    // agrega un `kind` a `Notice` sin decidir acá, este objeto deja de
+    // compilar — la exhaustividad la garantiza el tipo, no el `expect` de abajo.
+    const clasificacion: Record<Notice['kind'], boolean> = {
+      deletion: esAccionable('deletion'),
+      settlement_pending: esAccionable('settlement_pending'),
+      sync_down: esAccionable('sync_down'),
+      expenses: esAccionable('expenses'),
+      settled: esAccionable('settled'),
+      restored: esAccionable('restored'),
+      joined: esAccionable('joined'),
+    };
+    expect(clasificacion).toEqual({
+      deletion: true, settlement_pending: true, sync_down: true,
+      expenses: false, settled: false, restored: false, joined: false,
+    });
   });
 });

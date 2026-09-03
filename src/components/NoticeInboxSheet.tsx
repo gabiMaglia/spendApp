@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
@@ -8,8 +8,13 @@ import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { textFor } from '@/src/services/notifications';
+import { esAccionable } from '@/src/services/syncNotices';
 import type { StoredNotice } from '@/src/store/noticeInboxStore';
 import { BottomSheet } from './Sheet';
+import { Segmented } from './Band';
+
+/** Todo = la bandeja de siempre. Acción = sólo lo que pide algo (T-062). */
+type Tab = 'todo' | 'accion';
 
 /**
  * La bandeja: qué pasó mientras no mirabas.
@@ -31,6 +36,20 @@ export function NoticeInboxSheet({
   const c = Colors[scheme];
   const { t } = useTranslation();
   const haySinLeer = items.some(i => i.readAt === null);
+
+  const [tab, setTab] = useState<Tab>('todo');
+
+  /**
+   * La pestaña es de ESTA apertura, no del historial de la bandeja.
+   *
+   * Sin este reset, cerrar en «Acción» y volver a abrir dejaría a alguien
+   * mirando la pestaña filtrada sin haberla elegido — y sin darse cuenta de
+   * que la bandeja tiene más avisos de los que ve.
+   */
+  useEffect(() => { if (visible) setTab('todo'); }, [visible]);
+
+  const accionSinLeer = items.filter(i => esAccionable(i.notice.kind) && i.readAt === null).length;
+  const listaVisible = tab === 'accion' ? items.filter(i => esAccionable(i.notice.kind)) : items;
 
   return (
     <BottomSheet visible={visible} onClose={onClose}>
@@ -58,33 +77,62 @@ export function NoticeInboxSheet({
           </Text>
         </View>
       ) : (
-        <ScrollView style={styles.lista}>
-          {items.map(item => {
-            const { title, body } = textFor(item.notice);
-            const sinLeer = item.readAt === null;
-            return (
-              <Pressable
-                key={item.id}
-                testID={`notice-${item.id}`}
-                accessibilityRole="button"
-                onPress={() => onOpenNotice(item)}
-                style={[styles.item, { backgroundColor: sinLeer ? c.brand.primarySoft : c.surfaceSunken }]}
-              >
-                <View style={[styles.punto, { backgroundColor: sinLeer ? c.brand.primary : 'transparent' }]} />
-                <View style={{ flex: 1 }}>
-                  <Text style={[Typography.bodyM, {
-                    color: sinLeer ? c.text : c.textSecondary,
-                    fontWeight: sinLeer ? '700' : '500',
-                  }]}>
-                    {title}
-                  </Text>
-                  <Text style={[Typography.bodyS, { color: c.textTertiary }]}>{body}</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={15} color={c.textTertiary} />
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+        <>
+          <Segmented
+            variant="tabs"
+            value={tab}
+            onChange={setTab}
+            options={[
+              { key: 'todo', label: t('notifications.tab_all') },
+              {
+                key: 'accion',
+                label: accionSinLeer > 0
+                  ? t('notifications.tab_action_count', { count: accionSinLeer })
+                  : t('notifications.tab_action'),
+              },
+            ]}
+          />
+
+          {tab === 'accion' && listaVisible.length === 0 ? (
+            <View testID="inbox-empty-action" style={styles.vacio}>
+              <Ionicons name="checkmark-done-outline" size={26} color={c.textTertiary} />
+              <Text style={[Typography.bodyM, { color: c.textSecondary, fontWeight: '600' }]}>
+                {t('notifications.inbox_empty_action')}
+              </Text>
+              <Text style={[Typography.bodyS, { color: c.textTertiary, textAlign: 'center' }]}>
+                {t('notifications.inbox_empty_action_hint')}
+              </Text>
+            </View>
+          ) : (
+            <ScrollView style={styles.lista}>
+              {listaVisible.map(item => {
+                const { title, body } = textFor(item.notice);
+                const sinLeer = item.readAt === null;
+                return (
+                  <Pressable
+                    key={item.id}
+                    testID={`notice-${item.id}`}
+                    accessibilityRole="button"
+                    onPress={() => onOpenNotice(item)}
+                    style={[styles.item, { backgroundColor: sinLeer ? c.brand.primarySoft : c.surfaceSunken }]}
+                  >
+                    <View style={[styles.punto, { backgroundColor: sinLeer ? c.brand.primary : 'transparent' }]} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={[Typography.bodyM, {
+                        color: sinLeer ? c.text : c.textSecondary,
+                        fontWeight: sinLeer ? '700' : '500',
+                      }]}>
+                        {title}
+                      </Text>
+                      <Text style={[Typography.bodyS, { color: c.textTertiary }]}>{body}</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={15} color={c.textTertiary} />
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          )}
+        </>
       )}
     </BottomSheet>
   );
