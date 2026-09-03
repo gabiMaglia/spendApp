@@ -1,4 +1,4 @@
-import { snapshot, noticesFor, esAccionable, type Notice } from '../syncNotices';
+import { snapshot, noticesFor, esAccionable, msRestanteDeBorrado, type Notice } from '../syncNotices';
 import { DELETION_TIMEOUT_MS } from '@/src/sync/SyncEngine';
 import type { Expense, Group, Payment } from '@/src/types/models';
 
@@ -92,7 +92,7 @@ describe('pedidos de borrado', () => {
     const antes = { expenseIds: ['e1'], conBorradoAbierto: [], paymentIds: [], borrados: [] };
     const n = noticesFor(antes, [pedido(OTRO)], [grupo()], YO, AHORA);
     expect(n).toEqual([{
-      kind: 'deletion', groupId: 'g1', groupName: 'Viaje', description: 'Pizza',
+      kind: 'deletion', groupId: 'g1', groupName: 'Viaje', description: 'Pizza', expenseId: 'e1',
     }]);
   });
 
@@ -385,5 +385,54 @@ describe('esAccionable (T-062)', () => {
       deletion: true, settlement_pending: true, sync_down: true,
       expenses: false, settled: false, restored: false, joined: false,
     });
+  });
+});
+
+describe('msRestanteDeBorrado (T-071)', () => {
+  const abierto = (userId: string, at = AHORA) =>
+    conOver({ id: 'e1', deletionVotes: [{ userId, votedAt: at, action: 'delete' }] });
+
+  const avisoDeGastos: Notice = { kind: 'expenses', groupId: 'g1', groupName: 'Viaje', count: 1 };
+  const avisoDeBorrado: Notice = {
+    kind: 'deletion', groupId: 'g1', groupName: 'Viaje', description: 'Pizza', expenseId: 'e1',
+  };
+
+  it('un Notice que no es de borrado nunca promete tiempo', () => {
+    expect(msRestanteDeBorrado(avisoDeGastos, [abierto(OTRO)], AHORA)).toBeNull();
+  });
+
+  it('un aviso viejo sin expenseId no rompe nada: no promete tiempo', () => {
+    const viejo: Notice = { kind: 'deletion', groupId: 'g1', groupName: 'Viaje', description: 'Pizza' };
+    expect(msRestanteDeBorrado(viejo, [abierto(OTRO)], AHORA)).toBeNull();
+  });
+
+  it('un gasto que ya no está en el store no rompe nada', () => {
+    expect(msRestanteDeBorrado(avisoDeBorrado, [], AHORA)).toBeNull();
+  });
+
+  it('una ronda vencida no promete un plazo que no existe', () => {
+    const vencido = abierto(OTRO, AHORA - DELETION_TIMEOUT_MS - 1);
+    expect(msRestanteDeBorrado(avisoDeBorrado, [vencido], AHORA)).toBeNull();
+  });
+
+  it('una ronda objetada tampoco promete tiempo', () => {
+    const objetado = conOver({ id: 'e1', deletionVotes: [
+      { userId: OTRO, votedAt: AHORA, action: 'delete' },
+      { userId: YO, votedAt: AHORA, action: 'cancel' },
+    ] });
+    expect(msRestanteDeBorrado(avisoDeBorrado, [objetado], AHORA)).toBeNull();
+  });
+
+  it('un gasto que ya se borró (la ronda se aplicó) no promete tiempo', () => {
+    const yaBorrado = conOver({ id: 'e1', isDeleted: true, deletionVotes: [
+      { userId: OTRO, votedAt: AHORA - DELETION_TIMEOUT_MS - 1, action: 'delete' },
+    ] });
+    expect(msRestanteDeBorrado(avisoDeBorrado, [yaBorrado], AHORA)).toBeNull();
+  });
+
+  it('una ronda abierta y vigente devuelve lo que falta de verdad, no un string fijo', () => {
+    const faltaUnDia = DELETION_TIMEOUT_MS - 24 * 3600_000;
+    const abiertoHaceRato = abierto(OTRO, AHORA - faltaUnDia);
+    expect(msRestanteDeBorrado(avisoDeBorrado, [abiertoHaceRato], AHORA)).toBe(24 * 3600_000);
   });
 });

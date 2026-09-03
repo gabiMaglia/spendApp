@@ -4,6 +4,10 @@ import { NoticeBell } from '../NoticeBell';
 import { NoticeInboxSheet } from '../NoticeInboxSheet';
 import type { StoredNotice } from '@/src/store/noticeInboxStore';
 import type { Notice } from '@/src/services/syncNotices';
+import type { Expense } from '@/src/types/models';
+import { DELETION_TIMEOUT_MS } from '@/src/sync/SyncEngine';
+
+const AHORA = 10_000_000;
 
 const NOTICE_GASTOS: Notice = { kind: 'expenses', groupId: 'g1', groupName: 'Asado', count: 2 };
 
@@ -13,12 +17,25 @@ const item = (id: string, readAt: number | null, notice: Notice = NOTICE_GASTOS)
 
 // Los tres kinds accionables (T-062: deletion, settlement_pending, sync_down)
 // y dos informativos, para armar los escenarios de las pestañas.
+//
+// `borrado` NO lleva `expenseId` a propósito: es el aviso «viejo» de antes de
+// T-071 (o cualquiera sin gasto vivo detrás), así que nunca cuenta como ronda
+// VIVA — se usa donde el test sólo necesita un `deletion` que exista, no uno
+// con plazo. Los escenarios de plazo/contador-vivo tienen su propio describe.
 const borrado: Notice = { kind: 'deletion', groupId: 'g1', groupName: 'Asado', description: 'Vino' };
 const pendiente: Notice = {
   kind: 'settlement_pending', groupId: 'g1', groupName: 'Asado',
   paymentId: 'p1', amount: 500, currency: 'ARS',
 };
 const caido: Notice = { kind: 'sync_down', groupId: 'g1', groupName: 'Asado', reason: 'too_large' };
+
+/** Un gasto con una ronda de borrado abierta desde `votedAt`. */
+const gastoConRonda = (id: string, votedAt: number): Expense => ({
+  id, groupId: 'g1', description: 'Vino', amount: 100, currency: 'ARS',
+  paidById: 'ana', createdById: 'ana', splits: [], date: 0,
+  createdAt: 0, updatedAt: 0, isDeleted: false,
+  deletionVotes: [{ userId: 'ana', votedAt, action: 'delete' }],
+} as unknown as Expense);
 
 describe('NoticeBell', () => {
   it('sin avisos sin leer no muestra badge', () => {
@@ -45,7 +62,10 @@ describe('NoticeBell', () => {
 });
 
 describe('NoticeInboxSheet', () => {
-  const props = { visible: true, onClose: jest.fn(), onOpenNotice: jest.fn(), onMarkAll: jest.fn() };
+  const props = {
+    visible: true, onClose: jest.fn(), onOpenNotice: jest.fn(), onMarkAll: jest.fn(),
+    expenses: [] as Expense[], now: AHORA,
+  };
 
   it('sin avisos muestra el vacio explicado, no una lista en blanco', () => {
     const { getByTestId } = render(<NoticeInboxSheet {...props} items={[]} />);
@@ -99,13 +119,16 @@ describe('NoticeInboxSheet', () => {
     });
 
     it('la pestaña Acción cuenta los accionables SIN LEER, no los pendientes de resolver', () => {
+      // 'a' es un borrado VIVO (T-071: cuenta por ronda abierta, no por leído).
+      const vivo: Notice = { kind: 'deletion', groupId: 'g1', groupName: 'Asado', description: 'Vino', expenseId: 'e1' };
+      const gasto = gastoConRonda('e1', AHORA - 1000);
       const items = [
-        item('a', null, borrado),       // accionable, sin leer
+        item('a', null, vivo),          // accionable, ronda viva
         item('b', null, pendiente),     // accionable, sin leer
         item('c', 2_000, caido),        // accionable, YA leído: no cuenta
         item('d', null, NOTICE_GASTOS), // informativo sin leer: no cuenta
       ];
-      const { getByText } = render(<NoticeInboxSheet {...props} items={items} />);
+      const { getByText } = render(<NoticeInboxSheet {...props} items={items} expenses={[gasto]} />);
       expect(getByText('notifications.tab_action_count({"count":2})')).toBeTruthy();
     });
 
@@ -133,8 +156,12 @@ describe('NoticeInboxSheet', () => {
       expect(getByTestId('notice-d')).toBeTruthy();
     });
 
+    // `pendiente` (settlement_pending) y no `borrado`: ESTE es un kind que
+    // sigue contando por «sin leer» sin cambios (T-062). El comportamiento
+    // especial de `deletion` — cuenta por ronda viva, leerlo no lo baja —
+    // tiene su propio describe más abajo (T-071).
     it('leer uno de los accionables baja el contador de la pestaña', () => {
-      const sinLeer = [item('a', null, borrado), item('b', null, caido)];
+      const sinLeer = [item('a', null, pendiente), item('b', null, caido)];
       const { getByText, rerender } = render(<NoticeInboxSheet {...props} items={sinLeer} />);
       expect(getByText('notifications.tab_action_count({"count":2})')).toBeTruthy();
 
@@ -146,7 +173,7 @@ describe('NoticeInboxSheet', () => {
     });
 
     it('«marcar todo como leído» deja la pestaña Acción sin número', () => {
-      const sinLeer = [item('a', null, borrado)];
+      const sinLeer = [item('a', null, pendiente)];
       const { getByText, rerender, queryByText } = render(<NoticeInboxSheet {...props} items={sinLeer} />);
       expect(getByText('notifications.tab_action_count({"count":1})')).toBeTruthy();
 
@@ -185,6 +212,75 @@ describe('NoticeInboxSheet', () => {
       rerender(<NoticeInboxSheet {...props} visible items={items} />);
 
       expect(getByTestId('notice-a')).toBeTruthy(); // de vuelta en Todo
+    });
+  });
+
+  describe('el plazo del pedido de borrado (T-071)', () => {
+    const notice = (expenseId?: string): Notice => ({
+      kind: 'deletion', groupId: 'g1', groupName: 'Asado', description: 'Vino', expenseId,
+    });
+
+    it('la fila muestra el tiempo que falta de verdad, no el «72hs» fijo', () => {
+      const faltaUnDia = 24 * 3600_000;
+      const gasto = gastoConRonda('e1', AHORA - (DELETION_TIMEOUT_MS - faltaUnDia));
+      const { getByText, queryByText } = render(
+        <NoticeInboxSheet {...props} items={[item('a', null, notice('e1'))]} expenses={[gasto]} />,
+      );
+      expect(getByText(/notifications\.deletion_remaining/)).toBeTruthy();
+      // El texto fijo de la notificación push (siempre «72hs») NO es lo que se
+      // dibuja acá — sería prometer un plazo que puede ya no ser cierto.
+      expect(queryByText(/notifications\.deletion_requested/)).toBeNull();
+    });
+
+    it('una ronda vencida no promete un plazo que no existe', () => {
+      const gasto = gastoConRonda('e1', AHORA - DELETION_TIMEOUT_MS - 1);
+      const { getByText, queryByText } = render(
+        <NoticeInboxSheet {...props} items={[item('a', null, notice('e1'))]} expenses={[gasto]} />,
+      );
+      expect(getByText(/notifications\.deletion_no_time/)).toBeTruthy();
+      expect(queryByText(/notifications\.deletion_remaining/)).toBeNull();
+    });
+
+    it('un aviso viejo sin expenseId no rompe nada: se dibuja sin tiempo', () => {
+      const { getByText } = render(
+        <NoticeInboxSheet {...props} items={[item('a', null, notice(undefined))]} />,
+      );
+      expect(getByText(/notifications\.deletion_no_time/)).toBeTruthy();
+    });
+
+    it('un gasto cuyo expenseId ya no está en el store tampoco rompe nada', () => {
+      const { getByText } = render(
+        <NoticeInboxSheet {...props} items={[item('a', null, notice('fantasma'))]} expenses={[]} />,
+      );
+      expect(getByText(/notifications\.deletion_no_time/)).toBeTruthy();
+    });
+
+    it('la pestaña Acción cuenta rondas de borrado VIVAS, aunque estén leídas', () => {
+      const faltaUnDia = 24 * 3600_000;
+      const gasto = gastoConRonda('e1', AHORA - (DELETION_TIMEOUT_MS - faltaUnDia));
+      // LEÍDO (readAt !== null): el silencio decide a las 72hs, leerlo no lo resuelve.
+      const { getByText } = render(
+        <NoticeInboxSheet {...props} items={[item('a', 2_000, notice('e1'))]} expenses={[gasto]} />,
+      );
+      expect(getByText('notifications.tab_action_count({"count":1})')).toBeTruthy();
+    });
+
+    it('una ronda vencida deja de contar en Acción, esté leída o no', () => {
+      const gasto = gastoConRonda('e1', AHORA - DELETION_TIMEOUT_MS - 1);
+      // SIN LEER, pero vencida: tampoco cuenta.
+      const { getByText, queryByText } = render(
+        <NoticeInboxSheet {...props} items={[item('a', null, notice('e1'))]} expenses={[gasto]} />,
+      );
+      expect(getByText('notifications.tab_action')).toBeTruthy();
+      expect(queryByText(/tab_action_count/)).toBeNull();
+    });
+
+    it('los demás kinds siguen contando por «sin leer»: uno YA leído no cuenta', () => {
+      const { getByText, queryByText } = render(
+        <NoticeInboxSheet {...props} items={[item('a', 2_000, pendiente)]} />,
+      );
+      expect(getByText('notifications.tab_action')).toBeTruthy();
+      expect(queryByText(/tab_action_count/)).toBeNull();
     });
   });
 });

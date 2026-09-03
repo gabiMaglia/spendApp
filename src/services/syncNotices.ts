@@ -1,6 +1,6 @@
 import type { CurrencyCode } from '@/src/constants/currencies';
 import type { Expense, Group, Payment } from '@/src/types/models';
-import { deletionRound } from '@/src/algorithms/deletionRound';
+import { deletionRound, msUntilDeletion } from '@/src/algorithms/deletionRound';
 import { requiereConfirmacion } from '@/src/algorithms/settlementStatus';
 // Sólo el tipo: `publishHealth` no puede entrar al grafo de módulos de acá.
 import type { BlockingReason } from '@/src/sync/publishHealth';
@@ -29,8 +29,17 @@ import type { BlockingReason } from '@/src/sync/publishHealth';
 export type Notice =
   /** Llegaron gastos ajenos a un grupo. */
   | { kind: 'expenses'; groupId: string; groupName: string; count: number }
-  /** Alguien pidió borrar un gasto y hay que opinar. */
-  | { kind: 'deletion'; groupId: string; groupName: string; description: string }
+  /**
+   * Alguien pidió borrar un gasto y hay que opinar.
+   *
+   * `expenseId` es de T-071: sin él, la bandeja no puede volver a mirar la
+   * ronda para saber cuánto falta de verdad — sólo tiene la foto congelada
+   * del momento en que se avisó. **Opcional a propósito**: un `Notice`
+   * guardado ANTES de este cambio no lo tiene y no se recalcula
+   * (`noticeInboxStore.ts:14-18`), así que sigue existiendo sin él para
+   * siempre. Todo lo que lo lee tiene que andar igual sin `expenseId`.
+   */
+  | { kind: 'deletion'; groupId: string; groupName: string; description: string; expenseId?: string }
   /**
    * Alguien deshizo un borrado que este teléfono ya había aplicado.
    *
@@ -180,6 +189,7 @@ export function noticesFor(
           groupId: e.groupId,
           groupName: nombre(e.groupId),
           description: e.description,
+          expenseId: e.id,
         });
       }
     }
@@ -266,4 +276,33 @@ export function noticesFor(
     });
 
   return [...porGastos, ...pedidosDeBorrado, ...restauraciones, ...saldos];
+}
+
+/**
+ * Cuánto falta para que se aplique un pedido de borrado, mirado HOY — no
+ * cuando se generó el `Notice` (T-071).
+ *
+ * El `Notice` guardado es una copia CONGELADA (`noticeInboxStore.ts:14-18`):
+ * esto no la relee a ella, relee el GASTO, que sí es una fuente viva. Por
+ * eso hace falta el `expenses` del store y un `now` explícito, igual que
+ * `deletionRound` (T-059): sin reloj no hay forma de saber si la ronda que
+ * abrió el aviso sigue siendo la vigente.
+ *
+ * `null` es "no hay nada que prometer", y pasa por CUALQUIERA de estas
+ * razones — no se distinguen porque a la fila le da lo mismo cuál fue:
+ *  - El aviso es de antes de T-071 y no tiene `expenseId`.
+ *  - El gasto ya no está vivo en el store (se fue, o directo no está).
+ *  - La ronda que abrió el aviso dejó de estar `open` (la objetaron, se
+ *    restauró) o ya venció — vencida no promete un plazo que no existe.
+ */
+export function msRestanteDeBorrado(
+  notice: Notice, expenses: readonly Expense[], now: number,
+): number | null {
+  if (notice.kind !== 'deletion' || notice.expenseId === undefined) return null;
+  const expense = expenses.find(e => e.id === notice.expenseId);
+  if (!expense || expense.isDeleted) return null;
+  const ronda = deletionRound(expense, now);
+  if (ronda === null || ronda.status !== 'open') return null;
+  const restante = msUntilDeletion(ronda, now);
+  return restante > 0 ? restante : null;
 }

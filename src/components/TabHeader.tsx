@@ -10,11 +10,13 @@ import { CurrencySheet } from './CurrencyPicker';
 import { UserAvatar } from './UserAvatar';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
+import { useExpenseStore } from '@/src/store/expenseStore';
 import { useSettingsStore } from '@/src/store/settingsStore';
 import {
   useNoticeInboxStore, useUnreadNoticeCount, type StoredNotice,
 } from '@/src/store/noticeInboxStore';
 import { hapticLight } from '@/src/utils/haptics';
+import { syncedNow } from '@/src/utils/syncedClock';
 
 /**
  * **El header de las seis tabs. Uno solo, con lo mismo en todas.**
@@ -43,6 +45,7 @@ export function TabHeader({ title, scrollY }: { title: string; scrollY: Animated
   const cur         = useSettingsStore(s => s.displayCurrency);
   const setCurrency = useSettingsStore(s => s.setDisplayCurrency);
   const groups      = useGroupStore(s => s.groups);
+  const expenses    = useExpenseStore(s => s.expenses);
 
   const inboxItems  = useNoticeInboxStore(s => s.items);
   const sinLeer     = useUnreadNoticeCount();
@@ -95,6 +98,8 @@ export function TabHeader({ title, scrollY }: { title: string; scrollY: Animated
       <NoticeInboxSheet
         visible={bandeja}
         items={inboxItems}
+        expenses={expenses}
+        now={syncedNow()}
         onClose={() => setBandeja(false)}
         onOpenNotice={abrirAviso}
         onMarkAll={() => markAllRead()}
