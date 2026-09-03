@@ -616,6 +616,8 @@
     "new_expenses_one": "1 despesa nova foi adicionada",
     "new_expenses_other": "{{count}} despesas novas foram adicionadas",
     "deletion_requested": "Pediram para apagar “{{description}}”. Você tem 72h para se opor.",
+    "deletion_remaining": "Pediram para apagar “{{description}}”. Faltam {{time}} para se opor.",
+    "deletion_no_time": "Pediram para apagar “{{description}}”.",
     "restored": "«{{description}}» foi restaurado",
     "joined_title": "Você foi adicionado a um grupo",
     "joined_body": "Já pode ver “{{group}}”",
