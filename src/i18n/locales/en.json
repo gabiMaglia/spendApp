@@ -179,6 +179,10 @@
     "options": "Group options",
     "add_person": "Add person"
   },
+  "invite": {
+    "groups_in_common": "{{count}} group in common",
+    "groups_in_common_other": "{{count}} groups in common"
+  },
   "expense": {
     "new_title": "New expense",
     "edit_title": "Edit expense",
@@ -268,6 +272,20 @@
     "waiting": "Waiting for {{name}} to confirm",
     "rejected": "{{name}} says they never got it"
   },
+  "delete": {
+    "sheet_title": "Delete this expense?",
+    "request_title": "Request deletion",
+    "request_body": "Others have 72 h to object. If no one objects, the expense is deleted automatically.",
+    "request_badge": "Recommended",
+    "force_title": "Delete now",
+    "force_body": "Only the creator ({{creatorNote}}) can delete without waiting. Logged in activity.",
+    "force_you": "you",
+    "pending_title": "Deletion requested",
+    "pending_body": "{{name}} proposed deleting this expense {{time}} ago.",
+    "countdown_suffix": "If no one objects before {{date}}, it deletes itself.",
+    "object_button": "Object",
+    "see_agreements": "See agreements"
+  },
   "activity": {
     "title": "Activity",
     "filter_all": "All",
@@ -286,6 +304,69 @@
     "restore": "Restore",
     "search_placeholder": "Search by description, person or group",
     "action_restored": "restored"
+  },
+  "settings": {
+    "title": "Settings",
+    "done": "Done",
+    "plan_label": "CURRENT PLAN",
+    "daily_expenses": "Expenses today",
+    "daily_expenses_count": "{{count}} / 4 free",
+    "daily_reset_note": "The 5th expense requires an ad or Pro. Resets daily at 00:00.",
+    "try_pro": "Try Pro · 7 days free",
+    "section_sync": "Sync & data",
+    "sync_p2p": "P2P sync",
+    "offline_mode": "Offline-only mode",
+    "export_data": "Export data",
+    "restore_backup": "Restore backup",
+    "section_notifications": "Notifications",
+    "notif_new_expenses": "Notify me of new expenses",
+    "notif_delete_requests": "Deletion requests",
+    "notif_invitations": "Invitations",
+    "section_appearance": "Appearance",
+    "theme": "Theme",
+    "theme_auto": "Automatic",
+    "main_currency": "Main currency",
+    "sign_out": "Sign out",
+    "version": "SplitP2P v{{version}} · build {{build}}"
+  },
+  "upgrade": {
+    "title": "No limits.\nNo ads. No friction.",
+    "subtitle": "7 days free · cancel anytime from the App Store.",
+    "monthly_label": "Monthly",
+    "monthly_per": "per month",
+    "annual_label": "Annual",
+    "annual_saving": "SAVE {{percent}}%",
+    "annual_per": "${{amount}}/mo",
+    "table_feature": "Feature",
+    "table_free": "Free",
+    "table_pro": "Pro",
+    "feat_daily": "Expenses per day",
+    "feat_daily_free": "4 + ads",
+    "feat_daily_pro": "Unlimited",
+    "feat_groups": "Groups & members",
+    "feat_ads": "Ads",
+    "feat_ads_free": "Yes",
+    "feat_ads_pro": "None",
+    "feat_ocr": "Scan receipt (OCR)",
+    "feat_stats": "Stats & charts",
+    "feat_export": "Export CSV / PDF",
+    "feat_export_free": ".splitp2p",
+    "feat_export_pro": "CSV + PDF",
+    "feat_fx": "Automatic exchange rate",
+    "feat_support": "Priority support",
+    "cta": "Try 7 days free",
+    "cta_sub": "Renews at ${{price}}/year · cancel in 1 tap",
+    "restore": "Restore purchase"
+  },
+  "ad_gate": {
+    "title": "You've used your 4 free\nexpenses today",
+    "subtitle": "You get 4 more tomorrow. Or choose how to continue:",
+    "get_pro": "Get Pro · 7 days free",
+    "get_pro_sub": "Unlimited · no ads · OCR + stats",
+    "watch_ad": "Watch an ad · 30 s",
+    "watch_ad_sub": "Unlock this expense for free",
+    "watch_ad_badge": "+1 expense",
+    "wait": "or wait until tomorrow · resets in {{time}}"
   },
   "sync": {
     "synced": "Synced",
@@ -354,6 +435,16 @@
     "salary": "Salary",
     "freelance": "Freelance",
     "income": "Other"
+  },
+  "ocr": {
+    "scan_title": "Point at the receipt",
+    "scan_subtitle": "Good light · everything inside the frame",
+    "confirm_title": "Confirm expense",
+    "ocr_badge": "OCR detected {{count}} fields. Review before saving.",
+    "detected_total": "Detected total",
+    "detected_items": "Detected items",
+    "add_item": "+ Add",
+    "continue": "Continue to split"
   },
   "backup": {
     "section": "BACKUP",
@@ -551,9 +642,5 @@
     "expense": "We couldn't verify who entered this",
     "vote": "We couldn't verify who requested this",
     "payment": "We couldn't verify who recorded this payment"
-  },
-  "invite": {
-    "groups_in_common": "{{count}} group in common",
-    "groups_in_common_other": "{{count}} groups in common"
   }
 }

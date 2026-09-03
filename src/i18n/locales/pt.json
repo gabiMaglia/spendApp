@@ -179,6 +179,10 @@
     "options": "Opções do grupo",
     "add_person": "Adicionar pessoa"
   },
+  "invite": {
+    "groups_in_common": "{{count}} grupo em comum",
+    "groups_in_common_other": "{{count}} grupos em comum"
+  },
   "expense": {
     "new_title": "Nova despesa",
     "edit_title": "Editar despesa",
@@ -268,6 +272,20 @@
     "waiting": "Aguardando a confirmação de {{name}}",
     "rejected": "{{name}} diz que não recebeu"
   },
+  "delete": {
+    "sheet_title": "Excluir esta despesa?",
+    "request_title": "Solicitar exclusão",
+    "request_body": "Os outros têm 72 h para se opor. Se ninguém se opuser, a despesa é excluída automaticamente.",
+    "request_badge": "Recomendado",
+    "force_title": "Excluir agora",
+    "force_body": "Só quem criou ({{creatorNote}}) pode excluir sem esperar. Vai ficar registrado na atividade.",
+    "force_you": "você",
+    "pending_title": "Exclusão solicitada",
+    "pending_body": "{{name}} propôs excluir esta despesa há {{time}}.",
+    "countdown_suffix": "Se ninguém se opuser antes de {{date}}, ela é excluída sozinha.",
+    "object_button": "Opor-se",
+    "see_agreements": "Ver acordos"
+  },
   "activity": {
     "title": "Atividade",
     "filter_all": "Todos",
@@ -286,6 +304,69 @@
     "restore": "Restaurar",
     "search_placeholder": "Buscar por descrição, pessoa ou grupo",
     "action_restored": "restaurou"
+  },
+  "settings": {
+    "title": "Configurações",
+    "done": "Pronto",
+    "plan_label": "PLANO ATUAL",
+    "daily_expenses": "Despesas hoje",
+    "daily_expenses_count": "{{count}} / 4 grátis",
+    "daily_reset_note": "A 5ª despesa do dia exige um anúncio ou o Pro. Zera todo dia às 00:00.",
+    "try_pro": "Testar o Pro · 7 dias grátis",
+    "section_sync": "Sincronização e dados",
+    "sync_p2p": "Sincronização P2P",
+    "offline_mode": "Modo somente offline",
+    "export_data": "Exportar dados",
+    "restore_backup": "Restaurar backup",
+    "section_notifications": "Notificações",
+    "notif_new_expenses": "Avisar sobre novas despesas",
+    "notif_delete_requests": "Pedidos de exclusão",
+    "notif_invitations": "Convites",
+    "section_appearance": "Aparência",
+    "theme": "Tema",
+    "theme_auto": "Automático",
+    "main_currency": "Moeda principal",
+    "sign_out": "Sair",
+    "version": "SplitP2P v{{version}} · build {{build}}"
+  },
+  "upgrade": {
+    "title": "Sem limites.\nSem anúncios. Sem fricção.",
+    "subtitle": "7 dias grátis · cancele quando quiser pela App Store.",
+    "monthly_label": "Mensal",
+    "monthly_per": "por mês",
+    "annual_label": "Anual",
+    "annual_saving": "ECONOMIZE {{percent}}%",
+    "annual_per": "${{amount}}/mês",
+    "table_feature": "Recurso",
+    "table_free": "Free",
+    "table_pro": "Pro",
+    "feat_daily": "Despesas por dia",
+    "feat_daily_free": "4 + anúncios",
+    "feat_daily_pro": "Ilimitadas",
+    "feat_groups": "Grupos e membros",
+    "feat_ads": "Anúncios",
+    "feat_ads_free": "Sim",
+    "feat_ads_pro": "Nenhum",
+    "feat_ocr": "Escanear recibo (OCR)",
+    "feat_stats": "Estatísticas e gráficos",
+    "feat_export": "Exportar CSV / PDF",
+    "feat_export_free": ".splitp2p",
+    "feat_export_pro": "CSV + PDF",
+    "feat_fx": "Taxa de câmbio automática",
+    "feat_support": "Suporte prioritário",
+    "cta": "Testar 7 dias grátis",
+    "cta_sub": "Renova por ${{price}}/ano · cancele em 1 toque",
+    "restore": "Restaurar compra"
+  },
+  "ad_gate": {
+    "title": "Você usou suas 4 despesas\ngrátis de hoje",
+    "subtitle": "Amanhã você tem mais 4. Ou escolha como seguir hoje:",
+    "get_pro": "Assinar o Pro · 7 dias grátis",
+    "get_pro_sub": "Sem limites · sem anúncios · OCR + estatísticas",
+    "watch_ad": "Ver um anúncio · 30 s",
+    "watch_ad_sub": "Desbloqueie esta despesa sem pagar",
+    "watch_ad_badge": "+1 despesa",
+    "wait": "ou esperar até amanhã · renova em {{time}}"
   },
   "sync": {
     "synced": "Sincronizado",
@@ -354,6 +435,16 @@
     "salary": "Salário",
     "freelance": "Freelance",
     "income": "Outro"
+  },
+  "ocr": {
+    "scan_title": "Aponte para o recibo",
+    "scan_subtitle": "Boa luz · tudo dentro do quadro",
+    "confirm_title": "Confirmar despesa",
+    "ocr_badge": "O OCR detectou {{count}} campos. Revise antes de salvar.",
+    "detected_total": "Total detectado",
+    "detected_items": "Itens detectados",
+    "add_item": "+ Adicionar",
+    "continue": "Continuar para a divisão"
   },
   "backup": {
     "section": "CÓPIA DE SEGURANÇA",
@@ -551,9 +642,5 @@
     "expense": "Não foi possível verificar quem lançou isto",
     "vote": "Não foi possível verificar quem solicitou isto",
     "payment": "Não foi possível verificar quem registrou este pagamento"
-  },
-  "invite": {
-    "groups_in_common": "{{count}} grupo em comum",
-    "groups_in_common_other": "{{count}} grupos em comum"
   }
 }

@@ -56,19 +56,39 @@ const HUERFANAS_EN_REVISION = new Set([
   'invite.groups_in_common_other',
 ]);
 
+/**
+ * **Copy escrito para features que todavía no tienen pantalla** (decisión del PO, 2026-09-03).
+ *
+ * Estos namespaces no los llama nadie y nunca van a aparecer en el escaneo, porque el código que
+ * los va a usar no existe. No son basura: es texto redactado a propósito y ya traducido a los tres
+ * idiomas, para el roadmap de `CLAUDE.md`.
+ *
+ * Se toleran POR PREFIJO y no clave por clave a propósito. Si fueran 77 líneas sueltas, agregar
+ * una pantalla obligaría a editar esta lista 77 veces, y el primero que se canse la borra entera.
+ *
+ * **Qué hacer cuando la pantalla se construya:** sacar el namespace de acá. A partir de ese
+ * momento el guard exige que cada clave suya tenga un consumidor, que es lo que se quiere una vez
+ * que hay código real. Lo que NO hay que hacer es dejarlo acá para siempre: eso convierte la
+ * excepción en la regla y el guard deja de cubrir esos namespaces.
+ */
+const NAMESPACES_DE_ROADMAP = new Set(['upgrade', 'settings', 'delete', 'ad_gate', 'ocr']);
+
+/** Una clave tolerada: o está en revisión una por una, o es copy de una feature sin construir. */
+function esTolerada(k: string): boolean {
+  return HUERFANAS_EN_REVISION.has(k) || NAMESPACES_DE_ROADMAP.has(k.split('.')[0]);
+}
+
 describe('guard de claves i18n muertas', () => {
   const allKeys = flattenKeys(es as Record<string, unknown>);
   const repoRoot = path.resolve(__dirname, '../../..');
   const { usedLiterals, calledLiterals } = scanRepoUsage(repoRoot);
 
   it('no sobrevive ninguna clave huérfana nueva en es.json', () => {
-    const orphans = findOrphanKeys(allKeys, usedLiterals).filter(
-      k => !HUERFANAS_EN_REVISION.has(k),
-    );
+    const orphans = findOrphanKeys(allKeys, usedLiterals).filter(k => !esTolerada(k));
     expect(orphans).toEqual([]);
   });
 
-  it('las 10 huérfanas en revisión siguen siendo exactamente esas — ni una más ni una menos', () => {
+  it('las huérfanas en revisión siguen siendo exactamente esas — ni una más ni una menos', () => {
     // Si este test se rompe porque el set real quedó MÁS CHICO (alguien
     // volvió a usar una), sacala de HUERFANAS_EN_REVISION. Si quedó MÁS
     // GRANDE, algo nuevo se volvió huérfano y hay que decidirlo, no meterlo acá.
@@ -80,6 +100,15 @@ describe('guard de claves i18n muertas', () => {
   it('ninguna clave llamada con t()/i18n.t() falta en es.json (clave viva borrada)', () => {
     const missing = findMissingKeys(calledLiterals, allKeys);
     expect(missing).toEqual([]);
+  });
+
+  it('los namespaces de roadmap siguen sin construirse — si alguno tiene código, sacalo del set', () => {
+    // El día que se construya la pantalla, este test se rompe y te obliga a sacar el namespace
+    // de NAMESPACES_DE_ROADMAP. Sin esto, la excepción sobreviviría a su propio motivo.
+    const conCodigo = [...NAMESPACES_DE_ROADMAP].filter(ns =>
+      [...calledLiterals].some(k => k.startsWith(`${ns}.`)),
+    );
+    expect(conCodigo).toEqual([]);
   });
 
   it('las claves dinámicas (categories.*) siguen existiendo', () => {

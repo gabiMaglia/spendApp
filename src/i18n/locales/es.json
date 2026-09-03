@@ -179,6 +179,10 @@
     "options": "Opciones del grupo",
     "add_person": "Agregar persona"
   },
+  "invite": {
+    "groups_in_common": "{{count}} grupo en común",
+    "groups_in_common_other": "{{count}} grupos en común"
+  },
   "expense": {
     "new_title": "Nuevo gasto",
     "edit_title": "Editar gasto",
@@ -268,6 +272,20 @@
     "waiting": "Esperando que {{name}} confirme",
     "rejected": "{{name}} dice que no lo recibió"
   },
+  "delete": {
+    "sheet_title": "¿Eliminar este gasto?",
+    "request_title": "Solicitar eliminación",
+    "request_body": "Los demás tienen 72 hs para objetar. Si nadie objeta, el gasto se elimina automáticamente.",
+    "request_badge": "Recomendado",
+    "force_title": "Eliminar ahora",
+    "force_body": "Solo el creador ({{creatorNote}}) puede eliminar sin esperar. Quedará registrado en la actividad.",
+    "force_you": "vos",
+    "pending_title": "Eliminación solicitada",
+    "pending_body": "{{name}} propuso eliminar este gasto hace {{time}}.",
+    "countdown_suffix": "Si nadie objeta antes del {{date}}, se elimina solo.",
+    "object_button": "Objetar",
+    "see_agreements": "Ver acuerdos"
+  },
   "activity": {
     "title": "Actividad",
     "filter_all": "Todos",
@@ -286,6 +304,69 @@
     "restore": "Restaurar",
     "search_placeholder": "Buscar por descripción, persona o grupo",
     "action_restored": "restauró"
+  },
+  "settings": {
+    "title": "Ajustes",
+    "done": "Listo",
+    "plan_label": "PLAN ACTUAL",
+    "daily_expenses": "Gastos hoy",
+    "daily_expenses_count": "{{count}} / 4 gratis",
+    "daily_reset_note": "El 5to gasto del día requiere un anuncio o Pro. Se resetea cada día a las 00:00.",
+    "try_pro": "Probar Pro · 7 días gratis",
+    "section_sync": "Sincronización & datos",
+    "sync_p2p": "Sincronización P2P",
+    "offline_mode": "Modo solo offline",
+    "export_data": "Exportar datos",
+    "restore_backup": "Restaurar backup",
+    "section_notifications": "Notificaciones",
+    "notif_new_expenses": "Avisarme de nuevos gastos",
+    "notif_delete_requests": "Solicitudes de borrado",
+    "notif_invitations": "Invitaciones",
+    "section_appearance": "Apariencia",
+    "theme": "Tema",
+    "theme_auto": "Automático",
+    "main_currency": "Moneda principal",
+    "sign_out": "Cerrar sesión",
+    "version": "SplitP2P v{{version}} · build {{build}}"
+  },
+  "upgrade": {
+    "title": "Sin límites.\nSin ads. Sin fricción.",
+    "subtitle": "7 días gratis · cancelás cuando quieras desde el App Store.",
+    "monthly_label": "Mensual",
+    "monthly_per": "por mes",
+    "annual_label": "Anual",
+    "annual_saving": "AHORRÁS {{percent}}%",
+    "annual_per": "${{amount}}/mes",
+    "table_feature": "Función",
+    "table_free": "Free",
+    "table_pro": "Pro",
+    "feat_daily": "Gastos por día",
+    "feat_daily_free": "4 + ads",
+    "feat_daily_pro": "Ilimitados",
+    "feat_groups": "Grupos y miembros",
+    "feat_ads": "Anuncios",
+    "feat_ads_free": "Sí",
+    "feat_ads_pro": "Ninguno",
+    "feat_ocr": "Escanear ticket (OCR)",
+    "feat_stats": "Estadísticas y gráficos",
+    "feat_export": "Exportar CSV / PDF",
+    "feat_export_free": ".splitp2p",
+    "feat_export_pro": "CSV + PDF",
+    "feat_fx": "Tipo de cambio automático",
+    "feat_support": "Soporte prioritario",
+    "cta": "Probar 7 días gratis",
+    "cta_sub": "Renueva ${{price}}/año · cancelás en 1 toque",
+    "restore": "Restaurar compra"
+  },
+  "ad_gate": {
+    "title": "Usaste tus 4 gastos\ngratis de hoy",
+    "subtitle": "Mañana tenés 4 más. O elegí cómo seguir hoy:",
+    "get_pro": "Obtener Pro · 7 días gratis",
+    "get_pro_sub": "Sin límites · sin ads · OCR + estadísticas",
+    "watch_ad": "Ver un anuncio · 30 s",
+    "watch_ad_sub": "Desbloqueá este gasto sin pagar",
+    "watch_ad_badge": "+1 gasto",
+    "wait": "o esperar a mañana · se renueva en {{time}}"
   },
   "sync": {
     "synced": "Sincronizado",
@@ -354,6 +435,16 @@
     "salary": "Sueldo",
     "freelance": "Freelance",
     "income": "Otro"
+  },
+  "ocr": {
+    "scan_title": "Apuntá al ticket",
+    "scan_subtitle": "Buena luz · todo dentro del recuadro",
+    "confirm_title": "Confirmar gasto",
+    "ocr_badge": "OCR detectó {{count}} campos. Revisalos antes de guardar.",
+    "detected_total": "Total detectado",
+    "detected_items": "Ítems detectados",
+    "add_item": "+ Agregar",
+    "continue": "Continuar a división"
   },
   "backup": {
     "section": "COPIA DE SEGURIDAD",
@@ -551,9 +642,5 @@
     "expense": "No se pudo verificar quién cargó esto",
     "vote": "No se pudo verificar quién pidió esto",
     "payment": "No se pudo verificar quién registró este pago"
-  },
-  "invite": {
-    "groups_in_common": "{{count}} grupo en común",
-    "groups_in_common_other": "{{count}} grupos en común"
   }
 }
