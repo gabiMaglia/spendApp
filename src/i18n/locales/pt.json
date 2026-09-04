@@ -92,9 +92,6 @@
   "dashboard": {
     "title": "Suas contas",
     "greeting": "Olá, {{name}}",
-    "balance_global": "Saldo geral",
-    "balance_favor": "Saldo a seu favor",
-    "balance_contra": "Contra você",
     "owes_you": "Te deve",
     "you_owe_person": "Você deve",
     "add_expense": "Adicionar gasto",
@@ -106,8 +103,6 @@
     "groups_balance": "Grupos · Saldo",
     "groups_count": "{{count}} GRUPOS",
     "groups_count_one": "1 GRUPO",
-    "owed_to_you": "Te devem",
-    "you_owe": "Você deve",
     "see_month": "Ver mês"
   },
   "groups": {

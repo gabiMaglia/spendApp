@@ -92,9 +92,6 @@
   "dashboard": {
     "title": "Your balances",
     "greeting": "Hi, {{name}}",
-    "balance_global": "Global balance",
-    "balance_favor": "In your favor",
-    "balance_contra": "Against you",
     "owes_you": "Owes you",
     "you_owe_person": "You owe",
     "add_expense": "Add expense",
@@ -106,8 +103,6 @@
     "groups_balance": "Groups · Balance",
     "groups_count": "{{count}} GROUPS",
     "groups_count_one": "1 GROUP",
-    "owed_to_you": "Owed to you",
-    "you_owe": "You owe",
     "see_month": "See month"
   },
   "groups": {

@@ -118,6 +118,45 @@ export function extractDirectTCallArgs(source: string, isTsx: boolean): string[]
   return literales;
 }
 
+/**
+ * Claves llamadas con `defaultValue` — la muleta que esconde una clave faltante.
+ *
+ * `t('x.y', { defaultValue: 'Texto' })` devuelve ese texto cuando `x.y` no existe, así que la
+ * pantalla se ve bien y nadie se entera de que falta la traducción. Peor: el default se escribe
+ * en UN idioma, así que en los otros dos se muestra ese mismo texto. Pasó de verdad — seis claves
+ * del proyecto tenían default en español y en inglés y portugués se veía castellano (T-070).
+ *
+ * Y es invisible para la suite: el CLAUDE.md manda mockear i18next a «devolvé la clave», con lo
+ * cual ningún test ejecuta jamás la resolución real.
+ *
+ * Devuelve la clave de cada llamada así, para que el guard pueda nombrarla.
+ */
+export function findDefaultValueKeys(source: string, isTsx: boolean): string[] {
+  const sourceFile = parse(source, isTsx);
+  const encontradas: string[] = [];
+  const visit = (node: ts.Node): void => {
+    if (ts.isCallExpression(node) && esLlamadaAT(node.expression)) {
+      const [primero, segundo] = node.arguments;
+      const tieneDefault =
+        segundo !== undefined &&
+        ts.isObjectLiteralExpression(segundo) &&
+        segundo.properties.some(
+          p => p.name !== undefined && ts.isIdentifier(p.name) && p.name.text === 'defaultValue',
+        );
+      if (tieneDefault) {
+        const clave =
+          primero && (ts.isStringLiteral(primero) || ts.isNoSubstitutionTemplateLiteral(primero))
+            ? primero.text
+            : '<clave dinámica>';
+        encontradas.push(clave);
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  return encontradas;
+}
+
 /** Forma real de una clave i18n del proyecto: segmentos snake_case separados por punto. */
 const FORMA_DE_CLAVE = /^[a-z][a-z0-9_]*(\.[a-z0-9_]+)+$/;
 

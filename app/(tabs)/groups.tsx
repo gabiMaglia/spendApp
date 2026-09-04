@@ -146,8 +146,8 @@ export default function GroupsScreen() {
             </Band>
             <Text style={[Typography.caption, styles.footnote, { color: c.textTertiary }]}>
               {tabActual === 'activos'
-                ? t('groups.swipe_hint', { defaultValue: 'Deslizá un grupo a la izquierda para archivarlo.' })
-                : t('groups.archived_hint', { defaultValue: 'Los grupos archivados no suman a los balances ni aparecen en Actividad.' })}
+                ? t('groups.swipe_hint')
+                : t('groups.archived_hint')}
             </Text>
           </>
         )}
