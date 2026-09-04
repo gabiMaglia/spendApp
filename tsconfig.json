@@ -14,5 +14,10 @@
     "**/*.tsx",
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
+  ],
+  "//": "El include es un glob de todo el repo, así que cualquier .tsx que caiga adentro entra al chequeo. Una entrega de diseño descomprimida en assets/ tiró 54 errores de tipos sobre una copia vieja de pantallas que ya evolucionaron. assets/ guarda imágenes y bundles, nunca código del proyecto. Ojo: al declarar exclude se pierden los defaults, por eso node_modules va explícito.",
+  "exclude": [
+    "node_modules",
+    "assets/**"
   ]
 }

@@ -49,3 +49,10 @@ engram/
 
 # NERV agent worktrees (temporales)
 .claude/worktrees/
+
+# Entregas de diseño sin aplicar (el bundle del reskin y su descompresión).
+# NO son código del proyecto: son una copia vieja de pantallas que ya evolucionaron.
+# Ojo: ignorarlas acá NO alcanza para que tsc no las mire — eso lo resuelve el
+# "exclude" del tsconfig.json.
+assets/*.zip
+assets/impl/
