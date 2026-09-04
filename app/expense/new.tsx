@@ -30,9 +30,7 @@ import { useUserStore } from '@/src/store/userStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { usePersonalStore, toMonthKey } from '@/src/store/personalStore';
 import { UserAvatar } from '@/src/components/UserAvatar';
-import { BottomSheet, SheetOption, SheetOptionAvatar } from '@/src/components/Sheet';
-import { ActionButton } from '@/src/components/ActionButton';
-import { ButtonRack } from '@/src/components/ButtonRack';
+import { BottomSheet, SheetButton, SheetInput, SheetOption, SheetOptionAvatar } from '@/src/components/Sheet';
 import { Band, SectionLabel, Segmented } from '@/src/components/Band';
 import { DetailHeader } from '@/src/components/CollapsibleHeader';
 import { buildSplits } from '@/src/algorithms/buildSplits';
@@ -741,20 +739,17 @@ export default function NewExpenseScreen() {
             </View>
           )}
 
-          {/* El botón de la app, no un Pressable con estilo propio. Es la regla
-              del proyecto y es lo que hace que «guardar» se vea y se sienta
-              igual en las cinco pantallas que guardan algo. */}
-          <ButtonRack placement="inline">
-            <ActionButton
-              testID="expense-save"
-              size="lg"
-              full
-              disabled={!canSave}
-              action={handleSave}
-              // El botón NO promete un anuncio que no existe.
-              label={!isEditMode && needsAd ? t('expense.save_with_ad') : t('expense.save')}
-            />
-          </ButtonRack>
+          {/* Save button */}
+          <Pressable
+            onPress={handleSave}
+            disabled={!canSave}
+            style={[styles.saveBtn, styles.savePad, { backgroundColor: canSave ? c.brand.primary : c.bgGrouped }]}
+          >
+            <Text style={[Typography.bodyL, { color: canSave ? '#fff' : c.textDisabled, fontWeight: '700' }]}>
+              {/* El botón NO promete un anuncio que no existe. */}
+              {!isEditMode && needsAd ? t('expense.save_with_ad') : t('expense.save')}
+            </Text>
+          </Pressable>
 
           <View style={{ height: Spacing[4] }} />
         </ScrollView>
@@ -819,43 +814,55 @@ export default function NewExpenseScreen() {
 
       {/* Group picker — only shown in create mode */}
       {!isEditMode && (
-        <BottomSheet visible={showGroup} onClose={() => setShowGroup(false)}>
-          <Text style={[Typography.h3, { color: c.text, marginBottom: 16 }]}>{t('expense.select_group')}</Text>
+        <BottomSheet
+          visible={showGroup}
+          onClose={() => setShowGroup(false)}
+          title={t('expense.select_group')}
+        >
           <SheetOption
             icon="person-outline"
             label={t('expense.no_group')}
             selected={groupId === ''}
             onPress={() => handleGroupChange('')}
+            last={groups.length === 0}
           />
-          {groups.map(g => (
+          {groups.map((g, i) => (
             <SheetOption
               key={g.id}
               icon="people-outline"
               label={g.name}
               selected={g.id === groupId}
               onPress={() => handleGroupChange(g.id)}
+              last={i === groups.length - 1}
             />
           ))}
         </BottomSheet>
       )}
 
       {/* Payer picker */}
-      <BottomSheet visible={showPayer} onClose={() => setShowPayer(false)}>
-        <Text style={[Typography.h3, { color: c.text, marginBottom: 16 }]}>{t('expense.who_paid')}</Text>
-        {members.map(userId => (
+      <BottomSheet
+        visible={showPayer}
+        onClose={() => setShowPayer(false)}
+        title={t('expense.who_paid')}
+      >
+        {members.map((userId, i) => (
           <SheetOptionAvatar
             key={userId}
             userId={userId}
             name={getUserName(userId)}
             selected={userId === payerId}
             onPress={() => { setPayerId(userId); setShowPayer(false); }}
+            last={i === members.length - 1}
           />
         ))}
       </BottomSheet>
 
       {/* Date picker */}
-      <BottomSheet visible={showDate} onClose={() => setShowDate(false)}>
-        <Text style={[Typography.h3, { color: c.text, marginBottom: 16 }]}>{t('expense.expense_date')}</Text>
+      <BottomSheet
+        visible={showDate}
+        onClose={() => setShowDate(false)}
+        title={t('expense.expense_date')}
+      >
         {Array.from({ length: 7 }, (_, i) => {
           const d = new Date();
           d.setDate(d.getDate() - i);
@@ -871,30 +878,27 @@ export default function NewExpenseScreen() {
               sublabel={longFmt}
               selected={isSel}
               onPress={() => { setDate(d); setShowDate(false); }}
+              last={i === 6}
             />
           );
         })}
       </BottomSheet>
 
       {/* Note */}
-      <BottomSheet visible={showNote} onClose={() => setShowNote(false)}>
-        <Text style={[Typography.h3, { color: c.text, marginBottom: 12 }]}>{t('expense.note')}</Text>
-        <TextInput
+      <BottomSheet
+        visible={showNote}
+        onClose={() => setShowNote(false)}
+        title={t('expense.note')}
+        scroll={false}
+        footer={<SheetButton label={t('common.done')} onPress={() => setShowNote(false)} />}
+      >
+        <SheetInput
           value={note}
           onChangeText={setNote}
           placeholder={t('expense.note_placeholder')}
-          placeholderTextColor={c.textTertiary}
           multiline
           numberOfLines={4}
-          style={[
-            Typography.bodyM,
-            styles.noteInput,
-            { color: c.text, backgroundColor: c.bgGrouped },
-          ]}
         />
-        <ButtonRack placement="inline" style={{ marginTop: 12 }}>
-          <ActionButton size="lg" full label={t('common.done')} action={() => setShowNote(false)} />
-        </ButtonRack>
       </BottomSheet>
 
     </SafeAreaView>
@@ -910,6 +914,7 @@ const styles = StyleSheet.create({
   scroll:       { paddingTop: Spacing[4], paddingBottom: Spacing[4] },
   segPad:       { paddingHorizontal: Spacing.screenPad, paddingBottom: 14 },
   recurrencePad:{ paddingHorizontal: Spacing.screenPad, paddingVertical: Spacing[4] },
+  savePad:      { marginHorizontal: Spacing.screenPad },
   inlineLink:   { alignSelf: 'flex-start', paddingHorizontal: Spacing.screenPad, paddingTop: 10 },
 
   noGroupsState: {
@@ -969,6 +974,8 @@ const styles = StyleSheet.create({
     marginTop: Spacing[4],
   },
 
+  saveBtn:      { borderRadius: Radius.lg, height: 52, alignItems: 'center', justifyContent: 'center' },
+
   bottomBar:    {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 12, height: 56,
@@ -978,9 +985,4 @@ const styles = StyleSheet.create({
   vDivider:     { width: 1, height: 22, marginHorizontal: 10 },
   bottomGroup:  { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 6 },
   bottomDate:   { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 6 },
-
-  noteInput:    {
-    borderRadius: Radius.md, padding: 14,
-    minHeight: 100, textAlignVertical: 'top',
-  },
 });
