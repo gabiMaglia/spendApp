@@ -258,7 +258,16 @@ function AppLogoMark({ size }: { size: number }) {
         width: size * 0.68, height: size * 0.68,
         borderRadius: size * 0.22, backgroundColor: '#8FBC94', opacity: 0.85,
       }} />
-      <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }]}>
+      {/* La S va centrada en la INTERSECCIÓN de los dos cuadrados, no en la caja.
+          A ocupa [0, 0.78] y B [0.32, 1]: se cruzan en [0.32, 0.78]. Centrarla en
+          la caja la dejaba corrida hacia arriba-izquierda de la figura que el ojo
+          lee como centro. Mismos números que scripts/generar-iconos.py. */}
+      <View style={{
+        position: 'absolute',
+        left: size * 0.32, top: size * 0.32,
+        width: size * (0.78 - 0.32), height: size * (0.78 - 0.32),
+        alignItems: 'center', justifyContent: 'center',
+      }}>
         <Text style={{ color: '#fff', fontSize: size * 0.31, fontWeight: '800', letterSpacing: -2 }}>S</Text>
       </View>
     </View>

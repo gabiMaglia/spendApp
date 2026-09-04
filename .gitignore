@@ -56,3 +56,6 @@ engram/
 # "exclude" del tsconfig.json.
 assets/*.zip
 assets/impl/
+
+# Cachés de los scripts de build
+__pycache__/
