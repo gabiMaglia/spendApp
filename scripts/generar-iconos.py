@@ -2,7 +2,7 @@
 """
 Genera la iconografía de spendApp a partir de la marca del login.
 
-La fuente de verdad del dibujo es `AppLogoMark` en `app/auth/index.tsx:248`: dos
+La fuente de verdad del dibujo es `src/components/AppLogoMark.tsx`: dos
 cuadrados redondeados superpuestos —petróleo arriba-izquierda, verde salvia
 abajo-derecha con 85% de opacidad— y una «S» blanca centrada sobre los dos.
 Las proporciones de acá salen de ahí y no se inventaron: si la marca del login
@@ -37,7 +37,7 @@ from PIL import Image, ImageDraw, ImageFont
 RAIZ = Path(__file__).resolve().parent.parent
 SALIDA = RAIZ / "assets" / "images"
 
-# --- Valores tomados de AppLogoMark (app/auth/index.tsx:248) ---------------
+# --- Valores tomados de src/components/AppLogoMark.tsx --------------------
 PETROLEO = (10, 110, 143, 255)      # #0A6E8F
 SALVIA = (143, 188, 148, 217)       # #8FBC94 al 85%
 BLANCO = (255, 255, 255, 255)
