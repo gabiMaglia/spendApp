@@ -65,6 +65,14 @@ conozca el `topic`. Eso significa que quien tiene o tuvo la clave de un grupo pu
 paquetes. **Alguien de afuera no puede**, porque sin la clave el `topic` no se puede adivinar ni
 el contenido descifrar.
 
+### Cotizaciones de monedas
+Si tenés gastos en **más de una moneda**, la app pide la tabla de cotizaciones del día a un
+servicio público de terceros (`open.er-api.com`). Esa llamada **no manda ningún dato tuyo**: pide
+la tabla completa del dólar contra todas las monedas, sin decir quién sos ni qué gastos tenés.
+Como cualquier pedido a internet, ese servicio ve tu dirección IP.
+
+**Si usás una sola moneda, esa llamada no se hace nunca.**
+
 ---
 
 ## Iniciar sesión
@@ -103,6 +111,11 @@ y hay un test automático que falla si vuelven.
 ---
 
 ## Borrar tu cuenta
+
+> ⚠️ **PENDIENTE — T-074.** Esta sección describe lo que va a hacer el botón, y **el botón todavía
+> no existe**. No publicar este documento hasta que exista: prometer un borrado que no ocurre es
+> justo lo que este texto no puede hacer. El guard de `promesasReales` no deja sacar esta marca
+> mientras el código no tenga el borrado.
 
 Desde **Ajustes → Borrar cuenta** se borra, de tu teléfono:
 

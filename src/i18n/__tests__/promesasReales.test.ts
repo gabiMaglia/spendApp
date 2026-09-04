@@ -127,6 +127,29 @@ describe('la política de privacidad sigue siendo cierta', () => {
    * cuándo desaparece lo que ya no puede borrar a mano. Sale del esquema del
    * buzón, así que si alguien cambia el intervalo, el documento miente.
    */
+  /**
+   * La política describe «Ajustes → Borrar cuenta». **Ese botón todavía no
+   * existe** (T-074), así que la sección lleva una marca de PENDIENTE. Este
+   * test ata las dos cosas: la marca se puede sacar el día que el código tenga
+   * el borrado, y no antes.
+   *
+   * Es el mismo error que esta app ya cometió —una pantalla que afirmaba tres
+   * cosas que el código no hacía— pero en un documento que además leen las
+   * tiendas.
+   */
+  it('la marca de PENDIENTE del borrado de cuenta se va cuando exista el borrado', () => {
+    const { execSync } = require('child_process') as typeof import('child_process');
+    const hayBorrado = execSync(
+      `grep -rl "deleteAccount\\|borrarCuenta" app src --include='*.ts' --include='*.tsx' ` +
+      `--exclude-dir=__tests__ || true`,
+      { cwd: RAIZ, encoding: 'utf8' },
+    ).trim() !== '';
+    const dicePendiente = /PENDIENTE — T-074/.test(politica());
+    // Mientras no haya borrado, la marca tiene que estar. Cuando lo haya, sobra.
+    expect(`borrado:${hayBorrado} pendiente:${dicePendiente}`)
+      .toBe(`borrado:${hayBorrado} pendiente:${!hayBorrado}`);
+  });
+
   it('el plazo de 30 días del buzón es el que dice el SQL, en los DOS documentos', () => {
     const sql = readFileSync(join(RAIZ, 'supabase', '001_mailbox.sql'), 'utf8');
     const enElSql = /interval\s+'30 days'/.test(sql);
