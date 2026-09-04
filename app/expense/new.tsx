@@ -751,7 +751,6 @@ export default function NewExpenseScreen() {
             </Text>
           </Pressable>
 
-          <View style={{ height: Spacing[4] }} />
         </ScrollView>
 
         {/* Bottom bar */}
@@ -911,10 +910,30 @@ const styles = StyleSheet.create({
   safe:         { flex: 1 },
   // El scroll ya no tiene padding lateral: cada banda llega borde a borde y el
   // aire vive adentro de la fila.
-  scroll:       { paddingTop: Spacing[4], paddingBottom: Spacing[4] },
-  segPad:       { paddingHorizontal: Spacing.screenPad, paddingBottom: 14 },
-  recurrencePad:{ paddingHorizontal: Spacing.screenPad, paddingVertical: Spacing[4] },
-  savePad:      { marginHorizontal: Spacing.screenPad },
+  /**
+   * El aire ENTRE bloques lo pone el contenedor, una sola vez.
+   *
+   * Antes cada banda era hija directa del scroll sin ninguna separación, y el
+   * poco aire que había eran paddings sueltos dentro de algunos wrappers: la
+   * pantalla quedaba toda apretada contra el borde de arriba. Con `gap` el
+   * ritmo es el mismo entre cualquier par de bloques, aparezcan o no —y acá
+   * aparecen o no según haya grupo, según sea edición y según el plan—, que es
+   * justo lo que una suma de márgenes por bloque no puede garantizar.
+   */
+  scroll:       { paddingTop: Spacing[4], paddingBottom: Spacing[4], gap: Spacing[3], flexGrow: 1 },
+  segPad:       { paddingHorizontal: Spacing.screenPad },
+  recurrencePad:{ paddingHorizontal: Spacing.screenPad },
+  /**
+   * `marginTop: 'auto'` empuja Guardar al fondo cuando sobra lugar.
+   *
+   * Un gasto personal tiene la mitad de bloques que uno de grupo —sin pagador y
+   * sin reparto—, así que el contenido terminaba a media pantalla y quedaba un
+   * vacío enorme debajo del botón. Con el margen automático, Guardar queda
+   * arriba de la barra inferior cuando el contenido es corto y fluye normal
+   * cuando es largo. Necesita el `flexGrow: 1` del contenedor: sin eso el
+   * contenido no ocupa el alto y no hay espacio libre que absorber.
+   */
+  savePad:      { marginHorizontal: Spacing.screenPad, marginTop: 'auto' },
   inlineLink:   { alignSelf: 'flex-start', paddingHorizontal: Spacing.screenPad, paddingTop: 10 },
 
   noGroupsState: {
@@ -926,7 +945,9 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', marginBottom: Spacing[2],
   },
 
-  categoryScroll: { gap: 8, paddingVertical: 2 },
+  // Las pastillas arrancaban pegadas al borde de la pantalla mientras todo lo
+  // demás respeta `screenPad`. Van con el mismo margen que el texto de arriba.
+  categoryScroll: { gap: Spacing[2], paddingHorizontal: Spacing.screenPad, paddingVertical: 2 },
   categoryChip:   {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 14, paddingVertical: 8,
@@ -970,8 +991,7 @@ const styles = StyleSheet.create({
   },
   tierRow:      {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingHorizontal: Spacing.screenPad, paddingVertical: 13,
-    marginTop: Spacing[4],
+    paddingHorizontal: Spacing.screenPad, paddingVertical: Spacing.rowPadV,
   },
 
   saveBtn:      { borderRadius: Radius.lg, height: 52, alignItems: 'center', justifyContent: 'center' },
