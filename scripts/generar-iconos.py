@@ -18,10 +18,13 @@ Salidas en assets/images/ (todas 1024 salvo el favicon):
   icon.png                     iOS + general. Opaco y a sangre: iOS aplica su
                                propia máscara, así que NO lleva esquinas
                                redondeadas ni transparencia propias.
-  android-icon-foreground.png  Capa de frente del ícono adaptativo. La marca
-                               ocupa el 60% del lienzo porque Android recorta
-                               con formas distintas según el launcher y sólo el
-                               centro (~66%) está garantizado.
+  android-icon-foreground.png  Capa de frente del ícono adaptativo. Android
+                               recorta con la forma que quiera el launcher y
+                               sólo garantiza un CÍRCULO del 66% del lienzo. La
+                               marca es cuadrada, así que lo que tiene que
+                               entrar en ese círculo es su DIAGONAL: un cuadrado
+                               del 56% tiene diagonal 79% y se le comen las
+                               esquinas. Por eso va al 46% (46 × 1,414 ≈ 65%).
   android-icon-background.png  Capa de fondo, color plano.
   android-icon-monochrome.png  Silueta para los íconos temáticos de Android 13+.
   splash-icon.png              Marca sola sobre transparente.
@@ -57,6 +60,10 @@ CENTRO_S = (0.32 + CUADRADO_A) / 2   # = 0.55
 FONDO = (230, 244, 254, 255)        # #E6F4FE
 
 SUPERMUESTREO = 4                   # se dibuja a 4× y se baja: bordes limpios
+
+# Lado de la marca en el ícono adaptativo de Android, sobre el lienzo. Sale de
+# la zona segura circular del 66%: 0.46 × √2 ≈ 0.65, entra justo.
+ADAPTATIVO = 0.46
 
 
 def fuente(px: int) -> ImageFont.FreeTypeFont:
@@ -128,14 +135,14 @@ def main() -> None:
     base = Image.new("RGBA", (1024, 1024), FONDO)
     guardar(Image.alpha_composite(base, dibujar_marca(1024, 1024 * 0.60)), "icon.png")
 
-    # Android adaptativo: el frente va sobre transparente y más chico, porque
-    # el launcher recorta con la forma que quiera.
-    guardar(dibujar_marca(1024, 1024 * 0.56), "android-icon-foreground.png")
+    # Android adaptativo: el frente va sobre transparente y bastante más chico.
+    # Ver la nota del encabezado: manda la diagonal, no el lado.
+    guardar(dibujar_marca(1024, 1024 * ADAPTATIVO), "android-icon-foreground.png")
     guardar(Image.new("RGBA", (1024, 1024), FONDO), "android-icon-background.png")
 
     # Monocromo (Android 13+): silueta sólida, la letra calada. El sistema la
     # tiñe con el color del tema, así que sólo importa el alfa.
-    mono = dibujar_marca(1024, 1024 * 0.56, con_letra=True,
+    mono = dibujar_marca(1024, 1024 * ADAPTATIVO, con_letra=True,
                          color_a=(0, 0, 0, 255), color_b=(0, 0, 0, 255),
                          color_s=(0, 0, 0, 0))
     guardar(mono, "android-icon-monochrome.png")
