@@ -7,7 +7,7 @@
 > afirma nada que el código contradiga.
 
 **Última actualización:** [fecha de publicación]
-**Contacto:** [mail real del PO]
+**Contacto:** gab.maglia@gmail.com
 
 ---
 
@@ -69,4 +69,4 @@ teléfono se avisa dentro de la app.
 
 ---
 
-**Contacto:** [mail real del PO]
+**Contacto:** gab.maglia@gmail.com

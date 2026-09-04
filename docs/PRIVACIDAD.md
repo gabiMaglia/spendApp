@@ -13,7 +13,7 @@
 > cosas falsas hasta el 2026-09-02).
 
 **Última actualización:** [fecha de publicación]
-**Contacto:** [mail real del PO]
+**Contacto:** gab.maglia@gmail.com
 
 ---
 
@@ -131,7 +131,7 @@ Desde **Ajustes → Borrar cuenta** se borra, de tu teléfono:
 2. **Los paquetes que ya dejaste en el buzón.** Están cifrados y **caducan solos a los 30 días**.
 
 Como la cuenta no existe en ningún servidor nuestro, **no hay nada que podamos borrar por vos**:
-no tenemos tu mail ni forma de saber cuál sos. Si necesitás algo más, escribinos a [mail].
+no tenemos tu mail ni forma de saber cuál sos. Si necesitás algo más, escribinos a gab.maglia@gmail.com.
 
 ---
 
@@ -144,4 +144,4 @@ lo vas a ver dentro de la app antes de que pase.
 
 ## Preguntas
 
-[mail real del PO]
+gab.maglia@gmail.com
