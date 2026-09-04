@@ -484,6 +484,11 @@ export default function NewExpenseScreen() {
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
+            // `flexGrow: 0` no es decorativo: el contenedor de la pantalla crece
+            // para poder empujar Guardar al fondo, y un ScrollView horizontal sin
+            // alto propio se come todo ese sobrante. Las pastillas quedaban
+            // gigantes.
+            style={styles.categoryScrollBox}
             contentContainerStyle={styles.categoryScroll}
           >
             {(isIncome ? INCOME_CATEGORIES : CATEGORIES).map(cat => {
@@ -947,7 +952,15 @@ const styles = StyleSheet.create({
 
   // Las pastillas arrancaban pegadas al borde de la pantalla mientras todo lo
   // demás respeta `screenPad`. Van con el mismo margen que el texto de arriba.
-  categoryScroll: { gap: Spacing[2], paddingHorizontal: Spacing.screenPad, paddingVertical: 2 },
+  // El scroll no crece con el contenedor…
+  categoryScrollBox: { flexGrow: 0 },
+  // …y las pastillas se centran en vez de estirarse: en una fila, el
+  // `alignItems` por defecto es `stretch`, así que sin esto toman el alto de lo
+  // que las contenga.
+  categoryScroll: {
+    gap: Spacing[2], paddingHorizontal: Spacing.screenPad, paddingVertical: 2,
+    alignItems: 'center',
+  },
   categoryChip:   {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 14, paddingVertical: 8,
