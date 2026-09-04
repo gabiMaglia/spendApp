@@ -1,4 +1,5 @@
 import {
+  DESPLAZAMIENTO,
   DURACION_MS,
   FIN_FADE_CUBOS,
   FIN_S,
@@ -6,6 +7,7 @@ import {
   avanceCubos,
   opacidadCubos,
   opacidadS,
+  desplazamiento,
   restanteDelViaje,
 } from '../splashTiming';
 
@@ -29,6 +31,59 @@ describe('tiempo del splash', () => {
       expect(avanceCubos(-3)).toBe(0);
       expect(avanceCubos(7)).toBe(1);
       expect(avanceCubos(NaN)).toBe(0);
+    });
+  });
+
+  /**
+   * El pedido, textual: «que arranque uno en una esquina y el otro en otra y se
+   * vayan juntando hasta llegar a la posición que tienen; empiezan levemente
+   * alejados y se van juntando».
+   *
+   * La primera versión movía los dos cubos IGUAL, en la misma dirección: se
+   * trasladaban juntos en vez de converger. Estos tests fijan la diferencia, que
+   * no se ve mirando un solo cubo.
+   */
+  describe('los cubos convergen, no viajan juntos', () => {
+    it('arrancan separados y en direcciones opuestas', () => {
+      const a = desplazamiento('petroleo', 0);
+      const b = desplazamiento('salvia', 0);
+      expect(a).toBeLessThan(0);      // entra desde arriba-izquierda
+      expect(b).toBeGreaterThan(0);   // entra desde abajo-derecha
+      expect(a).toBeCloseTo(-b, 10);  // simétricos
+    });
+
+    it('los dos terminan exactamente en su lugar', () => {
+      expect(desplazamiento('petroleo', 1)).toBe(0);
+      expect(desplazamiento('salvia', 1)).toBe(0);
+    });
+
+    it('la distancia entre los dos sólo baja: se juntan, nunca se alejan', () => {
+      let previa = Infinity;
+      for (let t = 0; t <= 1.0001; t += 0.05) {
+        const d = Math.abs(desplazamiento('salvia', t) - desplazamiento('petroleo', t));
+        expect(d).toBeLessThanOrEqual(previa + 1e-9);
+        previa = d;
+      }
+      expect(previa).toBeCloseTo(0, 10);
+    });
+
+    it('nunca se cruzan: el petróleo no pasa del otro lado', () => {
+      for (let t = 0; t <= 1.0001; t += 0.05) {
+        expect(desplazamiento('petroleo', t)).toBeLessThanOrEqual(0);
+        expect(desplazamiento('salvia', t)).toBeGreaterThanOrEqual(0);
+      }
+    });
+
+    it('«levemente alejados»: la separación inicial es una fracción de la marca', () => {
+      // Es el doble del desplazamiento porque cada uno aporta el suyo.
+      const separacion = 2 * DESPLAZAMIENTO;
+      expect(separacion).toBeGreaterThan(0.15);  // se tiene que notar
+      expect(separacion).toBeLessThan(0.6);      // pero no cruzar la pantalla
+    });
+
+    it('ya están juntos cuando entra la S', () => {
+      const d = Math.abs(desplazamiento('salvia', INICIO_S) - desplazamiento('petroleo', INICIO_S));
+      expect(d).toBeLessThan(0.02);
     });
   });
 

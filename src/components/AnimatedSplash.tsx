@@ -11,16 +11,16 @@ import Animated, {
 
 import { AppLogoMark, PiezaProps } from './AppLogoMark';
 import {
-  DESPLAZAMIENTO,
   DURACION_MS,
-  avanceCubos,
+  desplazamiento,
   opacidadCubos,
   opacidadS,
 } from '@/src/algorithms/splashTiming';
 
 /**
- * El splash animado: los cubos entran desde la esquina superior hacia el
- * centro, y cuando llegan a la superposición aparece la «S», que termina de
+ * El splash animado: los dos cubos entran **cada uno desde su esquina** —el
+ * petróleo desde arriba-izquierda, el salvia desde abajo-derecha— y se van
+ * juntando hasta su posición. Cuando se juntan aparece la «S», que termina de
  * aparecer justo cuando termina el movimiento. Pedido del PO, 2026-09-04.
  *
  * El tiempo NO vive acá: vive en `src/algorithms/splashTiming.ts`, con tests.
@@ -75,10 +75,12 @@ export function AnimatedSplash({ onDone }: { onDone: () => void }) {
     });
   }, [reduceMotion, onDone, p, salida]);
 
-  // Los dos cubos viajan igual; sólo cambia la opacidad final, porque el verde
-  // vive al 85% (es lo que lo deja ver el petróleo por debajo).
+  // Cada cubo entra desde SU esquina y se juntan: el petróleo desde
+  // arriba-izquierda (desplazamiento negativo) y el salvia desde abajo-derecha
+  // (positivo). El signo lo pone `desplazamiento`, que está testeado — antes los
+  // dos se movían igual y se trasladaban juntos en vez de converger.
   const estiloA = useAnimatedStyle(() => {
-    const d = -(1 - avanceCubos(p.value)) * DESPLAZAMIENTO * lado;
+    const d = desplazamiento('petroleo', p.value) * lado;
     return {
       opacity: opacidadCubos(p.value),
       transform: [{ translateX: d }, { translateY: d }],
@@ -86,8 +88,9 @@ export function AnimatedSplash({ onDone }: { onDone: () => void }) {
   });
 
   const estiloB = useAnimatedStyle(() => {
-    const d = -(1 - avanceCubos(p.value)) * DESPLAZAMIENTO * lado;
+    const d = desplazamiento('salvia', p.value) * lado;
     return {
+      // El verde vive al 85%: es lo que lo deja ver el petróleo por debajo.
       opacity: opacidadCubos(p.value) * 0.85,
       transform: [{ translateX: d }, { translateY: d }],
     };

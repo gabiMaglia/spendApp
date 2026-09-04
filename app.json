@@ -54,7 +54,9 @@
           "backgroundColor": "#000000",
           "dark": {
             "backgroundColor": "#000000"
-          }
+          },
+          "image": "./assets/images/splash-nativo.png",
+          "imageWidth": 1
         }
       ],
       "expo-secure-store",

@@ -27,7 +27,9 @@ Salidas en assets/images/ (todas 1024 salvo el favicon):
                                esquinas. Por eso va al 46% (46 × 1,414 ≈ 65%).
   android-icon-background.png  Capa de fondo, color plano.
   android-icon-monochrome.png  Silueta para los íconos temáticos de Android 13+.
-  splash-icon.png              Marca sola sobre transparente.
+  splash-icon.png              Marca sola sobre transparente (no la usa el splash
+                               nativo; queda por si hace falta la marca suelta).
+  splash-nativo.png            1×1 TRANSPARENTE. Ver la nota de abajo.
   favicon.png                  96×96 para la web.
 """
 
@@ -148,6 +150,22 @@ def main() -> None:
     guardar(mono, "android-icon-monochrome.png")
 
     guardar(dibujar_marca(1024, 1024 * 0.82), "splash-icon.png")
+
+    # El splash NATIVO no dibuja nada: la marca la anima el splash de React
+    # (`AnimatedSplash`). Si el nativo también la dibujara, el usuario la vería
+    # aparecer entera y enseguida re-animarse desde la esquina.
+    #
+    # Pero `expo-splash-screen` NO soporta un splash sólo-color en Android:
+    # aunque no le des `image`, igual escribe
+    # `windowSplashScreenAnimatedIcon → @drawable/splashscreen_logo` en
+    # `styles.xml` y no genera el drawable ⇒ el build falla con
+    # «resource drawable/splashscreen_logo not found». Verificado, y no se
+    # arregla con `prebuild --clean`.
+    #
+    # Por eso se le da una imagen de 1×1 transparente: el plugin queda conforme,
+    # el drawable existe y no se ve nada.
+    Image.new("RGBA", (1, 1), (0, 0, 0, 0)).save(SALIDA / "splash-nativo.png", "PNG")
+    print(f"  {'splash-nativo.png':32} 1×1 transparente")
     guardar(Image.alpha_composite(
         Image.new("RGBA", (96, 96), FONDO), dibujar_marca(96, 96 * 0.66)), "favicon.png")
 

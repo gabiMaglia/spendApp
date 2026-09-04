@@ -43,8 +43,19 @@ export const INICIO_S = 0.68;
 /** Dónde termina. Es 1 por el punto 2 de arriba: no es un número ajustable. */
 export const FIN_S = 1;
 
-/** Cuánto se corren los cubos, en fracción del lado de la marca. */
-export const DESPLAZAMIENTO = 0.42;
+/**
+ * Cuánto arranca CADA cubo fuera de su lugar, en fracción del lado de la marca.
+ *
+ * Los dos se mueven en direcciones OPUESTAS: el petróleo entra desde
+ * arriba-izquierda y el salvia desde abajo-derecha, así que la separación
+ * inicial entre ellos es el doble de esto. Por eso el número es chico — el
+ * pedido del PO es que arranquen «levemente alejados y se vayan juntando», no
+ * que crucen la pantalla.
+ */
+export const DESPLAZAMIENTO = 0.2;
+
+/** Los dos cuadrados de la marca. Cada uno entra desde su esquina. */
+export type Cubo = 'petroleo' | 'salvia';
 
 /** Los cubos terminan de aparecer mucho antes de terminar de moverse. */
 export const FIN_FADE_CUBOS = 0.45;
@@ -75,6 +86,29 @@ export function opacidadCubos(t: number): number {
   const x = Number.isNaN(t) ? 0 : Math.min(1, Math.max(0, t));
   if (x >= FIN_FADE_CUBOS) return 1;
   return x / FIN_FADE_CUBOS;
+}
+
+/**
+ * Dónde está un cubo en el instante `t`, en fracción del lado de la marca.
+ *
+ * `0` = en su lugar definitivo. El signo dice desde qué esquina viene: el
+ * petróleo termina arriba-izquierda y entra desde MÁS arriba-izquierda
+ * (negativo); el salvia termina abajo-derecha y entra desde MÁS abajo-derecha
+ * (positivo). Como los signos son opuestos, **se acercan uno al otro** en vez de
+ * viajar juntos — que es lo que hacían antes y estaba mal.
+ *
+ * El mismo valor sirve para X y para Y: el movimiento es en diagonal.
+ */
+export function desplazamiento(cubo: Cubo, t: number): number {
+  'worklet';
+  const x = Number.isNaN(t) ? 0 : Math.min(1, Math.max(0, t));
+  const resto = 1 - x;
+  const falta = resto * resto * resto;   // lo que queda de `avanceCubos`
+  const v = (cubo === 'petroleo' ? -1 : 1) * falta * DESPLAZAMIENTO;
+  // `-1 * 0` da `-0`, que no es lo mismo que `0` para `Object.is`. En pantalla
+  // da igual; en una función pública, devolver cero negativo es basura que
+  // después alguien tiene que explicar.
+  return v === 0 ? 0 : v;
 }
 
 /**
