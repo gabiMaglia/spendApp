@@ -114,7 +114,7 @@ export function SheetOption({
       ]}
     >
       {icon ? <Ionicons name={icon} size={18} color={iconTint} /> : null}
-      <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+      <View style={{ flex: 1, minWidth: 0, gap: Spacing[1] }}>
         <Text style={[Typography.bodyL, { color: tint, fontWeight: selected ? '700' : '600' }]} numberOfLines={1}>
           {label}
         </Text>
@@ -155,7 +155,7 @@ export function SheetOptionAvatar({
       ]}
     >
       <UserAvatar userId={userId} name={name} size={34} />
-      <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+      <View style={{ flex: 1, minWidth: 0, gap: Spacing[1] }}>
         <Text
           style={[Typography.bodyL, { color: selected ? c.brand.primary : c.text, fontWeight: selected ? '700' : '600' }]}
           numberOfLines={1}
@@ -239,7 +239,7 @@ export function SheetToggle({
   const c = Colors[scheme];
   return (
     <Pressable onPress={() => onChange(!value)} style={styles.toggleRow}>
-      <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+      <View style={{ flex: 1, minWidth: 0, gap: Spacing[1] }}>
         <Text style={[Typography.bodyL, { color: c.text }]}>{label}</Text>
         {sublabel ? (
           <Text style={[Typography.caption, { color: c.textTertiary }]}>{sublabel}</Text>
@@ -346,6 +346,14 @@ export function ConfirmSheet({
   );
 }
 
+/**
+ * El gap entre el ícono y el texto de una fila. Sale de `Band.tsx`, que ya usa
+ * 13 para exactamente la misma pieza: si el sheet usara otro, una fila de banda
+ * y una de sheet se verían distintas al lado de la otra. El reskin traía CUATRO
+ * valores para este mismo patrón (13, 12, 12 y 10).
+ */
+const GAP_FILA = 13;
+
 const styles = StyleSheet.create({
   root:      { flex: 1, justifyContent: 'flex-end', backgroundColor: SCRIM },
   // El sheet nunca tapa toda la pantalla: siempre se ve un poco del fondo,
@@ -354,11 +362,11 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20, borderTopRightRadius: 20,
     paddingTop: 8, maxHeight: '86%',
   },
-  grabber:   { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 10 },
+  grabber:   { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: Spacing[3] },
 
   titleRow:  {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingHorizontal: Spacing.screenPad, paddingBottom: 13,
+    flexDirection: 'row', alignItems: 'center', gap: GAP_FILA,
+    paddingHorizontal: Spacing.screenPad, paddingBottom: Spacing.rowPadV,
     borderBottomWidth: 1,
   },
   title:     { flex: 1, fontSize: 17, fontWeight: '700', letterSpacing: -0.2 },
@@ -368,37 +376,37 @@ const styles = StyleSheet.create({
 
   // Las opciones llegan a los bordes; el aire vive adentro de la fila.
   option:    {
-    flexDirection: 'row', alignItems: 'center', gap: 13,
-    paddingHorizontal: Spacing.screenPad, paddingVertical: 14,
+    flexDirection: 'row', alignItems: 'center', gap: GAP_FILA,
+    paddingHorizontal: Spacing.screenPad, paddingVertical: Spacing.rowPadV,
     minHeight: 56,
   },
 
-  note:      { paddingHorizontal: Spacing.screenPad, paddingTop: 14, lineHeight: 18 },
-  sheetLabel:{ paddingHorizontal: Spacing.screenPad, paddingTop: 20, paddingBottom: 9 },
+  note:      { paddingHorizontal: Spacing.screenPad, paddingTop: Spacing.rowPadV, lineHeight: 18 },
+  sheetLabel:{ paddingHorizontal: Spacing.screenPad, paddingTop: Spacing[5], paddingBottom: 9 },
 
   input:     {
-    flexDirection: 'row', gap: 10,
-    marginHorizontal: Spacing.screenPad, marginTop: 12,
-    paddingHorizontal: 14, paddingVertical: 13,
+    flexDirection: 'row', gap: GAP_FILA,
+    marginHorizontal: Spacing.screenPad, marginTop: Spacing[3],
+    paddingHorizontal: Spacing[4], paddingVertical: Spacing[3],
     borderRadius: Radius.md, borderWidth: 1,
   },
 
   toggleRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingHorizontal: Spacing.screenPad, paddingVertical: 15,
+    flexDirection: 'row', alignItems: 'center', gap: GAP_FILA,
+    paddingHorizontal: Spacing.screenPad, paddingVertical: Spacing.rowPadV,
   },
-  track:     { width: 42, height: 25, borderRadius: 13, padding: 3, flexShrink: 0 },
-  knob:      { width: 19, height: 19, borderRadius: 10, backgroundColor: '#fff' },
-  knobOn:    { transform: [{ translateX: 17 }] },
+  track:     { width: 44, height: 26, borderRadius: 13, padding: 3, flexShrink: 0 },
+  knob:      { width: 20, height: 20, borderRadius: 10, backgroundColor: '#fff' },
+  knobOn:    { transform: [{ translateX: 18 }] },
 
   footer:    {
     borderTopWidth: 1,
-    paddingHorizontal: Spacing.screenPad, paddingTop: 14,
+    paddingHorizontal: Spacing.screenPad, paddingTop: Spacing[3],
   },
-  actions:   { flexDirection: 'row', gap: 10 },
+  actions:   { flexDirection: 'row', gap: Spacing[2] },
   button:    { height: 52, borderRadius: Radius.lg, alignItems: 'center', justifyContent: 'center' },
 
-  confirmPad:  { alignItems: 'center', gap: 10, paddingHorizontal: Spacing[6], paddingTop: 18, paddingBottom: 20 },
-  confirmIcon: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', marginBottom: 2 },
+  confirmPad:  { alignItems: 'center', gap: Spacing[3], paddingHorizontal: Spacing[6], paddingTop: Spacing[5], paddingBottom: Spacing[5] },
+  confirmIcon: { width: Spacing.tapTarget, height: Spacing.tapTarget, borderRadius: 22, alignItems: 'center', justifyContent: 'center', marginBottom: Spacing[1] },
   confirmTitle:{ fontSize: 18, fontWeight: '700', letterSpacing: -0.3, textAlign: 'center' },
 });
