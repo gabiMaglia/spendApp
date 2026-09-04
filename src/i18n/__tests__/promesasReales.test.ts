@@ -21,6 +21,7 @@ import pt from '../locales/pt.json';
 
 const RAIZ = join(__dirname, '..', '..', '..');
 const POLITICA = join(RAIZ, 'docs', 'PRIVACIDAD.md');
+const TERMINOS = join(RAIZ, 'docs', 'TERMINOS.md');
 const DICTS: Record<string, unknown> = { es, en, pt };
 
 function textos(d: unknown, out: string[] = []): string[] {
@@ -126,10 +127,14 @@ describe('la política de privacidad sigue siendo cierta', () => {
    * cuándo desaparece lo que ya no puede borrar a mano. Sale del esquema del
    * buzón, así que si alguien cambia el intervalo, el documento miente.
    */
-  it('el plazo de 30 días del buzón es el que dice el SQL', () => {
-    const dice30 = /30 d[íi]as/.test(politica());
+  it('el plazo de 30 días del buzón es el que dice el SQL, en los DOS documentos', () => {
     const sql = readFileSync(join(RAIZ, 'supabase', '001_mailbox.sql'), 'utf8');
     const enElSql = /interval\s+'30 days'/.test(sql);
-    expect(dice30).toBe(enElSql);
+    // Los dos textos repiten el plazo. Si el SQL cambia, los dos mienten a la
+    // vez, así que los dos se revisan a la vez.
+    for (const [nombre, ruta] of [['privacidad', POLITICA], ['términos', TERMINOS]] as const) {
+      const dice30 = /30 d[íi]as/.test(readFileSync(ruta, 'utf8'));
+      expect(`${nombre}: ${dice30}`).toBe(`${nombre}: ${enElSql}`);
+    }
   });
 });
