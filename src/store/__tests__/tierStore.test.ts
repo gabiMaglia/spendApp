@@ -1,4 +1,4 @@
-import { useTierStore, dailyCountAt, ADS_DISPONIBLES } from '../tierStore';
+import { useTierStore, dailyCountAt, ADS_DISPONIBLES, PRO_DISPONIBLE } from '../tierStore';
 import { createStorage } from '@/src/utils/createStorage';
 
 /**
@@ -36,6 +36,20 @@ describe('el tope no se puede cerrar si no existe la llave', () => {
     const pkg = require('../../../package.json') as { dependencies: Record<string, string> };
     const instalada = 'react-native-google-mobile-ads' in pkg.dependencies;
     expect(ADS_DISPONIBLES).toBe(instalada);
+  });
+
+  /**
+   * El mismo guard, para Pro. Encenderlo sin una forma de cobrar devuelve la
+   * pantalla Yo al estado que el PO mandó apagar: un botón «Probar Pro gratis»
+   * que no lleva a ningún lado. Si mañana entra RevenueCat o compras in-app,
+   * este test avisa que ya se puede encender.
+   */
+  it('si se enciende Pro, tiene que haber alguna forma de cobrar', () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const pkg = require('../../../package.json') as { dependencies: Record<string, string> };
+    const hayCobro = ['react-native-purchases', 'expo-in-app-purchases']
+      .some(lib => lib in pkg.dependencies);
+    expect(PRO_DISPONIBLE).toBe(hayCobro);
   });
 
   it('la REGLA sigue viva aunque no bloquee: pasar el tope se puede saber', () => {

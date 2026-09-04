@@ -15,6 +15,7 @@ import { claveDeFallo, elegirAvatarDeGaleria, recortarAAvatar } from '@/src/serv
 import { AvatarCropSheet } from '@/src/components/AvatarCropSheet';
 import type { Recorte } from '@/src/algorithms/avatarCrop';
 import { useAuthStore } from '@/src/store/authStore';
+import { PRO_DISPONIBLE } from '@/src/store/tierStore';
 import { actualizarMiPerfil } from '@/src/store/miPerfil';
 import { useThemeStore } from '@/src/store/themeStore';
 import { useLangStore, type LanguageChoice } from '@/src/store/langStore';
@@ -244,7 +245,8 @@ export default function UserScreen() {
           </View>
         </BottomSheet>
 
-        {/* Plan */}
+        {/* Plan — oculto mientras Pro no exista: ver PRO_DISPONIBLE en tierStore. */}
+        {PRO_DISPONIBLE && (<>
         <SectionLabel label={t('profile.section_plan')} />
         <Band>
           <BandRow last>
@@ -267,6 +269,7 @@ export default function UserScreen() {
             )}
           </BandRow>
         </Band>
+        </>)}
 
         {/* Notificaciones */}
         <SectionLabel label={t('profile.section_notifications')} />
