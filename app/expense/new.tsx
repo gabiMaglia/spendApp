@@ -24,7 +24,7 @@ import type { CurrencyCode } from '@/src/constants/currencies';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAmountInput } from '@/src/hooks/useAmountInput';
 import { useAuthStore } from '@/src/store/authStore';
-import { useTierStore } from '@/src/store/tierStore';
+import { ADS_DISPONIBLES, useTierStore } from '@/src/store/tierStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
@@ -723,8 +723,13 @@ export default function NewExpenseScreen() {
           </View>
           </>)}
 
-          {/* Free tier notice — only shown when creating */}
-          {!isEditMode && !isPro && (
+          {/* El contador de gastos gratis del día.
+              Oculto mientras no haya anuncios: lo que cuenta es cuántos gastos te
+              quedan ANTES de tener que ver uno, y sin anuncios no hay tope que
+              cruzar —`requiresRewardedAd` devuelve siempre false—. Mostrarlo
+              anuncia un límite que la app no aplica, en gastos y en ingresos por
+              igual. Vuelve solo el día que `ADS_DISPONIBLES` pase a true. */}
+          {ADS_DISPONIBLES && !isEditMode && !isPro && (
             <View style={[styles.tierRow, {
               backgroundColor: c.semantic.warningSoft,
               borderTopWidth: 1, borderBottomWidth: 1, borderColor: c.hair,
