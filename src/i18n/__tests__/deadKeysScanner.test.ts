@@ -2,6 +2,7 @@ import {
   DYNAMIC_KEY_PREFIXES,
   extractDirectTCallArgs,
   extractStringLiterals,
+  findDefaultValueKeys,
   findMissingKeys,
   findOrphanKeys,
   flattenKeys,
@@ -82,6 +83,17 @@ describe('extractDirectTCallArgs', () => {
 
   it('no revienta con una llamada a t() con template dinámico', () => {
     expect(extractDirectTCallArgs('t(`categories.${cat.id}`)', false)).toEqual([]);
+  });
+
+  it('[T-072/D1] captura la clave cuando t se destructura con alias (const { t: tr } = useTranslation())', () => {
+    // QA T-072: 20+ pantallas usan `const { t } = useTranslation()`; renombrar la
+    // variable al desestructurar (patrón que el proyecto ya usa en otros hooks,
+    // ver personal.tsx:106) apagaba el guard entero antes de este fix.
+    const src = `
+      const { t: tr } = useTranslation();
+      tr('foo.bar');
+    `;
+    expect(extractDirectTCallArgs(src, false)).toEqual(['foo.bar']);
   });
 });
 
@@ -190,5 +202,76 @@ describe('findMissingKeys — el guard atrapa una clave viva borrada', () => {
   it('no duplica la misma clave faltante llamada más de una vez', () => {
     const llamadas = ['expense.borrada', 'expense.borrada'];
     expect(findMissingKeys(llamadas, [])).toEqual(['expense.borrada']);
+  });
+});
+
+describe('findDefaultValueKeys — T-072, corrección post-QA (D1–D4)', () => {
+  it('no reporta nada si ningún t() usa defaultValue', () => {
+    expect(findDefaultValueKeys("t('common.done')", false)).toEqual([]);
+  });
+
+  it('detecta el caso base: defaultValue como propiedad Identifier directa', () => {
+    expect(findDefaultValueKeys("t('foo.bar', { defaultValue: 'baz' })", false)).toEqual(['foo.bar']);
+  });
+
+  it('un objeto de interpolación normal, legible entero y sin defaultValue, no genera ruido', () => {
+    // Control: un objeto literal sin spread ni clave computada NO es "no analizable" sólo
+    // por no tener defaultValue — si esto fallara, D3/D4 estarían mal alcanzados.
+    expect(findDefaultValueKeys("t('expense.count', { count: 3 })", false)).toEqual([]);
+  });
+
+  describe('D1 — alias de t resuelto por archivo', () => {
+    it('destructuring con rename: const { t: tr } = useTranslation()', () => {
+      const src = `
+        const { t: tr } = useTranslation();
+        tr('foo.bar', { defaultValue: 'baz' });
+      `;
+      expect(findDefaultValueKeys(src, false)).toEqual(['foo.bar']);
+    });
+
+    it('extracción por propiedad: const tt = useTranslation().t', () => {
+      const src = `
+        const tt = useTranslation().t;
+        tt('foo.bar', { defaultValue: 'baz' });
+      `;
+      expect(findDefaultValueKeys(src, false)).toEqual(['foo.bar']);
+    });
+
+    it('hook guardado y usado como propiedad: const hook = useTranslation(); hook.t(...)', () => {
+      const src = `
+        const hook = useTranslation();
+        hook.t('foo.bar', { defaultValue: 'baz' });
+      `;
+      expect(findDefaultValueKeys(src, false)).toEqual(['foo.bar']);
+    });
+
+    it('el alias es POR ARCHIVO: un "tr" que no se liga a useTranslation() en este archivo no cuenta como t', () => {
+      const src = `tr('foo.bar', { defaultValue: 'baz' });`;
+      expect(findDefaultValueKeys(src, false)).toEqual([]);
+    });
+  });
+
+  it('[D2] detecta defaultValue con el nombre de propiedad entre comillas (StringLiteral, no Identifier)', () => {
+    expect(findDefaultValueKeys(`t('foo.bar', { "defaultValue": 'baz' })`, false)).toEqual(['foo.bar']);
+  });
+
+  describe('D3/D4 — carga de la prueba invertida: lo no analizable falla ruidoso, no desaparece', () => {
+    it('[D3] spread en las opciones: no se puede leer entero, el guard exige forma explícita', () => {
+      const src = `
+        const opts = { defaultValue: 'baz' };
+        t('foo.bar', { ...opts });
+      `;
+      expect(findDefaultValueKeys(src, false)).toEqual(['<no analizable: foo.bar>']);
+    });
+
+    it('[D3] segundo argumento construido por llamada a función (Object.assign)', () => {
+      const src = `t('foo.bar', Object.assign({}, { defaultValue: 'baz' }));`;
+      expect(findDefaultValueKeys(src, false)).toEqual(['<no analizable: foo.bar>']);
+    });
+
+    it('[D4] nombre de propiedad computado', () => {
+      const src = `t('foo.bar', { [k]: 'baz' });`;
+      expect(findDefaultValueKeys(src, false)).toEqual(['<no analizable: foo.bar>']);
+    });
   });
 });

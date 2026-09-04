@@ -81,7 +81,7 @@ function esTolerada(k: string): boolean {
 describe('guard de claves i18n muertas', () => {
   const allKeys = flattenKeys(es as Record<string, unknown>);
   const repoRoot = path.resolve(__dirname, '../../..');
-  const { usedLiterals, calledLiterals } = scanRepoUsage(repoRoot);
+  const { usedLiterals, calledLiterals, conDefaultValue } = scanRepoUsage(repoRoot);
 
   it('no sobrevive ninguna clave huérfana nueva en es.json', () => {
     const orphans = findOrphanKeys(allKeys, usedLiterals).filter(k => !esTolerada(k));
@@ -109,6 +109,16 @@ describe('guard de claves i18n muertas', () => {
       [...calledLiterals].some(k => k.startsWith(`${ns}.`)),
     );
     expect(conCodigo).toEqual([]);
+  });
+
+  it('ningún t() usa defaultValue — la muleta que esconde una traducción faltante', () => {
+    // `t('x.y', { defaultValue: 'Texto' })` pinta bien aunque `x.y` no exista, así que la clave
+    // faltante no se nota. Y el default se escribe en UN idioma: en los otros dos se muestra ese
+    // mismo texto. Pasó — seis claves con default en español hacían que en inglés y portugués se
+    // viera castellano (T-070). Ningún test lo puede ver: i18next está mockeado a «devolvé la
+    // clave», así que la resolución real nunca se ejecuta en la suite.
+    // Si falta una traducción, se agrega la clave en los tres idiomas. No se tapa.
+    expect(conDefaultValue).toEqual([]);
   });
 
   it('las claves dinámicas (categories.*) siguen existiendo', () => {

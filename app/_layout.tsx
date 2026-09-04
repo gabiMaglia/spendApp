@@ -1,7 +1,8 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack, useRouter, useSegments } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import * as Linking from 'expo-linking';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -11,6 +12,7 @@ import 'react-native-get-random-values';
 import '@/src/i18n'; // inicializar i18next antes de cualquier render
 import { bootstrapSecureStorage } from '@/src/utils/secureStorage';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { AnimatedSplash } from '@/src/components/AnimatedSplash';
 import { useAuthStore } from '@/src/store/authStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useThemeStore } from '@/src/store/themeStore';
@@ -103,8 +105,23 @@ function AuthGuard() {
   return null;
 }
 
+/*
+ * El splash nativo se mantiene hasta que React monta, y se esconde apenas
+ * montó para dejar correr el splash ANIMADO. Los dos son negros, así que el
+ * cambio de uno al otro no se ve. Sin esto, Expo esconde el nativo por su
+ * cuenta antes de tiempo y aparece un frame de la app antes de la animación.
+ */
+SplashScreen.preventAutoHideAsync().catch(() => {
+  // Si falla, la app arranca igual: se pierde la animación, no la app.
+});
+
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+  const [splashListo, setSplashListo] = useState(false);
+
+  useEffect(() => {
+    SplashScreen.hideAsync().catch(() => {});
+  }, []);
 
   // GestureHandlerRootView: los gestos (deslizar para archivar) NO funcionan
   // sin esta raíz, y fallan EN SILENCIO — el swipe simplemente no responde.
@@ -131,6 +148,7 @@ export default function RootLayout() {
         <Stack.Screen name="debug/relay"    options={{ presentation: 'modal', headerShown: false }} />
       </Stack>
       <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+      {!splashListo && <AnimatedSplash onDone={() => setSplashListo(true)} />}
     </ThemeProvider>
     </SafeAreaProvider>
     </GestureHandlerRootView>

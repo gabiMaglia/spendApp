@@ -128,7 +128,7 @@ export default function FriendsScreen() {
           />
         ) : (
           <>
-            <SectionLabel label={t('friends.contacts_count', { count: contacts.length, defaultValue: `Contactos (${contacts.length})` })} />
+            <SectionLabel label={t('friends.contacts_count', { count: contacts.length })} />
             <Band>
               {contacts.map((contact, i) => {
                 const balance = personBalances.find(b => b.userId === contact.id);
@@ -154,7 +154,7 @@ export default function FriendsScreen() {
               })}
             </Band>
             <Text style={[Typography.caption, styles.footnote, { color: c.textTertiary }]}>
-              {t('friends.qr_note', { defaultValue: 'Los contactos se agregan escaneando un QR: la identidad viaja entre dispositivos, no hay servidor de usuarios.' })}
+              {t('friends.qr_note')}
             </Text>
           </>
         )}

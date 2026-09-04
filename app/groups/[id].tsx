@@ -333,12 +333,12 @@ export default function GroupDetailScreen() {
                 <View style={{ flex: 1, gap: 2 }}>
                   <Text style={[Typography.bodyS, { color: c.semantic.warning, fontWeight: '700' }]}>
                     {group.leaveRequest.userId === currentUser.id
-                      ? t('leave.pending_mine', avance)
+                      ? t('leave.pending_mine', { got: avance.got, need: avance.need })
                       : t('leave.pending_title', { name: getUserName(group.leaveRequest.userId) })}
                   </Text>
                   {group.leaveRequest.userId !== currentUser.id && (
                     <Text style={[Typography.caption, { color: c.semantic.warning }]}>
-                      {t('leave.pending_body', avance)}
+                      {t('leave.pending_body', { got: avance.got, need: avance.need })}
                     </Text>
                   )}
                 </View>

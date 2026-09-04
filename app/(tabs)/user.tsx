@@ -15,6 +15,9 @@ import { claveDeFallo, elegirAvatarDeGaleria, recortarAAvatar } from '@/src/serv
 import { AvatarCropSheet } from '@/src/components/AvatarCropSheet';
 import type { Recorte } from '@/src/algorithms/avatarCrop';
 import { useAuthStore } from '@/src/store/authStore';
+import { PRO_DISPONIBLE } from '@/src/store/tierStore';
+import { TIENDA_DISPONIBLE, urlDeTienda } from '@/src/constants/tienda';
+import { APP_VERSION } from '@/src/constants/version';
 import { actualizarMiPerfil } from '@/src/store/miPerfil';
 import { useThemeStore } from '@/src/store/themeStore';
 import { useLangStore, type LanguageChoice } from '@/src/store/langStore';
@@ -120,7 +123,7 @@ export default function UserScreen() {
   }
 
   function handleRateApp() {
-    Linking.openURL('https://apps.apple.com/app/id000000000');
+    void Linking.openURL(urlDeTienda());
   }
 
   async function handleExport() {
@@ -244,7 +247,8 @@ export default function UserScreen() {
           </View>
         </BottomSheet>
 
-        {/* Plan */}
+        {/* Plan — oculto mientras Pro no exista: ver PRO_DISPONIBLE en tierStore. */}
+        {PRO_DISPONIBLE && (<>
         <SectionLabel label={t('profile.section_plan')} />
         <Band>
           <BandRow last>
@@ -267,6 +271,7 @@ export default function UserScreen() {
             )}
           </BandRow>
         </Band>
+        </>)}
 
         {/* Notificaciones */}
         <SectionLabel label={t('profile.section_notifications')} />
@@ -328,12 +333,16 @@ export default function UserScreen() {
           </BandRow>
         </Band>
 
-        {/* Tienda */}
+        {/* Tienda — oculta hasta que la app exista en las tiendas y los ids sean
+            reales: ver TIENDA_DISPONIBLE. Ojo al encenderla: «Enviar comentarios»
+            NO es un link de tienda y hoy comparte handler con «Calificar». */}
+        {TIENDA_DISPONIBLE && (<>
         <SectionLabel label={t('profile.section_store')} />
         <Band>
           <LinkRow label={t('profile.rate')}     icon="star-outline"      onPress={handleRateApp} />
           <LinkRow label={t('profile.feedback')} icon="chatbubble-outline" onPress={handleRateApp} last />
         </Band>
+        </>)}
 
         {/* Copia de seguridad */}
         <SectionLabel label={t('backup.section')} />
@@ -378,7 +387,7 @@ export default function UserScreen() {
         )}
 
         <Text style={[Typography.caption, styles.version, { color: c.textTertiary }]}>
-          {t('profile.version', { version: '1.0.0' })}
+          {t('profile.version', { version: APP_VERSION })}
         </Text>
       </Animated.ScrollView>
 

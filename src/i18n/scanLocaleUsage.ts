@@ -1,10 +1,10 @@
 import fs from 'fs';
 import path from 'path';
 
-import { extractDirectTCallArgs, extractStringLiterals } from './deadKeysScanner';
+import { extractDirectTCallArgs, extractStringLiterals, findDefaultValueKeys } from './deadKeysScanner';
 
 /** Directorios que el ticket manda escanear (T-070). */
-const ROOT_DIRS = ['app', 'src', 'components', 'hooks'];
+const ROOT_DIRS = ['app', 'src', 'components', 'hooks', 'constants'];
 
 /** Nombres de directorio que se saltean enteros al caminar el árbol. */
 const SKIP_DIR_NAMES = new Set(['node_modules', '__tests__']);
@@ -36,6 +36,8 @@ export type UsoDeLocales = {
   usedLiterals: Set<string>;
   /** Sólo los que son primer argumento de una llamada directa a t()/i18n.t(). */
   calledLiterals: string[];
+  /** Claves llamadas con `defaultValue`: la muleta que esconde una traducción faltante. */
+  conDefaultValue: string[];
 };
 
 /**
@@ -48,11 +50,13 @@ export function scanRepoUsage(repoRoot: string): UsoDeLocales {
   const files = listSourceFiles(repoRoot);
   const usedLiterals = new Set<string>();
   const calledLiterals: string[] = [];
+  const conDefaultValue: string[] = [];
   for (const file of files) {
     const src = fs.readFileSync(file, 'utf8');
     const isTsx = file.endsWith('.tsx');
     for (const lit of extractStringLiterals(src, isTsx)) usedLiterals.add(lit);
     calledLiterals.push(...extractDirectTCallArgs(src, isTsx));
+    conDefaultValue.push(...findDefaultValueKeys(src, isTsx));
   }
-  return { usedLiterals, calledLiterals };
+  return { usedLiterals, calledLiterals, conDefaultValue };
 }

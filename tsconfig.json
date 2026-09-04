@@ -2,7 +2,6 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true,
-    "experimentalDecorators": true,
     "paths": {
       "@/*": [
         "./*"
@@ -14,5 +13,15 @@
     "**/*.tsx",
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
+  ],
+  "//": "El include es un glob de todo el repo, así que cualquier .tsx que caiga adentro entra al chequeo. Una entrega de diseño descomprimida en assets/ tiró 54 errores de tipos sobre una copia vieja de pantallas que ya evolucionaron. assets/ guarda imágenes y bundles, nunca código del proyecto. Ojo: declarar exclude PISA por completo el de la base (expo/tsconfig.base) en vez de sumarse — no sólo los defaults de TypeScript. Por eso acá se repiten node_modules, babel.config.js, metro.config.js, jest.config.js, android e ios (los mismos que trae expo/tsconfig.base) además de assets/**.",
+  "exclude": [
+    "node_modules",
+    "babel.config.js",
+    "metro.config.js",
+    "jest.config.js",
+    "android",
+    "ios",
+    "assets/**"
   ]
 }

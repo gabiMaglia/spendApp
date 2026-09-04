@@ -20,6 +20,8 @@ import pt from '../locales/pt.json';
  */
 
 const RAIZ = join(__dirname, '..', '..', '..');
+const POLITICA = join(RAIZ, 'docs', 'PRIVACIDAD.md');
+const TERMINOS = join(RAIZ, 'docs', 'TERMINOS.md');
 const DICTS: Record<string, unknown> = { es, en, pt };
 
 function textos(d: unknown, out: string[] = []): string[] {
@@ -72,6 +74,90 @@ describe('la app no promete lo que no hace', () => {
     for (const [lang, dict] of Object.entries(DICTS)) {
       const culpables = textos(dict).filter(t => NIEGA_LA_NUBE.some(r => r.test(t)));
       expect(`${lang}: ${JSON.stringify(culpables)}`).toBe(`${lang}: []`);
+    }
+  });
+
+});
+
+/**
+ * La política de privacidad hace afirmaciones VERIFICABLES, y es el documento
+ * que las tiendas leen y que el usuario puede citar. Vale la misma regla que el
+ * copy de la app: si el código deja de cumplirlas, esto se cae.
+ *
+ * No se revisa la redacción — sólo que cuatro hechos concretos sigan siendo
+ * hechos. Cada uno mira el CÓDIGO, no otro texto.
+ */
+describe('la política de privacidad sigue siendo cierta', () => {
+  const politica = () => readFileSync(POLITICA, 'utf8');
+  const pkg = () => JSON.parse(readFileSync(join(RAIZ, 'package.json'), 'utf8')) as
+    { dependencies: Record<string, string> };
+
+  it('dice que no hay publicidad, y no hay librería de publicidad', () => {
+    if (!/No hay publicidad/i.test(politica())) return; // si se saca la promesa, no hay qué guardar
+    const deps = Object.keys(pkg().dependencies).join(' ');
+    expect(deps).not.toMatch(/mobile-ads|admob|facebook-ads|applovin/i);
+  });
+
+  /**
+   * **Aviso para el que implemente el reporte de errores (T-078 del plan de
+   * lanzamiento): este test te va a frenar, y está bien.** Instalar Sentry o
+   * equivalente manda datos de la app a un tercero, y la política dice hoy que
+   * no hay nada de eso. El orden correcto es actualizar la política y el
+   * formulario de datos de las tiendas, y recién entonces la dependencia — no
+   * al revés, y menos borrando esta línea.
+   */
+  it('dice que no hay analítica, y no hay librería de analítica', () => {
+    if (!/No hay anal[íi]tica/i.test(politica())) return;
+    const deps = Object.keys(pkg().dependencies).join(' ');
+    expect(deps).not.toMatch(/amplitude|mixpanel|segment|firebase\/analytics|posthog|@sentry/i);
+  });
+
+  it('dice que no pide micrófono ni Bluetooth, y el app.json los bloquea', () => {
+    if (!/NO pide micr[óo]fono/i.test(politica())) return;
+    const app = JSON.parse(readFileSync(join(RAIZ, 'app.json'), 'utf8')) as
+      { expo: { android: { permissions: string[]; blockedPermissions?: string[] } } };
+    const bloqueados = app.expo.android.blockedPermissions ?? [];
+    expect(bloqueados).toContain('android.permission.RECORD_AUDIO');
+    expect(bloqueados).toContain('android.permission.BLUETOOTH');
+    expect(app.expo.android.permissions.join(' ')).not.toMatch(/LOCATION/);
+  });
+
+  /**
+   * El plazo no es decorativo: es lo que la política le promete al usuario sobre
+   * cuándo desaparece lo que ya no puede borrar a mano. Sale del esquema del
+   * buzón, así que si alguien cambia el intervalo, el documento miente.
+   */
+  /**
+   * La política describe «Ajustes → Borrar cuenta». **Ese botón todavía no
+   * existe** (T-074), así que la sección lleva una marca de PENDIENTE. Este
+   * test ata las dos cosas: la marca se puede sacar el día que el código tenga
+   * el borrado, y no antes.
+   *
+   * Es el mismo error que esta app ya cometió —una pantalla que afirmaba tres
+   * cosas que el código no hacía— pero en un documento que además leen las
+   * tiendas.
+   */
+  it('la marca de PENDIENTE del borrado de cuenta se va cuando exista el borrado', () => {
+    const { execSync } = require('child_process') as typeof import('child_process');
+    const hayBorrado = execSync(
+      `grep -rl "deleteAccount\\|borrarCuenta" app src --include='*.ts' --include='*.tsx' ` +
+      `--exclude-dir=__tests__ || true`,
+      { cwd: RAIZ, encoding: 'utf8' },
+    ).trim() !== '';
+    const dicePendiente = /PENDIENTE — T-074/.test(politica());
+    // Mientras no haya borrado, la marca tiene que estar. Cuando lo haya, sobra.
+    expect(`borrado:${hayBorrado} pendiente:${dicePendiente}`)
+      .toBe(`borrado:${hayBorrado} pendiente:${!hayBorrado}`);
+  });
+
+  it('el plazo de 30 días del buzón es el que dice el SQL, en los DOS documentos', () => {
+    const sql = readFileSync(join(RAIZ, 'supabase', '001_mailbox.sql'), 'utf8');
+    const enElSql = /interval\s+'30 days'/.test(sql);
+    // Los dos textos repiten el plazo. Si el SQL cambia, los dos mienten a la
+    // vez, así que los dos se revisan a la vez.
+    for (const [nombre, ruta] of [['privacidad', POLITICA], ['términos', TERMINOS]] as const) {
+      const dice30 = /30 d[íi]as/.test(readFileSync(ruta, 'utf8'));
+      expect(`${nombre}: ${dice30}`).toBe(`${nombre}: ${enElSql}`);
     }
   });
 });

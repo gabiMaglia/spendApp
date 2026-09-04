@@ -29,6 +29,24 @@ const FREE_DAILY_FREE_EXPENSES = 4;
 export const ADS_DISPONIBLES = false;
 
 /**
+ * ¿Existe el plan Pro? Hoy NO, y la UI no debe ofrecerlo.
+ *
+ * Mismo criterio que `ADS_DISPONIBLES`, por el mismo motivo: **no se le ofrece
+ * al usuario una puerta que no lleva a ningún lado.** El botón «Probar Pro
+ * gratis» de la pantalla Yo era un `Pressable` SIN `onPress` — se tocaba y no
+ * pasaba nada. Y aunque se cableara, no habría a dónde ir: no hay compras
+ * in-app ni ninguna forma de cobrar en el proyecto.
+ *
+ * Decisión del PO (2026-09-03): el lanzamiento es **gratis, sin ads y sin Pro**.
+ * Monetizar sin usuarios agrega integraciones y revisiones de tienda a cambio
+ * de nada.
+ *
+ * El día que exista una forma de pagar, esto pasa a `true` y la sección vuelve.
+ * El test de `tierStore` se cae si alguien lo enciende sin eso.
+ */
+export const PRO_DISPONIBLE = false;
+
+/**
  * La clave del día, en hora LOCAL.
  *
  * Antes usaba `toISOString()`, que es UTC: para el PO (UTC−3) el contador se

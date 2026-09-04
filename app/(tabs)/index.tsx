@@ -151,7 +151,7 @@ export default function AccountScreen() {
         {/* Personal del mes */}
         <SectionLabel
           label={`${t('dashboard.personal_label')} · ${new Date().toLocaleString(i18n.language, { month: 'long' })}`}
-          right={<BandLink label={t('dashboard.see_month', { defaultValue: 'Ver mes' })} onPress={() => router.push('/(tabs)/personal' as any)} />}
+          right={<BandLink label={t('dashboard.see_month')} onPress={() => router.push('/(tabs)/personal' as any)} />}
         />
         <Band>
           <Pressable

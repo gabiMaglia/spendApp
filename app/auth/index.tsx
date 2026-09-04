@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Alert, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
+import { AppLogoMark } from '@/src/components/AppLogoMark';
 import { signIntoDirectory } from '@/src/sync/directoryAuth';
 import { registerDeviceKey } from '@/src/sync/deviceKeys';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
@@ -242,26 +243,6 @@ export default function AuthScreen() {
         </View>
       </ScrollView>
     </SafeAreaView>
-  );
-}
-
-function AppLogoMark({ size }: { size: number }) {
-  return (
-    <View style={{ width: size, height: size, position: 'relative' }}>
-      <View style={{
-        position: 'absolute', left: 0, top: 0,
-        width: size * 0.78, height: size * 0.78,
-        borderRadius: size * 0.26, backgroundColor: '#0A6E8F',
-      }} />
-      <View style={{
-        position: 'absolute', right: 0, bottom: 0,
-        width: size * 0.68, height: size * 0.68,
-        borderRadius: size * 0.22, backgroundColor: '#8FBC94', opacity: 0.85,
-      }} />
-      <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }]}>
-        <Text style={{ color: '#fff', fontSize: size * 0.31, fontWeight: '800', letterSpacing: -2 }}>S</Text>
-      </View>
-    </View>
   );
 }
 

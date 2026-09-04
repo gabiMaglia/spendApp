@@ -86,8 +86,61 @@ export function extractStringLiterals(source: string, isTsx: boolean): string[] 
   return literales;
 }
 
-function esLlamadaAT(expr: ts.Expression): boolean {
-  if (ts.isIdentifier(expr)) return expr.text === 't';
+/**
+ * Alias de `t` que este ARCHIVO liga a `useTranslation()` (T-072/D1).
+ *
+ * QA encontró que `esLlamadaAT` sólo reconocía el identificador literal `t`: renombrar al
+ * desestructurar (`const { t: tr } = useTranslation()`) — patrón que el proyecto ya usa en
+ * otros hooks, ver `app/(tabs)/personal.tsx:106` — apagaba el guard entero con un cambio de
+ * una palabra. Se resuelve por archivo (un `Set` nuevo por cada `parse`), nunca global: un
+ * alias de un archivo no debe filtrar a otro.
+ *
+ * Formas cubiertas, ambas atadas a una llamada real a `useTranslation(...)`:
+ *   - `const { t: tr } = useTranslation()` (o sin alias, `{ t }`, que ya cae en el Set).
+ *   - `const tt = useTranslation().t`.
+ * `hook.t(...)` (el hook guardado entero y usado como propiedad) no necesita alias: la rama
+ * `PropertyAccessExpression` de abajo ya acepta cualquier objeto con miembro `.t`.
+ */
+function collectTAliases(sourceFile: ts.SourceFile): Set<string> {
+  const aliases = new Set<string>(['t']);
+  const hookVars = new Set<string>();
+
+  const esLlamadaAUseTranslation = (expr: ts.Expression): boolean =>
+    ts.isCallExpression(expr) && ts.isIdentifier(expr.expression) && expr.expression.text === 'useTranslation';
+
+  const visit = (node: ts.Node): void => {
+    if (ts.isVariableDeclaration(node) && node.initializer) {
+      const init = node.initializer;
+
+      if (ts.isObjectBindingPattern(node.name) && esLlamadaAUseTranslation(init)) {
+        for (const el of node.name.elements) {
+          if (ts.isIdentifier(el.propertyName ?? el.name) === false) continue;
+          const nombreOrigen = (el.propertyName ?? el.name) as ts.Identifier;
+          if (nombreOrigen.text === 't' && ts.isIdentifier(el.name)) aliases.add(el.name.text);
+        }
+      }
+
+      if (ts.isIdentifier(node.name)) {
+        if (esLlamadaAUseTranslation(init)) {
+          hookVars.add(node.name.text);
+        } else if (
+          ts.isPropertyAccessExpression(init) &&
+          init.name.text === 't' &&
+          (esLlamadaAUseTranslation(init.expression) ||
+            (ts.isIdentifier(init.expression) && hookVars.has(init.expression.text)))
+        ) {
+          aliases.add(node.name.text);
+        }
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  return aliases;
+}
+
+function esLlamadaAT(expr: ts.Expression, aliases: ReadonlySet<string>): boolean {
+  if (ts.isIdentifier(expr)) return aliases.has(expr.text);
   if (ts.isPropertyAccessExpression(expr)) return expr.name.text === 't';
   return false;
 }
@@ -104,9 +157,10 @@ function esLlamadaAT(expr: ts.Expression): boolean {
  */
 export function extractDirectTCallArgs(source: string, isTsx: boolean): string[] {
   const sourceFile = parse(source, isTsx);
+  const aliases = collectTAliases(sourceFile);
   const literales: string[] = [];
   const visit = (node: ts.Node): void => {
-    if (ts.isCallExpression(node) && esLlamadaAT(node.expression)) {
+    if (ts.isCallExpression(node) && esLlamadaAT(node.expression, aliases)) {
       const primero = node.arguments[0];
       if (primero && (ts.isStringLiteral(primero) || ts.isNoSubstitutionTemplateLiteral(primero))) {
         literales.push(primero.text);
@@ -116,6 +170,68 @@ export function extractDirectTCallArgs(source: string, isTsx: boolean): string[]
   };
   visit(sourceFile);
   return literales;
+}
+
+/**
+ * Claves llamadas con `defaultValue` — la muleta que esconde una clave faltante.
+ *
+ * `t('x.y', { defaultValue: 'Texto' })` devuelve ese texto cuando `x.y` no existe, así que la
+ * pantalla se ve bien y nadie se entera de que falta la traducción. Peor: el default se escribe
+ * en UN idioma, así que en los otros dos se muestra ese mismo texto. Pasó de verdad — seis claves
+ * del proyecto tenían default en español y en inglés y portugués se veía castellano (T-070).
+ *
+ * Y es invisible para la suite: el CLAUDE.md manda mockear i18next a «devolvé la clave», con lo
+ * cual ningún test ejecuta jamás la resolución real.
+ *
+ * Devuelve la clave de cada llamada así, para que el guard pueda nombrarla.
+ */
+/** `p.name` es `defaultValue`, ya sea como `Identifier` o como `StringLiteral` (T-072/D2: `{ "defaultValue": … }`). */
+function esNombreDefaultValue(name: ts.PropertyName): boolean {
+  return (ts.isIdentifier(name) || ts.isStringLiteral(name)) && name.text === 'defaultValue';
+}
+
+/**
+ * El segundo argumento es un objeto literal que se puede leer ENTERO — sin spread ni clave
+ * computada (T-072/D3/D4). Cuando esto da `false` (objeto con spread/clave computada, una
+ * llamada como `Object.assign(...)`, o cualquier otra expresión que no sea un literal), el
+ * llamador lo trata como sospechoso en vez de mirar para el costado: no hay análisis estático
+ * que gane siempre contra esas formas — el valor real de esas propiedades sólo se conoce en
+ * runtime. Se invierte la carga de la prueba: si no se puede leer entero, el guard obliga a
+ * reescribirlo en forma explícita en vez de desaparecer en silencio (falso negativo, que es
+ * justo el bug que este guard existe para cerrar).
+ */
+function esObjetoLiteralLegible(segundo: ts.Expression): segundo is ts.ObjectLiteralExpression {
+  return (
+    ts.isObjectLiteralExpression(segundo) &&
+    segundo.properties.every(
+      p => !ts.isSpreadAssignment(p) && !(p.name !== undefined && ts.isComputedPropertyName(p.name)),
+    )
+  );
+}
+
+export function findDefaultValueKeys(source: string, isTsx: boolean): string[] {
+  const sourceFile = parse(source, isTsx);
+  const aliases = collectTAliases(sourceFile);
+  const encontradas: string[] = [];
+  const visit = (node: ts.Node): void => {
+    if (ts.isCallExpression(node) && esLlamadaAT(node.expression, aliases)) {
+      const [primero, segundo] = node.arguments;
+      if (segundo !== undefined) {
+        const clave =
+          primero && (ts.isStringLiteral(primero) || ts.isNoSubstitutionTemplateLiteral(primero))
+            ? primero.text
+            : '<clave dinámica>';
+        if (!esObjetoLiteralLegible(segundo)) {
+          encontradas.push(`<no analizable: ${clave}>`);
+        } else if (segundo.properties.some(p => p.name !== undefined && esNombreDefaultValue(p.name))) {
+          encontradas.push(clave);
+        }
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  return encontradas;
 }
 
 /** Forma real de una clave i18n del proyecto: segmentos snake_case separados por punto. */
