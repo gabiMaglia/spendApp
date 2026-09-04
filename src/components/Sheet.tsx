@@ -45,7 +45,9 @@ export function BottomSheet({
 
   const Body: any = scroll ? ScrollView : View;
   const bodyProps = scroll
-    ? { bounces: false, showsVerticalScrollIndicator: false, contentContainerStyle: { paddingBottom: 4 } }
+    // Sin paddingBottom propio: el del sheet ya lo pone. Antes había un 4 suelto
+    // acá, así que un sheet con scroll y uno sin scroll no terminaban igual.
+    ? { bounces: false, showsVerticalScrollIndicator: false }
     : {};
 
   return (
@@ -53,7 +55,13 @@ export function BottomSheet({
       <View style={styles.root}>
         <Pressable style={StyleSheet.absoluteFillObject} onPress={onClose} />
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <View style={[styles.sheet, { backgroundColor: c.surface, paddingBottom: insets.bottom + Spacing[3] }]}>
+          <View style={[styles.sheet, {
+            backgroundColor: c.surface,
+            // El inset despeja la barra de gestos; NO es espacio de diseño. Sumarlos
+            // daba 46px abajo (34 de inset + 12) contra 24 arriba, y con el padding
+            // de la última fila encima quedaban 60 de hueco. Se usa el mayor.
+            paddingBottom: Math.max(insets.bottom, Spacing[4]),
+          }]}>
             <View style={[styles.grabber, { backgroundColor: c.hair }]} />
 
             {title ? (
@@ -362,11 +370,17 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20, borderTopRightRadius: 20,
     paddingTop: 8, maxHeight: '86%',
   },
-  grabber:   { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: Spacing[3] },
+  grabber:   { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: Spacing[1] },
 
+  // El título lleva su propio aire arriba y abajo, y es el MISMO que el de una
+  // fila (`rowPadV`), así que la banda del título y las de abajo tienen el mismo
+  // ritmo. Antes sólo tenía padding abajo y lo de arriba era lo que sobraba del
+  // grabber: 24 contra 14, o sea el título pegado al borde inferior de su propia
+  // banda.
   titleRow:  {
     flexDirection: 'row', alignItems: 'center', gap: GAP_FILA,
-    paddingHorizontal: Spacing.screenPad, paddingBottom: Spacing.rowPadV,
+    paddingHorizontal: Spacing.screenPad,
+    paddingVertical: Spacing.rowPadV,
     borderBottomWidth: 1,
   },
   title:     { flex: 1, fontSize: 17, fontWeight: '700', letterSpacing: -0.2 },
