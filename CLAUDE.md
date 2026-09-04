@@ -16,7 +16,7 @@ App móvil de división de gastos (Expo / React Native) que funciona **100% sin 
 |---|---|
 | Framework | Expo SDK 54 + Expo Router v6 |
 | Lenguaje | TypeScript estricto |
-| Almacenamiento local | MMKV (rápido, sincrónico) + WatermelonDB (queries reactivas) |
+| Almacenamiento local | MMKV (rápido, sincrónico) + Zustand. **WatermelonDB se evaluó y se sacó el 2026-09-03** (decisión del PO): estuvo instalado seis semanas sin que nada lo importara. Si vuelve, es por una necesidad medida de queries reactivas, no por el plan viejo |
 | OCR (Pro) | `@react-native-ml-kit/text-recognition` — on-device, offline, sin API key |
 | Sincronización P2P | WebRTC (internet, auto) + relay cifrado (Supabase). **BLE está PLANEADO, no implementado** — no hay ninguna dependencia de Bluetooth en el proyecto (verificado 2026-09-02) |
 | Autenticación | Expo Auth Session → Google OAuth + Sign in with Apple |
@@ -42,7 +42,6 @@ npm run test:coverage    # Jest con reporte de cobertura
 npm test -- --testPathPattern=NombreDelTest   # un test específico
 ```
 
-> WatermelonDB requiere un **development build** (no funciona en Expo Go).
 > Ejecutar `npx expo run:ios` o `npx expo run:android` para levantar con dev client.
 
 ---
@@ -151,7 +150,6 @@ app/
 
 ```
 src/
-  db/               ← Modelos WatermelonDB y schema
   sync/             ← SyncEngine (merge CRDT, tombstones, delta)
   p2p/              ← emparejamiento WebRTC por QR (sdpCodec, usePairingSession). BLE no existe todavía
   auth/             ← useAuth hook (Google, Apple)
