@@ -17,6 +17,7 @@ import type { Recorte } from '@/src/algorithms/avatarCrop';
 import { useAuthStore } from '@/src/store/authStore';
 import { PRO_DISPONIBLE } from '@/src/store/tierStore';
 import { TIENDA_DISPONIBLE, urlDeTienda } from '@/src/constants/tienda';
+import { APP_VERSION } from '@/src/constants/version';
 import { actualizarMiPerfil } from '@/src/store/miPerfil';
 import { useThemeStore } from '@/src/store/themeStore';
 import { useLangStore, type LanguageChoice } from '@/src/store/langStore';
@@ -386,7 +387,7 @@ export default function UserScreen() {
         )}
 
         <Text style={[Typography.caption, styles.version, { color: c.textTertiary }]}>
-          {t('profile.version', { version: '1.0.0' })}
+          {t('profile.version', { version: APP_VERSION })}
         </Text>
       </Animated.ScrollView>
 

@@ -14,8 +14,8 @@
       "usesAppleSignIn": true,
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Necesitamos acceso a tus fotos para adjuntar imágenes de tickets.",
-        "NSMicrophoneUsageDescription": "Requerido por el módulo de WebRTC para conexión P2P.",
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSFaceIDUsageDescription": "spendApp usa Face ID para proteger la app cuando la abrís."
       }
     },
     "android": {
