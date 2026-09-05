@@ -644,5 +644,25 @@
     "expense": "Não foi possível verificar quem lançou isto",
     "vote": "Não foi possível verificar quem solicitou isto",
     "payment": "Não foi possível verificar quem registrou este pagamento"
+  },
+  "account_delete": {
+    "row": "Excluir conta",
+    "title": "Excluir sua conta",
+    "what_title": "Apaga-se deste telefone",
+    "what_1": "Todas as suas despesas, grupos, pagamentos e lançamentos pessoais.",
+    "what_2": "Seu perfil, suas preferências e suas chaves.",
+    "what_3": "O vínculo entre suas contas do Google e da Apple, se você o tinha feito.",
+    "kept_title": "Isto não dá para apagar, e é importante que você saiba",
+    "kept_1": "As despesas que já estão no telefone das pessoas dos seus grupos. São a contrapartida de dívidas de outras pessoas: apagá-las quebraria as contas delas. Elas vão continuar vendo.",
+    "kept_2": "Tiramos da caixa postal os pacotes que este telefone deixou. Os que ficaram de outra instalação expiram sozinhos em 30 dias.",
+    "no_server": "Sua conta não existe em nenhum servidor nosso: não temos seu e-mail nem como saber quem você é. Por isso não há nada que possamos apagar por você.",
+    "debts": "Se você tinha dívidas em aberto, excluir a conta não as cancela: o grupo continua vendo o que era devido. Suas despesas são a contrapartida das contas de outras pessoas.",
+    "peers_note": "As pessoas dos seus grupos vão deixar de ver seu nome e sua foto na próxima sincronização.",
+    "confirm": "Excluir minha conta",
+    "confirm_title": "Excluir sua conta?",
+    "confirm_body": "Não dá para desfazer.",
+    "working": "Excluindo…",
+    "anon_name": "Conta excluída",
+    "partial": "Sua conta foi excluída. Algo ficou na caixa postal e não pôde ser retirado; será tentado de novo ao abrir o app."
   }
 }

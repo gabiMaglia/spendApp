@@ -51,8 +51,13 @@ export interface User extends SyncMeta {
    * Son BYTES y no una URL a propósito: una URL de Google haría que cada peer
    * bajara la imagen de su CDN, contándole a Google quién mira a quién. Ver
    * `src/services/avatar.ts`.
+   *
+   * **`null` NO es lo mismo que ausente.** Ausente significa «no traigo foto» y
+   * la regla de T-056 conserva la que había; `null` es un **tombstone**: «esta
+   * persona se sacó la foto». Es el mecanismo que `userAvatar.ts` dejó previsto
+   * y que el borrado de cuenta (T-074) es el primero en usar.
    */
-  avatar?: string;
+  avatar?: string | null;
   authProvider: 'google' | 'apple';
   createdAt: number;
 }

@@ -112,23 +112,32 @@ y hay un test automático que falla si vuelven.
 
 ## Borrar tu cuenta
 
-> ⚠️ **PENDIENTE — T-074.** Esta sección describe lo que va a hacer el botón, y **el botón todavía
-> no existe**. No publicar este documento hasta que exista: prometer un borrado que no ocurre es
-> justo lo que este texto no puede hacer. El guard de `promesasReales` no deja sacar esta marca
-> mientras el código no tenga el borrado.
-
-Desde **Ajustes → Borrar cuenta** se borra, de tu teléfono:
+Desde **Yo → Borrar cuenta** se borra, de tu teléfono:
 
 - todos tus gastos, grupos, pagos y movimientos personales;
 - tu perfil, tus preferencias y tus claves;
 - el vínculo entre tus cuentas de Google y Apple, si lo habías hecho.
 
+Y del buzón se sacan **los paquetes que dejó este teléfono**, en el momento. Si no hay internet, se
+sacan la próxima vez que abras la app con conexión.
+
 **Lo que ese botón no puede borrar, y hay que decirlo claro:**
 
 1. **Los gastos que ya están en el teléfono de tus grupos.** Son la contrapartida de deudas de
    otras personas: borrarlos les rompería las cuentas a ellos. Van a seguir viendo esos
-   movimientos.
-2. **Los paquetes que ya dejaste en el buzón.** Están cifrados y **caducan solos a los 30 días**.
+   movimientos. Tu **nombre y tu foto sí desaparecen**: al borrar la cuenta se avisa a tus grupos,
+   y la próxima vez que sincronicen vas a figurar como «Cuenta borrada».
+2. **Los paquetes que dejó otra instalación de la app.** Si reinstalaste, o si tenías la app en
+   otro teléfono, esos paquetes ya no se pueden sacar desde acá: la llave que prueba que son tuyos
+   vive en el teléfono que los dejó. **Caducan solos a los 30 días**, como todos.
+
+**Período de retención adicional:** los paquetes cifrados del buzón se borran solos **a los 30
+días** de haber llegado, se hayan leído o no. Es el único dato que sobrevive al borrado de la
+cuenta fuera de los teléfonos de tus grupos, y no lo podemos leer.
+
+**Si tenías deudas abiertas**, borrar la cuenta no las cancela: los movimientos que las respaldan
+siguen en los teléfonos de tu grupo. No los podemos borrar y no los borramos — son la cuenta de
+otra persona.
 
 Como la cuenta no existe en ningún servidor nuestro, **no hay nada que podamos borrar por vos**:
 no tenemos tu mail ni forma de saber cuál sos. Si necesitás algo más, escribinos a gab.maglia@gmail.com.

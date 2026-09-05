@@ -163,6 +163,37 @@ function scopeActivo(): string | null {
 }
 
 /**
+ * Saca del log de fusiones las entradas de un scope (T-074 §3.2·C).
+ *
+ * `acct::merged_scopes` es una lista **sin scope**: si la cuenta se borra sin
+ * limpiarla, queda una entrada apuntando para siempre a datos que ya no están.
+ */
+export function olvidarFusionesDe(scope: string): void {
+  writeMergeLog(readMergeLog().filter(e => e.scope !== scope));
+}
+
+/**
+ * Borra TODO lo de una cuenta de todos los buckets.
+ *
+ * Se extrajo de `purgeMergedScopes` para que el borrado de cuenta (T-074) use
+ * **esta misma** función y no una copia: dos barridos separados es exactamente
+ * cómo la fusión y la purga se desincronizaron en T-057.
+ */
+export function barrerScope(scope: string): void {
+  const sufijo = `${SUFIJO}${scope}`;
+  for (const bucket of bucketsAbiertos().values()) {
+    for (const key of bucket.getAllKeys()) {
+      if (key.endsWith(sufijo)) bucket.delete(key);
+    }
+  }
+
+  // Las ranuras igual, por si un bucket todavía no se abrió en este arranque:
+  // un módulo con import perezoso no está registrado hasta que alguien lo
+  // toca, y la purga corre temprano.
+  for (const r of RANURAS) r.storage().delete(r.key(scope));
+}
+
+/**
  * Borra los datos de los scopes fusionados hace más de `MERGE_GRACE_DAYS`.
  * Se llama en el arranque; devuelve los scopes purgados.
  */
@@ -204,17 +235,7 @@ export function purgeMergedScopes(now: number = Date.now()): string[] {
      * nadie se acuerde de nada: si una clave lleva el scope, se va. El registro
      * de buckets también se llena solo (`bucketsAbiertos`).
      */
-    const sufijo = `${SUFIJO}${scope}`;
-    for (const bucket of bucketsAbiertos().values()) {
-      for (const key of bucket.getAllKeys()) {
-        if (key.endsWith(sufijo)) bucket.delete(key);
-      }
-    }
-
-    // Las ranuras igual, por si un bucket todavía no se abrió en este arranque:
-    // un módulo con import perezoso no está registrado hasta que alguien lo
-    // toca, y la purga corre temprano.
-    for (const r of RANURAS) r.storage().delete(r.key(scope));
+    barrerScope(scope);
   }
 
   const purgados = new Set(aPurgar.map(e => e.scope));

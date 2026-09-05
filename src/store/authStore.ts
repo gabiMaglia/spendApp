@@ -59,6 +59,26 @@ function rememberAccount(accountId: string, label: string, email?: string): void
   storage.set(KNOWN, JSON.stringify(known));
 }
 
+/**
+ * Saca una cuenta del índice de identidad (T-074 §3.2·A).
+ *
+ * Sin esto, borrar la cuenta y volver a entrar con el mismo proveedor cae en el
+ * **mismo** `accountId` (`accountIdentity.ts`, paso 1 de `resolveAccount`): una
+ * cuenta «borrada» que revive con sus claves viejas apuntando a datos que ya no
+ * están. Vive acá porque `acct::p:` / `acct::e:` son privados de este módulo.
+ *
+ * Se borran **por valor**: las entradas cuyo destino es esta cuenta. Las de otra
+ * cuenta enlazada se conservan — es el criterio de aceptación 3.
+ */
+export function forgetAccount(accountId: string): void {
+  for (const key of storage.getAllKeys()) {
+    if (!key.startsWith('acct::p:') && !key.startsWith('acct::e:')) continue;
+    if (storage.getString(key) === accountId) storage.delete(key);
+  }
+  const known = readKnown().filter(a => a.accountId !== accountId);
+  storage.set(KNOWN, JSON.stringify(known));
+}
+
 const accountIndex: AccountIndex = {
   getAccountByProvider: (providerId) => storage.getString(`acct::p:${providerId}`) ?? null,
   getAccountByEmail:    (email)      => storage.getString(`acct::e:${email}`) ?? null,

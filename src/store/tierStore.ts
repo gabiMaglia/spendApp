@@ -60,6 +60,22 @@ function todayKey(userId: string, now: Date = new Date()): string {
   return `expense_count_${userId}_${y}-${m}-${d}`;
 }
 
+/**
+ * Borra el contador diario de una cuenta (T-074 §3.2·D).
+ *
+ * Vive acá porque la forma de la clave la conoce este módulo, y esa forma es
+ * justamente el problema: `expense_count_<uid>_<fecha>` lleva el id **en el
+ * medio**, no como sufijo `::u:`, así que **el barrido por sufijo del borrado
+ * de cuenta no lo ve**. Es la misma clase de bug que ese barrido vino a matar
+ * (T-055/T-057/T-060), sobreviviendo por una forma de clave distinta.
+ */
+export function purgeUser(userId: string): void {
+  const marca = `expense_count_${userId}_`;
+  for (const key of storage.getAllKeys()) {
+    if (key.startsWith(marca)) storage.delete(key);
+  }
+}
+
 /** Cuántos gastos lleva hoy. Expuesta para poder testear el corte del día. */
 export function dailyCountAt(userId: string, now: Date): number {
   const raw = storage.getString(todayKey(userId, now));
