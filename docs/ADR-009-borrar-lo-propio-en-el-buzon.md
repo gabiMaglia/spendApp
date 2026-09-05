@@ -382,3 +382,39 @@ select count(*) from public.envelopes where owner_proof is not null;  -- tiene q
 ---
 
 aprobado por · Arquitecto (NERV) · 2026-09-04 · **pendiente de P-14/P-15/P-16/P-17 del PO**
+
+---
+
+## 10 · Estado del arte — cómo lo resuelven otros (2026-09-05)
+
+Búsqueda pedida por el PO tras aprobar este ADR. Detalle y fuentes en
+`engram/plans/T-086-investigacion.md`. Tres cosas que tocan decisiones de este documento:
+
+1. **Nadie resolvió «reinstalé y quiero borrar lo mío» sin identidad del lado del servidor.** El
+   único que cubre el caso es Signal, con cuenta + PIN humano + **enclaves con conteo de intentos**
+   (SVR2). El resto: o tiene identidad de arranque (Matrix redacta apoyado en el homeserver y en el
+   dominio del autor; Obsidian Sync exige cuenta), o **sacó el borrado y vive del vencimiento**.
+   ⇒ El límite declarado en §7 no es una esquina sin doblar: es donde termina el camino sin
+   identidad. Refuerza la recomendación de **P-14: no pagar identidad real por ese caso.**
+
+2. **Tahoe-LAFS ya vivió este defecto exacto** — ticket #1528, CVE-2011-3617:
+   *«escalation of authority from knowing a storage index to being able to delete corresponding
+   shares»*. Tenían borrado con secreto por share; se filtró; **eliminaron la operación entera** y
+   quedaron con expiración de leases: *«las shares se borran cuando ningún cliente renovó su lease
+   por más de un mes»*. Un mes — nuestro TTL de 30 días. Es el respaldo externo de §2.1 (la puerta
+   está abierta y hay que cerrarla) y de aceptar el TTL como red.
+
+3. **Un motivo técnico más para la prenda por preimagen, y en contra de la firma verificada
+   (§4·C):** la forma más limpia del problema en la industria es Nostr — evento de borrado firmado,
+   el relay contrasta el pubkey contra el autor de la fila. **Pero eso exige un relay que corra
+   código.** El nuestro es una tabla con RLS: comparar un hash contra su preimagen se hace con
+   `digest()` de pgcrypto dentro de la policy; verificar Ed25519 no, sin extensión ni edge
+   function. La prenda no es sólo la opción barata: **es la única prueba que este sustrato sabe
+   chequear.** (Y en Nostr el borrado es explícitamente *no autoritativo* del lado del relay: los
+   clientes tienen que validar igual.)
+
+**Fuera del alcance de este ADR, pero lo dejo anotado porque la búsqueda lo puso en evidencia:**
+con `groupKeyStore.ts:54` clavado en `epoch: 1`, un ex-miembro conserva topic y clave para siempre.
+Eso es lo que convierte a «cualquiera con el topic» en un atacante realista. La referencia de qué
+debería significar sacar a alguien de un grupo es **MLS (RFC 9420)**: épocas, forward secrecy,
+post-compromise security. Ticket propio, después de la beta.
