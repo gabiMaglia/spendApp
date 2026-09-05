@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Linking, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { AppLogoMark } from '@/src/components/AppLogoMark';
+import { LEGAL_DISPONIBLE, urlDePrivacidad, urlDeTerminos } from '@/src/constants/legal';
 import { signIntoDirectory } from '@/src/sync/directoryAuth';
 import { registerDeviceKey } from '@/src/sync/deviceKeys';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
@@ -232,11 +233,27 @@ export default function AuthScreen() {
             {t('auth.continue_google')}
           </Button>
 
+          {/*
+            * Los dos links ABREN. Hasta T-090 eran texto pintado del color de
+            * marca sin `onPress`: parecían links y no llevaban a ningún lado.
+            * Mientras `LEGAL_DISPONIBLE` esté apagado siguen siendo texto, que
+            * es lo honesto — la puerta se ofrece cuando existe.
+            */}
           <Text style={[Typography.bodyS, { color: c.textTertiary, textAlign: 'center' }]}>
             {t('auth.terms_prefix')}{' '}
-            <Text style={{ color: c.brand.primary, fontWeight: '600' }}>{t('auth.terms_link')}</Text>
+            <Text
+              style={{ color: c.brand.primary, fontWeight: '600' }}
+              onPress={LEGAL_DISPONIBLE ? () => void Linking.openURL(urlDeTerminos()) : undefined}
+            >
+              {t('auth.terms_link')}
+            </Text>
             {' '}{t('auth.privacy_and')}{' '}
-            <Text style={{ color: c.brand.primary, fontWeight: '600' }}>{t('auth.privacy_link')}</Text>
+            <Text
+              style={{ color: c.brand.primary, fontWeight: '600' }}
+              onPress={LEGAL_DISPONIBLE ? () => void Linking.openURL(urlDePrivacidad()) : undefined}
+            >
+              {t('auth.privacy_link')}
+            </Text>
             {'. '}{t('auth.terms_suffix')}
           </Text>
 

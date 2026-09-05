@@ -663,6 +663,7 @@
     "confirm_body": "No se puede deshacer.",
     "working": "Borrando…",
     "anon_name": "Cuenta borrada",
-    "partial": "Se borró tu cuenta. Quedó algo en el buzón que no se pudo sacar; se reintenta al abrir la app."
+    "partial": "Se borró tu cuenta. Quedó algo en el buzón que no se pudo sacar; se reintenta al abrir la app.",
+    "web": "Ver esta información en la web"
   }
 }

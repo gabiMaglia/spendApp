@@ -150,12 +150,20 @@ describe('la política de privacidad sigue siendo cierta', () => {
       .toBe(`borrado:${hayBorrado} pendiente:${!hayBorrado}`);
   });
 
-  it('el plazo de 30 días del buzón es el que dice el SQL, en los DOS documentos', () => {
+  it('el plazo de 30 días del buzón es el que dice el SQL, en TODOS los documentos', () => {
     const sql = readFileSync(join(RAIZ, 'supabase', '001_mailbox.sql'), 'utf8');
     const enElSql = /interval\s+'30 days'/.test(sql);
-    // Los dos textos repiten el plazo. Si el SQL cambia, los dos mienten a la
-    // vez, así que los dos se revisan a la vez.
-    for (const [nombre, ruta] of [['privacidad', POLITICA], ['términos', TERMINOS]] as const) {
+    // Los textos repiten el plazo. Si el SQL cambia, mienten todos a la vez, así
+    // que se revisan todos a la vez. Las páginas web entran acá (T-090) y no en
+    // un test aparte: el plazo es UNO y el lugar donde se verifica también.
+    const web = (n: string) => join(RAIZ, 'docs', 'web', n);
+    for (const [nombre, ruta] of [
+      ['privacidad', POLITICA],
+      ['términos', TERMINOS],
+      ['web · borrado', web('borrar-cuenta.es.html')],
+      ['web · privacidad', web('privacidad.es.html')],
+      ['web · términos', web('terminos.es.html')],
+    ] as const) {
       const dice30 = /30 d[íi]as/.test(readFileSync(ruta, 'utf8'));
       expect(`${nombre}: ${dice30}`).toBe(`${nombre}: ${enElSql}`);
     }
