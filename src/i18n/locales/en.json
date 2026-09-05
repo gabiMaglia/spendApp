@@ -663,6 +663,7 @@
     "confirm_body": "This can't be undone.",
     "working": "Deleting…",
     "anon_name": "Deleted account",
-    "partial": "Your account was deleted. Something was left in the mailbox that couldn't be removed; it will be retried when you open the app."
+    "partial": "Your account was deleted. Something was left in the mailbox that couldn't be removed; it will be retried when you open the app.",
+    "web": "See this information on the web"
   }
 }

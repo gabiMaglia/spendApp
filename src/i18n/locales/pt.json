@@ -663,6 +663,7 @@
     "confirm_body": "Não dá para desfazer.",
     "working": "Excluindo…",
     "anon_name": "Conta excluída",
-    "partial": "Sua conta foi excluída. Algo ficou na caixa postal e não pôde ser retirado; será tentado de novo ao abrir o app."
+    "partial": "Sua conta foi excluída. Algo ficou na caixa postal e não pôde ser retirado; será tentado de novo ao abrir o app.",
+    "web": "Ver esta informação na web"
   }
 }

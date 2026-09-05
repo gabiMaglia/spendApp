@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Política de privacidad · spendApp</title>
+<style>
+    :root { color-scheme: light dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0 auto; padding: 32px 20px 64px; max-width: 42rem;
+      font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: #1a1a1a; background: #fbfaf8;
+    }
+    h1 { font-size: 1.7rem; line-height: 1.25; margin: 0 0 4px; }
+    h2 { font-size: 1.05rem; margin: 34px 0 8px; letter-spacing: .01em; }
+    p, li { margin: 8px 0; }
+    ul, ol { padding-left: 22px; }
+    a { color: #1f6f5c; }
+    .fecha { color: #6b6b6b; font-size: .85rem; margin: 0 0 8px; }
+    .idiomas { font-size: .85rem; margin: 0 0 28px; color: #6b6b6b; }
+    .idiomas a { margin-right: 10px; }
+    .destacado {
+      border: 1px solid #d9d5cd; border-radius: 10px; padding: 14px 18px;
+      background: #fff; margin: 18px 0;
+    }
+    footer { margin-top: 44px; font-size: .85rem; color: #6b6b6b; }
+    @media (prefers-color-scheme: dark) {
+      body { color: #ececec; background: #131313; }
+      a { color: #6fd3b6; }
+      .destacado { background: #1c1c1c; border-color: #333; }
+      .fecha, .idiomas, footer { color: #9a9a9a; }
+    }
+</style>
+</head>
+<body>
+<p class="idiomas"><a href="privacidad.en.html">English</a> <a href="privacidad.pt.html">Português</a></p>
+<h1>Política de privacidad</h1>
+<p class="fecha">spendApp</p>
+
+<h2>Lo corto</h2>
+<p>
+  spendApp funciona <strong>en tu teléfono</strong>. No tenemos una base de datos con tus gastos, ni
+  con tu nombre, ni con tu mail. No podemos ver lo que cargás, ni queremos.
+</p>
+<p>
+  Lo único que sale de tu teléfono son <strong>paquetes cifrados</strong> dirigidos a la gente de
+  tus grupos, y ni siquiera nosotros podemos abrirlos: la llave la tienen los teléfonos, nunca el
+  servidor.
+</p>
+
+<h2>Qué datos existen, y dónde</h2>
+<p><strong>En tu teléfono, y sólo ahí:</strong> tus gastos, grupos, pagos y movimientos personales;
+tu nombre, tu foto y tus preferencias; las claves criptográficas de tus grupos y la identidad de tu
+dispositivo. Si desinstalás la app sin exportar un respaldo, se pierde: no hay ninguna copia
+nuestra desde la cual restaurarlo.</p>
+<p><strong>En los teléfonos de la gente de tus grupos:</strong> cuando compartís un grupo, sus
+gastos —y tu nombre y tu foto— quedan guardados en el teléfono de cada integrante. Una vez que un
+dato llegó ahí, ni vos ni nosotros lo podemos borrar.</p>
+<p><strong>En nuestro servidor de paso («el buzón»):</strong> para que dos teléfonos se sincronicen
+sin estar juntos, la app deja paquetes en un buzón temporal. De cada uno se guarda una etiqueta
+derivada de la clave del grupo, el contenido <strong>cifrado</strong>, un identificador del
+dispositivo emisor —que no es tu nombre ni tu mail— y las fechas de llegada y de vencimiento.
+<strong>No se guarda tu mail, tu nombre, tu foto ni ningún gasto en claro</strong>, y los paquetes
+se borran solos a los <strong>30 días</strong>, hayan sido leídos o no.</p>
+<p>
+  Hay que decir algo más, porque es cierto: quien tiene o tuvo la clave de un grupo puede leer sus
+  paquetes. Alguien de afuera no puede, porque sin la clave la etiqueta no se adivina ni el
+  contenido se descifra.
+</p>
+
+<h2>Cotizaciones de monedas</h2>
+<p>
+  Si tenés gastos en más de una moneda, la app pide la tabla de cotizaciones del día a un servicio
+  público de terceros. Esa llamada <strong>no manda ningún dato tuyo</strong>: pide la tabla
+  completa, sin decir quién sos ni qué gastos tenés. Como cualquier pedido a internet, ese servicio
+  ve tu dirección IP. Si usás una sola moneda, esa llamada no se hace nunca.
+</p>
+
+<h2>Iniciar sesión</h2>
+<p>
+  Podés entrar con Google o con Apple. De ahí llegan tu identificador de proveedor, tu mail y —si lo
+  compartís— tu nombre y foto. Ese dato se guarda <strong>en tu teléfono</strong>. No lo mandamos a
+  ningún servidor nuestro ni lo usamos para contactarte: no tenemos una lista de usuarios.
+</p>
+
+<h2>Permisos</h2>
+<ul>
+  <li><strong>Cámara:</strong> escanear el QR de un contacto y sacarle la foto a un recibo.</li>
+  <li><strong>Fotos:</strong> elegir tu foto de perfil o la de un recibo.</li>
+  <li><strong>Notificaciones:</strong> avisarte que llegó un gasto nuevo o que alguien pidió borrar
+      uno. Se generan en tu teléfono, no las manda un servidor.</li>
+  <li><strong>Internet:</strong> dejar y buscar paquetes en el buzón.</li>
+</ul>
+<p>La app <strong>no pide micrófono, no pide Bluetooth y no pide ubicación</strong>.</p>
+
+<h2>Lo que no hacemos</h2>
+<p>
+  No hay publicidad ni identificadores de publicidad. No hay analítica: no medimos qué pantallas ves
+  ni cuánto usás la app. No vendemos ni compartimos datos con nadie —no hay con quién: no los
+  tenemos—. No hay rastreo entre apps.
+</p>
+
+<h2>Borrar tu cuenta</h2>
+<p>
+  Desde <strong>Yo → Borrar cuenta</strong> se borra de tu teléfono todo lo de esa cuenta, y del
+  buzón se sacan los paquetes que dejó ese teléfono. Los detalles, y lo que no se puede borrar,
+  están en la <a href="borrar-cuenta.es.html">página de borrado de cuenta</a>.
+</p>
+<p>
+  <strong>Período de retención adicional:</strong> los paquetes cifrados del buzón se borran solos a
+  los <strong>30 días</strong> de haber llegado, se hayan leído o no.
+</p>
+
+<h2>Preguntas</h2>
+<p><a href="mailto:gab.maglia@gmail.com">gab.maglia@gmail.com</a></p>
+<footer>spendApp · <a href="mailto:gab.maglia@gmail.com">gab.maglia@gmail.com</a></footer>
+</body>
+</html>

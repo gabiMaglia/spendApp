@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,6 +11,7 @@ import { Typography } from '@/src/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { DetailHeader } from '@/src/components/CollapsibleHeader';
 import { deleteAccount } from '@/src/services/deleteAccount';
+import { LEGAL_DISPONIBLE, urlDeBorrado } from '@/src/constants/legal';
 import { hapticWarning } from '@/src/utils/haptics';
 
 /**
@@ -82,6 +83,21 @@ export default function BorrarCuentaScreen() {
           </Text>
         </View>
 
+        {/* La misma información, en la web: es la que Google exige que exista
+          * fuera de la app, y desde acá se puede compartir o leer sin la app. */}
+        {LEGAL_DISPONIBLE && (
+          <Pressable
+            accessibilityRole="link"
+            onPress={() => void Linking.openURL(urlDeBorrado())}
+            style={styles.linkWeb}
+          >
+            <Ionicons name="open-outline" size={15} color={c.textTertiary} />
+            <Text style={[Typography.bodyS, { color: c.textTertiary }]}>
+              {t('account_delete.web')}
+            </Text>
+          </Pressable>
+        )}
+
         <Pressable
           accessibilityRole="button"
           disabled={borrando}
@@ -125,6 +141,7 @@ const styles = StyleSheet.create({
   },
   linea:  { flexDirection: 'row', gap: Spacing[2], alignItems: 'flex-start' },
   nota:   { borderWidth: StyleSheet.hairlineWidth, borderRadius: Radius.md, padding: Spacing[4], gap: Spacing[3] },
+  linkWeb: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   boton:  {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: Spacing[2], paddingVertical: 14, borderRadius: Radius.md, borderWidth: 1,
