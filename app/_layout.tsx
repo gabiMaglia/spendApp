@@ -17,6 +17,7 @@ import { useAuthStore } from '@/src/store/authStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useThemeStore } from '@/src/store/themeStore';
 import { rehydrateForActiveUser, subscribeSessionRehydrate } from '@/src/store/session';
+import { resumePendingDeletion } from '@/src/services/deleteAccount';
 import { announceContact, savePeer } from '@/src/sync/contactChannel';
 import { deviceId } from '@/src/sync/relayEngine';
 import { syncedNow } from '@/src/utils/syncedClock';
@@ -52,6 +53,13 @@ function AuthGuard() {
       if (!active) return;
       hydrate();                 // carga la sesión (cuál cuenta está activa)
       rehydrateForActiveUser();  // carga los datos SCOPEADOS de esa cuenta
+
+      // Un borrado de cuenta que quedó a medias —sin red, o con la app cerrada
+      // en el medio— se termina acá. Va SIN await: el arranque no espera a la
+      // red, y si tampoco hay ahora, se reintenta el próximo arranque.
+      // Va en el layout raíz y no en la re-hidratación por cuenta porque
+      // después de borrar NO hay cuenta activa que la dispare.
+      void resumePendingDeletion();
     })();
 
     // Re-hidrata al cambiar de cuenta (login / logout / switch de usuario).

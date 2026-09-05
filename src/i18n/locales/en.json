@@ -644,5 +644,25 @@
     "expense": "We couldn't verify who entered this",
     "vote": "We couldn't verify who requested this",
     "payment": "We couldn't verify who recorded this payment"
+  },
+  "account_delete": {
+    "row": "Delete account",
+    "title": "Delete your account",
+    "what_title": "Deleted from this phone",
+    "what_1": "All your expenses, groups, payments and personal entries.",
+    "what_2": "Your profile, your preferences and your keys.",
+    "what_3": "The link between your Google and Apple accounts, if you had made one.",
+    "kept_title": "This can't be deleted, and it matters that you know",
+    "kept_1": "The expenses already on the phones of the people in your groups. They are the other side of other people's debts: deleting them would break their balances. They will keep seeing them.",
+    "kept_2": "We remove from the mailbox the packets this phone left there. Any left by another install expire on their own after 30 days.",
+    "no_server": "Your account doesn't exist on any server of ours: we don't have your email or any way to know who you are. That's why there's nothing we can delete for you.",
+    "debts": "If you had open debts, deleting your account doesn't cancel them: the group still sees what was owed. Your expenses are the other side of other people's balances.",
+    "peers_note": "People in your groups will stop seeing your name and photo the next time they sync.",
+    "confirm": "Delete my account",
+    "confirm_title": "Delete your account?",
+    "confirm_body": "This can't be undone.",
+    "working": "Deleting…",
+    "anon_name": "Deleted account",
+    "partial": "Your account was deleted. Something was left in the mailbox that couldn't be removed; it will be retried when you open the app."
   }
 }

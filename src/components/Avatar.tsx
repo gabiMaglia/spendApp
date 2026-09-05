@@ -26,7 +26,8 @@ interface AvatarProps {
    * NO se ofrece verla en grande (decisión del PO): es un identificador visual
    * en una lista, no una galería.
    */
-  photo?: string;
+  /** `null` = se la sacó a propósito (tombstone de T-074); se trata igual que ausente. */
+  photo?: string | null;
 }
 
 export function Avatar({ name, size = 36, hue = 0, ring, photo }: AvatarProps) {
@@ -79,7 +80,7 @@ const styles = StyleSheet.create({
 // ── AvatarStack ──────────────────────────────────────────────────────────────
 
 interface AvatarStackProps {
-  people: { name: string; hue?: number; photo?: string }[];
+  people: { name: string; hue?: number; photo?: string | null }[];
   size?: number;
   max?: number;
   ring?: string;

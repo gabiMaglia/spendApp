@@ -82,6 +82,25 @@ export function ensureOwnerPledge(): Prenda {
   return fresh;
 }
 
+/**
+ * Destruye la identidad de ESTE aparato: firma, envoltura, prenda del buzón e
+ * invitaciones (T-074 fase 4).
+ *
+ * ⚠️ **Sólo se llama cuando la cuenta borrada era la última Y el buzón ya se
+ * purgó.** Con otra cuenta enlazada viva, borrar esto la dejaría sin poder
+ * firmar y —peor— sin poder purgar SUS propios sobres nunca más: la prenda no
+ * se puede regenerar (ADR-009 §4·A). Con purga pendiente, es lo único que puede
+ * terminarla.
+ *
+ * No borra `device_id`: es el filtro de relectura del relay, no dato de nadie,
+ * y regenerarlo sólo haría que la app se reprocese sus propios sobres una vez.
+ */
+export function destruirIdentidadDelAparato(): void {
+  for (const k of [K_IDENTITY, K_OWNER, K_WRAP, K_INVITES, K_PENDING]) {
+    storage.delete(k);
+  }
+}
+
 export function saveInvite(invite: GroupInvite): void {
   const all = readJson<GroupInvite[]>(K_INVITES, []);
   // Se purgan las vencidas al guardar: sin esto la lista crece para siempre.

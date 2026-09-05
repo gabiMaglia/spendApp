@@ -644,5 +644,25 @@
     "expense": "No se pudo verificar quién cargó esto",
     "vote": "No se pudo verificar quién pidió esto",
     "payment": "No se pudo verificar quién registró este pago"
+  },
+  "account_delete": {
+    "row": "Borrar cuenta",
+    "title": "Borrar tu cuenta",
+    "what_title": "Se borra de este teléfono",
+    "what_1": "Todos tus gastos, grupos, pagos y movimientos personales.",
+    "what_2": "Tu perfil, tus preferencias y tus claves.",
+    "what_3": "El vínculo entre tus cuentas de Google y Apple, si lo habías hecho.",
+    "kept_title": "Esto no se puede borrar, y es importante que lo sepas",
+    "kept_1": "Los gastos que ya están en el teléfono de la gente de tus grupos. Son la contrapartida de deudas de otras personas: borrarlos les rompería las cuentas. Van a seguir viéndolos.",
+    "kept_2": "Sacamos del buzón los paquetes que dejó este teléfono. Los que quedaron de otra instalación caducan solos a los 30 días.",
+    "no_server": "Tu cuenta no existe en ningún servidor nuestro: no tenemos tu mail ni forma de saber cuál sos. Por eso no hay nada que podamos borrar por vos.",
+    "debts": "Si tenías deudas abiertas, borrar la cuenta no las cancela: el grupo sigue viendo lo que se debía. Tus gastos son la contrapartida de las cuentas de otras personas.",
+    "peers_note": "La gente de tus grupos va a dejar de ver tu nombre y tu foto la próxima vez que sincronice.",
+    "confirm": "Borrar mi cuenta",
+    "confirm_title": "¿Borrar tu cuenta?",
+    "confirm_body": "No se puede deshacer.",
+    "working": "Borrando…",
+    "anon_name": "Cuenta borrada",
+    "partial": "Se borró tu cuenta. Quedó algo en el buzón que no se pudo sacar; se reintenta al abrir la app."
   }
 }

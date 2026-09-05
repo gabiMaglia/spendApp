@@ -16,10 +16,20 @@ import type { User } from '@/src/types/models';
  * republica al grupo entero con timestamp nuevo. Una copia sin foto contamina a
  * todos.
  *
- * **Por qué es seguro y no pierde nada:** la app no tiene forma de quitarse la
- * foto — `app/(tabs)/user.tsx` sólo la reemplaza por otra. No existe borrado
- * legítimo que esta regla pueda romper. El día que exista, se necesita un
- * tombstone explícito (`avatar: null`), no la ausencia del campo.
+ * **Por qué era seguro:** la app no tenía forma de quitarse la foto —
+ * `app/(tabs)/user.tsx` sólo la reemplaza por otra— así que no existía borrado
+ * legítimo que esta regla pudiera romper. Este docblock decía: *«el día que
+ * exista, se necesita un tombstone explícito (`avatar: null`), no la ausencia
+ * del campo»*.
+ *
+ * **Ese día llegó con T-074** (borrado de cuenta): anonimizarse ES quitarse la
+ * foto, y sin el tombstone la regla la resucitaba. Así que `avatar: null` pasa,
+ * y la ausencia sigue conservando. La profecía estaba bien escrita.
+ *
+ * ⚠️ **Límite declarado:** un peer que todavía corre la versión anterior lee el
+ * `null` como ausencia y **se queda con la foto vieja** hasta que actualice. Es
+ * la misma «fase A» que este archivo ya describe: primero se propaga la regla,
+ * después se puede confiar en ella.
  *
  * **Y converge:** si A tiene la foto y B no, A la conserva y B la adopta. Es
  * estrictamente MÁS convergente que el LWW pelado, que dejaba el resultado a
@@ -30,6 +40,7 @@ import type { User } from '@/src/types/models';
  * que tienen. Primero se propaga la defensa, después se puede aligerar el sobre.
  */
 export function preservarAvatar(previo: User | undefined, entrante: User): User {
+  if (entrante.avatar === null) return entrante;   // tombstone: se la sacó a propósito
   if (!previo?.avatar || entrante.avatar) return entrante;
   return { ...entrante, avatar: previo.avatar };
 }

@@ -74,6 +74,15 @@ export function writeCursor(topic: string, seq: number): void {
   storage.set(CURSOR_PREFIX + topic, String(seq));
 }
 
+/**
+ * Olvida el cursor de un topic (T-074). Se llama al purgar el buzón de una
+ * cuenta que se borra: sin esto queda un puntero a un grupo cuya clave ya no
+ * está. No es un defecto —una relectura desde 0 es idempotente— pero es basura.
+ */
+export function olvidarCursor(topic: string): void {
+  storage.delete(CURSOR_PREFIX + topic);
+}
+
 /** Id estable de este dispositivo, para no reprocesar lo propio. */
 export function deviceId(): string {
   const existing = storage.getString('device_id');

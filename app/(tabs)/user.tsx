@@ -375,6 +375,24 @@ export default function UserScreen() {
           </Pressable>
         </View>
 
+        {/*
+          * Borrar cuenta va DEBAJO de cerrar sesión y en la misma jerarquía
+          * visual: las dos tiendas exigen que se llegue desde la app y que no
+          * esté escondido detrás de «contactá al soporte».
+          */}
+        <View style={{ paddingHorizontal: Spacing.screenPad, paddingTop: 10 }}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.push('/settings/borrar-cuenta' as any)}
+            style={[styles.signOutBtn, { backgroundColor: 'transparent', borderColor: 'transparent' }]}
+          >
+            <Ionicons name="trash-outline" size={16} color={c.textTertiary} />
+            <Text style={{ fontSize: 13, fontWeight: '600', color: c.textTertiary }}>
+              {t('account_delete.row')}
+            </Text>
+          </Pressable>
+        </View>
+
         {__DEV__ && (
           <>
             <SectionLabel label="DEV" />
