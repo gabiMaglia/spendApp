@@ -20,7 +20,7 @@ import i18n from '@/src/i18n';
  * instalada** — que es la condición literal del requisito y lo único que ningún
  * test puede comprobar.
  */
-export const LEGAL_DISPONIBLE = false;
+export const LEGAL_DISPONIBLE = true;   // ✅ verificado el 2026-09-05: las páginas responden
 
 /**
  * GitHub Pages sobre este mismo repo, sirviendo desde `/docs` (decisión del PO,
