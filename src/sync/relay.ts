@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { recordServerTime } from '@/src/utils/syncedClock';
+import { prendaDelAparato } from './ownerPledge';
 
 /**
  * Transporte del relay (ADR-003). Buzón store-and-forward.
@@ -100,8 +101,26 @@ export function envelopeRow(
   payload: string,
   sender: string,
   compactable = false,
-): { topic: string; payload: string; sender: string; compactable: boolean } {
-  return { topic, payload, sender, compactable };
+  ownerProof?: string | null,
+): { topic: string; payload: string; sender: string; compactable: boolean; owner_proof?: string } {
+  const fila = { topic, payload, sender, compactable };
+  // Sin prenda la clave NO aparece: la fila queda idéntica a la de antes de
+  // T-088, y por eso un servidor sin la migración 008 la acepta igual.
+  return ownerProof ? { ...fila, owner_proof: ownerProof } : fila;
+}
+
+/**
+ * El servidor no conoce la columna de la prenda: migración 008 sin aplicar, o
+ * un rollback. Se aprende del primer rechazo y se recuerda por lo que dura la
+ * sesión — **no se persiste a propósito**: un flag pegado en el storage sería
+ * una app que dejó de proteger sus sobres para siempre y nadie se entera.
+ */
+let servidorSinPrenda = false;
+
+function esRechazoDeLaPrenda(mensaje: string): boolean {
+  // Por el TEXTO y no por el código: no está verificado cuál emite esta versión
+  // de PostgREST ante una columna que no existe (T-088 §8.1).
+  return /owner_proof/i.test(mensaje);
 }
 
 export type SendResult =
@@ -136,17 +155,31 @@ export async function sendEnvelope(
     return { ok: false, reason: 'too_large' };
   }
 
+  // La prenda de escritura (ADR-009 D-1): lo que viaja es la huella del
+  // secreto, nunca el secreto. Si no hay, se publica sin ella — un sobre sin
+  // prenda se comporta como los de antes de T-088.
+  const proof = servidorSinPrenda ? null : (prendaDelAparato()?.proof ?? null);
+
   // La hora local ANTES del pedido: tomarla después metería la latencia dentro
   // del desfase que vamos a calcular.
   const antes = Date.now();
 
   const { data, error } = await supabase
     .from('envelopes')
-    .insert(envelopeRow(topic, payload, sender, compactable))
+    .insert(envelopeRow(topic, payload, sender, compactable, proof))
     .select('seq,created_at')
     .single();
 
-  if (error) return { ok: false, reason: 'network', detail: error.message };
+  if (error) {
+    // Servidor sin la columna: el sobre no se insertó, así que reintentar no
+    // duplica nada. Sin esto, desplegar la app antes que la migración deja al
+    // grupo sin sincronizar.
+    if (proof && esRechazoDeLaPrenda(error.message)) {
+      servidorSinPrenda = true;
+      return sendEnvelope(topic, payload, sender, compactable);
+    }
+    return { ok: false, reason: 'network', detail: error.message };
+  }
 
   // El servidor estampó `created_at` al insertar: es un reloj único para todos
   // los dispositivos, y llega gratis en la respuesta (ADR-005).
@@ -154,6 +187,41 @@ export async function sendEnvelope(
   if (fila.created_at) recordServerTime(fila.created_at, antes);
 
   return { ok: true, seq: fila.seq };
+}
+
+export type DeleteResult =
+  | { ok: true; deleted: number }
+  | { ok: false; reason: 'not_configured' | 'no_pledge' | 'network'; detail?: string };
+
+/**
+ * Borra del buzón los sobres que ESTE aparato publicó en ese topic.
+ *
+ * Se presenta el PREIMAGEN de la prenda; el servidor lo hashea y compara
+ * (ADR-009 D-2). Conocer la huella —que es pública, la lectura del buzón es
+ * abierta— no habilita nada.
+ *
+ * `no_pledge` NO es un error de red: es «este aparato no tiene con qué probar
+ * que escribió eso» — reinstalación, o sobres anteriores a T-088. **Esos sólo
+ * los levanta el TTL de 30 días, y ninguna pantalla puede prometer otra cosa.**
+ *
+ * A diferencia de `sendEnvelope`, acá NO hay degradado: si la función no existe
+ * en el servidor, se devuelve el error. Un borrado que «funciona» contra un
+ * servidor que no borró nada es peor que un error.
+ */
+export async function deleteMyEnvelopes(topic: string): Promise<DeleteResult> {
+  const supabase = getRelayClient();
+  if (!supabase) return { ok: false, reason: 'not_configured' };
+
+  const prenda = prendaDelAparato();
+  if (!prenda) return { ok: false, reason: 'no_pledge' };
+
+  const { data, error } = await supabase.rpc('delete_my_envelopes', {
+    p_topic: topic,
+    p_secret: prenda.secret,
+  });
+
+  if (error) return { ok: false, reason: 'network', detail: error.message };
+  return { ok: true, deleted: typeof data === 'number' ? data : 0 };
 }
 
 export type FetchResult =

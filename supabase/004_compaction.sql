@@ -30,8 +30,19 @@ alter table public.envelopes
  * depender de un cron que haya que configurar aparte y que nadie recuerde
  * revisar.
  *
- * El cliente NO elige qué se borra — sólo marca si SU sobre es compactable.
- * Un atacante con la anon key puede, como mucho, hacer que se borren los suyos.
+ * ⚠️ ESTO DECÍA UNA FALSEDAD HASTA LA MIGRACIÓN 008 (T-086/T-087).
+ * Decía: «el cliente NO elige qué se borra — sólo marca si SU sobre es
+ * compactable; un atacante con la anon key puede, como mucho, hacer que se
+ * borren los suyos». Era falso desde que se corrió esta migración: el `where`
+ * de abajo borra por `sender`, el cliente elige su `sender`
+ * (`relayEngine.ts:78-84`) y el `sender` ajeno se lee del buzón (la lectura es
+ * `using(true)`), así que cualquiera que conociera un topic le borraba los
+ * sobres a otro miembro. `security definer` hacía que la RLS ni se enterara.
+ *
+ * Lo arregla `008_owner_tag.sql`, que reemplaza esta función: la compactación
+ * pasa a operar por una prenda que el servidor deriva y el cliente no puede
+ * elegir. **Esta versión queda acá sólo como historia: la que corre es la de
+ * 008.**
  */
 create or replace function public.compact_envelopes()
 returns trigger

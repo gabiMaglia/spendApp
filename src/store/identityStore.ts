@@ -1,4 +1,7 @@
+import * as Crypto from 'expo-crypto';
+import { sha256 } from '@noble/hashes/sha2.js';
 import { createSecureStorage } from '@/src/utils/secureStorage';
+import { toHex, utf8Bytes } from '@/src/sync/hexBytes';
 import { generateIdentity, generateWrapKeypair, type GroupInvite } from '@/src/sync/groupInvite';
 
 /**
@@ -16,6 +19,7 @@ import { generateIdentity, generateWrapKeypair, type GroupInvite } from '@/src/s
 
 const storage = createSecureStorage('groupkeys');
 const K_IDENTITY = 'identity_v1';
+const K_OWNER    = 'owner_secret_v1';
 const K_WRAP     = 'wrapkeys_v1';
 const K_INVITES  = 'invites_v1';
 const K_PENDING  = 'pending_joins_v1';
@@ -45,6 +49,36 @@ export function ensureWrapKeypair(): Keypair {
 
   const fresh = generateWrapKeypair();
   storage.set(K_WRAP, JSON.stringify(fresh));
+  return fresh;
+}
+
+export type Prenda = { secret: string; proof: string };
+
+/**
+ * Prenda de escritura del buzón (ADR-009 D-1, T-088).
+ *
+ * `secret`: 32 bytes aleatorios en hex. **Nunca sale del aparato** salvo en la
+ * llamada de borrado, que es rara y explícita.
+ * `proof`: `sha256(secret)` — es lo único que viaja, en cada publicación.
+ *
+ * El servidor guarda `sha256(proof)`. Así ni quien lee la tabla ni quien viera
+ * el cuerpo de un INSERT obtiene con qué borrar: para eso hace falta el
+ * preimagen, que no viaja nunca.
+ *
+ * El `proof` se calcula UNA vez y se persiste: el camino de publicación tiene
+ * debounce de 1,5 s y poll de 20 s, y no se le agrega un hash por sobre.
+ *
+ * Vive acá y no scopeado por cuenta por la misma razón que las privadas: es del
+ * aparato. Al destruir la identidad (T-074) se borra **después** de purgar el
+ * buzón, nunca antes: sin el secreto los sobres quedan sólo a merced del TTL.
+ */
+export function ensureOwnerPledge(): Prenda {
+  const existing = readJson<Prenda | null>(K_OWNER, null);
+  if (existing?.secret && existing.proof) return existing;
+
+  const secret = toHex(Crypto.getRandomBytes(32));
+  const fresh: Prenda = { secret, proof: toHex(sha256(utf8Bytes(secret))) };
+  storage.set(K_OWNER, JSON.stringify(fresh));
   return fresh;
 }
 
