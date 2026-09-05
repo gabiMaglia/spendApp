@@ -44,6 +44,13 @@ create index if not exists envelopes_topic_seq_idx on public.envelopes (topic, s
 create index if not exists envelopes_expires_idx    on public.envelopes (expires_at);
 
 -- Tope de tamaño: sin esto, cualquiera con la anon key llena el disco.
+-- El `drop` previo es lo que hace que este archivo se pueda volver a correr:
+-- las migraciones acá se pegan a mano y no hay runner que lleve la cuenta.
+-- ⚠️ Este número lo REEMPLAZA `006_payload_limit.sql` (1 MB). Volver a correr
+-- este archivo entero lo devolvería a 256 KB: correr 006 después.
+alter table public.envelopes
+  drop constraint if exists envelopes_payload_size;
+
 alter table public.envelopes
   add constraint envelopes_payload_size check (octet_length(payload) <= 262144);
 

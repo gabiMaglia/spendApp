@@ -1,6 +1,6 @@
 import { buildDelta, applyDelta, type SyncDelta } from './useSyncQR';
 import { sealEnvelope, openEnvelope, deriveTopic } from './envelopeCrypto';
-import { sendEnvelope, fetchSince } from './relay';
+import { sendEnvelope, fetchSince, deleteMyEnvelopes, type DeleteResult } from './relay';
 import { groupKeyBytes, useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { ensureIdentity } from '@/src/store/identityStore';
 import { signEnvelope, verifyEnvelope } from './envelopeSign';
@@ -103,6 +103,32 @@ export async function publishToGroup(
   const r = await sendEnvelope(topic, firmado, deviceId, true);
   if (!r.ok) return { ok: false, reason: r.reason, detail: r.detail };
   return { ok: true, seq: r.seq };
+}
+
+/**
+ * Saca del buzón los sobres que ESTE aparato publicó para el grupo (T-088).
+ *
+ * Deriva el topic igual que `publishToGroup`, así borra exactamente donde
+ * publicó. Lo que NO alcanza, y hay que decirlo donde se muestre:
+ *  - los sobres de OTROS miembros se quedan: cada uno borra los suyos;
+ *  - los que publicó otra instalación de esta misma persona (reinstaló, o es
+ *    su segundo teléfono) **no se pueden borrar desde acá**: sólo los levanta
+ *    el TTL de 30 días. Es el límite de ADR-009 §4·A, y nadie lo resolvió sin
+ *    identidad del lado del servidor (`ADR-009 §10.1`).
+ *
+ * Quién lo llama es T-074, y ese ticket tiene que purgar el buzón ANTES de
+ * destruir la prenda: al revés, el secreto se pierde y los sobres quedan a
+ * merced del TTL.
+ */
+export async function deleteMyGroupEnvelopes(
+  groupId: string,
+): Promise<DeleteResult | { ok: false; reason: 'no_key' }> {
+  const key = groupKeyBytes(groupId);
+  if (!key) return { ok: false, reason: 'no_key' };
+
+  const record = useGroupKeyStore.getState().getKey(groupId)!;
+  const topic = await deriveTopic(key, record.epoch);
+  return deleteMyEnvelopes(topic);
 }
 
 export type DrainResult =
