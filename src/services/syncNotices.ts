@@ -81,7 +81,15 @@ export type Notice =
    * Quién decide que una caída merece aviso —y que avise UNA vez y no una por
    * intento— vive en `sync/syncDownNotices.ts`.
    */
-  | { kind: 'sync_down'; groupId: string; groupName: string; reason: BlockingReason };
+  | { kind: 'sync_down'; groupId: string; groupName: string; reason: BlockingReason }
+  /**
+   * El reloj del teléfono está mal por más de cinco minutos (T-038).
+   *
+   * El merge ya está corregido —`syncedNow()` lo compensa contra el relay— pero
+   * **las fechas que el usuario ve salen del reloj del aparato** y ésas no se
+   * corrigen solas. Quién decide que avise UNA vez vive en `sync/clockNotice.ts`.
+   */
+  | { kind: 'clock_off'; offsetMs: number };
 
 /**
  * ¿Este aviso pide que el usuario HAGA algo, o sólo informa? (T-062)
@@ -101,6 +109,10 @@ export function esAccionable(kind: Notice['kind']): boolean {
     case 'deletion':
     case 'settlement_pending':
     case 'sync_down':
+    // Accionable aunque lo que hay que hacer esté FUERA de la app: si se
+    // clasificara como historia, el usuario no arreglaría nunca la hora y
+    // seguiría viendo fechas equivocadas sin saber por qué.
+    case 'clock_off':
       return true;
     case 'expenses':
     case 'settled':

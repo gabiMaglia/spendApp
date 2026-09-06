@@ -58,7 +58,16 @@ export function TabHeader({ title, scrollY }: { title: string; scrollY: Animated
   function abrirAviso(item: StoredNotice) {
     markRead(item.id);
     setBandeja(false);
-    const grupo = groups.find(g => g.id === item.notice.groupId && !g.isDeleted);
+
+    // No todo aviso es de un grupo: el del reloj (T-038) es del aparato. Se
+    // marca leído y no se navega a ningún lado, que es lo correcto — no hay
+    // pantalla adentro de la app donde arreglar la hora del teléfono.
+    // La constante es necesaria para que TypeScript estreche el union: sobre
+    // `item.notice` el `in` no acota nada.
+    const aviso = item.notice;
+    if (!('groupId' in aviso)) return;
+
+    const grupo = groups.find(g => g.id === aviso.groupId && !g.isDeleted);
     // El grupo pudo borrarse entre que llegó el aviso y que lo tocaron. Sin
     // esto la navegación deja una pantalla de detalle vacía sin explicación.
     if (!grupo) { alert(t('notifications.inbox_gone')); return; }

@@ -46,7 +46,7 @@
     "biometric_sub": "Requerir biometría al abrir",
     "sign_out": "Cerrar sesión",
     "sign_out_confirm_body": "¿Estás seguro? Tus datos locales se conservan en el dispositivo.",
-    "version": "SplitP2P v{{version}} · P2P sin servidor",
+    "version": "spendApp v{{version}} · P2P sin servidor",
     "language": "Idioma",
     "language_auto": "Auto",
     "section_currency": "MONEDA",
@@ -85,9 +85,12 @@
     "error_google": "No se pudo iniciar sesión con Google. Reintentá.",
     "error_apple": "No se pudo iniciar sesión con Apple. Intentá de nuevo.",
     "link_title": "¿Es tu cuenta?",
-    "link_body": "Ya usás SplitP2P con {{account}}. ¿Querés entrar a esa cuenta y unir tus datos?",
+    "link_body": "Ya usás spendApp con {{account}}. ¿Querés entrar a esa cuenta y unir tus datos?",
     "link_confirm": "Sí, es mía",
-    "link_separate": "Usar cuenta aparte"
+    "link_separate": "Usar cuenta aparte",
+    "link_need_proof_title": "No se pudieron unir",
+    "link_need_proof_body": "Para unir las dos cuentas hay que entrar también con la otra. Entraste con ésta y podés intentarlo de nuevo la próxima vez.",
+    "link_irreversible": "Unirlas no se puede deshacer."
   },
   "dashboard": {
     "title": "Tus cuentas",
@@ -164,7 +167,7 @@
     "leave_body": "Dejás de ver este grupo. Los gastos que cargaste siguen ahí para los demás, así que las cuentas pendientes no se pierden.",
     "leave_confirm": "Salir",
     "invite_link": "Invitar por link",
-    "invite_message": "Te invito a «{{group}}» en SplitP2P. Abrí este link para entrar: {{link}}",
+    "invite_message": "Te invito a «{{group}}» en spendApp. Abrí este link para entrar: {{link}}",
     "add_from_contacts": "De tus contactos",
     "add_without_app": "Agregar a alguien que no usa la app",
     "without_app_warning": "Entra en los repartos y le vas a poder llevar la cuenta, pero NO va a ver el grupo ni recibir nada: no tiene la app. Para que lo vea, agregalo desde tus contactos.",
@@ -322,7 +325,7 @@
     "theme_auto": "Automático",
     "main_currency": "Moneda principal",
     "sign_out": "Cerrar sesión",
-    "version": "SplitP2P v{{version}} · build {{build}}"
+    "version": "spendApp v{{version}} · build {{build}}"
   },
   "upgrade": {
     "title": "Sin límites.\nSin ads. Sin fricción.",
@@ -374,7 +377,7 @@
     "success_title": "Sincronización exitosa",
     "success_body": "Los datos del otro dispositivo fueron importados correctamente.",
     "invalid_title": "QR inválido",
-    "invalid_body": "Este código QR no corresponde a un sync de SplitP2P.",
+    "invalid_body": "Este código QR no corresponde a un sync de spendApp.",
     "how_title": "¿Cómo funciona?",
     "how_body": "Un dispositivo muestra el QR con sus datos y el otro lo escanea. Después hacen el proceso al revés para sincronizar en ambas direcciones.",
     "show_my_qr": "Mostrar mi QR",
@@ -510,14 +513,14 @@
     "scan_hint": "Apuntá al QR de tu contacto",
     "rescan": "Volver a escanear",
     "unknown_qr_title": "QR no reconocido",
-    "unknown_qr_body": "Este código no corresponde a un contacto de SplitP2P.",
+    "unknown_qr_body": "Este código no corresponde a un contacto de spendApp.",
     "own_qr_title": "Es tu propio código",
     "own_qr_body": "Escaneaste tu propio QR.",
     "already_title": "Contacto ya guardado",
     "already_body": "{{name}} ya está en tus contactos.",
     "added_title": "¡Contacto agregado!",
-    "share_message": "Agregame en SplitP2P para dividir gastos juntos 👇\n{{link}}",
-    "share_title": "Agregar contacto en SplitP2P",
+    "share_message": "Agregame en spendApp para dividir gastos juntos 👇\n{{link}}",
+    "share_title": "Agregar contacto en spendApp",
     "added_half_body": "Agregaste a {{name}} en este teléfono. Para que {{name}} también te tenga a vos, todavía falta que escanee tu código.",
     "show_my_code": "Mostrar mi código",
     "later": "Más tarde",
@@ -629,7 +632,9 @@
     "inbox_gone": "Eso ya no está disponible",
     "settled": "{{name}} registró un saldo de {{amount}}",
     "settlement_pending": "Alguien dice que te pagó {{amount}}. Confirmá si lo recibiste.",
-    "sync_down_title": "«{{group}}» dejó de sincronizar"
+    "sync_down_title": "«{{group}}» dejó de sincronizar",
+    "clock_off_title": "La hora de tu teléfono está mal",
+    "clock_off_body": "Las fechas de tus gastos pueden verse cambiadas. Revisá la fecha y hora del teléfono; tus datos están bien."
   },
   "fx": {
     "partial_title": "Hay saldo que no te estamos mostrando",

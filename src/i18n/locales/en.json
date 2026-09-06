@@ -46,7 +46,7 @@
     "biometric_sub": "Require biometrics on open",
     "sign_out": "Sign out",
     "sign_out_confirm_body": "Are you sure? Your local data stays on the device.",
-    "version": "SplitP2P v{{version}} · serverless P2P",
+    "version": "spendApp v{{version}} · serverless P2P",
     "language": "Language",
     "language_auto": "Auto",
     "section_currency": "CURRENCY",
@@ -85,9 +85,12 @@
     "error_google": "Couldn't sign in with Google. Try again.",
     "error_apple": "Couldn't sign in with Apple. Try again.",
     "link_title": "Is this your account?",
-    "link_body": "You already use SplitP2P with {{account}}. Do you want to sign in to that account and merge your data?",
+    "link_body": "You already use spendApp with {{account}}. Do you want to sign in to that account and merge your data?",
     "link_confirm": "Yes, it's mine",
-    "link_separate": "Use a separate account"
+    "link_separate": "Use a separate account",
+    "link_need_proof_title": "Couldn't link them",
+    "link_need_proof_body": "To link both accounts you also need to sign in with the other one. You are signed in with this one and can try again next time.",
+    "link_irreversible": "Linking them can't be undone."
   },
   "dashboard": {
     "title": "Your balances",
@@ -164,7 +167,7 @@
     "leave_body": "You'll stop seeing this group. The expenses you added stay there for the others, so pending balances aren't lost.",
     "leave_confirm": "Leave",
     "invite_link": "Invite by link",
-    "invite_message": "I'm inviting you to “{{group}}” on SplitP2P. Open this link to join: {{link}}",
+    "invite_message": "I'm inviting you to “{{group}}” on spendApp. Open this link to join: {{link}}",
     "add_from_contacts": "From your contacts",
     "add_without_app": "Add someone who doesn't use the app",
     "without_app_warning": "They'll be part of the splits and you can track what they owe, but they will NOT see the group or receive anything — they don't have the app. To let them see it, add them from your contacts.",
@@ -322,7 +325,7 @@
     "theme_auto": "Automatic",
     "main_currency": "Main currency",
     "sign_out": "Sign out",
-    "version": "SplitP2P v{{version}} · build {{build}}"
+    "version": "spendApp v{{version}} · build {{build}}"
   },
   "upgrade": {
     "title": "No limits.\nNo ads. No friction.",
@@ -374,7 +377,7 @@
     "success_title": "Sync successful",
     "success_body": "The other device’s data was imported correctly.",
     "invalid_title": "Invalid QR",
-    "invalid_body": "This QR code is not a SplitP2P sync.",
+    "invalid_body": "This QR code is not a spendApp sync.",
     "how_title": "How does it work?",
     "how_body": "One device shows its QR with its data and the other scans it. Then you do it the other way around to sync in both directions.",
     "show_my_qr": "Show my QR",
@@ -510,14 +513,14 @@
     "scan_hint": "Point at your contact’s QR",
     "rescan": "Scan again",
     "unknown_qr_title": "QR not recognized",
-    "unknown_qr_body": "This code is not a SplitP2P contact.",
+    "unknown_qr_body": "This code is not a spendApp contact.",
     "own_qr_title": "That’s your own code",
     "own_qr_body": "You scanned your own QR.",
     "already_title": "Contact already saved",
     "already_body": "{{name}} is already in your contacts.",
     "added_title": "Contact added!",
-    "share_message": "Add me on SplitP2P to split expenses together 👇\n{{link}}",
-    "share_title": "Add contact on SplitP2P",
+    "share_message": "Add me on spendApp to split expenses together 👇\n{{link}}",
+    "share_title": "Add contact on spendApp",
     "added_half_body": "You added {{name}} on this phone. For {{name}} to have you too, they still need to scan your code.",
     "show_my_code": "Show my code",
     "later": "Later",
@@ -629,7 +632,9 @@
     "inbox_gone": "That's no longer available",
     "settled": "{{name}} recorded a settlement of {{amount}}",
     "settlement_pending": "Someone says they paid you {{amount}}. Confirm whether you received it.",
-    "sync_down_title": "«{{group}}» stopped syncing"
+    "sync_down_title": "«{{group}}» stopped syncing",
+    "clock_off_title": "Your phone's clock is wrong",
+    "clock_off_body": "Your expense dates may look shifted. Check the phone's date and time; your data is fine."
   },
   "fx": {
     "partial_title": "There's money we're not showing you",

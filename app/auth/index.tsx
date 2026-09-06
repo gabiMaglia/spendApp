@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { AppLogoMark } from '@/src/components/AppLogoMark';
 import { LEGAL_DISPONIBLE, urlDePrivacidad, urlDeTerminos } from '@/src/constants/legal';
+import { marcarProveedorProbado } from '@/src/store/authStore';
 import { signIntoDirectory } from '@/src/sync/directoryAuth';
 import { registerDeviceKey } from '@/src/sync/deviceKeys';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
@@ -68,9 +69,39 @@ export default function AuthScreen() {
     if (r.kind !== 'confirm') { onResolved(r.accountId); return; }
 
     const candidate = r.candidates[0];
+
+    /**
+     * Fusionar exige probar el proveedor de la cuenta destino (T-042). Si no
+     * está probado, se le ofrece al usuario entrar con esa cuenta ahora.
+     *
+     * **Si no se puede probar, NO se registra «mantenerlas separadas».** Esa
+     * decisión es permanente —apunta el proveedor a su propia cuenta y el
+     * próximo login ya no pregunta— así que usarla como caída dejaría la fusión
+     * legítima imposible para siempre. Se entra sin unir y se vuelve a
+     * preguntar la próxima vez.
+     */
+    async function unir(): Promise<void> {
+      let r2 = confirmAccountLink(providerId, candidate.accountId);
+
+      if (!r2.ok) {
+        const proveedorDestino = getStoredProfile(candidate.accountId)?.authProvider;
+        const probado = proveedorDestino ? await probarOtroProveedor(proveedorDestino) : false;
+        r2 = probado
+          ? confirmAccountLink(providerId, candidate.accountId)
+          : { ok: false, reason: 'sin_prueba' };
+      }
+
+      if (!r2.ok) {
+        Alert.alert(t('auth.link_need_proof_title'), t('auth.link_need_proof_body'));
+        onResolved(providerId);   // entra sin unir; la próxima vez se vuelve a preguntar
+        return;
+      }
+      onResolved(candidate.accountId);
+    }
+
     Alert.alert(
       t('auth.link_title'),
-      t('auth.link_body', { account: candidate.label }),
+      `${t('auth.link_body', { account: candidate.label })}\n\n${t('auth.link_irreversible')}`,
       [
         {
           text: t('auth.link_separate'),
@@ -86,10 +117,7 @@ export default function AuthScreen() {
         },
         {
           text: t('auth.link_confirm'),
-          onPress: () => {
-            confirmAccountLink(providerId, candidate.accountId);
-            onResolved(candidate.accountId);
-          },
+          onPress: () => { void unir(); },
         },
       ],
     );
@@ -102,10 +130,47 @@ export default function AuthScreen() {
    * proveedor no mandó `id_token` o si la RLS rechaza, no pasa nada — la app
    * funciona igual que antes de que esto existiera (ADR-004, fase A).
    */
-  async function entrarAlDirectorio(proveedor: 'google' | 'apple', idToken?: string | null) {
+  async function entrarAlDirectorio(
+    proveedor: 'google' | 'apple',
+    idToken: string | null | undefined,
+    providerId: string,
+  ): Promise<boolean> {
     const entrada = await signIntoDirectory(proveedor, idToken);
-    if (!entrada.ok) return;
+    if (!entrada.ok) return false;
+    // La prueba de T-042: el directorio aceptó el token de ESTE proveedor.
+    marcarProveedorProbado(providerId);
     await registerDeviceKey();
+    return true;
+  }
+
+  /**
+   * Prueba el proveedor de la cuenta destino **sin cambiar de sesión**: corre su
+   * login y se lo presenta al directorio, nada más.
+   *
+   * Existe porque sin esto la fusión legítima sería imposible: la prueba es de
+   * la sesión, y la otra cuenta no se probó en ésta. Es el único momento en que
+   * pedirle al usuario que entre con la otra cuenta tiene sentido — está acá,
+   * decidiendo unirlas.
+   */
+  async function probarOtroProveedor(proveedor: 'google' | 'apple'): Promise<boolean> {
+    try {
+      if (proveedor === 'apple') {
+        const cred = await AppleAuthentication.signInAsync({
+          requestedScopes: [AppleAuthentication.AppleAuthenticationScope.EMAIL],
+        });
+        return entrarAlDirectorio('apple', cred.identityToken, cred.user);
+      }
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      const resp = (await GoogleSignin.signIn()) as unknown as {
+        data?: { user?: GoogleUser; idToken?: string | null };
+        user?: GoogleUser; idToken?: string | null;
+      };
+      const u = resp?.data?.user ?? resp?.user;
+      if (!u) return false;   // cancelado
+      return entrarAlDirectorio('google', resp?.data?.idToken ?? resp?.idToken, u.id);
+    } catch {
+      return false;   // cancelar no es un error: simplemente no se fusiona
+    }
   }
 
   async function handleGoogleLogin() {
@@ -148,7 +213,7 @@ export default function AuthScreen() {
         // Directorio de claves (ADR-004): se aprovecha el MISMO id_token del
         // login, así que no hay una segunda pantalla para el usuario. Va sin
         // await y sin bloquear: si falla, la app entra igual.
-        void entrarAlDirectorio('google', response?.data?.idToken ?? response?.idToken);
+        void entrarAlDirectorio('google', response?.data?.idToken ?? response?.idToken, u.id);
       });
     } catch (e) {
       const code = (e as { code?: string })?.code;
@@ -183,7 +248,7 @@ export default function AuthScreen() {
           email:        credential.email,
         }));
 
-        void entrarAlDirectorio('apple', credential.identityToken);
+        void entrarAlDirectorio('apple', credential.identityToken, credential.user);
       });
     } catch (e: any) {
       if (e.code !== 'ERR_REQUEST_CANCELED') {
