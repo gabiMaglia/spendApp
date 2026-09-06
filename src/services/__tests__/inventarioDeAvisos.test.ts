@@ -49,6 +49,19 @@ const INVENTARIO: Record<string, string> = {
    */
   settlement_pending: 'alguien dice que me pagó y falta que yo lo confirme',
   sync_down: 'un grupo dejó de sincronizar por algo que no se arregla esperando',
+  /**
+   * **Lo que hay que hacer está FUERA de la app**, y entra igual.
+   *
+   * `syncedNow()` corrige el merge contra el reloj del relay, así que los datos
+   * están bien. Lo que no se corrige son **las fechas que el usuario ve**: con
+   * la hora del teléfono mal, los gastos aparecen con fecha equivocada. La app
+   * lo sabía desde ADR-005 y sólo lo mostraba en una pantalla DEV — el mismo
+   * defecto que T-037 vino a cerrar, en otro lugar.
+   *
+   * Avisa UNA vez por desvío y se olvida cuando el reloj se arregla
+   * (`sync/clockNotice.ts`), así que no puede volverse ruido.
+   */
+  clock_off: 'el reloj del teléfono está mal y las fechas se ven cambiadas',
 };
 
 /** Los `kind` declarados en la unión `Notice`, leídos del fuente. */

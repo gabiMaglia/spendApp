@@ -13,6 +13,7 @@ import { subscribeTopic, isRelayConfigured } from './relay';
 import { publishToGroup, drainGroup, type PublishResult } from './relaySync';
 import { recordPublish } from './publishHealth';
 import { noticeDeCaida } from './syncDownNotices';
+import { noticeDeReloj } from './clockNotice';
 import { resolvePendingDeletions } from '@/src/services/resolveDeletions';
 import { applyApprovedLeaves } from '@/src/services/applyLeave';
 import { fromHex } from './envelopeCrypto';
@@ -139,6 +140,7 @@ export async function publishNow(groupId: string): Promise<void> {
 
   recordPublish(groupId, result);
   void avisarSiDejoDeSincronizar(groupId, result);
+  void avisarSiElRelojEstaMal();
 }
 
 /**
@@ -153,6 +155,19 @@ async function avisarSiDejoDeSincronizar(groupId: string, result: PublishResult)
   try {
     const grupo = useGroupStore.getState().groups.find(g => g.id === groupId);
     const aviso = noticeDeCaida(groupId, grupo?.name ?? '', result);
+    if (aviso) await announce([aviso]);
+  } catch { /* nunca rompe la publicación */ }
+}
+
+/**
+ * El desfase se acaba de actualizar con la respuesta del servidor (ADR-005), así
+ * que éste es el momento en que se sabe. Va acá y no en `relay.ts` a propósito:
+ * ese módulo no importa nada del dominio ni nada nativo, y meterle la bandeja de
+ * avisos rompería la deuda que paga desde T-054.
+ */
+async function avisarSiElRelojEstaMal(): Promise<void> {
+  try {
+    const aviso = noticeDeReloj();
     if (aviso) await announce([aviso]);
   } catch { /* nunca rompe la publicación */ }
 }

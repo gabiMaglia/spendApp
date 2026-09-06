@@ -8,11 +8,16 @@ import {
 } from '@/src/utils/accountIdentity';
 import { mergeAccounts } from './accountLink';
 import { signOutOfDirectory } from '@/src/sync/directoryAuth';
+import { isRelayConfigured } from '@/src/sync/relay';
 import { AUTH_KEYS, profileKey } from './authKeys';
 
 const storage = createSecureStorage('auth');
 
 const KEYS = AUTH_KEYS;
+
+export type LinkResult =
+  | { ok: true; probado: boolean }
+  | { ok: false; reason: 'sin_prueba' };
 
 // isPro es por-cuenta (la suscripción es de un usuario). La sesión (current_user)
 // es global (puntero a la cuenta activa); isPro se scopea por el id del usuario.
@@ -57,6 +62,44 @@ function rememberAccount(accountId: string, label: string, email?: string): void
   if (i === -1) known.push(next);
   else known[i] = next;
   storage.set(KNOWN, JSON.stringify(known));
+}
+
+/**
+ * Proveedores que ESTA SESIÓN probó contra el directorio de claves (T-042).
+ *
+ * «Probado» significa que Supabase aceptó el `id_token` de ese proveedor
+ * (`src/sync/directoryAuth.ts`), o sea que alguien pasó por Google/Apple con
+ * las credenciales de esa cuenta. No es una afirmación del cliente.
+ *
+ * **Vive en memoria y NO se persiste, a propósito.** Una prueba guardada es una
+ * credencial vieja: quien agarre el teléfono mañana heredaría la prueba de hoy.
+ * Se borra también al cerrar sesión.
+ *
+ * Lo que NO prueba, y hay que decirlo: el `providerId` que se marca lo elige el
+ * cliente a partir de la respuesta del SDK. Lo que el directorio verifica es el
+ * token; atar ese token a este id concreto es una suposición local. Cierra el
+ * ataque del teléfono desbloqueado —que es el de T-042— y no pretende más.
+ */
+const proveedoresProbados = new Set<string>();
+
+/** Se llama tras un `signIntoDirectory` exitoso, con el id de ese proveedor. */
+export function marcarProveedorProbado(providerId: string): void {
+  proveedoresProbados.add(providerId);
+}
+
+/** Sólo para tests y para el cierre de sesión. */
+export function olvidarPruebasDeProveedor(): void {
+  proveedoresProbados.clear();
+}
+
+/** Los `providerId` del índice que apuntan a esta cuenta. */
+function proveedoresDeCuenta(accountId: string): string[] {
+  const out: string[] = [];
+  for (const key of storage.getAllKeys()) {
+    if (!key.startsWith('acct::p:')) continue;
+    if (storage.getString(key) === accountId) out.push(key.slice('acct::p:'.length));
+  }
+  return out;
 }
 
 /**
@@ -105,8 +148,13 @@ interface AuthState {
   };
   /** Decide a qué cuenta pertenece un login. Puede pedir confirmación al usuario. */
   resolveAccount: (providerId: string, email?: string | null) => AccountResolution;
-  /** El usuario confirmó que la cuenta es suya: vincula y FUSIONA los datos. */
-  confirmAccountLink: (providerId: string, targetAccountId: string) => void;
+  /**
+   * El usuario confirmó que la cuenta es suya: vincula y FUSIONA los datos —
+   * **si esta sesión probó el proveedor de esa cuenta** (T-042).
+   *
+   * `probado: false` significa que se fusionó **degradado**, sin directorio.
+   */
+  confirmAccountLink: (providerId: string, targetAccountId: string) => LinkResult;
   /** El usuario eligió mantenerlas separadas: se registra para que la decisión SOBREVIVA. */
   keepAccountSeparate: (providerId: string, email?: string | null) => void;
   setIsPro: (isPro: boolean) => void;
@@ -169,8 +217,32 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   confirmAccountLink: (providerId, targetAccountId) => {
+    /**
+     * T-042. Fusionar dos cuentas es unir sus datos, y `mergeAccounts` **no
+     * borra el origen**: quien lo consiga se queda con una copia. Hasta hoy lo
+     * único que se pedía era tocar «sí» en un `Alert`, así que alcanzaba con
+     * agarrar el teléfono desbloqueado en la pantalla de login.
+     *
+     * Ahora hace falta que **esta sesión haya probado el proveedor de la cuenta
+     * destino**. El atacante puede probar el suyo —entra con su Google— pero no
+     * el tuyo, que es el punto.
+     *
+     * **Sin directorio configurado se fusiona igual**, y se dice: la app es
+     * offline-first y no puede exigir red para entrar. El ataque sigue
+     * disponible en ese caso, y queda declarado en vez de disimulado.
+     */
+    if (!isRelayConfigured()) {
+      const { previousAccountId } = confirmLinkPure(accountIndex, providerId, targetAccountId);
+      if (previousAccountId) mergeAccounts(previousAccountId, targetAccountId);
+      return { ok: true, probado: false };
+    }
+
+    const probado = proveedoresDeCuenta(targetAccountId).some(p => proveedoresProbados.has(p));
+    if (!probado) return { ok: false, reason: 'sin_prueba' };
+
     const { previousAccountId } = confirmLinkPure(accountIndex, providerId, targetAccountId);
     if (previousAccountId) mergeAccounts(previousAccountId, targetAccountId);
+    return { ok: true, probado: true };
   },
 
   getStoredProfile: (uid) => {
@@ -193,6 +265,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   signOut: () => {
     storage.delete(KEYS.USER);
+    // Las pruebas de proveedor son de ESTA sesión: heredarlas sería dejarle al
+    // próximo la credencial del anterior.
+    olvidarPruebasDeProveedor();
     // El isPro scopeado del usuario NO se borra: queda para cuando vuelva a entrar.
     set({ currentUser: null, isPro: false });
 

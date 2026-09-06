@@ -368,7 +368,7 @@ describe('avisos de saldo', () => {
 });
 
 describe('esAccionable (T-062)', () => {
-  it('deletion, settlement_pending y sync_down piden acción; el resto sólo informa', () => {
+  it('deletion, settlement_pending, sync_down y clock_off piden acción; el resto informa', () => {
     // `Record<Notice['kind'], boolean>` en vez de dos ejemplos sueltos: si se
     // agrega un `kind` a `Notice` sin decidir acá, este objeto deja de
     // compilar — la exhaustividad la garantiza el tipo, no el `expect` de abajo.
@@ -376,13 +376,17 @@ describe('esAccionable (T-062)', () => {
       deletion: esAccionable('deletion'),
       settlement_pending: esAccionable('settlement_pending'),
       sync_down: esAccionable('sync_down'),
+      clock_off: esAccionable('clock_off'),
       expenses: esAccionable('expenses'),
       settled: esAccionable('settled'),
       restored: esAccionable('restored'),
       joined: esAccionable('joined'),
     };
     expect(clasificacion).toEqual({
-      deletion: true, settlement_pending: true, sync_down: true,
+      // `clock_off` es accionable aunque lo que hay que hacer esté FUERA de la
+      // app: clasificarlo como historia dejaría al usuario viendo fechas mal
+      // para siempre sin saber por qué.
+      deletion: true, settlement_pending: true, sync_down: true, clock_off: true,
       expenses: false, settled: false, restored: false, joined: false,
     });
   });

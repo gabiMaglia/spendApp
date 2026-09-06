@@ -150,6 +150,12 @@ export function isEnabled(notice: Notice): boolean {
      * no puede volverse la clase de ruido que un toggle existe para apagar.
      */
     case 'sync_down': return true;
+    /**
+     * Sin toggle, por el mismo motivo que `sync_down`: no es una preferencia,
+     * es la app avisando que lo que mostrás puede estar mal. Y avisa una sola
+     * vez por desvío (`sync/clockNotice.ts`), así que no puede volverse ruido.
+     */
+    case 'clock_off': return true;
   }
 }
 
@@ -195,6 +201,14 @@ export function textFor(notice: Notice): { title: string; body: string } {
         body: t('notifications.settlement_pending', {
           amount: formatMoney(notice.amount, notice.currency),
         }),
+      };
+    case 'clock_off':
+      return {
+        title: t('notifications.clock_off_title'),
+        // Lo que se promete es exactamente lo que pasa: las FECHAS se ven mal.
+        // Decir «tus datos están en riesgo» sería falso — el merge ya está
+        // corregido— y este proyecto no puede permitirse prometer de más.
+        body: t('notifications.clock_off_body'),
       };
     case 'sync_down':
       return {
