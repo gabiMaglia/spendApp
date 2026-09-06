@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-  KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView,
+  Animated, Easing, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView,
   StyleSheet, Text, TextInput, View, type TextInputProps,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -26,6 +26,22 @@ import { UserAvatar } from './UserAvatar';
 
 const SCRIM = 'rgba(12, 16, 14, 0.5)';
 
+/**
+ * La animación es NUESTRA, no la del `Modal`.
+ *
+ * Con `animationType="slide"` el sistema desliza **todo el contenido del
+ * modal**, y el velo oscuro vive ahí adentro: el fondo entraba deslizándose
+ * desde abajo junto con la hoja, como una cortina que sube. Se veía mal y no es
+ * lo que hace ningún sheet nativo — el velo **aparece**, no viaja.
+ *
+ * Acá van separados: el velo hace fade y la hoja sube apenas. El recorrido es
+ * corto a propósito; un slide largo se lee como lento aunque dure lo mismo.
+ */
+const ENTRADA_MS = 180;
+const SALIDA_MS = 140;
+/** Cuánto sube la hoja al entrar. Es un acento, no un viaje. */
+const ALZADA = 28;
+
 export function BottomSheet({
   visible, onClose, children, title, footer, scroll = true,
 }: {
@@ -43,6 +59,26 @@ export function BottomSheet({
   const c = Colors[scheme];
   const insets = useSafeAreaInsets();
 
+  // El modal sigue montado durante la salida: si se desmontara al soltar
+  // `visible`, la hoja desaparecería de golpe y el fade de salida no se vería.
+  const [montado, setMontado] = useState(visible);
+  const anim = useRef(new Animated.Value(visible ? 1 : 0)).current;
+
+  useEffect(() => {
+    if (visible) {
+      setMontado(true);
+      Animated.timing(anim, {
+        toValue: 1, duration: ENTRADA_MS,
+        easing: Easing.out(Easing.quad), useNativeDriver: true,
+      }).start();
+      return;
+    }
+    Animated.timing(anim, {
+      toValue: 0, duration: SALIDA_MS,
+      easing: Easing.in(Easing.quad), useNativeDriver: true,
+    }).start(({ finished }) => { if (finished) setMontado(false); });
+  }, [visible, anim]);
+
   const Body: any = scroll ? ScrollView : View;
   const bodyProps = scroll
     // Sin paddingBottom propio: el del sheet ya lo pone. Antes había un 4 suelto
@@ -51,11 +87,34 @@ export function BottomSheet({
     : {};
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal
+      visible={montado}
+      transparent
+      animationType="none"
+      onRequestClose={onClose}
+      /*
+       * Android va edge-to-edge desde SDK 54, pero el `Modal` NO dibuja debajo
+       * de las barras del sistema salvo que se le pida. Sin esto, la ventana del
+       * modal termina ARRIBA de la barra de navegación y la hoja queda flotando:
+       * se ve una franja de la pantalla de atrás debajo del sheet. En iOS los
+       * dos props son inertes.
+       */
+      statusBarTranslucent
+      navigationBarTranslucent
+    >
       <View style={styles.root}>
-        <Pressable style={StyleSheet.absoluteFillObject} onPress={onClose} />
+        <Animated.View
+          style={[StyleSheet.absoluteFillObject, { backgroundColor: SCRIM, opacity: anim }]}
+        >
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={onClose} />
+        </Animated.View>
+
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <View style={[styles.sheet, {
+          <Animated.View style={[styles.sheet, {
+            opacity: anim,
+            transform: [{
+              translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [ALZADA, 0] }),
+            }],
             backgroundColor: c.surface,
             // El inset despeja la barra de gestos; NO es espacio de diseño. Sumarlos
             // daba 46px abajo (34 de inset + 12) contra 24 arriba, y con el padding
@@ -78,7 +137,7 @@ export function BottomSheet({
             {footer ? (
               <View style={[styles.footer, { borderTopColor: c.hair }]}>{footer}</View>
             ) : null}
-          </View>
+          </Animated.View>
         </KeyboardAvoidingView>
       </View>
     </Modal>
@@ -363,7 +422,9 @@ export function ConfirmSheet({
 const GAP_FILA = 13;
 
 const styles = StyleSheet.create({
-  root:      { flex: 1, justifyContent: 'flex-end', backgroundColor: SCRIM },
+  // Sin `backgroundColor`: el velo es la capa animada de arriba. Si volviera a
+  // pintarse acá, el fondo aparecería de golpe y el fade no se vería.
+  root:      { flex: 1, justifyContent: 'flex-end' },
   // El sheet nunca tapa toda la pantalla: siempre se ve un poco del fondo,
   // así se entiende que es una capa y no una pantalla nueva.
   sheet:     {
