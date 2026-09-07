@@ -444,6 +444,14 @@
     "add_item": "+ Agregar",
     "continue": "Continuar a división"
   },
+  "error": {
+    "boundary_title": "Algo se rompió",
+    "boundary_body": "La pantalla no se pudo dibujar. Tus datos están a salvo en el teléfono.",
+    "retry": "Reintentar",
+    "export_diagnostics": "Exportar diagnóstico",
+    "export_diagnostics_sub": "Se guarda en este teléfono. Nada se envía solo: si querés, compartilo vos.",
+    "export_error": "No se pudo exportar el diagnóstico."
+  },
   "backup": {
     "section": "COPIA DE SEGURIDAD",
     "export": "Exportar datos",

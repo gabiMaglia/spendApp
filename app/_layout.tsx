@@ -3,6 +3,7 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import * as Linking from 'expo-linking';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -22,12 +23,23 @@ import { announceContact, savePeer } from '@/src/sync/contactChannel';
 import { deviceId } from '@/src/sync/relayEngine';
 import { syncedNow } from '@/src/utils/syncedClock';
 import { installNotificationHandler } from '@/src/services/notifications';
+import { installGlobalErrorHandler } from '@/src/services/globalErrorHandler';
+import { ErrorBoundary } from '@/src/components/ErrorBoundary';
+import { exportarDiagnostico } from '@/src/services/exportDiagnostico';
 import { esYo } from '@/src/store/identityAlias';
 
 // A nivel de módulo, no dentro de un componente: el handler tiene que estar
 // registrado ANTES de que llegue el primer aviso. Sin él, expo-notifications
 // descarta en silencio todo lo que llegue con la app en primer plano.
 installNotificationHandler();
+
+/**
+ * También a nivel de módulo, y por la misma razón llevada al extremo: lo que
+ * este handler existe para ver son los errores del arranque, que ocurren antes
+ * de que ningún componente haya montado (T-078 · §5.3). Si `ErrorUtils` no está
+ * —es API interna de React Native—, esto no hace nada y la app arranca igual.
+ */
+installGlobalErrorHandler();
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -127,6 +139,7 @@ SplashScreen.preventAutoHideAsync().catch(() => {
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const [splashListo, setSplashListo] = useState(false);
+  const { t } = useTranslation();
 
   useEffect(() => {
     SplashScreen.hideAsync().catch(() => {});
@@ -139,6 +152,29 @@ export default function RootLayout() {
     <SafeAreaProvider>
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <AuthGuard />
+      {/*
+        Envuelve al Stack y no a la app entera: adentro del ThemeProvider la
+        pantalla de recuperación puede leer el tema, y `AuthGuard` —que no
+        dibuja nada— queda afuera para que un error de render no se lleve la
+        hidratación de la sesión con él.
+
+        Los textos van ya traducidos: el límite de error no puede llamar a
+        `t()` (ver `ErrorBoundary`).
+      */}
+      <ErrorBoundary
+        textos={{
+          title: t('error.boundary_title'),
+          body: t('error.boundary_body'),
+          retry: t('error.retry'),
+          exportar: t('error.export_diagnostics'),
+        }}
+        onExport={() => {
+          void exportarDiagnostico({
+            dialogTitle: t('error.export_diagnostics'),
+            error: t('error.export_error'),
+          });
+        }}
+      >
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="auth/index" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -156,6 +192,7 @@ export default function RootLayout() {
         <Stack.Screen name="debug/identity" options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="debug/relay"    options={{ presentation: 'modal', headerShown: false }} />
       </Stack>
+      </ErrorBoundary>
       <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
       {!splashListo && <AnimatedSplash onDone={() => setSplashListo(true)} />}
     </ThemeProvider>

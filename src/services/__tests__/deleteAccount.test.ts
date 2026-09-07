@@ -280,6 +280,32 @@ describe('lo que el barrido por sufijo NO alcanza', () => {
     expect(tier.getString('expense_count_u2_2026-09-05')).toBe('7');   // la otra cuenta no
   });
 
+  it('borra el registro de errores al irse la ÚLTIMA cuenta (T-078)', async () => {
+    // El diagnóstico es del APARATO: no lleva el sufijo `::u:`, así que el
+    // barrido de la fase 3 no lo ve. Un stack trace guardado puede nombrar
+    // cualquier cosa que hubiera en memoria, así que no puede sobrevivir al
+    // borrado de la última cuenta.
+    const { recordError, listErrors } = require('../errorLog') as typeof import('../errorLog');
+    recordError({ message: 'algo se rompió antes', fatal: true });
+    expect(listErrors()).toHaveLength(1);
+
+    await deleteAccount({ timeoutMs: 200 });
+
+    expect(listErrors()).toEqual([]);
+  });
+
+  it('pero NO lo borra si queda otra cuenta en el aparato', async () => {
+    // La identidad del aparato tampoco se destruye en ese caso, y el
+    // diagnóstico sigue el mismo criterio: es del teléfono, no de la cuenta.
+    cuentasConocidas('u1', 'u2');
+    const { recordError, listErrors } = require('../errorLog') as typeof import('../errorLog');
+    recordError({ message: 'algo se rompió antes', fatal: true });
+
+    await deleteAccount({ timeoutMs: 200 });
+
+    expect(listErrors()).toHaveLength(1);
+  });
+
   it('saca la cuenta del índice de identidad, o revive con el mismo id', async () => {
     auth.set('acct::p:google:123', 'u1');
     auth.set('acct::e:g@x.com', 'u1');

@@ -444,6 +444,14 @@
     "add_item": "+ Adicionar",
     "continue": "Continuar para a divisão"
   },
+  "error": {
+    "boundary_title": "Algo quebrou",
+    "boundary_body": "Não foi possível desenhar esta tela. Seus dados estão seguros no telefone.",
+    "retry": "Tentar de novo",
+    "export_diagnostics": "Exportar diagnóstico",
+    "export_diagnostics_sub": "Fica salvo neste telefone. Nada é enviado sozinho: se quiser, compartilhe você.",
+    "export_error": "Não foi possível exportar o diagnóstico."
+  },
   "backup": {
     "section": "CÓPIA DE SEGURANÇA",
     "export": "Exportar dados",

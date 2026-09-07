@@ -31,6 +31,9 @@ import { CurrencyPicker } from '@/src/components/CurrencyPicker';
 import { useCurrenciesInUse } from '@/src/store/currenciesInUse';
 import { needsRates, readCache } from '@/src/services/fx';
 import { Band, BandRow, SectionLabel, Segmented, SoonBadge } from '@/src/components/Band';
+import { listErrors } from '@/src/services/errorLog';
+import { exportarDiagnostico } from '@/src/services/exportDiagnostico';
+import { useLiveValue } from '@/src/hooks/useLiveValue';
 import { TabHeader } from '@/src/components/TabHeader';
 import { useHeaderPadding } from '@/src/components/CollapsibleHeader';
 import * as DocumentPicker from 'expo-document-picker';
@@ -141,6 +144,21 @@ export default function UserScreen() {
     } catch {
       Alert.alert(t('backup.export_error'));
     }
+  }
+
+  /**
+   * El registro vive fuera de React (variable de módulo + storage), así que hay
+   * que releerlo: si se lee sólo al montar, un error ocurrido con esta pantalla
+   * abierta no hace aparecer la fila. Es el mismo motivo por el que existe
+   * `useLiveValue`.
+   */
+  const erroresAnotados = useLiveValue(() => listErrors().length);
+
+  async function handleExportDiagnostico() {
+    await exportarDiagnostico({
+      dialogTitle: t('error.export_diagnostics'),
+      error: t('error.export_error'),
+    });
   }
 
   async function handleImport() {
@@ -348,7 +366,18 @@ export default function UserScreen() {
         <SectionLabel label={t('backup.section')} />
         <Band>
           <LinkRow label={t('backup.export')} icon="download-outline"     onPress={handleExport} />
-          <LinkRow label={t('backup.import')} icon="cloud-upload-outline" onPress={handleImport} last />
+          <LinkRow label={t('backup.import')} icon="cloud-upload-outline" onPress={handleImport}
+                   last={erroresAnotados === 0} />
+          {/*
+            Sólo si hay algo que exportar. Una fila que siempre dice «0 errores»
+            es ruido permanente para el caso raro, y la primera vez que el
+            usuario la toque y no pase nada deja de creerle a la pantalla.
+          */}
+          {erroresAnotados > 0 && (
+            <LinkRow label={t('error.export_diagnostics')} icon="bug-outline"
+                     sub={t('error.export_diagnostics_sub')}
+                     onPress={handleExportDiagnostico} last />
+          )}
         </Band>
 
         {/* Seguridad */}
@@ -442,19 +471,24 @@ function ToggleRow({
 }
 
 function LinkRow({
-  label, icon, onPress, last,
+  label, icon, onPress, last, sub,
 }: {
   label: string;
   icon: React.ComponentProps<typeof Ionicons>['name'];
   onPress: () => void;
   last?: boolean;
+  /** Segunda línea, para las filas que necesitan aclarar qué hacen. */
+  sub?: string;
 }) {
   const scheme = useColorScheme() ?? 'light';
   const c = Colors[scheme];
   return (
     <BandRow onPress={onPress} last={last}>
       <Ionicons name={icon} size={17} color={c.textSecondary} />
-      <Text style={[Typography.bodyL, { color: c.text, flex: 1 }]}>{label}</Text>
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text style={[Typography.bodyL, { color: c.text }]}>{label}</Text>
+        {sub ? <Text style={[Typography.caption, { color: c.textTertiary }]}>{sub}</Text> : null}
+      </View>
       <Ionicons name="chevron-forward" size={15} color={c.textTertiary} />
     </BandRow>
   );
