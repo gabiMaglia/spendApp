@@ -45,6 +45,7 @@ import type { Expense, Payment } from '@/src/types/models';
 import { useTranslation } from 'react-i18next';
 import i18n from '@/src/i18n';
 import { syncedNow } from '@/src/utils/syncedClock';
+import { esYo, mismaPersona } from '@/src/store/identityAlias';
 
 type TimelineItem =
   | { type: 'expense'; data: Expense; ts: number }
@@ -81,7 +82,7 @@ export default function GroupDetailScreen() {
 
   const contactosDisponibles = useMemo(
     () => allUsers.filter(u =>
-      !u.isDeleted && u.id !== currentUser?.id && !(group?.memberIds ?? []).includes(u.id),
+      !u.isDeleted && !esYo(u.id) && !(group?.memberIds ?? []).includes(u.id),
     ),
     [allUsers, group, currentUser],
   );
@@ -150,7 +151,7 @@ export default function GroupDetailScreen() {
   function handleLeave() {
     if (!group || !currentUser) return;
 
-    const otros = group.memberIds.filter(mid => mid !== currentUser.id);
+    const otros = group.memberIds.filter(mid => !esYo(mid));
     const veredicto = canLeaveGroup(
       balances.map(b => ({ currency: b.currency, amount: b.amount })),
       otros,
@@ -332,11 +333,11 @@ export default function GroupDetailScreen() {
                 <Ionicons name="warning-outline" size={15} color={c.semantic.warning} />
                 <View style={{ flex: 1, gap: 2 }}>
                   <Text style={[Typography.bodyS, { color: c.semantic.warning, fontWeight: '700' }]}>
-                    {group.leaveRequest.userId === currentUser.id
+                    {esYo(group.leaveRequest.userId)
                       ? t('leave.pending_mine', { got: avance.got, need: avance.need })
                       : t('leave.pending_title', { name: getUserName(group.leaveRequest.userId) })}
                   </Text>
-                  {group.leaveRequest.userId !== currentUser.id && (
+                  {!esYo(group.leaveRequest.userId) && (
                     <Text style={[Typography.caption, { color: c.semantic.warning }]}>
                       {t('leave.pending_body', { got: avance.got, need: avance.need })}
                     </Text>
@@ -344,7 +345,7 @@ export default function GroupDetailScreen() {
                 </View>
               </View>
 
-              {group.leaveRequest.userId === currentUser.id ? (
+              {esYo(group.leaveRequest.userId) ? (
                 <BandRow onPress={() => cancelLeave(group.id)} last>
                   <Text style={[Typography.bodyL, { color: c.textSecondary, flex: 1, textAlign: 'center' }]}>
                     {t('leave.withdraw')}
@@ -370,7 +371,7 @@ export default function GroupDetailScreen() {
         )}
       </ScrollView>
 
-      {group && currentUser && group.memberIds.includes(currentUser.id) && (
+      {group && currentUser && group.memberIds.some(esYo) && (
         <FabRow>
           {tieneGastos && (
             <Fab
@@ -399,7 +400,7 @@ export default function GroupDetailScreen() {
       )}
 
       <BottomSheet visible={menuVisible} onClose={() => setMenuVisible(false)}>
-        {group && currentUser && group.memberIds.includes(currentUser.id) && (
+        {group && currentUser && group.memberIds.some(esYo) && (
           <>
             <SheetOption
               icon="person-add-outline"
@@ -416,7 +417,7 @@ export default function GroupDetailScreen() {
           </>
         )}
         {group && currentUser && (
-          group.createdById === currentUser.id ? (
+          esYo(group.createdById) ? (
             <SheetOption
               icon="trash-outline"
               label={t('group_detail.delete_group')}
@@ -542,8 +543,8 @@ function ExpenseRow({
   const { t } = useTranslation();
   const c = Colors[scheme];
 
-  const myShare   = expense.splits.find(s => s.userId === currentUserId);
-  const isPayer   = expense.paidById === currentUserId;
+  const myShare   = expense.splits.find(s => mismaPersona(s.userId, currentUserId));
+  const isPayer   = mismaPersona(expense.paidById, currentUserId);
   const dateLabel = new Date(expense.date).toLocaleDateString(i18n.language, { day: 'numeric', month: 'short' });
   const netForMe  = isPayer
     ? expense.amount - (myShare?.amount ?? 0)
@@ -591,8 +592,8 @@ function PaymentRow({
   const c = Colors[scheme];
 
   const acuse     = useSaldadoAcuse(payment, currentUserId);
-  const fromName  = payment.fromUserId === currentUserId ? t('common.you') : getUserName(payment.fromUserId);
-  const toName    = payment.toUserId   === currentUserId ? t('common.you') : getUserName(payment.toUserId);
+  const fromName  = mismaPersona(payment.fromUserId, currentUserId) ? t('common.you') : getUserName(payment.fromUserId);
+  const toName    = mismaPersona(payment.toUserId, currentUserId)   ? t('common.you') : getUserName(payment.toUserId);
   const dateLabel = new Date(payment.date).toLocaleDateString(i18n.language, { day: 'numeric', month: 'short' });
 
   // T-064: sin acuse, el saldado NO se pinta como cerrado.

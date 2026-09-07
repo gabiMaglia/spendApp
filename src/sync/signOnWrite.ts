@@ -2,6 +2,7 @@ import { canonicalCore, type CoreKind, type CoreRecord } from './recordCore';
 import { signCore } from './recordSign';
 import { privadaDelAparato } from './devicePrivateKey';
 import { activeUserId } from '@/src/store/userScope';
+import { esYo } from '@/src/store/identityAlias';
 import { syncedNow } from '@/src/utils/syncedClock';
 
 /**
@@ -54,9 +55,26 @@ export function authorOf<K extends CoreKind>(kind: K, record: CoreRecord[K]): st
   return typeof valor === 'string' && valor !== '' ? valor : undefined;
 }
 
+/**
+ * **«Mío» incluye lo que escribí con una identidad vieja** (T-048 · D-4).
+ *
+ * Comparar contra el id activo a secas rompía justo al que enlazó dos cuentas, y
+ * de la peor forma: al editar un gasto PROPIO creado con la identidad anterior,
+ * el registro no se re-firmaba y no le subía el `rev`. Consecuencias medidas
+ * (ADR-008 §7.2): el veredicto pasaba de `valida` a **`invalida`** —la app le
+ * marcaba suplantación al autor honesto en su propio gasto— y, sin `rev` nuevo,
+ * la edición empataba en `coreWins` contra la republicación del peer y **se
+ * revertía en silencio 1 de cada 7 veces**.
+ *
+ * Es `esYo()` y no `idCanonico()` a propósito: acá se decide **si firmo**, no
+ * con qué id escribo. El `createdById` del registro no se toca —sigue siendo el
+ * viejo (D-6)— y la firma se hace con la clave del APARATO, que es la misma
+ * antes y después del enlace, así que el registro sigue verificando `valida`
+ * (ADR-008 §7.1, medido). Canonicalizar el autor acá sería reescribir un id que
+ * viaja, y este módulo está en el grafo del sobre.
+ */
 function esMio<K extends CoreKind>(kind: K, record: CoreRecord[K]): boolean {
-  const uid = activeUserId();
-  return uid !== null && authorOf(kind, record) === uid;
+  return activeUserId() !== null && esYo(authorOf(kind, record));
 }
 
 function sinFirma<K extends CoreKind>(record: CoreRecord[K]): CoreRecord[K] {

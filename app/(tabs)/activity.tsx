@@ -29,6 +29,7 @@ import { TabHeader } from '@/src/components/TabHeader';
 import { useHeaderPadding } from '@/src/components/CollapsibleHeader';
 import { hapticSelection } from '@/src/utils/haptics';
 import { syncedNow } from '@/src/utils/syncedClock';
+import { mismaPersona } from '@/src/store/identityAlias';
 
 function relativeTime(ts: number): string {
   const diffMs  = Date.now() - ts;
@@ -306,7 +307,7 @@ function EventRow({
 
   if (event.kind === 'expense_added') {
     const { expense, groupName } = event;
-    const isMe   = expense.paidById === currentUserId;
+    const isMe   = mismaPersona(expense.paidById, currentUserId);
     const who    = isMe ? t('common.you') : getUserName(expense.paidById);
     const action = isMe ? t('activity.action_registered_own') : t('activity.action_registered_other');
     return row({
@@ -384,7 +385,7 @@ function EventRow({
   }
 
   const { payment, groupName } = event;
-  const isMe   = payment.fromUserId === currentUserId;
+  const isMe   = mismaPersona(payment.fromUserId, currentUserId);
   const who    = isMe ? t('common.you') : getUserName(payment.fromUserId);
   const toName = getUserName(payment.toUserId);
   return row({

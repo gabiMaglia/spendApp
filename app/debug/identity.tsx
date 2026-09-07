@@ -29,6 +29,7 @@ import { ensureIdentity } from '@/src/store/identityStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { wipeAllAccounts } from '@/src/store/wipeDevice';
 import { Alert } from 'react-native';
+import { misIdentidades } from '@/src/store/identityAlias';
 
 /**
  * Diagnóstico del índice de identidad (solo DEV).
@@ -51,6 +52,7 @@ export default function IdentityDebugScreen() {
    * la fase B, por la misma razón: valores que viven fuera de React.
    */
   const snapshot = useLiveValue(() => useAuthStore.getState().identitySnapshot());
+  const identidades = useLiveValue(() => misIdentidades());
   const groups = useGroupStore(st => st.groups);
   const expenses = useExpenseStore(st => st.expenses);
 
@@ -138,6 +140,11 @@ export default function IdentityDebugScreen() {
       <ScrollView contentContainerStyle={styles.scroll}>
         <Block title="CUENTA ACTIVA" c={c}>
           <Row label="accountId" value={snapshot.activeAccountId ?? '(sin sesión)'} c={c} />
+          {/* Las identidades viejas (T-048). Sin esta fila, "mis grupos
+              desaparecieron" y "el alias no se sembró" se ven exactamente
+              igual desde afuera. */}
+          <Row label="identidades viejas"
+               value={identidades.length > 1 ? identidades.slice(1).join(', ') : '(ninguna)'} c={c} />
           <Row label="grupos visibles" value={String(groups.length)} c={c} />
           <Row label="gastos visibles" value={String(expenses.length)} c={c} />
         </Block>

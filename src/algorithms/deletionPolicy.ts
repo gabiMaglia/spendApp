@@ -1,4 +1,5 @@
 import type { DeletionMode, Group } from '@/src/types/models';
+import { mismaPersona } from '@/src/store/identityAlias';
 
 /**
  * Cómo se borra un gasto en un grupo. Se elige al CREAR el grupo (decisión del
@@ -33,9 +34,20 @@ export function borraAlInstante(
 ): boolean {
   // Fuera del grupo no se borra nada, sea cual sea el modo. El modo abierto
   // afloja quién decide DENTRO del grupo, no quién puede entrar.
-  if (!group.memberIds.includes(quienBorra)) return false;
+  /**
+   * Las tres comparaciones pasan por `mismaPersona` (T-048 · D-3). Quien enlazó
+   * dos cuentas figura en el roster de sus grupos viejos con la identidad
+   * ANTERIOR, y su gasto de entonces lleva ese mismo id en `createdById` — nada
+   * de eso se reescribe (D-6). Sin traducir: no podría borrar en su propio
+   * grupo, y el override del creador no se le aplicaría a su propio gasto.
+   *
+   * Es `mismaPersona` y no `idCanonico` porque este módulo está en el grafo de
+   * imports del sobre de sync: acá sólo puede entrar un primitivo que devuelva
+   * un booleano, nunca uno que devuelva un id.
+   */
+  if (!group.memberIds.some(m => mismaPersona(m, quienBorra))) return false;
   if (deletionModeOf(group) === 'open') return true;
-  return quienBorra === autorDelGasto; // override del creador (regla #2)
+  return mismaPersona(quienBorra, autorDelGasto); // override del creador (regla #2)
 }
 
 /**
@@ -50,7 +62,7 @@ export function puedeRestaurar(
   group: Pick<Group, 'memberIds'>,
   quienRestaura: string,
 ): boolean {
-  return group.memberIds.includes(quienRestaura);
+  return group.memberIds.some(m => mismaPersona(m, quienRestaura));
 }
 
 /**

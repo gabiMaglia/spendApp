@@ -4,6 +4,7 @@ import type { Expense, Group, Payment, Transaction } from '@/src/types/models';
 import { calculateBalances, RATE_SCALE } from './calculateBalances';
 import { simplifyDebts } from './simplifyDebts';
 import { pagosQueCuentan } from './settlementStatus';
+import { idCanonico } from '@/src/store/identityAlias';
 
 export interface PersonBalance {
   userId: string;
@@ -65,10 +66,20 @@ export function calculateGlobalBalances(
           )
         : payment.amount;
 
-      if (payment.fromUserId === currentUserId) {
-        addTo(payment.toUserId, currency, amount);
-      } else if (payment.toUserId === currentUserId) {
-        addTo(payment.fromUserId, currency, -amount);
+      /**
+       * Los pagos entran al pozo con el id canónico (T-048 · D-3, punto 3 del
+       * §9): las transferencias de arriba ya salen canonicalizadas de
+       * `calculateBalances`, pero estos ids vienen crudos del registro. Sin
+       * traducirlos, un pago hecho con la identidad vieja no cancelaría la
+       * deuda que sí quedó a nombre de la nueva.
+       */
+      const de   = idCanonico(payment.fromUserId);
+      const para = idCanonico(payment.toUserId);
+
+      if (de === currentUserId) {
+        addTo(para, currency, amount);
+      } else if (para === currentUserId) {
+        addTo(de, currency, -amount);
       }
     }
   }

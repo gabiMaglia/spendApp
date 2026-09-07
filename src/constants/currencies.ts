@@ -185,3 +185,18 @@ export function parseMoney(text: string, code: CurrencyCode, lang: AppLang): num
 
   return Math.round(value * minorFactor(code));
 }
+
+/**
+ * Escala fija de `Payment.exchangeRate` (ADR-002 §6). No es un monto en una
+ * moneda — es un ratio — así que NO usa `minorFactor`: `exchangeRate`
+ * almacenado = ratio_real * RATE_SCALE (entero).
+ *
+ * **Vive acá y no en `calculateBalances` por una razón de estructura, no de
+ * prolijidad.** `moneyMigration` la necesita, y `moneyMigration` lo importa
+ * `expenseStore`, que está en el grafo del sobre de sync: con la constante
+ * declarada dentro del módulo de balances, TODO ese módulo quedaba a un import
+ * de distancia del cable, y con él la canonicalización de identidades de T-048.
+ * Lo destapó el guard `canonicalNoAlcanzaElCable.test.ts`, que es exactamente
+ * para lo que existe.
+ */
+export const RATE_SCALE = 1_000_000;

@@ -8,6 +8,7 @@ import { usePersonalStore } from '@/src/store/personalStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { observeRecords, type LocalCore } from './recordHealth';
 import { sinAvatarUrl, sinCamposLocales } from './soloLocal';
+import { mismaPersona } from '@/src/store/identityAlias';
 
 /**
  * Versión de FEATURES del delta, aparte de `version` (que es el formato).
@@ -130,8 +131,17 @@ export function applyDelta(delta: SyncDelta, currentUserId: string): void {
   useExpenseStore.getState().mergeExpenses(delta.expenses);
   usePaymentStore.getState().mergePayments(delta.payments);
 
-  // Merge usuarios — filtra el propio currentUser para no pisarlo
-  const externalUsers = delta.users.filter(u => u.id !== currentUserId);
+  /**
+   * Merge usuarios — filtra el propio perfil para no pisarlo, **incluidas mis
+   * identidades viejas** (T-048). Un peer republica el estado completo del
+   * grupo, así que el perfil que yo escribí con la cuenta anterior vuelve en
+   * cada sobre: sin `mismaPersona`, entraba al store como si fuera otra
+   * persona y me aparecía a mí mismo en la lista de contactos y en los saldos.
+   *
+   * Es `mismaPersona` y no `idCanonico` porque este módulo arma el delta que
+   * VIAJA: acá sólo puede entrar un primitivo que devuelva un booleano.
+   */
+  const externalUsers = delta.users.filter(u => !mismaPersona(u.id, currentUserId));
   useUserStore.getState().mergeUsers(externalUsers);
 
   // Las plantillas recurrentes viajan como cualquier otro registro (LWW).

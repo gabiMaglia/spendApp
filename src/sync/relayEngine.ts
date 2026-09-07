@@ -8,6 +8,7 @@ import { syncedNow } from '@/src/utils/syncedClock';
 import { snapshot, noticesFor, type Snapshot } from '@/src/services/syncNotices';
 import { announce } from '@/src/services/notifications';
 import { useAuthStore } from '@/src/store/authStore';
+import { esYo } from '@/src/store/identityAlias';
 import { deriveTopic } from './envelopeCrypto';
 import { subscribeTopic, isRelayConfigured } from './relay';
 import { publishToGroup, drainGroup, type PublishResult } from './relaySync';
@@ -93,14 +94,25 @@ export function deviceId(): string {
   return id;
 }
 
-/** Grupos vivos de los que tenemos clave: los únicos sincronizables. */
+/**
+ * Grupos vivos de los que tenemos clave: los únicos sincronizables.
+ *
+ * La membresía se pregunta con `esYo()` y no contra el id activo (T-048 · D-4):
+ * un grupo heredado de una cuenta absorbida nombra a su dueño con la identidad
+ * VIEJA en `memberIds`, y ese roster no se reescribe nunca (D-6). Sin esto, esos
+ * grupos **dejaban de sincronizar aunque tuviéramos su clave** — el usuario los
+ * veía quietos, sin un solo mensaje de error.
+ *
+ * Lo que se PUBLICA sigue saliendo con los ids tal cual están guardados: acá
+ * sólo se decide a qué buzones suscribirse.
+ */
 export function syncableGroupIds(): string[] {
   const userId = useAuthStore.getState().currentUser?.id;
   if (!userId) return [];
 
   const conClave = new Set(useGroupKeyStore.getState().keys.map(k => k.groupId));
   return useGroupStore.getState().groups
-    .filter(g => !g.isDeleted && g.memberIds.includes(userId) && conClave.has(g.id))
+    .filter(g => !g.isDeleted && g.memberIds.some(esYo) && conClave.has(g.id))
     .map(g => g.id);
 }
 

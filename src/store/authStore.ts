@@ -92,8 +92,14 @@ export function olvidarPruebasDeProveedor(): void {
   proveedoresProbados.clear();
 }
 
-/** Los `providerId` del índice que apuntan a esta cuenta. */
-function proveedoresDeCuenta(accountId: string): string[] {
+/**
+ * Los `providerId` del índice que apuntan a esta cuenta.
+ *
+ * Exportado para `identityAlias`, que lo usa para sembrar los alias de quien
+ * enlazó cuentas antes de T-048: `acct::p:` es privado de este módulo y esa
+ * siembra no puede armar el prefijo por su cuenta.
+ */
+export function proveedoresDeCuenta(accountId: string): string[] {
   const out: string[] = [];
   for (const key of storage.getAllKeys()) {
     if (!key.startsWith('acct::p:')) continue;

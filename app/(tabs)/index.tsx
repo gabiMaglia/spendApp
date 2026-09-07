@@ -28,6 +28,7 @@ import { hapticLight } from '@/src/utils/haptics';
 import { useTranslation } from 'react-i18next';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { esYo } from '@/src/store/identityAlias';
 
 export default function AccountScreen() {
   const { t } = useTranslation();
@@ -72,7 +73,7 @@ export default function AccountScreen() {
   const groups = useGroupStore(st => st.groups);
 
   const misGrupos = useMemo(
-    () => groups.filter(g => !g.isDeleted && !!currentUser && g.memberIds.includes(currentUser.id)),
+    () => groups.filter(g => !g.isDeleted && !!currentUser && g.memberIds.some(esYo)),
     [groups, currentUser],
   );
 

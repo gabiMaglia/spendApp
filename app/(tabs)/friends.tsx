@@ -28,6 +28,7 @@ import { Band, BandRow, SectionLabel, SplitStat } from '@/src/components/Band';
 import { TabHeader } from '@/src/components/TabHeader';
 import { useHeaderPadding } from '@/src/components/CollapsibleHeader';
 import { syncedNow } from '@/src/utils/syncedClock';
+import { esYo } from '@/src/store/identityAlias';
 
 export default function FriendsScreen() {
   const { t } = useTranslation();
@@ -45,7 +46,7 @@ export default function FriendsScreen() {
   const inputRef = useRef<TextInput>(null);
 
   const contacts = useMemo(
-    () => users.filter(u => !u.isDeleted && u.id !== currentUser?.id),
+    () => users.filter(u => !u.isDeleted && !esYo(u.id)),
     [users, currentUser],
   );
 

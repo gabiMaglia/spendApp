@@ -36,6 +36,7 @@ import { DetailHeader } from '@/src/components/CollapsibleHeader';
 import { buildSplits } from '@/src/algorithms/buildSplits';
 import type { ExpenseCategory, PersonalCategory } from '@/src/types/models';
 import { syncedNow } from '@/src/utils/syncedClock';
+import { esYo } from '@/src/store/identityAlias';
 
 type CatMeta = { id: PersonalCategory; icon: React.ComponentProps<typeof Ionicons>['name']; label: string };
 
@@ -337,10 +338,10 @@ export default function NewExpenseScreen() {
     const splitPayload = splits.map(s => ({
       userId: s.userId,
       amount: s.amount,
-      isPaid: s.userId === (payerId || currentUser.id),
+      isPaid: payerId ? s.userId === payerId : esYo(s.userId),
     }));
 
-    const myShare = splitPayload.find(s => s.userId === currentUser.id)?.amount ?? 0;
+    const myShare = splitPayload.find(s => esYo(s.userId))?.amount ?? 0;
     const groupName = group?.name ?? '';
 
     if (isEditMode && expenseId) {
@@ -391,7 +392,7 @@ export default function NewExpenseScreen() {
       // recién cuando la salde. Antes se replicaba `myShare` siempre, que
       // estaba mal en los dos sentidos: de menos si pagaba yo, y de más si
       // pagaba otro.
-      if (payerFields().paidById === currentUser.id) {
+      if (esYo(payerFields().paidById)) {
         addPersonalEntry({
           id:                   uuidv4(),
           kind:                 'group_replicated',

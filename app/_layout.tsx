@@ -22,6 +22,7 @@ import { announceContact, savePeer } from '@/src/sync/contactChannel';
 import { deviceId } from '@/src/sync/relayEngine';
 import { syncedNow } from '@/src/utils/syncedClock';
 import { installNotificationHandler } from '@/src/services/notifications';
+import { esYo } from '@/src/store/identityAlias';
 
 // A nivel de módulo, no dentro de un componente: el handler tiene que estar
 // registrado ANTES de que llegue el primer aviso. Sin él, expo-notifications
@@ -84,7 +85,7 @@ function AuthGuard() {
         const parsed = Linking.parse(url);
         if (parsed.path === 'contact/add' && parsed.queryParams) {
           const { id, name, email, s, w, k } = parsed.queryParams as Record<string, string>;
-          if (id && name && currentUser && id !== currentUser.id) {
+          if (id && name && currentUser && !esYo(id)) {
             addOrUpdateUser({
               id,
               name,
