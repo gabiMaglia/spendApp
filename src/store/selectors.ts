@@ -7,6 +7,7 @@ import { simplifyDebts } from '@/src/algorithms/simplifyDebts';
 import { pagosQueCuentan } from '@/src/algorithms/settlementStatus';
 import { deletionRound } from '@/src/algorithms/deletionRound';
 import { syncedNow } from '@/src/utils/syncedClock';
+import { idCanonico, mismaPersona } from './identityAlias';
 import { useGroupStore } from './groupStore';
 import { useExpenseStore } from './expenseStore';
 import { usePaymentStore } from './paymentStore';
@@ -29,7 +30,10 @@ export function useGroupBalance(groupId: string, userId: string): GroupBalanceEn
     const expenses = allExpenses.filter(e => e.groupId === groupId);
     const payments = pagosQueCuentan(allPayments, group);
     const balances = calculateBalancesByCurrency(expenses, payments, group.memberIds);
-    return balances.find(b => b.userId === userId)?.balances ?? [];
+    // Los balances salen con el id canónico (T-048 · D-3), así que la búsqueda
+    // también pregunta por el canónico: si no, quien enlazó cuentas no se
+    // encontraría a sí mismo en el grupo que heredó.
+    return balances.find(b => b.userId === idCanonico(userId))?.balances ?? [];
   }, [group, allExpenses, allPayments, groupId, userId]);
 }
 
@@ -61,7 +65,7 @@ export function useGroupsTotalBalance(userId: string): GroupsTotalBalance[] {
       const gExpenses = expenses.filter(e => e.groupId === group.id);
       const gPayments = pagosQueCuentan(payments, group);
       const balances  = calculateBalancesByCurrency(gExpenses, gPayments, group.memberIds);
-      const entry     = balances.find(b => b.userId === userId);
+      const entry     = balances.find(b => b.userId === idCanonico(userId));
       if (!entry) continue;
 
       for (const { currency, amount } of entry.balances) {
@@ -104,7 +108,11 @@ export function useDirectedDebts(currentUserId: string): DirectedDebt[] {
 
     for (const group of groups) {
       if (group.isDeleted) continue;
-      if (!group.memberIds.includes(currentUserId)) continue;
+      // `mismaPersona` y no `===`: un grupo heredado de una cuenta absorbida
+      // nombra a su dueño con la identidad VIEJA en `memberIds`, y ese roster no
+      // se reescribe nunca (T-048 · D-6). Sin esto el grupo entero desaparecía
+      // del dashboard, con sus saldos adentro.
+      if (!group.memberIds.some(m => mismaPersona(m, currentUserId))) continue;
 
       const gExpenses = expenses.filter(e => e.groupId === group.id);
       const gPayments = pagosQueCuentan(payments, group);
@@ -128,7 +136,7 @@ export function useDirectedDebts(currentUserId: string): DirectedDebt[] {
       }
     }
 
-    return directedDebts(transferencias, currentUserId);
+    return directedDebts(transferencias, idCanonico(currentUserId));
   }, [groups, expenses, payments, currentUserId]);
 }
 
@@ -138,6 +146,10 @@ export function useGlobalPersonBalances(currentUserId: string): PersonBalance[] 
   const payments = usePaymentStore(s => s.payments);
 
   return useMemo(() => {
+    // Las transferencias salen con ids canónicos: hay que compararlas contra el
+    // canónico, no contra lo que el llamador haya pasado.
+    const yo = idCanonico(currentUserId);
+
     // Acumula todos los balances globales por (userId, currency) sumando cada grupo
     const globalMap = new Map<string, Map<CurrencyCode, number>>();
 
@@ -154,7 +166,8 @@ export function useGlobalPersonBalances(currentUserId: string): PersonBalance[] 
       if (group.isDeleted) continue;
       // Y un grupo del que no soy parte tampoco: sus saldos entrarían al pozo
       // global y cambiarían con QUIÉN me empareja la simplificación.
-      if (!group.memberIds.includes(currentUserId)) continue;
+      // "Ser parte" incluye estar en el roster con la identidad vieja (T-048).
+      if (!group.memberIds.some(m => mismaPersona(m, currentUserId))) continue;
 
       const gExpenses = expenses.filter(e => e.groupId === group.id);
       const gPayments = pagosQueCuentan(payments, group);
@@ -183,10 +196,10 @@ export function useGlobalPersonBalances(currentUserId: string): PersonBalance[] 
       const transactions = simplifyDebts(balancesForCurrency, currency);
 
       for (const tx of transactions) {
-        if (tx.toUserId === currentUserId) {
+        if (tx.toUserId === yo) {
           // Alguien me debe
           result.push({ userId: tx.fromUserId, currency, amount: tx.amount });
-        } else if (tx.fromUserId === currentUserId) {
+        } else if (tx.fromUserId === yo) {
           // Le debo a alguien
           result.push({ userId: tx.toUserId, currency, amount: -tx.amount });
         }
@@ -242,7 +255,7 @@ export function useActivityFeed(currentUserId: string): ActivityKind[] {
     // sobre el presente. Borrar un grupo tiene que sacar sus deudas (ya no se
     // pueden saldar) pero no puede borrar la historia de lo que hiciste.
     const myGroupIds = new Set(
-      groups.filter(g => g.memberIds.includes(currentUserId)).map(g => g.id),
+      groups.filter(g => g.memberIds.some(m => mismaPersona(m, currentUserId))).map(g => g.id),
     );
 
     const groupName = (id: string) => groups.find(g => g.id === id)?.name ?? id;

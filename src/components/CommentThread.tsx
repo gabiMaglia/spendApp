@@ -11,6 +11,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { hapticLight } from '@/src/utils/haptics';
 import { UserAvatar } from './UserAvatar';
 import type { ExpenseComment } from '@/src/types/models';
+import { mismaPersona } from '@/src/store/identityAlias';
 
 const MAX_LENGTH = 500;
 
@@ -66,7 +67,7 @@ export function CommentThread({
       ) : (
         <View style={styles.list}>
           {comments.map(comment => {
-            const mine = comment.authorId === currentUserId;
+            const mine = mismaPersona(comment.authorId, currentUserId);
             const name = authorName(comment.authorId);
             return (
               <View key={comment.id} style={styles.row}>

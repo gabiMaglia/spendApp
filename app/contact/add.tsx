@@ -25,6 +25,7 @@ import { deviceId } from '@/src/sync/relayEngine';
 import { ensureIdentity, ensureWrapKeypair } from '@/src/store/identityStore';
 import { useTranslation } from 'react-i18next';
 import { syncedNow } from '@/src/utils/syncedClock';
+import { esYo } from '@/src/store/identityAlias';
 
 type Mode = 'my_qr' | 'scan';
 
@@ -69,7 +70,7 @@ export default function AddContactScreen() {
       return;
     }
 
-    if (contact.id === currentUser?.id) {
+    if (esYo(contact.id)) {
       hapticWarning();
       Alert.alert(t('contact.own_qr_title'), t('contact.own_qr_body'), [
         { text: 'OK', onPress: () => setScanned(false) },

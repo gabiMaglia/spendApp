@@ -34,6 +34,7 @@ import { attributedVote, isMarked } from '@/src/algorithms/recordTrust';
 import { emitirVoto } from '@/src/services/deletionVotes';
 import type { CategoryKind } from '@/src/constants/colors';
 import { syncedNow } from '@/src/utils/syncedClock';
+import { esYo } from '@/src/store/identityAlias';
 
 /** "2 días" / "5 horas" / "40 minutos": basta para saber si hay que apurarse. */
 function formatearRestante(ms: number): string {
@@ -123,7 +124,7 @@ export default function ExpenseDetailScreen() {
     );
   }
 
-  const isCreator = expense.createdById === currentUser?.id;
+  const isCreator = esYo(expense.createdById);
 
   // En un grupo de borrado LIBRE (elegido al crearlo) cualquier miembro borra
   // al instante, igual que Splitwise: la defensa no es impedir sino que quede
@@ -250,7 +251,7 @@ export default function ExpenseDetailScreen() {
     });
   }
 
-  const nombreDe = (uid: string) => (uid === currentUser?.id ? t('common.you') : getUserName(uid));
+  const nombreDe = (uid: string) => (esYo(uid) ? t('common.you') : getUserName(uid));
   const restante = ronda ? formatearRestante(msUntilDeletion(ronda, ahora)) : '';
 
   // Restaurar y objetar frenan las dos, pero no son lo mismo y el cartel no
@@ -265,8 +266,8 @@ export default function ExpenseDetailScreen() {
     ronda.status === 'objected' ? t('expense.delete_objected_body') :
     t('expense.delete_pending_body', { name: nombreDe(ronda.requestedBy), time: restante });
 
-  const myShare = splits.find(s => s.userId === currentUser?.id)?.amount ?? 0;
-  const isPayer = expense.paidById === currentUser?.id;
+  const myShare = splits.find(s => esYo(s.userId))?.amount ?? 0;
+  const isPayer = esYo(expense.paidById);
   const netForMe = isPayer ? expense.amount - myShare : -myShare;
 
   return (
@@ -361,7 +362,7 @@ export default function ExpenseDetailScreen() {
             {t('expense.split_detail')}
           </Text>
           {splits.map((split, i) => {
-            const name = split.userId === currentUser?.id
+            const name = esYo(split.userId)
               ? t('common.you')
               : getUserName(split.userId);
             const isThisPayer = expense.paidById === split.userId;

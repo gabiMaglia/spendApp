@@ -26,6 +26,7 @@ import { Avatar } from '@/src/components/Avatar';
 import { UserAvatar } from '@/src/components/UserAvatar';
 import { useTranslation } from 'react-i18next';
 import { syncedNow } from '@/src/utils/syncedClock';
+import { esYo } from '@/src/store/identityAlias';
 
 const PRIMARY_CURRENCIES: CurrencyCode[] = ['ARS', 'USD', 'EUR', 'BRL'];
 
@@ -49,11 +50,11 @@ export default function NewGroupScreen() {
   );
 
   const contacts = useMemo(
-    () => users.filter(u => !u.isDeleted && u.id !== currentUser?.id),
+    () => users.filter(u => !u.isDeleted && !esYo(u.id)),
     [users, currentUser],
   );
 
-  const hasContact = selectedIds.some(id => id !== currentUser?.id);
+  const hasContact = selectedIds.some(id => !esYo(id));
   const canSave    = name.trim().length > 0 && hasContact;
 
   function toggleContact(id: string) {

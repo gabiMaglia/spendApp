@@ -1,14 +1,11 @@
-import { minorFactor } from '@/src/constants/currencies';
+import { minorFactor, RATE_SCALE } from '@/src/constants/currencies';
 import type { CurrencyCode } from '@/src/constants/currencies';
 import type { Balance, BalanceByCurrency, Expense, Payment } from '@/src/types/models';
 import { expensePayers } from './payers';
+import { idCanonico, rosterCanonico } from '@/src/store/identityAlias';
 
-/**
- * Escala fija de `Payment.exchangeRate` (ADR-002 §6). No es un monto en una
- * moneda — es un ratio — así que NO usa `minorFactor`. `exchangeRate`
- * almacenado = ratio_real * RATE_SCALE (entero).
- */
-export const RATE_SCALE = 1_000_000;
+/** Re-exportada desde `constants/currencies`, donde vive; ver su docblock. */
+export { RATE_SCALE };
 
 /**
  * Convierte un monto (entero, menor unidad de `fromCurrency`) a la menor unidad
@@ -36,12 +33,23 @@ function convertMinorAmount(
  * Asume moneda única (filtrá antes por currency si hay múltiples).
  * Todos los montos son ENTEROS en menor unidad (ADR-002) — aritmética entera
  * pura, sin epsilon.
+ *
+ * **Todo id entra por `idCanonico()`** (T-048 · D-3). Quien enlazó dos cuentas
+ * tiene registros escritos con las dos identidades —y no se reescriben nunca
+ * (D-6)—, así que sin esto la misma persona sería DOS nodos del grafo de
+ * deudas: su saldo aparecería partido, y `simplifyDebts` podría emitirle una
+ * transferencia de una mitad de sí misma a la otra.
+ *
+ * Va en la ENTRADA y no en las comparaciones, que es toda la diferencia:
+ * colapsar dos claves de un `Map` es sumar sus valores, así que Σ de los
+ * balances queda invariante y una transferencia entre dos alias de la misma
+ * persona pasa a ser **aritméticamente imposible**, no improbable (ADR-008 §9).
  */
 export function calculateBalances(
   expenses: Expense[],
   memberIds: string[],
 ): Balance[] {
-  const totals = new Map<string, number>(memberIds.map(id => [id, 0]));
+  const totals = new Map<string, number>(rosterCanonico(memberIds).map(id => [id, 0]));
 
   for (const expense of expenses) {
     if (expense.isDeleted) continue;
@@ -49,13 +57,13 @@ export function calculateBalances(
     // Un gasto lo pueden haber puesto entre varios: se acredita a cada uno lo
     // que puso, no el total al "pagador principal".
     for (const payer of expensePayers(expense)) {
-      const current = totals.get(payer.userId) ?? 0;
-      totals.set(payer.userId, current + payer.amount);
+      const id = idCanonico(payer.userId);
+      totals.set(id, (totals.get(id) ?? 0) + payer.amount);
     }
 
     for (const split of expense.splits) {
-      const splitCurrent = totals.get(split.userId) ?? 0;
-      totals.set(split.userId, splitCurrent - split.amount);
+      const id = idCanonico(split.userId);
+      totals.set(id, (totals.get(id) ?? 0) - split.amount);
     }
   }
 
@@ -78,11 +86,12 @@ export function calculateBalancesByCurrency(
 ): BalanceByCurrency[] {
   // mapa: userId → currency → net amount (entero, menor unidad)
   const totals = new Map<string, Map<CurrencyCode, number>>(
-    memberIds.map(id => [id, new Map()]),
+    rosterCanonico(memberIds).map(id => [id, new Map()]),
   );
 
-  const addTo = (userId: string, currency: CurrencyCode, delta: number) => {
-    const userMap = totals.get(userId);
+  // Mismo criterio que arriba: el id se traduce al ENTRAR (T-048 · D-3).
+  const addTo = (rawUserId: string, currency: CurrencyCode, delta: number) => {
+    const userMap = totals.get(idCanonico(rawUserId));
     if (!userMap) return;
     userMap.set(currency, (userMap.get(currency) ?? 0) + delta);
   };

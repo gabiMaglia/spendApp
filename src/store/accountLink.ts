@@ -98,6 +98,14 @@ const kContactPeers    = ranura('users', 'contact_peers_v1');
 const kProfile         = ranura('auth', AUTH_KEYS.PROFILE);
 
 /**
+ * Las identidades viejas de la cuenta (T-048 · D-1). Se declara con `ranura()`
+ * como todo lo demás, así la purga de un scope absorbido la alcanza sola.
+ * El lado que las LEE es `src/store/identityAlias.ts`.
+ */
+export const ALIAS_BASE = 'alias_v1';
+const kAlias           = ranura('auth', ALIAS_BASE);
+
+/**
  * Fusiona TODOS los datos de `fromAccountId` dentro de `toAccountId`.
  * Unión con LWW por `updatedAt`; no borra el origen.
  */
@@ -113,8 +121,49 @@ export function mergeAccounts(fromAccountId: string, toAccountId: string): Merge
   mergeProfiles(fromAccountId, toAccountId);
   mergeSettings(fromAccountId, toAccountId);
   mergeContactPeers(fromAccountId, toAccountId);
+  mergeAlias(fromAccountId, toAccountId);
   recordMerge(fromAccountId);
   return report;
+}
+
+/**
+ * **El id viejo pasa a ser un alias del nuevo** (T-048 · D-1).
+ *
+ * Es la única línea de esta fusión que no copia datos: anota que las dos
+ * identidades son la misma persona, para que los registros que quedaron
+ * escritos a nombre de la vieja —que son TODOS los de la cuenta absorbida, y no
+ * se reescriben nunca (D-6)— sigan siendo suyos al leerlos.
+ *
+ * Va acá, adentro de `mergeAccounts`, y no en el llamador: fusionar sin dejar el
+ * alias es exactamente el defecto de T-048, y hay tres caminos que fusionan
+ * (`linked`, `confirm` con directorio y `confirm` degradado). Escribirlo en el
+ * único punto por el que pasan los tres es lo que hace que no se pueda olvidar.
+ *
+ * **Es transitivo**: se heredan también los alias del origen, así que A→B y
+ * después B→C deja `alias(C) = {A, B}`. Sin esa unión, la primera identidad se
+ * perdería en la segunda fusión y sus grupos volverían a desaparecer.
+ *
+ * Se escribe bajo el scope DESTINO, que es el que sobrevive: el del origen se
+ * purga a los 30 días.
+ */
+function mergeAlias(fromAccountId: string, toAccountId: string): void {
+  if (fromAccountId === toAccountId) return;
+  const storage = createSecureStorage('auth');
+
+  const leer = (uid: string): string[] => {
+    const raw = storage.getString(kAlias(uid));
+    if (!raw) return [];
+    try {
+      const v = JSON.parse(raw);
+      return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+    } catch {
+      return []; // dato corrupto: se degrada a "sin alias", nunca a uno inventado
+    }
+  };
+
+  const set = new Set([...leer(toAccountId), ...leer(fromAccountId), fromAccountId]);
+  set.delete(toAccountId); // una cuenta no es alias de sí misma
+  storage.set(kAlias(toAccountId), JSON.stringify([...set]));
 }
 
 /**
@@ -553,6 +602,7 @@ export const COBERTURA_FUSION: Record<string, string> = {
   'store/archiveStore':   'aparte · mergeArchived (string[] bajo archived_v1, en el bucket groups; unión)',
   'store/settingsStore':  'aparte · mergeSettings (preferencias, no datos)',
   'store/noticeInboxStore': 'aparte · mergeNotices (union por id; el acuse gana sobre el no-acuse). Decision del PO 2026-08-30: TODO se fusiona al enlazar cuentas.',
+  'store/identityAlias':  'aparte · mergeAlias (alias_v1: unión de los alias del origen MÁS el id del origen, bajo el scope destino). Es lo que hace el alias transitivo A→B→C; sin la unión, la primera identidad se pierde en la segunda fusión.',
   'sync/contactChannel':  'aparte · mergeContactPeers (contact_peers_v1: unión por userId, el destino gana campo por campo). El secreto propio y el acuse de tarjeta NO se fusionan — ver el docblock de mergeContactPeers.',
 };
 

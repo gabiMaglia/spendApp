@@ -20,6 +20,7 @@ import { hueForUser } from '@/src/utils/hueForUser';
 import { hapticLight, hapticSuccess, hapticWarning } from '@/src/utils/haptics';
 import { planAbsorption, planSettlesLeaver, type BalanceEntry } from '@/src/algorithms/absorbBalance';
 import type { SplitMode } from '@/src/types/models';
+import { esYo } from '@/src/store/identityAlias';
 
 /**
  * Salir de un grupo con saldo abierto, repartiéndolo entre los que quedan.
@@ -51,7 +52,7 @@ export default function LeaveGroupScreen() {
   const balances = useGroupBalance(id ?? '', currentUser?.id ?? '');
 
   const otros = useMemo(
-    () => (group?.memberIds ?? []).filter(uid => uid !== currentUser?.id),
+    () => (group?.memberIds ?? []).filter(uid => !esYo(uid)),
     [group, currentUser],
   );
 
@@ -214,8 +215,8 @@ export default function LeaveGroupScreen() {
             {plan.map((p, i) => (
               <Text key={i} style={[Typography.bodyS, { color: c.text, marginTop: 6 }]}>
                 {t('leave.preview_line', {
-                  from: p.fromUserId === currentUser.id ? t('common.you') : getUserName(p.fromUserId),
-                  to:   p.toUserId === currentUser.id ? t('common.you') : getUserName(p.toUserId),
+                  from: esYo(p.fromUserId) ? t('common.you') : getUserName(p.fromUserId),
+                  to:   esYo(p.toUserId) ? t('common.you') : getUserName(p.toUserId),
                   amount: formatMoney(p.amount, p.currency),
                 })}
               </Text>

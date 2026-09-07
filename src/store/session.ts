@@ -21,6 +21,7 @@ import { reloadAuthorKeys } from '@/src/sync/authorKeys';
 import { reloadRatchet } from '@/src/sync/ratchet';
 import { reloadRecordHealth } from '@/src/sync/recordHealth';
 import { reloadAuthorHealth } from '@/src/sync/authorHealth';
+import { recargarAlias, sembrarAliasDesdeIndice } from './identityAlias';
 
 // (Re)hidrata todos los stores scopeados por cuenta con los datos del usuario
 // activo. Con usuario nulo (deslogueado), cada hydrate lee un scope vacío y deja
@@ -58,6 +59,19 @@ export function rehydrateForActiveUser(): void {
   reloadRatchet();
   reloadRecordHealth();
   reloadAuthorHealth();
+
+  /**
+   * Las identidades viejas de esta cuenta (T-048). Mismo motivo que las de
+   * arriba: la caché es por cuenta y heredarla sería adueñarse de los registros
+   * de la anterior.
+   *
+   * La siembra corre DESPUÉS de soltar la caché y ANTES de que los stores se
+   * usen: es para quien enlazó cuentas antes de que T-048 existiera, a quien
+   * `mergeAccounts` ya no le va a volver a correr. Es idempotente y sólo
+   * escribe si encontró algo.
+   */
+  recargarAlias();
+  sembrarAliasDesdeIndice();
 
   // Con los datos de la cuenta ya cargados, se materializan los gastos
   // recurrentes vencidos. Va acá y no en el arranque de la app porque depende

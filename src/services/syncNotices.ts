@@ -4,6 +4,7 @@ import { deletionRound, msUntilDeletion } from '@/src/algorithms/deletionRound';
 import { requiereConfirmacion } from '@/src/algorithms/settlementStatus';
 // Sólo el tipo: `publishHealth` no puede entrar al grafo de módulos de acá.
 import type { BlockingReason } from '@/src/sync/publishHealth';
+import { mismaPersona } from '@/src/store/identityAlias';
 
 /**
  * Qué avisar después de un sync (T-010).
@@ -169,6 +170,22 @@ export function noticesFor(
   now: number,
   paymentsAfter: Payment[] = [],
 ): Notice[] {
+  /**
+   * «¿Fui yo?» — con las identidades viejas incluidas (T-048 · D-3).
+   *
+   * Se comparan los dos ids entre sí y **no** con `esYo()`, porque acá el
+   * usuario llega por parámetro: `esYo()` preguntaría por la sesión activa y
+   * daría `false` para todos si esta función corriera sin sesión, convirtiendo
+   * «lo cargué yo» en «me lo avisan igual». Comparando los dos lados, sin
+   * sesión el comportamiento es idéntico al de antes.
+   *
+   * Sin esto, quien enlazó cuentas recibe avisos de SUS PROPIOS gastos viejos
+   * cada vez que un peer republica el estado del grupo — o sea, para siempre y
+   * cada 20 segundos.
+   */
+  const esMio = (id: string | undefined): boolean =>
+    id !== undefined && mismaPersona(id, currentUserId);
+
   const conocidos = new Set(before.expenseIds);
   const yaAbiertos = new Set(before.conBorradoAbierto);
   const teniaBorrados = new Set(before.borrados);
@@ -188,14 +205,14 @@ export function noticesFor(
     // Y lo que yo tenía borrado y volvió no es NUEVO: es el mismo de antes.
     // Sin esa segunda mitad, una restauración salía por duplicado — «1 gasto
     // nuevo» y «lo restauraron» por el mismo evento.
-    if (!conocidos.has(e.id) && !teniaBorrados.has(e.id) && e.createdById !== currentUserId) {
+    if (!conocidos.has(e.id) && !teniaBorrados.has(e.id) && !esMio(e.createdById)) {
       nuevosPorGrupo.set(e.groupId, (nuevosPorGrupo.get(e.groupId) ?? 0) + 1);
     }
 
     // Un pedido de borrado que se abrió en esta bajada. El que lo pidió ya sabe.
     if (!yaAbiertos.has(e.id) && borradoPendiente(e, now)) {
       // El que lo pidió ya sabe: no se le avisa de su propia solicitud.
-      if (deletionRound(e, now)!.requestedBy !== currentUserId) {
+      if (!esMio(deletionRound(e, now)!.requestedBy)) {
         pedidosDeBorrado.push({
           kind: 'deletion',
           groupId: e.groupId,
@@ -228,7 +245,7 @@ export function noticesFor(
      */
     if (teniaBorrados.has(e.id)) {
       const ronda = deletionRound(e, now);
-      const loRestauréYo = ronda?.status === 'restored' && ronda.stoppedBy === currentUserId;
+      const loRestauréYo = ronda?.status === 'restored' && esMio(ronda.stoppedBy);
       if (!loRestauréYo) {
         restauraciones.push({
           kind: 'restored',
@@ -262,13 +279,13 @@ export function noticesFor(
       !p.isDeleted &&
       !conocidos_pagos.has(p.id) &&
       mios.has(p.groupId) &&
-      p.createdById !== currentUserId &&
-      (p.fromUserId === currentUserId || p.toUserId === currentUserId))
+      !esMio(p.createdById) &&
+      (esMio(p.fromUserId) || esMio(p.toUserId)))
     .map((p): Notice => {
       // En un grupo consensuado, quien COBRA no recibe un aviso informativo:
       // recibe el que le pide confirmar. Ver `settlement_pending`.
       const grupo = groups.find(g => g.id === p.groupId);
-      if (p.toUserId === currentUserId && requiereConfirmacion(p, grupo)) {
+      if (esMio(p.toUserId) && requiereConfirmacion(p, grupo)) {
         return {
           kind: 'settlement_pending' as const,
           groupId: p.groupId,

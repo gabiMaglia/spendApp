@@ -15,6 +15,7 @@ import { hapticLight, hapticSuccess } from '@/src/utils/haptics';
 import { inviteFromParams, isInviteExpired } from '@/src/sync/groupInvite';
 import { publishClaim, processInvite } from '@/src/sync/inviteEngine';
 import { deviceId, drainNow, startRelay } from '@/src/sync/relayEngine';
+import { esYo } from '@/src/store/identityAlias';
 
 /**
  * Pantalla que recibe el link de invitación (`spendapp://groups/join?...`).
@@ -54,7 +55,7 @@ export default function JoinGroupScreen() {
 
   const yaSoyMiembro = Boolean(
     invite && currentUser &&
-    getById(invite.groupId)?.memberIds.includes(currentUser.id),
+    getById(invite.groupId)?.memberIds.some(esYo),
   );
 
   async function handleJoin() {

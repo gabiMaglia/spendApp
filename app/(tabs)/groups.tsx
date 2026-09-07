@@ -25,6 +25,7 @@ import { TabHeader } from '@/src/components/TabHeader';
 import { useHeaderPadding } from '@/src/components/CollapsibleHeader';
 import { hapticLight } from '@/src/utils/haptics';
 import type { Group } from '@/src/types/models';
+import { esYo } from '@/src/store/identityAlias';
 
 export default function GroupsScreen() {
   const { t } = useTranslation();
@@ -50,7 +51,7 @@ export default function GroupsScreen() {
   const youOwe    = debo.totalMinor;
 
   const myGroups = useMemo(
-    () => allGroups.filter(g => !g.isDeleted && (!currentUser || g.memberIds.includes(currentUser.id))),
+    () => allGroups.filter(g => !g.isDeleted && (!currentUser || g.memberIds.some(esYo))),
     [allGroups, currentUser],
   );
 

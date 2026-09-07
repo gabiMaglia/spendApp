@@ -36,6 +36,7 @@ import { BottomSheet, SheetOption, SheetOptionAvatar } from '@/src/components/Sh
 import { useTranslation } from 'react-i18next';
 import i18n from '@/src/i18n';
 import { syncedNow } from '@/src/utils/syncedClock';
+import { esYo, idCanonico } from '@/src/store/identityAlias';
 
 function formatDate(d: Date): string {
   const today     = new Date(); today.setHours(0, 0, 0, 0);
@@ -80,7 +81,7 @@ export default function SettleNewScreen() {
     const active = allGroups.filter(g => !g.isDeleted);
     if (!isPrefilled || !currentUser || !paramToId) return active;
     const relevant = active.filter(g =>
-      g.memberIds.includes(currentUser.id) && g.memberIds.includes(paramToId),
+      g.memberIds.some(esYo) && g.memberIds.includes(paramToId),
     );
     return relevant.length > 0 ? relevant : active;
   }, [allGroups, isPrefilled, currentUser, paramToId]);
@@ -110,12 +111,12 @@ export default function SettleNewScreen() {
   // El que paga soy yo salvo que esté editando el pago de otro: entrar y tener
   // que corregir "de quién sale la plata" es un paso que nadie quiere dar.
   const [fromId,    setFromId]    = useState(
-    currentUser && (defaultGroup?.memberIds.includes(currentUser.id) ?? false)
+    currentUser && (defaultGroup?.memberIds.some(esYo) ?? false)
       ? currentUser.id
       : (defaultGroup?.memberIds[0] ?? ''),
   );
   const [toId, setToId] = useState(
-    isPrefilled && paramToId ? paramToId : (defaultGroup?.memberIds.filter(uid => uid !== fromId)[0] ?? ''),
+    isPrefilled && paramToId ? paramToId : (defaultGroup?.memberIds.filter(uid => !esYo(uid) && uid !== fromId)[0] ?? ''),
   );
   const [date,      setDate]      = useState(new Date());
 
@@ -173,7 +174,7 @@ export default function SettleNewScreen() {
 
   /** Lo que hay que mostrarle al lado del nombre al elegir a alguien. */
   function hintDe(uid: string): string | undefined {
-    const saldo = balancesDelGrupo.find(b => b.userId === uid)?.amount ?? 0;
+    const saldo = balancesDelGrupo.find(b => b.userId === idCanonico(uid))?.amount ?? 0;
     if (saldo === 0) return undefined;
     return saldo > 0
       ? t('settle.hint_owed', { amount: formatMoney(saldo, currency) })
@@ -406,7 +407,7 @@ export default function SettleNewScreen() {
                 <View style={styles.transferUser}>
                   <UserAvatar userId={fromId} name={getUserName(fromId)} size={36} />
                   <Text style={[Typography.bodyS, { color: c.text, fontWeight: '600', textAlign: 'center' }]} numberOfLines={2}>
-                    {fromId === currentUser?.id ? t('common.you') : getUserName(fromId)}
+                    {esYo(fromId) ? t('common.you') : getUserName(fromId)}
                   </Text>
                 </View>
               ) : (

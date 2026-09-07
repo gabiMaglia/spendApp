@@ -1,5 +1,5 @@
 import { toMinorUnits } from '@/src/constants/currencies';
-import { RATE_SCALE } from '@/src/algorithms/calculateBalances';
+import { RATE_SCALE } from '@/src/constants/currencies';
 import type { Expense, Payment, PersonalBudget, PersonalEntry } from '@/src/types/models';
 
 /**
