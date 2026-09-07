@@ -6,6 +6,7 @@ import { readJournal, writeJournal, clearJournal, type DeleteJournal } from '@/s
 import { deleteMyEnvelopes } from '@/src/sync/relay';
 import { olvidarCursor } from '@/src/sync/relayEngine';
 import { destruirIdentidadDelAparato } from '@/src/store/identityStore';
+import { clearErrors } from './errorLog';
 import { anonymizeSelf } from './anonymizeSelf';
 import { topicsDeLaCuenta } from './deleteTopics';
 
@@ -110,6 +111,14 @@ export async function deleteAccount(opts: Opciones = {}): Promise<DeleteOutcome>
   const puedeDestruir = diario.ultimaCuenta && diario.pendientes.length === 0;
   if (puedeDestruir) {
     try { destruirIdentidadDelAparato(); } catch { /* no bloquea el borrado */ }
+    /**
+     * El registro de errores es del APARATO, no de la cuenta: no lleva el
+     * sufijo `::u:` y por eso `barrerScope` de la fase 3 no lo ve (T-078 §5.1).
+     * Se va acá, con la identidad, que es el otro dato de este mismo nivel — un
+     * stack trace guardado puede nombrar cualquier cosa que hubiera en memoria,
+     * así que sobrevivir al borrado de la última cuenta no es aceptable.
+     */
+    try { clearErrors(); } catch { /* … */ }
   }
 
   if (diario.pendientes.length === 0) {

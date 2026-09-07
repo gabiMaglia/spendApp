@@ -444,6 +444,14 @@
     "add_item": "+ Add",
     "continue": "Continue to split"
   },
+  "error": {
+    "boundary_title": "Something broke",
+    "boundary_body": "This screen could not be drawn. Your data is safe on your phone.",
+    "retry": "Try again",
+    "export_diagnostics": "Export diagnostics",
+    "export_diagnostics_sub": "Saved on this phone. Nothing is sent on its own: share it yourself if you want to.",
+    "export_error": "The diagnostics could not be exported."
+  },
   "backup": {
     "section": "BACKUP",
     "export": "Export data",
