@@ -59,3 +59,13 @@ assets/impl/
 
 # Cachés de los scripts de build
 __pycache__/
+
+# Credenciales de publicación. **La regla va ANTES de bajar el archivo, no después.**
+# La clave de servicio de Google Play firma subidas a la tienda en nombre de la
+# cuenta: filtrarla es entregar la capacidad de publicar. Y un secreto que entró
+# al historial no se saca con un `rm` — hay que reescribir el historial y rotar
+# la clave, que es lo que ya se pagó una vez con `.env`.
+play-service-account.json
+*-service-account.json
+google-service-account*.json
+/credentials.json
