@@ -356,6 +356,33 @@ select count(*) from public.envelopes where owner_proof is not null;  -- tiene q
   confirmación; (b) decirlo sólo en la política de privacidad; (c) no decirlo. **Recomendación
   técnica: (a)** — es el mismo criterio de honestidad de T-074 §1, y prometer de más es lo caro
   ante las tiendas.
+> ### ✅ P-16 · RESPONDIDA (PO · 2026-09-08): **(a)**, con el criterio de Splitwise
+>
+> El PO pidió lo mismo que en T-041: *«como hace Splitwise, fijate en internet»*. Se investigó
+> contra su documentación (no de memoria) y su modelo contesta las tres mitades de la pregunta:
+>
+> 1. **No se puede salir de un grupo debiendo.** *«you can remove yourself from a group once your
+>    balance is 0 within the group»* — si no, los saldos no sumarían cero y alguien le debería a un
+>    ausente. Este proyecto ya lo hace (`src/algorithms/canLeaveGroup.ts`).
+> 2. **El grupo NUNCA olvida.** Los gastos del que se fue se quedan. Lo único que borra
+>    transacciones es borrar el grupo entero, que afecta a todos y **es deshacible**: *«undeleting
+>    restores the group and all of the expenses and payments that were in the group»*.
+> 3. **El que vuelve ve todo.** *«they should have full access to everything, including any
+>    expenses from before they left»*.
+>
+> ⇒ **(a)**, y la mitad que el enunciado del ADR no decía: lo que se limpia es **la copia local del
+> que se va**, no la memoria del grupo. Esa limpieza no es una concesión de privacidad — es lo que
+> impide que su teléfono republique un estado viejo y resucite lo borrado, que es el defecto de
+> T-089.
+>
+> **(b) queda descartado a conciencia**, y ahora con un argumento externo además del propio: borrar
+> lo del que se fue es borrar la prueba de la deuda de otros, y Splitwise —que no tiene ninguna de
+> nuestras restricciones— igual se niega a hacerlo.
+>
+> Fuentes: `kb.splitwise.com/groups/how-do-i-remove-a-person-from-a-group`,
+> `kb.splitwise.com/groups/how-do-i-delete-or-undelete-a-group`,
+> `feedback.splitwise.com/forums/162446-general/suggestions/7494748`.
+
 - **P-16 · «Arranca desde 0»: ¿cuál de las dos?** (a) **el dispositivo del que vuelve olvida y
   re-aprende del grupo** — barato, seguro, y en la práctica el reingresado termina viendo sus
   deudas igual (§5·3); (b) **el grupo también lo olvida** — implica borrar la prueba de la deuda de
@@ -381,7 +408,7 @@ select count(*) from public.envelopes where owner_proof is not null;  -- tiene q
 
 ---
 
-aprobado por · Arquitecto (NERV) · 2026-09-04 · **pendiente de P-14/P-15/P-16/P-17 del PO**
+aprobado por · Arquitecto (NERV) · 2026-09-04 · **pendiente de P-14/P-15/P-17 del PO** · P-16 respondida 2026-09-08
 
 ---
 

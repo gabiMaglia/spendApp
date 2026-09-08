@@ -15,6 +15,7 @@ import { publishToGroup, drainGroup, type PublishResult } from './relaySync';
 import { recordPublish } from './publishHealth';
 import { noticeDeCaida } from './syncDownNotices';
 import { noticeDeReloj } from './clockNotice';
+import { estaPendienteDeDrenaje, limpiarPendienteDeDrenaje } from './pendingDrain';
 import { resolvePendingDeletions } from '@/src/services/resolveDeletions';
 import { applyApprovedLeaves } from '@/src/services/applyLeave';
 import { fromHex } from './envelopeCrypto';
@@ -136,9 +137,27 @@ export function schedulePublish(groupId: string, delay = PUBLISH_DEBOUNCE_MS): v
   }, delay));
 }
 
-export async function publishNow(groupId: string): Promise<void> {
+/**
+ * `forzar` existe para UN caso y hay que decir cuál: el aviso de cuenta borrada
+ * de T-074 (`src/services/deleteAccount.ts`). Bloquearlo dejaría el nombre y la
+ * foto de la persona en el teléfono de todos **para siempre**, que es peor que
+ * el riesgo que la guarda evita. **Riesgo aceptado y escrito**: ese envío puede
+ * republicar estado viejo de un grupo que este teléfono nunca drenó.
+ */
+export async function publishNow(groupId: string, opts: { forzar?: boolean } = {}): Promise<void> {
   const userId = useAuthStore.getState().currentUser?.id;
   if (!userId) return;
+
+  /**
+   * **La guarda de T-089, y va acá y no en `schedulePublish`.** `publishNow` es
+   * el embudo real: `schedulePublish` es sólo su debounce, y hay dos llamadores
+   * directos más (`announceGroupToContacts` y el aviso de T-074) que se
+   * saltearían una guarda puesta más arriba.
+   */
+  if (!opts.forzar && estaPendienteDeDrenaje(groupId)) {
+    recordPublish(groupId, { ok: false, reason: 'pending_drain' });
+    return;
+  }
 
   // Un fallo de red no puede romper la app: se reintentará en el próximo cambio
   // o cuando el usuario vuelva a abrirla. Pero SE ANOTA: tragárselo sin dejar
@@ -212,6 +231,15 @@ export async function drainNow(groupId: string): Promise<number> {
     if (!r.ok) return 0;
 
     writeCursor(topic, r.cursor);
+
+    /**
+     * El buzón se leyó hasta el final: este teléfono ya sabe lo que el grupo
+     * sabe, así que puede volver a publicar (T-089). Se limpia **aunque
+     * `r.applied` sea 0** — un buzón vacío es una respuesta válida, no un
+     * drenaje a medias. Lo que no puede limpiarla es un drenaje que falló, y
+     * por eso esto va después del `if (!r.ok)`.
+     */
+    limpiarPendienteDeDrenaje(groupId);
 
     // Los votos de borrado viajan como cualquier campo: lo que acaba de llegar
     // puede completar una ronda que hasta recién figuraba pendiente.
@@ -489,9 +517,20 @@ export async function announceGroupToContacts(groupId: string): Promise<number> 
   const group = useGroupStore.getState().getById(groupId);
   if (!me || !group) return 0;
 
-  // El estado del grupo se publica ANTES de repartir las claves. Al revés, el
-  // que recibe la clave abriría un buzón de grupo todavía vacío, se quedaría
-  // sin el grupo y nada volvería a dispararlo.
+  /**
+   * El estado del grupo se publica ANTES de repartir las claves. Al revés, el
+   * que recibe la clave abriría un buzón de grupo todavía vacío, se quedaría
+   * sin el grupo y nada volvería a dispararlo.
+   *
+   * Por eso acá **se drena primero y no se fuerza** (T-089): si la guarda
+   * bloqueara esta publicación, el invitado no recibiría el grupo. Es un camino
+   * interactivo —el usuario está mirando— así que esperar el drenaje es
+   * aceptable. Si el drenaje falla, la publicación no sale **y el reparto de
+   * claves tampoco**: es mejor que entregar una clave a un buzón que no se va a
+   * llenar.
+   */
+  await drainNow(groupId);
+  if (estaPendienteDeDrenaje(groupId)) return 0;
   await publishNow(groupId);
 
   let enviados = 0;

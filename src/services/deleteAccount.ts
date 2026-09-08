@@ -243,7 +243,14 @@ async function publicarGrupos(groupIds: string[]): Promise<void> {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { publishNow } = require('@/src/sync/relayEngine') as typeof import('@/src/sync/relayEngine');
   for (const id of groupIds) {
-    try { await publishNow(id); } catch { /* best-effort */ }
+    /**
+     * **`forzar` a propósito** (T-089): un grupo que este teléfono no drenó
+     * tiene la publicación bloqueada, y acá eso dejaría el nombre y la foto de
+     * la persona en el aparato de todos **para siempre**. Se acepta el riesgo
+     * —este envío puede republicar estado viejo de ese grupo— porque la
+     * alternativa es incumplir lo que la pantalla de borrado promete.
+     */
+    try { await publishNow(id, { forzar: true }); } catch { /* best-effort */ }
   }
 }
 

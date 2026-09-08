@@ -106,6 +106,15 @@ export const ALIAS_BASE = 'alias_v1';
 const kAlias           = ranura('auth', ALIAS_BASE);
 
 /**
+ * Grupos que todavía no drenaron su buzón y por lo tanto no pueden publicar
+ * (T-089). Se declara con `ranura()` como todo lo demás: así la purga de un
+ * scope absorbido y el borrado de cuenta lo alcanzan solos.
+ * Quien lo LEE es `src/sync/pendingDrain.ts`.
+ */
+export const PENDIENTE_DRENAJE_BASE = 'pending_drain_v1';
+const kPendienteDrenaje = ranura('groupkeys', PENDIENTE_DRENAJE_BASE);
+
+/**
  * Fusiona TODOS los datos de `fromAccountId` dentro de `toAccountId`.
  * Unión con LWW por `updatedAt`; no borra el origen.
  */
@@ -122,6 +131,7 @@ export function mergeAccounts(fromAccountId: string, toAccountId: string): Merge
   mergeSettings(fromAccountId, toAccountId);
   mergeContactPeers(fromAccountId, toAccountId);
   mergeAlias(fromAccountId, toAccountId);
+  mergePendingDrain(fromAccountId, toAccountId);
   recordMerge(fromAccountId);
   return report;
 }
@@ -164,6 +174,40 @@ function mergeAlias(fromAccountId: string, toAccountId: string): void {
   const set = new Set([...leer(toAccountId), ...leer(fromAccountId), fromAccountId]);
   set.delete(toAccountId); // una cuenta no es alias de sí misma
   storage.set(kAlias(toAccountId), JSON.stringify([...set]));
+}
+
+/**
+ * **Las marcas de «este grupo todavía no drenó» se UNEN** (T-089).
+ *
+ * La unión es el lado seguro y por eso no se piensa dos veces: heredar una marca
+ * de más cuesta un drenaje que quizá no hacía falta; perder una cuesta que la
+ * cuenta destino publique el estado de un grupo que acaba de heredar sin haber
+ * leído su buzón — que es exactamente el defecto que T-089 cierra.
+ *
+ * Va aparte de `mergeAccountData` por lo mismo que los archivados: es un
+ * `string[]` bajo su propia clave, no una lista de registros con `updatedAt`.
+ */
+function mergePendingDrain(fromAccountId: string, toAccountId: string): void {
+  if (fromAccountId === toAccountId) return;
+  const storage = createSecureStorage('groupkeys');
+
+  const leer = (uid: string): string[] => {
+    const raw = storage.getString(kPendienteDrenaje(uid));
+    if (!raw) return [];
+    try {
+      const v = JSON.parse(raw);
+      return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const origen = leer(fromAccountId);
+  if (origen.length === 0) return;
+  storage.set(
+    kPendienteDrenaje(toAccountId),
+    JSON.stringify([...new Set([...leer(toAccountId), ...origen])]),
+  );
 }
 
 /**
@@ -603,6 +647,7 @@ export const COBERTURA_FUSION: Record<string, string> = {
   'store/settingsStore':  'aparte · mergeSettings (preferencias, no datos)',
   'store/noticeInboxStore': 'aparte · mergeNotices (union por id; el acuse gana sobre el no-acuse). Decision del PO 2026-08-30: TODO se fusiona al enlazar cuentas.',
   'store/identityAlias':  'aparte · mergeAlias (alias_v1: unión de los alias del origen MÁS el id del origen, bajo el scope destino). Es lo que hace el alias transitivo A→B→C; sin la unión, la primera identidad se pierde en la segunda fusión.',
+  'sync/pendingDrain':    'aparte · mergePendingDrain (pending_drain_v1: UNIÓN de las marcas de las dos cuentas). Unir es el lado seguro: heredar una marca de más cuesta un drenaje; perder una deja publicar un grupo heredado sin leer su buzón, que es el defecto de T-089.',
   'sync/contactChannel':  'aparte · mergeContactPeers (contact_peers_v1: unión por userId, el destino gana campo por campo). El secreto propio y el acuse de tarjeta NO se fusionan — ver el docblock de mergeContactPeers.',
 };
 

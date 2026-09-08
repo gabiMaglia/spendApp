@@ -1,3 +1,6 @@
+import { esYo } from '@/src/store/identityAlias';
+import { marcarConTopic } from '@/src/sync/pendingDrain';
+import { purgarGrupoLocalmente } from './salirDelGrupo';
 import { useGroupStore } from '@/src/store/groupStore';
 import { usePaymentStore } from '@/src/store/paymentStore';
 import { isApprovedByAll } from '@/src/algorithms/leaveRequest';
@@ -106,6 +109,22 @@ export function applyApprovedLeaves(now: number = syncedNow()): number {
       leaveRequest: undefined,
       memberIds: group.memberIds.filter(id => id !== req.userId),
     });
+
+    /**
+     * **Si el que se va soy yo, esto es una salida como cualquier otra** (T-089).
+     * Es el segundo camino de salida del proyecto —el consensuado, con absorción
+     * de deuda— y sin esto quedaba afuera de la guarda: reingresar después
+     * publicaría el estado viejo y resucitaría lo que el grupo borró mientras no
+     * estaba.
+     *
+     * Va sin `await` y envuelto: esta función corre en el arranque y una purga
+     * que falle no puede impedir que se apliquen las demás salidas.
+     */
+    if (esYo(req.userId)) {
+      void marcarConTopic([group.id])
+        .then(() => purgarGrupoLocalmente(group.id))
+        .catch(() => { /* la salida ya se aplicó; la purga se reintenta al próximo arranque */ });
+    }
   }
 
   return listos.length;
