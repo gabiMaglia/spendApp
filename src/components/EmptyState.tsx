@@ -33,6 +33,16 @@ export function EmptyState({ iconName = 'people-outline', title, body, action }:
 
 const styles = StyleSheet.create({
   container: {
+    /**
+     * **Centrado vertical, no pegado abajo del título.**
+     *
+     * `flex: 1` acá sólo sirve si quien lo contiene le da el alto: adentro de un
+     * `ScrollView` eso lo hace `contentContainerStyle: { flexGrow: 1 }`, que las
+     * tres pantallas que lo usan declaran. Sin esa mitad, el `flex` no hace nada
+     * y el cartel vuelve a quedar arriba — por eso van juntos y está escrito.
+     */
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
     gap: 14,
     padding: Spacing[7],

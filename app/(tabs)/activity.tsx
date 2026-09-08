@@ -125,7 +125,7 @@ export default function ActivityScreen() {
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
         onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: false })}
-        contentContainerStyle={{ paddingTop: headerPad, paddingBottom: 120 }}
+        contentContainerStyle={{ paddingTop: headerPad, paddingBottom: 120, flexGrow: 1 }}
       >
         <Text style={[Typography.display, styles.title, { color: c.text }]}>{t('activity.title')}</Text>
 
@@ -429,5 +429,8 @@ const styles = StyleSheet.create({
     width: 32, height: 32, borderRadius: Radius.sm,
     alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
-  emptyFilter: { paddingVertical: Spacing[8], paddingHorizontal: Spacing.screenPad },
+  emptyFilter: {
+    flex: 1, justifyContent: 'center',
+    paddingVertical: Spacing[8], paddingHorizontal: Spacing.screenPad,
+  },
 });
