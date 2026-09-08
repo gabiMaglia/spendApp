@@ -64,7 +64,9 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Necesitamos acceso a la cámara para escanear tickets y códigos QR."
+          "cameraPermission": "Necesitamos acceso a la cámara para escanear tickets y códigos QR.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
         }
       ],
       [

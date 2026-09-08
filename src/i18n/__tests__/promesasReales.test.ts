@@ -135,18 +135,35 @@ describe('la política de privacidad sigue siendo cierta', () => {
    * reabrir por el lado que nadie mira: cualquier plugin o cadena que vuelva a
    * declarar micrófono tiene que pasar por acá.
    *
-   * **Sólo puede ver lo que se declara en `app.json`**, no el `Info.plist`
-   * generado — eso exige un `prebuild`. La otra mitad la cubre
-   * `webrtcNoVuelve.test.ts`, que impide que vuelva el plugin que lo inyectaba.
+   * ⚠️ **Y el que la inyectaba no era sólo WebRTC.** Al sacarlo, el
+   * `Info.plist` GENERADO seguía teniendo la cadena: la pone también
+   * `expo-camera` (`plugin/build/withCamera.js:6,10`), con el texto por default
+   * en inglés *«Allow $(PRODUCT_NAME) to access your microphone»*. O sea que la
+   * promesa estaba rota en iOS **por dos caminos** y ninguno se veía.
+   *
+   * **Por eso este test NO mira `ios.infoPlist` de `app.json`.** Ahí nunca
+   * estuvo la cadena, así que un test que mirara eso pasaría en verde con el
+   * micrófono declarado en el binario — un guard que da falso consuelo, que es
+   * peor que no tenerlo. Lo que se verifica es **el control real**:
+   * `microphonePermission: false` apaga la inyección en iOS y
+   * `recordAudioAndroid: false` evita que se agregue en Android
+   * (`@expo/config-plugins/build/ios/Permissions.js:28-30`: con `false` la clave
+   * se BORRA del plist). Verificado sobre el plist generado el 2026-09-08:
+   * con estas dos banderas, cero ocurrencias.
    */
   it('y en iOS no declara micrófono, que es donde la promesa no se veía', () => {
     if (!/NO pide micr[óo]fono/i.test(politica())) return;
     const app = JSON.parse(readFileSync(join(RAIZ, 'app.json'), 'utf8')) as
-      { expo: { ios?: { infoPlist?: Record<string, unknown> } } };
-    const plist = app.expo.ios?.infoPlist ?? {};
+      { expo: { plugins: (string | [string, Record<string, unknown>])[]; ios?: { infoPlist?: Record<string, unknown> } } };
 
-    expect(Object.keys(plist)).not.toContain('NSMicrophoneUsageDescription');
-    expect(Object.keys(plist)).not.toContain('NSBluetoothAlwaysUsageDescription');
+    const camera = app.expo.plugins.find(
+      (p): p is [string, Record<string, unknown>] => Array.isArray(p) && p[0] === 'expo-camera',
+    );
+
+    expect(camera?.[1].microphonePermission).toBe(false);
+    expect(camera?.[1].recordAudioAndroid).toBe(false);
+    // Y que nadie la reintroduzca a mano por el otro lado.
+    expect(Object.keys(app.expo.ios?.infoPlist ?? {})).not.toContain('NSMicrophoneUsageDescription');
   });
 
   /**
