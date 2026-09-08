@@ -5,15 +5,25 @@ import { resolve } from 'path';
  * Los permisos que la app pide en Android, y los que se niega a pedir.
  *
  * **El problema que esto guarda no se ve en `app.json`.** El manifest final no
- * es lo que ahí se declara: los config plugins agregan lo suyo, y el de
- * `react-native-webrtc` mete **micrófono, Bluetooth, ajustes de audio y dibujar
+ * es lo que ahí se declara: los config plugins agregan lo suyo. El de
+ * `react-native-webrtc` metía **micrófono, Bluetooth, ajustes de audio y dibujar
  * sobre otras apps** porque la librería sirve también para videollamadas.
  * Medido el 2026-09-04 sobre el manifest generado: `app.json` declaraba 6
  * permisos y el manifest tenía **13**.
  *
- * Este proyecto usa WebRTC **sólo para data channels** — no hay un
- * `getUserMedia` en todo el repo, y el segundo test lo exige. Así que esos
- * cuatro permisos no se usan para nada, y pedirlos tiene costo real:
+ * **Desde T-083 ese plugin ya no está** (se sacó junto con WebRTC entero: era una
+ * función a la que no se llegaba desde ninguna pantalla). Los cuatro bloqueados
+ * de abajo ya no pelean contra nada.
+ *
+ * ⚠️ **Y aun así se quedan, que es una decisión y no un olvido.** Un
+ * `blockedPermissions` que bloquea permisos que nadie pide **no cuesta nada**, y
+ * es la única defensa contra el próximo plugin —o el próximo comando— que los
+ * reintroduzca en silencio. No es hipotético: el 2026-09-07
+ * `eas update:configure` **duplicó esta lista y le agregó micrófono, Bluetooth y
+ * cámara sin que nadie se lo pidiera** (T-079). Sacarlos sería quitar la red
+ * justo después de ver la caída.
+ *
+ * Por qué esos cuatro y no otros — el costo de pedirlos es real:
  *
  *  - **Micrófono** en una app de gastos es una bandera roja en la revisión de
  *    Play y hay que justificarlo en el formulario de datos.

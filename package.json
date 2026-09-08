@@ -42,7 +42,6 @@
     ]
   },
   "dependencies": {
-    "@config-plugins/react-native-webrtc": "^13.0.0",
     "@expo/vector-icons": "^15.0.3",
     "@noble/ciphers": "^2.3.0",
     "@noble/curves": "^2.3.0",
@@ -94,7 +93,6 @@
     "react-native-screens": "~4.16.0",
     "react-native-svg": "15.12.1",
     "react-native-web": "~0.21.0",
-    "react-native-webrtc": "^124.0.8",
     "uuid": "^14.0.0",
     "zustand": "^5.0.13"
   },

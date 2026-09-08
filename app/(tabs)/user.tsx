@@ -426,7 +426,6 @@ export default function UserScreen() {
           <>
             <SectionLabel label="DEV" />
             <Band>
-              <LinkRow label="WebRTC spike"          icon="hardware-chip-outline" onPress={() => router.push('/debug/webrtc' as any)} />
               <LinkRow label="Identidad de cuentas"  icon="finger-print-outline"  onPress={() => router.push('/debug/identity' as any)} />
               <LinkRow label="Relay (buzón)"         icon="cloud-upload-outline"  onPress={() => router.push('/debug/relay' as any)} last />
             </Band>

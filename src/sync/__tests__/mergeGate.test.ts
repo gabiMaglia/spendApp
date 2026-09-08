@@ -99,17 +99,27 @@ beforeEach(() => {
   mockGetPeer.mockImplementation(() => ({ secret: 's', identityPublicKey: ANA.pub }));
 });
 
-describe('las TRES puertas desembocan en `applyDelta`', () => {
+describe('las DOS puertas desembocan en `applyDelta`', () => {
   /**
    * Guard estructural, no de comportamiento: lo que hay que impedir es que
    * mañana alguien agregue una puerta que mergee por su cuenta. El caso de
    * comportamiento —que `applyDelta` mide— lo cubren los describes de abajo, y
    * vale para las tres por construcción.
    */
+  /**
+   * Eran TRES hasta T-083: la de `pairing` se fue con WebRTC
+   * (`src/p2p/usePairingSession.ts`, borrado). **El invariante no se debilita —
+   * se refuerza**: el relay es ahora el único camino real, y lo que este guard
+   * impide sigue siendo lo mismo, que mañana alguien agregue una puerta que
+   * mergee por su cuenta.
+   *
+   * `app/sync/index.tsx` sigue en la lista aunque hoy nadie la alcance: es la
+   * pantalla del QR que el PO pidió conservar (T-085). Si T-085 la borra, esta
+   * fila se va con ella y queda una sola.
+   */
   const PUERTAS = [
     { nombre: 'relay',   archivo: 'src/sync/relaySync.ts' },
     { nombre: 'QR',      archivo: 'app/sync/index.tsx' },
-    { nombre: 'pairing', archivo: 'src/p2p/usePairingSession.ts' },
   ];
 
   const MERGES = [
