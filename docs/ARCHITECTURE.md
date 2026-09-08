@@ -2,7 +2,7 @@
 
 ## Principio general
 
-Toda la información vive en la base de datos embebida del dispositivo. La app funciona al 100% sin internet. Cuando dos dispositivos se encuentran (hoy: por internet vía relay cifrado, o WebRTC directo escaneando un QR; BLE está planeado y no implementado), intercambian solo los cambios que el otro no tiene (delta sync).
+Toda la información vive en la base de datos embebida del dispositivo. La app funciona al 100% sin internet. Cuando dos dispositivos se encuentran (hoy: **por internet vía relay cifrado, y nada más**; el WebRTC directo por QR se sacó en T-083 —estaba en el repo pero no se llegaba a él— y BLE está planeado y no implementado), intercambian solo los cambios que el otro no tiene (delta sync).
 
 No hay servidor central. No hay base de datos compartida en la nube.
 
@@ -255,8 +255,8 @@ Un "token de invitación" contiene `groupId` + clave de cifrado AES-256 del grup
 
 | Canal | Cuándo usarlo | Librería |
 |---|---|---|
-| WebRTC automático | App en primer plano con internet | `react-native-webrtc` + STUN de Google |
-| BLE | Usuarios cerca sin internet | `react-native-ble-plx` — **NO IMPLEMENTADO.** No está en `package.json` ni hay código que lo use. Lo que existe para el caso sin internet es el emparejamiento WebRTC por QR (`src/p2p/`) |
+| ~~WebRTC automático~~ | — | **SACADO el 2026-09-08 (T-083).** Nunca estuvo enchufado: la única entrada era un botón dentro de una pantalla huérfana. Arrastraba ocho permisos de Android y dos cadenas del `Info.plist` de iOS, incluida la de micrófono |
+| BLE | Usuarios cerca sin internet | `react-native-ble-plx` — **NO IMPLEMENTADO.** No está en `package.json` ni hay código que lo use. Para el caso sin internet queda la pantalla de sync por QR (`app/sync/index.tsx`), que **está apagada**: nadie navega a ella. Es T-085 |
 | Wi-Fi Local | Misma red local | mDNS / Bonjour |
 
 La sync se intenta automáticamente:
@@ -280,7 +280,7 @@ Cada dispositivo responde enviando solo el delta: registros con `updatedAt > las
 
 ### Signaling P2P sin servidor propio
 
-Para que dos teléfonos establezcan una conexión WebRTC necesitan intercambiar señales ICE. Se usarán:
+**Sección histórica — WebRTC se sacó en T-083 y esto NO describe el sistema de hoy.** Se conserva porque el diseño puede volver a hacer falta el día que se reabra: para que dos teléfonos establezcan una conexión WebRTC necesitan intercambiar señales ICE, y se iban a usar:
 - **STUN servers de Google**: `stun:stun.l.google.com:19302` (gratuitos, estables)
 - **TURN server de Open Relay**: `turn:openrelay.metered.ca` (fallback si STUN falla por NAT)
 - Los peers se "encuentran" usando su `groupId` como room ID en un servidor de signaling público Matrix.
@@ -288,7 +288,7 @@ Para que dos teléfonos establezcan una conexión WebRTC necesitan intercambiar 
 ### Seguridad del canal
 
 - La clave de cifrado simétrico del grupo se genera al crear el grupo y viaja en el token de invitación (QR o deep link).
-- Todo payload se cifra con XChaCha20-Poly1305 usando esa clave antes de enviarse por el relay o por WebRTC DataChannel (`envelopeCrypto.ts`). BLE no existe todavía.
+- Todo payload se cifra con XChaCha20-Poly1305 usando esa clave antes de enviarse por el relay (`envelopeCrypto.ts`). El DataChannel de WebRTC se fue con T-083; BLE no existe todavía.
 - El servidor de signaling solo ve el `groupId` (sin contenido ni identidades reales).
 - Sin la clave del grupo, un tercero no puede leer los datos en tránsito.
 

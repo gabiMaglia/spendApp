@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Proyecto: SplitP2P — Clon de Splitwise Serverless
 
-App móvil de división de gastos (Expo / React Native) que funciona **100% sin backend central**. Toda la lógica corre en el dispositivo. Dos usuarios se sincronizan directamente entre sí (P2P). Ver `docs/ARCHITECTURE.md` para el diseño completo y `docs/FEATURES.md` para el roadmap de features.
+App móvil de división de gastos (Expo / React Native) que funciona **sin backend propio**: toda la lógica corre en el dispositivo y el servidor es un **buzón tonto** que no puede abrir lo que guarda (ADR-003). Dos usuarios se sincronizan a través de ese buzón, con el sobre cifrado de punta a punta. **Ojo con la frase vieja «se sincronizan directamente entre sí»: era falsa** — el WebRTC que la sostenía nunca estuvo enchufado y se sacó en T-083. Ver `docs/ARCHITECTURE.md` para el diseño completo y `docs/FEATURES.md` para el roadmap de features.
 
 ### Stack elegido
 
@@ -18,7 +18,7 @@ App móvil de división de gastos (Expo / React Native) que funciona **100% sin 
 | Lenguaje | TypeScript estricto |
 | Almacenamiento local | MMKV (rápido, sincrónico) + Zustand. **WatermelonDB se evaluó y se sacó el 2026-09-03** (decisión del PO): estuvo instalado seis semanas sin que nada lo importara. Si vuelve, es por una necesidad medida de queries reactivas, no por el plan viejo |
 | OCR (Pro) | `@react-native-ml-kit/text-recognition` — on-device, offline, sin API key |
-| Sincronización P2P | WebRTC (internet, auto) + relay cifrado (Supabase). **BLE está PLANEADO, no implementado** — no hay ninguna dependencia de Bluetooth en el proyecto (verificado 2026-09-02) |
+| Sincronización | **Relay cifrado (Supabase)** — es el único camino real. **WebRTC se SACÓ el 2026-09-08 (T-083)**: existía en el repo pero no se llegaba a él desde ninguna pantalla, y arrastraba ocho permisos de Android más dos cadenas del `Info.plist`. **BLE está PLANEADO, no implementado.** Queda apagada, sin borrar, la pantalla de sync por QR sin internet (`app/sync/index.tsx`) — es T-085 |
 | Autenticación | Expo Auth Session → Google OAuth + Sign in with Apple |
 | Estado global | Zustand |
 | i18n | `expo-localization` + `i18next` + `react-i18next` |
@@ -151,7 +151,6 @@ app/
 ```
 src/
   sync/             ← SyncEngine (merge CRDT, tombstones, delta)
-  p2p/              ← emparejamiento WebRTC por QR (sdpCodec, usePairingSession). BLE no existe todavía
   auth/             ← useAuth hook (Google, Apple)
   store/            ← Zustand stores (groups, expenses, balances)
   algorithms/       ← calculateBalances(), simplifyDebts()
@@ -194,12 +193,12 @@ Expo resuelve `.ios.tsx` / `.web.ts` automáticamente. Seguir ese patrón para c
 7. **Multi-moneda**: Los balances se muestran separados por currency code, nunca se mezclan. Al liquidar, el usuario elige la moneda de pago (Free: tipo de cambio manual; Pro: automático).
 8. **Sync por grupo, con ESTADO — no con delta por fecha**: al sincronizar se publica el estado **completo** del grupo, filtrado por `groupId` (`buildGroupPayload`). **NO hay filtro por `updatedAt > lastSyncTimestamp`, y no debe haberlo.** Esta regla decía lo contrario hasta el 2026-08-31 y era falsa desde hacía tiempo: mandó a dos tickets por el camino equivocado antes de que alguien fuera a verificarla. El sobre lleva estado a propósito, y **tres** mecanismos dependen de eso — la compactación del buzón (`supabase/004_compaction.sql:10-14` advierte textual que volverla incremental la convierte en «pérdida de datos silenciosa»), el TTL de 30 días, y el descarte barato de sobres. Es además lo que satisface la promesa de que quien entra tarde a un grupo ve **todo** el historial, sin tener que entregarle claves viejas (`engram/02_architecture.md:659`). El costo de esto es real y está abierto en **T-058**: el sobre crece O(gastos) y ya se pasa del tope en un grupo ordinario.
 9. **Invitación en 3 formas**: QR presencial, deep link (expira 48hs), username (solo para peers conocidos).
-10. **Sync automática**: Al abrir la app, al recuperar internet, cada 15min en primer plano. P2P via Google STUN / Open Relay TURN.
+10. **Sync automática**: Al abrir la app, al recuperar internet, cada 15min en primer plano, **siempre por el relay**. (Los STUN/TURN de Google y Open Relay eran de WebRTC y se fueron con T-083.)
 
 ---
 
 ## Documentación de referencia
 
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — Motor P2P, protocolo de sync, modelo de datos TypeScript
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — Motor de sync, protocolo, modelo de datos TypeScript
 - [docs/FEATURES.md](docs/FEATURES.md) — Matrix free/pro, fases de construcción, lógica de borrado consensuado
 - [docs/ALGORITHMS.md](docs/ALGORITHMS.md) — Balance calculation, simplificación de deudas (Greedy)

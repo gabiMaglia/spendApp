@@ -187,8 +187,6 @@ export default function RootLayout() {
         <Stack.Screen name="settle/new"   options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="contact/add"   options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="sync/index"   options={{ presentation: 'modal', headerShown: false }} />
-        <Stack.Screen name="sync/webrtc"  options={{ presentation: 'modal', headerShown: false }} />
-        <Stack.Screen name="debug/webrtc" options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="debug/identity" options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="debug/relay"    options={{ presentation: 'modal', headerShown: false }} />
       </Stack>

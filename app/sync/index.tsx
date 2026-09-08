@@ -98,25 +98,6 @@ export default function SyncQRScreen() {
             </Text>
           </View>
 
-          {/* Sync automática por WebRTC (QR-pairing) */}
-          <Pressable
-            onPress={() => router.push('/sync/webrtc' as any)}
-            style={[styles.modeBtn, { backgroundColor: c.surface, borderColor: c.brand.primary }]}
-          >
-            <View style={[styles.modeIcon, { backgroundColor: c.brand.primary }]}>
-              <Ionicons name="flash-outline" size={26} color="#fff" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[Typography.bodyL, { color: c.text, fontWeight: '600' }]}>
-                {t('sync.pair_title')}
-              </Text>
-              <Text style={[Typography.bodyS, { color: c.textTertiary, marginTop: 2 }]}>
-                {t('sync.pair_role_offer_sub')}
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={c.textTertiary} />
-          </Pressable>
-
           <Pressable
             onPress={() => setMode('show')}
             style={[styles.modeBtn, { backgroundColor: c.surface, borderColor: c.borderHair }]}

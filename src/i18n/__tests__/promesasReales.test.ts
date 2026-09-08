@@ -123,6 +123,33 @@ describe('la política de privacidad sigue siendo cierta', () => {
   });
 
   /**
+   * **La misma promesa, del lado de iOS — que hasta T-083 no se verificaba.**
+   *
+   * `blockedPermissions` es de Android y no tiene equivalente en iOS: allá lo
+   * que declara el uso del micrófono es `NSMicrophoneUsageDescription` en el
+   * `Info.plist`. El config plugin de `react-native-webrtc` **la inyectaba solo**
+   * (`build/withPermissions.js:14-16`), así que la política decía «no pide
+   * micrófono» y **el build de iOS lo declaraba igual**, sin que nada fallara.
+   *
+   * El plugin se fue con T-083. Este test es para que la promesa no se pueda
+   * reabrir por el lado que nadie mira: cualquier plugin o cadena que vuelva a
+   * declarar micrófono tiene que pasar por acá.
+   *
+   * **Sólo puede ver lo que se declara en `app.json`**, no el `Info.plist`
+   * generado — eso exige un `prebuild`. La otra mitad la cubre
+   * `webrtcNoVuelve.test.ts`, que impide que vuelva el plugin que lo inyectaba.
+   */
+  it('y en iOS no declara micrófono, que es donde la promesa no se veía', () => {
+    if (!/NO pide micr[óo]fono/i.test(politica())) return;
+    const app = JSON.parse(readFileSync(join(RAIZ, 'app.json'), 'utf8')) as
+      { expo: { ios?: { infoPlist?: Record<string, unknown> } } };
+    const plist = app.expo.ios?.infoPlist ?? {};
+
+    expect(Object.keys(plist)).not.toContain('NSMicrophoneUsageDescription');
+    expect(Object.keys(plist)).not.toContain('NSBluetoothAlwaysUsageDescription');
+  });
+
+  /**
    * El plazo no es decorativo: es lo que la política le promete al usuario sobre
    * cuándo desaparece lo que ya no puede borrar a mano. Sale del esquema del
    * buzón, así que si alguien cambia el intervalo, el documento miente.
