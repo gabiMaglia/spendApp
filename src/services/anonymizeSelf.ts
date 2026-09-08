@@ -35,7 +35,16 @@ export function anonymizeSelf(nombre: string): void {
   // `avatarUrl: undefined` explícito y no `delete`: `addOrUpdateUser` hace
   // `{ ...previo, ...entrante }`, así que una clave AUSENTE deja pasar la del
   // registro previo. La clave presente en undefined sí la pisa.
-  const anonimo = { ...yo, name: nombre, avatar: null, avatarUrl: undefined, updatedAt: syncedNow() };
+  const anonimo = {
+    ...yo,
+    name: nombre,
+    avatar: null,
+    avatarUrl: undefined,
+    // La fecha, para que cada peer escriba el cartel en SU idioma; `name` queda
+    // igual como respaldo para los que no actualizaron.
+    deletedAt: syncedNow(),
+    updatedAt: syncedNow(),
+  };
 
   useAuthStore.getState().setUser(anonimo);
   useUserStore.getState().addOrUpdateUser(anonimo);

@@ -60,6 +60,18 @@ export interface User extends SyncMeta {
   avatar?: string | null;
   authProvider: 'google' | 'apple';
   createdAt: number;
+  /**
+   * Cuándo esta persona borró su cuenta (T-074).
+   *
+   * **Existe para que el cartel se lea en el idioma del que MIRA.** Sin esto,
+   * `anonymizeSelf` escribe el texto ya resuelto en el idioma del que se borra
+   * —«Cuenta borrada»— y un peer con la app en portugués lo ve en español para
+   * siempre. Con la fecha, cada teléfono renderiza el suyo (`getUserName`).
+   *
+   * Campo opcional y aditivo: **un peer que no actualizó lo ignora** y sigue
+   * viendo el nombre literal. No hay migración ni versión que subir.
+   */
+  deletedAt?: number;
 }
 
 /**
