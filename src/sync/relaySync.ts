@@ -75,7 +75,13 @@ export function buildGroupPayload(groupId: string, currentUserId: string): SyncD
 
 export type PublishResult =
   | { ok: true; seq: number }
-  | { ok: false; reason: 'no_key' | 'too_large' | 'not_configured' | 'network'; detail?: string };
+  /**
+   * `pending_drain` (T-089): el grupo todavía no drenó su buzón, así que
+   * publicar mandaría un estado que puede resucitar lo que el grupo borró
+   * mientras este teléfono estuvo afuera. **No es un fallo**: se resuelve solo
+   * en cuanto el drenaje termine, y por eso no es bloqueante.
+   */
+  | { ok: false; reason: 'no_key' | 'too_large' | 'not_configured' | 'network' | 'pending_drain'; detail?: string };
 
 /**
  * Publica el estado actual en el buzón del grupo, cifrado.

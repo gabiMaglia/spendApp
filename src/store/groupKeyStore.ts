@@ -17,6 +17,7 @@ import { generateGroupKey, toHex, fromHex } from '@/src/sync/envelopeCrypto';
  * arquitecturas se rompen (ADR-003 §1).
  */
 
+import { marcarConTopic } from '@/src/sync/pendingDrain';
 const storage = createSecureStorage('groupkeys');
 const KEY = 'data_v1';
 
@@ -35,6 +36,8 @@ interface GroupKeyState {
   ensureKey: (groupId: string) => GroupKeyRecord;
   /** Adopta claves recibidas por un canal AUTENTICADO (pairing QR). */
   adoptKeys: (incoming: GroupKeyRecord[]) => void;
+  /** Olvida la clave de un grupo. Sólo la usa la purga al salir (T-089). */
+  forgetKey: (groupId: string) => void;
   hydrate: () => void;
 }
 
@@ -78,6 +81,33 @@ export const useGroupKeyStore = create<GroupKeyState>((set, get) => ({
     }
 
     if (!changed) return;
+    persist(keys);
+    set({ keys });
+
+    /**
+     * **Adoptar la clave de un grupo es entrar a él — o volver** (T-089), y son
+     * el mismo camino. Hasta haber drenado su buzón, este teléfono no puede
+     * publicar: mandaría el estado que recuerda y resucitaría lo que el grupo
+     * borró mientras no estaba.
+     *
+     * Se marca también en `leaveGroup`, y hacen falta las dos: si alguien
+     * reingresa **sin** re-adoptar la clave —porque nunca la perdió— `adoptKeys`
+     * sale temprano por `!changed` y esta línea no corre.
+     */
+    void marcarConTopic(incoming.map(k => k.groupId));
+  },
+
+  /**
+   * Sin la clave, este teléfono ya no puede abrir los sobres de ese grupo.
+   *
+   * Existe como acción propia y no reusando `adoptKeys` porque **`adoptKeys`
+   * marca pendiente de drenaje** (T-089): vaciar y readoptar para sacar una
+   * clave marcaría TODOS los demás grupos como pendientes. Es el tipo de efecto
+   * de borde que se paga tres semanas después.
+   */
+  forgetKey: (groupId) => {
+    const keys = get().keys.filter(k => k.groupId !== groupId);
+    if (keys.length === get().keys.length) return;
     persist(keys);
     set({ keys });
   },

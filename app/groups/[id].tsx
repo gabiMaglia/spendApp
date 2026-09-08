@@ -45,6 +45,7 @@ import type { Expense, Payment } from '@/src/types/models';
 import { useTranslation } from 'react-i18next';
 import i18n from '@/src/i18n';
 import { syncedNow } from '@/src/utils/syncedClock';
+import { salirDelGrupo } from '@/src/services/salirDelGrupo';
 import { esYo, mismaPersona } from '@/src/store/identityAlias';
 
 type TimelineItem =
@@ -187,7 +188,13 @@ export default function GroupDetailScreen() {
         {
           text: t('group_detail.leave_confirm'),
           style: 'destructive',
-          onPress: () => { leaveGroup(group.id, currentUser.id); router.back(); },
+          onPress: () => {
+            // Por el servicio y no por `leaveGroup` suelto: hay un orden que
+            // importa —publicar la salida, marcar, y recién ahí purgar la copia
+            // local— y está explicado en `salirDelGrupo` (T-089).
+            void salirDelGrupo(group.id, currentUser.id);
+            router.back();
+          },
         },
       ],
     );

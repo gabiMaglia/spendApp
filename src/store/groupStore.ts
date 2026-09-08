@@ -104,6 +104,18 @@ export const useGroupStore = create<GroupStoreState>((set, get) => ({
     persist(groups);
     set({ groups });
     schedulePublish(id, 0); // sin debounce: después de salir dejamos de publicar
+
+    /**
+     * ⚠️ **La marca de T-089 NO va acá**, aunque la spec la ubicaba en este
+     * punto. `schedulePublish` de arriba es un `setTimeout`: para cuando
+     * dispara, una marca puesta en esta línea ya estaría trabando **la
+     * publicación de salida**, y el grupo no se enteraría nunca de que la
+     * persona se fue.
+     *
+     * La marca y la purga viven en `src/services/salirDelGrupo.ts`, que espera a
+     * que esa publicación salga de verdad antes de trabar nada. **Salir del
+     * grupo se hace por ahí**, no llamando a esto suelto.
+     */
   },
 
   requestLeave: (id, userId, plan) => {
