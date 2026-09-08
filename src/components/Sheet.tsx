@@ -129,7 +129,10 @@ export function BottomSheet({
           <Pressable style={StyleSheet.absoluteFillObject} onPress={onClose} />
         </Animated.View>
 
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAvoidingView
+          style={styles.kav}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
           <Animated.View style={[styles.sheet, {
             opacity: anim,
             transform: [{
@@ -152,7 +155,15 @@ export function BottomSheet({
               </View>
             ) : null}
 
-            <Body style={styles.body} {...bodyProps}>{children}</Body>
+            <Body
+              style={styles.body}
+              {...(scroll
+                ? { contentContainerStyle: styles.bodyPad }
+                : { }) as object}
+              {...bodyProps}
+            >
+              {scroll ? children : <View style={styles.bodyPad}>{children}</View>}
+            </Body>
 
             {footer ? (
               <View style={[styles.footer, { borderTopColor: c.hair }]}>{footer}</View>
@@ -447,9 +458,21 @@ const styles = StyleSheet.create({
   root:      { flex: 1, justifyContent: 'flex-end' },
   // El sheet nunca tapa toda la pantalla: siempre se ve un poco del fondo,
   // así se entiende que es una capa y no una pantalla nueva.
+  /**
+   * ⚠️ **El `maxHeight` NO va acá.** Estaba en la hoja, y su padre —el
+   * `KeyboardAvoidingView`— **no tiene alto definido**: se mide por su
+   * contenido. Un porcentaje contra un padre sin alto no acota nada, así que una
+   * hoja alta (la del recorte de avatar: 320px de visor + textos + botonera)
+   * **crecía más que la pantalla y se le cortaba el fondo**. Los botones estaban
+   * ahí —el árbol los tenía— pero abajo del borde.
+   *
+   * Ahora lo lleva el `KeyboardAvoidingView`, cuyo padre sí tiene alto definido
+   * (`root`, `flex: 1` del modal), y el porcentaje se resuelve de verdad.
+   */
+  kav:       { maxHeight: '86%' },
   sheet:     {
     borderTopLeftRadius: 20, borderTopRightRadius: 20,
-    paddingTop: 8, maxHeight: '86%',
+    paddingTop: 8,
   },
   grabber:   { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: Spacing[1] },
 
@@ -468,26 +491,49 @@ const styles = StyleSheet.create({
   closeBtn:  { width: 28, alignItems: 'flex-end' },
 
   body:      { flexGrow: 0 },
+  /**
+   * **El contenido libre de un sheet lleva el mismo aire lateral que una
+   * pantalla.** Hasta ahora la hoja no tenía padding horizontal —sólo lo tenían
+   * las filas tipo banda— así que todo sheet que pasa un `<Text>` o un input
+   * quedaba **pegado a los dos bordes**. Y eran muchos: editar nombre, contacto
+   * nuevo, presupuesto, elegir grupo, recorte de avatar.
+   *
+   * Las filas que SÍ tienen que llegar al borde —una opción con su hairline, un
+   * toggle— lo recuperan con un margen negativo del mismo tamaño (`aLosBordes`).
+   * Así el default es el correcto para el caso común y la excepción se declara.
+   */
+  bodyPad:   { paddingHorizontal: Spacing.screenPad },
+  /** Cancela `bodyPad` en las filas que van de borde a borde. */
+  aLosBordes: { marginHorizontal: -Spacing.screenPad },
 
   // Las opciones llegan a los bordes; el aire vive adentro de la fila.
   option:    {
     flexDirection: 'row', alignItems: 'center', gap: GAP_FILA,
+    marginHorizontal: -Spacing.screenPad,   // cancela `bodyPad`: la fila va al borde
     paddingHorizontal: Spacing.screenPad, paddingVertical: Spacing.rowPadV,
     minHeight: 56,
   },
 
-  note:      { paddingHorizontal: Spacing.screenPad, paddingTop: Spacing.rowPadV, lineHeight: 18 },
-  sheetLabel:{ paddingHorizontal: Spacing.screenPad, paddingTop: Spacing[5], paddingBottom: 9 },
+  note:      {
+    marginHorizontal: -Spacing.screenPad, paddingHorizontal: Spacing.screenPad,
+    paddingTop: Spacing.rowPadV, lineHeight: 18,
+  },
+  sheetLabel:{
+    marginHorizontal: -Spacing.screenPad, paddingHorizontal: Spacing.screenPad,
+    paddingTop: Spacing[5], paddingBottom: 9,
+  },
 
   input:     {
     flexDirection: 'row', gap: GAP_FILA,
-    marginHorizontal: Spacing.screenPad, marginTop: Spacing[3],
+    // Sin margen propio: el aire lateral ya lo pone `bodyPad`.
+    marginTop: Spacing[3],
     paddingHorizontal: Spacing[4], paddingVertical: Spacing[3],
     borderRadius: Radius.md, borderWidth: 1,
   },
 
   toggleRow: {
     flexDirection: 'row', alignItems: 'center', gap: GAP_FILA,
+    marginHorizontal: -Spacing.screenPad,   // cancela `bodyPad`
     paddingHorizontal: Spacing.screenPad, paddingVertical: Spacing.rowPadV,
   },
   track:     { width: 44, height: 26, borderRadius: 13, padding: 3, flexShrink: 0 },
@@ -501,7 +547,9 @@ const styles = StyleSheet.create({
   actions:   { flexDirection: 'row', gap: Spacing[2] },
   button:    { height: 52, borderRadius: Radius.lg, alignItems: 'center', justifyContent: 'center' },
 
-  confirmPad:  { alignItems: 'center', gap: Spacing[3], paddingHorizontal: Spacing[6], paddingTop: Spacing[5], paddingBottom: Spacing[5] },
+  // Cancela `bodyPad` y pone el suyo, que es mayor: un diálogo de confirmación
+  // respira más que una lista de opciones.
+  confirmPad:  { alignItems: 'center', gap: Spacing[3], marginHorizontal: -Spacing.screenPad, paddingHorizontal: Spacing[6], paddingTop: Spacing[5], paddingBottom: Spacing[5] },
   confirmIcon: { width: Spacing.tapTarget, height: Spacing.tapTarget, borderRadius: 22, alignItems: 'center', justifyContent: 'center', marginBottom: Spacing[1] },
   confirmTitle:{ fontSize: 18, fontWeight: '700', letterSpacing: -0.3, textAlign: 'center' },
 });
