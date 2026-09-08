@@ -1,3 +1,15 @@
+/**
+ * El setup oficial de `react-native-gesture-handler`.
+ *
+ * Hace falta desde que el `BottomSheet` monta su propio `GestureHandlerRootView`
+ * (los gestos adentro de un `Modal` viven en otra jerarquía nativa, ver
+ * `src/components/Sheet.tsx`). Sin esto, cualquier test que renderice un sheet
+ * muere con `RNGestureHandlerModule.default.install is not a function`: en Jest
+ * no hay módulo nativo que instalar.
+ */
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+require('react-native-gesture-handler/jestSetup');
+
 // i18n: devuelve la clave como valor para que los tests no dependan de traducciones
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({

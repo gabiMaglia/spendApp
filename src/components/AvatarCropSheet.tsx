@@ -11,11 +11,24 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { BottomSheet } from './Sheet';
 import { ActionButton } from './ActionButton';
 import { ButtonRack } from './ButtonRack';
+import { recordError } from '@/src/services/errorLog';
 import {
   acotar, escalaParaCubrir, limitesDePan, recorteDelVisor, type Recorte,
 } from '@/src/algorithms/avatarCrop';
 
 const ZOOM_MAX = 4;
+
+/** Sólo el esquema del URI: `file`, `ph`, `content`, `https`… Nunca la ruta. */
+function esquemaDe(uri: string): string {
+  const i = uri.indexOf(':');
+  return i > 0 ? uri.slice(0, i) : 'sin-esquema';
+}
+
+/** Sólo la extensión, que es lo que distingue un HEIC de un JPEG. */
+function extensionDe(uri: string): string {
+  const m = /\.([a-zA-Z0-9]{1,5})(?:\?|$)/.exec(uri);
+  return m ? m[1]!.toLowerCase() : 'sin-extension';
+}
 
 /**
  * **Ajustar qué parte de la foto queda en el avatar** (T-067).
@@ -125,6 +138,21 @@ export function AvatarCropSheet({
             <Animated.View style={StyleSheet.absoluteFill}>
               <Animated.Image
                 source={{ uri }}
+                /**
+                 * Sin esto, una imagen que no carga es **un recuadro vacío y
+                 * nada más**: ni un error, ni un aviso, ni una pista. Con el
+                 * registro de T-078, la próxima vez que le pase a alguien queda
+                 * algo para mirar.
+                 *
+                 * **Del URI sólo se anota el esquema y la extensión.** La ruta
+                 * completa es un dato del teléfono de la persona y el
+                 * diagnóstico se comparte por mensaje.
+                 */
+                onError={() => recordError({
+                  message: `avatar: la imagen no cargó (${esquemaDe(uri)}, ${extensionDe(uri)}, ${width}×${height})`,
+                  fatal: false,
+                  screen: 'AvatarCropSheet',
+                })}
                 style={[
                   {
                     width: width * escalaBase,

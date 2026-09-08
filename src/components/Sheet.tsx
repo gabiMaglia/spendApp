@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { Colors } from '@/src/constants/colors';
 import { Radius, Spacing } from '@/src/constants/spacing';
@@ -102,7 +103,26 @@ export function BottomSheet({
       statusBarTranslucent
       navigationBarTranslucent
     >
-      <View style={styles.root}>
+      {/*
+        ⚠️ **Un `GestureHandlerRootView` PROPIO, adentro del `Modal`.**
+
+        Un `Modal` de React Native dibuja sus hijos en una jerarquía nativa
+        SEPARADA. El contexto de React sí atraviesa —así que
+        `GestureDetector` no se queja—, pero del lado nativo los gestos quedan
+        colgados de la raíz de la app, que no es la ventana del modal: los
+        toques adentro de la hoja no se enrutan, y en iOS con la New
+        Architecture eso además **tumba la app** al tocar.
+
+        Es exactamente lo que le pasó al recorte de avatar
+        (`AvatarCropSheet`, el único lugar de la app con gestos): recuadro
+        vacío y crash al tocarlo. Lo pide la documentación de
+        `react-native-gesture-handler` para todo contenido dentro de un modal.
+
+        Va acá, en el `BottomSheet`, y no en la hoja del avatar: así lo hereda
+        cualquier sheet que mañana use un gesto, sin que nadie tenga que
+        acordarse.
+      */}
+      <GestureHandlerRootView style={styles.root}>
         <Animated.View
           style={[StyleSheet.absoluteFillObject, { backgroundColor: SCRIM, opacity: anim }]}
         >
@@ -139,7 +159,7 @@ export function BottomSheet({
             ) : null}
           </Animated.View>
         </KeyboardAvoidingView>
-      </View>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
