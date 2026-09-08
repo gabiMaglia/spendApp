@@ -57,11 +57,18 @@ export function ButtonRack({
 const MARGEN_INFERIOR = 24; // regla del PO, 2026-08-30
 
 const styles = StyleSheet.create({
-  base:   { paddingHorizontal: Spacing.screenPad, gap: Spacing[2] },
+  base:   { gap: Spacing[2] },
   column: { flexDirection: 'column' },
   // En fila, cada botón se reparte el ancho por igual.
   row:    { flexDirection: 'row', alignItems: 'center' },
-  bottom: { paddingTop: Spacing[3], marginBottom: MARGEN_INFERIOR },
+  /**
+   * La botonera de una pantalla pone su propio aire lateral: nadie se lo da.
+   *
+   * `inline` NO lo pone, y es la diferencia entre las dos: se usa adentro de un
+   * contenedor que YA tiene su padding —hoy, el cuerpo de un `BottomSheet`— y
+   * repetirlo ahí daba el doble de margen que en el resto de la hoja.
+   */
+  bottom: { paddingHorizontal: Spacing.screenPad, paddingTop: Spacing[3], marginBottom: MARGEN_INFERIOR },
   inline: { marginVertical: Spacing[3] },
   celda:  { flex: 1 },
 });

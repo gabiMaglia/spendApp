@@ -149,7 +149,29 @@ export function AvatarCropSheet({
   }
 
   return (
-    <BottomSheet visible={visible} onClose={onCancel}>
+    <BottomSheet
+      visible={visible}
+      onClose={onCancel}
+      /**
+       * La botonera va al **pie fijo**, no adentro del cuerpo.
+       *
+       * El cuerpo scrollea, y el visor mide 320px: en una pantalla chica el
+       * botón de confirmar quedaba abajo del pliegue y **no se veía**. El pie no
+       * scrollea nunca, así que la acción está siempre a la vista — que es
+       * exactamente para lo que el `BottomSheet` tiene `footer`.
+       */
+      footer={
+        <ButtonRack placement="inline" direction="row">
+          <ActionButton variant="ghost" label={t('common.cancel')} action={onCancel} />
+          <ActionButton
+            testID="avatar-crop-confirm"
+            label={t('common.confirm')}
+            full
+            action={confirmar}
+          />
+        </ButtonRack>
+      }
+    >
       <Text style={[Typography.h3, { color: c.text, marginBottom: 6 }]}>
         {t('profile.crop_title')}
       </Text>
@@ -197,15 +219,6 @@ export function AvatarCropSheet({
         )}
       </View>
 
-      <ButtonRack placement="inline" direction="row" style={{ marginTop: Spacing[4] }}>
-        <ActionButton variant="ghost" label={t('common.cancel')} action={onCancel} />
-        <ActionButton
-          testID="avatar-crop-confirm"
-          label={t('common.confirm')}
-          full
-          action={confirmar}
-        />
-      </ButtonRack>
     </BottomSheet>
   );
 }
