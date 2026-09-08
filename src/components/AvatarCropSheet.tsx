@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef } from 'react';
 import { Dimensions, StyleSheet, Text, View } from 'react-native';
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -70,9 +70,22 @@ export function AvatarCropSheet({
   const ty = useSharedValue(0);
   const zoom = useSharedValue(1);
 
-  // Espejo en estado de React: los shared values no se leen desde el hilo de
-  // JS al confirmar sin arriesgar un valor a mitad de gesto.
-  const [ajuste, setAjuste] = useState({ tx: 0, ty: 0, zoom: 1 });
+  /**
+   * ⚠️ **Espejo en un `ref`, NO en estado de React.**
+   *
+   * Antes era `useState`, y ahí estaba el crash de iOS: el `onEnd` del gesto
+   * hacía `runOnJS(setAjuste)`, eso **re-renderizaba**, y en el render nuevo se
+   * creaban objetos de gesto nuevos. `GestureDetector` memoiza los handlers por
+   * **identidad del objeto** (`gesturesToAttach`, en
+   * `react-native-gesture-handler/.../GestureDetector/index.js:62`), así que los
+   * desenganchaba y volvía a enganchar **mientras el gesto todavía estaba
+   * terminando**.
+   *
+   * Con un `ref` no hay re-render: el valor cruza igual del hilo de UI al de JS
+   * por `runOnJS`, que es lo único que hacía falta. La pantalla no depende de
+   * este valor para dibujarse — lo dibuja el `useAnimatedStyle`.
+   */
+  const ajuste = useRef({ tx: 0, ty: 0, zoom: 1 });
 
   const inicio = useSharedValue({ tx: 0, ty: 0, zoom: 1 });
 
@@ -82,31 +95,45 @@ export function AvatarCropSheet({
    * ajuste inicial, o sea el centro, sin importar lo que la persona movió.
    */
   const guardarAjuste = (x: number, y: number, z: number) => {
-    setAjuste({ tx: x, ty: y, zoom: z });
+    ajuste.current = { tx: x, ty: y, zoom: z };
   };
 
   const escalaBase = escalaParaCubrir({ width, height }, lado);
 
-  const pan = Gesture.Pan()
-    .onBegin(() => { inicio.value = { tx: tx.value, ty: ty.value, zoom: zoom.value }; })
-    .onUpdate(e => {
-      const lim = limitesDePan({ width, height }, lado, zoom.value);
-      tx.value = acotar(inicio.value.tx + e.translationX, -lim.x, lim.x);
-      ty.value = acotar(inicio.value.ty + e.translationY, -lim.y, lim.y);
-    })
-    .onEnd(() => { runOnJS(guardarAjuste)(tx.value, ty.value, zoom.value); });
+  /**
+   * **Los gestos se memoizan**, y no es una optimización: lo pide el propio
+   * código de `GestureDetector` (*«Gesture config should be wrapped with useMemo
+   * to prevent unnecessary re-renders»*). Un objeto nuevo por render hace que
+   * RNGH reenganche los handlers nativos cada vez.
+   *
+   * Las dependencias son las medidas: los shared values son referencias
+   * estables y `guardarAjuste` sólo escribe en un ref.
+   */
+  const gesto = useMemo(() => {
+    const pan = Gesture.Pan()
+      .onBegin(() => { inicio.value = { tx: tx.value, ty: ty.value, zoom: zoom.value }; })
+      .onUpdate(e => {
+        const lim = limitesDePan({ width, height }, lado, zoom.value);
+        tx.value = acotar(inicio.value.tx + e.translationX, -lim.x, lim.x);
+        ty.value = acotar(inicio.value.ty + e.translationY, -lim.y, lim.y);
+      })
+      .onEnd(() => { runOnJS(guardarAjuste)(tx.value, ty.value, zoom.value); });
 
-  const pinch = Gesture.Pinch()
-    .onBegin(() => { inicio.value = { tx: tx.value, ty: ty.value, zoom: zoom.value }; })
-    .onUpdate(e => {
-      zoom.value = acotar(inicio.value.zoom * e.scale, 1, ZOOM_MAX);
-      // Al alejar, el pan vigente puede quedar fuera de los límites nuevos y
-      // descubrir un borde: se reencuadra en el mismo gesto.
-      const lim = limitesDePan({ width, height }, lado, zoom.value);
-      tx.value = acotar(tx.value, -lim.x, lim.x);
-      ty.value = acotar(ty.value, -lim.y, lim.y);
-    })
-    .onEnd(() => { runOnJS(guardarAjuste)(tx.value, ty.value, zoom.value); });
+    const pinch = Gesture.Pinch()
+      .onBegin(() => { inicio.value = { tx: tx.value, ty: ty.value, zoom: zoom.value }; })
+      .onUpdate(e => {
+        zoom.value = acotar(inicio.value.zoom * e.scale, 1, ZOOM_MAX);
+        // Al alejar, el pan vigente puede quedar fuera de los límites nuevos y
+        // descubrir un borde: se reencuadra en el mismo gesto.
+        const lim = limitesDePan({ width, height }, lado, zoom.value);
+        tx.value = acotar(tx.value, -lim.x, lim.x);
+        ty.value = acotar(ty.value, -lim.y, lim.y);
+      })
+      .onEnd(() => { runOnJS(guardarAjuste)(tx.value, ty.value, zoom.value); });
+
+    return Gesture.Simultaneous(pan, pinch);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [width, height, lado]);
 
   const estilo = useAnimatedStyle(() => ({
     transform: [
@@ -117,7 +144,8 @@ export function AvatarCropSheet({
   }));
 
   function confirmar() {
-    onConfirm(recorteDelVisor({ width, height }, lado, ajuste.zoom, ajuste.tx, ajuste.ty));
+    const a = ajuste.current;
+    onConfirm(recorteDelVisor({ width, height }, lado, a.zoom, a.tx, a.ty));
   }
 
   return (
@@ -134,7 +162,7 @@ export function AvatarCropSheet({
         style={[styles.visor, { width: lado, height: lado, backgroundColor: c.bgGrouped }]}
       >
         {uri && (
-          <GestureDetector gesture={Gesture.Simultaneous(pan, pinch)}>
+          <GestureDetector gesture={gesto}>
             <Animated.View style={StyleSheet.absoluteFill}>
               <Animated.Image
                 source={{ uri }}
