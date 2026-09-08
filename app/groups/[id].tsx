@@ -84,6 +84,10 @@ export default function GroupDetailScreen() {
     () => allUsers.filter(u =>
       !u.isDeleted && !esYo(u.id) && !(group?.memberIds ?? []).includes(u.id),
     ),
+    // `currentUser` no aparece en el cuerpo pero la dependencia es REAL: `esYo`
+    // lee la sesión activa, así que cambiar de cuenta tiene que recalcular esto.
+    // El linter no puede ver esa dependencia.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [allUsers, group, currentUser],
   );
 

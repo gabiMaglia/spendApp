@@ -83,7 +83,7 @@ export default function GroupsScreen() {
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
         onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: false })}
-        contentContainerStyle={{ paddingTop: headerPad, paddingBottom: 150 }}
+        contentContainerStyle={{ paddingTop: headerPad, paddingBottom: 150, flexGrow: 1 }}
       >
         <Text style={[Typography.display, styles.title, { color: c.text }]}>{t('groups.title')}</Text>
 

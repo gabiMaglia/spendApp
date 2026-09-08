@@ -19,7 +19,7 @@ import { sumConverted } from '@/src/services/fxTotals';
 import { useAuthStore } from '@/src/store/authStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useGlobalPersonBalances } from '@/src/store/selectors';
-import { hapticSuccess, hapticWarning, hapticLight } from '@/src/utils/haptics';
+import { hapticSuccess, hapticWarning } from '@/src/utils/haptics';
 import { UserAvatar } from '@/src/components/UserAvatar';
 import { Fab, FabRow } from '@/src/components/Fab';
 import { EmptyState } from '@/src/components/EmptyState';
@@ -47,6 +47,10 @@ export default function FriendsScreen() {
 
   const contacts = useMemo(
     () => users.filter(u => !u.isDeleted && !esYo(u.id)),
+    // `currentUser` no aparece en el cuerpo pero la dependencia es REAL: `esYo`
+    // lee la sesión activa, así que cambiar de cuenta tiene que recalcular esto.
+    // El linter no puede ver esa dependencia.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [users, currentUser],
   );
 
@@ -97,7 +101,7 @@ export default function FriendsScreen() {
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
         onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: false })}
-        contentContainerStyle={{ paddingTop: headerPad, paddingBottom: 150 }}
+        contentContainerStyle={{ paddingTop: headerPad, paddingBottom: 150, flexGrow: 1 }}
       >
         <Text style={[Typography.display, styles.title, { color: c.text }]}>{t('friends.title')}</Text>
 
@@ -115,17 +119,6 @@ export default function FriendsScreen() {
             iconName="people-outline"
             title={t('friends.empty_title')}
             body={t('friends.empty_body')}
-            action={
-              <Pressable
-                onPress={() => { hapticLight(); router.push('/contact/add' as any); }}
-                style={[styles.addBtn, { backgroundColor: c.brand.primary }]}
-              >
-                <Ionicons name="qr-code-outline" size={16} color="#fff" />
-                <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff' }}>
-                  {t('friends.add_by_qr')}
-                </Text>
-              </Pressable>
-            }
           />
         ) : (
           <>
@@ -268,10 +261,6 @@ const styles = StyleSheet.create({
   title:      { paddingHorizontal: Spacing.screenPad, paddingBottom: 16 },
   footnote:   { paddingHorizontal: Spacing.screenPad, paddingTop: 14, lineHeight: 17 },
   actionChip: { paddingHorizontal: 11, paddingVertical: 6, borderRadius: Radius.full },
-  addBtn:     {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingHorizontal: 18, paddingVertical: 13, borderRadius: Radius.lg,
-  },
   inputRow:   {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     borderRadius: Radius.md, borderWidth: 1,
