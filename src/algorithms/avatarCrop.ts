@@ -25,6 +25,18 @@ export type Recorte = { originX: number; originY: number; width: number; height:
  * por debajo quedarían bordes vacíos.
  */
 export function escalaParaCubrir(img: Medidas, lado: number): number {
+  /**
+   * ⚠️ **`Number.isFinite` y no sólo `<= 0`**, porque `NaN <= 0` es **false** y
+   * un `NaN` se colaba entero por este guard. Aguas abajo eso no da un recorte
+   * feo: da un `width`/`height`/`transform` en `NaN`, y **un valor no finito en
+   * un estilo de layout tumba la app en iOS**. El síntoma es el que se vio —
+   * recuadro vacío y crash al tocarlo— y no deja ni un error en JS.
+   *
+   * Devolver 1 es el mismo degradado que ya tenía: se dibuja sin escalar en vez
+   * de romperse.
+   */
+  if (!Number.isFinite(img.width) || !Number.isFinite(img.height)) return 1;
+  if (!Number.isFinite(lado) || lado <= 0) return 1;
   if (img.width <= 0 || img.height <= 0) return 1;
   return Math.max(lado / img.width, lado / img.height);
 }
@@ -36,11 +48,19 @@ export function escalaParaCubrir(img: Medidas, lado: number): number {
  * moviera mostraría vacío.
  */
 export function limitesDePan(img: Medidas, lado: number, zoom: number): { x: number; y: number } {
-  const s = escalaParaCubrir(img, lado) * zoom;
-  return {
-    x: Math.max(0, (img.width * s - lado) / 2),
-    y: Math.max(0, (img.height * s - lado) / 2),
+  /**
+   * ⚠️ **No alcanza con que `escalaParaCubrir` esté acotada.** Con
+   * `img.width = Infinity` la escala vuelve 1 y aun así `img.width * s - lado`
+   * es `Infinity`; con `NaN`, `NaN`. Y de acá sale el límite que `acotar` le
+   * aplica a `tx`/`ty`, que terminan en un `transform` — o sea el mismo crash de
+   * iOS por la otra puerta. Lo encontró el test de propiedad, no una revisión.
+   */
+  const s = escalaParaCubrir(img, lado) * (Number.isFinite(zoom) ? zoom : 1);
+  const eje = (medida: number): number => {
+    const v = (medida * s - lado) / 2;
+    return Number.isFinite(v) ? Math.max(0, v) : 0;
   };
+  return { x: eje(img.width), y: eje(img.height) };
 }
 
 /** Encierra un valor entre dos límites. */
@@ -82,12 +102,40 @@ export function recorteDelVisor(
    * lado]` por construcción. Acotarlo otra vez era una defensa que ningún
    * llamador podía disparar.
    */
+  /**
+   * **El saneo final, que NO es defensa redundante.**
+   *
+   * El razonamiento de arriba —«el origen cae en `[0, ancho − lado]` por
+   * construcción»— es cierto **para medidas válidas**, y ése era todo el
+   * problema: con `img.width` en `0`, `NaN` o `Infinity` el origen sale negativo
+   * o no finito, y el propio docblock de esta función dice qué pasa entonces —
+   * *«`expo-image-manipulator` con un origen negativo no falla: recorta
+   * cualquier cosa»*. Además estos números llegan a un `transform` de iOS, donde
+   * un `NaN` **tumba la app**.
+   *
+   * Para toda entrada válida esto es un no-op: los valores ya cumplen el rango.
+   */
+  const ladoFinal = Number.isFinite(ladoRecorte) && ladoRecorte > 0
+    ? Math.round(Math.min(ladoRecorte, ...medidasUtiles(img)))
+    : 1;
+
+  const origen = (v: number, medida: number): number => {
+    if (!Number.isFinite(v)) return 0;
+    const tope = Number.isFinite(medida) ? Math.max(0, medida - ladoFinal) : 0;
+    return Math.min(Math.max(0, Math.round(v)), tope);
+  };
+
   return {
     // Enteros: `expo-image-manipulator` trabaja en píxeles, y un decimal se
     // redondea distinto en cada plataforma.
-    originX: Math.round((img.width  - ladoRecorte) / 2 - dx / escala),
-    originY: Math.round((img.height - ladoRecorte) / 2 - dy / escala),
-    width:   Math.round(ladoRecorte),
-    height:  Math.round(ladoRecorte),
+    originX: origen((img.width  - ladoRecorte) / 2 - dx / escala, img.width),
+    originY: origen((img.height - ladoRecorte) / 2 - dy / escala, img.height),
+    width:   ladoFinal,
+    height:  ladoFinal,
   };
+}
+
+/** Los lados de la imagen que sirven para topear el recorte. Vacío ⇒ no topea. */
+function medidasUtiles(img: Medidas): number[] {
+  return [img.width, img.height].filter(v => Number.isFinite(v) && v > 0);
 }

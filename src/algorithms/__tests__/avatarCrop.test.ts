@@ -130,3 +130,57 @@ describe('acotar', () => {
     expect(acotar(50, 0, 10)).toBe(10);
   });
 });
+
+/**
+ * **Medidas no finitas** — el bug de iOS del 2026-09-08.
+ *
+ * El guard original era `img.width <= 0`, y **`NaN <= 0` es `false`**: un `NaN`
+ * pasaba entero. Aguas abajo eso no da un recorte feo — da `width`, `height` y
+ * `transform` en `NaN`, y **un valor no finito en un estilo de layout tumba la
+ * app en iOS**. El síntoma es un recuadro vacío y un crash al tocarlo, sin dejar
+ * un solo error en JS.
+ */
+describe('medidas que no son números', () => {
+  it.each([NaN, Infinity, -Infinity])('con %p no propaga el valor: cae a 1', (v) => {
+    expect(escalaParaCubrir({ width: v, height: 100 }, 320)).toBe(1);
+    expect(escalaParaCubrir({ width: 100, height: v }, 320)).toBe(1);
+  });
+
+  it('un lado no finito tampoco pasa', () => {
+    expect(escalaParaCubrir({ width: 100, height: 100 }, NaN)).toBe(1);
+    expect(escalaParaCubrir({ width: 100, height: 100 }, 0)).toBe(1);
+  });
+
+  it('y nada de lo que sale de acá puede ser NaN', () => {
+    // La propiedad, no el ejemplo: es lo que protege al layout de iOS.
+    const casos = [NaN, Infinity, 0, -5, 100];
+    for (const w of casos) {
+      for (const h of casos) {
+        const s = escalaParaCubrir({ width: w, height: h }, 320);
+        expect(Number.isFinite(s)).toBe(true);
+
+        const lim = limitesDePan({ width: w, height: h }, 320, 1);
+        expect(Number.isFinite(lim.x)).toBe(true);
+        expect(Number.isFinite(lim.y)).toBe(true);
+      }
+    }
+  });
+});
+
+describe('el recorte que sale, con basura de entrada', () => {
+  it('nunca devuelve un campo no finito ni negativo', () => {
+    // Lo que consume esto es `expo-image-manipulator`, que con un origen
+    // negativo NO falla: recorta cualquier cosa. Y lo que se dibuja con estos
+    // números es un `transform` de iOS, que con un NaN tumba la app.
+    const casos = [NaN, Infinity, -Infinity, 0, -5, 100, 4032];
+    for (const w of casos) {
+      for (const z of [NaN, Infinity, 0.5, 1, 4]) {
+        const r = recorteDelVisor({ width: w, height: 100 }, 320, z, NaN, Infinity);
+        for (const v of [r.originX, r.originY, r.width, r.height]) {
+          expect(Number.isFinite(v)).toBe(true);
+          expect(v).toBeGreaterThanOrEqual(0);
+        }
+      }
+    }
+  });
+});
