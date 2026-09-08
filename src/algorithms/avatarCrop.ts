@@ -14,6 +14,26 @@
  *  - `tx`/`ty` son el desplazamiento en píxeles de PANTALLA desde el centro.
  *  - El resultado vuelve en píxeles de la IMAGEN ORIGINAL, que es lo que
  *    espera `expo-image-manipulator`.
+ *
+ * ---
+ *
+ * ⚠️ **Tres de estas funciones son WORKLETS, y la directiva no es decorativa.**
+ *
+ * `AvatarCropSheet` las llama desde `onUpdate` de un gesto, que corre en el
+ * **hilo de UI**. Una función importada de otro módulo sin `'worklet'` no existe
+ * en ese runtime: Reanimated tira *«Tried to synchronously call a non-worklet
+ * function on the UI thread»* (`react-native-worklets/lib/module/valueUnpacker.js:47`)
+ * y **la app se cae**, en iOS y en Android por igual.
+ *
+ * El síntoma es preciso y vale recordarlo: **tocar y soltar no rompía nada**
+ * —el `onBegin` sólo toca shared values— pero **arrastrar o pellizcar sí**,
+ * porque ahí recién entra `onUpdate`. Si alguien saca una directiva, el crash
+ * vuelve y ningún test de Node lo nota: en Jest son funciones normales.
+ * Por eso hay un guard: `__tests__/avatarCropWorklets.test.ts`.
+ *
+ * `recorteDelVisor` **no** es worklet a propósito: corre en el hilo de JS al
+ * confirmar, y arrastraría `medidasUtiles` con su `filter` al runtime de UI sin
+ * necesidad.
  */
 
 export type Medidas = { width: number; height: number };
@@ -25,6 +45,7 @@ export type Recorte = { originX: number; originY: number; width: number; height:
  * por debajo quedarían bordes vacíos.
  */
 export function escalaParaCubrir(img: Medidas, lado: number): number {
+  'worklet';
   /**
    * ⚠️ **`Number.isFinite` y no sólo `<= 0`**, porque `NaN <= 0` es **false** y
    * un `NaN` se colaba entero por este guard. Aguas abajo eso no da un recorte
@@ -48,6 +69,7 @@ export function escalaParaCubrir(img: Medidas, lado: number): number {
  * moviera mostraría vacío.
  */
 export function limitesDePan(img: Medidas, lado: number, zoom: number): { x: number; y: number } {
+  'worklet';
   /**
    * ⚠️ **No alcanza con que `escalaParaCubrir` esté acotada.** Con
    * `img.width = Infinity` la escala vuelve 1 y aun así `img.width * s - lado`
@@ -56,15 +78,21 @@ export function limitesDePan(img: Medidas, lado: number, zoom: number): { x: num
    * iOS por la otra puerta. Lo encontró el test de propiedad, no una revisión.
    */
   const s = escalaParaCubrir(img, lado) * (Number.isFinite(zoom) ? zoom : 1);
-  const eje = (medida: number): number => {
-    const v = (medida * s - lado) / 2;
-    return Number.isFinite(v) ? Math.max(0, v) : 0;
+
+  // Sin función anidada: es un worklet en el camino caliente del gesto, y una
+  // closure de más ahí es una indirección que no compra nada.
+  const vx = (img.width * s - lado) / 2;
+  const vy = (img.height * s - lado) / 2;
+
+  return {
+    x: Number.isFinite(vx) ? Math.max(0, vx) : 0,
+    y: Number.isFinite(vy) ? Math.max(0, vy) : 0,
   };
-  return { x: eje(img.width), y: eje(img.height) };
 }
 
 /** Encierra un valor entre dos límites. */
 export function acotar(v: number, min: number, max: number): number {
+  'worklet';
   return Math.min(max, Math.max(min, v));
 }
 
