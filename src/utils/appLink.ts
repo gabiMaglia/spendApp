@@ -1,4 +1,4 @@
-import { BASE_URL, LINKS_URL } from '@/src/constants/web';
+import { BASE_URL_VIEJA, LINKS_URL } from '@/src/constants/web';
 
 /**
  * **Los links que la app comparte** (PO, 2026-09-12).
@@ -27,8 +27,8 @@ export const ENLACE_BASE = LINKS_URL;
 const BASES_ACEPTADAS = [
   LINKS_URL,                          // https://spendapp.github.io/#…
   LINKS_URL.replace(/\/$/, ''),       // https://spendapp.github.io#…  (sin la barra)
-  `${BASE_URL}/abrir`,                // links compactos del 2026-09-12, antes de mudarse
-  `${BASE_URL}/abrir.html`,           // links largos del 2026-09-12
+  `${BASE_URL_VIEJA}/abrir`,          // links compactos del 2026-09-12, antes de mudarse
+  `${BASE_URL_VIEJA}/abrir.html`,     // links largos del 2026-09-12
 ];
 
 /**
