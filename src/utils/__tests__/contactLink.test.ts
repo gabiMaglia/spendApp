@@ -57,7 +57,11 @@ describe('contactLink', () => {
 
   it('los links LARGOS ya compartidos se siguen leyendo, con .html y sin él', () => {
     const q = 'id=u1&name=Jos%C3%A9&email=j%40x.com&s=' + 'ab'.repeat(32);
-    for (const base of [`${ENLACE_BASE}.html`, ENLACE_BASE]) {
+    const viejas = [
+      'https://gabimaglia.github.io/spendApp/web/abrir.html',
+      'https://gabimaglia.github.io/spendApp/web/abrir',
+    ];
+    for (const base of viejas) {
       const leido = parseContactLink(`${base}#contact/add?${q}`);
       expect(leido?.name).toBe('José');
       expect(leido?.email).toBe('j@x.com');

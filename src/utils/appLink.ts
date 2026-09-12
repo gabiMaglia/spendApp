@@ -1,28 +1,35 @@
-import { BASE_URL } from '@/src/constants/web';
+import { BASE_URL, LINKS_URL } from '@/src/constants/web';
 
 /**
  * **Los links que la app comparte** (PO, 2026-09-12).
  *
  * Antes eran `spendapp://…`, y Gmail —como casi cualquier cliente de mail o chat— sólo
  * convierte en link lo que empieza con `http(s)://`: llegaban como texto con un pedazo
- * subrayado. Ahora se comparte un `https` a `docs/web/abrir.html`, que abre la app.
+ * subrayado. Ahora se comparte un `https` a la página de `docs/web/abrir.html`, publicada en
+ * `https://spendapp.github.io/`, que abre la app.
  *
  * ⚠️ **Los datos van en el FRAGMENTO (`#ruta?params`), nunca en la query.** El navegador
  * no manda el fragmento al servidor, y el link de contacto lleva el secreto del canal: en
  * la query quedaría en los logs de GitHub Pages.
  *
- * Por qué no App Links / Universal Links, que abrirían la app sin pasar por el navegador:
- * exigen un archivo en la RAÍZ del dominio (`/.well-known/…`), y en una página de proyecto
- * de GitHub Pages la raíz no es nuestra. Con dominio propio se puede; ver `constants/web`.
+ * App Links / Universal Links abrirían la app sin pasar por el navegador. Exigen un archivo
+ * en la RAÍZ del dominio (`/.well-known/…`): con `spendapp.github.io` la raíz es nuestra y se
+ * puede, pero pide recompilar el nativo. No está hecho.
  */
 
 /**
- * Sin `.html`: GitHub Pages sirve `abrir.html` también en `/abrir` (verificado el
- * 2026-09-12), y son 5 caracteres menos en cada link. La forma con `.html` se sigue
- * leyendo: hay links largos ya compartidos que apuntan ahí.
+ * La base de los links nuevos: `https://spendapp.github.io/` (ver `constants/web`).
+ *
+ * Las bases VIEJAS se siguen leyendo: hay links ya compartidos que apuntan a la página en
+ * el GitHub personal del PO, con `.html` y sin él. Esa página sigue publicada (`docs/web`).
  */
-export const ENLACE_BASE = `${BASE_URL}/abrir`;
-const ENLACE_BASE_VIEJO = `${BASE_URL}/abrir.html`;
+export const ENLACE_BASE = LINKS_URL;
+const BASES_ACEPTADAS = [
+  LINKS_URL,                          // https://spendapp.github.io/#…
+  LINKS_URL.replace(/\/$/, ''),       // https://spendapp.github.io#…  (sin la barra)
+  `${BASE_URL}/abrir`,                // links compactos del 2026-09-12, antes de mudarse
+  `${BASE_URL}/abrir.html`,           // links largos del 2026-09-12
+];
 
 /**
  * Formato compacto (`utils/linkCompacto`): una letra de tipo y el código. La página no
@@ -63,10 +70,9 @@ export function rutaDeEnlace(url: string): { ruta: RutaEnlazable; params: URLSea
   if (typeof url !== 'string' || url.length === 0) return null;
 
   let resto: string;
-  if (url.startsWith(`${ENLACE_BASE}#`)) {
-    resto = url.slice(ENLACE_BASE.length + 1);
-  } else if (url.startsWith(`${ENLACE_BASE_VIEJO}#`)) {
-    resto = url.slice(ENLACE_BASE_VIEJO.length + 1);
+  const base = BASES_ACEPTADAS.find(b => url.startsWith(`${b}#`));
+  if (base !== undefined) {
+    resto = url.slice(base.length + 1);
   } else if (url.startsWith(ESQUEMA)) {
     resto = url.slice(ESQUEMA.length).replace(/^\/+/, '');
   } else {

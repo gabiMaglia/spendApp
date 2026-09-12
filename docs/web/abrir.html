@@ -9,6 +9,12 @@
 <!--
   Página intermedia de los links que comparte la app (src/utils/appLink.ts).
 
+  Se publica en DOS lugares con el mismo contenido:
+    - https://spendapp.github.io/  (index.html de la organización) — la de los links nuevos.
+    - https://gabimaglia.github.io/spendApp/web/abrir  (este archivo, vía /docs) — la de los
+      links ya compartidos. No borrar mientras pueda haber links viejos dando vueltas.
+  La copia de la organización se publica con scripts/publicar-pagina-links.sh.
+
   Gmail y casi cualquier cliente de mail o chat sólo convierten en link lo que empieza con
   http(s)://, así que la app comparte un link a esta página y la página abre la app con
   spendapp://.
@@ -58,6 +64,11 @@
     <p class="nota" id="nota"></p>
   </section>
 
+  <section id="inicio" hidden>
+    <h1 id="titulo-inicio"></h1>
+    <p id="cuerpo-inicio"></p>
+  </section>
+
   <section id="invalido" hidden>
     <h1 id="titulo-invalido"></h1>
     <p id="cuerpo-invalido"></p>
@@ -78,6 +89,8 @@
       'groups/join': ['Te invitaron a un grupo', 'Abrí el link en spendApp para unirte.'],
       abrir: 'Abrir en spendApp',
       nota: 'Tenés que tener spendApp instalada en este teléfono. Si el botón no hace nada, abrí este mail o mensaje desde el teléfono donde está la app.',
+      inicioTitulo: 'App para dividir gastos',
+      inicioCuerpo: 'Los links de contacto y de invitación a grupos que se comparten desde spendApp se abren desde acá.',
       invalidoTitulo: 'Este link está incompleto',
       invalidoCuerpo: 'Puede que se haya cortado al copiarlo. Pedile a quien te lo mandó que lo comparta de nuevo desde la app.'
     },
@@ -86,6 +99,8 @@
       'groups/join': ["You've been invited to a group", 'Open the link in spendApp to join.'],
       abrir: 'Open in spendApp',
       nota: 'spendApp needs to be installed on this phone. If the button does nothing, open this email or message on the phone that has the app.',
+      inicioTitulo: 'An app to split expenses',
+      inicioCuerpo: 'Contact and group invitation links shared from spendApp open from here.',
       invalidoTitulo: 'This link is incomplete',
       invalidoCuerpo: 'It may have been cut off when copied. Ask the person who sent it to share it again from the app.'
     },
@@ -94,6 +109,8 @@
       'groups/join': ['Você foi convidado para um grupo', 'Abra o link no spendApp para entrar.'],
       abrir: 'Abrir no spendApp',
       nota: 'O spendApp precisa estar instalado neste telefone. Se o botão não fizer nada, abra este e-mail ou mensagem no telefone que tem o app.',
+      inicioTitulo: 'App para dividir despesas',
+      inicioCuerpo: 'Os links de contato e de convite para grupos compartilhados pelo spendApp abrem por aqui.',
       invalidoTitulo: 'Este link está incompleto',
       invalidoCuerpo: 'Pode ter sido cortado ao copiar. Peça para quem enviou compartilhar de novo pelo app.'
     }
@@ -115,6 +132,15 @@
     var q = fragmento.indexOf('?');
     ruta = q === -1 ? fragmento : fragmento.slice(0, q);
     query = q === -1 ? '' : fragmento.slice(q + 1);
+  }
+
+  // Sin fragmento: alguien entró a la página a secas, no por un link.
+  if (!fragmento) {
+    texto('titulo-inicio', T.inicioTitulo);
+    texto('cuerpo-inicio', T.inicioCuerpo);
+    document.getElementById('inicio').hidden = false;
+    document.title = 'spendApp';
+    return;
   }
 
   if (RUTAS.indexOf(ruta) === -1 || !query) {
