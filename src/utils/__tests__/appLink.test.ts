@@ -1,4 +1,4 @@
-import { ENLACE_BASE, enlaceCompartible, hrefInterno, rutaDeEnlace } from '@/src/utils/appLink';
+import { ENLACE_BASE, enlaceCompacto, enlaceCompartible, hrefInterno, rutaDeEnlace } from '@/src/utils/appLink';
 
 /**
  * **Los links que se comparten son `https`, no `spendapp://`** (PO, 2026-09-12).
@@ -50,6 +50,31 @@ describe('rutaDeEnlace', () => {
     expect(rutaDeEnlace('')).toBeNull();
     expect(rutaDeEnlace('cualquier cosa')).toBeNull();
     expect(rutaDeEnlace('exp+spendapp://expo-development-client/?url=http%3A%2F%2F10.0.2.2')).toBeNull();
+  });
+});
+
+describe('dónde viven los links', () => {
+  it('los nuevos van a la organización, no al GitHub personal', () => {
+    const link = enlaceCompacto('c', 'AQQF');
+    expect(link).toBe('https://spendapp.github.io/#cAQQF');
+    expect(link).not.toContain('gabimaglia');
+  });
+
+  it('se leen con y sin la barra final, y en las dos direcciones viejas', () => {
+    for (const base of [
+      'https://spendapp.github.io/',
+      'https://spendapp.github.io',
+      'https://gabimaglia.github.io/spendApp/web/abrir',
+      'https://gabimaglia.github.io/spendApp/web/abrir.html',
+    ]) {
+      expect(rutaDeEnlace(`${base}#cAQQF`)?.ruta).toBe('contact/add');
+    }
+  });
+
+  it('otra página de github.io no es nuestra, aunque traiga un código válido', () => {
+    expect(rutaDeEnlace('https://spendapp-evil.github.io/#cAQQF')).toBeNull();
+    expect(rutaDeEnlace('https://evil.github.io/spendapp.github.io/#cAQQF')).toBeNull();
+    expect(rutaDeEnlace('https://gabimaglia.github.io/otra/abrir#cAQQF')).toBeNull();
   });
 });
 

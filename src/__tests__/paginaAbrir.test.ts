@@ -1,7 +1,7 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { ENLACE_BASE, RUTAS_ENLAZABLES, TIPOS_COMPACTOS } from '@/src/utils/appLink';
-import { BASE_URL } from '@/src/constants/web';
+import { BASE_URL, LINKS_URL } from '@/src/constants/web';
 
 /**
  * La página que abre la app desde un link (`docs/web/abrir.html`).
@@ -15,8 +15,10 @@ const HTML = readFileSync(join(__dirname, '..', '..', 'docs', 'web', 'abrir.html
 
 describe('docs/web/abrir.html', () => {
   it('la app apunta a esta página', () => {
-    // Sin `.html`: GitHub Pages sirve `abrir.html` en `/abrir`.
-    expect(ENLACE_BASE).toBe(`${BASE_URL}/abrir`);
+    // Los links nuevos van a la organización; la copia de `docs/web` atiende los viejos.
+    expect(ENLACE_BASE).toBe(LINKS_URL);
+    expect(LINKS_URL).toBe('https://spendapp.github.io/');
+    expect(BASE_URL).toBe('https://gabimaglia.github.io/spendApp/web');
   });
 
   it('abre exactamente las mismas rutas que la app acepta', () => {
@@ -44,6 +46,13 @@ describe('docs/web/abrir.html', () => {
     expect(HTML).not.toMatch(/<link[^>]+href=/i);
     expect(HTML).not.toMatch(/<img[^>]+src=["']https?:/i);
     expect(HTML).not.toMatch(/fetch\(|XMLHttpRequest|sendBeacon/);
+  });
+
+  it('el script de publicación copia ESTE archivo como index de la organización', () => {
+    const script = readFileSync(join(__dirname, '..', '..', 'scripts', 'publicar-pagina-links.sh'), 'utf8');
+    expect(script).toContain('docs/web/abrir.html');
+    expect(script).toContain('spendapp/spendapp.github.io');
+    expect(script).toMatch(/index\.html/);
   });
 
   it('lee los datos del fragmento, no de la query que sí llega al servidor', () => {
