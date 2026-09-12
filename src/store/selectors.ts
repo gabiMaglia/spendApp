@@ -6,6 +6,7 @@ import { directedDebts, type DirectedDebt, type Transferencia } from '@/src/algo
 import { simplifyDebts } from '@/src/algorithms/simplifyDebts';
 import { pagosQueCuentan } from '@/src/algorithms/settlementStatus';
 import { deletionRound } from '@/src/algorithms/deletionRound';
+import { contactosConHistorial } from '@/src/algorithms/historialConContacto';
 import { syncedNow } from '@/src/utils/syncedClock';
 import { idCanonico, mismaPersona } from './identityAlias';
 import { useGroupStore } from './groupStore';
@@ -219,6 +220,21 @@ export function useGlobalPersonBalances(currentUserId: string): PersonBalance[] 
 
     return Array.from(merged.values()).sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount));
   }, [groups, expenses, payments, currentUserId]);
+}
+
+/**
+ * Ids canónicos de los contactos con los que tengo historial económico. Ver
+ * `algorithms/historialConContacto`: sin historial, la lista de Contactos no dice
+ * «Saldado» — no hubo nada que saldar.
+ */
+export function useContactosConHistorial(currentUserId: string): Set<string> {
+  const groups   = useGroupStore(s => s.groups);
+  const expenses = useExpenseStore(s => s.expenses);
+  const payments = usePaymentStore(s => s.payments);
+  return useMemo(
+    () => contactosConHistorial(currentUserId, groups, expenses, payments),
+    [currentUserId, groups, expenses, payments],
+  );
 }
 
 // ── Feed de actividad derivado de gastos y pagos ────────────────────────────

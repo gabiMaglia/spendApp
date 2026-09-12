@@ -18,7 +18,7 @@ import { useFx } from '@/src/store/useFx';
 import { sumConverted } from '@/src/services/fxTotals';
 import { useAuthStore } from '@/src/store/authStore';
 import { useUserStore } from '@/src/store/userStore';
-import { useGlobalPersonBalances } from '@/src/store/selectors';
+import { useContactosConHistorial, useGlobalPersonBalances } from '@/src/store/selectors';
 import { hapticSuccess, hapticWarning } from '@/src/utils/haptics';
 import { UserAvatar } from '@/src/components/UserAvatar';
 import { Fab, FabRow } from '@/src/components/Fab';
@@ -28,7 +28,7 @@ import { Band, BandRow, SectionLabel, SplitStat } from '@/src/components/Band';
 import { TabHeader } from '@/src/components/TabHeader';
 import { useHeaderPadding } from '@/src/components/CollapsibleHeader';
 import { syncedNow } from '@/src/utils/syncedClock';
-import { esYo } from '@/src/store/identityAlias';
+import { esYo, idCanonico } from '@/src/store/identityAlias';
 
 export default function FriendsScreen() {
   const { t } = useTranslation();
@@ -39,6 +39,7 @@ export default function FriendsScreen() {
   const { users, addOrUpdateUser, removeUser } = useUserStore();
 
   const personBalances = useGlobalPersonBalances(currentUser?.id ?? '');
+  const conHistorial   = useContactosConHistorial(currentUser?.id ?? '');
   const scrollY = useRef(new Animated.Value(0)).current;
 
   const [showAdd, setShowAdd] = useState(false);
@@ -132,6 +133,7 @@ export default function FriendsScreen() {
                     userId={contact.id}
                     name={contact.name}
                     amount={balance?.amount}
+                    conHistorial={conHistorial.has(idCanonico(contact.id))}
                     currency={balance?.currency ?? 'ARS'}
                     last={i === contacts.length - 1}
                     onRemove={() => handleRemove(contact.id, contact.name)}
@@ -207,10 +209,12 @@ export default function FriendsScreen() {
 }
 
 function ContactRow({
-  userId, name, amount, currency, onRemove, onSettle, last,
+  userId, name, amount, currency, conHistorial, onRemove, onSettle, last,
 }: {
   userId: string; name: string;
   amount?: number; currency: string;
+  /** Si hubo gastos o saldados entre los dos. Sin historial, un saldo en cero no es «Saldado». */
+  conHistorial: boolean;
   onRemove: () => void; onSettle: () => void; last?: boolean;
 }) {
   const { t } = useTranslation();
@@ -236,11 +240,11 @@ function ContactRow({
             {positive ? t('friends.owes_you') : t('friends.you_owe_them')}
             {formatMoney(Math.abs(amount!), currency as any)}
           </Text>
-        ) : (
+        ) : conHistorial ? (
           <Text style={{ fontSize: 11.5, fontWeight: '600', color: c.textTertiary }}>
             {t('common.settled')}
           </Text>
-        )}
+        ) : null}
       </View>
       {canSettle && (
         <Pressable onPress={onSettle} style={[styles.actionChip, { backgroundColor: c.brand.primarySoft }]}>
