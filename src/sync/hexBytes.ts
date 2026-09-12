@@ -36,3 +36,29 @@ export function utf8Bytes(s: string): Uint8Array {
   }
   return new Uint8Array(out);
 }
+
+/**
+ * String desde bytes UTF-8, **estricto**: una secuencia inválida tira en vez de inventar
+ * un carácter de reemplazo. Lo usa la decodificación de links, donde un nombre corrupto
+ * tiene que dar «link inválido» y no un contacto con un nombre raro.
+ */
+export function utf8FromBytes(bytes: Uint8Array): string {
+  let out = '';
+  let i = 0;
+  const cont = (k: number) => {
+    const b = bytes[i + k];
+    if (b === undefined || (b & 0xc0) !== 0x80) throw new Error('utf8 inválido');
+    return b & 0x3f;
+  };
+  while (i < bytes.length) {
+    const b = bytes[i];
+    let cp: number;
+    if (b < 0x80) { cp = b; i += 1; }
+    else if ((b & 0xe0) === 0xc0) { cp = ((b & 0x1f) << 6) | cont(1); if (cp < 0x80) throw new Error('utf8 inválido'); i += 2; }
+    else if ((b & 0xf0) === 0xe0) { cp = ((b & 0x0f) << 12) | (cont(1) << 6) | cont(2); if (cp < 0x800 || (cp >= 0xd800 && cp <= 0xdfff)) throw new Error('utf8 inválido'); i += 3; }
+    else if ((b & 0xf8) === 0xf0) { cp = ((b & 0x07) << 18) | (cont(1) << 12) | (cont(2) << 6) | cont(3); if (cp < 0x10000 || cp > 0x10ffff) throw new Error('utf8 inválido'); i += 4; }
+    else throw new Error('utf8 inválido');
+    out += String.fromCodePoint(cp);
+  }
+  return out;
+}

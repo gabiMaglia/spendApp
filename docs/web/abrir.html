@@ -17,8 +17,8 @@
   servidor, y el link de contacto lleva un secreto. Por eso esta página no carga NADA de
   afuera: ni fuentes, ni scripts, ni analítica. Todo es inline.
 
-  La lista de rutas se repite en src/utils/appLink.ts (RUTAS_ENLAZABLES); un test verifica
-  que las dos coincidan.
+  La lista de rutas y la de tipos compactos se repiten en src/utils/appLink.ts
+  (RUTAS_ENLAZABLES, TIPOS_COMPACTOS); un test verifica que coincidan.
 -->
 <style>
   :root { color-scheme: light dark; }
@@ -67,6 +67,9 @@
 <script>
 (function () {
   var RUTAS = ['contact/add', 'groups/join'];
+  // Formato compacto (src/utils/linkCompacto.ts): una letra de tipo y un código. Esta
+  // página NO lo decodifica: se lo pasa a la app como `?c=`, y la app decodifica.
+  var TIPOS = { c: 'contact/add', g: 'groups/join' };
   var PAQUETE_ANDROID = 'com.splitp2p.app';
 
   var TEXTOS = {
@@ -103,9 +106,16 @@
   function texto(id, valor) { document.getElementById(id).textContent = valor; }
 
   var fragmento = window.location.hash.slice(1);
-  var q = fragmento.indexOf('?');
-  var ruta = q === -1 ? fragmento : fragmento.slice(0, q);
-  var query = q === -1 ? '' : fragmento.slice(q + 1);
+  var ruta, query;
+  var compacto = /^([a-z])([A-Za-z0-9_-]+)$/.exec(fragmento);
+  if (compacto && Object.prototype.hasOwnProperty.call(TIPOS, compacto[1])) {
+    ruta = TIPOS[compacto[1]];
+    query = 'c=' + compacto[2];
+  } else {
+    var q = fragmento.indexOf('?');
+    ruta = q === -1 ? fragmento : fragmento.slice(0, q);
+    query = q === -1 ? '' : fragmento.slice(q + 1);
+  }
 
   if (RUTAS.indexOf(ruta) === -1 || !query) {
     texto('titulo-invalido', T.invalidoTitulo);

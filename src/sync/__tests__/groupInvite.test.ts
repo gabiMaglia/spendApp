@@ -37,7 +37,16 @@ describe('link de invitación', () => {
   it('el link es https: Gmail y los chats sólo enlazan http/https', () => {
     const link = inviteToLink(createInvite('g1', 'Viaje', generateIdentity().publicKey, AHORA));
     expect(link.startsWith('https://')).toBe(true);
-    expect(link).toContain('#groups/join?');
+    expect(link).toMatch(/#g[A-Za-z0-9_-]+$/);
+  });
+
+  it('un link largo ya compartido se sigue leyendo', () => {
+    const inv = createInvite('g1', 'Viaje', generateIdentity().publicKey, AHORA);
+    const params = new URLSearchParams({
+      g: inv.groupId, n: inv.groupName, t: inv.token, f: inv.inviterFingerprint, e: String(inv.expiresAt),
+    });
+    const largo = `https://gabimaglia.github.io/spendApp/web/abrir.html#groups/join?${params}`;
+    expect(parseInviteLink(largo)).toEqual(inv);
   });
 
   it('sobrevive nombres con acentos y espacios', () => {
