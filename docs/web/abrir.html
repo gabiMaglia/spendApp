@@ -10,10 +10,10 @@
   Página intermedia de los links que comparte la app (src/utils/appLink.ts).
 
   Se publica en DOS lugares con el mismo contenido:
-    - https://spendapp.github.io/  (index.html de la organización) — la de los links nuevos.
+    - https://spendapp.github.io/  (como index.html del sitio) — la de los links nuevos, y
+      además el índice de las páginas legales. Se publica con scripts/publicar-sitio.sh.
     - https://gabimaglia.github.io/spendApp/web/abrir  (este archivo, vía /docs) — la de los
       links ya compartidos. No borrar mientras pueda haber links viejos dando vueltas.
-  La copia de la organización se publica con scripts/publicar-pagina-links.sh.
 
   Gmail y casi cualquier cliente de mail o chat sólo convierten en link lo que empieza con
   http(s)://, así que la app comparte un link a esta página y la página abre la app con
@@ -44,12 +44,15 @@
   }
   .boton:focus-visible { outline: 3px solid #6fd3b6; outline-offset: 3px; }
   .nota { font-size: .86rem; color: #767676; margin: 22px 0 0; }
+  .legales { font-size: .9rem; margin: 26px 0 0; }
+  .legales a { color: #1f6f5c; }
   [hidden] { display: none !important; }
   @media (prefers-color-scheme: dark) {
     body { color: #ececec; background: #131313; }
     p { color: #b5b5b5; }
     .marca { color: #6fd3b6; }
     .nota { color: #9a9a9a; }
+    .legales a { color: #6fd3b6; }
   }
 </style>
 </head>
@@ -67,6 +70,11 @@
   <section id="inicio" hidden>
     <h1 id="titulo-inicio"></h1>
     <p id="cuerpo-inicio"></p>
+    <p class="legales">
+      <a id="l-privacidad" href="privacidad.es.html">Privacidad</a> ·
+      <a id="l-terminos" href="terminos.es.html">Términos</a> ·
+      <a id="l-borrar" href="borrar-cuenta.es.html">Borrar cuenta</a>
+    </p>
   </section>
 
   <section id="invalido" hidden>
@@ -91,6 +99,7 @@
       nota: 'Tenés que tener spendApp instalada en este teléfono. Si el botón no hace nada, abrí este mail o mensaje desde el teléfono donde está la app.',
       inicioTitulo: 'App para dividir gastos',
       inicioCuerpo: 'Los links de contacto y de invitación a grupos que se comparten desde spendApp se abren desde acá.',
+      legales: ['Privacidad', 'Términos', 'Borrar cuenta'],
       invalidoTitulo: 'Este link está incompleto',
       invalidoCuerpo: 'Puede que se haya cortado al copiarlo. Pedile a quien te lo mandó que lo comparta de nuevo desde la app.'
     },
@@ -101,6 +110,7 @@
       nota: 'spendApp needs to be installed on this phone. If the button does nothing, open this email or message on the phone that has the app.',
       inicioTitulo: 'An app to split expenses',
       inicioCuerpo: 'Contact and group invitation links shared from spendApp open from here.',
+      legales: ['Privacy', 'Terms', 'Delete account'],
       invalidoTitulo: 'This link is incomplete',
       invalidoCuerpo: 'It may have been cut off when copied. Ask the person who sent it to share it again from the app.'
     },
@@ -111,6 +121,7 @@
       nota: 'O spendApp precisa estar instalado neste telefone. Se o botão não fizer nada, abra este e-mail ou mensagem no telefone que tem o app.',
       inicioTitulo: 'App para dividir despesas',
       inicioCuerpo: 'Os links de contato e de convite para grupos compartilhados pelo spendApp abrem por aqui.',
+      legales: ['Privacidade', 'Termos', 'Excluir conta'],
       invalidoTitulo: 'Este link está incompleto',
       invalidoCuerpo: 'Pode ter sido cortado ao copiar. Peça para quem enviou compartilhar de novo pelo app.'
     }
@@ -138,6 +149,14 @@
   if (!fragmento) {
     texto('titulo-inicio', T.inicioTitulo);
     texto('cuerpo-inicio', T.inicioCuerpo);
+    // Esta página es el index del sitio: hace de índice de las páginas legales.
+    var lang = document.documentElement.lang;
+    [['l-privacidad', 'privacidad'], ['l-terminos', 'terminos'], ['l-borrar', 'borrar-cuenta']]
+      .forEach(function (par, i) {
+        var a = document.getElementById(par[0]);
+        a.textContent = T.legales[i];
+        a.href = par[1] + '.' + lang + '.html';
+      });
     document.getElementById('inicio').hidden = false;
     document.title = 'spendApp';
     return;

@@ -18,7 +18,8 @@ describe('docs/web/abrir.html', () => {
     // Los links nuevos van a la organización; la copia de `docs/web` atiende los viejos.
     expect(ENLACE_BASE).toBe(LINKS_URL);
     expect(LINKS_URL).toBe('https://spendapp.github.io/');
-    expect(BASE_URL).toBe('https://gabimaglia.github.io/spendApp/web');
+    // Las páginas legales viven en el mismo sitio, sin el usuario personal del PO.
+    expect(BASE_URL).toBe('https://spendapp.github.io');
   });
 
   it('abre exactamente las mismas rutas que la app acepta', () => {
@@ -48,12 +49,21 @@ describe('docs/web/abrir.html', () => {
     expect(HTML).not.toMatch(/fetch\(|XMLHttpRequest|sendBeacon/);
   });
 
-  it('el script de publicación copia ESTE archivo como index de la organización', () => {
-    const script = readFileSync(join(__dirname, '..', '..', 'scripts', 'publicar-pagina-links.sh'), 'utf8');
-    expect(script).toContain('docs/web/abrir.html');
+  it('el script de publicación copia esta página como index, y todas las legales', () => {
+    const script = readFileSync(join(__dirname, '..', '..', 'scripts', 'publicar-sitio.sh'), 'utf8');
     expect(script).toContain('spendapp/spendapp.github.io');
-    expect(script).toMatch(/index\.html/);
+    expect(script).toContain('cp "$WEB/abrir.html" index.html');
+    // Copia todo docs/web/*.html salvo el index viejo y abrir.html (que ya fue como index).
+    expect(script).toContain('for f in "$WEB"/*.html');
+    expect(script).toMatch(/index\.html\|abrir\.html\) ;;/);
   });
+
+  it('sin link, hace de índice: enlaza las tres páginas legales en el idioma de la página', () => {
+    expect(HTML).toMatch(/\['l-privacidad', 'privacidad'\]/);
+    expect(HTML).toMatch(/\['l-terminos', 'terminos'\]/);
+    expect(HTML).toMatch(/\['l-borrar', 'borrar-cuenta'\]/);
+  });
+
 
   it('lee los datos del fragmento, no de la query que sí llega al servidor', () => {
     expect(HTML).toContain('window.location.hash');

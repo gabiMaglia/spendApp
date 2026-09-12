@@ -39,6 +39,15 @@ describe('las URLs', () => {
     }
   });
 
+  it('no muestran el usuario personal del PO: van a la ficha de la tienda (2026-09-12)', () => {
+    for (const l of ['es', 'en', 'pt']) {
+      for (const url of [urlDeBorrado(l), urlDePrivacidad(l), urlDeTerminos(l)]) {
+        expect(url.startsWith('https://spendapp.github.io/')).toBe(true);
+        expect(url).not.toContain('gabimaglia');
+      }
+    }
+  });
+
   it('apuntan a un archivo que existe de verdad', () => {
     // Es lo que separa «la constante está escrita» de «el link abre algo».
     for (const url of [urlDeBorrado('es'), urlDePrivacidad('en'), urlDeTerminos('pt')]) {
