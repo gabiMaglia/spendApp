@@ -1,4 +1,5 @@
 import type { User } from '@/src/types/models';
+import { enlaceCompartible, rutaDeEnlace } from '@/src/utils/appLink';
 
 /**
  * Lo que viaja en el QR / link de contacto.
@@ -9,7 +10,6 @@ import type { User } from '@/src/types/models';
  * funcionando pero en una sola dirección — que es como funcionaba antes.
  */
 
-const DEEP_LINK_SCHEME = 'spendapp://contact/add';
 const QR_PREFIX = 'spendp2p:contact:';
 
 export type ContactKeys = {
@@ -61,10 +61,41 @@ export function parseContactPayload(raw: string): ContactPayload | null {
   }
 }
 
+/**
+ * El link para compartir por mail o chat. Es `https` y no `spendapp://`: ver `utils/appLink`.
+ */
 export function buildContactDeepLink(user: User, keys?: ContactKeys | null): string {
-  const params = new URLSearchParams({ id: user.id, name: user.name, email: user.email });
+  const params = new URLSearchParams({ id: user.id, name: user.name, email: user.email ?? '' });
   if (keys?.secret) params.set('s', keys.secret);
   if (keys?.wrapPublicKey) params.set('w', keys.wrapPublicKey);
   if (keys?.identityPublicKey) params.set('k', keys.identityPublicKey);
-  return `${DEEP_LINK_SCHEME}?${params.toString()}`;
+  return enlaceCompartible('contact/add', params);
+}
+
+/**
+ * Un contacto desde parámetros ya parseados (los del router, o los de un link).
+ *
+ * Lleva las TRES claves. El parser anterior del link (`parseDeepLinkContact`, en la
+ * pantalla) sólo leía el secreto: escanear el QR de un link dejaba al contacto sin su
+ * pública de envoltura ni la de firma.
+ */
+export function contactFromParams(params: Record<string, unknown>): ContactPayload | null {
+  const str = (v: unknown): string | undefined =>
+    typeof v === 'string' ? v : Array.isArray(v) && typeof v[0] === 'string' ? v[0] : undefined;
+  const id = str(params.id), name = str(params.name);
+  if (!id || !name) return null;
+  return {
+    id, name,
+    email: str(params.email) ?? '',
+    secret:            str(params.s),
+    wrapPublicKey:     str(params.w),
+    identityPublicKey: str(params.k),
+  };
+}
+
+/** Un contacto desde un link de la app, en su forma `https` o `spendapp://`. */
+export function parseContactLink(url: string): ContactPayload | null {
+  const r = rutaDeEnlace(url);
+  if (!r || r.ruta !== 'contact/add') return null;
+  return contactFromParams(Object.fromEntries(r.params.entries()));
 }

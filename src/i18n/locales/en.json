@@ -498,6 +498,7 @@
     "unknown_qr_body": "This code is not a spendApp contact.",
     "own_qr_title": "That’s your own code",
     "own_qr_body": "You scanned your own QR.",
+    "own_link_body": "You opened your own contact link.",
     "already_title": "Contact already saved",
     "already_body": "{{name}} is already in your contacts.",
     "added_title": "Contact added!",

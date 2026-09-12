@@ -1,9 +1,9 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert, Platform, Pressable, Share, StyleSheet, Text, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import QRCode from 'react-native-qrcode-svg';
@@ -18,7 +18,8 @@ import { useAuthStore } from '@/src/store/authStore';
 import { useUserStore } from '@/src/store/userStore';
 import { hapticLight, hapticSuccess, hapticWarning } from '@/src/utils/haptics';
 import {
-  buildContactPayload, parseContactPayload, buildContactDeepLink, type ContactPayload,
+  buildContactPayload, parseContactPayload, buildContactDeepLink, contactFromParams, parseContactLink,
+  type ContactPayload,
 } from '@/src/utils/contactLink';
 import { ensureContactSecret, announceContact, savePeer } from '@/src/sync/contactChannel';
 import { deviceId } from '@/src/sync/relayEngine';
@@ -65,32 +66,26 @@ export default function AddContactScreen() {
   const myQRData  = currentUser ? buildContactPayload(currentUser, misClaves) : '';
   const deepLink  = currentUser ? buildContactDeepLink(currentUser, misClaves) : '';
 
-  const handleBarCodeScanned = useCallback(({ data }: { data: string }) => {
-    if (scanned) return;
-    setScanned(true);
-
-    const contact = parseContactPayload(data) ?? parseDeepLinkContact(data);
-    if (!contact) {
-      hapticWarning();
-      Alert.alert(t('contact.unknown_qr_title'), t('contact.unknown_qr_body'), [
-        { text: t('contact.rescan'), onPress: () => setScanned(false) },
-        { text: t('common.cancel'), style: 'cancel', onPress: () => router.back() },
-      ]);
-      return;
-    }
-
+  /**
+   * Agrega un contacto que llegó por QR o por link. **Los dos caminos pasan por acá**:
+   * antes el link se procesaba aparte, en `_layout.tsx`, agregaba en silencio y dejaba
+   * al usuario mirando SU PROPIO QR, sin ningún aviso de que el contacto había entrado.
+   */
+  const procesarContacto = useCallback((contact: ContactPayload, origen: 'qr' | 'link') => {
     if (esYo(contact.id)) {
       hapticWarning();
-      Alert.alert(t('contact.own_qr_title'), t('contact.own_qr_body'), [
-        { text: 'OK', onPress: () => setScanned(false) },
-      ]);
+      Alert.alert(
+        t('contact.own_qr_title'),
+        t(origen === 'link' ? 'contact.own_link_body' : 'contact.own_qr_body'),
+        [{ text: 'OK', onPress: () => (origen === 'link' ? volverAContactos() : setScanned(false)) }],
+      );
       return;
     }
 
     if (getUserById(contact.id) && !getUserById(contact.id)?.isDeleted) {
       hapticLight();
       Alert.alert(t('contact.already_title'), t('contact.already_body', { name: contact.name }), [
-        { text: 'OK', onPress: () => router.back() },
+        { text: 'OK', onPress: volverAContactos },
       ]);
       return;
     }
@@ -146,7 +141,42 @@ export default function AddContactScreen() {
         { text: t('contact.show_my_code'), onPress: () => router.push('/contact/add') },
       ],
     );
-  }, [scanned, currentUser]);
+    // `currentUser` no aparece en el cuerpo pero la dependencia es REAL: `esYo` lee la
+    // sesión activa, así que cambiar de cuenta tiene que recalcular esto.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser, addOrUpdateUser, getUserById, t]);
+
+  const handleBarCodeScanned = useCallback(({ data }: { data: string }) => {
+    if (scanned) return;
+    setScanned(true);
+
+    const contact = parseContactPayload(data) ?? parseContactLink(data);
+    if (!contact) {
+      hapticWarning();
+      Alert.alert(t('contact.unknown_qr_title'), t('contact.unknown_qr_body'), [
+        { text: t('contact.rescan'), onPress: () => setScanned(false) },
+        { text: t('common.cancel'), style: 'cancel', onPress: () => router.back() },
+      ]);
+      return;
+    }
+
+    procesarContacto(contact, 'qr');
+  }, [scanned, procesarContacto, t]);
+
+  /**
+   * Abierta por un link de contacto (`/contact/add?id=…&name=…`): se procesa como un
+   * escaneo. Una sola vez por pantalla — un re-render no puede volver a agregar — y
+   * recién con sesión: sin ella, `_layout` guarda el link y lo reabre después del login.
+   */
+  const params = useLocalSearchParams();
+  const linkProcesado = useRef(false);
+  useEffect(() => {
+    if (linkProcesado.current || !currentUser) return;
+    const contact = contactFromParams(params as Record<string, unknown>);
+    if (!contact) return;
+    linkProcesado.current = true;
+    procesarContacto(contact, 'link');
+  }, [params, currentUser, procesarContacto]);
 
   async function handleShare() {
     hapticLight();
@@ -276,22 +306,6 @@ export default function AddContactScreen() {
       )}
     </SafeAreaView>
   );
-}
-
-function parseDeepLinkContact(raw: string): ContactPayload | null {
-  try {
-    const url = new URL(raw);
-    const id   = url.searchParams.get('id');
-    const name = url.searchParams.get('name');
-    if (!id || !name) return null;
-    return {
-      id, name,
-      email: url.searchParams.get('email') ?? '',
-      secret: url.searchParams.get('s') ?? undefined,
-    };
-  } catch {
-    return null;
-  }
 }
 
 const styles = StyleSheet.create({

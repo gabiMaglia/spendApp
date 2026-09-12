@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<title>Abrir en spendApp</title>
+<!--
+  Página intermedia de los links que comparte la app (src/utils/appLink.ts).
+
+  Gmail y casi cualquier cliente de mail o chat sólo convierten en link lo que empieza con
+  http(s)://, así que la app comparte un link a esta página y la página abre la app con
+  spendapp://.
+
+  ⚠️ Los datos llegan en el FRAGMENTO (#ruta?params). El navegador NO manda el fragmento al
+  servidor, y el link de contacto lleva un secreto. Por eso esta página no carga NADA de
+  afuera: ni fuentes, ni scripts, ni analítica. Todo es inline.
+
+  La lista de rutas se repite en src/utils/appLink.ts (RUTAS_ENLAZABLES); un test verifica
+  que las dos coincidan.
+-->
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px;
+    font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #1a1a1a; background: #fbfaf8;
+  }
+  main { width: 100%; max-width: 26rem; text-align: center; }
+  .marca { font-weight: 700; font-size: 1.05rem; color: #1f6f5c; letter-spacing: .01em; margin: 0 0 28px; }
+  h1 { font-size: 1.45rem; line-height: 1.25; margin: 0 0 10px; text-wrap: balance; }
+  p { margin: 0 0 22px; color: #555; }
+  .boton {
+    display: block; width: 100%; padding: 15px 18px; border-radius: 12px;
+    background: #1f6f5c; color: #fff; font-weight: 700; font-size: 1.02rem; text-decoration: none;
+  }
+  .boton:focus-visible { outline: 3px solid #6fd3b6; outline-offset: 3px; }
+  .nota { font-size: .86rem; color: #767676; margin: 22px 0 0; }
+  [hidden] { display: none !important; }
+  @media (prefers-color-scheme: dark) {
+    body { color: #ececec; background: #131313; }
+    p { color: #b5b5b5; }
+    .marca { color: #6fd3b6; }
+    .nota { color: #9a9a9a; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <p class="marca">spendApp</p>
+
+  <section id="valido" hidden>
+    <h1 id="titulo"></h1>
+    <p id="cuerpo"></p>
+    <a id="abrir" class="boton" href="#"></a>
+    <p class="nota" id="nota"></p>
+  </section>
+
+  <section id="invalido" hidden>
+    <h1 id="titulo-invalido"></h1>
+    <p id="cuerpo-invalido"></p>
+  </section>
+</main>
+
+<script>
+(function () {
+  var RUTAS = ['contact/add', 'groups/join'];
+  var PAQUETE_ANDROID = 'com.splitp2p.app';
+
+  var TEXTOS = {
+    es: {
+      'contact/add': ['Te quieren agregar como contacto', 'Abrí el link en spendApp para agregar a esta persona.'],
+      'groups/join': ['Te invitaron a un grupo', 'Abrí el link en spendApp para unirte.'],
+      abrir: 'Abrir en spendApp',
+      nota: 'Tenés que tener spendApp instalada en este teléfono. Si el botón no hace nada, abrí este mail o mensaje desde el teléfono donde está la app.',
+      invalidoTitulo: 'Este link está incompleto',
+      invalidoCuerpo: 'Puede que se haya cortado al copiarlo. Pedile a quien te lo mandó que lo comparta de nuevo desde la app.'
+    },
+    en: {
+      'contact/add': ['Someone wants to add you as a contact', 'Open the link in spendApp to add this person.'],
+      'groups/join': ["You've been invited to a group", 'Open the link in spendApp to join.'],
+      abrir: 'Open in spendApp',
+      nota: 'spendApp needs to be installed on this phone. If the button does nothing, open this email or message on the phone that has the app.',
+      invalidoTitulo: 'This link is incomplete',
+      invalidoCuerpo: 'It may have been cut off when copied. Ask the person who sent it to share it again from the app.'
+    },
+    pt: {
+      'contact/add': ['Querem adicionar você como contato', 'Abra o link no spendApp para adicionar esta pessoa.'],
+      'groups/join': ['Você foi convidado para um grupo', 'Abra o link no spendApp para entrar.'],
+      abrir: 'Abrir no spendApp',
+      nota: 'O spendApp precisa estar instalado neste telefone. Se o botão não fizer nada, abra este e-mail ou mensagem no telefone que tem o app.',
+      invalidoTitulo: 'Este link está incompleto',
+      invalidoCuerpo: 'Pode ter sido cortado ao copiar. Peça para quem enviou compartilhar de novo pelo app.'
+    }
+  };
+
+  var idioma = (navigator.language || 'es').slice(0, 2).toLowerCase();
+  var T = TEXTOS[idioma] || TEXTOS.es;
+  document.documentElement.lang = TEXTOS[idioma] ? idioma : 'es';
+
+  function texto(id, valor) { document.getElementById(id).textContent = valor; }
+
+  var fragmento = window.location.hash.slice(1);
+  var q = fragmento.indexOf('?');
+  var ruta = q === -1 ? fragmento : fragmento.slice(0, q);
+  var query = q === -1 ? '' : fragmento.slice(q + 1);
+
+  if (RUTAS.indexOf(ruta) === -1 || !query) {
+    texto('titulo-invalido', T.invalidoTitulo);
+    texto('cuerpo-invalido', T.invalidoCuerpo);
+    document.getElementById('invalido').hidden = false;
+    document.title = T.invalidoTitulo;
+    return;
+  }
+
+  var destino = ruta + '?' + query;
+  var esAndroid = /android/i.test(navigator.userAgent);
+  // En Android, `intent://` es la forma confiable de abrir una app desde Chrome; con un
+  // esquema pelado algunos navegadores no hacen nada.
+  var href = esAndroid
+    ? 'intent://' + destino + '#Intent;scheme=spendapp;package=' + PAQUETE_ANDROID + ';end'
+    : 'spendapp://' + destino;
+
+  texto('titulo', T[ruta][0]);
+  texto('cuerpo', T[ruta][1]);
+  texto('nota', T.nota);
+  var boton = document.getElementById('abrir');
+  boton.textContent = T.abrir;
+  boton.href = href;
+  document.getElementById('valido').hidden = false;
+  document.title = T.abrir;
+
+  // Se intenta abrir solo. Muchos navegadores lo bloquean sin un toque del usuario, y
+  // para eso está el botón.
+  window.location.replace(href);
+})();
+</script>
+</body>
+</html>

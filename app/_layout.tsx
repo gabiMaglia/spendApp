@@ -15,18 +15,14 @@ import { bootstrapSecureStorage } from '@/src/utils/secureStorage';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { AnimatedSplash } from '@/src/components/AnimatedSplash';
 import { useAuthStore } from '@/src/store/authStore';
-import { useUserStore } from '@/src/store/userStore';
 import { useThemeStore } from '@/src/store/themeStore';
 import { rehydrateForActiveUser, subscribeSessionRehydrate } from '@/src/store/session';
 import { resumePendingDeletion } from '@/src/services/deleteAccount';
-import { announceContact, savePeer } from '@/src/sync/contactChannel';
-import { deviceId } from '@/src/sync/relayEngine';
-import { syncedNow } from '@/src/utils/syncedClock';
+import { recordarEnlace, tomarEnlacePendiente } from '@/src/utils/enlacePendiente';
 import { installNotificationHandler } from '@/src/services/notifications';
 import { installGlobalErrorHandler } from '@/src/services/globalErrorHandler';
 import { ErrorBoundary } from '@/src/components/ErrorBoundary';
 import { exportarDiagnostico } from '@/src/services/exportDiagnostico';
-import { esYo } from '@/src/store/identityAlias';
 
 // A nivel de módulo, no dentro de un componente: el handler tiene que estar
 // registrado ANTES de que llegue el primer aviso. Sin él, expo-notifications
@@ -49,7 +45,6 @@ function AuthGuard() {
   const segments = useSegments();
   const router = useRouter();
   const { currentUser, isLoading, hydrate } = useAuthStore();
-  const addOrUpdateUser = useUserStore(s => s.addOrUpdateUser);
   const hydrateTheme    = useThemeStore(s => s.hydrate);
 
   useEffect(() => {
@@ -87,41 +82,25 @@ function AuthGuard() {
       router.replace('/auth');
     } else if (currentUser && inAuth) {
       router.replace('/(tabs)');
+      const pendiente = tomarEnlacePendiente();
+      if (pendiente) router.push(pendiente as any);
     }
   }, [currentUser, isLoading, segments]);
 
-  // Deep link handler for contact/add?id=...&name=...&email=...
+  /**
+   * **Links sin sesión.** Con sesión no hay nada que hacer acá: expo-router abre la pantalla
+   * del link (`contact/add`, `groups/join`) y la pantalla lo procesa. Sin sesión, el guard
+   * de arriba redirige al login y el destino se perdía; se guarda y se abre al entrar.
+   *
+   * Antes este efecto AGREGABA el contacto por su cuenta, en silencio, y además la pantalla
+   * se abría mostrando el QR propio — sin ningún aviso de que el contacto había entrado.
+   * Ahora el alta vive en un solo lugar: `app/contact/add.tsx`.
+   */
+  const urlEntrante = Linking.useURL();
   useEffect(() => {
-    function handleUrl({ url }: { url: string }) {
-      try {
-        const parsed = Linking.parse(url);
-        if (parsed.path === 'contact/add' && parsed.queryParams) {
-          const { id, name, email, s, w, k } = parsed.queryParams as Record<string, string>;
-          if (id && name && currentUser && !esYo(id)) {
-            addOrUpdateUser({
-              id,
-              name,
-              email: email ?? '',
-              authProvider: 'google',
-              createdAt: Date.now(),
-              updatedAt: syncedNow(),
-              isDeleted: false,
-            });
-            // Le devuelvo mi tarjeta para que el alta quede en los dos lados,
-            // igual que al escanear el QR.
-            if (s) {
-              savePeer(id, { secret: s, wrapPublicKey: w, identityPublicKey: k });
-              void announceContact(s, deviceId());
-            }
-          }
-        }
-      } catch {}
-    }
-
-    const sub = Linking.addEventListener('url', handleUrl);
-    Linking.getInitialURL().then(url => { if (url) handleUrl({ url }); });
-    return () => sub.remove();
-  }, [currentUser]);
+    if (isLoading || currentUser || !urlEntrante) return;
+    recordarEnlace(urlEntrante);
+  }, [urlEntrante, isLoading, currentUser]);
 
   return null;
 }
