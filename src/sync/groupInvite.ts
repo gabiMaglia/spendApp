@@ -1,5 +1,6 @@
 import { ed25519, x25519 } from '@noble/curves/ed25519.js';
 import * as Crypto from 'expo-crypto';
+import { enlaceCompartible, rutaDeEnlace } from '@/src/utils/appLink';
 import { sealEnvelope, openEnvelope, toHex, fromHex } from './envelopeCrypto';
 
 /**
@@ -69,7 +70,7 @@ export function createInvite(
   };
 }
 
-/** Link para compartir por cualquier canal. */
+/** Link para compartir por cualquier canal. Es `https` y no `spendapp://`: ver `utils/appLink`. */
 export function inviteToLink(invite: GroupInvite): string {
   const params = new URLSearchParams({
     g: invite.groupId,
@@ -78,7 +79,7 @@ export function inviteToLink(invite: GroupInvite): string {
     f: invite.inviterFingerprint,
     e: String(invite.expiresAt),
   });
-  return `spendapp://groups/join?${params.toString()}`;
+  return enlaceCompartible('groups/join', params);
 }
 
 /**
@@ -106,14 +107,9 @@ export function inviteFromParams(params: Record<string, unknown>): GroupInvite |
 }
 
 export function parseInviteLink(link: string): GroupInvite | null {
-  try {
-    const query = link.split('?')[1];
-    if (!query) return null;
-    const p = new URLSearchParams(query);
-    return inviteFromParams(Object.fromEntries(p.entries()));
-  } catch {
-    return null;
-  }
+  const r = rutaDeEnlace(link);
+  if (!r || r.ruta !== 'groups/join') return null;
+  return inviteFromParams(Object.fromEntries(r.params.entries()));
 }
 
 /**

@@ -20,6 +20,14 @@ import {
  */
 const RAIZ = join(__dirname, '..', '..', '..');
 const WEB = join(RAIZ, 'docs', 'web');
+
+/**
+ * Las páginas que PUEDEN tener un script inline. Sólo `abrir.html`: abre la app desde un
+ * link, y los datos del link vienen en el fragmento (`#…`), que únicamente se lee con
+ * JavaScript. La prohibición de fondo sigue intacta — nada de terceros y ningún pedido
+ * de red —, y cualquier otra página sigue sin poder tener `<script>`.
+ */
+const CON_SCRIPT_INLINE = ['abrir.html'];
 const IDIOMAS = ['es', 'en', 'pt'] as const;
 const PAGINAS = ['borrar-cuenta', 'privacidad', 'terminos'] as const;
 
@@ -90,10 +98,25 @@ describe('las páginas están completas', () => {
     // volvería mentira aunque la app siga limpia.
     for (const archivo of readdirSync(WEB)) {
       const html = readFileSync(join(WEB, archivo), 'utf8');
-      expect(html).not.toMatch(/<script|gtag\(|googletagmanager|<iframe/i);
+      if (CON_SCRIPT_INLINE.includes(archivo)) {
+        // Sin `src`: el script está en la página, no se trae de ningún lado.
+        expect(html).not.toMatch(/<script[^>]*\ssrc\s*=/i);
+        // Y sin ninguna forma de mandar datos afuera.
+        expect(html).not.toMatch(/fetch\(|XMLHttpRequest|sendBeacon|WebSocket|EventSource|import\(|new Image/);
+        expect(html).not.toMatch(/gtag\(|googletagmanager|<iframe/i);
+      } else {
+        expect(html).not.toMatch(/<script|gtag\(|googletagmanager|<iframe/i);
+      }
       expect(html).not.toMatch(/src\s*=\s*["']https?:/i);
       expect(html).not.toMatch(/<link[^>]+href\s*=\s*["']https?:/i);
     }
+  });
+
+  it('la excepción del script inline es una lista cerrada, y sus páginas existen', () => {
+    for (const archivo of CON_SCRIPT_INLINE) {
+      expect(readdirSync(WEB)).toContain(archivo);
+    }
+    expect(CON_SCRIPT_INLINE).toEqual(['abrir.html']);
   });
 });
 

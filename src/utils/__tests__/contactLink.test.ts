@@ -1,4 +1,5 @@
-import { buildContactPayload, parseContactPayload, buildContactDeepLink } from '../contactLink';
+import { buildContactPayload, parseContactPayload, buildContactDeepLink, parseContactLink } from '../contactLink';
+import { ENLACE_BASE } from '@/src/utils/appLink';
 import type { User } from '@/src/types/models';
 
 const user = (over: Partial<User> = {}): User => ({
@@ -37,15 +38,24 @@ describe('contactLink', () => {
     expect(parsed).toEqual({ id: 'u1', name: 'Ada', email: '' });
   });
 
-  it('deep link: incluye el scheme y codifica los params (espacios/acentos)', () => {
+  it('link: es https (Gmail sólo enlaza http/https) y codifica los params (espacios/acentos)', () => {
     const link = buildContactDeepLink(user({ name: 'José Pérez', email: 'jose@x.com' }));
-    expect(link.startsWith('spendapp://contact/add?')).toBe(true);
-    // URLSearchParams codifica los valores → un consumidor los decodifica bien
-    const query = link.split('?')[1];
-    const params = new URLSearchParams(query);
-    expect(params.get('id')).toBe('u1');
-    expect(params.get('name')).toBe('José Pérez');
-    expect(params.get('email')).toBe('jose@x.com');
+    expect(link.startsWith(`${ENLACE_BASE}#contact/add?`)).toBe(true);
+    expect(link).not.toContain(' ');
+    const leido = parseContactLink(link);
+    expect(leido?.id).toBe('u1');
+    expect(leido?.name).toBe('José Pérez');
+    expect(leido?.email).toBe('jose@x.com');
+  });
+
+  it('link: también se lee en la forma spendapp:// con la que la página abre la app', () => {
+    const link = buildContactDeepLink(user({ name: 'Ada' }));
+    const interno = 'spendapp://' + link.slice(link.indexOf('#') + 1);
+    expect(parseContactLink(interno)?.name).toBe('Ada');
+  });
+
+  it('link de otra pantalla no es un contacto', () => {
+    expect(parseContactLink('spendapp://groups/join?id=u1&name=Ada')).toBeNull();
   });
 });
 
@@ -145,10 +155,14 @@ describe('claves públicas en el código', () => {
       .toBe(CLAVES.identityPublicKey);
   });
 
-  it('el link de contacto lleva las tres', () => {
+  it('el link de contacto lleva las tres, y leerlo las devuelve las tres', () => {
     const link = buildContactDeepLink(yo, CLAVES);
     expect(link).toContain(`s=${CLAVES.secret}`);
     expect(link).toContain(`w=${CLAVES.wrapPublicKey}`);
     expect(link).toContain(`k=${CLAVES.identityPublicKey}`);
+    const leido = parseContactLink(link);
+    expect(leido?.secret).toBe(CLAVES.secret);
+    expect(leido?.wrapPublicKey).toBe(CLAVES.wrapPublicKey);
+    expect(leido?.identityPublicKey).toBe(CLAVES.identityPublicKey);
   });
 });

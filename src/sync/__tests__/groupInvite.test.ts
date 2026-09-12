@@ -34,6 +34,12 @@ describe('link de invitación', () => {
     expect(leido).toEqual(inv);
   });
 
+  it('el link es https: Gmail y los chats sólo enlazan http/https', () => {
+    const link = inviteToLink(createInvite('g1', 'Viaje', generateIdentity().publicKey, AHORA));
+    expect(link.startsWith('https://')).toBe(true);
+    expect(link).toContain('#groups/join?');
+  });
+
   it('sobrevive nombres con acentos y espacios', () => {
     const inv = createInvite('g1', 'Año Nuevo en Córdoba', generateIdentity().publicKey, AHORA);
     expect(parseInviteLink(inviteToLink(inv))!.groupName).toBe('Año Nuevo en Córdoba');
@@ -41,6 +47,8 @@ describe('link de invitación', () => {
 
   it('un link roto devuelve null en vez de tirar', () => {
     expect(parseInviteLink('cualquier cosa')).toBeNull();
+    // Un link de otra pantalla, aunque traiga los mismos parámetros, no es una invitación.
+    expect(parseInviteLink('spendapp://contact/add?g=g1&t=x&e=1')).toBeNull();
     expect(parseInviteLink('spendapp://groups/join')).toBeNull();
     expect(parseInviteLink('spendapp://groups/join?g=g1')).toBeNull(); // sin token
   });

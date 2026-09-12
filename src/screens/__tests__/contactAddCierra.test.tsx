@@ -17,8 +17,10 @@ import type { User } from '@/src/types/models';
  */
 
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
+let mockParams: Record<string, string> = {};
 jest.mock('expo-router', () => ({
   router: { back: jest.fn(), push: jest.fn(), replace: jest.fn(), canGoBack: jest.fn(() => true) },
+  useLocalSearchParams: () => mockParams,
 }));
 jest.mock('react-native-qrcode-svg', () => () => null);
 
@@ -49,6 +51,7 @@ const SIN_SECRETO = buildContactPayload(BETO, null);
 
 beforeEach(() => {
   escanear = undefined;
+  mockParams = {};
   jest.clearAllMocks();
   (router.canGoBack as jest.Mock).mockReturnValue(true);
   useAuthStore.setState({ currentUser: ANA });
@@ -111,5 +114,52 @@ describe('agregar contacto por QR', () => {
 
     expect(router.back).not.toHaveBeenCalled();
     expect(Alert.alert).toHaveBeenCalledWith('contact.already_title', expect.stringContaining('contact.already_body'), expect.any(Array));
+  });
+});
+
+describe('agregar contacto por LINK', () => {
+  /**
+   * Antes el link lo procesaba `_layout.tsx` en silencio, y la pantalla se abría mostrando
+   * el QR PROPIO, sin ningún aviso. Ahora el link hace exactamente lo que el escaneo.
+   */
+  it('abrir el link agrega, cierra la pantalla y avisa — igual que escanear', () => {
+    mockParams = { id: 'beto', name: 'Beto', s: 'sec', w: 'wrap', k: 'idk' };
+    render(<AddContactScreen />);
+
+    expect(useUserStore.getState().users.map(u => u.id)).toContain('beto');
+    expect(router.back).toHaveBeenCalledTimes(1);
+    expect(Alert.alert).toHaveBeenCalledWith('contact.added_title', expect.stringContaining('contact.added_both_body'), expect.any(Array));
+  });
+
+  it('el link guarda las TRES claves del contacto, no sólo el secreto', () => {
+    const { savePeer } = jest.requireMock('@/src/sync/contactChannel');
+    mockParams = { id: 'beto', name: 'Beto', s: 'sec', w: 'wrap', k: 'idk' };
+    render(<AddContactScreen />);
+
+    expect(savePeer).toHaveBeenCalledWith('beto', { secret: 'sec', wrapPublicKey: 'wrap', identityPublicKey: 'idk' });
+  });
+
+  it('un re-render no vuelve a procesar el link', () => {
+    mockParams = { id: 'beto', name: 'Beto', s: 'sec' };
+    const r = render(<AddContactScreen />);
+    r.rerender(<AddContactScreen />);
+
+    expect(Alert.alert).toHaveBeenCalledTimes(1);
+  });
+
+  it('mi propio link avisa con el texto del link, no el del QR, y vuelve a Contactos al aceptar', () => {
+    mockParams = { id: 'ana', name: 'Ana' };
+    render(<AddContactScreen />);
+
+    expect(Alert.alert).toHaveBeenCalledWith('contact.own_qr_title', 'contact.own_link_body', expect.any(Array));
+    const botones = (Alert.alert as jest.Mock).mock.calls[0][2] as { onPress?: () => void }[];
+    botones[0].onPress!();
+    expect(router.back).toHaveBeenCalledTimes(1);
+  });
+
+  it('sin parámetros de contacto es la pantalla de siempre: no agrega ni avisa', () => {
+    render(<AddContactScreen />);
+    expect(Alert.alert).not.toHaveBeenCalled();
+    expect(router.back).not.toHaveBeenCalled();
   });
 });

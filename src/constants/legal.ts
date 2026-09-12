@@ -1,4 +1,5 @@
 import i18n from '@/src/i18n';
+import { BASE_URL } from '@/src/constants/web';
 
 /**
  * Las tres páginas públicas: borrado de cuenta, privacidad y términos (T-090).
@@ -22,12 +23,7 @@ import i18n from '@/src/i18n';
  */
 export const LEGAL_DISPONIBLE = true;   // ✅ verificado el 2026-09-05: las páginas responden
 
-/**
- * GitHub Pages sobre este mismo repo, sirviendo desde `/docs` (decisión del PO,
- * 2026-09-05). Si algún día hay dominio propio, se apunta y **cambia sólo esta
- * línea**: las páginas y los links quedan igual.
- */
-export const BASE_URL = 'https://gabimaglia.github.io/spendApp/web';
+export { BASE_URL };
 
 const IDIOMAS = ['es', 'en', 'pt'] as const;
 export type IdiomaLegal = (typeof IDIOMAS)[number];
