@@ -29,6 +29,15 @@ import { esYo } from '@/src/store/identityAlias';
 
 type Mode = 'my_qr' | 'scan';
 
+/**
+ * Vuelve a Contactos. Si la pantalla se abrió por deep link no hay a dónde volver, y
+ * `router.back()` no haría nada: se reemplaza por la pestaña.
+ */
+function volverAContactos() {
+  if (router.canGoBack()) router.back();
+  else router.replace('/(tabs)/friends');
+}
+
 export default function AddContactScreen() {
   const scheme = useColorScheme() ?? 'light';
   const { t } = useTranslation();
@@ -109,14 +118,21 @@ export default function AddContactScreen() {
       });
       void announceContact(contact.secret, deviceId());
     }
-    // Con secreto en el código el alta es MUTUA: un escaneo y listo. Sin él
-    // (códigos viejos) sigue siendo de una sola dirección, y ahí la app dice la
-    // verdad en vez de dejar al usuario creyendo que están conectados los dos.
+    /**
+     * **El alta cierra la pantalla en el acto** (PO, 2026-09-12), y el cartel aparece ya
+     * sobre Contactos. Antes cerraba el «OK» del cartel, y en Android tocar fuera lo
+     * descarta sin llamar a `onPress`: quedabas en la cámara, con el escaneo trabado.
+     *
+     * Con secreto en el código el alta es MUTUA: un escaneo y listo. Sin él (códigos
+     * viejos) sigue siendo de una sola dirección, y ahí la app dice la verdad en vez de
+     * dejar al usuario creyendo que están conectados los dos.
+     */
+    volverAContactos();
     if (mutuo) {
       Alert.alert(
         t('contact.added_title'),
         t('contact.added_both_body', { name: contact.name }),
-        [{ text: 'OK', onPress: () => router.back() }],
+        [{ text: 'OK' }],
       );
       return;
     }
@@ -125,11 +141,9 @@ export default function AddContactScreen() {
       t('contact.added_title'),
       t('contact.added_half_body', { name: contact.name }),
       [
-        { text: t('contact.later'), style: 'cancel', onPress: () => router.back() },
-        {
-          text: t('contact.show_my_code'),
-          onPress: () => { setMode('my_qr'); setScanned(false); },
-        },
+        { text: t('contact.later'), style: 'cancel' },
+        // La pantalla ya se cerró: mostrar mi código es volver a abrirla (arranca en «mi QR»).
+        { text: t('contact.show_my_code'), onPress: () => router.push('/contact/add') },
       ],
     );
   }, [scanned, currentUser]);
