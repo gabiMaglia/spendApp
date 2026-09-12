@@ -53,6 +53,23 @@ describe('rutaDeEnlace', () => {
   });
 });
 
+describe('formato compacto', () => {
+  it('una letra de tipo y un código se leen como la ruta con ?c=', () => {
+    const r = rutaDeEnlace(`${ENLACE_BASE}#cAQQFdS1hbmE`);
+    expect(r?.ruta).toBe('contact/add');
+    expect(r?.params.get('c')).toBe('AQQFdS1hbmE');
+    expect(rutaDeEnlace(`${ENLACE_BASE}#gAQACZzE`)?.ruta).toBe('groups/join');
+  });
+
+  it('un tipo desconocido no se interpreta', () => {
+    expect(rutaDeEnlace(`${ENLACE_BASE}#xAQQF`)).toBeNull();
+  });
+
+  it('hrefInterno lo pasa al router con el código intacto', () => {
+    expect(hrefInterno(`${ENLACE_BASE}#cAQQF-_x`)).toBe('/contact/add?c=AQQF-_x');
+  });
+});
+
 describe('hrefInterno', () => {
   it('convierte cualquiera de las dos formas en una ruta del router', () => {
     expect(hrefInterno(`${ENLACE_BASE}#contact/add?id=u1`)).toBe('/contact/add?id=u1');

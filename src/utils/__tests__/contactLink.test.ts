@@ -40,18 +40,37 @@ describe('contactLink', () => {
 
   it('link: es https (Gmail sólo enlaza http/https) y codifica los params (espacios/acentos)', () => {
     const link = buildContactDeepLink(user({ name: 'José Pérez', email: 'jose@x.com' }));
-    expect(link.startsWith(`${ENLACE_BASE}#contact/add?`)).toBe(true);
-    expect(link).not.toContain(' ');
+    // Formato compacto (`linkCompacto`): una letra de tipo y un código base64url.
+    expect(link).toMatch(new RegExp(`^${ENLACE_BASE.replace(/[.]/g, '\\.')}#c[A-Za-z0-9_-]+$`));
     const leido = parseContactLink(link);
     expect(leido?.id).toBe('u1');
     expect(leido?.name).toBe('José Pérez');
-    expect(leido?.email).toBe('jose@x.com');
+    // El mail no viaja en el link compacto: no hace falta para agregar a nadie.
+    expect(leido?.email).toBe('');
   });
 
   it('link: también se lee en la forma spendapp:// con la que la página abre la app', () => {
     const link = buildContactDeepLink(user({ name: 'Ada' }));
     const interno = 'spendapp://' + link.slice(link.indexOf('#') + 1);
     expect(parseContactLink(interno)?.name).toBe('Ada');
+  });
+
+  it('los links LARGOS ya compartidos se siguen leyendo, con .html y sin él', () => {
+    const q = 'id=u1&name=Jos%C3%A9&email=j%40x.com&s=' + 'ab'.repeat(32);
+    for (const base of [`${ENLACE_BASE}.html`, ENLACE_BASE]) {
+      const leido = parseContactLink(`${base}#contact/add?${q}`);
+      expect(leido?.name).toBe('José');
+      expect(leido?.email).toBe('j@x.com');
+      expect(leido?.secret).toBe('ab'.repeat(32));
+    }
+  });
+
+  it('si la regla compacta no puede representar un campo sin pérdida, cae al link largo', () => {
+    // Una clave en mayúsculas no vuelve idéntica del binario: el compacto la rechaza.
+    const raro = { secret: 'AB'.repeat(32) };
+    const link = buildContactDeepLink(user({ name: 'Ada' }), raro);
+    expect(link).toContain('#contact/add?');
+    expect(parseContactLink(link)?.secret).toBe('AB'.repeat(32));
   });
 
   it('link de otra pantalla no es un contacto', () => {
@@ -114,7 +133,7 @@ describe('secreto de contacto en el código', () => {
   });
 
   it('el link de contacto también lo lleva', () => {
-    expect(buildContactDeepLink(yo, { secret: SECRETO })).toContain(`s=${SECRETO}`);
+    expect(parseContactLink(buildContactDeepLink(yo, { secret: SECRETO }))?.secret).toBe(SECRETO);
   });
 
   it('sin secreto el código sigue siendo válido, pero de una sola dirección', () => {
@@ -157,9 +176,6 @@ describe('claves públicas en el código', () => {
 
   it('el link de contacto lleva las tres, y leerlo las devuelve las tres', () => {
     const link = buildContactDeepLink(yo, CLAVES);
-    expect(link).toContain(`s=${CLAVES.secret}`);
-    expect(link).toContain(`w=${CLAVES.wrapPublicKey}`);
-    expect(link).toContain(`k=${CLAVES.identityPublicKey}`);
     const leido = parseContactLink(link);
     expect(leido?.secret).toBe(CLAVES.secret);
     expect(leido?.wrapPublicKey).toBe(CLAVES.wrapPublicKey);

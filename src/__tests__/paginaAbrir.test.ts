@@ -1,6 +1,6 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { ENLACE_BASE, RUTAS_ENLAZABLES } from '@/src/utils/appLink';
+import { ENLACE_BASE, RUTAS_ENLAZABLES, TIPOS_COMPACTOS } from '@/src/utils/appLink';
 import { BASE_URL } from '@/src/constants/web';
 
 /**
@@ -15,7 +15,8 @@ const HTML = readFileSync(join(__dirname, '..', '..', 'docs', 'web', 'abrir.html
 
 describe('docs/web/abrir.html', () => {
   it('la app apunta a esta página', () => {
-    expect(ENLACE_BASE).toBe(`${BASE_URL}/abrir.html`);
+    // Sin `.html`: GitHub Pages sirve `abrir.html` en `/abrir`.
+    expect(ENLACE_BASE).toBe(`${BASE_URL}/abrir`);
   });
 
   it('abre exactamente las mismas rutas que la app acepta', () => {
@@ -23,6 +24,13 @@ describe('docs/web/abrir.html', () => {
     expect(m).not.toBeNull();
     const rutas = m![1].split(',').map(r => r.trim().replace(/^'|'$/g, '')).filter(Boolean);
     expect([...rutas].sort()).toEqual([...RUTAS_ENLAZABLES].sort());
+  });
+
+  it('traduce los mismos tipos compactos que la app', () => {
+    const m = /var TIPOS = (\{[^}]*\})/.exec(HTML);
+    expect(m).not.toBeNull();
+    const tipos = JSON.parse(m![1].replace(/'/g, '"').replace(/(\w+):/g, '"$1":'));
+    expect(tipos).toEqual(TIPOS_COMPACTOS);
   });
 
   it('abre el paquete de la app en Android', () => {

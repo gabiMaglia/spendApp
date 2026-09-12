@@ -1,6 +1,7 @@
 import { ed25519, x25519 } from '@noble/curves/ed25519.js';
 import * as Crypto from 'expo-crypto';
-import { enlaceCompartible, rutaDeEnlace } from '@/src/utils/appLink';
+import { enlaceCompacto, enlaceCompartible, rutaDeEnlace } from '@/src/utils/appLink';
+import { codificarInvitacion, decodificarInvitacion } from '@/src/utils/linkCompacto';
 import { sealEnvelope, openEnvelope, toHex, fromHex } from './envelopeCrypto';
 
 /**
@@ -72,6 +73,10 @@ export function createInvite(
 
 /** Link para compartir por cualquier canal. Es `https` y no `spendapp://`: ver `utils/appLink`. */
 export function inviteToLink(invite: GroupInvite): string {
+  // Compacto si la regla lo puede representar sin pérdida; si no, el largo (`linkCompacto`).
+  const codigo = codificarInvitacion(invite);
+  if (codigo) return enlaceCompacto('g', codigo);
+
   const params = new URLSearchParams({
     g: invite.groupId,
     n: invite.groupName,
@@ -92,6 +97,10 @@ export function inviteToLink(invite: GroupInvite): string {
 export function inviteFromParams(params: Record<string, unknown>): GroupInvite | null {
   const str = (v: unknown): string | undefined =>
     typeof v === 'string' ? v : Array.isArray(v) && typeof v[0] === 'string' ? v[0] : undefined;
+
+  // Formato compacto: todo viene en `c`, y manda sobre cualquier otro parámetro.
+  const codigo = str(params.c);
+  if (codigo !== undefined) return decodificarInvitacion(codigo);
 
   const groupId = str(params.g), token = str(params.t), expiresAt = str(params.e);
   if (!groupId || !token || !expiresAt) return null;

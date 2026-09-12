@@ -1,5 +1,6 @@
 import type { User } from '@/src/types/models';
-import { enlaceCompartible, rutaDeEnlace } from '@/src/utils/appLink';
+import { enlaceCompacto, enlaceCompartible, rutaDeEnlace } from '@/src/utils/appLink';
+import { codificarContacto, decodificarContacto } from '@/src/utils/linkCompacto';
 
 /**
  * Lo que viaja en el QR / link de contacto.
@@ -65,6 +66,10 @@ export function parseContactPayload(raw: string): ContactPayload | null {
  * El link para compartir por mail o chat. Es `https` y no `spendapp://`: ver `utils/appLink`.
  */
 export function buildContactDeepLink(user: User, keys?: ContactKeys | null): string {
+  // Compacto si la regla lo puede representar sin pérdida; si no, el largo (`linkCompacto`).
+  const codigo = codificarContacto({ id: user.id, name: user.name, ...(keys ?? {}) });
+  if (codigo) return enlaceCompacto('c', codigo);
+
   const params = new URLSearchParams({ id: user.id, name: user.name, email: user.email ?? '' });
   if (keys?.secret) params.set('s', keys.secret);
   if (keys?.wrapPublicKey) params.set('w', keys.wrapPublicKey);
@@ -82,6 +87,10 @@ export function buildContactDeepLink(user: User, keys?: ContactKeys | null): str
 export function contactFromParams(params: Record<string, unknown>): ContactPayload | null {
   const str = (v: unknown): string | undefined =>
     typeof v === 'string' ? v : Array.isArray(v) && typeof v[0] === 'string' ? v[0] : undefined;
+  // Formato compacto: todo viene en `c`, y manda sobre cualquier otro parámetro.
+  const codigo = str(params.c);
+  if (codigo !== undefined) return decodificarContacto(codigo);
+
   const id = str(params.id), name = str(params.name);
   if (!id || !name) return null;
   return {

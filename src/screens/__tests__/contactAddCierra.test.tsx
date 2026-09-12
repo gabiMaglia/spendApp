@@ -6,6 +6,7 @@ import AddContactScreen from '@/app/contact/add';
 import { useAuthStore } from '@/src/store/authStore';
 import { useUserStore } from '@/src/store/userStore';
 import { buildContactPayload } from '@/src/utils/contactLink';
+import { codificarContacto } from '@/src/utils/linkCompacto';
 import type { User } from '@/src/types/models';
 
 /**
@@ -137,6 +138,17 @@ describe('agregar contacto por LINK', () => {
     render(<AddContactScreen />);
 
     expect(savePeer).toHaveBeenCalledWith('beto', { secret: 'sec', wrapPublicKey: 'wrap', identityPublicKey: 'idk' });
+  });
+
+  it('el link COMPACTO (?c=) agrega igual, con las tres claves', () => {
+    const { savePeer } = jest.requireMock('@/src/sync/contactChannel');
+    const h = (b: string) => b.repeat(32);
+    mockParams = { c: codificarContacto({ id: '112233445566778899001', name: 'Beto', secret: h('ab'), wrapPublicKey: h('cd'), identityPublicKey: h('ef') })! };
+    render(<AddContactScreen />);
+
+    expect(useUserStore.getState().users.map(u => u.id)).toContain('112233445566778899001');
+    expect(savePeer).toHaveBeenCalledWith('112233445566778899001', { secret: h('ab'), wrapPublicKey: h('cd'), identityPublicKey: h('ef') });
+    expect(router.back).toHaveBeenCalledTimes(1);
   });
 
   it('un re-render no vuelve a procesar el link', () => {

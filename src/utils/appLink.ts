@@ -16,7 +16,20 @@ import { BASE_URL } from '@/src/constants/web';
  * de GitHub Pages la raíz no es nuestra. Con dominio propio se puede; ver `constants/web`.
  */
 
-export const ENLACE_BASE = `${BASE_URL}/abrir.html`;
+/**
+ * Sin `.html`: GitHub Pages sirve `abrir.html` también en `/abrir` (verificado el
+ * 2026-09-12), y son 5 caracteres menos en cada link. La forma con `.html` se sigue
+ * leyendo: hay links largos ya compartidos que apuntan ahí.
+ */
+export const ENLACE_BASE = `${BASE_URL}/abrir`;
+const ENLACE_BASE_VIEJO = `${BASE_URL}/abrir.html`;
+
+/**
+ * Formato compacto (`utils/linkCompacto`): una letra de tipo y el código. La página no
+ * decodifica — abre la ruta con `?c=<código>` y la app decodifica.
+ */
+export const TIPOS_COMPACTOS = { c: 'contact/add', g: 'groups/join' } as const;
+type TipoCompacto = keyof typeof TIPOS_COMPACTOS;
 
 const ESQUEMA = 'spendapp:';
 
@@ -28,8 +41,14 @@ const ESQUEMA = 'spendapp:';
 export const RUTAS_ENLAZABLES = ['contact/add', 'groups/join'] as const;
 export type RutaEnlazable = (typeof RUTAS_ENLAZABLES)[number];
 
+/** Formato largo: la ruta y los parámetros legibles. Es el respaldo del compacto. */
 export function enlaceCompartible(ruta: RutaEnlazable, params: URLSearchParams): string {
   return `${ENLACE_BASE}#${ruta}?${params.toString()}`;
+}
+
+/** Formato compacto: `…/abrir#c<código>`. */
+export function enlaceCompacto(tipo: TipoCompacto, codigo: string): string {
+  return `${ENLACE_BASE}#${tipo}${codigo}`;
 }
 
 function esEnlazable(ruta: string): ruta is RutaEnlazable {
@@ -46,10 +65,21 @@ export function rutaDeEnlace(url: string): { ruta: RutaEnlazable; params: URLSea
   let resto: string;
   if (url.startsWith(`${ENLACE_BASE}#`)) {
     resto = url.slice(ENLACE_BASE.length + 1);
+  } else if (url.startsWith(`${ENLACE_BASE_VIEJO}#`)) {
+    resto = url.slice(ENLACE_BASE_VIEJO.length + 1);
   } else if (url.startsWith(ESQUEMA)) {
     resto = url.slice(ESQUEMA.length).replace(/^\/+/, '');
   } else {
     return null;
+  }
+
+  // Compacto: una letra de tipo y un código base64url, sin `/` ni `?`.
+  const compacto = /^([a-z])([A-Za-z0-9_-]+)$/.exec(resto);
+  if (compacto && compacto[1] in TIPOS_COMPACTOS) {
+    return {
+      ruta: TIPOS_COMPACTOS[compacto[1] as TipoCompacto],
+      params: new URLSearchParams({ c: compacto[2] }),
+    };
   }
 
   const q = resto.indexOf('?');
