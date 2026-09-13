@@ -290,6 +290,7 @@
   "activity": {
     "title": "Actividad",
     "filter_all": "Todos",
+    "filter_personal": "Personal",
     "unseen_count": "{{count}} sin ver",
     "section_today": "Hoy",
     "section_yesterday": "Ayer",

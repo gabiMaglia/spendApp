@@ -14,7 +14,7 @@ import { useAuthStore } from '@/src/store/authStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
-import { useActivityFeed } from '@/src/store/selectors';
+import { useActivityFeed, PERSONAL_ACTIVITY_KEY } from '@/src/store/selectors';
 import { searchActivity } from '@/src/algorithms/searchActivity';
 import { deletionRound } from '@/src/algorithms/deletionRound';
 import { attributedVote, isMarked, type TrustState } from '@/src/algorithms/recordTrust';
@@ -70,7 +70,12 @@ export default function ActivityScreen() {
   const [query, setQuery] = useState('');
 
   const ALL_FILTER = '__all__';
-  const allGroupNames = [ALL_FILTER, ...groups.filter(g => !g.isDeleted).map(g => g.name)];
+  // Orden fijo del PO (2026-09-13, T-116): Todos, Personal, y después un
+  // filtro por grupo — `PERSONAL_ACTIVITY_KEY` es el mismo sentinel que ya
+  // usa `useActivityFeed` para marcar los movimientos sin grupo.
+  const allGroupNames = [
+    ALL_FILTER, PERSONAL_ACTIVITY_KEY, ...groups.filter(g => !g.isDeleted).map(g => g.name),
+  ];
   const [activeFilter, setActiveFilter] = useState(ALL_FILTER);
 
   const porGrupo = activeFilter === ALL_FILTER
@@ -164,8 +169,12 @@ export default function ActivityScreen() {
           onChange={f => { hapticSelection(); setActiveFilter(f); }}
           options={allGroupNames.map(f => ({
             key: f,
-            label: f === ALL_FILTER ? t('activity.filter_all') : f,
-            icon: f === ALL_FILTER ? 'apps-outline' : 'people-outline',
+            label: f === ALL_FILTER ? t('activity.filter_all')
+              : f === PERSONAL_ACTIVITY_KEY ? t('activity.filter_personal')
+              : f,
+            icon: f === ALL_FILTER ? 'apps-outline'
+              : f === PERSONAL_ACTIVITY_KEY ? 'person-outline'
+              : 'people-outline',
           }))}
         />
 
@@ -174,7 +183,9 @@ export default function ActivityScreen() {
         ) : filteredFeed.length === 0 ? (
           <View style={styles.emptyFilter}>
             <Text style={[Typography.bodyM, { color: c.textTertiary, textAlign: 'center' }]}>
-              {t('activity.no_filter_results', { name: activeFilter })}
+              {t('activity.no_filter_results', {
+                name: activeFilter === PERSONAL_ACTIVITY_KEY ? t('activity.filter_personal') : activeFilter,
+              })}
             </Text>
           </View>
         ) : (
@@ -246,6 +257,12 @@ function EventRow({
   const { t } = useTranslation();
   const scheme = useColorScheme() ?? 'light';
   const c = Colors[scheme];
+
+  // El `groupName` de un movimiento sin grupo es el sentinel `PERSONAL_ACTIVITY_KEY`
+  // (T-116) — hace falta para el FILTRO, pero mostrárselo crudo al usuario
+  // ("· __personal__") sería un bug de UI, no una traducción faltante.
+  const nombreDeGrupo = (groupName: string) =>
+    groupName === PERSONAL_ACTIVITY_KEY ? t('activity.filter_personal') : groupName;
 
   const marca = isMarked(trust)
     ? <TrustMark label={t('trust.badge')} size="sm" testID={`trust-${event.kind}`} />
@@ -320,7 +337,7 @@ function EventRow({
     return row({
       icon: 'add-outline', tint: c.brand.primary, bg: c.brand.primarySoft,
       onPress: () => router.push(`/expense/${expense.id}` as any),
-      body: <ActivityLine who={who} action={action} subject={`${expense.description} · ${groupName}`} ts={relativeTime(expense.date)} />,
+      body: <ActivityLine who={who} action={action} subject={`${expense.description} · ${nombreDeGrupo(groupName)}`} ts={relativeTime(expense.date)} />,
       right: (
         <Text style={[Typography.amountS, { color: c.text }]}>
           {formatMoney(expense.amount, expense.currency)}
@@ -337,7 +354,7 @@ function EventRow({
         <ActivityLine
           who={requestedByName}
           action={t('activity.action_requested_delete')}
-          subject={`“${expense.description}” · ${groupName}`}
+          subject={`“${expense.description}” · ${nombreDeGrupo(groupName)}`}
           ts={relativeTime(expense.deletionVotes?.[0]?.votedAt ?? expense.date)}
         />
       ),
@@ -357,7 +374,7 @@ function EventRow({
             {t('activity.deleted_title', { desc: expense.description })}
           </Text>
           <Text style={[Typography.caption, { color: c.textTertiary, marginTop: 2 }]}>
-            {groupName} · {relativeTime(expense.updatedAt || expense.date)}
+            {nombreDeGrupo(groupName)} · {relativeTime(expense.updatedAt || expense.date)}
           </Text>
         </>
       ),
@@ -384,7 +401,7 @@ function EventRow({
         <ActivityLine
           who={restoredByName}
           action={t('activity.action_restored')}
-          subject={`“${expense.description}” · ${groupName}`}
+          subject={`“${expense.description}” · ${nombreDeGrupo(groupName)}`}
           ts={relativeTime(expense.updatedAt || expense.date)}
         />
       ),
@@ -403,7 +420,7 @@ function EventRow({
           <Text style={{ fontWeight: '700', color: c.text }}>{who}</Text>
           {` ${t('activity.action_paid')} `}
           <Text style={{ fontWeight: '700', color: c.text }}>{toName}</Text>
-          <Text> · {groupName}</Text>
+          <Text> · {nombreDeGrupo(groupName)}</Text>
         </Text>
         <Text style={[Typography.caption, { color: c.textTertiary, marginTop: 2 }]}>
           {relativeTime(payment.date)}
