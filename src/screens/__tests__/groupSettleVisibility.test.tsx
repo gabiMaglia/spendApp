@@ -63,8 +63,8 @@ describe('visibilidad de "saldar deuda" (T-104: deuda viva, no solo gastos)', ()
     expect(queryByTestId('settle-debts')).toBeNull();
   });
 
-  it('un gasto que deja deuda viva SI se ofrece', () => {
-    useExpenseStore.setState({ expenses: [gasto()] });
+  it('un gasto donde YO debo SI se ofrece', () => {
+    useExpenseStore.setState({ expenses: [gasto({ paidById: 'beto' })] });
     const { getByTestId } = render(<GroupDetailScreen />);
     expect(getByTestId('settle-debts')).toBeTruthy();
   });
@@ -107,7 +107,7 @@ describe('visibilidad de "saldar deuda" (T-104: deuda viva, no solo gastos)', ()
   it('multi-moneda: deuda viva en una sola moneda SI se ofrece', () => {
     useExpenseStore.setState({
       expenses: [
-        gasto({ id: 'e1', currency: 'ARS' }), // deuda viva en ARS
+        gasto({ id: 'e1', currency: 'ARS', paidById: 'beto' }), // yo debo en ARS
         gasto({
           id: 'e2', currency: 'USD', amount: 100, paidById: 'beto',
           splits: [{ userId: 'ana', amount: 50, isPaid: false }, { userId: 'beto', amount: 50, isPaid: false }],
@@ -142,18 +142,21 @@ describe('visibilidad de "saldar deuda" (T-104: deuda viva, no solo gastos)', ()
 
   it('grupo consensus con saldado pendiente de acuse (T-064): esa deuda no cuenta como viva, no se ofrece', () => {
     useGroupStore.setState({ groups: [grupo({ deletionMode: 'consensus' })] });
-    useExpenseStore.setState({ expenses: [gasto()] });
-    // Beto (deudor) declara el pago; Ana (quien cobra) todavía no acusó recibo.
-    usePaymentStore.setState({ payments: [pago({ createdById: 'beto' })] });
+    useExpenseStore.setState({ expenses: [gasto({ paidById: 'beto' })] });
+    // Ana (yo, deudora) declara el pago; Beto (quien cobra) todavía no acusó recibo.
+    usePaymentStore.setState({ payments: [pago({ fromUserId: 'ana', toUserId: 'beto', createdById: 'ana' })] });
     const { queryByTestId } = render(<GroupDetailScreen />);
     expect(queryByTestId('settle-debts')).toBeNull();
   });
 
   it('grupo consensus con saldado RECHAZADO: la deuda vuelve a estar viva, SI se ofrece', () => {
     useGroupStore.setState({ groups: [grupo({ deletionMode: 'consensus' })] });
-    useExpenseStore.setState({ expenses: [gasto()] });
+    useExpenseStore.setState({ expenses: [gasto({ paidById: 'beto' })] });
     usePaymentStore.setState({
-      payments: [pago({ createdById: 'beto', confirmations: [acuse({ action: 'reject' })] })],
+      payments: [pago({
+        fromUserId: 'ana', toUserId: 'beto', createdById: 'ana',
+        confirmations: [acuse({ userId: 'beto', action: 'reject' })],
+      })],
     });
     const { getByTestId } = render(<GroupDetailScreen />);
     expect(getByTestId('settle-debts')).toBeTruthy();
@@ -168,6 +171,12 @@ describe('visibilidad de "saldar deuda" (T-104: deuda viva, no solo gastos)', ()
         splits: [{ userId: 'beto', amount: 100_000, isPaid: false }],
       })],
     });
+    const { queryByTestId } = render(<GroupDetailScreen />);
+    expect(queryByTestId('settle-debts')).toBeNull();
+  });
+
+  it('si a MÍ me deben (saldo positivo) NO se ofrece: el pago lo registra quien paga (T-113)', () => {
+    useExpenseStore.setState({ expenses: [gasto()] }); // pagó Ana: Beto le debe a Ana
     const { queryByTestId } = render(<GroupDetailScreen />);
     expect(queryByTestId('settle-debts')).toBeNull();
   });
