@@ -681,6 +681,8 @@ export const EXCLUIDOS_FUSION: Record<string, string> = {
     'Acuse local "a este grupo ya le avisé que dejó de sincronizar", para no repetir el aviso en cada intento de publicación. Mismo caso que `card_sent_v1`: es el registro de algo que YA se le dijo a esta persona en este teléfono, no data suya. Si se pierde, el peor efecto es un aviso repetido; heredar el de otra cuenta sería peor — suprimiría el primer aviso de una caída que la cuenta destino todavía no vio.',
   'sync/recordHealth':
     'Medición de T-041: cuántos registros verificaron, fallaron o no eran verificables. Mismo caso que authorHealth — diagnóstico para decidir si se enciende el rechazo, no data del usuario, y se reacumula con el uso.',
+  'store/identityStore':
+    'invites_v1/pending_joins_v1 pasaron a scopearse por cuenta recién en T-098 (SEC L-4); las privadas (identity_v1/owner_secret_v1/wrapkeys_v1) siguen siendo del APARATO y no pasan por writeScoped. NO verificado que perderlas en una fusión sea inofensivo: una invitación emitida o un join aceptado por la cuenta absorbida podría quedar huérfano durante la gracia de 30 días. Pendiente de revisión por el Arquitecto — ver handoff T-098.',
 };
 
 export { MERGEABLE_STORES };

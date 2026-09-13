@@ -1,8 +1,14 @@
 import { ensureIdentity, ensureWrapKeypair, saveInvite, listInvites, findInviteToken } from '../identityStore';
 import { createInvite } from '@/src/sync/groupInvite';
 import { createSecureStorage } from '@/src/utils/secureStorage';
+import { useAuthStore } from '@/src/store/authStore';
+import type { User } from '@/src/types/models';
 
 const AHORA = Date.now();
+// T-098 · SEC L-4: invitaciones y joins pendientes pasaron a ser de la CUENTA
+// (`readScoped`/`writeScoped`), así que este describe necesita una sesión activa
+// para que `saveInvite`/`listInvites` tengan dónde escribir y leer.
+const YO = { id: 'yo', name: 'Yo', email: '', authProvider: 'google', createdAt: 0, updatedAt: 0, isDeleted: false } as User;
 
 describe('identidad del dispositivo', () => {
   beforeEach(() => createSecureStorage('groupkeys').clearAll());
@@ -30,7 +36,11 @@ describe('identidad del dispositivo', () => {
 });
 
 describe('invitaciones emitidas', () => {
-  beforeEach(() => createSecureStorage('groupkeys').clearAll());
+  beforeEach(() => {
+    createSecureStorage('groupkeys').clearAll();
+    useAuthStore.setState({ currentUser: YO });
+  });
+  afterEach(() => useAuthStore.setState({ currentUser: null }));
 
   // El token es lo ÚNICO que permite abrir el reclamo del invitado: si se
   // pierde, llega un sobre que nadie puede leer.
