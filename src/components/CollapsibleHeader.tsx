@@ -40,6 +40,9 @@ export const FACTOR_ALTO_HEADER = 2.2;
  * de la fila de botones. La fila de botones no cambia; crece el espacio del título, que
  * va abajo con `space-between`. Es un piso: en Inicio el saludo suma una línea.
  */
+/** Distancia máxima del título al borde inferior del header (PO, T-126). */
+export const TITLE_BOTTOM_GAP = 6;
+
 export const TITLE_BLOCK_H = Math.round(HEADER_TOTAL_H_T114 * FACTOR_ALTO_HEADER) - HEADER_BAR_H;
 
 /**
@@ -178,12 +181,13 @@ const styles = StyleSheet.create({
   },
   buttonsLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   right: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  // T-126 (PO): el título va ABAJO del header, a no más de 6pt del borde inferior.
   titleBlock: {
     minHeight: TITLE_BLOCK_H,
-    justifyContent: 'center',
+    justifyContent: 'flex-end',
     gap: 2,
     paddingHorizontal: Spacing.screenPad,
-    paddingBottom: Spacing[3],
+    paddingBottom: TITLE_BOTTOM_GAP,
   },
   subtitle: { fontSize: 12.5, fontWeight: '500' },
   title: { fontSize: 20, fontWeight: '800' },

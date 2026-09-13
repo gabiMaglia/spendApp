@@ -2,7 +2,7 @@ import React from 'react';
 import { Animated, Text } from 'react-native';
 import { render, within } from '@testing-library/react-native';
 import {
-  CollapsibleHeader, useHeaderPadding, HEADER_BAR_H, TITLE_BLOCK_H, HEADER_TOTAL_H_T114, FACTOR_ALTO_HEADER,
+  CollapsibleHeader, useHeaderPadding, HEADER_BAR_H, TITLE_BLOCK_H, HEADER_TOTAL_H_T114, FACTOR_ALTO_HEADER, TITLE_BOTTOM_GAP,
 } from '../CollapsibleHeader';
 
 /**
@@ -23,6 +23,10 @@ function Probe({ aire }: { aire?: number }) {
 }
 
 describe('CollapsibleHeader — bloque título (T-114)', () => {
+  it('el título queda a no más de 6pt del borde inferior del header (T-126)', () => {
+    expect(TITLE_BOTTOM_GAP).toBeLessThanOrEqual(6);
+  });
+
   it('el header mide el doble y un poco más que el de T-114 (×2,2, T-125)', () => {
     // Cambio de spec del PO: antes el bloque título crecía ×1,667 sobre una línea compacta.
     expect(HEADER_BAR_H + TITLE_BLOCK_H).toBe(Math.round(HEADER_TOTAL_H_T114 * FACTOR_ALTO_HEADER));
