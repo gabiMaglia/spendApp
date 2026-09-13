@@ -27,7 +27,7 @@ type RecurrenceKey = Frequency | typeof ONCE_KEY;
 function toKey(v: RecurrenceValue): RecurrenceKey { return v === null ? ONCE_KEY : v; }
 function toValue(k: RecurrenceKey): RecurrenceValue { return k === ONCE_KEY ? null : k; }
 
-const OPTIONS: Array<{ key: RecurrenceKey; labelKey: string; icon: keyof typeof Ionicons.glyphMap }> = [
+const OPTIONS: { key: RecurrenceKey; labelKey: string; icon: keyof typeof Ionicons.glyphMap }[] = [
   { key: ONCE_KEY,       labelKey: 'recurrence.once',        icon: 'close-circle-outline' },
   { key: 'weekly',       labelKey: 'recurrence.weekly',      icon: 'repeat-outline' },
   { key: 'fortnightly',  labelKey: 'recurrence.fortnightly', icon: 'repeat-outline' },

@@ -101,7 +101,7 @@
     "owes_you": "Owes you",
     "you_owe_person": "You owe",
     "add_expense": "Add expense",
-    "go_to_profile": "Go to my profile",
+    "go_to_profile": "Your profile",
     "personal_label": "Personal",
     "spent": "Spent",
     "available": "Available",
@@ -448,8 +448,7 @@
     "personal": "Personal",
     "friends": "Friends",
     "groups": "Groups",
-    "activity": "Activity",
-    "me": "Me"
+    "activity": "Activity"
   },
   "personal": {
     "title": "Personal",

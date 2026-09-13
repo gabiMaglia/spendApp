@@ -109,7 +109,6 @@ export default function FriendsScreen() {
         onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: false })}
         contentContainerStyle={{ paddingTop: headerPad, paddingBottom: 150, flexGrow: 1 }}
       >
-        <Text style={[Typography.display, styles.title, { color: c.text }]}>{t('friends.title')}</Text>
 
         {(owedToYou > 0 || youOwe > 0) && (
           <SplitStat
@@ -277,7 +276,6 @@ function ContactRow({
 
 const styles = StyleSheet.create({
   safe:       { flex: 1 },
-  title:      { paddingHorizontal: Spacing.screenPad, paddingBottom: 16 },
   footnote:   { paddingHorizontal: Spacing.screenPad, paddingTop: 14, lineHeight: 17 },
   actionChip: { paddingHorizontal: 11, paddingVertical: 6, borderRadius: Radius.full },
   inputRow:   {

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Animated } from 'react-native';
+import { Animated, StyleSheet, View } from 'react-native';
 import { readdirSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { fireEvent, render } from '@testing-library/react-native';
@@ -104,6 +104,47 @@ describe('abrir la campana marca leídas las que no piden acción (T-119)', () =
     expect(useNoticeInboxStore.getState().items.find(i => i.id === 'n2')!.readAt).toBeNull();
     expect(r.queryAllByText('2')).toHaveLength(0);
     expect(r.getAllByText('1').length).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * **T-114/T-115 (PO 2026-09-13): la foto de perfil es un botón, y se nota.**
+ * El anillo de marca alrededor del avatar es lo que sugiere que es tocable —
+ * ahora que "Yo" ya no está en el tab bar, es el ÚNICO camino a esa pantalla.
+ */
+describe('el avatar del header sugiere que es un botón (T-115)', () => {
+  it('el avatar lleva un borde (anillo) de color de marca', () => {
+    const r = montar();
+    const boton = r.getByTestId('header-profile');
+    const conAnillo = boton.findAllByType(View).filter((v: ReturnType<typeof boton.findAllByType>[number]) => {
+      const flat = StyleSheet.flatten(v.props.style);
+      return flat?.borderWidth > 0 && !!flat?.borderColor;
+    });
+    expect(conAnillo.length).toBeGreaterThan(0);
+  });
+
+  it('mantiene el accessibilityLabel "Tu perfil" (i18n, clave sin cambios)', () => {
+    const r = montar();
+    // El mock de i18n en este proyecto devuelve la CLAVE, nunca el string
+    // traducido — así que lo que se prueba es que sigue siendo esta clave.
+    expect(r.getByTestId('header-profile').props.accessibilityLabel).toBe('dashboard.go_to_profile');
+  });
+});
+
+/**
+ * **T-114: el saludo de Inicio vive en el header, no en el contenido.**
+ */
+describe('subtítulo (saludo) — sólo cuando la pantalla lo pasa', () => {
+  it('sin subtitle, no aparece ningún saludo', () => {
+    const r = montar();
+    expect(r.queryByTestId('header-subtitle')).toBeNull();
+  });
+
+  it('con subtitle, aparece arriba del título', () => {
+    const r = render(<TabHeader title="Tus cuentas" subtitle="Hola, Ana" scrollY={new Animated.Value(0)} />);
+    expect(r.getByTestId('header-subtitle')).toBeTruthy();
+    expect(r.getByText('Hola, Ana')).toBeTruthy();
+    expect(r.getByText('Tus cuentas')).toBeTruthy();
   });
 });
 

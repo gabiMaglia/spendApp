@@ -11,16 +11,35 @@ import { FondoMarmol } from '@/src/components/FondoMarmol';
 /**
  * Header fijo común a todas las tabs.
  *
- * Colapsa con el scroll: gana opacidad, hairline y el título compacto aparece
- * cuando el título grande de la pantalla ya salió de pantalla. El título grande
- * NO vive acá — vive en el contenido y scrollea.
+ * **T-114 (PO 2026-09-13):** dos filas — la de botones (avatar, campana,
+ * moneda) arriba, y el bloque título (saludo opcional + título) abajo, con
+ * `justifyContent: 'space-between'` entre las dos. El título YA NO scrollea
+ * ni aparece recién al hacer scroll: antes vivía DUPLICADO —grande en el
+ * contenido de cada pantalla, compacto y con fade-in en el header— y ahora es
+ * el ÚNICO título, siempre visible. Lo que sigue colapsando con el scroll es
+ * el VELO (T-110: `bgOpacity`/`hairOpacity`, 0 en reposo), no el texto.
  *
  * Si el proyecto agrega `expo-blur`, reemplazar el `Animated.View` de fondo por
  * `<BlurView intensity={...} tint={scheme}>`; los valores de opacidad de acá
  * están calculados para que el resultado sea equivalente sin blur.
  */
-/** Alto de la barra, sin el notch. El header real mide esto + `insets.top`. */
+/** Alto de la fila de botones, sin el notch. */
 export const HEADER_BAR_H = 52;
+
+/**
+ * Alto de una línea de título COMPACTA, la que había antes de T-114 (fontSize
+ * 16, una sola línea) — es la base sobre la que se mide el crecimiento pedido
+ * por el PO.
+ */
+export const TITLE_BLOCK_H_HOY = 20;
+
+/**
+ * **Alto mínimo del bloque título, +2/3 (×1,667) respecto de hoy** (T-114).
+ * Es un piso, no un techo: en Inicio el bloque real mide más porque el saludo
+ * suma una segunda línea — la constante garantiza el mismo crecimiento base
+ * en las seis pantallas, tengan o no subtítulo.
+ */
+export const TITLE_BLOCK_H = Math.round(TITLE_BLOCK_H_HOY * 5 / 3);
 
 /**
  * Cuánto padding necesita el contenido para arrancar DEBAJO del header.
@@ -31,20 +50,24 @@ export const HEADER_BAR_H = 52;
  * al header — estaba tapado por él.
  *
  * Un número fijo no puede resolver esto: el inset lo decide el aparato. Por eso
- * es un hook y no una constante.
+ * es un hook y no una constante. Desde T-114 suma también `TITLE_BLOCK_H`: el
+ * título dejó de vivir en el contenido, así que el contenido tiene que bajar
+ * lo que el header ahora ocupa de más.
  */
-export function useHeaderPadding(aire = Spacing[4]): number {
+export function useHeaderPadding(aire: number = Spacing[4]): number {
   const insets = useSafeAreaInsets();
-  return insets.top + HEADER_BAR_H + aire;
+  return insets.top + HEADER_BAR_H + TITLE_BLOCK_H + aire;
 }
 
 export function CollapsibleHeader({
-  title, scrollY, right, left,
+  title, subtitle, scrollY, right, left,
 }: {
   title: string;
+  /** Sólo Inicio lo pasa: "Hola, {nombre}" arriba del título (T-114). */
+  subtitle?: string;
   scrollY: Animated.Value;
   right?: React.ReactNode;
-  /** Avatar o botón a la izquierda del título compacto. */
+  /** Avatar u otro botón de la fila de arriba. */
   left?: React.ReactNode;
 }) {
   const scheme = useColorScheme() ?? 'light';
@@ -58,12 +81,6 @@ export function CollapsibleHeader({
   });
   const hairOpacity = scrollY.interpolate({
     inputRange: [0, 60], outputRange: [0, 1], extrapolate: 'clamp',
-  });
-  const titleOpacity = scrollY.interpolate({
-    inputRange: [26, 70], outputRange: [0, 1], extrapolate: 'clamp',
-  });
-  const titleShift = scrollY.interpolate({
-    inputRange: [26, 70], outputRange: [8, 0], extrapolate: 'clamp',
   });
 
   return (
@@ -84,20 +101,21 @@ export function CollapsibleHeader({
         style={[styles.hair, { backgroundColor: c.hair, opacity: hairOpacity }]}
         pointerEvents="none"
       />
-      <View style={styles.bar}>
-        <View style={styles.left}>
-          {left}
-          <Animated.Text
-            numberOfLines={1}
-            style={[
-              styles.title,
-              { color: c.text, opacity: titleOpacity, transform: [{ translateY: titleShift }] },
-            ]}
-          >
-            {title}
-          </Animated.Text>
+      <View style={styles.content}>
+        <View style={styles.buttonsRow}>
+          <View style={styles.buttonsLeft}>{left}</View>
+          <View style={styles.right}>{right}</View>
         </View>
-        <View style={styles.right}>{right}</View>
+        <View style={styles.titleBlock} testID="header-title-block">
+          {subtitle ? (
+            <Text testID="header-subtitle" numberOfLines={1} style={[styles.subtitle, { color: c.textTertiary }]}>
+              {subtitle}
+            </Text>
+          ) : null}
+          <Text numberOfLines={1} style={[styles.title, { color: c.text }]}>
+            {title}
+          </Text>
+        </View>
       </View>
     </View>
   );
@@ -143,16 +161,31 @@ export function HeaderIcon({
 const styles = StyleSheet.create({
   wrap: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10 },
   hair: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 1 },
-  bar: {
-    height: 52,
+  // T-114: las dos filas del header, con el aire entre ellas resuelto por
+  // `space-between` — no un gap fijo, para que el bloque título respete su
+  // `minHeight` sin importar si tiene una línea (la mayoría) o dos (Inicio).
+  content: {
+    minHeight: HEADER_BAR_H + TITLE_BLOCK_H,
+    justifyContent: 'space-between',
+  },
+  buttonsRow: {
+    height: HEADER_BAR_H,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.screenPad,
   },
-  left:  { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 },
+  buttonsLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   right: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  title: { fontSize: 16, fontWeight: '700' },
+  titleBlock: {
+    minHeight: TITLE_BLOCK_H,
+    justifyContent: 'center',
+    gap: 2,
+    paddingHorizontal: Spacing.screenPad,
+    paddingBottom: Spacing[3],
+  },
+  subtitle: { fontSize: 12.5, fontWeight: '500' },
+  title: { fontSize: 20, fontWeight: '800' },
   avatar: {
     width: 32, height: 32, borderRadius: 16,
     alignItems: 'center', justifyContent: 'center',

@@ -227,9 +227,10 @@ export default function PersonalScreen() {
         onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: false })}
         contentContainerStyle={{ paddingTop: headerPad, paddingBottom: 140 }}
       >
-        {/* Título grande: vive en el contenido y scrollea; el header lo recoge. */}
+        {/* T-114: el título pasó al header (fijo, ya no scrollea); esta fila
+            ahora sólo aloja el botón de ajustes, pegado a la derecha como
+            antes. */}
         <View style={styles.titleRow}>
-          <Text style={[Typography.display, { color: c.text }]}>{t('personal.title')}</Text>
           <Pressable
             onPress={() => { hapticLight(); setShowBudgetSheet(true); }}
             style={[styles.iconBtn, { backgroundColor: c.bgGrouped }]}
@@ -536,7 +537,7 @@ const styles = StyleSheet.create({
   debtsNote: { paddingHorizontal: Spacing.screenPad, marginTop: 6 },
   upper: { textTransform: 'uppercase' },
   titleRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end',
     paddingHorizontal: Spacing.screenPad, paddingBottom: 14,
   },
   iconBtn: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },

@@ -85,7 +85,6 @@ export default function GroupsScreen() {
         onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: false })}
         contentContainerStyle={{ paddingTop: headerPad, paddingBottom: 150, flexGrow: 1 }}
       >
-        <Text style={[Typography.display, styles.title, { color: c.text }]}>{t('groups.title')}</Text>
 
         {/* **Todo lo de arriba del segmentado no depende de la pestaña.**
             Antes este bloque estaba condicionado a que la lista tuviera items,
@@ -200,7 +199,6 @@ function GroupRow({
 
 const styles = StyleSheet.create({
   safe:     { flex: 1 },
-  title:    { paddingHorizontal: Spacing.screenPad, paddingBottom: 16 },
   // Sin padding lateral: las pestañas («T invertida») van de borde a borde.
   // T-108: paddingTop doblado (16 → 32 = Spacing[7]); paddingBottom a 0 para
   // pegar el selector al primer grupo (antes 14).

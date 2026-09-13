@@ -206,7 +206,6 @@ export default function UserScreen() {
         // bar no es `position:absolute` React Navigation ya reserva su alto.
         contentContainerStyle={{ paddingTop: headerPad, paddingBottom: Spacing[6] }}
       >
-        <Text style={[Typography.display, styles.title, { color: c.text }]}>{t('profile.title')}</Text>
 
         {/* Mi cuenta */}
         <Band>
@@ -503,7 +502,6 @@ function LinkRow({
 
 const styles = StyleSheet.create({
   safe:      { flex: 1 },
-  title:     { paddingHorizontal: Spacing.screenPad, paddingBottom: 16 },
   pill:      { paddingHorizontal: 14, paddingVertical: 7, borderRadius: Radius.full },
   nameInput: {
     borderWidth: 1, borderRadius: Radius.md,

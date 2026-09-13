@@ -132,7 +132,6 @@ export default function ActivityScreen() {
         onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: false })}
         contentContainerStyle={{ paddingTop: headerPad, paddingBottom: 120, flexGrow: 1 }}
       >
-        <Text style={[Typography.display, styles.title, { color: c.text }]}>{t('activity.title')}</Text>
 
         <View style={[styles.searchBar, { backgroundColor: c.bgGrouped, borderColor: c.hair }]}>
           <Ionicons name="search-outline" size={15} color={c.textTertiary} />
@@ -437,7 +436,6 @@ function EventRow({
 
 const styles = StyleSheet.create({
   safe:        { flex: 1 },
-  title:       { paddingHorizontal: Spacing.screenPad, paddingBottom: 14 },
   searchBar:   {
     flexDirection: 'row', alignItems: 'center', gap: 9,
     marginHorizontal: Spacing.screenPad, marginBottom: 12,

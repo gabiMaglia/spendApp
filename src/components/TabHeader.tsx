@@ -4,6 +4,8 @@ import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
 import { CollapsibleHeader, HeaderCurrency } from './CollapsibleHeader';
+import { Colors } from '@/src/constants/colors';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import { NoticeBell } from './NoticeBell';
 import { NoticeInboxSheet } from './NoticeInboxSheet';
 import { CurrencySheet } from './CurrencyPicker';
@@ -40,8 +42,17 @@ import { syncedNow } from '@/src/utils/syncedClock';
  * la próxima tab nueva se olvidaría de una y nadie lo notaría hasta que a
  * alguien no le llegue un aviso.
  */
-export function TabHeader({ title, scrollY }: { title: string; scrollY: Animated.Value }) {
+export function TabHeader({
+  title, subtitle, scrollY,
+}: {
+  title: string;
+  /** Sólo Inicio lo pasa hoy: "Hola, {nombre}" arriba del título (T-114). */
+  subtitle?: string;
+  scrollY: Animated.Value;
+}) {
   const { t } = useTranslation();
+  const scheme = useColorScheme() ?? 'light';
+  const c = Colors[scheme];
   const currentUser = useAuthStore(s => s.currentUser);
   const cur         = useSettingsStore(s => s.displayCurrency);
   const setCurrency = useSettingsStore(s => s.setDisplayCurrency);
@@ -93,6 +104,7 @@ export function TabHeader({ title, scrollY }: { title: string; scrollY: Animated
     <>
       <CollapsibleHeader
         title={title}
+        subtitle={subtitle}
         scrollY={scrollY}
         left={
           <Pressable
@@ -102,7 +114,14 @@ export function TabHeader({ title, scrollY }: { title: string; scrollY: Animated
             accessibilityLabel={t('dashboard.go_to_profile')}
             hitSlop={8}
           >
-            <UserAvatar userId={currentUser?.id ?? ''} name={currentUser?.name} size={32} />
+            {/* T-115: anillo de marca — sugiere que la foto es un botón (a "Yo"
+                se llega tocándola, ya no hay pestaña propia). */}
+            <UserAvatar
+              userId={currentUser?.id ?? ''}
+              name={currentUser?.name}
+              size={32}
+              ring={c.brand.primary}
+            />
           </Pressable>
         }
         right={
