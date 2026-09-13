@@ -1,6 +1,8 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { BottomTabBarHeightContext } from '@react-navigation/bottom-tabs';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { hapticLight } from '@/src/utils/haptics';
@@ -12,10 +14,29 @@ import { hapticLight } from '@/src/utils/haptics';
  */
 const FAB_BOTTOM_GAP = Spacing[4];
 
-/** Posiciona uno o más `<Fab>` apenas por encima de la tab bar. */
+/**
+ * Cuánto separar el FAB del borde inferior de la pantalla.
+ *
+ * ⚠️ **Fuera de las pestañas hay que sumar el inset del sistema.** `FabRow` es absoluto, y
+ * un hijo absoluto se ubica contra el borde del contenedor, NO contra su padding: el
+ * `SafeAreaView` de la pantalla no lo corre. En «Agregar contacto» el botón quedaba debajo
+ * de la barra de tres botones de Android (2026-09-12). Dentro de las pestañas no pasa: la
+ * tab bar ya ocupa esa franja, y sumarlo lo dejaría flotando de más.
+ */
+export function separacionInferiorDelFab(
+  { dentroDePestanas, insetInferior }: { dentroDePestanas: boolean; insetInferior: number },
+): number {
+  return FAB_BOTTOM_GAP + (dentroDePestanas ? 0 : insetInferior);
+}
+
+/** Posiciona uno o más `<Fab>` abajo: sobre la tab bar, o sobre la barra del sistema. */
 export function FabRow({ children }: { children: React.ReactNode }) {
+  // La tab bar publica su alto en este contexto; afuera de las pestañas es `undefined`.
+  const dentroDePestanas = React.useContext(BottomTabBarHeightContext) !== undefined;
+  const insets = useSafeAreaInsets();
+  const bottom = separacionInferiorDelFab({ dentroDePestanas, insetInferior: insets.bottom });
   return (
-    <View pointerEvents="box-none" style={[styles.row, { bottom: FAB_BOTTOM_GAP }]}>
+    <View pointerEvents="box-none" style={[styles.row, { bottom }]}>
       {children}
     </View>
   );

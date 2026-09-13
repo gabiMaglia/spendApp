@@ -10,6 +10,7 @@ import QRCode from 'react-native-qrcode-svg';
 
 import { Colors } from '@/src/constants/colors';
 import { DetailHeader } from '@/src/components/CollapsibleHeader';
+import { Fab, FabRow } from '@/src/components/Fab';
 
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
@@ -179,7 +180,7 @@ export default function AddContactScreen() {
   }, [params, currentUser, procesarContacto]);
 
   async function handleShare() {
-    hapticLight();
+    // Sin háptico acá: el `Fab` ya lo dispara al tocarlo.
     try {
       await Share.share({
         message: t('contact.share_message', { link: deepLink }),
@@ -237,21 +238,6 @@ export default function AddContactScreen() {
                 {t('contact.my_qr_hint')}
               </Text>
 
-              <View style={styles.dividerRow}>
-                <View style={[styles.dividerLine, { backgroundColor: c.hair }]} />
-                <Text style={[Typography.caption, { color: c.textTertiary, paddingHorizontal: 10 }]}>{t('contact.or')}</Text>
-                <View style={[styles.dividerLine, { backgroundColor: c.hair }]} />
-              </View>
-
-              <Pressable
-                onPress={handleShare}
-                style={[styles.shareBtn, { backgroundColor: c.surface, borderColor: c.hair }]}
-              >
-                <Ionicons name="share-outline" size={20} color={c.brand.primary} />
-                <Text style={[Typography.bodyM, { color: c.brand.primary, fontWeight: '700' }]}>
-                  {t('contact.share_link')}
-                </Text>
-              </Pressable>
             </>
           ) : (
             <Text style={[Typography.bodyM, { color: c.textTertiary }]}>{t('common.loading')}</Text>
@@ -304,6 +290,20 @@ export default function AddContactScreen() {
           )}
         </View>
       )}
+
+      {/* Compartir va abajo, flotante, como toda botonera del pie (FabRow + Fab). Sólo en
+          «Mi QR»: en «Escanear» taparía la cámara, y lo que se comparte es mi código. */}
+      {mode === 'my_qr' && currentUser && (
+        <FabRow>
+          <Fab
+            testID="contact-share-link"
+            onPress={handleShare}
+            icon="share-outline"
+            label={t('contact.share_link')}
+            backgroundColor={c.brand.primary}
+          />
+        </FabRow>
+      )}
     </SafeAreaView>
   );
 }
@@ -320,18 +320,13 @@ const styles = StyleSheet.create({
   },
   qrContent:  {
     flex: 1, alignItems: 'center', justifyContent: 'center',
-    paddingHorizontal: Spacing.screenPad, paddingBottom: Spacing[8],
+    // Lugar para el botón flotante de compartir (48 de alto + su separación del borde),
+    // así el QR no queda debajo.
+    paddingHorizontal: Spacing.screenPad, paddingBottom: 96,
   },
   qrCard:     {
     padding: 24, borderRadius: Radius.xl,
     boxShadow: '0 4px 20px rgba(0,0,0,0.12)',
-  },
-  dividerRow:    { flexDirection: 'row', alignItems: 'center', width: '100%', marginVertical: Spacing[4] },
-  dividerLine:   { flex: 1, height: 1 },
-  shareBtn:      {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    width: '100%', padding: 14,
-    borderRadius: Radius.lg, borderWidth: 1,
   },
   scanContent:   { flex: 1 },
   cameraBox:     { flex: 1, position: 'relative' },

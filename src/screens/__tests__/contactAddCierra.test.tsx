@@ -1,6 +1,6 @@
 import React from 'react';
 import { act, fireEvent, render } from '@testing-library/react-native';
-import { Alert } from 'react-native';
+import { Alert, Share } from 'react-native';
 import { router } from 'expo-router';
 import AddContactScreen from '@/app/contact/add';
 import { useAuthStore } from '@/src/store/authStore';
@@ -173,5 +173,25 @@ describe('agregar contacto por LINK', () => {
     render(<AddContactScreen />);
     expect(Alert.alert).not.toHaveBeenCalled();
     expect(router.back).not.toHaveBeenCalled();
+  });
+});
+
+describe('compartir link de contacto', () => {
+  /** El botón va abajo, flotante, como el resto de las botoneras del pie (PO, 2026-09-12). */
+  it('en «Mi QR» está el botón flotante, y compartir manda el link', async () => {
+    const share = jest.spyOn(Share, 'share').mockResolvedValue({ action: 'sharedAction' } as any);
+    const r = render(<AddContactScreen />);
+
+    const boton = r.getByTestId('contact-share-link');
+    await act(async () => { fireEvent.press(boton); });
+
+    expect(share).toHaveBeenCalledTimes(1);
+    expect(share.mock.calls[0][0].message).toContain('https://spendapp.github.io/#c');
+  });
+
+  it('en «Escanear» no aparece: taparía la cámara', () => {
+    const r = render(<AddContactScreen />);
+    fireEvent.press(r.getByText('contact.tab_scan'));
+    expect(r.queryByTestId('contact-share-link')).toBeNull();
   });
 });
