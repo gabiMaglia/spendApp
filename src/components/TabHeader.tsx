@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Animated, Pressable } from 'react-native';
+import { Pressable } from 'react-native';
+import type { SharedValue } from 'react-native-reanimated';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
@@ -43,12 +44,13 @@ import { syncedNow } from '@/src/utils/syncedClock';
  * alguien no le llegue un aviso.
  */
 export function TabHeader({
-  title, subtitle, scrollY,
+  title, subtitle, progress,
 }: {
   title: string;
   /** Sólo Inicio lo pasa hoy: "Hola, {nombre}" arriba del título (T-114). */
   subtitle?: string;
-  scrollY: Animated.Value;
+  /** Progreso de colapso en [0,1] — de `useHeaderColapsable` (T-128). */
+  progress: SharedValue<number>;
 }) {
   const { t } = useTranslation();
   const scheme = useColorScheme() ?? 'light';
@@ -105,7 +107,7 @@ export function TabHeader({
       <CollapsibleHeader
         title={title}
         subtitle={subtitle}
-        scrollY={scrollY}
+        progress={progress}
         left={
           <Pressable
             testID="header-profile"
