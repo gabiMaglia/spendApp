@@ -638,31 +638,11 @@ export default function NewExpenseScreen() {
               />
             )}
 
-            {/* Espacio claro entre los selectores y lo que eligen (PO 2026-09-13) —
-                mismo token para el campo de "mismo %" y para la lista de miembros,
-                así "iguales" y "porcentaje" quedan consistentes entre sí. */}
-            {splitMode === 'percentage' && percentSub === 'same' && (
-              <View style={[styles.samePercentRow, styles.afterSelectorsGap]}>
-                <View style={[styles.samePercentBox, { backgroundColor: c.bgGrouped, borderColor: c.hair }]}>
-                  <TextInput
-                    value={samePercent}
-                    onChangeText={setSamePercent}
-                    keyboardType="decimal-pad"
-                    placeholder="0"
-                    placeholderTextColor={c.textTertiary}
-                    style={[Typography.amountM, { color: c.text, minWidth: 50, textAlign: 'center' }]}
-                  />
-                  <Text style={[Typography.h3, { color: c.textSecondary }]}>%</Text>
-                </View>
-                <Text style={[Typography.bodyS, { color: c.textTertiary }]}>
-                  {t('expense.percent_same_hint')}
-                </Text>
-              </View>
-            )}
-
             {/* Member rows — conservan su padding horizontal (PO 2026-09-13): sólo
                 los SELECTORES de arriba van de borde a borde, este bloque no. */}
-            <Band style={splitMode !== 'percentage' || percentSub === 'custom' ? styles.afterSelectorsGap : undefined}>
+            {/* T-127 (PO): la lista de miembros va PEGADA al selector de arriba, sin gap,
+                compartiendo la línea divisoria. */}
+            <Band noTop>
               {splits.map((split, i) => {
                 const name    = getUserName(split.userId);
                 const isLast  = split.isLast;
@@ -739,6 +719,26 @@ export default function NewExpenseScreen() {
                 </View>
               )}
             </Band>
+            {/* T-127 (PO): en «mismo %» el campo del porcentaje va DEBAJO de los nombres. */}
+            {splitMode === 'percentage' && percentSub === 'same' && (
+              <View style={[styles.samePercentRow, styles.afterSelectorsGap]}>
+                <View style={[styles.samePercentBox, { backgroundColor: c.bgGrouped, borderColor: c.hair }]}>
+                  <TextInput
+                    value={samePercent}
+                    onChangeText={setSamePercent}
+                    keyboardType="decimal-pad"
+                    placeholder="0"
+                    placeholderTextColor={c.textTertiary}
+                    style={[Typography.amountM, { color: c.text, minWidth: 50, textAlign: 'center' }]}
+                  />
+                  <Text style={[Typography.h3, { color: c.textSecondary }]}>%</Text>
+                </View>
+                <Text style={[Typography.bodyS, { color: c.textTertiary }]}>
+                  {t('expense.percent_same_hint')}
+                </Text>
+              </View>
+            )}
+
           </View>
           </>)}
 
