@@ -1,5 +1,8 @@
 import { ENLACE_BASE } from '@/src/utils/appLink';
-import { recordarEnlace, tomarEnlacePendiente, _reiniciarEnlacePendiente } from '@/src/utils/enlacePendiente';
+import {
+  recordarEnlace, tomarEnlacePendiente, _reiniciarEnlacePendiente,
+  marcarConsumido, descartarEnlacePendiente, procesarUrlEntrante,
+} from '@/src/utils/enlacePendiente';
 
 /**
  * **Un link abierto sin sesión no se pierde** (PO, 2026-09-12).
@@ -36,6 +39,39 @@ describe('enlace pendiente', () => {
     recordarEnlace(url);
     expect(tomarEnlacePendiente()).not.toBeNull();
     recordarEnlace(url);
+    expect(tomarEnlacePendiente()).toBeNull();
+  });
+
+  it('un link que llega CON sesión no queda pendiente, ni después de cerrar sesión', () => {
+    const url = 'spendapp://contact/add?id=u1&name=Ada';
+    procesarUrlEntrante(url, true);
+    expect(tomarEnlacePendiente()).toBeNull();
+    // Aunque algo lo vuelva a presentar sin sesión, ya se usó.
+    procesarUrlEntrante(url, false);
+    expect(tomarEnlacePendiente()).toBeNull();
+  });
+
+  it('un link que llega SIN sesión queda pendiente una sola vez', () => {
+    procesarUrlEntrante('spendapp://groups/join?g=g1&t=abc&e=1', false);
+    expect(tomarEnlacePendiente()).toBe('/groups/join?g=g1&t=abc&e=1');
+    expect(tomarEnlacePendiente()).toBeNull();
+  });
+
+  it('descartar borra el pendiente (cerrar sesión)', () => {
+    recordarEnlace('spendapp://contact/add?id=u1&name=Ada');
+    descartarEnlacePendiente();
+    expect(tomarEnlacePendiente()).toBeNull();
+  });
+
+  it('marcarConsumido impide que ese link quede pendiente', () => {
+    const url = 'spendapp://contact/add?id=u2&name=Bea';
+    marcarConsumido(url);
+    recordarEnlace(url);
+    expect(tomarEnlacePendiente()).toBeNull();
+  });
+
+  it('null no hace nada', () => {
+    procesarUrlEntrante(null, false);
     expect(tomarEnlacePendiente()).toBeNull();
   });
 });
