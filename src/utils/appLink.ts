@@ -66,8 +66,12 @@ function esEnlazable(ruta: string): ruta is RutaEnlazable {
  * Lee un link de la app en cualquiera de sus dos formas: el `https` que se comparte, o
  * el `spendapp://` con el que esa página abre la app. `null` para todo lo demás.
  */
-export function rutaDeEnlace(url: string): { ruta: RutaEnlazable; params: URLSearchParams } | null {
-  if (typeof url !== 'string' || url.length === 0) return null;
+export function rutaDeEnlace(urlCruda: string): { ruta: RutaEnlazable; params: URLSearchParams } | null {
+  if (typeof urlCruda !== 'string' || urlCruda.length === 0) return null;
+  // Recorta espacio/control de los bordes: sin esto, un `" spendapp://…"` no matcheaba
+  // ningún esquema y se leía como link ajeno en vez de caer al filtro (T-095 · ronda 3).
+  const url = urlCruda.replace(/^[\x00-\x20]+|[\x00-\x20]+$/g, '');
+  if (url.length === 0) return null;
 
   // El esquema y el host son case-insensitive por RFC 3986 (T-095 · R-1): el SO no
   // garantiza que lleguen en minúsculas. Sólo se compara en minúsculas — el resto

@@ -61,6 +61,12 @@ describe('rutaDeEnlace', () => {
   it('el host del https es case-insensitive: no evade la lista blanca ni rompe la lectura', () => {
     expect(rutaDeEnlace('HTTPS://SPENDAPP.GITHUB.IO/#contact/add?id=u1')?.ruta).toBe('contact/add');
   });
+
+  it('un espacio o tab inicial no rompe la lectura ni el filtro (T-095 · ronda 3)', () => {
+    expect(rutaDeEnlace(' spendapp://contact/add?id=u1')?.ruta).toBe('contact/add');
+    expect(rutaDeEnlace('\tspendapp://debug/identity')).toBeNull();
+    expect(rutaDeEnlace(` ${ENLACE_BASE}#contact/add?id=u1`)?.ruta).toBe('contact/add');
+  });
 });
 
 describe('dónde viven los links', () => {

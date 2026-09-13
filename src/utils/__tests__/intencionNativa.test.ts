@@ -1,5 +1,6 @@
-import { destinoDeUrlExterna } from '@/src/utils/intencionNativa';
+import { destinoDeUrlExterna, ESQUEMA_GOOGLE_SIGNIN } from '@/src/utils/intencionNativa';
 import { enlaceCompacto } from '@/src/utils/appLink';
+import appJson from '@/app.json';
 
 /**
  * **La lista blanca también rige con sesión** (T-095 · SEC M-2).
@@ -52,10 +53,39 @@ describe('destinoDeUrlExterna', () => {
   });
 
   it('no toca URLs que no son de la app (login de Google, dev client)', () => {
-    const google = 'com.googleusercontent.apps.123-abc:/oauth2redirect?code=x';
+    // El esquema de Google es el REAL de `app.json` (ver test de abajo que los ata):
+    // ronda 3 pasó a "deniega por defecto" y ya no deja pasar un esquema `com.googleusercontent.apps.*`
+    // cualquiera — sólo el nuestro. Un id inventado ahora cae a `/` (ver test siguiente).
+    const google = `${ESQUEMA_GOOGLE_SIGNIN}/oauth2redirect?code=x`;
     const devClient = 'exp+spendapp://expo-development-client/?url=http%3A%2F%2F192.168.0.2%3A8081';
     expect(destinoDeUrlExterna(google)).toBe(google);
     expect(destinoDeUrlExterna(devClient)).toBe(devClient);
+  });
+
+  it('ESQUEMA_GOOGLE_SIGNIN coincide con el iosUrlScheme del plugin de google-signin en app.json', () => {
+    const plugin = (appJson.expo.plugins as unknown[]).find(
+      (p): p is [string, { iosUrlScheme: string }] =>
+        Array.isArray(p) && p[0] === '@react-native-google-signin/google-signin',
+    );
+    expect(plugin).toBeDefined();
+    expect(`${plugin?.[1].iosUrlScheme}:`).toBe(ESQUEMA_GOOGLE_SIGNIN);
+  });
+
+  it.each([
+    ' spendapp://debug/identity',
+    '\tSPENDAPP://debug/identity',
+    ' spendapp://debug',
+    'javascript:alert(1)',
+  ])('espacio/tab inicial o un esquema peligroso no evaden la lista blanca: %j', (url) => {
+    expect(destinoDeUrlExterna(url)).toBe('/');
+  });
+
+  it('un esquema desconocido, sin espacio ni mayúsculas, también deniega por defecto', () => {
+    expect(destinoDeUrlExterna('otraapp://x')).toBe('/');
+  });
+
+  it('un link real con espacio alrededor sigue abriendo su pantalla (el trim no rompe el camino feliz)', () => {
+    expect(destinoDeUrlExterna(' spendapp://contact/add?id=u1&name=Ada ')).toBe('/contact/add?id=u1&name=Ada');
   });
 
   it('un valor que no es string no rompe', () => {
