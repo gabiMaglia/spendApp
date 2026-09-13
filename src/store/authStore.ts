@@ -10,6 +10,7 @@ import { mergeAccounts } from './accountLink';
 import { signOutOfDirectory } from '@/src/sync/directoryAuth';
 import { isRelayConfigured } from '@/src/sync/relay';
 import { AUTH_KEYS, profileKey } from './authKeys';
+import { descartarEnlacePendiente } from '@/src/utils/enlacePendiente';
 
 const storage = createSecureStorage('auth');
 
@@ -274,6 +275,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // Las pruebas de proveedor son de ESTA sesión: heredarlas sería dejarle al
     // próximo la credencial del anterior.
     olvidarPruebasDeProveedor();
+    // Un link que quedó esperando el login no es de la cuenta que entre después (T-094).
+    descartarEnlacePendiente();
     // El isPro scopeado del usuario NO se borra: queda para cuando vuelva a entrar.
     set({ currentUser: null, isPro: false });
 
