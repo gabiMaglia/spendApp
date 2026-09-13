@@ -19,6 +19,7 @@ import type { Payer } from '@/src/types/models';
 import { useRecurringStore } from '@/src/store/recurringStore';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
+import { MontoEditable } from '@/src/components/MontoEditable';
 import { formatMoney } from '@/src/constants/currencies';
 import type { CurrencyCode } from '@/src/constants/currencies';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -534,16 +535,12 @@ export default function NewExpenseScreen() {
               {currency}
             </Text>
             <View style={styles.amountRow}>
-              <Text style={[styles.currencySymbol, { color: c.textTertiary }]}>$</Text>
-              <TextInput
+              <MontoEditable
+                testID="expense-amount"
+                currency={currency}
                 value={amountStr}
                 onChangeText={setAmountStr}
                 onBlur={onAmountBlur}
-                keyboardType="decimal-pad"
-                placeholder="0"
-                placeholderTextColor={c.textTertiary}
-                style={[Typography.amountXL, { color: c.text }]}
-                returnKeyType="done"
               />
             </View>
             </View>
@@ -995,9 +992,7 @@ const styles = StyleSheet.create({
   },
   descInput:    { flex: 1, padding: 0, fontWeight: '500' },
   amountPad:    { paddingVertical: 22, alignItems: 'center', gap: 4 },
-  amountRow:    { flexDirection: 'row', alignItems: 'flex-end', gap: 6 },
-  // 20pt, no 28: con la escala nueva el símbolo descolgaba de la cifra.
-  currencySymbol: { fontSize: 20, fontWeight: '400', lineHeight: 34, paddingBottom: 4 },
+  amountRow:    { flexDirection: 'row', alignItems: 'center', gap: 6 },
 
   row:          {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',

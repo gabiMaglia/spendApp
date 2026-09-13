@@ -121,7 +121,10 @@ export default function GroupDetailScreen() {
   // `pagosQueCuentan` y descarta las monedas en cero (T-064 incluido: un
   // saldado pendiente de acuse ya cuenta como pagado ahí adentro), así que
   // alcanza con mirar si queda algún saldo — en cualquier moneda.
-  const tieneDeudaViva = balances.length > 0;
+  //
+  // T-113 (PO): sólo si YO debo — saldo negativo en alguna moneda. Si me deben, el pago
+  // lo registra quien paga; el botón no aparece para el acreedor.
+  const tieneDeudaViva = balances.some(b => b.amount < 0);
 
   /**
    * El «2 de 3» cuenta las aprobaciones que VERIFICAN (T-065), igual que el que

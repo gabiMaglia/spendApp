@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
+  KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -15,6 +15,7 @@ import { ActionButton } from '@/src/components/ActionButton';
 import { ButtonRack } from '@/src/components/ButtonRack';
 import { Band, BandRow } from '@/src/components/Band';
 import { Typography } from '@/src/constants/typography';
+import { MontoEditable } from '@/src/components/MontoEditable';
 import { topeDelSaldo, excedeElTope } from '@/src/algorithms/settleScope';
 import { acreedoresDe, pagosDelReparto, repartoParejo, totalAdeudado } from '@/src/algorithms/repartoSaldo';
 import { formatMoney } from '@/src/constants/currencies';
@@ -320,16 +321,13 @@ export default function SettleNewScreen() {
             </Text>
             <View style={styles.amountRow}>
               <View style={styles.amountGroup}>
-                <Text style={[styles.currencySymbol, { color: c.textTertiary }]}>$</Text>
-                <TextInput
+                <MontoEditable
+                  testID="settle-amount"
+                  currency={currency}
                   value={amountStr}
                   onChangeText={setAmountStr}
                   onBlur={onAmountBlur}
-                  keyboardType="decimal-pad"
-                  placeholder="0"
-                  placeholderTextColor={c.textTertiary}
-                  style={[Typography.amountXL, { color: exceedsMax ? c.semantic.negative : c.text }]}
-                  returnKeyType="done"
+                  error={exceedsMax}
                 />
               </View>
               {deudaTotal > 0 && (
@@ -571,11 +569,11 @@ const styles = StyleSheet.create({
   // el borde cuando el monto es largo — antes la fila crecía con el número.
   amountRow:      {
     alignSelf: 'stretch', flexDirection: 'row',
-    alignItems: 'flex-end', justifyContent: 'center',
+    alignItems: 'center', justifyContent: 'center',
     gap: Spacing[4], paddingHorizontal: Spacing[4],
   },
   // El monto es el que cede ancho si no entra todo; MAX no se toca.
-  amountGroup:    { flexDirection: 'row', alignItems: 'flex-end', gap: 6, flexShrink: 1 },
+  amountGroup:    { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 },
   // Ancho completo dentro de una tarjeta centrada: sin `alignSelf: stretch` la
   // fila se encoge al contenido y el botón se sale del borde.
   outstandingRow: {
@@ -583,7 +581,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center', gap: 8,
     paddingHorizontal: Spacing[4], marginTop: 8,
   },
-  currencySymbol: { fontSize: 28, fontWeight: '400', lineHeight: 48, paddingBottom: 6 },
   maxHint:        {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     paddingHorizontal: 12, paddingVertical: 5, borderRadius: Radius.full, marginTop: 4,
