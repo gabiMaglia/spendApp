@@ -399,6 +399,7 @@ export function SheetActions({ children }: { children: React.ReactNode }) {
  */
 export function ConfirmSheet({
   visible, onClose, title, body, confirmLabel, cancelLabel = 'Cancelar', onConfirm, danger = true,
+  confirmTestID, cancelTestID,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -408,6 +409,9 @@ export function ConfirmSheet({
   cancelLabel?: string;
   onConfirm: () => void;
   danger?: boolean;
+  /** Para tests que necesitan tocar un botón puntual (varias hojas en la misma pantalla). */
+  confirmTestID?: string;
+  cancelTestID?: string;
 }) {
   const scheme = useColorScheme() ?? 'light';
   const c = Colors[scheme];
@@ -418,8 +422,9 @@ export function ConfirmSheet({
       scroll={false}
       footer={
         <SheetActions>
-          <SheetButton label={cancelLabel} variant="ghost" onPress={onClose} />
+          <SheetButton testID={cancelTestID} label={cancelLabel} variant="ghost" onPress={onClose} />
           <SheetButton
+            testID={confirmTestID}
             label={confirmLabel}
             variant={danger ? 'danger' : 'primary'}
             onPress={() => { onConfirm(); onClose(); }}

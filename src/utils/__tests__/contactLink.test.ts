@@ -14,9 +14,12 @@ const user = (over: Partial<User> = {}): User => ({
 });
 
 describe('contactLink', () => {
-  it('roundtrip payload QR: build → parse conserva id/name/email', () => {
+  // T-093 / SEC H-1: el QR/link propio ya no manda el email — nadie del otro
+  // lado lo necesita, y viajaba a cualquiera que lo escaneara o abriera el
+  // link. Antes de este ticket, `parsed.email` traía el mail real.
+  it('roundtrip payload QR: build → parse conserva id/name, y NO manda el email', () => {
     const parsed = parseContactPayload(buildContactPayload(user()));
-    expect(parsed).toEqual({ id: 'u1', name: 'Ada Lovelace', email: 'ada@example.com' });
+    expect(parsed).toEqual({ id: 'u1', name: 'Ada Lovelace', email: '' });
   });
 
   it('parse rechaza payloads sin el prefijo esperado', () => {
@@ -75,6 +78,18 @@ describe('contactLink', () => {
     const link = buildContactDeepLink(user({ name: 'Ada' }), raro);
     expect(link).toContain('#contact/add?');
     expect(parseContactLink(link)?.secret).toBe('AB'.repeat(32));
+  });
+
+  // T-093 / SEC H-1: el fallback largo (`contactLink.ts`, rama de
+  // `URLSearchParams`) es el que la auditoría señaló armando `email=...` en la
+  // URL. Ya no lo arma — se sigue LEYENDO en links largos viejos (test de
+  // arriba), pero uno nuevo no lo emite.
+  it('el link LARGO nuevo no arma el param email, ni con un mail real', () => {
+    const raro = { secret: 'AB'.repeat(32) };
+    const link = buildContactDeepLink(user({ name: 'Ada', email: 'ada@secreta.com' }), raro);
+    expect(link).not.toContain('email');
+    expect(link).not.toContain('ada%40secreta.com');
+    expect(parseContactLink(link)?.email).toBe('');
   });
 
   it('link de otra pantalla no es un contacto', () => {

@@ -99,7 +99,13 @@ export type ContactCard = {
   kind: 'contact';
   userId: string;
   name: string;
-  email: string;
+  /**
+   * Sin `email` a propósito (T-093 / SEC H-1): esta tarjeta la recibe
+   * cualquiera que conozca el buzón —incluido quien mandó un link hostil—, y
+   * nadie del lado receptor necesita el mail de un contacto para nada. Antes
+   * viajaba acá y contradecía la fila de Data Safety (`plans/T-077.md`), que
+   * ya declaraba "no recolectado".
+   */
   /** Secreto de quien manda: es lo que deja el canal abierto en los dos sentidos. */
   contactSecret: string;
   /** X25519 de su dispositivo: a ella se le envolverán las claves de grupo. */
@@ -129,7 +135,6 @@ export function myContactCard(): ContactCard | null {
     kind: 'contact',
     userId: me.id,
     name: me.name,
-    email: me.email ?? '',
     // Se revalida el tope acá y no solo al guardar: es el último punto antes
     // de que la foto salga al aire.
     avatar: me.avatar && avatarCabe(me.avatar) ? me.avatar : undefined,
@@ -324,7 +329,9 @@ export async function drainContacts(
       useUserStore.getState().addOrUpdateUser({
         id: msg.userId,
         name: msg.name,
-        email: msg.email,
+        // La tarjeta ya no trae email (T-093 / SEC H-1): se conserva el que ya
+        // hubiera localmente en vez de pisarlo con vacío.
+        email: useUserStore.getState().getUserById(msg.userId)?.email ?? '',
         avatar: msg.avatar,
         authProvider: 'google',
         createdAt: Date.now(),
@@ -404,6 +411,13 @@ export type PeerInfo = {
  * Guarda a alguien que tenemos DELANTE: su código lo estamos viendo en su
  * pantalla. Acá sí se pisa lo que hubiera antes — si reinstaló la app y tiene
  * claves nuevas, escanear de nuevo es exactamente cómo se re-verifica.
+ *
+ * **El gate vive en quien llama, no acá** (T-093 / SEC H-1): un link no es
+ * "tenerlo delante", y un QR tampoco alcanza si ya había una clave pinneada
+ * distinta (ni siquiera si el contacto está borrado). `app/contact/add.tsx`
+ * llama primero a `hasConflictingPinnedKeys` y sólo invoca esta función
+ * cuando no hay conflicto — a propósito se deja la función pisando siempre
+ * que se la llama, porque otros caminos ya verificaron eso antes.
  */
 export function savePeer(userId: string, info: PeerInfo): void {
   if (!info.secret) return;
@@ -460,7 +474,7 @@ export function cardFingerprint(card: ContactCard): string {
   // cambio de tarjeta y no se reenviaría a nadie — exactamente el mecanismo
   // por el que hoy se propaga el nombre.
   return [
-    card.userId, card.name, card.email,
+    card.userId, card.name,
     card.wrapPublicKey, card.identityPublicKey, card.avatar ?? '',
   ].join('|');
 }
@@ -503,6 +517,25 @@ export function listPeers(): Record<string, PeerInfo> {
 
 export function getPeer(userId: string): PeerInfo | undefined {
   return listPeers()[userId];
+}
+
+/**
+ * ¿Lo que llegó (QR o link) pisaría una clave que ya teníamos pinneada?
+ *
+ * De sólo lectura: no persiste nada. Es el gate que `app/contact/add.tsx`
+ * corre ANTES de `savePeer`, para los dos orígenes por igual (T-093 / SEC
+ * H-1). Sin peer previo, o si el previo no tenía esa clave todavía, no hay
+ * nada que pisar — completar un hueco no es un conflicto. El peer sobrevive
+ * al borrado (tombstone) del contacto en `userStore` (`removeUser` no lo
+ * toca), así que esto también protege a un contacto ya borrado.
+ */
+export function hasConflictingPinnedKeys(userId: string, incoming: PeerInfo): boolean {
+  const previo = getPeer(userId);
+  if (!previo) return false;
+
+  const distinta = (a?: string, b?: string) => Boolean(a) && Boolean(b) && a !== b;
+  return distinta(previo.identityPublicKey, incoming.identityPublicKey)
+      || distinta(previo.wrapPublicKey, incoming.wrapPublicKey);
 }
 
 export function peerSecret(userId: string): string | undefined {
