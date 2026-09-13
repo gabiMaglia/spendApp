@@ -1,5 +1,6 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View, type ViewStyle, ScrollView } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 import { Colors } from '@/src/constants/colors';
 import { Spacing } from '@/src/constants/spacing';
@@ -47,15 +48,23 @@ export function BandLink({ label, onPress }: { label: string; onPress: () => voi
 
 /** Banda de ancho completo. `sunken` para el tono hundido (fila de neto, chips). */
 export function Band({
-  children, sunken, style, noBottom,
-}: { children: React.ReactNode; sunken?: boolean; style?: ViewStyle; noBottom?: boolean }) {
+  children, sunken, style, noBottom, noTop,
+}: {
+  children: React.ReactNode; sunken?: boolean; style?: ViewStyle; noBottom?: boolean;
+  /**
+   * Sin línea de arriba: la banda va PEGADA al bloque de encima y comparte su línea
+   * divisoria (PO, 2026-09-12 — el input de descripción de un gasto). Con las dos líneas
+   * se verían 2pt donde tiene que haber una.
+   */
+  noTop?: boolean;
+}) {
   const c = useC();
   return (
     <View
       style={[
         {
           backgroundColor: sunken ? c.bgGrouped : c.surface,
-          borderTopWidth: 1,
+          borderTopWidth: noTop ? 0 : 1,
           borderBottomWidth: noBottom ? 0 : 1,
           borderColor: c.hair,
         },
@@ -263,22 +272,27 @@ export function Meter({ pct, color, height = 5 }: { pct: number; color?: string;
   );
 }
 
-/** Control segmentado (Activos/Archivados, Tema, Idioma). */
 /**
- * `control` — la pastilla, para elegir DENTRO de un formulario (cómo dividir un
- * gasto, qué tema). `tabs` — plano, para separar el contenido de una PANTALLA
- * (Activos/Archivados, los filtros de Actividad).
+ * Control segmentado.
  *
- * Son dos trabajos distintos y por eso son dos looks. Una pastilla con sombra a
- * nivel de página compite con el contenido y contradice el reskin plano; un
- * subrayado adentro de un formulario no se lee como algo que se toca.
+ * `control` — la pastilla, para elegir DENTRO de un formulario (cómo dividir un
+ * gasto, qué tema, qué idioma). `tabs` — para separar el contenido de una PANTALLA
+ * (Gasto/Ingreso, Mi QR/Escanear, Activos/Archivados, la Bandeja, los filtros de
+ * Actividad). Son dos trabajos distintos y por eso son dos looks.
+ *
+ * **`tabs` es la «T invertida»** (PO, 2026-09-12): una línea fina de borde a borde abajo
+ * y una vertical entre celdas que baja a tocarla (⊥); ícono y texto flotando en el
+ * centro de cada celda; la activa con fondo hundido y texto pleno. Va de borde a borde:
+ * quien la usa no le pone padding lateral. Todas las pestañas de la app pasan por acá —
+ * `src/__tests__/pestanasUnificadas.test.ts` lo fija.
  */
 export type SegmentedVariant = 'control' | 'tabs';
 
 export function Segmented<T extends string>({
   options, value, onChange, compact, variant = 'control', scroll,
 }: {
-  options: { key: T; label: string }[];
+  /** `icon` sólo se dibuja en `tabs`; en `control` no hay lugar. */
+  options: { key: T; label: string; icon?: keyof typeof Ionicons.glyphMap }[];
   value: T;
   onChange: (v: T) => void;
   compact?: boolean;
@@ -293,35 +307,31 @@ export function Segmented<T extends string>({
   const c = useC();
 
   if (variant === 'tabs') {
-    const items = options.map(o => {
+    const items = options.map((o, i) => {
       const on = o.key === value;
+      const color = on ? c.text : c.textTertiary;
       return (
         <Pressable
           key={o.key}
           accessibilityRole="tab"
           accessibilityState={{ selected: on }}
           onPress={() => onChange(o.key)}
-          style={scroll ? styles.tabsItemScroll : styles.tabsItem}
+          style={[
+            scroll ? styles.tabsItemScroll : styles.tabsItem,
+            // El trazo vertical de la T, de alto completo para que toque la línea de abajo.
+            // Fijas: entre celdas (a la izquierda de toda celda salvo la primera). En scroll:
+            // a la derecha de CADA celda — si no, la última queda abierta y su fondo de
+            // activa termina en el aire (se vio en Actividad con un solo filtro).
+            scroll
+              ? { borderRightWidth: 1, borderRightColor: c.hair }
+              : i > 0 && { borderLeftWidth: 1, borderLeftColor: c.hair },
+            { backgroundColor: on ? c.bgGrouped : 'transparent' },
+          ]}
         >
-          <Text
-            numberOfLines={1}
-            style={{
-              fontSize: 13.5,
-              fontWeight: on ? '700' : '500',
-              color: on ? c.brand.primary : c.textTertiary,
-            }}
-          >
+          {o.icon ? <Ionicons name={o.icon} size={16} color={color} /> : null}
+          <Text numberOfLines={1} style={{ fontSize: 13.5, fontWeight: on ? '700' : '500', color }}>
             {o.label}
           </Text>
-          {/* La barra se dibuja SIEMPRE, transparente cuando no está activa:
-              si sólo existiera en la activa, el texto saltaría 2pt al cambiar
-              de pestaña. */}
-          <View
-            style={[
-              styles.tabsBar,
-              { backgroundColor: on ? c.brand.primary : 'transparent' },
-            ]}
-          />
         </Pressable>
       );
     });
@@ -329,17 +339,12 @@ export function Segmented<T extends string>({
     if (scroll) {
       return (
         <View style={[styles.tabsWrap, { borderBottomColor: c.hair }]}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.tabsScrollContent}
-          >
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             {items}
           </ScrollView>
         </View>
       );
     }
-
     return <View style={[styles.tabsWrap, { borderBottomColor: c.hair }]}>{items}</View>;
   }
 
@@ -398,15 +403,19 @@ const styles = StyleSheet.create({
     paddingBottom: 9,
   },
   segWrap: { flexDirection: 'row', padding: 4, gap: 4 },
-  // Variante `tabs`: sin caja, sin sombra. La hairline de abajo es lo que la
-  // hace leer como una barra de pestañas y no como dos textos sueltos.
+  // Variante `tabs` («T invertida»): de borde a borde, sin caja ni sombra. La línea de
+  // abajo y los trazos verticales entre celdas son toda la estructura.
   tabsWrap: { flexDirection: 'row', borderBottomWidth: 1 },
-  tabsItem: { flex: 1, alignItems: 'center', gap: 7, paddingTop: 10 },
-  // En scroll el ítem se dimensiona a su texto: `flex: 1` adentro de un
+  tabsItem: {
+    flex: 1, height: 48, flexDirection: 'row',
+    alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: 8,
+  },
+  // En scroll la celda se dimensiona a su contenido: `flex: 1` adentro de un
   // ScrollView horizontal colapsa a cero.
-  tabsItemScroll: { alignItems: 'center', gap: 7, paddingTop: 10, paddingHorizontal: 4 },
-  tabsScrollContent: { paddingHorizontal: Spacing.screenPad - 4, gap: 14 },
-  tabsBar:  { height: 2, alignSelf: 'stretch', marginHorizontal: 12, borderRadius: 1 },
+  tabsItemScroll: {
+    height: 48, flexDirection: 'row',
+    alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: Spacing.screenPad,
+  },
   segTab: {
     flex: 1, height: 32, borderRadius: 8,
     alignItems: 'center', justifyContent: 'center',

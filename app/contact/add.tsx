@@ -10,6 +10,7 @@ import QRCode from 'react-native-qrcode-svg';
 
 import { Colors } from '@/src/constants/colors';
 import { DetailHeader } from '@/src/components/CollapsibleHeader';
+import { Segmented } from '@/src/components/Band';
 import { Fab, FabRow } from '@/src/components/Fab';
 
 import { Radius, Spacing } from '@/src/constants/spacing';
@@ -196,27 +197,16 @@ export default function AddContactScreen() {
 
       <DetailHeader icon="close" title={t('contact.title')} onBack={() => router.back()} />
 
-      {/* Mode tabs */}
-      <View style={[styles.tabs, { backgroundColor: c.bgGrouped }]}>
-        <Pressable
-          onPress={() => { hapticLight(); setMode('my_qr'); setScanned(false); }}
-          style={[styles.tab, mode === 'my_qr' && { backgroundColor: c.surface }]}
-        >
-          <Ionicons name="qr-code-outline" size={16} color={mode === 'my_qr' ? c.text : c.textSecondary} />
-          <Text style={[Typography.bodyS, { color: mode === 'my_qr' ? c.text : c.textSecondary, fontWeight: '600' }]}>
-            {t('contact.tab_my_qr')}
-          </Text>
-        </Pressable>
-        <Pressable
-          onPress={() => { hapticLight(); setMode('scan'); setScanned(false); }}
-          style={[styles.tab, mode === 'scan' && { backgroundColor: c.surface }]}
-        >
-          <Ionicons name="scan-outline" size={16} color={mode === 'scan' ? c.text : c.textSecondary} />
-          <Text style={[Typography.bodyS, { color: mode === 'scan' ? c.text : c.textSecondary, fontWeight: '600' }]}>
-            {t('contact.tab_scan')}
-          </Text>
-        </Pressable>
-      </View>
+      {/* Mi QR / Escanear: las pestañas comunes de la app («T invertida»). */}
+      <Segmented
+        variant="tabs"
+        value={mode}
+        onChange={m => { hapticLight(); setMode(m); setScanned(false); }}
+        options={[
+          { key: 'my_qr', label: t('contact.tab_my_qr'), icon: 'qr-code-outline' },
+          { key: 'scan',  label: t('contact.tab_scan'),  icon: 'scan-outline' },
+        ]}
+      />
 
       {/* Content */}
       {mode === 'my_qr' ? (
@@ -310,14 +300,6 @@ export default function AddContactScreen() {
 
 const styles = StyleSheet.create({
   safe:       { flex: 1 },
-  tabs:       {
-    flexDirection: 'row', margin: Spacing.screenPad,
-    borderRadius: Radius.md, padding: 4, gap: 4,
-  },
-  tab:        {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 6, paddingVertical: 8, borderRadius: Radius.sm,
-  },
   qrContent:  {
     flex: 1, alignItems: 'center', justifyContent: 'center',
     // Lugar para el botón flotante de compartir (48 de alto + su separación del borde),

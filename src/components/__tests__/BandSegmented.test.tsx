@@ -1,5 +1,6 @@
 import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Segmented, StatGrid } from '../Band';
 
 /**
@@ -41,6 +42,35 @@ describe('Segmented', () => {
     expect(tabs.find(t => t.props.accessibilityState?.selected)).toBe(
       tabs[1],  // 'Archivados', que es `value`
     );
+  });
+
+  /**
+   * **Pestañas «T invertida»** (PO, 2026-09-12): ícono y texto flotando en el centro de la
+   * celda, una línea vertical entre celdas y una horizontal abajo, y la activa con fondo.
+   * El look no se testea; lo que sí: que el ícono se dibuje cuando la opción lo trae, con
+   * el estado de la pestaña, y que sin ícono no se invente uno.
+   */
+  it('en tabs, cada opción con ícono lo dibuja, y sin ícono no aparece ninguno', () => {
+    const conIconos = [
+      { key: 'a' as const, label: 'Gasto',   icon: 'trending-down-outline' as const },
+      { key: 'b' as const, label: 'Ingreso', icon: 'trending-up-outline' as const },
+    ];
+    const r = render(<Segmented variant="tabs" options={conIconos} value="a" onChange={() => {}} />);
+    const iconos = r.UNSAFE_getAllByType(Ionicons).map(i => i.props.name);
+    expect(iconos).toEqual(['trending-down-outline', 'trending-up-outline']);
+
+    const sin = render(<Segmented variant="tabs" options={opciones} value="a" onChange={() => {}} />);
+    expect(sin.UNSAFE_queryAllByType(Ionicons)).toHaveLength(0);
+  });
+
+  it('en tabs con scroll, los íconos también se dibujan', () => {
+    const r = render(
+      <Segmented
+        variant="tabs" scroll value="t" onChange={() => {}}
+        options={[{ key: 't', label: 'Todos', icon: 'apps-outline' }, { key: 'g', label: 'Asado', icon: 'people-outline' }]}
+      />,
+    );
+    expect(r.UNSAFE_getAllByType(Ionicons).map(i => i.props.name)).toEqual(['apps-outline', 'people-outline']);
   });
 
   /**
