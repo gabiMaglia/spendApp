@@ -201,3 +201,26 @@ describe('claves públicas en el código', () => {
     expect(leido?.identityPublicKey).toBe(CLAVES.identityPublicKey);
   });
 });
+
+describe('formato largo validado (T-098 · SEC L-2)', () => {
+  const H = 'ab'.repeat(32);
+  const largo = (q: string) => `spendapp://contact/add?${q}`;
+
+  it('una clave que no es hex de 32 bytes invalida el link', () => {
+    expect(parseContactLink(largo(`id=u1&name=Ada&s=not-hex`))).toBeNull();
+    expect(parseContactLink(largo(`id=u1&name=Ada&w=..%2F..%2F`))).toBeNull();
+    expect(parseContactLink(largo(`id=u1&name=Ada&k=${'ab'.repeat(31)}`))).toBeNull();
+  });
+
+  it('las claves en mayúsculas siguen valiendo (respaldo largo del compacto)', () => {
+    expect(parseContactLink(largo(`id=u1&name=Ada&s=${'AB'.repeat(32)}`))?.secret).toBe('AB'.repeat(32));
+  });
+
+  it('un nombre hostil invalida el link', () => {
+    expect(parseContactLink(largo(`id=u1&name=${encodeURIComponent('evil‮txt')}&s=${H}`))).toBeNull();
+  });
+
+  it('un id de más de 255 bytes invalida el link', () => {
+    expect(parseContactLink(largo(`id=${'i'.repeat(256)}&name=Ada`))).toBeNull();
+  });
+});

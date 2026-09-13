@@ -1,6 +1,7 @@
 import * as Crypto from 'expo-crypto';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { createSecureStorage } from '@/src/utils/secureStorage';
+import { readScoped, writeScoped } from '@/src/store/userScope';
 import { toHex, utf8Bytes } from '@/src/sync/hexBytes';
 import { generateIdentity, generateWrapKeypair, type GroupInvite } from '@/src/sync/groupInvite';
 
@@ -21,13 +22,27 @@ const storage = createSecureStorage('groupkeys');
 const K_IDENTITY = 'identity_v1';
 const K_OWNER    = 'owner_secret_v1';
 const K_WRAP     = 'wrapkeys_v1';
-const K_INVITES  = 'invites_v1';
-const K_PENDING  = 'pending_joins_v1';
+// Exportadas para que `accountLink.ts` registre la MISMA base con `ranura()`
+// (T-098 · SEC L-4): es la única forma permitida de armar una clave scopeada
+// ahí, y tiene que ser la base real o la fusión y la purga leerían otra cosa.
+export const K_INVITES = 'invites_v1';
+export const K_PENDING = 'pending_joins_v1';
 
 type Keypair = { privateKey: string; publicKey: string };
 
 function readJson<T>(key: string, fallback: T): T {
   const raw = storage.getString(key);
+  if (!raw) return fallback;
+  try { return JSON.parse(raw) as T; } catch { return fallback; }
+}
+
+/**
+ * Invitaciones y joins pendientes SÍ son de la cuenta (T-098 · SEC L-4): con otra cuenta
+ * activa se leían los buzones de invitación de la anterior. Las privadas de arriba
+ * siguen siendo del aparato, a propósito.
+ */
+function readScopedJson<T>(key: string, fallback: T): T {
+  const raw = readScoped(storage, key);
   if (!raw) return fallback;
   try { return JSON.parse(raw) as T; } catch { return fallback; }
 }
@@ -96,20 +111,25 @@ export function ensureOwnerPledge(): Prenda {
  * y regenerarlo sólo haría que la app se reprocese sus propios sobres una vez.
  */
 export function destruirIdentidadDelAparato(): void {
-  for (const k of [K_IDENTITY, K_OWNER, K_WRAP, K_INVITES, K_PENDING]) {
+  for (const k of [K_IDENTITY, K_OWNER, K_WRAP]) {
     storage.delete(k);
+  }
+  // Invitaciones y joins pendientes son de la CUENTA (T-098 · SEC L-4): no hay un
+  // "delete" scopeado en `userScope`, así que se vacían en el scope activo.
+  for (const k of [K_INVITES, K_PENDING]) {
+    writeScoped(storage, k, '[]');
   }
 }
 
 export function saveInvite(invite: GroupInvite): void {
-  const all = readJson<GroupInvite[]>(K_INVITES, []);
+  const all = readScopedJson<GroupInvite[]>(K_INVITES, []);
   // Se purgan las vencidas al guardar: sin esto la lista crece para siempre.
   const vivas = all.filter(i => i.expiresAt > Date.now() && i.token !== invite.token);
-  storage.set(K_INVITES, JSON.stringify([...vivas, invite]));
+  writeScoped(storage, K_INVITES, JSON.stringify([...vivas, invite]));
 }
 
 export function listInvites(): GroupInvite[] {
-  return readJson<GroupInvite[]>(K_INVITES, []).filter(i => i.expiresAt > Date.now());
+  return readScopedJson<GroupInvite[]>(K_INVITES, []).filter(i => i.expiresAt > Date.now());
 }
 
 /** Recupera el token de una invitación emitida, para abrir el reclamo. */
@@ -125,17 +145,17 @@ export function findInviteToken(groupId: string, token: string): GroupInvite | u
  * conteste dejaría el ingreso a medias para siempre, sin nada que lo reintente.
  */
 export function savePendingJoin(invite: GroupInvite): void {
-  const all = readJson<GroupInvite[]>(K_PENDING, []);
+  const all = readScopedJson<GroupInvite[]>(K_PENDING, []);
   const vivas = all.filter(i => i.expiresAt > Date.now() && i.token !== invite.token);
-  storage.set(K_PENDING, JSON.stringify([...vivas, invite]));
+  writeScoped(storage, K_PENDING, JSON.stringify([...vivas, invite]));
 }
 
 export function listPendingJoins(): GroupInvite[] {
-  return readJson<GroupInvite[]>(K_PENDING, []).filter(i => i.expiresAt > Date.now());
+  return readScopedJson<GroupInvite[]>(K_PENDING, []).filter(i => i.expiresAt > Date.now());
 }
 
 /** Se llama al adoptar la clave: el ingreso ya no está pendiente. */
 export function removePendingJoin(token: string): void {
-  const all = readJson<GroupInvite[]>(K_PENDING, []);
-  storage.set(K_PENDING, JSON.stringify(all.filter(i => i.token !== token)));
+  const all = readScopedJson<GroupInvite[]>(K_PENDING, []);
+  writeScoped(storage, K_PENDING, JSON.stringify(all.filter(i => i.token !== token)));
 }

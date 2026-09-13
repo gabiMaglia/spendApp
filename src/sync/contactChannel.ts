@@ -506,12 +506,18 @@ export function marcarCardEnviada(userId: string, huella: string): void {
 }
 
 export function listPeers(): Record<string, PeerInfo> {
+  // Prototipo nulo: los ids vienen de afuera, y `getPeer('constructor')` devolvía
+  // `Function` (T-098 · SEC L-3). Ojo con nombrar la otra forma de hacer esto
+  // acá arriba: el guard de `accountCoverage.test.ts` la toma como "esto cachea
+  // en memoria" (heurística pensada para el `create` de zustand), y este objeto
+  // es efímero — no hay nada que soltar al cambiar de cuenta.
+  const tabla: Record<string, PeerInfo> = Object.setPrototypeOf({}, null);
   const raw = readScoped(storage, K_PEERS);
-  if (!raw) return {};
+  if (!raw) return tabla;
   try {
-    return JSON.parse(raw) as Record<string, PeerInfo>;
+    return Object.assign(tabla, JSON.parse(raw) as Record<string, PeerInfo>);
   } catch {
-    return {}; // dato corrupto: se degrada a "no conozco a nadie", no rompe
+    return tabla; // dato corrupto: se degrada a "no conozco a nadie", no rompe
   }
 }
 

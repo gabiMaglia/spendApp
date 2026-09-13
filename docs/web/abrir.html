@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-4W/g0DeXO0mcSQX852t9Uvrxr6v+uPZUdmwEROP6Ccw='; style-src 'sha256-KCkMpeLMDZKpQyjwhkkrzJb8R51IFuCQfaZaZ6bYNgQ='; img-src 'none'; connect-src 'none'; form-action 'none'; base-uri 'none'">
 <title>Abrir en spendApp</title>
 <!--
   Página intermedia de los links que comparte la app (src/utils/appLink.ts).
@@ -162,7 +163,7 @@
     return;
   }
 
-  if (RUTAS.indexOf(ruta) === -1 || !query) {
+  if (RUTAS.indexOf(ruta) === -1 || !query || !/^[A-Za-z0-9%._~=&+-]*$/.test(query)) {
     texto('titulo-invalido', T.invalidoTitulo);
     texto('cuerpo-invalido', T.invalidoCuerpo);
     document.getElementById('invalido').hidden = false;

@@ -1,4 +1,5 @@
 import { fromHex, toHex, utf8Bytes, utf8FromBytes } from '@/src/sync/hexBytes';
+import { esNombreSeguro, limpiarNombre } from '@/src/utils/nombreSeguro';
 import type { ContactPayload } from '@/src/utils/contactLink';
 import type { GroupInvite } from '@/src/sync/groupInvite';
 
@@ -70,6 +71,9 @@ import type { GroupInvite } from '@/src/sync/groupInvite';
  * propio más corto que `gabimaglia.github.io/spendApp/web`.
  */
 
+/** Tope del código ANTES de decodificar: uno de megas bloqueaba el hilo (T-098 L-3). */
+export const MAX_CODIGO = 600;
+
 const VERSION = 1;
 const ID_TEXTO = 0, ID_UUID = 1, ID_NUMERO = 2;
 const HAY_SECRETO = 1 << 2, HAY_WRAP = 1 << 3, HAY_FIRMA = 1 << 4;
@@ -97,6 +101,14 @@ export function aBase64Url(bytes: Uint8Array): string {
 
 export function desdeBase64Url(s: string): Uint8Array | null {
   if (!/^[A-Za-z0-9_-]*$/.test(s) || s.length % 4 === 1) return null;
+  // Canónico: los bits que sobran del último carácter tienen que ser cero. Si no, dos
+  // códigos distintos (`AQ`, `AR`) leen lo mismo (T-098 L-3).
+  const resto = s.length % 4;
+  if (resto > 0) {
+    const ultimo = ALFABETO.indexOf(s[s.length - 1]);
+    if (resto === 2 && (ultimo & 0x0f) !== 0) return null;
+    if (resto === 3 && (ultimo & 0x03) !== 0) return null;
+  }
   const out = new Uint8Array(Math.floor((s.length * 3) / 4));
   let o = 0;
   for (let i = 0; i < s.length; i += 4) {
@@ -180,7 +192,12 @@ function leerId(r: Lector, forma: number, permitirNumero: boolean): string {
     const h = toHex(r.bytes(16));
     return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
   }
-  if (forma === ID_NUMERO && permitirNumero) return bytesADecimal(r.bytes(r.byte()));
+  if (forma === ID_NUMERO && permitirNumero) {
+    const b = r.bytes(r.byte());
+    // Canónico: sin ceros a la izquierda (`[0,5]` y `[5]` eran el mismo id).
+    if (b.length === 0 || b[0] === 0) throw new Error('id numérico no canónico');
+    return bytesADecimal(b);
+  }
   if (forma === ID_TEXTO) {
     const n = r.byte();
     if (n === 0) throw new Error('id vacío');
@@ -192,7 +209,8 @@ function leerId(r: Lector, forma: number, permitirNumero: boolean): string {
 // ── contacto ─────────────────────────────────────────────────────────────────
 
 export function codificarContacto(c: ContactPayload): string | null {
-  if (!c.id || !c.name) return null;
+  const name = limpiarNombre(c.name ?? '');
+  if (!c.id || !name) return null;
   const claves: [string | undefined, number][] = [
     [c.secret, HAY_SECRETO], [c.wrapPublicKey, HAY_WRAP], [c.identityPublicKey, HAY_FIRMA],
   ];
@@ -208,7 +226,7 @@ export function codificarContacto(c: ContactPayload): string | null {
     flags |= bit;
     cuerpo.push(...fromHex(v));
   }
-  cuerpo.push(...utf8Bytes(c.name));
+  cuerpo.push(...utf8Bytes(name));
 
   const codigo = aBase64Url(Uint8Array.from([VERSION, flags, ...cuerpo]));
   // Garantía 1 del encabezado: nunca se entrega un código que no se pueda leer.
@@ -216,6 +234,7 @@ export function codificarContacto(c: ContactPayload): string | null {
 }
 
 export function decodificarContacto(codigo: string): ContactPayload | null {
+  if (codigo.length > MAX_CODIGO) return null;
   const bytes = desdeBase64Url(codigo);
   if (!bytes || bytes.length < 3) return null;
   try {
@@ -230,7 +249,7 @@ export function decodificarContacto(codigo: string): ContactPayload | null {
     const wrapPublicKey = clave(HAY_WRAP);
     const identityPublicKey = clave(HAY_FIRMA);
     const name = utf8FromBytes(r.resto());
-    if (!name) return null;
+    if (!esNombreSeguro(name)) return null;
 
     return {
       id, name, email: '',
@@ -260,7 +279,7 @@ export function codificarInvitacion(inv: GroupInvite): string | null {
   let e = inv.expiresAt;
   const vence = new Array<number>(6);
   for (let i = 5; i >= 0; i--) { vence[i] = e % 256; e = Math.floor(e / 256); }
-  cuerpo.push(...vence, ...utf8Bytes(inv.groupName ?? ''));
+  cuerpo.push(...vence, ...utf8Bytes(limpiarNombre(inv.groupName ?? '')));
 
   const codigo = aBase64Url(Uint8Array.from([VERSION, forma, ...cuerpo]));
   // Garantía 1 del encabezado: nunca se entrega un código que no se pueda leer.
@@ -268,6 +287,7 @@ export function codificarInvitacion(inv: GroupInvite): string | null {
 }
 
 export function decodificarInvitacion(codigo: string): GroupInvite | null {
+  if (codigo.length > MAX_CODIGO) return null;
   const bytes = desdeBase64Url(codigo);
   if (!bytes || bytes.length < 2 + 1 + 32 + 16 + 6) return null;
   try {
@@ -282,6 +302,7 @@ export function decodificarInvitacion(codigo: string): GroupInvite | null {
     let expiresAt = 0;
     for (const b of r.bytes(6)) expiresAt = expiresAt * 256 + b;
     const groupName = utf8FromBytes(r.resto());
+    if (groupName !== '' && !esNombreSeguro(groupName)) return null;
 
     return { groupId, groupName, token, inviterFingerprint, expiresAt };
   } catch {

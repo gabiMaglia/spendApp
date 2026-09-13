@@ -69,4 +69,27 @@ describe('docs/web/abrir.html', () => {
     expect(HTML).toContain('window.location.hash');
     expect(HTML).not.toContain('location.search');
   });
+
+  it('tiene CSP y los hashes coinciden con el script y el estilo inline (T-098 L-1)', () => {
+    const { createHash } = require('crypto');
+    const hash = (s: string) => `'sha256-${createHash('sha256').update(s, 'utf8').digest('base64')}'`;
+    const script = /<script>([\s\S]*?)<\/script>/.exec(HTML)![1];
+    const estilo = /<style>([\s\S]*?)<\/style>/.exec(HTML)![1];
+    const csp = /<meta http-equiv="Content-Security-Policy" content="([^"]+)">/.exec(HTML);
+    expect(csp).not.toBeNull();
+    const c = csp![1];
+    expect(c).toContain("default-src 'none'");
+    expect(c).toContain(`script-src ${hash(script)}`);
+    expect(c).toContain(`style-src ${hash(estilo)}`);
+    for (const d of ["img-src 'none'", "connect-src 'none'", "form-action 'none'", "base-uri 'none'"]) expect(c).toContain(d);
+    // La CSP tiene que estar antes del primer <style>/<script> para que aplique.
+    expect(HTML.indexOf('Content-Security-Policy')).toBeLessThan(HTML.indexOf('<style>'));
+    expect(HTML.match(/<script>/g)).toHaveLength(1);
+    expect(HTML.match(/<style>/g)).toHaveLength(1);
+    expect(HTML).not.toMatch(/\sstyle="/);
+  });
+
+  it('la query del formato largo sólo pasa si cumple la whitelist (T-098 L-1)', () => {
+    expect(HTML).toContain('/^[A-Za-z0-9%._~=&+-]*$/.test(query)');
+  });
 });

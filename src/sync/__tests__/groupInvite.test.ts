@@ -265,4 +265,17 @@ describe('inviteFromParams', () => {
   it('un vencimiento que no es número se rechaza', () => {
     expect(inviteFromParams({ g: 'g1', t: 'tok', e: 'mañana' })).toBeNull();
   });
+
+  it('formato largo validado (T-098 · SEC L-2)', () => {
+    const inv = createInvite('g1', 'Viaje', 'aa'.repeat(32), AHORA);
+    const ok = { g: inv.groupId, n: inv.groupName, t: inv.token, f: inv.inviterFingerprint, e: String(inv.expiresAt) };
+    expect(inviteFromParams(ok)).toEqual(inv);
+    expect(inviteFromParams({ ...ok, t: 'tok' })).toBeNull();
+    expect(inviteFromParams({ ...ok, f: 'zz' })).toBeNull();
+    expect(inviteFromParams({ ...ok, e: '1e308' })).toBeNull();
+    expect(inviteFromParams({ ...ok, e: String(2 ** 48) })).toBeNull();
+    expect(inviteFromParams({ ...ok, n: 'a‮b' })).toBeNull();
+    // Sin huella (links largos muy viejos) sigue valiendo, como hoy.
+    expect(inviteFromParams({ ...ok, f: undefined })).not.toBeNull();
+  });
 });

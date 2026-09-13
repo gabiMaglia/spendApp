@@ -1,6 +1,8 @@
 import type { User } from '@/src/types/models';
 import { enlaceCompacto, enlaceCompartible, rutaDeEnlace } from '@/src/utils/appLink';
 import { codificarContacto, decodificarContacto } from '@/src/utils/linkCompacto';
+import { esNombreSeguro, limpiarNombre } from '@/src/utils/nombreSeguro';
+import { utf8Bytes } from '@/src/sync/hexBytes';
 
 /**
  * Lo que viaja en el QR / link de contacto.
@@ -72,7 +74,7 @@ export function buildContactDeepLink(user: User, keys?: ContactKeys | null): str
   if (codigo) return enlaceCompacto('c', codigo);
 
   // El fallback largo tampoco manda email, por la misma razón (T-093 / SEC H-1).
-  const params = new URLSearchParams({ id: user.id, name: user.name });
+  const params = new URLSearchParams({ id: user.id, name: limpiarNombre(user.name) });
   if (keys?.secret) params.set('s', keys.secret);
   if (keys?.wrapPublicKey) params.set('w', keys.wrapPublicKey);
   if (keys?.identityPublicKey) params.set('k', keys.identityPublicKey);
@@ -95,13 +97,13 @@ export function contactFromParams(params: Record<string, unknown>): ContactPaylo
 
   const id = str(params.id), name = str(params.name);
   if (!id || !name) return null;
-  return {
-    id, name,
-    email: str(params.email) ?? '',
-    secret:            str(params.s),
-    wrapPublicKey:     str(params.w),
-    identityPublicKey: str(params.k),
-  };
+  // El largo se valida igual que el compacto (T-098 · SEC L-2): antes aceptaba
+  // `s=not-hex` y guardaba claves basura.
+  if (utf8Bytes(id).length > 255 || !esNombreSeguro(name)) return null;
+  const HEX32 = /^[0-9a-fA-F]{64}$/;
+  const secret = str(params.s), wrapPublicKey = str(params.w), identityPublicKey = str(params.k);
+  if ([secret, wrapPublicKey, identityPublicKey].some(v => v !== undefined && !HEX32.test(v))) return null;
+  return { id, name, email: str(params.email) ?? '', secret, wrapPublicKey, identityPublicKey };
 }
 
 /** Un contacto desde un link de la app, en su forma `https` o `spendapp://`. */

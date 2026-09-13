@@ -24,6 +24,9 @@ import { BASE_URL_VIEJA, LINKS_URL } from '@/src/constants/web';
  * el GitHub personal del PO, con `.html` y sin él. Esa página sigue publicada (`docs/web`).
  */
 export const ENLACE_BASE = LINKS_URL;
+
+/** Tope de un link entero: el largo va en hex y con nombres escapados (T-098 L-2). */
+export const MAX_URL = 1500;
 const BASES_ACEPTADAS = [
   LINKS_URL,                          // https://spendapp.github.io/#…
   LINKS_URL.replace(/\/$/, ''),       // https://spendapp.github.io#…  (sin la barra)
@@ -67,7 +70,7 @@ function esEnlazable(ruta: string): ruta is RutaEnlazable {
  * el `spendapp://` con el que esa página abre la app. `null` para todo lo demás.
  */
 export function rutaDeEnlace(url: string): { ruta: RutaEnlazable; params: URLSearchParams } | null {
-  if (typeof url !== 'string' || url.length === 0) return null;
+  if (typeof url !== 'string' || url.length === 0 || url.length > MAX_URL) return null;
 
   let resto: string;
   const base = BASES_ACEPTADAS.find(b => url.startsWith(`${b}#`));
