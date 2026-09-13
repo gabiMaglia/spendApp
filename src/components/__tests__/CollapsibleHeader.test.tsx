@@ -2,7 +2,7 @@ import React from 'react';
 import { Animated, Text } from 'react-native';
 import { render, within } from '@testing-library/react-native';
 import {
-  CollapsibleHeader, useHeaderPadding, HEADER_BAR_H, TITLE_BLOCK_H, TITLE_BLOCK_H_HOY,
+  CollapsibleHeader, useHeaderPadding, HEADER_BAR_H, TITLE_BLOCK_H, HEADER_TOTAL_H_T114, FACTOR_ALTO_HEADER,
 } from '../CollapsibleHeader';
 
 /**
@@ -14,7 +14,7 @@ import {
  *    doble del que vivía en el contenido de cada pantalla) — ahora es el
  *    ÚNICO título, siempre visible.
  * 3. Alto del bloque título +2/3 (×1,667) respecto de la línea compacta de
- *    hoy: `TITLE_BLOCK_H = round(TITLE_BLOCK_H_HOY × 5/3)`.
+ *    hoy: el header total es ×2,2 el de T-114 (T-125).
  */
 
 function Probe({ aire }: { aire?: number }) {
@@ -23,9 +23,10 @@ function Probe({ aire }: { aire?: number }) {
 }
 
 describe('CollapsibleHeader — bloque título (T-114)', () => {
-  it('el alto del bloque título creció exactamente ×1,667 respecto de hoy', () => {
-    expect(TITLE_BLOCK_H).toBe(Math.round(TITLE_BLOCK_H_HOY * 5 / 3));
-    expect(TITLE_BLOCK_H).toBeGreaterThan(TITLE_BLOCK_H_HOY);
+  it('el header mide el doble y un poco más que el de T-114 (×2,2, T-125)', () => {
+    // Cambio de spec del PO: antes el bloque título crecía ×1,667 sobre una línea compacta.
+    expect(HEADER_BAR_H + TITLE_BLOCK_H).toBe(Math.round(HEADER_TOTAL_H_T114 * FACTOR_ALTO_HEADER));
+    expect(HEADER_BAR_H + TITLE_BLOCK_H).toBeGreaterThan(2 * HEADER_TOTAL_H_T114);
   });
 
   it('useHeaderPadding incluye el nuevo alto del bloque título', () => {

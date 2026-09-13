@@ -616,6 +616,7 @@ export default function NewExpenseScreen() {
                 línea entre los dos, sin duplicarla (PO 2026-09-13). */}
             <Segmented
               variant="tabs"
+              borde="ambos"
               value={splitMode}
               onChange={handleSplitModeChange}
               options={[
