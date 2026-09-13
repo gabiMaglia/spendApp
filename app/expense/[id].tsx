@@ -474,8 +474,9 @@ export default function ExpenseDetailScreen() {
           );
         })()}
 
-        {/* Comentarios */}
-        <View style={{ marginTop: Spacing[6] }}>
+        {/* Comentarios. Con el mismo margen lateral que el resto del contenido: se
+            pegaba a los bordes de la pantalla (PO 2026-09-13, T-111). */}
+        <View style={{ marginTop: Spacing[6], paddingHorizontal: Spacing.screenPad }}>
           <CommentThread
             comments={comments}
             currentUserId={currentUser?.id ?? ''}
