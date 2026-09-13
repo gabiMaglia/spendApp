@@ -452,22 +452,29 @@ export default function NewExpenseScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* Toggle Gasto/Ingreso — solo en modo Personal (F-G2) */}
+          {/**
+            * **El input de descripción va PEGADO al bloque de arriba** (PO, 2026-09-12): sin
+            * margen, y compartiendo la línea divisoria. Con pestañas, su línea de abajo es la
+            * de arriba del input; sin ellas (gasto de grupo, edición), la del encabezado. Por
+            * eso los dos van en un mismo bloque —el `gap` del scroll recién empieza después— y
+            * la banda va `noTop`.
+            */}
+          <View>
+          {/* Gasto/Ingreso — solo en modo Personal (F-G2) */}
           {incomeAllowed && (
-            <View style={styles.segPad}>
-              <Segmented
-                value={isIncome ? 'income' : 'expense'}
-                onChange={switchEntryKind}
-                options={[
-                  { key: 'expense', label: t('expense.kind_expense') },
-                  { key: 'income',  label: t('expense.kind_income') },
-                ]}
-              />
-            </View>
+            <Segmented
+              variant="tabs"
+              value={isIncome ? 'income' : 'expense'}
+              onChange={switchEntryKind}
+              options={[
+                { key: 'expense', label: t('expense.kind_expense'), icon: 'trending-down-outline' },
+                { key: 'income',  label: t('expense.kind_income'),  icon: 'trending-up-outline' },
+              ]}
+            />
           )}
 
           {/* Description input */}
-          <Band>
+          <Band noTop>
             <View style={styles.inputRow}>
             <Ionicons name="create-outline" size={18} color={c.textTertiary} style={{ marginTop: 1 }} />
             <TextInput
@@ -480,6 +487,7 @@ export default function NewExpenseScreen() {
             />
             </View>
           </Band>
+          </View>
 
           {/* Category chips */}
           <ScrollView
@@ -931,7 +939,8 @@ const styles = StyleSheet.create({
    * aparecen o no según haya grupo, según sea edición y según el plan—, que es
    * justo lo que una suma de márgenes por bloque no puede garantizar.
    */
-  scroll:       { paddingTop: Spacing[4], paddingBottom: Spacing[4], gap: Spacing[3], flexGrow: 1 },
+  // Sin `paddingTop`: el primer bloque (pestañas + descripción) va pegado al encabezado.
+  scroll:       { paddingBottom: Spacing[4], gap: Spacing[3], flexGrow: 1 },
   segPad:       { paddingHorizontal: Spacing.screenPad },
   recurrencePad:{ paddingHorizontal: Spacing.screenPad },
   /**

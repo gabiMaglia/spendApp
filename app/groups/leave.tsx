@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 
 import { Colors } from '@/src/constants/colors';
 import { Radius, Spacing } from '@/src/constants/spacing';
+import { Segmented } from '@/src/components/Band';
 import { Typography } from '@/src/constants/typography';
 import { formatMoney } from '@/src/constants/currencies';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -193,22 +194,13 @@ export default function LeaveGroupScreen() {
         ))}
 
         {/* Cómo se reparte */}
-        <View style={[styles.segmented, { backgroundColor: c.bgGrouped }]}>
-          {MODOS.map(m => (
-            <Pressable
-              key={m.id}
-              accessibilityRole="button"
-              onPress={() => { hapticLight(); setModo(m.id); }}
-              style={[styles.segTab, m.id === modo && { backgroundColor: c.surface }]}
-            >
-              <Text style={[Typography.bodyS, {
-                color: m.id === modo ? c.text : c.textSecondary, fontWeight: '600',
-              }]}>
-                {t(m.label)}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
+        {/* Una opción de formulario, no una pestaña: va en la pastilla común (`control`). Antes
+            era una copia hecha a mano, y por eso su estilo divergía del resto. */}
+        <Segmented
+          value={modo}
+          onChange={m => { hapticLight(); setModo(m); }}
+          options={MODOS.map(m => ({ key: m.id, label: t(m.label) }))}
+        />
 
         {/* Qué va a pasar, en plata. Sin esto el usuario aprueba a ciegas. */}
         {plan.length > 0 && (
@@ -281,8 +273,6 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderRadius: Radius.sm, paddingHorizontal: 10,
     paddingVertical: 4, minWidth: 56, textAlign: 'right',
   },
-  segmented: { flexDirection: 'row', borderRadius: Radius.md, padding: 4, gap: 4 },
-  segTab:    { flex: 1, alignItems: 'center', height: 32, justifyContent: 'center', borderRadius: 8 },
   cta:       {
     height: 52, borderRadius: Radius.lg,
     alignItems: 'center', justifyContent: 'center', marginTop: Spacing[2],

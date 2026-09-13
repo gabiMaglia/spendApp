@@ -127,20 +127,25 @@ export function NoticeInboxSheet({
         </View>
       ) : (
         <>
-          <Segmented
-            variant="tabs"
-            value={tab}
-            onChange={setTab}
-            options={[
-              { key: 'todo', label: t('notifications.tab_all') },
-              {
-                key: 'accion',
-                label: accionSinLeer > 0
-                  ? t('notifications.tab_action_count', { count: accionSinLeer })
-                  : t('notifications.tab_action'),
-              },
-            ]}
-          />
+          {/* De borde a borde, como en el resto de la app: el margen negativo cancela el
+              padding lateral del cuerpo de la hoja. */}
+          <View style={styles.aLosBordes}>
+            <Segmented
+              variant="tabs"
+              value={tab}
+              onChange={setTab}
+              options={[
+                { key: 'todo', label: t('notifications.tab_all'), icon: 'list-outline' },
+                {
+                  key: 'accion',
+                  label: accionSinLeer > 0
+                    ? t('notifications.tab_action_count', { count: accionSinLeer })
+                    : t('notifications.tab_action'),
+                  icon: 'alert-circle-outline',
+                },
+              ]}
+            />
+          </View>
 
           {tab === 'accion' && listaVisible.length === 0 ? (
             <View testID="inbox-empty-action" style={styles.vacio}>
@@ -191,6 +196,7 @@ export function NoticeInboxSheet({
 
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', gap: Spacing[3], paddingBottom: Spacing[3] },
+  aLosBordes: { marginHorizontal: -Spacing.screenPad, marginBottom: Spacing[3] },
   vacio:  { alignItems: 'center', gap: Spacing[2], paddingVertical: Spacing[7] },
   lista:  { maxHeight: 380 },
   item: {

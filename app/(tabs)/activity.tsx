@@ -153,9 +153,9 @@ export default function ActivityScreen() {
           )}
         </View>
 
-        {/* Mismo lenguaje que el selector de Grupos: pestañas planas con
-            subrayado, no chips con relleno. Un chip lleno en verde de marca
-            compite con los montos del feed, que es lo que hay que leer. */}
+        {/* Las pestañas comunes de la app («T invertida»), no chips con relleno: un chip
+            lleno en verde de marca compite con los montos del feed, que es lo que hay
+            que leer. */}
         <Segmented
           variant="tabs"
           scroll
@@ -164,6 +164,7 @@ export default function ActivityScreen() {
           options={allGroupNames.map(f => ({
             key: f,
             label: f === ALL_FILTER ? t('activity.filter_all') : f,
+            icon: f === ALL_FILTER ? 'apps-outline' : 'people-outline',
           }))}
         />
 

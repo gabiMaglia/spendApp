@@ -115,8 +115,8 @@ export default function GroupsScreen() {
             value={tabActual}
             onChange={v => { hapticLight(); setTab(v); }}
             options={[
-              { key: 'activos',     label: t('groups.tab_active') },
-              { key: 'archivados',  label: t('groups.tab_archived') },
+              { key: 'activos',     label: t('groups.tab_active'),   icon: 'folder-open-outline' },
+              { key: 'archivados',  label: t('groups.tab_archived'), icon: 'archive-outline' },
             ]}
           />
         </View>
@@ -193,6 +193,7 @@ function GroupRow({
 const styles = StyleSheet.create({
   safe:     { flex: 1 },
   title:    { paddingHorizontal: Spacing.screenPad, paddingBottom: 16 },
-  segPad:   { paddingHorizontal: Spacing.screenPad, paddingTop: 16, paddingBottom: 14 },
+  // Sin padding lateral: las pestañas («T invertida») van de borde a borde.
+  segPad:   { paddingTop: 16, paddingBottom: 14 },
   footnote: { paddingHorizontal: Spacing.screenPad, paddingTop: 14, lineHeight: 17 },
 });
