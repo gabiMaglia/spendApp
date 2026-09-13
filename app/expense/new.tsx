@@ -459,12 +459,16 @@ export default function NewExpenseScreen() {
             * la banda va `noTop`.
             */}
           <View>
-          {/* Gasto/Ingreso — solo en modo Personal (F-G2) */}
+          {/* Gasto/Ingreso — solo en modo Personal (F-G2). `borde="ambos"` (PO
+              2026-09-13, T-117): es el primer elemento del scroll y necesita su
+              propia línea de arriba, pero sin perder la de abajo — la banda de
+              descripción de más abajo va `noTop` apoyada en esa línea. */}
           {incomeAllowed && (
             <Segmented
               variant="tabs"
               value={isIncome ? 'income' : 'expense'}
               onChange={switchEntryKind}
+              borde="ambos"
               options={[
                 { key: 'expense', label: t('expense.kind_expense'), icon: 'trending-down-outline' },
                 { key: 'income',  label: t('expense.kind_income'),  icon: 'trending-up-outline' },
@@ -528,7 +532,10 @@ export default function NewExpenseScreen() {
             </ScrollView>
           )}
 
-          {/* Amount input */}
+          {/* Amount input + Payer: pegados, comparten línea divisoria — mismo
+              criterio que descripción arriba (PO 2026-09-13, T-117). La `View`
+              los saca del `gap` de `styles.scroll`, y el payer va `noTop`. */}
+          <View>
           <Band>
             <View style={styles.amountPad}>
             <Text style={[Typography.label, { color: c.textTertiary, textTransform: 'uppercase' }]}>
@@ -546,11 +553,9 @@ export default function NewExpenseScreen() {
             </View>
           </Band>
 
-          {/* Payer + repartos: SOLO con grupo. Sin grupo = gasto personal. (F-G) */}
-          {hasGroup && (<>
-          {/* Payer */}
-          {multiPayer ? (
-            <Band>
+          {/* Payer: SOLO con grupo. Sin grupo = gasto personal. (F-G) */}
+          {hasGroup && (multiPayer ? (
+            <Band noTop>
             <View style={[styles.row, { flexDirection: 'column', alignItems: 'stretch', gap: Spacing[2] }]}>
               <PayerSplitter
                 members={members.map(uid => ({ id: uid, name: getUserName(uid) }))}
@@ -565,7 +570,7 @@ export default function NewExpenseScreen() {
             </View>
             </Band>
           ) : (
-            <Band>
+            <Band noTop>
             <Pressable
               onPress={() => setShowPayer(true)}
               style={styles.row}
@@ -578,8 +583,11 @@ export default function NewExpenseScreen() {
               </View>
             </Pressable>
             </Band>
-          )}
+          ))}
+          </View>
 
+          {/* Repartos: SOLO con grupo. Sin grupo = gasto personal. (F-G) */}
+          {hasGroup && (<>
           {!multiPayer && (
             <Pressable
               onPress={() => {
