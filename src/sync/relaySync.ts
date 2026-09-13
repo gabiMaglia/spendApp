@@ -62,7 +62,17 @@ export function buildGroupPayload(groupId: string, currentUserId: string): SyncD
     payments: completo.payments.filter(p => p.groupId === groupId),
     // Los perfiles de los miembros SÍ hacen falta: sin ellos el otro ve ids en
     // vez de nombres. Los de gente ajena al grupo, no.
-    users: completo.users.filter(u => miembros.has(u.id)),
+    //
+    // El email SÍ se saca (T-093 ronda 2 / R-2, hallazgo del verificador ciego):
+    // `completo.users` trae el registro ENTERO de cada uno —incluido el propio,
+    // que `session.ts` persiste con el mail real de OAuth al loguear— y filtrar
+    // por `miembros` sólo decide QUÉ FILAS viajan, nunca qué CAMPOS. El mail
+    // viajaba tal cual a cualquiera que compartiera el grupo, y ningún receptor
+    // lo lee (sólo se muestra `currentUser.email`, la cuenta propia, en
+    // `user.tsx`/`debug/identity.tsx`; nunca el de otro usuario). Es lo que
+    // `plans/T-077.md` ya declaraba cierto ("Mail: NO recolectado") sin serlo:
+    // esto lo hace cierto, no cambia la fila de Data Safety.
+    users: completo.users.filter(u => miembros.has(u.id)).map(u => ({ ...u, email: '' })),
     recurring: (completo.recurring ?? []).filter(r => r.groupId === groupId),
     // Un comentario no sabe de qué grupo es: cuelga del gasto.
     comments: (completo.comments ?? []).filter(c => idsDeGastos.has(c.expenseId)),

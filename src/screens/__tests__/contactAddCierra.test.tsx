@@ -37,6 +37,7 @@ jest.mock('@/src/sync/contactChannel', () => ({
   ensureContactSecret: () => 'mi-secreto',
   announceContact: jest.fn(() => Promise.resolve()),
   savePeer: jest.fn(),
+  hasConflictingPinnedKeys: jest.fn(() => false),
 }));
 jest.mock('@/src/store/identityStore', () => ({
   ensureIdentity: () => ({ publicKey: 'id-pub' }),
@@ -116,47 +117,94 @@ describe('agregar contacto por QR', () => {
     expect(router.back).not.toHaveBeenCalled();
     expect(Alert.alert).toHaveBeenCalledWith('contact.already_title', expect.stringContaining('contact.already_body'), expect.any(Array));
   });
+
+  // T-093 / SEC H-1: el criterio 2 es "por link NI por QR" — el escaneo presencial sigue
+  // siendo de un paso, pero si las claves no coinciden con lo pinneado, tampoco se pisa acá.
+  it('claves distintas a las pinneadas: el QR tampoco pisa, avisa y no persiste', () => {
+    const { hasConflictingPinnedKeys, savePeer, announceContact } = jest.requireMock('@/src/sync/contactChannel');
+    (hasConflictingPinnedKeys as jest.Mock).mockReturnValueOnce(true);
+
+    escanearCodigo(CON_SECRETO);
+
+    expect(useUserStore.getState().users.map(u => u.id)).not.toContain('beto');
+    expect(savePeer).not.toHaveBeenCalled();
+    expect(announceContact).not.toHaveBeenCalled();
+    expect(Alert.alert).toHaveBeenCalledWith('contact.keys_changed_title', expect.stringContaining('contact.keys_changed_body'), expect.any(Array));
+  });
 });
 
 describe('agregar contacto por LINK', () => {
   /**
    * Antes el link lo procesaba `_layout.tsx` en silencio, y la pantalla se abría mostrando
    * el QR PROPIO, sin ningún aviso. Ahora el link hace exactamente lo que el escaneo.
+   *
+   * **T-093 / SEC H-1:** un link (a diferencia del QR) puede llegar de cualquiera, sin que
+   * haya habido ningún encuentro presencial. Por eso ya NO agrega solo: primero muestra una
+   * confirmación (nombre + huella de la clave) y recién con el toque de «Agregar» persiste
+   * algo. Cancelar/cerrar la hoja no debe escribir nada ni llamar a `announceContact`.
    */
-  it('abrir el link agrega, cierra la pantalla y avisa — igual que escanear', () => {
+  it('abrir el link NO agrega nada todavía: muestra la confirmación primero', () => {
     mockParams = { id: 'beto', name: 'Beto', s: 'sec', w: 'wrap', k: 'idk' };
-    render(<AddContactScreen />);
+    const r = render(<AddContactScreen />);
+
+    expect(useUserStore.getState().users.map(u => u.id)).not.toContain('beto');
+    expect(router.back).not.toHaveBeenCalled();
+    const { announceContact, savePeer } = jest.requireMock('@/src/sync/contactChannel');
+    expect(announceContact).not.toHaveBeenCalled();
+    expect(savePeer).not.toHaveBeenCalled();
+    expect(r.getByTestId('contact-confirm-add')).toBeTruthy();
+  });
+
+  it('confirmar en la hoja agrega, cierra la pantalla y avisa — igual que escanear', () => {
+    mockParams = { id: 'beto', name: 'Beto', s: 'sec', w: 'wrap', k: 'idk' };
+    const r = render(<AddContactScreen />);
+
+    fireEvent.press(r.getByTestId('contact-confirm-add'));
 
     expect(useUserStore.getState().users.map(u => u.id)).toContain('beto');
     expect(router.back).toHaveBeenCalledTimes(1);
     expect(Alert.alert).toHaveBeenCalledWith('contact.added_title', expect.stringContaining('contact.added_both_body'), expect.any(Array));
   });
 
-  it('el link guarda las TRES claves del contacto, no sólo el secreto', () => {
+  it('cancelar la confirmación no persiste nada y no llama al relay', () => {
+    mockParams = { id: 'beto', name: 'Beto', s: 'sec', w: 'wrap', k: 'idk' };
+    const r = render(<AddContactScreen />);
+
+    fireEvent.press(r.getByTestId('contact-confirm-cancel'));
+
+    expect(useUserStore.getState().users.map(u => u.id)).not.toContain('beto');
+    const { announceContact, savePeer } = jest.requireMock('@/src/sync/contactChannel');
+    expect(announceContact).not.toHaveBeenCalled();
+    expect(savePeer).not.toHaveBeenCalled();
+  });
+
+  it('el link guarda las TRES claves del contacto, no sólo el secreto, recién al confirmar', () => {
     const { savePeer } = jest.requireMock('@/src/sync/contactChannel');
     mockParams = { id: 'beto', name: 'Beto', s: 'sec', w: 'wrap', k: 'idk' };
-    render(<AddContactScreen />);
+    const r = render(<AddContactScreen />);
+    fireEvent.press(r.getByTestId('contact-confirm-add'));
 
     expect(savePeer).toHaveBeenCalledWith('beto', { secret: 'sec', wrapPublicKey: 'wrap', identityPublicKey: 'idk' });
   });
 
-  it('el link COMPACTO (?c=) agrega igual, con las tres claves', () => {
+  it('el link COMPACTO (?c=) agrega igual tras confirmar, con las tres claves', () => {
     const { savePeer } = jest.requireMock('@/src/sync/contactChannel');
     const h = (b: string) => b.repeat(32);
     mockParams = { c: codificarContacto({ id: '112233445566778899001', name: 'Beto', secret: h('ab'), wrapPublicKey: h('cd'), identityPublicKey: h('ef') })! };
-    render(<AddContactScreen />);
+    const r = render(<AddContactScreen />);
+    fireEvent.press(r.getByTestId('contact-confirm-add'));
 
     expect(useUserStore.getState().users.map(u => u.id)).toContain('112233445566778899001');
     expect(savePeer).toHaveBeenCalledWith('112233445566778899001', { secret: h('ab'), wrapPublicKey: h('cd'), identityPublicKey: h('ef') });
     expect(router.back).toHaveBeenCalledTimes(1);
   });
 
-  it('un re-render no vuelve a procesar el link', () => {
+  it('un re-render no vuelve a procesar el link (no duplica la confirmación)', () => {
     mockParams = { id: 'beto', name: 'Beto', s: 'sec' };
     const r = render(<AddContactScreen />);
     r.rerender(<AddContactScreen />);
 
-    expect(Alert.alert).toHaveBeenCalledTimes(1);
+    expect(r.getAllByTestId('contact-confirm-add')).toHaveLength(1);
   });
 
   it('mi propio link avisa con el texto del link, no el del QR, y vuelve a Contactos al aceptar', () => {
@@ -173,6 +221,46 @@ describe('agregar contacto por LINK', () => {
     render(<AddContactScreen />);
     expect(Alert.alert).not.toHaveBeenCalled();
     expect(router.back).not.toHaveBeenCalled();
+  });
+
+  // T-093 / SEC H-1: si el id del link ya tiene una clave pinneada distinta —
+  // incluso de un contacto borrado (tombstone)— no se persiste nada, ni por
+  // link ni por QR. Se avisa y se corta antes de mostrar la confirmación.
+  it('claves distintas a las pinneadas: no persiste, avisa, y ni siquiera llega a mostrar la confirmación', () => {
+    const { hasConflictingPinnedKeys, savePeer, announceContact } = jest.requireMock('@/src/sync/contactChannel');
+    (hasConflictingPinnedKeys as jest.Mock).mockReturnValueOnce(true);
+    mockParams = { id: 'beto', name: 'Beto', s: 'sec', w: 'wrap', k: 'idk-nueva' };
+    const r = render(<AddContactScreen />);
+
+    expect(useUserStore.getState().users.map(u => u.id)).not.toContain('beto');
+    expect(savePeer).not.toHaveBeenCalled();
+    expect(announceContact).not.toHaveBeenCalled();
+    expect(r.queryByTestId('contact-confirm-add')).toBeNull();
+    expect(Alert.alert).toHaveBeenCalledWith('contact.keys_changed_title', expect.stringContaining('contact.keys_changed_body'), expect.any(Array));
+  });
+
+  // T-093 RONDA 2 / R-1 (verificador ciego): `hasConflictingPinnedKeys` se evaluaba
+  // sólo al abrir el link. Si entre que se abre la hoja y se toca «Agregar» llega la
+  // tarjeta REAL del contacto por el drenado en tiempo real (`relayEngine` →
+  // `drainContacts` → `savePeerFromCard`, que SÍ pinnea porque no había previo), el
+  // toque de confirmar pisaba esas claves recién pinneadas con las del link.
+  it('carrera: si las claves se pinnean recién DESPUÉS de abrir el link, confirmar no persiste ni pisa', () => {
+    const { hasConflictingPinnedKeys, savePeer, announceContact } = jest.requireMock('@/src/sync/contactChannel');
+    // Al abrir el link no hay nadie pinneado todavía: sin conflicto.
+    (hasConflictingPinnedKeys as jest.Mock).mockReturnValueOnce(false);
+    mockParams = { id: 'beto', name: 'Beto', s: 'sec-atacante', w: 'wrap-atacante', k: 'idk-atacante' };
+    const r = render(<AddContactScreen />);
+    expect(r.getByTestId('contact-confirm-add')).toBeTruthy();
+
+    // Mientras la hoja sigue abierta, llega la tarjeta real de Beto y pinnea SUS
+    // claves reales: la próxima consulta (recién antes de escribir) tiene que verlo.
+    (hasConflictingPinnedKeys as jest.Mock).mockReturnValueOnce(true);
+    fireEvent.press(r.getByTestId('contact-confirm-add'));
+
+    expect(useUserStore.getState().users.map(u => u.id)).not.toContain('beto');
+    expect(savePeer).not.toHaveBeenCalled();
+    expect(announceContact).not.toHaveBeenCalled();
+    expect(Alert.alert).toHaveBeenCalledWith('contact.keys_changed_title', expect.stringContaining('contact.keys_changed_body'), expect.any(Array));
   });
 });
 

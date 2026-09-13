@@ -34,10 +34,11 @@ export type ContactPayload = ContactKeys & {
  * la clave del buzón la conoce todo el que haya escaneado ese mismo código.
  */
 export function buildContactPayload(user: User, keys?: ContactKeys | null): string {
+  // Sin email a propósito (T-093 / SEC H-1): lo ve cualquiera que escanee el
+  // código, y nadie del otro lado lo necesita para agregar el contacto.
   return QR_PREFIX + JSON.stringify({
     id: user.id,
     name: user.name,
-    email: user.email,
     ...(keys?.secret ? { s: keys.secret } : {}),
     ...(keys?.wrapPublicKey ? { w: keys.wrapPublicKey } : {}),
     ...(keys?.identityPublicKey ? { k: keys.identityPublicKey } : {}),
@@ -70,7 +71,8 @@ export function buildContactDeepLink(user: User, keys?: ContactKeys | null): str
   const codigo = codificarContacto({ id: user.id, name: user.name, ...(keys ?? {}) });
   if (codigo) return enlaceCompacto('c', codigo);
 
-  const params = new URLSearchParams({ id: user.id, name: user.name, email: user.email ?? '' });
+  // El fallback largo tampoco manda email, por la misma razón (T-093 / SEC H-1).
+  const params = new URLSearchParams({ id: user.id, name: user.name });
   if (keys?.secret) params.set('s', keys.secret);
   if (keys?.wrapPublicKey) params.set('w', keys.wrapPublicKey);
   if (keys?.identityPublicKey) params.set('k', keys.identityPublicKey);

@@ -12,6 +12,7 @@ import { Colors } from '@/src/constants/colors';
 import { DetailHeader } from '@/src/components/CollapsibleHeader';
 import { Segmented } from '@/src/components/Band';
 import { Fab, FabRow } from '@/src/components/Fab';
+import { ConfirmSheet } from '@/src/components/Sheet';
 
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
@@ -23,12 +24,13 @@ import {
   buildContactPayload, parseContactPayload, buildContactDeepLink, contactFromParams, parseContactLink,
   type ContactPayload,
 } from '@/src/utils/contactLink';
-import { ensureContactSecret, announceContact, savePeer } from '@/src/sync/contactChannel';
+import { ensureContactSecret, announceContact, savePeer, hasConflictingPinnedKeys } from '@/src/sync/contactChannel';
 import { deviceId } from '@/src/sync/relayEngine';
 import { ensureIdentity, ensureWrapKeypair } from '@/src/store/identityStore';
 import { useTranslation } from 'react-i18next';
 import { syncedNow } from '@/src/utils/syncedClock';
 import { esYo } from '@/src/store/identityAlias';
+import { shortFingerprint } from '@/src/utils/keyFingerprint';
 
 type Mode = 'my_qr' | 'scan';
 
@@ -51,6 +53,13 @@ export default function AddContactScreen() {
   const [mode, setMode]           = useState<Mode>('my_qr');
   const [scanned, setScanned]     = useState(false);
   const [permission, requestPerm] = useCameraPermissions();
+  // Contacto que llegó por LINK y espera confirmación explícita (T-093 / SEC H-1):
+  // ver `procesarContacto`.
+  const [pendingLinkContact, setPendingLinkContact] = useState<ContactPayload | null>(null);
+  // Distingue "cerró tras confirmar" de "canceló": el `SheetButton` de confirmar
+  // llama a `onConfirm` y a `onClose` en la MISMA pulsación, y `onClose` no debe
+  // volver a Contactos si ya lo hizo `persistirContacto`.
+  const confirmedRef = useRef(false);
 
   useEffect(() => {
     if (mode === 'scan' && !permission?.granted) {
@@ -69,18 +78,29 @@ export default function AddContactScreen() {
   const deepLink  = currentUser ? buildContactDeepLink(currentUser, misClaves) : '';
 
   /**
-   * Agrega un contacto que llegó por QR o por link. **Los dos caminos pasan por acá**:
-   * antes el link se procesaba aparte, en `_layout.tsx`, agregaba en silencio y dejaba
-   * al usuario mirando SU PROPIO QR, sin ningún aviso de que el contacto había entrado.
+   * Lo que hacía `procesarContacto` de punta a punta ANTES de este ticket: agrega el
+   * contacto, pinnea sus claves y le anuncia la propia tarjeta. Ahora sólo se llega acá
+   * cuando ya no hay nada que confirmar (QR presencial) o después de que el usuario tocó
+   * «Agregar» en la hoja de confirmación (link) — ver `procesarContacto`.
+   *
+   * **Repite los tres chequeos de sólo lectura INMEDIATAMENTE antes de escribir**
+   * (T-093 ronda 2 / R-1, hallazgo del verificador ciego): en el link, `procesarContacto`
+   * los corrió al ABRIR la hoja, pero el toque de «Agregar» llega recién después —a veces
+   * segundos después— y en ese hueco puede pasar cualquier cosa. En particular, el drenado
+   * en tiempo real (`relayEngine.ts` → `drainContacts` → `savePeerFromCard`) puede pinnear
+   * la clave REAL de este mismo `userId` si su tarjeta legítima llega mientras la hoja
+   * sigue abierta (no había peer previo, así que no hay conflicto para esa función). Sin
+   * este recheck, el toque de «Agregar» corría directo a `savePeer`, que SÍ pisa siempre
+   * que se lo llama, y las claves recién pinneadas quedaban reemplazadas por las del link.
+   *
+   * Al vivir acá y no en el llamador, ningún camino (QR o link, presente o futuro) puede
+   * saltearlo — es la única puerta hacia `savePeer`/`announceContact`.
    */
-  const procesarContacto = useCallback((contact: ContactPayload, origen: 'qr' | 'link') => {
+  const persistirContacto = useCallback((contact: ContactPayload, origen: 'qr' | 'link') => {
+    const cerrar = origen === 'link' ? volverAContactos : () => setScanned(false);
+
     if (esYo(contact.id)) {
-      hapticWarning();
-      Alert.alert(
-        t('contact.own_qr_title'),
-        t(origen === 'link' ? 'contact.own_link_body' : 'contact.own_qr_body'),
-        [{ text: 'OK', onPress: () => (origen === 'link' ? volverAContactos() : setScanned(false)) }],
-      );
+      cerrar();
       return;
     }
 
@@ -92,11 +112,27 @@ export default function AddContactScreen() {
       return;
     }
 
+    if (contact.secret && hasConflictingPinnedKeys(contact.id, {
+      secret: contact.secret,
+      wrapPublicKey: contact.wrapPublicKey,
+      identityPublicKey: contact.identityPublicKey,
+    })) {
+      hapticWarning();
+      Alert.alert(
+        t('contact.keys_changed_title'),
+        t('contact.keys_changed_body', { name: contact.name }),
+        [{ text: 'OK', onPress: cerrar }],
+      );
+      return;
+    }
+
     hapticSuccess();
     addOrUpdateUser({
       id:           contact.id,
+      // El email no viaja más en la tarjeta/código (T-093 / SEC H-1): se conserva el que
+      // ya hubiera localmente en vez de perderlo o inventar uno vacío innecesariamente.
       name:         contact.name,
-      email:        contact.email ?? '',
+      email:        getUserById(contact.id)?.email ?? '',
       authProvider: 'google',
       createdAt:    Date.now(),
       updatedAt:    syncedNow(),
@@ -146,7 +182,77 @@ export default function AddContactScreen() {
     // `currentUser` no aparece en el cuerpo pero la dependencia es REAL: `esYo` lee la
     // sesión activa, así que cambiar de cuenta tiene que recalcular esto.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser, addOrUpdateUser, getUserById, t]);
+  }, [addOrUpdateUser, getUserById, t, currentUser]);
+
+  /**
+   * Evalúa un contacto que llegó por QR o por link. **Los dos caminos pasan por acá**:
+   * antes el link se procesaba aparte, en `_layout.tsx`, agregaba en silencio y dejaba
+   * al usuario mirando SU PROPIO QR, sin ningún aviso de que el contacto había entrado.
+   *
+   * De acá en más NO escribe nada por su cuenta: sólo decide entre "no hay nada que
+   * hacer" (ya es mío / ya existe / las claves no coinciden), "persistir ya" (QR — el
+   * escaneo presencial YA es el consentimiento, T-093 criterio 4) o "pedir confirmación"
+   * (link — nadie estuvo delante, T-093 / SEC H-1 criterio 1).
+   */
+  const procesarContacto = useCallback((contact: ContactPayload, origen: 'qr' | 'link') => {
+    if (esYo(contact.id)) {
+      hapticWarning();
+      Alert.alert(
+        t('contact.own_qr_title'),
+        t(origen === 'link' ? 'contact.own_link_body' : 'contact.own_qr_body'),
+        [{ text: 'OK', onPress: () => (origen === 'link' ? volverAContactos() : setScanned(false)) }],
+      );
+      return;
+    }
+
+    if (getUserById(contact.id) && !getUserById(contact.id)?.isDeleted) {
+      hapticLight();
+      Alert.alert(t('contact.already_title'), t('contact.already_body', { name: contact.name }), [
+        { text: 'OK', onPress: volverAContactos },
+      ]);
+      return;
+    }
+
+    // Ni por link ni por QR se pisa una clave ya pinneada que no coincide — ni la de un
+    // contacto borrado (tombstone): el peer sobrevive al borrado. T-093 / SEC H-1 criterio 2.
+    if (contact.secret && hasConflictingPinnedKeys(contact.id, {
+      secret: contact.secret,
+      wrapPublicKey: contact.wrapPublicKey,
+      identityPublicKey: contact.identityPublicKey,
+    })) {
+      hapticWarning();
+      Alert.alert(
+        t('contact.keys_changed_title'),
+        t('contact.keys_changed_body', { name: contact.name }),
+        [{ text: 'OK', onPress: origen === 'link' ? volverAContactos : () => setScanned(false) }],
+      );
+      return;
+    }
+
+    if (origen === 'link') {
+      // Nada se persiste todavía: recién con el toque explícito de "Agregar" en la hoja.
+      setPendingLinkContact(contact);
+      return;
+    }
+
+    persistirContacto(contact, 'qr');
+    // `currentUser` no aparece en el cuerpo pero la dependencia es REAL: `esYo` lee la
+    // sesión activa, así que cambiar de cuenta tiene que recalcular esto.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser, getUserById, t, persistirContacto]);
+
+  const cerrarConfirmacionLink = useCallback(() => {
+    if (!confirmedRef.current) volverAContactos();
+    confirmedRef.current = false;
+    setPendingLinkContact(null);
+  }, []);
+
+  const confirmarContactoDeLink = useCallback(() => {
+    confirmedRef.current = true;
+    const contact = pendingLinkContact;
+    setPendingLinkContact(null);
+    if (contact) persistirContacto(contact, 'link');
+  }, [pendingLinkContact, persistirContacto]);
 
   const handleBarCodeScanned = useCallback(({ data }: { data: string }) => {
     if (scanned) return;
@@ -294,6 +400,25 @@ export default function AddContactScreen() {
           />
         </FabRow>
       )}
+
+      {/* Confirmación de contacto por link (T-093 / SEC H-1): nadie estuvo delante, así
+          que antes de agregar/pinnear/anunciar se muestra nombre + huella de su clave. */}
+      <ConfirmSheet
+        visible={!!pendingLinkContact}
+        onClose={cerrarConfirmacionLink}
+        onConfirm={confirmarContactoDeLink}
+        danger={false}
+        title={t('contact.confirm_title', { name: pendingLinkContact?.name ?? '' })}
+        body={
+          pendingLinkContact?.identityPublicKey
+            ? t('contact.confirm_body', { fingerprint: shortFingerprint(pendingLinkContact.identityPublicKey) })
+            : t('contact.confirm_no_key')
+        }
+        confirmLabel={t('contact.confirm_add')}
+        cancelLabel={t('common.cancel')}
+        confirmTestID="contact-confirm-add"
+        cancelTestID="contact-confirm-cancel"
+      />
     </SafeAreaView>
   );
 }

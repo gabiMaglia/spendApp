@@ -77,9 +77,9 @@ function sembrar() {
   ]});
 
   useUserStore.setState({ users: [
-    { id: YO, name: 'Ana' } as User,
-    { id: 'beto', name: 'Beto' } as User,
-    { id: 'pareja', name: 'Mi pareja' } as User,
+    { id: YO, name: 'Ana', email: 'ana@example.com' } as User,
+    { id: 'beto', name: 'Beto', email: 'beto@example.com' } as User,
+    { id: 'pareja', name: 'Mi pareja', email: 'pareja@example.com' } as User,
   ]});
 }
 
@@ -120,6 +120,19 @@ describe('el sobre de un grupo no filtra nada ajeno', () => {
 
   it('NO lleva los perfiles de gente ajena al grupo', () => {
     expect(serializado()).not.toContain('Mi pareja');
+  });
+
+  // T-093 ronda 2 / R-2 (verificador ciego): `completo.users` trae el registro
+  // ENTERO de cada miembro —incluido el propio, que `session.ts` escribe con el
+  // mail real de OAuth al loguear— y `buildGroupPayload` sólo filtraba FILAS
+  // (qué miembros), nunca CAMPOS. El mail viajaba a cualquiera que compartiera
+  // el grupo, y ningún receptor lo usa (sólo se lee `currentUser.email`, la
+  // cuenta propia, en `user.tsx`/`debug/identity.tsx` — nunca el de otro
+  // usuario). Esto es lo que `plans/T-077.md` ya declaraba cierto y no lo era.
+  it('NO lleva el email de los miembros', () => {
+    expect(serializado()).not.toContain('ana@example.com');
+    expect(serializado()).not.toContain('beto@example.com');
+    expect(buildGroupPayload('G', YO).users.every(u => !u.email)).toBe(true);
   });
 
   // Si el relay pudiera entregar claves podría sustituirlas y leer todo.

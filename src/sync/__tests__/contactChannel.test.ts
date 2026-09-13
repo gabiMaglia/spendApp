@@ -1,7 +1,7 @@
 import {
   ensureContactSecret, myContactCard, announceContact, drainContacts,
   deriveContactTopic, savePeer, peerSecret, listPeers, sendGroupKey,
-  getPeer, peersIncompletos,
+  getPeer, peersIncompletos, hasConflictingPinnedKeys,
 } from '../contactChannel';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { ensureIdentity, ensureWrapKeypair } from '@/src/store/identityStore';
@@ -133,6 +133,22 @@ describe('un escaneo, contacto en los dos teléfonos', () => {
     expect(useUserStore.getState().getUserById(BETO.id)?.name).toBe('Beto');
   });
 
+  // SEC H-1: la tarjeta ya no manda email (ver "tarjeta propia"), así que un
+  // contacto nuevo por relay queda sin mail — no hay de dónde sacarlo, y no es
+  // un dato que haga falta para nada del lado del receptor.
+  it('un contacto nuevo por relay queda sin email: la tarjeta no lo trae', async () => {
+    usar(ANA);
+    const secretoDeAna = ensureContactSecret()!;
+
+    usar(BETO);
+    await announceContact(secretoDeAna, 'dev-beto');
+
+    usar(ANA);
+    await drainContacts(secretoDeAna, 'dev-ana', 0);
+
+    expect(useUserStore.getState().getUserById(BETO.id)?.email).toBe('');
+  });
+
   it('el canal queda mutuo: Ana se guarda el secreto de Beto', async () => {
     usar(ANA);
     const secretoDeAna = ensureContactSecret()!;
@@ -255,6 +271,17 @@ describe('tarjeta propia', () => {
 
   it('sin sesión no hay tarjeta', () => {
     expect(myContactCard()).toBeNull();
+  });
+
+  // SEC H-1: `announceContact` manda esta tarjeta al buzón de quien haya
+  // escaneado/linkeado el código — hoy incluye mail, avatar, secreto y
+  // públicas. El mail no tiene por qué viajar: T-077 ya declara "no
+  // recolectado", así que la tarjeta tiene que cumplirlo de verdad.
+  it('NO LLEVA EL EMAIL', () => {
+    usar(ANA);
+    const card = myContactCard()!;
+
+    expect(card).not.toHaveProperty('email');
   });
 });
 
@@ -599,6 +626,57 @@ describe('reparación de contactos incompletos', () => {
     savePeer(BETO.id, { secret: 's', wrapPublicKey: 'cc'.repeat(32) });
 
     expect(getPeer(BETO.id)?.wrapPublicKey).toBe('cc'.repeat(32));
+  });
+});
+
+/**
+ * T-093 / SEC H-1: el gate que usa `app/contact/add.tsx` ANTES de llamar a
+ * `savePeer`, tanto para QR como para link. Es de lectura pura — no escribe.
+ */
+describe('hasConflictingPinnedKeys — detectar antes de pisar', () => {
+  it('sin peer previo, nunca hay conflicto', () => {
+    usar(ANA);
+    expect(hasConflictingPinnedKeys(BETO.id, { secret: 's', identityPublicKey: 'bb'.repeat(32) })).toBe(false);
+  });
+
+  it('peer previo sin claves pinneadas: completar no es conflicto', () => {
+    usar(ANA);
+    savePeer(BETO.id, { secret: 's' }); // sin claves todavía
+
+    expect(hasConflictingPinnedKeys(BETO.id, { secret: 's', identityPublicKey: 'bb'.repeat(32) })).toBe(false);
+  });
+
+  it('la MISMA clave pinneada que llega de nuevo no es conflicto', () => {
+    usar(ANA);
+    savePeer(BETO.id, { secret: 's', identityPublicKey: 'bb'.repeat(32), wrapPublicKey: 'cc'.repeat(32) });
+
+    expect(hasConflictingPinnedKeys(BETO.id, {
+      secret: 's', identityPublicKey: 'bb'.repeat(32), wrapPublicKey: 'cc'.repeat(32),
+    })).toBe(false);
+  });
+
+  it('identidad distinta a la pinneada ES conflicto', () => {
+    usar(ANA);
+    savePeer(BETO.id, { secret: 's', identityPublicKey: 'bb'.repeat(32) });
+
+    expect(hasConflictingPinnedKeys(BETO.id, { secret: 's', identityPublicKey: 'ff'.repeat(32) })).toBe(true);
+  });
+
+  it('pública de envoltura distinta a la pinneada ES conflicto', () => {
+    usar(ANA);
+    savePeer(BETO.id, { secret: 's', wrapPublicKey: 'cc'.repeat(32) });
+
+    expect(hasConflictingPinnedKeys(BETO.id, { secret: 's', wrapPublicKey: 'ff'.repeat(32) })).toBe(true);
+  });
+
+  // Es el caso exacto de H-1: el contacto está borrado (tombstone) del lado del
+  // userStore, pero el peer (sus claves) sigue vivo — nunca se limpia al borrar.
+  it('un peer de un contacto YA BORRADO (tombstone) sigue protegido', () => {
+    usar(ANA);
+    savePeer(BETO.id, { secret: 's', identityPublicKey: 'bb'.repeat(32) });
+    useUserStore.getState().removeUser(BETO.id); // tombstone: isDeleted:true, la clave del peer NO se toca
+
+    expect(hasConflictingPinnedKeys(BETO.id, { secret: 's', identityPublicKey: 'ff'.repeat(32) })).toBe(true);
   });
 });
 
