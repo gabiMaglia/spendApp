@@ -70,4 +70,14 @@ describe('useEnlacesEntrantes (T-094 · SEC M-1)', () => {
     act(() => useAuthStore.setState({ isLoading: false }));
     expect(tomarEnlacePendiente()).toBe('/contact/add?id=u9&name=Zoe');
   });
+
+  it('el mismo link llega dos veces (initial URL + evento `url`) y no se duplica ni rompe', async () => {
+    // Comportamiento real de Android/expo-linking: getInitialURL() y el primer evento
+    // `url` pueden entregar la misma URL del arranque en frío.
+    mockUrlInicial = LINK;
+    await montar();
+    act(() => mockEmitir!({ url: LINK }));
+    expect(tomarEnlacePendiente()).toBe('/contact/add?id=u9&name=Zoe');
+    expect(tomarEnlacePendiente()).toBeNull();
+  });
 });
