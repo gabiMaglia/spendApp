@@ -78,12 +78,14 @@ export function Band({
 
 /** Fila de banda. `last` saca el divisor inferior. */
 export function BandRow({
-  children, onPress, last, style,
+  children, onPress, last, style, accessibilityRole,
 }: {
   children: React.ReactNode;
   onPress?: () => void;
   last?: boolean;
   style?: ViewStyle;
+  /** Para filas que son una acción (p. ej. «Eliminar gasto», T-107). */
+  accessibilityRole?: 'button' | 'link';
 }) {
   const c = useC();
   const base: ViewStyle = {
@@ -99,6 +101,7 @@ export function BandRow({
   return (
     <Pressable
       onPress={onPress}
+      accessibilityRole={accessibilityRole}
       style={({ pressed }) => [base, pressed && { backgroundColor: c.bgGrouped }, style]}
     >
       {children}
