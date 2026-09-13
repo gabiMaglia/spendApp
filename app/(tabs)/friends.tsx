@@ -1,9 +1,11 @@
 import React, { useMemo, useRef, useState } from 'react';
 import {
-  Alert, Animated, KeyboardAvoidingView, Platform, Pressable,
+  Alert, KeyboardAvoidingView, Platform, Pressable,
   StyleSheet, Text, TextInput, View,
 } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useHeaderColapsable } from '@/src/hooks/useHeaderColapsable';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
@@ -40,7 +42,7 @@ export default function FriendsScreen() {
 
   const personBalances = useGlobalPersonBalances(currentUser?.id ?? '');
   const conHistorial   = useContactosConHistorial(currentUser?.id ?? '');
-  const scrollY = useRef(new Animated.Value(0)).current;
+  const { scrollHandler, progress } = useHeaderColapsable();
 
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState('');
@@ -106,7 +108,7 @@ export default function FriendsScreen() {
       <Animated.ScrollView
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
-        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: false })}
+        onScroll={scrollHandler}
         contentContainerStyle={{ paddingTop: headerPad, paddingBottom: 150, flexGrow: 1 }}
       >
 
@@ -170,7 +172,7 @@ export default function FriendsScreen() {
         )}
       </Animated.ScrollView>
 
-      <TabHeader title={t('friends.title')} scrollY={scrollY} />
+      <TabHeader title={t('friends.title')} progress={progress} />
 
       <FabRow>
         <Fab

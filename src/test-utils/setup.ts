@@ -136,17 +136,3 @@ jest.mock('expo-localization', () => ({
   getCalendars: () => [{ timeZone: 'America/Argentina/Buenos_Aires' }],
 }));
 
-/**
- * `react-native-reanimated` — mock oficial del paquete (T-128).
- *
- * El header colapsable (`useHeaderColapsable`) mueve toda la interpolación al
- * hilo de UI con `useSharedValue`/`useAnimatedStyle`/`useAnimatedScrollHandler`.
- * Sin este mock, cualquier test que renderice `CollapsibleHeader` muere
- * buscando el módulo nativo de worklets, que no existe en Jest. Se usa
- * `react-native-reanimated/mock` (el que trae la propia librería, confirmado
- * en `node_modules/react-native-reanimated/mock.js` de la versión instalada,
- * ~4.1.1) y no uno propio, por la misma razón que el de safe-area-context de
- * arriba: si la librería agrega un hook, el mock de ellos lo trae solo.
- */
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock'));
