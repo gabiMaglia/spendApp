@@ -151,6 +151,14 @@ export type StatItem = {
   id?: string;
   minor?: number;
   code?: CurrencyCode;
+  /**
+   * T-109: hay una conversión de moneda en curso para ESTE monto — se
+   * muestra `--` en vez de animar hacia un total parcial. Sólo tiene efecto
+   * junto con `id`. Ver `MontoRodante.pending`.
+   */
+  pending?: boolean;
+  /** Texto ya traducido (`t('fx.calculating')`) para el placeholder de `pending`. */
+  pendingLabel?: string;
 };
 
 export function SplitStat({
@@ -187,6 +195,8 @@ export function SplitStat({
                   code={it.code}
                   style={[Typography.amountM, { color: it.color ?? c.text }]}
                   registry={registry}
+                  pending={it.pending}
+                  pendingAccessibilityLabel={it.pendingLabel}
                 />
               ) : (
                 <Text style={[Typography.amountM, { color: it.color ?? c.text }]}>{it.value}</Text>
@@ -247,6 +257,8 @@ export function StatGrid({
           code={it.code}
           style={[Typography.amountM, { color: it.color ?? c.text }]}
           registry={registry}
+          pending={it.pending}
+          pendingAccessibilityLabel={it.pendingLabel}
         />
       ) : (
         <Text

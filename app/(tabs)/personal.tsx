@@ -88,7 +88,7 @@ export default function PersonalScreen() {
   /** Scroll del header colapsable. */
   const scrollY = useRef(new Animated.Value(0)).current;
 
-  const { fx, display: cur } = useFx();
+  const { fx, display: cur, loading: fxLoading } = useFx();
   const [avisoVisto, setAvisoVisto] = useState(false);
 
   const deudas = useDirectedDebts(currentUser?.id ?? '');
@@ -175,6 +175,14 @@ export default function PersonalScreen() {
 
   const pendientes = [...expense.unconverted, ...group.unconverted];
 
+  // T-109: cualquiera de los baldes que compone "Gastado"/"Disponible" puede
+  // haber quedado afuera por falta de cache (no por tasa ausente) — mientras
+  // el fetch siga en vuelo, los dos montos muestran `--` en vez de un total
+  // parcial que después salta al real.
+  const personalPending = fxLoading
+    && (income.pending || expense.pending || group.pending || carryPos.pending || carryNeg.pending);
+  const pendingCalculando = t('fx.calculating');
+
   const baseBudget      = budget.monthlyAmount;
   const effectiveBudget = baseBudget + totalIncome + positiveCarryover + (budget.includeOwedToMe ? owedToMe : 0);
   const remaining       = effectiveBudget - totalSpent;
@@ -257,7 +265,14 @@ export default function PersonalScreen() {
                   <Text style={[Typography.label, styles.upper, { color: c.textTertiary }]}>
                     {t('personal.spent')}
                   </Text>
-                  <MoneyText minor={totalSpent} code={cur} style={[Typography.amountM, { color: c.text }]} />
+                  <MoneyText
+                    minor={totalSpent}
+                    code={cur}
+                    rollId="personal.gastado"
+                    pending={personalPending}
+                    pendingAccessibilityLabel={pendingCalculando}
+                    style={[Typography.amountM, { color: c.text }]}
+                  />
                 </View>
                 <View style={{ alignItems: 'flex-end', flexShrink: 0, marginLeft: 16 }}>
                   <Text style={[Typography.label, styles.upper, { color: c.textTertiary }]}>
@@ -267,6 +282,8 @@ export default function PersonalScreen() {
                     minor={Math.abs(remaining)}
                     code={cur}
                     rollId="personal.disponible"
+                    pending={personalPending}
+                    pendingAccessibilityLabel={pendingCalculando}
                     style={[Typography.amountM, { color: remaining >= 0 ? c.semantic.positive : c.semantic.negative }]}
                   />
                 </View>

@@ -59,7 +59,34 @@ describe('sumConverted', () => {
   });
 
   it('lista vacia: cero y nada pendiente', () => {
-    expect(sumConverted([], 'ARS', cache)).toEqual({ totalMinor: 0, unconverted: [] });
+    expect(sumConverted([], 'ARS', cache)).toEqual({ totalMinor: 0, unconverted: [], pending: false });
+  });
+
+  // T-109: distinguir "todavía no bajamos ninguna cotización" (pending, la
+  // pantalla debe mostrar `--` sin animar) de "la tasa no existe" (unconverted,
+  // UnconvertedNotice de siempre). El propio `convertMinor` ya distingue los
+  // dos casos por motivos distintos (`!cache` vs `!rateOk`); acá sólo se expone.
+  it('sin cache todavia (fetch en vuelo): pending=true, no se cuenta como no-convertible', () => {
+    const r = sumConverted([
+      { currency: 'ARS', minor: 100_000 },
+      { currency: 'BRL', minor: 10_000 },
+    ], 'ARS', null);
+    expect(r.pending).toBe(true);
+    expect(r.unconverted).toEqual([{ currency: 'BRL', minor: 10_000 }]);
+  });
+
+  it('con cache pero tasa realmente ausente: pending=false (es "unconverted" de siempre)', () => {
+    const r = sumConverted([
+      { currency: 'ARS', minor: 100_000 },
+      { currency: 'PYG', minor: 50_000 },
+    ], 'ARS', cache);
+    expect(r.pending).toBe(false);
+    expect(r.unconverted).toEqual([{ currency: 'PYG', minor: 50_000 }]);
+  });
+
+  it('todo en la moneda elegida, sin cache: pending=false (nunca hizo falta ninguna tasa)', () => {
+    const r = sumConverted([{ currency: 'ARS', minor: 5_000 }], 'ARS', null);
+    expect(r.pending).toBe(false);
   });
 
   it('un total que da 0 con plata no convertible NO es un cero legitimo', () => {

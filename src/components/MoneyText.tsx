@@ -23,6 +23,13 @@ interface MoneyTextProps extends TextProps {
   rollId?: string;
   /** Sólo para tests: registro inyectable de `MontoRodante`. */
   registry?: MontoRegistry;
+  /**
+   * T-109: conversión de moneda en curso — sólo tiene efecto junto con
+   * `rollId`. Ver `MontoRodante.pending`.
+   */
+  pending?: boolean;
+  /** Texto ya traducido (`t('fx.calculating')`) para el placeholder de `pending`. */
+  pendingAccessibilityLabel?: string;
 }
 
 /**
@@ -33,7 +40,7 @@ interface MoneyTextProps extends TextProps {
  */
 export function MoneyText({
   minor, code, prefix = '', suffix = '',
-  style, minimumFontScale = 0.6, rollId, registry, ...rest
+  style, minimumFontScale = 0.6, rollId, registry, pending, pendingAccessibilityLabel, ...rest
 }: MoneyTextProps) {
   if (rollId) {
     // `suffix` no tiene equivalente en `MontoRodante` (nadie lo combina con
@@ -42,6 +49,7 @@ export function MoneyText({
       <MontoRodante
         id={rollId} minor={minor} code={code} prefix={prefix}
         style={style} registry={registry} testID={rest.testID}
+        pending={pending} pendingAccessibilityLabel={pendingAccessibilityLabel}
       />
     );
   }

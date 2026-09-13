@@ -633,7 +633,8 @@
     "partial_hint": "Se suma al total apenas haya conexión.",
     "close": "Entendido",
     "partial_spent": "Gastado",
-    "partial_owed": "A favor"
+    "partial_owed": "A favor",
+    "calculating": "Calculando conversión de moneda"
   },
   "trust": {
     "badge": "Sin verificar",

@@ -69,6 +69,44 @@ export const registroDeMontosDeLaApp: MontoRegistry = crearRegistroDeMontos();
  * formateado con `Intl` — mantiene la MISMA cantidad de dígitos que el valor
  * real así el ancho no salta al pasar de semilla a real.
  */
+/**
+ * **Escalonado de la primera aparición** (T-109, PO 2026-09-13: FPS bajos en
+ * iPhone 13 y Android de gama baja).
+ *
+ * Abrir Home o Personal monta varios `MontoRodante` a la vez; sin esto, todos
+ * pasan de la semilla al valor real en el MISMO frame (`requestAnimationFrame`
+ * compartido) — todas las columnas de todos los montos animan juntas, que es
+ * el pico de trabajo que traba cuadros en gama media/baja. Acá se reparte un
+ * turno CRECIENTE por cada llamada dentro del mismo lote (mismo tick de JS) y
+ * se resetea a 0 en el macrotask siguiente, así el próximo lote (otra
+ * pantalla, otra tanda de montos) no hereda demora de la anterior.
+ *
+ * Tope (`MAX_PASOS`) para que una pantalla con muchos montos no encadene una
+ * demora larga — a partir de ahí varios arrancan juntos, que es preferible a
+ * que el último tarde medio segundo en empezar.
+ */
+const PASO_MS = 24;
+const MAX_PASOS = 6;
+let turnoActual = 0;
+let reseteoProgramado = false;
+
+export function proximoRetrasoDeEntrada(): number {
+  const paso = Math.min(turnoActual, MAX_PASOS);
+  turnoActual += 1;
+  if (!reseteoProgramado) {
+    reseteoProgramado = true;
+    setTimeout(() => { turnoActual = 0; reseteoProgramado = false; }, 0);
+  }
+  return paso * PASO_MS;
+}
+
+/** Sólo para tests: el contador es de módulo (a propósito, sobrevive entre
+ *  pantallas) y por eso no se resetea solo entre corridas de test. */
+export function __resetProximoRetrasoParaTests(): void {
+  turnoActual = 0;
+  reseteoProgramado = false;
+}
+
 export function numeroSemilla(valorReal: number): number {
   const texto = Math.abs(valorReal).toString();
   const transformado = texto.replace(/[0-9]/g, (d) => String((Number(d) + 5) % 10));

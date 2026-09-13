@@ -41,7 +41,7 @@ export default function AccountScreen() {
   const firstName = currentUser?.name?.split(' ')[0] ?? 'vos';
 
   const { entries: personalEntries, budget } = usePersonalStore();
-  const { fx, display: cur } = useFx();
+  const { fx, display: cur, loading: fxLoading } = useFx();
 
   const scrollY = useRef(new Animated.Value(0)).current;
 
@@ -96,6 +96,16 @@ export default function AccountScreen() {
   const youOwe    = debo.totalMinor;
   const net = owedToYou - youOwe;
 
+  // T-109: `pending` de verdad (placeholder `--`, sin animar) sólo mientras
+  // el fetch de cotizaciones sigue en vuelo (`fxLoading`) — si ya terminó y
+  // sigue faltando la tasa, es un fallo real y se sigue el camino de siempre
+  // (`unconverted`/`UnconvertedNotice`), no un `--` para siempre.
+  const pendingCalculando = t('fx.calculating');
+  const owedToYouPending = deben.pending && fxLoading;
+  const youOwePending    = debo.pending && fxLoading;
+  const netPending       = owedToYouPending || youOwePending;
+  const personalSpentPending = gastos.pending && fxLoading;
+
   const barColor = budgetPct >= 1 ? c.semantic.negative
     : budgetPct >= 0.8 ? c.semantic.warning
     : c.brand.primary;
@@ -119,8 +129,16 @@ export default function AccountScreen() {
         {/* Banda de deuda direccional: los dos lados no se netean (ADR-006) */}
         <SplitStat
           items={[
-            { label: t('friends.owed_to_you'), value: formatMoney(owedToYou, cur), color: c.semantic.positive, id: 'home.owedToYou', minor: owedToYou, code: cur },
-            { label: t('friends.you_owe'),     value: formatMoney(youOwe, cur),    color: c.textSecondary,     id: 'home.youOwe',   minor: youOwe,    code: cur },
+            {
+              label: t('friends.owed_to_you'), value: formatMoney(owedToYou, cur), color: c.semantic.positive,
+              id: 'home.owedToYou', minor: owedToYou, code: cur,
+              pending: owedToYouPending, pendingLabel: pendingCalculando,
+            },
+            {
+              label: t('friends.you_owe'), value: formatMoney(youOwe, cur), color: c.textSecondary,
+              id: 'home.youOwe', minor: youOwe, code: cur,
+              pending: youOwePending, pendingLabel: pendingCalculando,
+            },
           ]}
         />
 
@@ -143,6 +161,8 @@ export default function AccountScreen() {
               code={cur}
               prefix={net > 0 ? '+' : ''}
               rollId="home.net"
+              pending={netPending}
+              pendingAccessibilityLabel={pendingCalculando}
               style={[Typography.amountS, {
                 color: net > 0 ? c.semantic.positive : net < 0 ? c.semantic.negative : c.text,
               }]}
@@ -165,6 +185,8 @@ export default function AccountScreen() {
                 minor={totalSpent}
                 code={cur}
                 rollId="home.personalSpent"
+                pending={personalSpentPending}
+                pendingAccessibilityLabel={pendingCalculando}
                 style={[Typography.amountL, {
                   color: totalAcreditado >= totalSpent ? c.text : c.semantic.negative,
                 }]}

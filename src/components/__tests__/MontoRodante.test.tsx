@@ -86,13 +86,19 @@ describe('MontoRodante', () => {
     expect(r.queryByLabelText(formatMoney(100000, 'ARS'))).toBeNull();
   });
 
-  it('cambio de divisa con la misma magnitud: el texto cambia (símbolo distinto) y se muestra', async () => {
+  it('cambio de divisa con la misma magnitud: nunca mezcla símbolo nuevo con dígitos viejos (T-109)', async () => {
     const registro = crearRegistroDeMontos();
     const r = render(<MontoRodante id="x" minor={100000} code="ARS" registry={registro} />);
     await r.findByLabelText(formatMoney(100000, 'ARS'));
 
     r.rerender(<MontoRodante id="x" minor={100000} code="USD" registry={registro} />);
-    expect(r.getByLabelText(formatMoney(100000, 'USD'))).toBeTruthy();
+    // T-109: el símbolo nunca puede aparecer solo, adelantado a los dígitos —
+    // el mismo render que detecta el cambio de moneda esconde TODO detrás de
+    // `--`, atómico (nunca "US$1.000,00" con dígitos de ARS ni viceversa).
+    expect(r.queryByLabelText(formatMoney(100000, 'ARS'))).toBeNull();
+    expect(r.queryByLabelText(formatMoney(100000, 'USD'))).toBeNull();
+
+    expect(await r.findByLabelText(formatMoney(100000, 'USD'))).toBeTruthy();
     expect(r.queryByLabelText(formatMoney(100000, 'ARS'))).toBeNull();
   });
 
@@ -103,6 +109,54 @@ describe('MontoRodante', () => {
 
     r.rerender(<MontoRodante id="x" minor={1000000} code="ARS" registry={registro} />);
     expect(r.getByLabelText(formatMoney(1000000, 'ARS'))).toBeTruthy();
+  });
+
+  // T-109: conversión de moneda pendiente. Antes, mientras `fx` resolvía, la
+  // pantalla mostraba un total parcial (0 o incompleto) que después saltaba
+  // al valor convertido real — dos animaciones y un número intermedio
+  // incorrecto en el medio. `pending` muestra `--` sin tocar el registro (no
+  // cuenta como "visto") ni animar; al resolverse, es una aparición nueva de
+  // verdad → una sola vuelta de semilla hasta el valor final.
+  describe('pending (conversión de moneda en curso, T-109)', () => {
+    it('con pending, muestra el placeholder accesible y NO el valor real', () => {
+      const registro = crearRegistroDeMontos();
+      const r = render(
+        <MontoRodante
+          id="home.net" minor={123400} code="ARS" registry={registro}
+          pending pendingAccessibilityLabel="calculando"
+        />,
+      );
+      expect(r.getByLabelText('calculando')).toBeTruthy();
+      expect(r.queryByLabelText(formatMoney(123400, 'ARS'))).toBeNull();
+    });
+
+    it('mientras pending, no marca el id como "visto" en el registro', () => {
+      const registro = crearRegistroDeMontos();
+      render(
+        <MontoRodante
+          id="home.net" minor={123400} code="ARS" registry={registro}
+          pending pendingAccessibilityLabel="calculando"
+        />,
+      );
+      expect(registro.has('home.net')).toBe(false);
+    });
+
+    it('al resolverse la conversión, aparece con una sola vuelta (se ve el valor final)', async () => {
+      const registro = crearRegistroDeMontos();
+      const r = render(
+        <MontoRodante
+          id="home.net" minor={0} code="ARS" registry={registro}
+          pending pendingAccessibilityLabel="calculando"
+        />,
+      );
+      expect(r.getByLabelText('calculando')).toBeTruthy();
+
+      r.rerender(
+        <MontoRodante id="home.net" minor={555500} code="ARS" registry={registro} />,
+      );
+      expect(await r.findByLabelText(formatMoney(555500, 'ARS'))).toBeTruthy();
+      expect(r.queryByLabelText('calculando')).toBeNull();
+    });
   });
 
   it('remontar con el MISMO id+valor que ya se vio en el registro no dispara el truco de semilla', async () => {
