@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '@/src/constants/colors';
 import { Spacing } from '@/src/constants/spacing';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { FondoMarmol } from '@/src/components/FondoMarmol';
 
 /**
  * Header fijo común a todas las tabs.
@@ -65,6 +66,14 @@ export function CollapsibleHeader({
 
   return (
     <View style={[styles.wrap, { paddingTop: insets.top }]} pointerEvents="box-none">
+      {/*
+        T-105: el mármol va DEBAJO del tinte de fondo, no reemplazándolo. El
+        tinte ya interpola su opacidad con el scroll (0.55 → 0.97) — es
+        exactamente el fundido que evita el "corte feo" al colapsar: arriba
+        se ve la veta, abajo el tinte casi opaco la tapa de a poco, nunca de
+        golpe.
+      */}
+      <FondoMarmol />
       <Animated.View
         style={[StyleSheet.absoluteFill, { backgroundColor: c.bg, opacity: bgOpacity }]}
         pointerEvents="none"
@@ -165,9 +174,19 @@ export function DetailHeader({
   const c = Colors[scheme];
   const insets = useSafeAreaInsets();
   return (
-    <View style={[detail.wrap, {
-      paddingTop: insets.top, backgroundColor: c.bg, borderBottomColor: c.hair,
-    }]}>
+    <View style={[detail.wrap, { paddingTop: insets.top, borderBottomColor: c.hair }]}>
+      {/*
+        T-105: `DetailHeader` es fijo (nunca colapsa), así que no tiene el
+        fundido de `bgOpacity` de `CollapsibleHeader` para tapar el mármol
+        progresivamente. Sin ESTE tinte encima, la veta quedaría a saturación
+        completa detrás del título — por eso, a diferencia de la regla general
+        de "sin overlays", acá sí hace falta uno (reportado en el handoff).
+      */}
+      <FondoMarmol />
+      <View
+        style={[StyleSheet.absoluteFill, { backgroundColor: c.bg, opacity: 0.9 }]}
+        pointerEvents="none"
+      />
       <View style={detail.bar}>
         <Pressable onPress={onBack} hitSlop={12} style={detail.side}>
           <Ionicons name={icon} size={22} color={c.text} />

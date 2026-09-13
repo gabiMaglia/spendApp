@@ -12,6 +12,7 @@ import { Colors } from '@/src/constants/colors';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { formatMoney } from '@/src/constants/currencies';
+import { MontoRodante } from '@/src/components/MontoRodante';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
@@ -275,9 +276,13 @@ export default function GroupDetailScreen() {
             <Text style={[Typography.label, styles.upper, { color: c.textTertiary }]}>
               {t('group_detail.balance_label')}
             </Text>
-            <Text style={[Typography.amountXL, { color: balanceColor, marginTop: 2 }]}>
-              {mainBalance > 0 ? '+' : ''}{formatMoney(mainBalance, group.currency)}
-            </Text>
+            <MontoRodante
+              id={`groupDetail.balance:${group.id}`}
+              minor={mainBalance}
+              code={group.currency}
+              prefix={mainBalance > 0 ? '+' : ''}
+              style={[Typography.amountXL, { color: balanceColor, marginTop: 2 }]}
+            />
             <Text style={[Typography.caption, { color: c.textTertiary, marginTop: 4 }]}>
               {mainBalance > 0 ? t('group_detail.owe_you')
                 : mainBalance < 0 ? t('group_detail.you_owe_short')

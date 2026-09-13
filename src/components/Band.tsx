@@ -6,6 +6,9 @@ import { Colors } from '@/src/constants/colors';
 import { Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { MontoRodante } from '@/src/components/MontoRodante';
+import type { MontoRegistry } from '@/src/utils/montoRodanteRegistry';
+import type { CurrencyCode } from '@/src/constants/currencies';
 
 /**
  * Primitivas del reskin "flat bands".
@@ -23,11 +26,31 @@ export function useC() {
 
 /** Etiqueta de sección sobre una banda. `right` es un link o accesorio opcional. */
 export function SectionLabel({
-  label, right, first,
-}: { label: string; right?: React.ReactNode; first?: boolean }) {
+  label, right, first, topOverride, testID,
+}: {
+  label: string;
+  right?: React.ReactNode;
+  first?: boolean;
+  /**
+   * Reemplaza el `paddingTop` default de esta instancia puntual (T-108): el
+   * aire entre el bloque de arriba y la agrupación de una lista se dobla
+   * PANTALLA POR PANTALLA, nunca cambiando el default de `SectionLabel` — eso
+   * afectaría también las etiquetas que separan grupos DENTRO de una misma
+   * lista (ej. los encabezados de fecha de Actividad), que no se tocan.
+   */
+  topOverride?: number;
+  testID?: string;
+}) {
   const c = useC();
   return (
-    <View style={[styles.sectionLabel, first && { paddingTop: Spacing[2] }]}>
+    <View
+      testID={testID}
+      style={[
+        styles.sectionLabel,
+        first && { paddingTop: Spacing[2] },
+        topOverride !== undefined && { paddingTop: topOverride },
+      ]}
+    >
       <Text style={[Typography.label, { color: c.textTertiary, textTransform: 'uppercase' }]}>
         {label}
       </Text>
@@ -113,13 +136,30 @@ export function BandRow({
  * Banda de estadísticas partida por divisores verticales.
  * 2 columnas = alineadas a la izquierda; 3 o más = centradas.
  */
-export type StatItem = { label: string; value: string; color?: string };
+export type StatItem = {
+  label: string;
+  /** Texto YA formateado — el que se ve sin `id`, y la referencia exacta que valida `MontoRodante` con `id`. */
+  value: string;
+  color?: string;
+  /**
+   * Sólo para los MONTOS-RESUMEN de bloque (T-106): con `id`, el valor rueda
+   * (`MontoRodante`) en vez de aparecer directo. Sin `id` (default), es el
+   * mismo `<Text>` de siempre — ningún consumidor existente cambia.
+   * Requiere `minor` (y `code` si es un monto de moneda; omitir `code` para
+   * un conteo simple, ej. "cantidad de grupos").
+   */
+  id?: string;
+  minor?: number;
+  code?: CurrencyCode;
+};
 
 export function SplitStat({
-  items, sunken,
+  items, sunken, registry,
 }: {
   items: StatItem[];
   sunken?: boolean;
+  /** Sólo para tests: registro inyectable de `MontoRodante`. */
+  registry?: MontoRegistry;
 }) {
   const c = useC();
   const centered = items.length > 2;
@@ -140,7 +180,17 @@ export function SplitStat({
               <Text style={[Typography.label, { color: c.textTertiary, textTransform: 'uppercase' }]}>
                 {it.label}
               </Text>
-              <Text style={[Typography.amountM, { color: it.color ?? c.text }]}>{it.value}</Text>
+              {it.id ? (
+                <MontoRodante
+                  id={it.id}
+                  minor={it.minor ?? 0}
+                  code={it.code}
+                  style={[Typography.amountM, { color: it.color ?? c.text }]}
+                  registry={registry}
+                />
+              ) : (
+                <Text style={[Typography.amountM, { color: it.color ?? c.text }]}>{it.value}</Text>
+              )}
             </View>
           </React.Fragment>
         ))}
@@ -162,10 +212,12 @@ export function SplitStat({
  * un error. Si algún día hacen falta seis, es otro componente.
  */
 export function StatGrid({
-  items, sunken,
+  items, sunken, registry,
 }: {
   items: [StatItem, StatItem, StatItem, StatItem];
   sunken?: boolean;
+  /** Sólo para tests: registro inyectable de `MontoRodante`. */
+  registry?: MontoRegistry;
 }) {
   const c = useC();
 
@@ -188,16 +240,26 @@ export function StatGrid({
       <Text style={[Typography.label, { color: c.textTertiary, textTransform: 'uppercase' }]}>
         {it.label}
       </Text>
-      <Text
-        style={[Typography.amountM, { color: it.color ?? c.text }]}
-        numberOfLines={1}
-        // Un monto largo se achica antes que cortarse: en plata, «$12.4…» no
-        // es un número más chico, es un número que no se puede leer.
-        adjustsFontSizeToFit
-        minimumFontScale={0.75}
-      >
-        {it.value}
-      </Text>
+      {it.id ? (
+        <MontoRodante
+          id={it.id}
+          minor={it.minor ?? 0}
+          code={it.code}
+          style={[Typography.amountM, { color: it.color ?? c.text }]}
+          registry={registry}
+        />
+      ) : (
+        <Text
+          style={[Typography.amountM, { color: it.color ?? c.text }]}
+          numberOfLines={1}
+          // Un monto largo se achica antes que cortarse: en plata, «$12.4…» no
+          // es un número más chico, es un número que no se puede leer.
+          adjustsFontSizeToFit
+          minimumFontScale={0.75}
+        >
+          {it.value}
+        </Text>
+      )}
     </View>
   );
 
@@ -292,7 +354,7 @@ export function Meter({ pct, color, height = 5 }: { pct: number; color?: string;
 export type SegmentedVariant = 'control' | 'tabs';
 
 export function Segmented<T extends string>({
-  options, value, onChange, compact, variant = 'control', scroll,
+  options, value, onChange, compact, variant = 'control', scroll, borde = 'abajo',
 }: {
   /** `icon` sólo se dibuja en `tabs`; en `control` no hay lugar. */
   options: { key: T; label: string; icon?: keyof typeof Ionicons.glyphMap }[];
@@ -306,6 +368,15 @@ export function Segmented<T extends string>({
    * que los nombres se cortan.
    */
   scroll?: boolean;
+  /**
+   * Sólo aplica a `variant="tabs"`. La "T invertida" nace con el trazo
+   * horizontal ABAJO (default `'abajo'`, sin cambios). Grupos (T-108) la pega
+   * al primer elemento de su lista — ahí el borde tiene que ir ARRIBA, si no
+   * quedan dos líneas donde tiene que haber una (mismo criterio que
+   * `Band noTop`). Actividad (T-108, agregado del PO) quiere las DOS
+   * (`'ambos'`). El resto de la app no pasa esta prop y no cambia.
+   */
+  borde?: 'abajo' | 'arriba' | 'ambos';
 }) {
   const c = useC();
 
@@ -344,16 +415,24 @@ export function Segmented<T extends string>({
       );
     });
 
+    const estiloBorde = borde === 'ambos'
+      ? { borderTopWidth: 1, borderTopColor: c.hair, borderBottomColor: c.hair }
+      : borde === 'arriba'
+      ? { borderBottomWidth: 0, borderTopWidth: 1, borderTopColor: c.hair }
+      : { borderTopWidth: 0, borderBottomColor: c.hair };
+
     if (scroll) {
       return (
-        <View style={[styles.tabsWrap, { borderBottomColor: c.hair }]}>
+        <View testID="segmented-tabs-wrap" style={[styles.tabsWrap, estiloBorde]}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             {items}
           </ScrollView>
         </View>
       );
     }
-    return <View style={[styles.tabsWrap, { borderBottomColor: c.hair }]}>{items}</View>;
+    return (
+      <View testID="segmented-tabs-wrap" style={[styles.tabsWrap, estiloBorde]}>{items}</View>
+    );
   }
 
   return (

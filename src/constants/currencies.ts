@@ -96,6 +96,16 @@ export function getFormatLanguage(): AppLang {
 }
 
 /**
+ * El locale ISO con el que se formatea la plata hoy (T-106: lo necesita
+ * `MontoRodante`/`number-flow-react-native` para que su `Intl.NumberFormat`
+ * interno agrupe los miles exactamente igual que `formatAmount`). Misma
+ * fuente única que `formatAmount` — nunca una tabla aparte.
+ */
+export function getFormatLocale(): string {
+  return LOCALE_DE_SALIDA[idiomaDeSalida];
+}
+
+/**
  * Formatea un monto (ENTERO en menor unidad) con `Intl.NumberFormat` — SIEMPRE
  * usar esto, nunca `.toFixed()` ni división/multiplicación manual.
  *
