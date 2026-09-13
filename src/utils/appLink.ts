@@ -69,14 +69,23 @@ function esEnlazable(ruta: string): ruta is RutaEnlazable {
  * Lee un link de la app en cualquiera de sus dos formas: el `https` que se comparte, o
  * el `spendapp://` con el que esa página abre la app. `null` para todo lo demás.
  */
-export function rutaDeEnlace(url: string): { ruta: RutaEnlazable; params: URLSearchParams } | null {
-  if (typeof url !== 'string' || url.length === 0 || url.length > MAX_URL) return null;
+export function rutaDeEnlace(urlCruda: string): { ruta: RutaEnlazable; params: URLSearchParams } | null {
+  // Tope ANTES de cualquier regex: un link de megas no se procesa (T-098 · L-2).
+  if (typeof urlCruda !== 'string' || urlCruda.length === 0 || urlCruda.length > MAX_URL) return null;
+  // Recorta espacio/control de los bordes: sin esto, un `" spendapp://…"` no matcheaba
+  // ningún esquema y se leía como link ajeno en vez de caer al filtro (T-095 · ronda 3).
+  const url = urlCruda.replace(/^[\x00-\x20]+|[\x00-\x20]+$/g, '');
+  if (url.length === 0) return null;
 
+  // El esquema y el host son case-insensitive por RFC 3986 (T-095 · R-1): el SO no
+  // garantiza que lleguen en minúsculas. Sólo se compara en minúsculas — el resto
+  // (ruta, query, el código base64url del formato compacto) conserva su caso original.
+  const enMinuscula = url.toLowerCase();
   let resto: string;
-  const base = BASES_ACEPTADAS.find(b => url.startsWith(`${b}#`));
+  const base = BASES_ACEPTADAS.find(b => enMinuscula.startsWith(`${b.toLowerCase()}#`));
   if (base !== undefined) {
     resto = url.slice(base.length + 1);
-  } else if (url.startsWith(ESQUEMA)) {
+  } else if (enMinuscula.startsWith(ESQUEMA)) {
     resto = url.slice(ESQUEMA.length).replace(/^\/+/, '');
   } else {
     return null;

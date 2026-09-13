@@ -26,6 +26,30 @@ export function tomarEnlacePendiente(): string | null {
   return hrefInterno(url);
 }
 
+/** Un link que ya se abrió con sesión: no debe volver a quedar pendiente (T-094). */
+export function marcarConsumido(url: string): void {
+  consumidos.add(url);
+  if (pendiente === url) pendiente = null;
+}
+
+/** Cerrar sesión descarta lo pendiente: el próximo login puede ser de otra cuenta (T-094). */
+export function descartarEnlacePendiente(): void {
+  pendiente = null;
+}
+
+/**
+ * **Clasifica una URL en el momento en que LLEGA** (T-094 · SEC M-1).
+ *
+ * Antes se guardaba desde un efecto que dependía de la sesión, con la URL que retenía
+ * `Linking.useURL()`: al cerrar sesión el efecto corría de nuevo y re-guardaba un link
+ * ya usado, y el próximo login —de cualquier cuenta— lo abría.
+ */
+export function procesarUrlEntrante(url: string | null, haySesion: boolean): void {
+  if (!url) return;
+  if (haySesion) marcarConsumido(url);
+  else recordarEnlace(url);
+}
+
 /** Sólo para tests. */
 export function _reiniciarEnlacePendiente(): void {
   pendiente = null;
