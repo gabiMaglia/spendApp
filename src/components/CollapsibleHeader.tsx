@@ -27,19 +27,20 @@ import { FondoMarmol } from '@/src/components/FondoMarmol';
 export const HEADER_BAR_H = 52;
 
 /**
- * Alto de una línea de título COMPACTA, la que había antes de T-114 (fontSize
- * 16, una sola línea) — es la base sobre la que se mide el crecimiento pedido
- * por el PO.
+ * Alto total del header (fila de botones + bloque título) que vio el PO en el teléfono
+ * tras T-114: 52 + 33 = 85pt, sin el notch. Base del pedido de T-125.
  */
-export const TITLE_BLOCK_H_HOY = 20;
+export const HEADER_TOTAL_H_T114 = 85;
+
+/** «El doble y un poco más» (PO 2026-09-13, T-125): ×2,2 sobre el header de T-114. */
+export const FACTOR_ALTO_HEADER = 2.2;
 
 /**
- * **Alto mínimo del bloque título, +2/3 (×1,667) respecto de hoy** (T-114).
- * Es un piso, no un techo: en Inicio el bloque real mide más porque el saludo
- * suma una segunda línea — la constante garantiza el mismo crecimiento base
- * en las seis pantallas, tengan o no subtítulo.
+ * **Alto del bloque título** (T-114 → T-125): lo que queda del alto total pedido después
+ * de la fila de botones. La fila de botones no cambia; crece el espacio del título, que
+ * va abajo con `space-between`. Es un piso: en Inicio el saludo suma una línea.
  */
-export const TITLE_BLOCK_H = Math.round(TITLE_BLOCK_H_HOY * 5 / 3);
+export const TITLE_BLOCK_H = Math.round(HEADER_TOTAL_H_T114 * FACTOR_ALTO_HEADER) - HEADER_BAR_H;
 
 /**
  * Cuánto padding necesita el contenido para arrancar DEBAJO del header.

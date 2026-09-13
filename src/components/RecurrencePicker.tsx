@@ -66,6 +66,7 @@ export function RecurrencePicker({
           sin padding lateral acá, a diferencia de la etiqueta y la aclaración. */}
       <Segmented
         variant="tabs"
+        borde="ambos"
         scroll
         value={toKey(value)}
         onChange={k => { hapticLight(); onChange(toValue(k)); }}
