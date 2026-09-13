@@ -1,4 +1,4 @@
-import { BASE_URL_VIEJA, LINKS_URL } from '@/src/constants/web';
+import { LINKS_URL } from '@/src/constants/web';
 
 /**
  * **Los links que la app comparte** (PO, 2026-09-12).
@@ -18,10 +18,12 @@ import { BASE_URL_VIEJA, LINKS_URL } from '@/src/constants/web';
  */
 
 /**
- * La base de los links nuevos: `https://spendapp.github.io/` (ver `constants/web`).
+ * La base de los links: `https://spendapp.github.io/` (ver `constants/web`).
  *
- * Las bases VIEJAS se siguen leyendo: hay links ya compartidos que apuntan a la página en
- * el GitHub personal del PO, con `.html` y sin él. Esa página sigue publicada (`docs/web`).
+ * Hasta T-102 se seguían leyendo dos bases viejas del Pages personal del PO (con `.html`
+ * y sin él): el PO decidió (2026-09-13) apagar esa copia porque ve los secretos de los
+ * links. Ya no se aceptan — un link con esa base cae al `return null` de abajo, como
+ * cualquier host ajeno.
  */
 export const ENLACE_BASE = LINKS_URL;
 
@@ -30,8 +32,6 @@ export const MAX_URL = 1500;
 const BASES_ACEPTADAS = [
   LINKS_URL,                          // https://spendapp.github.io/#…
   LINKS_URL.replace(/\/$/, ''),       // https://spendapp.github.io#…  (sin la barra)
-  `${BASE_URL_VIEJA}/abrir`,          // links compactos del 2026-09-12, antes de mudarse
-  `${BASE_URL_VIEJA}/abrir.html`,     // links largos del 2026-09-12
 ];
 
 /**

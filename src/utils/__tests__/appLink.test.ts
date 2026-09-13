@@ -1,3 +1,5 @@
+import { readdirSync, readFileSync, statSync } from 'fs';
+import { join } from 'path';
 import { ENLACE_BASE, MAX_URL, enlaceCompacto, enlaceCompartible, hrefInterno, rutaDeEnlace } from '@/src/utils/appLink';
 
 /**
@@ -76,14 +78,23 @@ describe('dónde viven los links', () => {
     expect(link).not.toContain('gabimaglia');
   });
 
-  it('se leen con y sin la barra final, y en las dos direcciones viejas', () => {
+  it('se leen con y sin la barra final', () => {
+    for (const base of ['https://spendapp.github.io/', 'https://spendapp.github.io']) {
+      expect(rutaDeEnlace(`${base}#cAQQF`)?.ruta).toBe('contact/add');
+    }
+  });
+
+  // T-102 (PO, 2026-09-13): el Pages personal del PO (`gabimaglia.github.io`) se
+  // apaga — esa copia de la página ve los secretos del link. Antes esto se
+  // aceptaba (compacto, largo, con y sin `.html`); ahora es basura como
+  // cualquier otro host ajeno.
+  it('el Pages personal viejo ya NO se acepta (T-102): compacto, largo, con y sin .html', () => {
     for (const base of [
-      'https://spendapp.github.io/',
-      'https://spendapp.github.io',
       'https://gabimaglia.github.io/spendApp/web/abrir',
       'https://gabimaglia.github.io/spendApp/web/abrir.html',
     ]) {
-      expect(rutaDeEnlace(`${base}#cAQQF`)?.ruta).toBe('contact/add');
+      expect(rutaDeEnlace(`${base}#cAQQF`)).toBeNull();
+      expect(rutaDeEnlace(`${base}#contact/add?id=u1`)).toBeNull();
     }
   });
 
@@ -108,6 +119,42 @@ describe('formato compacto', () => {
 
   it('hrefInterno lo pasa al router con el código intacto', () => {
     expect(hrefInterno(`${ENLACE_BASE}#cAQQF-_x`)).toBe('/contact/add?c=AQQF-_x');
+  });
+});
+
+describe('guard: no queda ninguna referencia a gabimaglia (T-102)', () => {
+  // El Pages personal del PO se apaga y ve secretos de link: si el nombre
+  // reaparece en código o en la página publicada, algo lo volvió a aceptar
+  // o a documentar como vigente. Mismo patrón que el guard de `legal.test.ts`.
+  const RAIZ = join(__dirname, '..', '..', '..');
+
+  function archivosCon(dir: string, ext: RegExp): string[] {
+    const out: string[] = [];
+    for (const nombre of readdirSync(dir)) {
+      const ruta = join(dir, nombre);
+      if (statSync(ruta).isDirectory()) {
+        if (nombre === '__tests__' || nombre === 'node_modules') continue;
+        out.push(...archivosCon(ruta, ext));
+      } else if (ext.test(nombre)) {
+        out.push(ruta);
+      }
+    }
+    return out;
+  }
+
+  it('src/ y app/ no mencionan gabimaglia fuera de los tests', () => {
+    const archivos = [
+      ...archivosCon(join(RAIZ, 'src'), /\.tsx?$/),
+      ...archivosCon(join(RAIZ, 'app'), /\.tsx?$/),
+    ];
+    const ofensas = archivos.filter(a => readFileSync(a, 'utf8').includes('gabimaglia'));
+    expect(ofensas).toEqual([]);
+  });
+
+  it('docs/web/ no menciona gabimaglia', () => {
+    const archivos = archivosCon(join(RAIZ, 'docs', 'web'), /\.html$/);
+    const ofensas = archivos.filter(a => readFileSync(a, 'utf8').includes('gabimaglia'));
+    expect(ofensas).toEqual([]);
   });
 });
 
