@@ -760,12 +760,11 @@ export default function NewExpenseScreen() {
             </View>
           )}
 
-          {/* Repetición — sólo al crear; editar una ocurrencia no toca la serie. */}
-          {!isEditMode && (
-            <View style={styles.recurrencePad}>
-              <RecurrencePicker value={recurrence} onChange={setRecurrence} />
-            </View>
-          )}
+          {/* Repetición — sólo al crear; editar una ocurrencia no toca la serie.
+              Sin padding lateral acá (T-118): el selector es `Segmented variant="tabs"`
+              y ese estilo va de borde a borde — el padding de la etiqueta y de la
+              aclaración vive DENTRO de `RecurrencePicker`, no en este wrapper. */}
+          {!isEditMode && <RecurrencePicker value={recurrence} onChange={setRecurrence} />}
 
           {/* Save button */}
           <Pressable
@@ -954,7 +953,6 @@ const styles = StyleSheet.create({
   // el campo de "mismo %" o la lista de miembros (PO 2026-09-13). Mismo
   // token para los dos casos, así "iguales" y "porcentaje" quedan iguales.
   afterSelectorsGap: { marginTop: Spacing[3] },
-  recurrencePad:{ paddingHorizontal: Spacing.screenPad },
   /**
    * `marginTop: 'auto'` empuja Guardar al fondo cuando sobra lugar.
    *

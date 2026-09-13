@@ -32,16 +32,16 @@ const grupo: Group = {
   createdAt: 0, createdById: 'ana', deletionVotes: [], updatedAt: 0, isDeleted: false,
 } as Group;
 
-const gastoDeGrupo: Expense = {
+const gastoDeGrupo = {
   id: 'e1', groupId: 'g1', description: 'Carne', amount: 100_000, currency: 'ARS',
-  paidById: 'ana', splitMode: 'equal', splits: [{ userId: 'ana', amount: 100_000 }],
+  paidById: 'ana', splitMode: 'equal', splits: [{ userId: 'ana', amount: 100_000, isPaid: true }],
   category: 'food', date: AHORA, createdAt: AHORA, createdById: 'ana',
   deletionVotes: [], updatedAt: AHORA, isDeleted: false,
 } as Expense;
 
-const gastoPersonal: Expense = {
+const gastoPersonal = {
   id: 'p1', groupId: '', description: 'Café', amount: 5_000, currency: 'ARS',
-  paidById: 'ana', splitMode: 'equal', splits: [{ userId: 'ana', amount: 5_000 }],
+  paidById: 'ana', splitMode: 'equal', splits: [{ userId: 'ana', amount: 5_000, isPaid: true }],
   category: 'other', date: AHORA, createdAt: AHORA, createdById: 'ana',
   deletionVotes: [], updatedAt: AHORA, isDeleted: false,
 } as Expense;
