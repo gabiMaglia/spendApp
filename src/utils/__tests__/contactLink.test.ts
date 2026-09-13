@@ -58,18 +58,27 @@ describe('contactLink', () => {
     expect(parseContactLink(interno)?.name).toBe('Ada');
   });
 
-  it('los links LARGOS ya compartidos se siguen leyendo, con .html y sin él', () => {
+  // T-102 (PO, 2026-09-13): el Pages personal del PO se apaga — esa copia
+  // vieja de la página ve los secretos del link. Deja de leerse, aunque el
+  // link sea por lo demás válido. El formato LARGO nuevo (sobre
+  // `spendapp.github.io`) se sigue aceptando, probado abajo.
+  it('los links del Pages personal viejo (gabimaglia) ya NO se leen (T-102), con .html y sin él', () => {
     const q = 'id=u1&name=Jos%C3%A9&email=j%40x.com&s=' + 'ab'.repeat(32);
     const viejas = [
       'https://gabimaglia.github.io/spendApp/web/abrir.html',
       'https://gabimaglia.github.io/spendApp/web/abrir',
     ];
     for (const base of viejas) {
-      const leido = parseContactLink(`${base}#contact/add?${q}`);
-      expect(leido?.name).toBe('José');
-      expect(leido?.email).toBe('j@x.com');
-      expect(leido?.secret).toBe('ab'.repeat(32));
+      expect(parseContactLink(`${base}#contact/add?${q}`)).toBeNull();
     }
+  });
+
+  it('el link LARGO sobre la base nueva (spendapp.github.io) se sigue leyendo', () => {
+    const q = 'id=u1&name=Jos%C3%A9&email=j%40x.com&s=' + 'ab'.repeat(32);
+    const leido = parseContactLink(`${ENLACE_BASE}#contact/add?${q}`);
+    expect(leido?.name).toBe('José');
+    expect(leido?.email).toBe('j@x.com');
+    expect(leido?.secret).toBe('ab'.repeat(32));
   });
 
   it('si la regla compacta no puede representar un campo sin pérdida, cae al link largo', () => {

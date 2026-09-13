@@ -10,11 +10,13 @@
 <!--
   Página intermedia de los links que comparte la app (src/utils/appLink.ts).
 
-  Se publica en DOS lugares con el mismo contenido:
-    - https://spendapp.github.io/  (como index.html del sitio) — la de los links nuevos, y
-      además el índice de las páginas legales. Se publica con scripts/publicar-sitio.sh.
-    - https://gabimaglia.github.io/spendApp/web/abrir  (este archivo, vía /docs) — la de los
-      links ya compartidos. No borrar mientras pueda haber links viejos dando vueltas.
+  Se publica como index.html de https://spendapp.github.io/ — la única base que la app
+  acepta — y es además el índice de las páginas legales. Se publica con
+  scripts/publicar-sitio.sh.
+
+  T-102 (PO, 2026-09-13): hasta acá se publicaba también en el Pages personal del PO,
+  para que siguieran andando links ya compartidos. Esa copia se apagó — veía los
+  secretos del link — y `src/utils/appLink.ts` ya no acepta esa base.
 
   Gmail y casi cualquier cliente de mail o chat sólo convierten en link lo que empieza con
   http(s)://, así que la app comparte un link a esta página y la página abre la app con

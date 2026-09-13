@@ -40,12 +40,24 @@ describe('link de invitación', () => {
     expect(link).toMatch(/#g[A-Za-z0-9_-]+$/);
   });
 
-  it('un link largo ya compartido se sigue leyendo', () => {
+  // T-102 (PO, 2026-09-13): el Pages personal del PO se apaga — ve los
+  // secretos del link. Un link viejo ya compartido con esa base deja de
+  // leerse; el largo sobre la base nueva se sigue aceptando (test siguiente).
+  it('un link largo del Pages personal viejo (gabimaglia) ya NO se lee (T-102)', () => {
     const inv = createInvite('g1', 'Viaje', generateIdentity().publicKey, AHORA);
     const params = new URLSearchParams({
       g: inv.groupId, n: inv.groupName, t: inv.token, f: inv.inviterFingerprint, e: String(inv.expiresAt),
     });
     const largo = `https://gabimaglia.github.io/spendApp/web/abrir.html#groups/join?${params}`;
+    expect(parseInviteLink(largo)).toBeNull();
+  });
+
+  it('un link largo sobre la base nueva (spendapp.github.io) se sigue leyendo', () => {
+    const inv = createInvite('g1', 'Viaje', generateIdentity().publicKey, AHORA);
+    const params = new URLSearchParams({
+      g: inv.groupId, n: inv.groupName, t: inv.token, f: inv.inviterFingerprint, e: String(inv.expiresAt),
+    });
+    const largo = `https://spendapp.github.io/#groups/join?${params}`;
     expect(parseInviteLink(largo)).toEqual(inv);
   });
 
