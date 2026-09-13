@@ -1,7 +1,9 @@
 import React from 'react';
+import { StyleSheet } from 'react-native';
 import { fireEvent, render } from '@testing-library/react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Segmented, StatGrid } from '../Band';
+import { SectionLabel, Segmented, SplitStat, StatGrid } from '../Band';
+import { crearRegistroDeMontos } from '@/src/utils/montoRodanteRegistry';
 
 /**
  * `Segmented` tiene dos variantes porque tiene dos trabajos: `control` elige
@@ -86,6 +88,73 @@ describe('Segmented', () => {
     );
     muchas.forEach(o => expect(r.getByText(o.label)).toBeTruthy());
   });
+
+  /**
+   * T-108 — Grupos pega el selector Activos/Archivados al primer elemento de
+   * la lista, y para eso el borde de la "T invertida" tiene que pasar de abajo
+   * a arriba (si no, quedarían las dos líneas — la de abajo del selector y la
+   * de arriba de la banda — donde tiene que haber una sola, igual que
+   * `Band noTop`). El resto de la app no pasa esta prop y no puede cambiar.
+   */
+  it('sin `borde`, se comporta EXACTO como antes (default abajo) — no rompe a los consumidores existentes', () => {
+    const r = render(<Segmented variant="tabs" options={opciones} value="a" onChange={() => {}} />);
+    const estilo = StyleSheet.flatten(r.getByTestId('segmented-tabs-wrap').props.style);
+    expect(estilo.borderBottomWidth).toBe(1);
+    expect(estilo.borderTopWidth ?? 0).toBe(0);
+  });
+
+  it('con `borde="arriba"`, usa esa variante en vez de la de abajo', () => {
+    const r = render(<Segmented variant="tabs" borde="arriba" options={opciones} value="a" onChange={() => {}} />);
+    const estilo = StyleSheet.flatten(r.getByTestId('segmented-tabs-wrap').props.style);
+    expect(estilo.borderTopWidth).toBe(1);
+    expect(estilo.borderBottomWidth ?? 0).toBe(0);
+  });
+});
+
+/**
+ * T-108 — el aire antes de una lista agrupable se dobla PANTALLA POR PANTALLA,
+ * sin tocar el resto de los usos de `SectionLabel` (por ej. las de Actividad
+ * entre un grupo de fecha y el siguiente). `topOverride` reemplaza el
+ * `paddingTop` de este `SectionLabel` puntual sin afectar el default de los
+ * demás.
+ */
+describe('SectionLabel', () => {
+  it('sin topOverride, usa el paddingTop de siempre (default, no rompe nada)', () => {
+    const r = render(<SectionLabel label="X" testID="sl" />);
+    const estilo = StyleSheet.flatten(r.getByTestId('sl').props.style);
+    expect(estilo.paddingTop).toBe(22);
+  });
+
+  it('con topOverride, reemplaza el paddingTop por el valor pedido', () => {
+    const r = render(<SectionLabel label="X" topOverride={40} testID="sl" />);
+    const estilo = StyleSheet.flatten(r.getByTestId('sl').props.style);
+    expect(estilo.paddingTop).toBe(40);
+  });
+});
+
+/**
+ * `SplitStat` — igual que `StatGrid` más abajo: sin `id` en el item, se
+ * comporta como siempre (Text plano); con `id`, el valor rueda (T-106).
+ */
+describe('SplitStat', () => {
+  it('sin id en los items, sigue siendo texto plano (default, no rompe nada)', () => {
+    const r = render(
+      <SplitStat items={[{ label: 'A', value: '$100' }, { label: 'B', value: '$200' }]} />,
+    );
+    expect(r.getByText('$100')).toBeTruthy();
+    expect(r.getByText('$200')).toBeTruthy();
+  });
+
+  it('con id en el item, el valor es accesible igual (rueda vía MontoRodante)', () => {
+    const registro = crearRegistroDeMontos();
+    const r = render(
+      <SplitStat
+        items={[{ label: 'A', value: '$100', id: 'a' }]}
+        registry={registro}
+      />,
+    );
+    expect(r.getByLabelText('$100')).toBeTruthy();
+  });
 });
 
 /**
@@ -115,5 +184,13 @@ describe('StatGrid', () => {
     const monto = r.getByText('$12.400,00');
     expect(monto.props.numberOfLines).toBe(1);
     expect(monto.props.adjustsFontSizeToFit).toBe(true);
+  });
+
+  // T-106: Groups pasa `id` en los cuatro items del box — todos ruedan.
+  it('con id en los items, los cuatro valores son accesibles igual (ruedan vía MontoRodante)', () => {
+    const registro = crearRegistroDeMontos();
+    const conId = items.map((it, i) => ({ ...it, id: `stat-${i}` }));
+    const r = render(<StatGrid items={conId as never} registry={registro} />);
+    items.forEach(i => expect(r.getByLabelText(i.value)).toBeTruthy());
   });
 });

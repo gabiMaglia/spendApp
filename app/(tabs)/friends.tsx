@@ -109,8 +109,8 @@ export default function FriendsScreen() {
         {(owedToYou > 0 || youOwe > 0) && (
           <SplitStat
             items={[
-              { label: t('friends.owed_to_you'), value: formatMoney(owedToYou, cur), color: c.semantic.positive },
-              { label: t('friends.you_owe'),     value: formatMoney(youOwe, cur),    color: c.textSecondary },
+              { label: t('friends.owed_to_you'), value: formatMoney(owedToYou, cur), color: c.semantic.positive, id: 'friends.owedToYou' },
+              { label: t('friends.you_owe'),     value: formatMoney(youOwe, cur),    color: c.textSecondary,     id: 'friends.youOwe' },
             ]}
           />
         )}
@@ -123,7 +123,9 @@ export default function FriendsScreen() {
           />
         ) : (
           <>
-            <SectionLabel label={t('friends.contacts_count', { count: contacts.length })} />
+            {/* T-108: aire antes de la lista de contactos, doblado (22 → 44,
+                redondeado a Spacing[8]=40, ver handoff). */}
+            <SectionLabel label={t('friends.contacts_count', { count: contacts.length })} topOverride={Spacing[8]} />
             <Band>
               {contacts.map((contact, i) => {
                 const balance = personBalances.find(b => b.userId === contact.id);

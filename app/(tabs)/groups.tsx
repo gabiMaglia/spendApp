@@ -102,16 +102,24 @@ export default function GroupsScreen() {
             selector. */}
         <StatGrid
           items={[
-            { label: t('groups.stat_groups'),  value: String(idsActivos.size) },
-            { label: t('groups.stat_expenses'), value: String(gastos) },
-            { label: t('groups.stat_owed_to_you'), value: formatMoney(owedToYou, cur), color: c.semantic.positive },
-            { label: t('groups.stat_you_owe'),     value: formatMoney(youOwe, cur),    color: c.textSecondary },
+            { label: t('groups.stat_groups'),  value: String(idsActivos.size), id: 'groups.count' },
+            { label: t('groups.stat_expenses'), value: String(gastos), id: 'groups.expenseCount' },
+            { label: t('groups.stat_owed_to_you'), value: formatMoney(owedToYou, cur), color: c.semantic.positive, id: 'groups.owedToYou' },
+            { label: t('groups.stat_you_owe'),     value: formatMoney(youOwe, cur),    color: c.textSecondary,     id: 'groups.youOwe' },
           ]}
         />
 
+        {/* T-108: aire ANTES del selector doblado (16 → 32 = Spacing[7], token
+            exacto, sin redondear) y aire DESPUÉS eliminado — pedido del PO de
+            que el selector quede pegado al primer grupo, sin gap. El borde de
+            la "T invertida" pasa de abajo a arriba (`borde="arriba"`) para que
+            la única línea entre selector y lista sea la del propio `Band` de
+            la lista — si el selector conservara su borde de abajo, se verían
+            las dos donde tiene que haber una (mismo criterio que `Band noTop`). */}
         <View style={styles.segPad}>
           <Segmented
             variant="tabs"
+            borde="arriba"
             value={tabActual}
             onChange={v => { hapticLight(); setTab(v); }}
             options={[
@@ -194,6 +202,8 @@ const styles = StyleSheet.create({
   safe:     { flex: 1 },
   title:    { paddingHorizontal: Spacing.screenPad, paddingBottom: 16 },
   // Sin padding lateral: las pestañas («T invertida») van de borde a borde.
-  segPad:   { paddingTop: 16, paddingBottom: 14 },
+  // T-108: paddingTop doblado (16 → 32 = Spacing[7]); paddingBottom a 0 para
+  // pegar el selector al primer grupo (antes 14).
+  segPad:   { paddingTop: Spacing[7], paddingBottom: 0 },
   footnote: { paddingHorizontal: Spacing.screenPad, paddingTop: 14, lineHeight: 17 },
 });

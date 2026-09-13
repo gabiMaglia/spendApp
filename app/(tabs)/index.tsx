@@ -119,8 +119,8 @@ export default function AccountScreen() {
         {/* Banda de deuda direccional: los dos lados no se netean (ADR-006) */}
         <SplitStat
           items={[
-            { label: t('friends.owed_to_you'), value: formatMoney(owedToYou, cur), color: c.semantic.positive },
-            { label: t('friends.you_owe'),     value: formatMoney(youOwe, cur),    color: c.textSecondary },
+            { label: t('friends.owed_to_you'), value: formatMoney(owedToYou, cur), color: c.semantic.positive, id: 'home.owedToYou' },
+            { label: t('friends.you_owe'),     value: formatMoney(youOwe, cur),    color: c.textSecondary,     id: 'home.youOwe' },
           ]}
         />
 
@@ -142,6 +142,7 @@ export default function AccountScreen() {
               minor={net}
               code={cur}
               prefix={net > 0 ? '+' : ''}
+              rollId="home.net"
               style={[Typography.amountS, {
                 color: net > 0 ? c.semantic.positive : net < 0 ? c.semantic.negative : c.text,
               }]}
@@ -163,6 +164,7 @@ export default function AccountScreen() {
               <MoneyText
                 minor={totalSpent}
                 code={cur}
+                rollId="home.personalSpent"
                 style={[Typography.amountL, {
                   color: totalAcreditado >= totalSpent ? c.text : c.semantic.negative,
                 }]}
@@ -198,9 +200,11 @@ export default function AccountScreen() {
           onClose={() => setAvisoVisto(true)}
         />
 
-        {/* Grupos */}
+        {/* Grupos. T-108: el aire antes de esta lista se dobla (22 → 44,
+            redondeado al token más cercano: Spacing[8]=40, ver handoff). */}
         <SectionLabel
           label={t('tabs.groups')}
+          topOverride={Spacing[8]}
           right={<BandLink label={t('groups.new_group')} onPress={() => router.push('/groups/new' as any)} />}
         />
         {misGrupos.length > 0 && (

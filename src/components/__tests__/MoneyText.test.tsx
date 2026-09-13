@@ -1,6 +1,7 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react-native';
 import { MoneyText } from '../MoneyText';
+import { crearRegistroDeMontos } from '@/src/utils/montoRodanteRegistry';
 
 describe('MoneyText', () => {
   it('formatea el monto entero (menor unidad) con símbolo', () => {
@@ -27,5 +28,17 @@ describe('MoneyText', () => {
     // y el signo $ en pantallas angostas (achica en vez de cortar).
     expect(node.props.numberOfLines).toBe(1);
     expect(node.props.adjustsFontSizeToFit).toBe(true);
+  });
+
+  // T-106: los "montos grandes de bloque" pasan `rollId` para rodar. Sin él,
+  // MoneyText se comporta EXACTO como antes (default, sin romper nada).
+  it('con rollId, el texto sigue siendo accesible igual que como Text plano', () => {
+    render(<MoneyText minor={150000} code="ARS" rollId="test.monto" registry={crearRegistroDeMontos()} />);
+    expect(screen.getByLabelText('$1.500')).toBeTruthy();
+  });
+
+  it('sin rollId no cambia nada: sigue siendo un <Text> con el texto directo', () => {
+    render(<MoneyText minor={150000} code="ARS" />);
+    expect(screen.getByText('$1.500')).toBeTruthy();
   });
 });

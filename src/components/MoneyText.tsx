@@ -1,5 +1,7 @@
 import { Text, type TextProps, type StyleProp, type TextStyle } from 'react-native';
 import { formatMoney, type CurrencyCode } from '@/src/constants/currencies';
+import { MontoRodante } from '@/src/components/MontoRodante';
+import type { MontoRegistry } from '@/src/utils/montoRodanteRegistry';
 
 interface MoneyTextProps extends TextProps {
   /** Entero en menor unidad (nunca float de la unidad real). */
@@ -11,6 +13,16 @@ interface MoneyTextProps extends TextProps {
   style?: StyleProp<TextStyle>;
   /** Mínimo al que puede achicarse la fuente antes de rendirse (0–1). */
   minimumFontScale?: number;
+  /**
+   * Sólo para los MONTOS GRANDES DE BLOQUE (T-106, nunca en filas de listas):
+   * pasa esto para que el número "ruede" (`MontoRodante`) en vez de aparecer
+   * directo. Es la clave de identidad estable de esta posición en pantalla —
+   * ver `montoRodanteRegistry`. Sin `rollId`, MoneyText se comporta EXACTO
+   * como siempre (default, sin romper ningún uso existente).
+   */
+  rollId?: string;
+  /** Sólo para tests: registro inyectable de `MontoRodante`. */
+  registry?: MontoRegistry;
 }
 
 /**
@@ -21,8 +33,14 @@ interface MoneyTextProps extends TextProps {
  */
 export function MoneyText({
   minor, code, prefix = '', suffix = '',
-  style, minimumFontScale = 0.6, ...rest
+  style, minimumFontScale = 0.6, rollId, registry, ...rest
 }: MoneyTextProps) {
+  const texto = `${prefix}${formatMoney(minor, code)}${suffix}`;
+
+  if (rollId) {
+    return <MontoRodante id={rollId} value={texto} style={style} registry={registry} testID={rest.testID} />;
+  }
+
   return (
     <Text
       numberOfLines={1}
@@ -31,7 +49,7 @@ export function MoneyText({
       style={style}
       {...rest}
     >
-      {prefix}{formatMoney(minor, code)}{suffix}
+      {texto}
     </Text>
   );
 }

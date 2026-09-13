@@ -266,6 +266,7 @@ export default function PersonalScreen() {
                   <MoneyText
                     minor={Math.abs(remaining)}
                     code={cur}
+                    rollId="personal.disponible"
                     style={[Typography.amountM, { color: remaining >= 0 ? c.semantic.positive : c.semantic.negative }]}
                   />
                 </View>
@@ -373,7 +374,9 @@ export default function PersonalScreen() {
           />
         )}
 
-        <SectionLabel label={t('personal.movements_count', { count: monthEntries.length })} />
+        {/* T-108: aire antes de la lista de movimientos, doblado (22 → 44,
+            redondeado a Spacing[8]=40, ver handoff). */}
+        <SectionLabel label={t('personal.movements_count', { count: monthEntries.length })} topOverride={Spacing[8]} />
 
         {monthEntries.length === 0 ? (
           <Band>

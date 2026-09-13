@@ -177,10 +177,15 @@ export default function ActivityScreen() {
             </Text>
           </View>
         ) : (
-          sections.map(({ label, events }) => (
+          sections.map(({ label, events }, seccionIdx) => (
             <View key={label}>
               <SectionLabel
                 label={label}
+                // T-108: SOLO la primera agrupación (la que sigue al selector
+                // de filtro) dobla su aire de arriba (22 → 44, redondeado a
+                // Spacing[8]=40). Las siguientes son espacio INTERNO de la
+                // misma lista (un grupo de fecha del siguiente) y no cambian.
+                topOverride={seccionIdx === 0 ? Spacing[8] : undefined}
                 right={
                   label === t('activity.section_today') && todayNewCount > 0 ? (
                     <View style={[styles.unseenBadge, { backgroundColor: c.brand.primary }]}>
