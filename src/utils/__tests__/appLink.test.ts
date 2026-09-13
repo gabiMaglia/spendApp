@@ -51,6 +51,16 @@ describe('rutaDeEnlace', () => {
     expect(rutaDeEnlace('cualquier cosa')).toBeNull();
     expect(rutaDeEnlace('exp+spendapp://expo-development-client/?url=http%3A%2F%2F10.0.2.2')).toBeNull();
   });
+
+  it('el esquema es case-insensitive (RFC 3986): mayúsculas no evaden ni rompen la lectura', () => {
+    expect(rutaDeEnlace('SPENDAPP://contact/add?id=u1&name=Ada')?.ruta).toBe('contact/add');
+    expect(rutaDeEnlace('SpendApp://groups/join?g=1')?.ruta).toBe('groups/join');
+    expect(rutaDeEnlace('SPENDAPP://settings/borrar-cuenta')).toBeNull();
+  });
+
+  it('el host del https es case-insensitive: no evade la lista blanca ni rompe la lectura', () => {
+    expect(rutaDeEnlace('HTTPS://SPENDAPP.GITHUB.IO/#contact/add?id=u1')?.ruta).toBe('contact/add');
+  });
 });
 
 describe('dónde viven los links', () => {

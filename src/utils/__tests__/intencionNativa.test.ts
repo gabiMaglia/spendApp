@@ -31,6 +31,22 @@ describe('destinoDeUrlExterna', () => {
     expect(destinoDeUrlExterna(enlaceCompacto('g', 'XYZ'))).toBe('/groups/join?c=XYZ');
   });
 
+  it.each([
+    'SPENDAPP://debug/identity',
+    'SpendApp://settings/borrar-cuenta',
+  ])('un esquema en mayúsculas no evade la lista blanca: %s', (url) => {
+    expect(destinoDeUrlExterna(url)).toBe('/');
+  });
+
+  it('un esquema en mayúsculas sigue abriendo una ruta enlazable', () => {
+    expect(destinoDeUrlExterna('SPENDAPP://contact/add?id=u1&name=Ada')).toBe('/contact/add?id=u1&name=Ada');
+  });
+
+  it('el https de la página en mayúsculas también rige (host y esquema son case-insensitive por RFC 3986)', () => {
+    expect(destinoDeUrlExterna('HTTPS://SPENDAPP.GITHUB.IO/#debug/identity')).toBe('/');
+    expect(destinoDeUrlExterna('HTTPS://SPENDAPP.GITHUB.IO/#contact/add?id=u1')).toBe('/contact/add?id=u1');
+  });
+
   it.each(['', '/', 'spendapp://', 'spendapp:', 'spendapp://%%%'])('basura o vacío va al inicio sin lanzar: %j', (url) => {
     expect(destinoDeUrlExterna(url)).toBe('/');
   });

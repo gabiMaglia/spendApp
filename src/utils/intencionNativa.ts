@@ -19,8 +19,11 @@ export function destinoDeUrlExterna(path: string): string {
   try {
     if (typeof path !== 'string' || path.length === 0) return '/';
     if (path.startsWith('/')) return hrefInterno(`${ESQUEMA_APP}/${path}`) ?? '/';
-    if (path.startsWith(ESQUEMA_APP)) return hrefInterno(path) ?? '/';
-    if (path.startsWith(ENLACE_BASE.replace(/\/$/, ''))) return hrefInterno(path) ?? '/';
+    // Esquema y host son case-insensitive (RFC 3986): comparar sólo en minúsculas, sin
+    // tocar `path` — `hrefInterno` necesita el caso original (query, código compacto).
+    const enMinuscula = path.toLowerCase();
+    if (enMinuscula.startsWith(ESQUEMA_APP)) return hrefInterno(path) ?? '/';
+    if (enMinuscula.startsWith(ENLACE_BASE.replace(/\/$/, '').toLowerCase())) return hrefInterno(path) ?? '/';
     return path;
   } catch {
     return '/';
