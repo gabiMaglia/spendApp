@@ -1,12 +1,14 @@
 # Genera las texturas de mármol de los headers (T-105) con el mismo shader que la maqueta
-# aprobada por el PO: quieto, presencia de vetas 1.60, finura 0.85. Reproducible: semilla fija.
+# aprobada por el PO: quieto, presencia de vetas 1.60; vetas afinadas al mínimo (PO 2026-09-13). Reproducible: semilla fija.
 # Uso: python3 scripts/generar-marmol.py  (requiere numpy y Pillow)
 import os
 import numpy as np
 from PIL import Image
 
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-W, H = 1290, 720
+W_OUT, H_OUT = 1290, 720
+SS = 2  # supersampling: las vetas finísimas sin serrucho
+W, H = W_OUT*SS, H_OUT*SS
 T, INTEN, FIN = 40.0, 1.60, 0.85
 def fract(x): return x - np.floor(x)
 def h(px, py): return fract(np.sin(px*127.1 + py*311.7) * 43758.5453)
@@ -31,9 +33,9 @@ ux, uy = (xs+0.5)/H, ((H-1-ys)+0.5)/H
 qx, qy = ux*1.6 + T*0.012, uy*1.6 + T*0.004
 wx = fbm(qx, qy + T*0.01); wy = fbm(qx+5.2 - T*0.008, qy+1.3 - T*0.008)
 dx, dy = qx + 1.3*wx, qy + 1.3*wy
-grueso = veta(dx*1.0, dy*0.55, 3.2, 14.0/FIN)
-finas = veta(dx*1.3+7.1, dy*0.8+7.1, 7.5, 40.0/FIN) * 0.75
-pelo = veta(dx*2.1+2.3, dy*1.2+2.3, 13.0, 90.0/FIN) * 0.45
+grueso = veta(dx*1.0, dy*0.55, 3.2, 160.0)
+finas = veta(dx*1.3+7.1, dy*0.8+7.1, 7.5, 320.0) * 0.8
+pelo = veta(dx*2.1+2.3, dy*1.2+2.3, 13.0, 600.0) * 0.55
 nube = fbm(dx*0.9+3.0, dy*0.9+3.0)
 v = np.clip((grueso*0.9 + finas + pelo) * INTEN, 0, 1)[..., None]
 rng = np.random.default_rng(7)
@@ -47,7 +49,7 @@ for nombre, base, vet, k, bg in [
 ]:
     col = base + (vet - base) * (v*k) + grano
     col = col + (bg - col) * t
-    img = Image.fromarray((np.clip(col,0,1)*255).round().astype(np.uint8))
+    img = Image.fromarray((np.clip(col,0,1)*255).round().astype(np.uint8)).resize((W_OUT, H_OUT), Image.LANCZOS)
     out = os.path.join(RAIZ, 'assets', 'images', f'marmol-{nombre}.jpg')
     img.save(out, quality=86, optimize=True, progressive=True)
     print(out)
