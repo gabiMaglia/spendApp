@@ -238,6 +238,30 @@ describe('agregar contacto por LINK', () => {
     expect(r.queryByTestId('contact-confirm-add')).toBeNull();
     expect(Alert.alert).toHaveBeenCalledWith('contact.keys_changed_title', expect.stringContaining('contact.keys_changed_body'), expect.any(Array));
   });
+
+  // T-093 RONDA 2 / R-1 (verificador ciego): `hasConflictingPinnedKeys` se evaluaba
+  // sólo al abrir el link. Si entre que se abre la hoja y se toca «Agregar» llega la
+  // tarjeta REAL del contacto por el drenado en tiempo real (`relayEngine` →
+  // `drainContacts` → `savePeerFromCard`, que SÍ pinnea porque no había previo), el
+  // toque de confirmar pisaba esas claves recién pinneadas con las del link.
+  it('carrera: si las claves se pinnean recién DESPUÉS de abrir el link, confirmar no persiste ni pisa', () => {
+    const { hasConflictingPinnedKeys, savePeer, announceContact } = jest.requireMock('@/src/sync/contactChannel');
+    // Al abrir el link no hay nadie pinneado todavía: sin conflicto.
+    (hasConflictingPinnedKeys as jest.Mock).mockReturnValueOnce(false);
+    mockParams = { id: 'beto', name: 'Beto', s: 'sec-atacante', w: 'wrap-atacante', k: 'idk-atacante' };
+    const r = render(<AddContactScreen />);
+    expect(r.getByTestId('contact-confirm-add')).toBeTruthy();
+
+    // Mientras la hoja sigue abierta, llega la tarjeta real de Beto y pinnea SUS
+    // claves reales: la próxima consulta (recién antes de escribir) tiene que verlo.
+    (hasConflictingPinnedKeys as jest.Mock).mockReturnValueOnce(true);
+    fireEvent.press(r.getByTestId('contact-confirm-add'));
+
+    expect(useUserStore.getState().users.map(u => u.id)).not.toContain('beto');
+    expect(savePeer).not.toHaveBeenCalled();
+    expect(announceContact).not.toHaveBeenCalled();
+    expect(Alert.alert).toHaveBeenCalledWith('contact.keys_changed_title', expect.stringContaining('contact.keys_changed_body'), expect.any(Array));
+  });
 });
 
 describe('compartir link de contacto', () => {

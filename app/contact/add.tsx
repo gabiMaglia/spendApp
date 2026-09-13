@@ -82,8 +82,50 @@ export default function AddContactScreen() {
    * contacto, pinnea sus claves y le anuncia la propia tarjeta. Ahora sólo se llega acá
    * cuando ya no hay nada que confirmar (QR presencial) o después de que el usuario tocó
    * «Agregar» en la hoja de confirmación (link) — ver `procesarContacto`.
+   *
+   * **Repite los tres chequeos de sólo lectura INMEDIATAMENTE antes de escribir**
+   * (T-093 ronda 2 / R-1, hallazgo del verificador ciego): en el link, `procesarContacto`
+   * los corrió al ABRIR la hoja, pero el toque de «Agregar» llega recién después —a veces
+   * segundos después— y en ese hueco puede pasar cualquier cosa. En particular, el drenado
+   * en tiempo real (`relayEngine.ts` → `drainContacts` → `savePeerFromCard`) puede pinnear
+   * la clave REAL de este mismo `userId` si su tarjeta legítima llega mientras la hoja
+   * sigue abierta (no había peer previo, así que no hay conflicto para esa función). Sin
+   * este recheck, el toque de «Agregar» corría directo a `savePeer`, que SÍ pisa siempre
+   * que se lo llama, y las claves recién pinneadas quedaban reemplazadas por las del link.
+   *
+   * Al vivir acá y no en el llamador, ningún camino (QR o link, presente o futuro) puede
+   * saltearlo — es la única puerta hacia `savePeer`/`announceContact`.
    */
-  const persistirContacto = useCallback((contact: ContactPayload) => {
+  const persistirContacto = useCallback((contact: ContactPayload, origen: 'qr' | 'link') => {
+    const cerrar = origen === 'link' ? volverAContactos : () => setScanned(false);
+
+    if (esYo(contact.id)) {
+      cerrar();
+      return;
+    }
+
+    if (getUserById(contact.id) && !getUserById(contact.id)?.isDeleted) {
+      hapticLight();
+      Alert.alert(t('contact.already_title'), t('contact.already_body', { name: contact.name }), [
+        { text: 'OK', onPress: volverAContactos },
+      ]);
+      return;
+    }
+
+    if (contact.secret && hasConflictingPinnedKeys(contact.id, {
+      secret: contact.secret,
+      wrapPublicKey: contact.wrapPublicKey,
+      identityPublicKey: contact.identityPublicKey,
+    })) {
+      hapticWarning();
+      Alert.alert(
+        t('contact.keys_changed_title'),
+        t('contact.keys_changed_body', { name: contact.name }),
+        [{ text: 'OK', onPress: cerrar }],
+      );
+      return;
+    }
+
     hapticSuccess();
     addOrUpdateUser({
       id:           contact.id,
@@ -137,7 +179,10 @@ export default function AddContactScreen() {
         { text: t('contact.show_my_code'), onPress: () => router.push('/contact/add') },
       ],
     );
-  }, [addOrUpdateUser, getUserById, t]);
+    // `currentUser` no aparece en el cuerpo pero la dependencia es REAL: `esYo` lee la
+    // sesión activa, así que cambiar de cuenta tiene que recalcular esto.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addOrUpdateUser, getUserById, t, currentUser]);
 
   /**
    * Evalúa un contacto que llegó por QR o por link. **Los dos caminos pasan por acá**:
@@ -190,7 +235,7 @@ export default function AddContactScreen() {
       return;
     }
 
-    persistirContacto(contact);
+    persistirContacto(contact, 'qr');
     // `currentUser` no aparece en el cuerpo pero la dependencia es REAL: `esYo` lee la
     // sesión activa, así que cambiar de cuenta tiene que recalcular esto.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -206,7 +251,7 @@ export default function AddContactScreen() {
     confirmedRef.current = true;
     const contact = pendingLinkContact;
     setPendingLinkContact(null);
-    if (contact) persistirContacto(contact);
+    if (contact) persistirContacto(contact, 'link');
   }, [pendingLinkContact, persistirContacto]);
 
   const handleBarCodeScanned = useCallback(({ data }: { data: string }) => {
