@@ -4,7 +4,6 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import * as Linking from 'expo-linking';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
@@ -18,7 +17,8 @@ import { useAuthStore } from '@/src/store/authStore';
 import { useThemeStore } from '@/src/store/themeStore';
 import { rehydrateForActiveUser, subscribeSessionRehydrate } from '@/src/store/session';
 import { resumePendingDeletion } from '@/src/services/deleteAccount';
-import { recordarEnlace, tomarEnlacePendiente } from '@/src/utils/enlacePendiente';
+import { tomarEnlacePendiente } from '@/src/utils/enlacePendiente';
+import { useEnlacesEntrantes } from '@/src/hooks/useEnlacesEntrantes';
 import { installNotificationHandler } from '@/src/services/notifications';
 import { installGlobalErrorHandler } from '@/src/services/globalErrorHandler';
 import { ErrorBoundary } from '@/src/components/ErrorBoundary';
@@ -88,19 +88,12 @@ function AuthGuard() {
   }, [currentUser, isLoading, segments]);
 
   /**
-   * **Links sin sesión.** Con sesión no hay nada que hacer acá: expo-router abre la pantalla
-   * del link (`contact/add`, `groups/join`) y la pantalla lo procesa. Sin sesión, el guard
-   * de arriba redirige al login y el destino se perdía; se guarda y se abre al entrar.
-   *
-   * Antes este efecto AGREGABA el contacto por su cuenta, en silencio, y además la pantalla
-   * se abría mostrando el QR propio — sin ningún aviso de que el contacto había entrado.
-   * Ahora el alta vive en un solo lugar: `app/contact/add.tsx`.
+   * **Links sin sesión.** Con sesión, expo-router abre la pantalla del link (filtrada por
+   * `app/+native-intent.tsx`) y la pantalla lo procesa. Sin sesión, el guard redirige al
+   * login: el link queda pendiente y se abre al entrar (rama de arriba). Qué queda
+   * pendiente se decide cuando el link LLEGA, no cuando cambia la sesión (T-094).
    */
-  const urlEntrante = Linking.useURL();
-  useEffect(() => {
-    if (isLoading || currentUser || !urlEntrante) return;
-    recordarEnlace(urlEntrante);
-  }, [urlEntrante, isLoading, currentUser]);
+  useEnlacesEntrantes();
 
   return null;
 }
