@@ -14,11 +14,13 @@ export const ESQUEMA_GOOGLE_SIGNIN = 'com.googleusercontent.apps.918898015438-vd
 const ESQUEMA_DEV_CLIENT = 'exp+spendapp:';
 
 /**
- * Únicos esquemas AJENOS a los que se les deja pasar la URL intacta. Deniega por defecto
- * (T-095 · ronda 3): cualquier otro esquema, conocido o no, cae a `/` — no hay lugar
- * "neutral" de pass-through para lo que no se reconoce.
+ * Retorno de Google Sign-In: la ÚNICA forma de URL de ese esquema que pasa intacta.
+ *
+ * T-120 · SEC M-5: dejar pasar el esquema entero era un bypass — expo-router convierte
+ * CUALQUIER esquema en ruta, así que `com.googleusercontent.apps…:/groups/leave?id=` abría
+ * `groups/leave`. Se permite sólo el camino del retorno de OAuth.
  */
-const ESQUEMAS_AJENOS_PERMITIDOS = [ESQUEMA_GOOGLE_SIGNIN, ESQUEMA_DEV_CLIENT];
+const RETORNO_GOOGLE = /^\/*oauth2redirect(?:[/?#]|$)/i;
 
 /** Extrae el esquema (`scheme:`) de una URL, en minúsculas, o `undefined` si no tiene uno válido (RFC 3986). */
 function esquemaDe(url: string): string | undefined {
@@ -48,13 +50,13 @@ function normalizar(url: string): string {
  * 1. Se normaliza (trim + bordes de control).
  * 2. Si es un link de la app (`spendapp:` en cualquier capitalización, ruta `/…`, o el
  *    https de la página) → su pantalla si es enlazable, si no `/`.
- * 3. Si no, pasa intacta SÓLO si su esquema está en la lista explícita de ajenos permitidos
- *    (Google Sign-In, dev client).
+ * 3. Si no, pasa intacta SÓLO el retorno de OAuth de Google y, en desarrollo, el dev client
+ *    (T-120).
  * 4. Cualquier otro caso → `/`.
  *
  * Nunca lanza: un error acá cierra la app (ver `NativeIntent` en expo-router).
  */
-export function destinoDeUrlExterna(pathCrudo: string): string {
+export function destinoDeUrlExterna(pathCrudo: string, isDev: boolean = __DEV__): string {
   try {
     if (typeof pathCrudo !== 'string' || pathCrudo.length === 0) return '/';
     const path = normalizar(pathCrudo);
@@ -69,7 +71,13 @@ export function destinoDeUrlExterna(pathCrudo: string): string {
     if (enMinuscula.startsWith(ENLACE_BASE.replace(/\/$/, '').toLowerCase())) return hrefInterno(path) ?? '/';
 
     const esquema = esquemaDe(path);
-    if (esquema && ESQUEMAS_AJENOS_PERMITIDOS.includes(esquema)) return pathCrudo;
+    // Google: sólo el retorno de OAuth. Cualquier otra ruta con ese esquema, al inicio.
+    if (esquema === ESQUEMA_GOOGLE_SIGNIN) {
+      return RETORNO_GOOGLE.test(path.slice(esquema.length)) ? pathCrudo : '/';
+    }
+    // Dev client: sólo en desarrollo. En un build de producción el esquema puede seguir
+    // registrado y su `?url=` llevaba a cualquier pantalla (T-120 · SEC M-5).
+    if (esquema === ESQUEMA_DEV_CLIENT) return isDev ? pathCrudo : '/';
 
     return '/';
   } catch {
