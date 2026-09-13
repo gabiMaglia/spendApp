@@ -199,7 +199,12 @@ export default function UserScreen() {
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
         onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: false })}
-        contentContainerStyle={{ paddingTop: headerPad, paddingBottom: 120 }}
+        // paddingBottom 120→Spacing[6] (PO 2026-09-13): ese colchón grande era
+        // para dejar lugar al FAB de otras tabs; "Yo" no tiene uno y el fondo
+        // de la versión quedaba con un salto enorme y vacío. La SafeAreaView
+        // (`edges=['bottom']`) ya cubre el inset del sistema, y como la tab
+        // bar no es `position:absolute` React Navigation ya reserva su alto.
+        contentContainerStyle={{ paddingTop: headerPad, paddingBottom: Spacing[6] }}
       >
         <Text style={[Typography.display, styles.title, { color: c.text }]}>{t('profile.title')}</Text>
 

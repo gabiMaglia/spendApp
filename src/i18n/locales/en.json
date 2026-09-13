@@ -49,7 +49,7 @@
     "biometric_sub": "Require biometrics on open",
     "sign_out": "Sign out",
     "sign_out_confirm_body": "Are you sure? Your local data stays on the device.",
-    "version": "spendApp v{{version}} · serverless P2P",
+    "version": "spendApp v{{version}}",
     "language": "Language",
     "language_auto": "Auto",
     "section_currency": "CURRENCY",
@@ -443,7 +443,7 @@
     "error_unsupported_version": "Unsupported backup version."
   },
   "tabs": {
-    "account": "Account",
+    "home": "Home",
     "personal": "Personal",
     "friends": "Friends",
     "groups": "Groups",

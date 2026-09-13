@@ -254,7 +254,9 @@ function HomeGroupRow({
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  greeting: { paddingHorizontal: Spacing.screenPad, paddingBottom: 18, gap: 1 },
+  // gap 1→Spacing[2]: el PO pidió más aire entre "Hola {nombre}" y "Tus
+  // cuentas" (2026-09-13) — claro, no un salto enorme.
+  greeting: { paddingHorizontal: Spacing.screenPad, paddingBottom: 18, gap: Spacing[2] },
   netRow: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     paddingHorizontal: Spacing.screenPad, paddingVertical: 11,

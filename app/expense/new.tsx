@@ -51,13 +51,6 @@ const CATEGORIES: CatMeta[] = [
   { id: 'other',         icon: 'ellipsis-horizontal-outline', label: 'Otro'          },
 ];
 
-// Categorías de ingreso — solo disponibles en modo Personal (F-G2).
-const INCOME_CATEGORIES: CatMeta[] = [
-  { id: 'salary',    icon: 'briefcase-outline', label: 'Sueldo'    },
-  { id: 'freelance', icon: 'laptop-outline',    label: 'Freelance' },
-  { id: 'income',    icon: 'cash-outline',      label: 'Otro'      },
-];
-
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 type SplitMode  = 'equal' | 'percentage';
@@ -266,7 +259,9 @@ export default function NewExpenseScreen() {
   function switchEntryKind(k: 'expense' | 'income') {
     hapticSelection();
     setEntryKind(k);
-    setCategory(k === 'income' ? 'income' : 'other');
+    // Ingreso no tiene selector de categoría (PO 2026-09-13): siempre "otros"
+    // hasta que exista una iteración con categorías de ingreso propias.
+    setCategory('other');
     if (k === 'income') setGroupId(''); // el ingreso no lleva grupo
   }
 
@@ -318,7 +313,10 @@ export default function NewExpenseScreen() {
         description: description.trim(),
         amount,
         currency,
-        category,
+        // Sin selector para Ingreso, el estado ya llega en 'other' — pero se
+        // fuerza acá también para que un ingreso NUNCA pueda guardar otra
+        // cosa, sea cual sea el camino que trajo `category` hasta acá.
+        category:    isIncome ? 'other' : category,
         date:        date.getTime(),
         createdAt:   Date.now(),
         updatedAt:   syncedNow(),
@@ -489,42 +487,45 @@ export default function NewExpenseScreen() {
           </Band>
           </View>
 
-          {/* Category chips */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            // `flexGrow: 0` no es decorativo: el contenedor de la pantalla crece
-            // para poder empujar Guardar al fondo, y un ScrollView horizontal sin
-            // alto propio se come todo ese sobrante. Las pastillas quedaban
-            // gigantes.
-            style={styles.categoryScrollBox}
-            contentContainerStyle={styles.categoryScroll}
-          >
-            {(isIncome ? INCOME_CATEGORIES : CATEGORIES).map(cat => {
-              const active = category === cat.id;
-              return (
-                <Pressable
-                  key={cat.id}
-                  onPress={() => { hapticSelection(); setCategory(cat.id); }}
-                  style={[
-                    styles.categoryChip,
-                    {
-                      backgroundColor: active ? c.brand.primary : c.surface,
-                      borderColor:     active ? c.brand.primary : c.hair,
-                    },
-                  ]}
-                >
-                  <Ionicons name={cat.icon} size={16} color={active ? '#fff' : c.textSecondary} />
-                  <Text style={[Typography.bodyS, {
-                    color:      active ? '#fff' : c.textSecondary,
-                    fontWeight: active ? '700' : '500',
-                  }]}>
-                    {t(`categories.${cat.id}`)}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
+          {/* Category chips — el ingreso no tiene selector (PO 2026-09-13):
+              "son absurdas"; se guarda con "otros" hasta nueva iteración. */}
+          {!isIncome && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              // `flexGrow: 0` no es decorativo: el contenedor de la pantalla crece
+              // para poder empujar Guardar al fondo, y un ScrollView horizontal sin
+              // alto propio se come todo ese sobrante. Las pastillas quedaban
+              // gigantes.
+              style={styles.categoryScrollBox}
+              contentContainerStyle={styles.categoryScroll}
+            >
+              {CATEGORIES.map(cat => {
+                const active = category === cat.id;
+                return (
+                  <Pressable
+                    key={cat.id}
+                    onPress={() => { hapticSelection(); setCategory(cat.id); }}
+                    style={[
+                      styles.categoryChip,
+                      {
+                        backgroundColor: active ? c.brand.primary : c.surface,
+                        borderColor:     active ? c.brand.primary : c.hair,
+                      },
+                    ]}
+                  >
+                    <Ionicons name={cat.icon} size={16} color={active ? '#fff' : c.textSecondary} />
+                    <Text style={[Typography.bodyS, {
+                      color:      active ? '#fff' : c.textSecondary,
+                      fontWeight: active ? '700' : '500',
+                    }]}>
+                      {t(`categories.${cat.id}`)}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          )}
 
           {/* Amount input */}
           <Band>
@@ -604,55 +605,58 @@ export default function NewExpenseScreen() {
           <View style={styles.splitSection}>
             <SectionLabel label={t('expense.split_how')} />
 
-            <View style={styles.segPad}>
+            {/* Los dos selectores van PEGADOS, sin gap — el mismo criterio que el
+                input de descripción con el bloque de arriba (`Band noTop`): la
+                línea divisoria de abajo del primero funciona como la única
+                línea entre los dos, sin duplicarla (PO 2026-09-13). */}
+            <Segmented
+              variant="tabs"
+              value={splitMode}
+              onChange={handleSplitModeChange}
+              options={[
+                { key: 'equal',      label: t('expense.split_mode_equal'),      icon: 'people-outline' },
+                { key: 'percentage', label: t('expense.split_mode_percentage'), icon: 'pie-chart-outline' },
+              ]}
+            />
+
+            {splitMode === 'percentage' && (
               <Segmented
-                value={splitMode}
-                onChange={handleSplitModeChange}
+                variant="tabs"
+                compact
+                value={percentSub}
+                onChange={handlePercentSubChange}
                 options={[
-                  { key: 'equal',      label: t('expense.split_mode_equal') },
-                  { key: 'percentage', label: t('expense.split_mode_percentage') },
+                  { key: 'same',   label: t('expense.percent_same') },
+                  { key: 'custom', label: t('expense.percent_custom') },
                 ]}
               />
-            </View>
-
-            {/* Percentage sub-mode */}
-            {splitMode === 'percentage' && (
-              <>
-                <View style={styles.segPad}>
-                  <Segmented
-                    compact
-                    value={percentSub}
-                    onChange={handlePercentSubChange}
-                    options={[
-                      { key: 'same',   label: t('expense.percent_same') },
-                      { key: 'custom', label: t('expense.percent_custom') },
-                    ]}
-                  />
-                </View>
-
-                {percentSub === 'same' && (
-                  <View style={styles.samePercentRow}>
-                    <View style={[styles.samePercentBox, { backgroundColor: c.bgGrouped, borderColor: c.hair }]}>
-                      <TextInput
-                        value={samePercent}
-                        onChangeText={setSamePercent}
-                        keyboardType="decimal-pad"
-                        placeholder="0"
-                        placeholderTextColor={c.textTertiary}
-                        style={[Typography.amountM, { color: c.text, minWidth: 50, textAlign: 'center' }]}
-                      />
-                      <Text style={[Typography.h3, { color: c.textSecondary }]}>%</Text>
-                    </View>
-                    <Text style={[Typography.bodyS, { color: c.textTertiary }]}>
-                      {t('expense.percent_same_hint')}
-                    </Text>
-                  </View>
-                )}
-              </>
             )}
 
-            {/* Member rows */}
-            <Band>
+            {/* Espacio claro entre los selectores y lo que eligen (PO 2026-09-13) —
+                mismo token para el campo de "mismo %" y para la lista de miembros,
+                así "iguales" y "porcentaje" quedan consistentes entre sí. */}
+            {splitMode === 'percentage' && percentSub === 'same' && (
+              <View style={[styles.samePercentRow, styles.afterSelectorsGap]}>
+                <View style={[styles.samePercentBox, { backgroundColor: c.bgGrouped, borderColor: c.hair }]}>
+                  <TextInput
+                    value={samePercent}
+                    onChangeText={setSamePercent}
+                    keyboardType="decimal-pad"
+                    placeholder="0"
+                    placeholderTextColor={c.textTertiary}
+                    style={[Typography.amountM, { color: c.text, minWidth: 50, textAlign: 'center' }]}
+                  />
+                  <Text style={[Typography.h3, { color: c.textSecondary }]}>%</Text>
+                </View>
+                <Text style={[Typography.bodyS, { color: c.textTertiary }]}>
+                  {t('expense.percent_same_hint')}
+                </Text>
+              </View>
+            )}
+
+            {/* Member rows — conservan su padding horizontal (PO 2026-09-13): sólo
+                los SELECTORES de arriba van de borde a borde, este bloque no. */}
+            <Band style={splitMode !== 'percentage' || percentSub === 'custom' ? styles.afterSelectorsGap : undefined}>
               {splits.map((split, i) => {
                 const name    = getUserName(split.userId);
                 const isLast  = split.isLast;
@@ -941,7 +945,10 @@ const styles = StyleSheet.create({
    */
   // Sin `paddingTop`: el primer bloque (pestañas + descripción) va pegado al encabezado.
   scroll:       { paddingBottom: Spacing[4], gap: Spacing[3], flexGrow: 1 },
-  segPad:       { paddingHorizontal: Spacing.screenPad },
+  // Aire claro entre los selectores de modo de reparto y lo que eligen —
+  // el campo de "mismo %" o la lista de miembros (PO 2026-09-13). Mismo
+  // token para los dos casos, así "iguales" y "porcentaje" quedan iguales.
+  afterSelectorsGap: { marginTop: Spacing[3] },
   recurrencePad:{ paddingHorizontal: Spacing.screenPad },
   /**
    * `marginTop: 'auto'` empuja Guardar al fondo cuando sobra lugar.
@@ -999,6 +1006,10 @@ const styles = StyleSheet.create({
   rowRight:     { flexDirection: 'row', alignItems: 'center', gap: 8 },
 
   splitSection: {},
+  // El padding horizontal del bloque de división (box de %, cards de
+  // miembros) queda como estaba — sólo los SELECTORES van de borde a borde
+  // (PO 2026-09-13, revierte un paso intermedio que también se lo sacaba
+  // a estas filas).
   samePercentRow: {
     flexDirection: 'row', alignItems: 'center', gap: 14,
     paddingHorizontal: Spacing.screenPad, paddingBottom: 14,
