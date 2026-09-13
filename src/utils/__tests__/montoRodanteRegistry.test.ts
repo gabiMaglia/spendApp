@@ -1,4 +1,7 @@
-import { crearRegistroDeMontos, debeRodar, numeroSemilla } from '../montoRodanteRegistry';
+import {
+  crearRegistroDeMontos, debeRodar, numeroSemilla, proximoRetrasoDeEntrada,
+  __resetProximoRetrasoParaTests,
+} from '../montoRodanteRegistry';
 
 /**
  * Decisión pura de "¿anima o no?" para `MontoRodante` (T-106).
@@ -91,5 +94,42 @@ describe('numeroSemilla', () => {
 
   it('funciona igual para negativos (opera sobre el valor absoluto)', () => {
     expect(numeroSemilla(-5)).toBe(0);
+  });
+});
+
+/**
+ * T-109 (FPS bajos): varios `MontoRodante` que aparecen por primera vez en el
+ * mismo tick (abrir Home, con 4-5 montos) no deben pasar TODOS de la semilla
+ * al valor real en el mismo frame — eso es lo que tranca cuadros en gama
+ * media/baja. Esta función pura sólo reparte turnos crecientes dentro del
+ * mismo lote y resetea apenas ese lote termina (macrotask siguiente), así el
+ * próximo grupo de montos que aparezca (otra pantalla) vuelve a arrancar
+ * desde el turno 0 sin arrastrar demora de la pantalla anterior.
+ */
+describe('proximoRetrasoDeEntrada', () => {
+  beforeEach(() => { jest.useFakeTimers(); __resetProximoRetrasoParaTests(); });
+  afterEach(() => jest.useRealTimers());
+
+  it('crece en pasos fijos dentro del mismo lote (mismo tick)', () => {
+    const a = proximoRetrasoDeEntrada();
+    const b = proximoRetrasoDeEntrada();
+    const c = proximoRetrasoDeEntrada();
+    expect(a).toBe(0);
+    expect(b).toBeGreaterThan(a);
+    expect(c).toBeGreaterThan(b);
+  });
+
+  it('resetea a 0 en el próximo lote (después de que el tick actual termine)', () => {
+    proximoRetrasoDeEntrada();
+    proximoRetrasoDeEntrada();
+    jest.runAllTimers();
+    expect(proximoRetrasoDeEntrada()).toBe(0);
+  });
+
+  it('tiene un tope: no demora sin límite con muchos montos en una sola pantalla', () => {
+    let ultimo = -1;
+    for (let i = 0; i < 20; i++) ultimo = proximoRetrasoDeEntrada();
+    const otraVezElTope = proximoRetrasoDeEntrada();
+    expect(otraVezElTope).toBe(ultimo);
   });
 });

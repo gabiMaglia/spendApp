@@ -633,7 +633,8 @@
     "partial_hint": "It will be added to the total as soon as there is a connection.",
     "close": "Got it",
     "partial_spent": "Spent",
-    "partial_owed": "Owed to you"
+    "partial_owed": "Owed to you",
+    "calculating": "Calculating currency conversion"
   },
   "trust": {
     "badge": "Unverified",

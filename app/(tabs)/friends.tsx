@@ -55,7 +55,7 @@ export default function FriendsScreen() {
     [users, currentUser],
   );
 
-  const { fx, display: cur } = useFx();
+  const { fx, display: cur, loading: fxLoading } = useFx();
   const deben = sumConverted(
     personBalances.filter(p => p.amount > 0).map(p => ({ currency: p.currency, minor: p.amount })),
     cur, fx,
@@ -66,6 +66,11 @@ export default function FriendsScreen() {
   );
   const owedToYou = deben.totalMinor;
   const youOwe    = debo.totalMinor;
+  // T-109: ver `app/(tabs)/index.tsx` — mismo criterio de "pending" (placeholder
+  // `--` mientras el fetch de cotizaciones sigue en vuelo, nunca para siempre).
+  const owedToYouPending = deben.pending && fxLoading;
+  const youOwePending    = debo.pending && fxLoading;
+  const pendingCalculando = t('fx.calculating');
 
   function handleAddContact() {
     const name = newName.trim();
@@ -109,8 +114,16 @@ export default function FriendsScreen() {
         {(owedToYou > 0 || youOwe > 0) && (
           <SplitStat
             items={[
-              { label: t('friends.owed_to_you'), value: formatMoney(owedToYou, cur), color: c.semantic.positive, id: 'friends.owedToYou', minor: owedToYou, code: cur },
-              { label: t('friends.you_owe'),     value: formatMoney(youOwe, cur),    color: c.textSecondary,     id: 'friends.youOwe',   minor: youOwe,    code: cur },
+              {
+                label: t('friends.owed_to_you'), value: formatMoney(owedToYou, cur), color: c.semantic.positive,
+                id: 'friends.owedToYou', minor: owedToYou, code: cur,
+                pending: owedToYouPending, pendingLabel: pendingCalculando,
+              },
+              {
+                label: t('friends.you_owe'), value: formatMoney(youOwe, cur), color: c.textSecondary,
+                id: 'friends.youOwe', minor: youOwe, code: cur,
+                pending: youOwePending, pendingLabel: pendingCalculando,
+              },
             ]}
           />
         )}
