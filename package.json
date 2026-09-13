@@ -10,6 +10,7 @@
     "ios:eas": "eas build --profile development --platform ios",
     "devices": "${ANDROID_HOME:-$HOME/Library/Android/sdk}/platform-tools/adb devices",
     "reset-project": "node ./scripts/reset-project.js",
+    "eas-build-post-install": "node scripts/verificar-env-build.js",
     "lint": "expo lint",
     "test": "jest",
     "test:watch": "jest --watch",
