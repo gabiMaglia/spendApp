@@ -69,10 +69,6 @@ export default function GroupDetailScreen() {
   const updateGroup  = useGroupStore(s => s.updateGroup);
   const allExpenses  = useExpenseStore(s => s.expenses);
 
-  const tieneGastos = useMemo(
-    () => allExpenses.some(e => e.groupId === id && !e.isDeleted),
-    [allExpenses, id],
-  );
   const allPayments = usePaymentStore(s => s.payments);
   const { getUserName, addOrUpdateUser } = useUserStore();
   const allUsers = useUserStore(s => s.users);
@@ -118,6 +114,13 @@ export default function GroupDetailScreen() {
   const marcaDePago  = useRecordTrust('payment', pagosDelTimeline);
 
   const balances    = useGroupBalance(id ?? '', currentUser?.id ?? '');
+
+  // T-104: el botón «Saldar deuda» necesita DEUDA VIVA, no solo gastos
+  // cargados. `useGroupBalance` ya corre `calculateBalancesByCurrency` +
+  // `pagosQueCuentan` y descarta las monedas en cero (T-064 incluido: un
+  // saldado pendiente de acuse ya cuenta como pagado ahí adentro), así que
+  // alcanza con mirar si queda algún saldo — en cualquier moneda.
+  const tieneDeudaViva = balances.length > 0;
 
   /**
    * El «2 de 3» cuenta las aprobaciones que VERIFICAN (T-065), igual que el que
@@ -384,7 +387,7 @@ export default function GroupDetailScreen() {
 
       {group && currentUser && group.memberIds.some(esYo) && (
         <FabRow>
-          {tieneGastos && (
+          {tieneDeudaViva && (
             <Fab
               testID="settle-debts"
               variant="secondary"
