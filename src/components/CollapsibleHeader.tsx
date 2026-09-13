@@ -52,7 +52,9 @@ export function CollapsibleHeader({
   const insets = useSafeAreaInsets();
 
   const bgOpacity = scrollY.interpolate({
-    inputRange: [0, 60], outputRange: [0.55, 0.97], extrapolate: 'clamp',
+    // En reposo el mármol se ve entero (PO 2026-09-13: en claro no se veía); al scrollear
+    // vuelve el fondo para que el contenido que pasa por debajo no compita con el título.
+    inputRange: [0, 60], outputRange: [0, 0.97], extrapolate: 'clamp',
   });
   const hairOpacity = scrollY.interpolate({
     inputRange: [0, 60], outputRange: [0, 1], extrapolate: 'clamp',
@@ -184,7 +186,7 @@ export function DetailHeader({
       */}
       <FondoMarmol />
       <View
-        style={[StyleSheet.absoluteFill, { backgroundColor: c.bg, opacity: 0.9 }]}
+        style={[StyleSheet.absoluteFill, { backgroundColor: c.bg, opacity: 0.35 }]}
         pointerEvents="none"
       />
       <View style={detail.bar}>

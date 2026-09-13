@@ -44,7 +44,7 @@ fade_start = 0.62
 t = np.clip((ys/(H-1) - fade_start) / (1-fade_start), 0, 1)[..., None]
 t = t*t*(3-2*t)
 for nombre, base, vet, k, bg in [
-    ('claro', np.array([.984,.980,.972]) - (1-nube)[...,None]*0.03, np.array([.50,.52,.53]), 0.42, np.array([0xFB,0xFA,0xF8])/255),
+    ('claro', np.array([.984,.980,.972]) - (1-nube)[...,None]*0.03, np.array([.36,.38,.40]), 0.95, np.array([0xFB,0xFA,0xF8])/255),
     ('oscuro', np.array([.059,.066,.071]) + (nube-0.5)[...,None]*0.035, np.array([.62,.64,.63]), 0.55, np.array([0x0F,0x11,0x12])/255),
 ]:
     col = base + (vet - base) * (v*k) + grano
