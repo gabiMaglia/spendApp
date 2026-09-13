@@ -258,6 +258,15 @@ export type ActivityKind =
    */
   | { kind: 'expense_restored';       expense: Expense; groupName: string; restoredByName: string };
 
+/**
+ * `groupName` sintético para los movimientos sin grupo (T-116, PO 2026-09-13:
+ * pestaña "Personal" en Actividad). `groupId === ''` es la marca de gasto
+ * personal ya usada en `app/expense/new.tsx` y documentada en
+ * `src/types/models.ts` — no es una categoría nueva, es la MISMA marca vista
+ * desde el feed.
+ */
+export const PERSONAL_ACTIVITY_KEY = '__personal__';
+
 export function useActivityFeed(currentUserId: string): ActivityKind[] {
   const groups   = useGroupStore(s => s.groups);
   const expenses = useExpenseStore(s => s.expenses);
@@ -274,7 +283,7 @@ export function useActivityFeed(currentUserId: string): ActivityKind[] {
       groups.filter(g => g.memberIds.some(m => mismaPersona(m, currentUserId))).map(g => g.id),
     );
 
-    const groupName = (id: string) => groups.find(g => g.id === id)?.name ?? id;
+    const groupName = (id: string) => (id === '' ? PERSONAL_ACTIVITY_KEY : groups.find(g => g.id === id)?.name ?? id);
 
     const events: (ActivityKind & { _ts: number })[] = [];
 
@@ -284,7 +293,10 @@ export function useActivityFeed(currentUserId: string): ActivityKind[] {
     const ahora = syncedNow();
 
     for (const expense of expenses) {
-      if (!myGroupIds.has(expense.groupId)) continue;
+      // `groupId === ''` es un movimiento PERSONAL (T-116): no vive en
+      // `myGroupIds` porque no es de ningún grupo, y por eso necesita su
+      // propia excepción — no puede pasar por el mismo chequeo de membresía.
+      if (expense.groupId !== '' && !myGroupIds.has(expense.groupId)) continue;
 
       // Lo borrado se muestra como tal y NO genera los demás eventos: un gasto
       // que ya no existe no puede seguir figurando como "agregado" ni con una

@@ -101,7 +101,7 @@
     "owes_you": "Te deve",
     "you_owe_person": "Você deve",
     "add_expense": "Adicionar gasto",
-    "go_to_profile": "Ir ao meu perfil",
+    "go_to_profile": "Seu perfil",
     "personal_label": "Pessoal",
     "spent": "Gasto",
     "available": "Disponível",
@@ -290,6 +290,7 @@
   "activity": {
     "title": "Atividade",
     "filter_all": "Todos",
+    "filter_personal": "Pessoal",
     "unseen_count": "{{count}} não vistos",
     "section_today": "Hoje",
     "section_yesterday": "Ontem",
@@ -447,8 +448,7 @@
     "personal": "Pessoal",
     "friends": "Amigos",
     "groups": "Grupos",
-    "activity": "Atividade",
-    "me": "Eu"
+    "activity": "Atividade"
   },
   "personal": {
     "title": "Pessoal",

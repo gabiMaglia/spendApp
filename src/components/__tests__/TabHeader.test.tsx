@@ -1,5 +1,5 @@
 import React from 'react';
-import { Animated } from 'react-native';
+import { Animated, StyleSheet, View } from 'react-native';
 import { readdirSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { fireEvent, render } from '@testing-library/react-native';
@@ -69,6 +69,82 @@ describe('el header trae siempre lo mismo', () => {
     // El chip del header dice sólo el código; la hoja lista símbolo + código.
     fireEvent.press(r.getByText('ARS'));
     expect(r.getAllByText(/USD/).length).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * **T-119 (PO 2026-09-13): abrir la campana marca leídas las que NO piden
+ * acción.** Las accionables (`deletion`, `settlement_pending`, `sync_down`)
+ * siguen pendientes hasta resolverse — sólo mirarlas no alcanza.
+ */
+describe('abrir la campana marca leídas las que no piden acción (T-119)', () => {
+  const SIN_ACCION = {
+    id: 'n1', createdAt: 1, readAt: null,
+    notice: { kind: 'expenses' as const, groupId: 'g1', groupName: 'Asado', count: 1 },
+  };
+  const CON_ACCION = {
+    id: 'n2', createdAt: 2, readAt: null,
+    notice: {
+      kind: 'settlement_pending' as const, groupId: 'g1', groupName: 'Asado',
+      paymentId: 'p1', amount: 500, currency: 'ARS' as const,
+    },
+  };
+
+  beforeEach(() => {
+    useNoticeInboxStore.setState({ items: [SIN_ACCION, CON_ACCION] });
+  });
+
+  it('el badge baja de 2 a 1 al abrir: sólo se marcó la que no pide acción', () => {
+    const r = montar();
+    expect(r.getAllByText('2').length).toBeGreaterThan(0);
+
+    fireEvent.press(r.getByTestId('notice-bell'));
+
+    expect(useNoticeInboxStore.getState().items.find(i => i.id === 'n1')!.readAt).not.toBeNull();
+    expect(useNoticeInboxStore.getState().items.find(i => i.id === 'n2')!.readAt).toBeNull();
+    expect(r.queryAllByText('2')).toHaveLength(0);
+    expect(r.getAllByText('1').length).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * **T-114/T-115 (PO 2026-09-13): la foto de perfil es un botón, y se nota.**
+ * El anillo de marca alrededor del avatar es lo que sugiere que es tocable —
+ * ahora que "Yo" ya no está en el tab bar, es el ÚNICO camino a esa pantalla.
+ */
+describe('el avatar del header sugiere que es un botón (T-115)', () => {
+  it('el avatar lleva un borde (anillo) de color de marca', () => {
+    const r = montar();
+    const boton = r.getByTestId('header-profile');
+    const conAnillo = boton.findAllByType(View).filter((v: ReturnType<typeof boton.findAllByType>[number]) => {
+      const flat = StyleSheet.flatten(v.props.style);
+      return flat?.borderWidth > 0 && !!flat?.borderColor;
+    });
+    expect(conAnillo.length).toBeGreaterThan(0);
+  });
+
+  it('mantiene el accessibilityLabel "Tu perfil" (i18n, clave sin cambios)', () => {
+    const r = montar();
+    // El mock de i18n en este proyecto devuelve la CLAVE, nunca el string
+    // traducido — así que lo que se prueba es que sigue siendo esta clave.
+    expect(r.getByTestId('header-profile').props.accessibilityLabel).toBe('dashboard.go_to_profile');
+  });
+});
+
+/**
+ * **T-114: el saludo de Inicio vive en el header, no en el contenido.**
+ */
+describe('subtítulo (saludo) — sólo cuando la pantalla lo pasa', () => {
+  it('sin subtitle, no aparece ningún saludo', () => {
+    const r = montar();
+    expect(r.queryByTestId('header-subtitle')).toBeNull();
+  });
+
+  it('con subtitle, aparece arriba del título', () => {
+    const r = render(<TabHeader title="Tus cuentas" subtitle="Hola, Ana" scrollY={new Animated.Value(0)} />);
+    expect(r.getByTestId('header-subtitle')).toBeTruthy();
+    expect(r.getByText('Hola, Ana')).toBeTruthy();
+    expect(r.getByText('Tus cuentas')).toBeTruthy();
   });
 });
 

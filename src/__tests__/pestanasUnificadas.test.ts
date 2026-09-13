@@ -20,6 +20,9 @@ const CON_PESTANAS = [
   'app/(tabs)/groups.tsx',
   'app/(tabs)/activity.tsx',
   'src/components/NoticeInboxSheet.tsx',
+  // T-118 (PO 2026-09-13): el selector de repetición del alta de gasto pasa
+  // al mismo estilo "T invertida" en fila deslizable.
+  'src/components/RecurrencePicker.tsx',
 ];
 
 /** Todos los bloques `<Segmented ... />` (self-closing) de un archivo, completos. */

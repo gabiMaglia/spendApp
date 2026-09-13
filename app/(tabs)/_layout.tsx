@@ -94,7 +94,17 @@ export default function TabLayout() {
       {screen('friends',   t('tabs.friends'),  'people-outline')}
       {screen('groups',    t('tabs.groups'),   'grid-outline')}
       {screen('activity',  t('tabs.activity'), 'pulse-outline')}
-      {screen('user',      t('tabs.me'),       'person-outline')}
+      {/*
+        T-115 (PO 2026-09-13): "Yo" sale del tab bar — a esa pantalla se llega
+        tocando el avatar del header. `href: null` es el mecanismo de
+        expo-router@6 para ocultar el botón SIN borrar la ruta (verificado en
+        `node_modules/expo-router/build/layouts/TabsClient.js:16-28`: setea
+        `tabBarItemStyle:{display:'none'}` y anula `tabBarButton`, pero deja
+        el `Screen` — y con él la ruta `/(tabs)/user` — intacto). Borrar el
+        `<Tabs.Screen>` entero rompería `router.push('/(tabs)/user')` desde
+        `TabHeader` y cualquier deep link a Perfil.
+      */}
+      <Tabs.Screen name="user" options={{ href: null }} />
     </Tabs>
   );
 }
