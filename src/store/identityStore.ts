@@ -22,8 +22,11 @@ const storage = createSecureStorage('groupkeys');
 const K_IDENTITY = 'identity_v1';
 const K_OWNER    = 'owner_secret_v1';
 const K_WRAP     = 'wrapkeys_v1';
-const K_INVITES  = 'invites_v1';
-const K_PENDING  = 'pending_joins_v1';
+// Exportadas para que `accountLink.ts` registre la MISMA base con `ranura()`
+// (T-098 · SEC L-4): es la única forma permitida de armar una clave scopeada
+// ahí, y tiene que ser la base real o la fusión y la purga leerían otra cosa.
+export const K_INVITES = 'invites_v1';
+export const K_PENDING = 'pending_joins_v1';
 
 type Keypair = { privateKey: string; publicKey: string };
 

@@ -3,7 +3,9 @@ import { bucketsAbiertos, createStorage, type SimpleStorage } from '@/src/utils/
 import { mergeAccountData, type MergeReport } from './mergeAccountData';
 import { AUTH_KEYS } from './authKeys';
 import { mergeProviderUser } from '@/src/utils/mergeProviderUser';
+import { K_INVITES, K_PENDING } from './identityStore';
 import type { User } from '@/src/types/models';
+import type { GroupInvite } from '@/src/sync/groupInvite';
 
 /**
  * Los stores de datos que se fusionan cuando dos cuentas resultan ser la misma
@@ -115,6 +117,16 @@ export const PENDIENTE_DRENAJE_BASE = 'pending_drain_v1';
 const kPendienteDrenaje = ranura('groupkeys', PENDIENTE_DRENAJE_BASE);
 
 /**
+ * Invitaciones emitidas y joins aceptados-pendientes (T-098 · SEC L-4). Pasaron
+ * a scopearse por cuenta recién en esa ronda; se declaran con `ranura()` como
+ * todo lo demás para que la fusión Y la purga las alcancen solas. Las bases
+ * son las mismas que usa `src/store/identityStore.ts` — se importan de ahí en
+ * vez de repetirlas a mano para que no puedan desincronizarse.
+ */
+const kInvites = ranura('groupkeys', K_INVITES);
+const kPending = ranura('groupkeys', K_PENDING);
+
+/**
  * Fusiona TODOS los datos de `fromAccountId` dentro de `toAccountId`.
  * Unión con LWW por `updatedAt`; no borra el origen.
  */
@@ -132,6 +144,8 @@ export function mergeAccounts(fromAccountId: string, toAccountId: string): Merge
   mergeContactPeers(fromAccountId, toAccountId);
   mergeAlias(fromAccountId, toAccountId);
   mergePendingDrain(fromAccountId, toAccountId);
+  mergeInvites(fromAccountId, toAccountId);
+  mergePendingJoins(fromAccountId, toAccountId);
   recordMerge(fromAccountId);
   return report;
 }
@@ -208,6 +222,52 @@ function mergePendingDrain(fromAccountId: string, toAccountId: string): void {
     kPendienteDrenaje(toAccountId),
     JSON.stringify([...new Set([...leer(toAccountId), ...origen])]),
   );
+}
+
+/**
+ * Invitaciones y joins pendientes de la cuenta absorbida (T-098 · SEC L-4,
+ * ronda 2). Excluirlas de la fusión dejaba huérfano cualquier ingreso en
+ * curso: el reclamo de una invitación que emitió `fromAccountId` deja de poder
+ * abrirse (nadie vuelve a leer `invites_v1` bajo ese scope), y un join que
+ * aceptó pero todavía no completó nunca termina.
+ *
+ * Unión por `token` (id natural de una invitación) — el destino gana si el
+ * mismo token está en los dos lados, que en la práctica no debería pasar
+ * salvo coincidencia. Las vencidas se descartan de los dos lados, igual que
+ * hace `identityStore.ts` al guardar: no tiene sentido heredar una invitación
+ * muerta.
+ */
+function mergeInviteList(key: (uid: string) => string, fromAccountId: string, toAccountId: string): void {
+  if (fromAccountId === toAccountId) return;
+  const storage = createSecureStorage('groupkeys');
+  const ahora = Date.now();
+
+  const leer = (uid: string): GroupInvite[] => {
+    const raw = storage.getString(key(uid));
+    if (!raw) return [];
+    try {
+      const v = JSON.parse(raw);
+      return Array.isArray(v)
+        ? (v as GroupInvite[]).filter(i => i && typeof i.token === 'string' && i.expiresAt > ahora)
+        : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const origen = leer(fromAccountId);
+  if (origen.length === 0) return;
+  const porToken = new Map(leer(toAccountId).map(i => [i.token, i]));
+  for (const inv of origen) if (!porToken.has(inv.token)) porToken.set(inv.token, inv);
+  storage.set(key(toAccountId), JSON.stringify([...porToken.values()]));
+}
+
+function mergeInvites(fromAccountId: string, toAccountId: string): void {
+  mergeInviteList(kInvites, fromAccountId, toAccountId);
+}
+
+function mergePendingJoins(fromAccountId: string, toAccountId: string): void {
+  mergeInviteList(kPending, fromAccountId, toAccountId);
 }
 
 /**
@@ -649,6 +709,7 @@ export const COBERTURA_FUSION: Record<string, string> = {
   'store/identityAlias':  'aparte · mergeAlias (alias_v1: unión de los alias del origen MÁS el id del origen, bajo el scope destino). Es lo que hace el alias transitivo A→B→C; sin la unión, la primera identidad se pierde en la segunda fusión.',
   'sync/pendingDrain':    'aparte · mergePendingDrain (pending_drain_v1: UNIÓN de las marcas de las dos cuentas). Unir es el lado seguro: heredar una marca de más cuesta un drenaje; perder una deja publicar un grupo heredado sin leer su buzón, que es el defecto de T-089.',
   'sync/contactChannel':  'aparte · mergeContactPeers (contact_peers_v1: unión por userId, el destino gana campo por campo). El secreto propio y el acuse de tarjeta NO se fusionan — ver el docblock de mergeContactPeers.',
+  'store/identityStore':  'aparte · mergeInvites/mergePendingJoins (invites_v1/pending_joins_v1: unión por token, vencidas descartadas de los dos lados). Las privadas (identity_v1/owner_secret_v1/wrapkeys_v1) siguen siendo del APARATO y no pasan por writeScoped ni por ranura().',
 };
 
 /**
@@ -681,8 +742,6 @@ export const EXCLUIDOS_FUSION: Record<string, string> = {
     'Acuse local "a este grupo ya le avisé que dejó de sincronizar", para no repetir el aviso en cada intento de publicación. Mismo caso que `card_sent_v1`: es el registro de algo que YA se le dijo a esta persona en este teléfono, no data suya. Si se pierde, el peor efecto es un aviso repetido; heredar el de otra cuenta sería peor — suprimiría el primer aviso de una caída que la cuenta destino todavía no vio.',
   'sync/recordHealth':
     'Medición de T-041: cuántos registros verificaron, fallaron o no eran verificables. Mismo caso que authorHealth — diagnóstico para decidir si se enciende el rechazo, no data del usuario, y se reacumula con el uso.',
-  'store/identityStore':
-    'invites_v1/pending_joins_v1 pasaron a scopearse por cuenta recién en T-098 (SEC L-4); las privadas (identity_v1/owner_secret_v1/wrapkeys_v1) siguen siendo del APARATO y no pasan por writeScoped. NO verificado que perderlas en una fusión sea inofensivo: una invitación emitida o un join aceptado por la cuenta absorbida podría quedar huérfano durante la gracia de 30 días. Pendiente de revisión por el Arquitecto — ver handoff T-098.',
 };
 
 export { MERGEABLE_STORES };
