@@ -11,7 +11,8 @@ import i18n from '@/src/i18n';
 import { Ionicons } from '@expo/vector-icons';
 
 import { Colors } from '@/src/constants/colors';
-import { Radius, Spacing } from '@/src/constants/spacing';
+import { Spacing } from '@/src/constants/spacing';
+import { Band, BandRow } from '@/src/components/Band';
 import { Typography } from '@/src/constants/typography';
 import { formatMoney } from '@/src/constants/currencies';
 import { MoneyText } from '@/src/components/MoneyText';
@@ -445,48 +446,33 @@ export default function ExpenseDetailScreen() {
         )}
 
         {/* Acciones. Objetar y retirar el pedido NO son lo mismo: objetar frena
-            el borrado de todos, retirar sólo me saca a mí. */}
-        {!expense.isDeleted && currentUser && (
-          <View style={[styles.section, { paddingHorizontal: Spacing.screenPad, gap: Spacing[2] }]}>
-            {hayPedido && !yoPedi && !yoObjete && (
-              <Pressable
-                accessibilityRole="button"
-                onPress={objetarBorrado}
-                style={[styles.actionBtn, { borderColor: c.brand.primary, backgroundColor: c.surface }]}
-              >
-                <Ionicons name="hand-left-outline" size={16} color={c.brand.primary} />
-                <Text style={[Typography.bodyM, { color: c.brand.primary, fontWeight: '600' }]}>
-                  {t('expense.object_delete')}
+            el borrado de todos, retirar sólo me saca a mí.
+            Van como fila de banda (T-107): borde a borde, sin relleno ni radio, igual que
+            las filas de Yo. El rojo queda sólo en el ícono y el texto — antes era una
+            píldora rellena que no pertenecía al sistema en ningún tema. Las tres
+            condiciones son excluyentes: a lo sumo hay una acción visible. */}
+        {!expense.isDeleted && currentUser && (() => {
+          const accion =
+            hayPedido && !yoPedi && !yoObjete
+              ? { onPress: objetarBorrado, icono: 'hand-left-outline' as const, texto: t('expense.object_delete'), color: c.brand.primary }
+            : hayPedido && yoPedi
+              ? { onPress: retirarPedido, icono: 'arrow-undo-outline' as const, texto: t('expense.withdraw_request'), color: c.textSecondary }
+            : !hayPedido
+              ? { onPress: handleRequestDelete, icono: 'trash-outline' as const,
+                  texto: borradoDirecto ? t('expense.delete_expense') : t('expense.request_delete'), color: c.semantic.negative }
+            : null;
+          if (!accion) return null;
+          return (
+            <Band style={{ marginBottom: Spacing[4] }}>
+              <BandRow onPress={accion.onPress} last accessibilityRole="button">
+                <Ionicons name={accion.icono} size={19} color={accion.color} />
+                <Text style={[Typography.bodyL, { flex: 1, color: accion.color, fontWeight: '600' }]}>
+                  {accion.texto}
                 </Text>
-              </Pressable>
-            )}
-
-            {hayPedido && yoPedi && (
-              <Pressable
-                accessibilityRole="button"
-                onPress={retirarPedido}
-                style={[styles.actionBtn, { borderColor: c.hair, backgroundColor: c.surface }]}
-              >
-                <Text style={[Typography.bodyM, { color: c.textSecondary, fontWeight: '600' }]}>
-                  {t('expense.withdraw_request')}
-                </Text>
-              </Pressable>
-            )}
-
-            {!hayPedido && (
-              <Pressable
-                accessibilityRole="button"
-                onPress={handleRequestDelete}
-                style={[styles.actionBtn, { borderColor: c.semantic.negativeSoft, backgroundColor: c.semantic.negativeSoft }]}
-              >
-                <Ionicons name="trash-outline" size={16} color={c.semantic.negative} />
-                <Text style={[Typography.bodyM, { color: c.semantic.negative, fontWeight: '600' }]}>
-                  {borradoDirecto ? t('expense.delete_expense') : t('expense.request_delete')}
-                </Text>
-              </Pressable>
-            )}
-          </View>
-        )}
+              </BandRow>
+            </Band>
+          );
+        })()}
 
         {/* Comentarios */}
         <View style={{ marginTop: Spacing[6] }}>
@@ -528,9 +514,5 @@ const styles = StyleSheet.create({
   balanceDivider:{ width: 1, height: 32 },
   splitRow:      { flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
   warningSection:{ flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
-  actionBtn:     {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 8, paddingVertical: 14, borderRadius: Radius.md, borderWidth: 1,
-  },
   notFound:  { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
 });
