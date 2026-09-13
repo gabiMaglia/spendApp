@@ -1,4 +1,4 @@
-import { ENLACE_BASE, enlaceCompacto, enlaceCompartible, hrefInterno, rutaDeEnlace } from '@/src/utils/appLink';
+import { ENLACE_BASE, MAX_URL, enlaceCompacto, enlaceCompartible, hrefInterno, rutaDeEnlace } from '@/src/utils/appLink';
 
 /**
  * **Los links que se comparten son `https`, no `spendapp://`** (PO, 2026-09-12).
@@ -100,5 +100,9 @@ describe('hrefInterno', () => {
     expect(hrefInterno(`${ENLACE_BASE}#contact/add?id=u1`)).toBe('/contact/add?id=u1');
     expect(hrefInterno('spendapp://groups/join?g=1')).toBe('/groups/join?g=1');
     expect(hrefInterno('spendapp://settings/borrar-cuenta')).toBeNull();
+  });
+
+  it('una URL de más de MAX_URL caracteres no es un link (T-098 L-2)', () => {
+    expect(rutaDeEnlace(`spendapp://contact/add?id=u1&name=${'a'.repeat(MAX_URL)}`)).toBeNull();
   });
 });

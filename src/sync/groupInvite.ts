@@ -2,6 +2,7 @@ import { ed25519, x25519 } from '@noble/curves/ed25519.js';
 import * as Crypto from 'expo-crypto';
 import { enlaceCompacto, enlaceCompartible, rutaDeEnlace } from '@/src/utils/appLink';
 import { codificarInvitacion, decodificarInvitacion } from '@/src/utils/linkCompacto';
+import { esNombreSeguro, limpiarNombre } from '@/src/utils/nombreSeguro';
 import { sealEnvelope, openEnvelope, toHex, fromHex } from './envelopeCrypto';
 
 /**
@@ -79,7 +80,7 @@ export function inviteToLink(invite: GroupInvite): string {
 
   const params = new URLSearchParams({
     g: invite.groupId,
-    n: invite.groupName,
+    n: limpiarNombre(invite.groupName),
     t: invite.token,
     f: invite.inviterFingerprint,
     e: String(invite.expiresAt),
@@ -104,15 +105,15 @@ export function inviteFromParams(params: Record<string, unknown>): GroupInvite |
 
   const groupId = str(params.g), token = str(params.t), expiresAt = str(params.e);
   if (!groupId || !token || !expiresAt) return null;
-  if (!Number.isFinite(Number(expiresAt))) return null;
+  // Validado como el compacto (T-098 · SEC L-2): antes pasaban `t=tok` y `e=1e308`.
+  if (!/^[0-9a-fA-F]{64}$/.test(token)) return null;
+  if (!/^\d{1,15}$/.test(expiresAt) || Number(expiresAt) > 2 ** 48 - 1) return null;
+  const inviterFingerprint = str(params.f) ?? '';
+  if (inviterFingerprint !== '' && !/^[0-9a-fA-F]{32}$/.test(inviterFingerprint)) return null;
+  const groupName = str(params.n) ?? '';
+  if (groupName !== '' && !esNombreSeguro(groupName)) return null;
 
-  return {
-    groupId,
-    groupName: str(params.n) ?? '',
-    token,
-    inviterFingerprint: str(params.f) ?? '',
-    expiresAt: Number(expiresAt),
-  };
+  return { groupId, groupName, token, inviterFingerprint, expiresAt: Number(expiresAt) };
 }
 
 export function parseInviteLink(link: string): GroupInvite | null {
