@@ -62,6 +62,34 @@ describe('destinoDeUrlExterna', () => {
     expect(destinoDeUrlExterna(devClient)).toBe(devClient);
   });
 
+  describe('esquemas ajenos no abren pantallas de la app (T-120 · SEC M-5)', () => {
+    it.each([
+      `${ESQUEMA_GOOGLE_SIGNIN}/groups/leave?id=x`,
+      `${ESQUEMA_GOOGLE_SIGNIN}//settle/new?toId=x`,
+      `${ESQUEMA_GOOGLE_SIGNIN}/settings/borrar-cuenta`,
+      `${ESQUEMA_GOOGLE_SIGNIN}/oauth2redirectX/debug/identity`,
+    ])('Google con una ruta que no es el retorno de OAuth va al inicio: %s', (url) => {
+      expect(destinoDeUrlExterna(url, false)).toBe('/');
+    });
+
+    it('el retorno de OAuth de Google sigue pasando intacto, también en producción', () => {
+      const retorno = `${ESQUEMA_GOOGLE_SIGNIN}/oauth2redirect?code=x`;
+      expect(destinoDeUrlExterna(retorno, false)).toBe(retorno);
+    });
+
+    it.each([
+      'exp+spendapp://settle/new?toId=x',
+      'exp+spendapp://expo-development-client/?url=spendapp%3A%2F%2Fsettings%2Fborrar-cuenta',
+    ])('en producción el esquema del dev client va al inicio: %s', (url) => {
+      expect(destinoDeUrlExterna(url, false)).toBe('/');
+    });
+
+    it('en desarrollo el dev client sigue funcionando', () => {
+      const dev = 'exp+spendapp://expo-development-client/?url=http%3A%2F%2F192.168.0.2%3A8081';
+      expect(destinoDeUrlExterna(dev, true)).toBe(dev);
+    });
+  });
+
   it('ESQUEMA_GOOGLE_SIGNIN coincide con el iosUrlScheme del plugin de google-signin en app.json', () => {
     const plugin = (appJson.expo.plugins as unknown[]).find(
       (p): p is [string, { iosUrlScheme: string }] =>
