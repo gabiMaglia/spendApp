@@ -506,12 +506,15 @@ export function marcarCardEnviada(userId: string, huella: string): void {
 }
 
 export function listPeers(): Record<string, PeerInfo> {
+  // Prototipo nulo: los ids vienen de afuera, y `getPeer('constructor')` devolvía
+  // `Function` (T-098 · SEC L-3).
+  const tabla: Record<string, PeerInfo> = Object.create(null);
   const raw = readScoped(storage, K_PEERS);
-  if (!raw) return {};
+  if (!raw) return tabla;
   try {
-    return JSON.parse(raw) as Record<string, PeerInfo>;
+    return Object.assign(tabla, JSON.parse(raw) as Record<string, PeerInfo>);
   } catch {
-    return {}; // dato corrupto: se degrada a "no conozco a nadie", no rompe
+    return tabla; // dato corrupto: se degrada a "no conozco a nadie", no rompe
   }
 }
 

@@ -732,3 +732,19 @@ describe('el buzón de contacto NO se compacta', () => {
     expect(sobres.every(s => s.compactable === false)).toBe(true);
   });
 });
+
+describe('ids hostiles en la tabla de peers (T-098 · SEC L-3)', () => {
+  it('getPeer de nombres del prototipo no devuelve funciones', () => {
+    usar(ANA);
+    expect(getPeer('constructor')).toBeUndefined();
+    expect(getPeer('toString')).toBeUndefined();
+    expect(getPeer('__proto__')).toBeUndefined();
+  });
+
+  it('un peer con id "__proto__" se guarda y se lee como cualquier otro', () => {
+    usar(ANA);
+    savePeer('__proto__', { secret: 'ab'.repeat(32) });
+    expect(getPeer('__proto__')?.secret).toBe('ab'.repeat(32));
+    expect(getPeer('constructor')).toBeUndefined();
+  });
+});
