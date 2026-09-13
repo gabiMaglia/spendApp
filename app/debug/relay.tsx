@@ -12,6 +12,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
   sendEnvelope, fetchSince, subscribeTopic, isRelayConfigured, type Envelope,
 } from '@/src/sync/relay';
+import { SoloEnDesarrollo } from '@/src/components/SoloEnDesarrollo';
 
 /**
  * Spike del relay (solo DEV): probar el buzón store-and-forward entre dos
@@ -24,7 +25,7 @@ import {
  *  3. El push es sólo un aviso: la lectura siempre va por cursor, así que si el
  *     websocket se cayó, la próxima lectura recupera igual.
  */
-export default function RelayDebugScreen() {
+function PantallaRelay() {
   const scheme = useColorScheme() ?? 'light';
   const c = Colors[scheme];
 
@@ -154,3 +155,7 @@ const styles = StyleSheet.create({
   sendRow: { flexDirection: 'row', gap: Spacing[2], alignItems: 'center' },
   btn:     { borderRadius: Radius.md, padding: Spacing[3] },
 });
+
+export default function DebugRelay() {
+  return <SoloEnDesarrollo><PantallaRelay /></SoloEnDesarrollo>;
+}

@@ -30,6 +30,7 @@ import { useExpenseStore } from '@/src/store/expenseStore';
 import { wipeAllAccounts } from '@/src/store/wipeDevice';
 import { Alert } from 'react-native';
 import { misIdentidades } from '@/src/store/identityAlias';
+import { SoloEnDesarrollo } from '@/src/components/SoloEnDesarrollo';
 
 /**
  * Diagnóstico del índice de identidad (solo DEV).
@@ -38,7 +39,7 @@ import { misIdentidades } from '@/src/store/identityAlias';
  * varias formas —código viejo en el bundle, el índice vacío, el usuario eligió
  * "cuenta aparte"— y adivinar cuál sale caro. Acá se ve el estado real.
  */
-export default function IdentityDebugScreen() {
+function PantallaIdentidad() {
   const scheme = useColorScheme() ?? 'light';
   const c = Colors[scheme];
 
@@ -413,3 +414,7 @@ const styles = StyleSheet.create({
   row:    { flexDirection: 'row', justifyContent: 'space-between', gap: Spacing[3] },
   value:  { flexShrink: 1, textAlign: 'right', fontWeight: '600' },
 });
+
+export default function DebugIdentity() {
+  return <SoloEnDesarrollo><PantallaIdentidad /></SoloEnDesarrollo>;
+}
