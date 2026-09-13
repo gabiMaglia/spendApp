@@ -48,6 +48,17 @@ jest.mock('@/src/sync/relayEngine', () => ({ deviceId: () => 'dev-1' }));
 const ANA  = { id: 'ana',  name: 'Ana',  isDeleted: false } as User;
 const BETO = { id: 'beto', name: 'Beto', isDeleted: false } as User;
 
+// T-098 · SEC L-2 (ronda 2): el formato largo ahora exige hex de 32 bytes en
+// s/w/k. Cada una distinta de las demás — los tests de conflicto de T-093
+// comparan valores concretos (la "pinneada" contra la "del atacante").
+const SEC             = 'a1'.repeat(32);
+const WRAP            = 'b2'.repeat(32);
+const IDK             = 'c3'.repeat(32);
+const IDK_NUEVA       = 'd4'.repeat(32);
+const SEC_ATACANTE    = 'e5'.repeat(32);
+const WRAP_ATACANTE   = 'f6'.repeat(32);
+const IDK_ATACANTE    = '07'.repeat(32);
+
 const CON_SECRETO = buildContactPayload(BETO, { secret: 's', wrapPublicKey: 'w', identityPublicKey: 'i' });
 const SIN_SECRETO = buildContactPayload(BETO, null);
 
@@ -144,7 +155,7 @@ describe('agregar contacto por LINK', () => {
    * algo. Cancelar/cerrar la hoja no debe escribir nada ni llamar a `announceContact`.
    */
   it('abrir el link NO agrega nada todavía: muestra la confirmación primero', () => {
-    mockParams = { id: 'beto', name: 'Beto', s: 'sec', w: 'wrap', k: 'idk' };
+    mockParams = { id: 'beto', name: 'Beto', s: SEC, w: WRAP, k: IDK };
     const r = render(<AddContactScreen />);
 
     expect(useUserStore.getState().users.map(u => u.id)).not.toContain('beto');
@@ -156,7 +167,7 @@ describe('agregar contacto por LINK', () => {
   });
 
   it('confirmar en la hoja agrega, cierra la pantalla y avisa — igual que escanear', () => {
-    mockParams = { id: 'beto', name: 'Beto', s: 'sec', w: 'wrap', k: 'idk' };
+    mockParams = { id: 'beto', name: 'Beto', s: SEC, w: WRAP, k: IDK };
     const r = render(<AddContactScreen />);
 
     fireEvent.press(r.getByTestId('contact-confirm-add'));
@@ -167,7 +178,7 @@ describe('agregar contacto por LINK', () => {
   });
 
   it('cancelar la confirmación no persiste nada y no llama al relay', () => {
-    mockParams = { id: 'beto', name: 'Beto', s: 'sec', w: 'wrap', k: 'idk' };
+    mockParams = { id: 'beto', name: 'Beto', s: SEC, w: WRAP, k: IDK };
     const r = render(<AddContactScreen />);
 
     fireEvent.press(r.getByTestId('contact-confirm-cancel'));
@@ -180,11 +191,11 @@ describe('agregar contacto por LINK', () => {
 
   it('el link guarda las TRES claves del contacto, no sólo el secreto, recién al confirmar', () => {
     const { savePeer } = jest.requireMock('@/src/sync/contactChannel');
-    mockParams = { id: 'beto', name: 'Beto', s: 'sec', w: 'wrap', k: 'idk' };
+    mockParams = { id: 'beto', name: 'Beto', s: SEC, w: WRAP, k: IDK };
     const r = render(<AddContactScreen />);
     fireEvent.press(r.getByTestId('contact-confirm-add'));
 
-    expect(savePeer).toHaveBeenCalledWith('beto', { secret: 'sec', wrapPublicKey: 'wrap', identityPublicKey: 'idk' });
+    expect(savePeer).toHaveBeenCalledWith('beto', { secret: SEC, wrapPublicKey: WRAP, identityPublicKey: IDK });
   });
 
   it('el link COMPACTO (?c=) agrega igual tras confirmar, con las tres claves', () => {
@@ -200,7 +211,7 @@ describe('agregar contacto por LINK', () => {
   });
 
   it('un re-render no vuelve a procesar el link (no duplica la confirmación)', () => {
-    mockParams = { id: 'beto', name: 'Beto', s: 'sec' };
+    mockParams = { id: 'beto', name: 'Beto', s: SEC };
     const r = render(<AddContactScreen />);
     r.rerender(<AddContactScreen />);
 
@@ -229,7 +240,7 @@ describe('agregar contacto por LINK', () => {
   it('claves distintas a las pinneadas: no persiste, avisa, y ni siquiera llega a mostrar la confirmación', () => {
     const { hasConflictingPinnedKeys, savePeer, announceContact } = jest.requireMock('@/src/sync/contactChannel');
     (hasConflictingPinnedKeys as jest.Mock).mockReturnValueOnce(true);
-    mockParams = { id: 'beto', name: 'Beto', s: 'sec', w: 'wrap', k: 'idk-nueva' };
+    mockParams = { id: 'beto', name: 'Beto', s: SEC, w: WRAP, k: IDK_NUEVA };
     const r = render(<AddContactScreen />);
 
     expect(useUserStore.getState().users.map(u => u.id)).not.toContain('beto');
@@ -248,7 +259,7 @@ describe('agregar contacto por LINK', () => {
     const { hasConflictingPinnedKeys, savePeer, announceContact } = jest.requireMock('@/src/sync/contactChannel');
     // Al abrir el link no hay nadie pinneado todavía: sin conflicto.
     (hasConflictingPinnedKeys as jest.Mock).mockReturnValueOnce(false);
-    mockParams = { id: 'beto', name: 'Beto', s: 'sec-atacante', w: 'wrap-atacante', k: 'idk-atacante' };
+    mockParams = { id: 'beto', name: 'Beto', s: SEC_ATACANTE, w: WRAP_ATACANTE, k: IDK_ATACANTE };
     const r = render(<AddContactScreen />);
     expect(r.getByTestId('contact-confirm-add')).toBeTruthy();
 
