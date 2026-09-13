@@ -1,5 +1,6 @@
 import React from 'react';
-import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import Animated, { useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -7,21 +8,30 @@ import { Colors } from '@/src/constants/colors';
 import { Spacing } from '@/src/constants/spacing';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { FondoMarmol } from '@/src/components/FondoMarmol';
+import { alturaHeaderColapsable, alturaBloqueTituloVisible, opacidadTituloCompacto } from '@/src/hooks/useHeaderColapsable';
 
 /**
  * Header fijo común a todas las tabs.
  *
  * **T-114 (PO 2026-09-13):** dos filas — la de botones (avatar, campana,
  * moneda) arriba, y el bloque título (saludo opcional + título) abajo, con
- * `justifyContent: 'space-between'` entre las dos. El título YA NO scrollea
- * ni aparece recién al hacer scroll: antes vivía DUPLICADO —grande en el
- * contenido de cada pantalla, compacto y con fade-in en el header— y ahora es
- * el ÚNICO título, siempre visible. Lo que sigue colapsando con el scroll es
- * el VELO (T-110: `bgOpacity`/`hairOpacity`, 0 en reposo), no el texto.
+ * `justifyContent: 'space-between'` entre las dos.
  *
- * Si el proyecto agrega `expo-blur`, reemplazar el `Animated.View` de fondo por
- * `<BlurView intensity={...} tint={scheme}>`; los valores de opacidad de acá
- * están calculados para que el resultado sea equivalente sin blur.
+ * **T-128 (PO 2026-09-13, probando en el teléfono): el header colapsa al
+ * scrollear, y el mármol NUNCA desaparece — es invariante.** Se saca el velo
+ * de T-105/T-110 (`bgOpacity`/`hairOpacity` tapando la textura hasta 0.97 de
+ * opacidad): la textura es un JPEG opaco y alcanza sola para que el
+ * contenido que scrollea por debajo no se vea. Lo que colapsa ahora es el
+ * ALTO del header (`alturaHeaderColapsable`, de `insets.top + HEADER_BAR_H +
+ * TITLE_BLOCK_H` a `insets.top + HEADER_BAR_H`), con `overflow: 'hidden'`:
+ * el mármol se dimensiona al alto EXPANDIDO (+ margen extra, por si algún
+ * frame de overscroll pidiera más alto que el expandido) y ancla arriba, así
+ * nunca se estira ni deforma — sólo se ve menos textura, nunca menos opaca.
+ *
+ * El bloque título grande (y el saludo de Inicio) NO tiene fade ni traslado
+ * propio: sólo queda recortado por ese mismo `overflow: hidden` a medida que
+ * el header pierde alto (`alturaBloqueTituloVisible`). El título CHICO junto
+ * a la foto de perfil sí tiene fade propio, sincronizado con el progreso.
  */
 /** Alto de la fila de botones, sin el notch. */
 export const HEADER_BAR_H = 52;
@@ -63,13 +73,17 @@ export function useHeaderPadding(aire: number = Spacing[4]): number {
   return insets.top + HEADER_BAR_H + TITLE_BLOCK_H + aire;
 }
 
+/** Margen extra, en pt, del mármol más allá del alto expandido — colchón de seguridad para que nunca se vea un hueco. */
+const MARMOL_BLEED = 80;
+
 export function CollapsibleHeader({
-  title, subtitle, scrollY, right, left,
+  title, subtitle, progress, right, left,
 }: {
   title: string;
   /** Sólo Inicio lo pasa: "Hola, {nombre}" arriba del título (T-114). */
   subtitle?: string;
-  scrollY: Animated.Value;
+  /** Progreso de colapso en [0,1] — de `useHeaderColapsable` (T-128). */
+  progress: SharedValue<number>;
   right?: React.ReactNode;
   /** Avatar u otro botón de la fila de arriba. */
   left?: React.ReactNode;
@@ -78,50 +92,69 @@ export function CollapsibleHeader({
   const c = Colors[scheme];
   const insets = useSafeAreaInsets();
 
-  const bgOpacity = scrollY.interpolate({
-    // En reposo el mármol se ve entero (PO 2026-09-13: en claro no se veía); al scrollear
-    // vuelve el fondo para que el contenido que pasa por debajo no compita con el título.
-    inputRange: [0, 60], outputRange: [0, 0.97], extrapolate: 'clamp',
-  });
-  const hairOpacity = scrollY.interpolate({
-    inputRange: [0, 60], outputRange: [0, 1], extrapolate: 'clamp',
-  });
+  const expandido = insets.top + HEADER_BAR_H + TITLE_BLOCK_H;
+  const colapsado = insets.top + HEADER_BAR_H;
+
+  const wrapStyle = useAnimatedStyle(() => ({
+    height: alturaHeaderColapsable(progress.value, expandido, colapsado),
+  }));
+
+  // El bloque título (saludo + título grande) no anima nada por su cuenta:
+  // sólo se recorta con el `overflow: hidden` del contenedor de arriba. Este
+  // estilo achica ESE contenedor puntual, no el header entero.
+  const clipTituloStyle = useAnimatedStyle(() => ({
+    height: alturaBloqueTituloVisible(
+      alturaHeaderColapsable(progress.value, expandido, colapsado), insets.top, HEADER_BAR_H, TITLE_BLOCK_H,
+    ),
+  }));
+
+  const tituloCompactoStyle = useAnimatedStyle(() => ({
+    opacity: opacidadTituloCompacto(progress.value),
+  }));
 
   return (
-    <View style={[styles.wrap, { paddingTop: insets.top }]} pointerEvents="box-none">
+    <Animated.View
+      testID="header-wrap"
+      style={[styles.wrap, wrapStyle]}
+      pointerEvents="box-none"
+    >
       {/*
-        T-105: el mármol va DEBAJO del tinte de fondo, no reemplazándolo. El
-        tinte ya interpola su opacidad con el scroll (0.55 → 0.97) — es
-        exactamente el fundido que evita el "corte feo" al colapsar: arriba
-        se ve la veta, abajo el tinte casi opaco la tapa de a poco, nunca de
-        golpe.
+        T-128 (invariante del PO): el mármol se dimensiona al alto EXPANDIDO
+        (+ `MARMOL_BLEED` de colchón) y ancla arriba — nunca se estira ni
+        reescala con el `height` animado de `wrap`. Al colapsar, `wrap`
+        (con `overflow: hidden`) muestra cada vez menos textura, nunca menos
+        opaca: no hay overlay ni tinte encima, la propia foto es opaca.
       */}
-      <FondoMarmol />
-      <Animated.View
-        style={[StyleSheet.absoluteFill, { backgroundColor: c.bg, opacity: bgOpacity }]}
-        pointerEvents="none"
-      />
-      <Animated.View
-        style={[styles.hair, { backgroundColor: c.hair, opacity: hairOpacity }]}
-        pointerEvents="none"
-      />
-      <View style={styles.content}>
+      <FondoMarmol style={{ top: 0, bottom: undefined, height: expandido + MARMOL_BLEED }} />
+      <View style={[styles.hair, { backgroundColor: c.hair }]} pointerEvents="none" />
+      <View style={[styles.content, { height: expandido, paddingTop: insets.top }]}>
         <View style={styles.buttonsRow}>
-          <View style={styles.buttonsLeft}>{left}</View>
+          <View style={styles.buttonsLeft}>
+            {left}
+            <Animated.Text
+              testID="header-title-compact"
+              numberOfLines={1}
+              style={[styles.titleCompact, tituloCompactoStyle, { color: c.text }]}
+            >
+              {title}
+            </Animated.Text>
+          </View>
           <View style={styles.right}>{right}</View>
         </View>
-        <View style={styles.titleBlock} testID="header-title-block">
-          {subtitle ? (
-            <Text testID="header-subtitle" numberOfLines={1} style={[styles.subtitle, { color: c.textTertiary }]}>
-              {subtitle}
+        <Animated.View style={[styles.titleClip, clipTituloStyle]} testID="header-title-block-clip">
+          <View style={styles.titleBlock} testID="header-title-block">
+            {subtitle ? (
+              <Text testID="header-subtitle" numberOfLines={1} style={[styles.subtitle, { color: c.textTertiary }]}>
+                {subtitle}
+              </Text>
+            ) : null}
+            <Text numberOfLines={1} style={[styles.title, { color: c.text }]}>
+              {title}
             </Text>
-          ) : null}
-          <Text numberOfLines={1} style={[styles.title, { color: c.text }]}>
-            {title}
-          </Text>
-        </View>
+          </View>
+        </Animated.View>
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -163,13 +196,21 @@ export function HeaderIcon({
 }
 
 const styles = StyleSheet.create({
-  wrap: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10 },
+  // T-128: `overflow: hidden` es lo que hace que el mármol (dimensionado al
+  // alto expandido) y el bloque título (recortado abajo, ver `titleClip`) se
+  // vean cada vez menos a medida que `height` (animado) se achica — sin
+  // reescalar ni animar nada más que ESE alto.
+  wrap: {
+    position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10, overflow: 'hidden',
+  },
   hair: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 1 },
   // T-114: las dos filas del header, con el aire entre ellas resuelto por
   // `space-between` — no un gap fijo, para que el bloque título respete su
   // `minHeight` sin importar si tiene una línea (la mayoría) o dos (Inicio).
+  // Alto fijo (nunca animado): quien se achica es `wrap`, por encima; este
+  // `content` mantiene siempre su tamaño expandido, así el título grande no
+  // se reflowea mientras el header colapsa a su alrededor.
   content: {
-    minHeight: HEADER_BAR_H + TITLE_BLOCK_H,
     justifyContent: 'space-between',
   },
   buttonsRow: {
@@ -179,11 +220,21 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.screenPad,
   },
-  buttonsLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  buttonsLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 1 },
   right: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  // T-128: ventana de recorte del bloque título. `justifyContent: 'flex-end'`
+  // pega `titleBlock` (alto fijo, TITLE_BLOCK_H) contra el borde inferior de
+  // esta ventana — al achicarse (`clipTituloStyle`, de TITLE_BLOCK_H a 0) lo
+  // que se recorta es el TOPE de `titleBlock` (el saludo primero, T-128), y
+  // el título grande queda "pegado" al borde inferior del header hasta el
+  // final del recorrido, cuando la ventana llega a 0 y desaparece con él.
+  titleClip: {
+    overflow: 'hidden',
+    justifyContent: 'flex-end',
+  },
   // T-126 (PO): el título va ABAJO del header, a no más de 6pt del borde inferior.
   titleBlock: {
-    minHeight: TITLE_BLOCK_H,
+    height: TITLE_BLOCK_H,
     justifyContent: 'flex-end',
     gap: 2,
     paddingHorizontal: Spacing.screenPad,
@@ -191,6 +242,8 @@ const styles = StyleSheet.create({
   },
   subtitle: { fontSize: 12.5, fontWeight: '500' },
   title: { fontSize: 20, fontWeight: '800' },
+  // T-128: título chico junto a la foto de perfil, visible sólo colapsado.
+  titleCompact: { fontSize: 15, fontWeight: '700', flexShrink: 1 },
   avatar: {
     width: 32, height: 32, borderRadius: 16,
     alignItems: 'center', justifyContent: 'center',
