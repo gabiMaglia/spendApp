@@ -318,6 +318,11 @@ export function Segmented<T extends string>({
           onPress={() => onChange(o.key)}
           style={[
             scroll ? styles.tabsItemScroll : styles.tabsItem,
+            // `compact`: un selector SECUNDARIO (p.ej. el sub-modo de porcentaje
+            // debajo del modo de reparto, T-103.D) sigue siendo "T invertida" pero
+            // más chico, para que la jerarquía entre el principal y el secundario
+            // se lea sin salir del look unificado.
+            compact && styles.tabsItemCompact,
             // El trazo vertical de la T, de alto completo para que toque la línea de abajo.
             // Fijas: entre celdas (a la izquierda de toda celda salvo la primera). En scroll:
             // a la derecha de CADA celda — si no, la última queda abierta y su fondo de
@@ -328,8 +333,8 @@ export function Segmented<T extends string>({
             { backgroundColor: on ? c.bgGrouped : 'transparent' },
           ]}
         >
-          {o.icon ? <Ionicons name={o.icon} size={16} color={color} /> : null}
-          <Text numberOfLines={1} style={{ fontSize: 13.5, fontWeight: on ? '700' : '500', color }}>
+          {o.icon ? <Ionicons name={o.icon} size={compact ? 14 : 16} color={color} /> : null}
+          <Text numberOfLines={1} style={{ fontSize: compact ? 12 : 13.5, fontWeight: on ? '700' : '500', color }}>
             {o.label}
           </Text>
         </Pressable>
@@ -410,6 +415,7 @@ const styles = StyleSheet.create({
     flex: 1, height: 48, flexDirection: 'row',
     alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: 8,
   },
+  tabsItemCompact: { height: 36, gap: 5 },
   // En scroll la celda se dimensiona a su contenido: `flex: 1` adentro de un
   // ScrollView horizontal colapsa a cero.
   tabsItemScroll: {
