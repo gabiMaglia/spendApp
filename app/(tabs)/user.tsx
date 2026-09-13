@@ -31,6 +31,7 @@ import { CurrencyPicker } from '@/src/components/CurrencyPicker';
 import { useCurrenciesInUse } from '@/src/store/currenciesInUse';
 import { needsRates, readCache } from '@/src/services/fx';
 import { Band, BandRow, SectionLabel, Segmented, SoonBadge } from '@/src/components/Band';
+import { SyncNoDisponible } from '@/src/components/SyncNoDisponible';
 import { listErrors } from '@/src/services/errorLog';
 import { exportarDiagnostico } from '@/src/services/exportDiagnostico';
 import { useLiveValue } from '@/src/hooks/useLiveValue';
@@ -379,6 +380,8 @@ export default function UserScreen() {
                      onPress={handleExportDiagnostico} last />
           )}
         </Band>
+
+        <SyncNoDisponible />
 
         {/* Seguridad */}
         <SectionLabel label={t('profile.section_security')} />
