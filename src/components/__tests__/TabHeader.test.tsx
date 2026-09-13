@@ -73,6 +73,41 @@ describe('el header trae siempre lo mismo', () => {
 });
 
 /**
+ * **T-119 (PO 2026-09-13): abrir la campana marca leídas las que NO piden
+ * acción.** Las accionables (`deletion`, `settlement_pending`, `sync_down`)
+ * siguen pendientes hasta resolverse — sólo mirarlas no alcanza.
+ */
+describe('abrir la campana marca leídas las que no piden acción (T-119)', () => {
+  const SIN_ACCION = {
+    id: 'n1', createdAt: 1, readAt: null,
+    notice: { kind: 'expenses' as const, groupId: 'g1', groupName: 'Asado', count: 1 },
+  };
+  const CON_ACCION = {
+    id: 'n2', createdAt: 2, readAt: null,
+    notice: {
+      kind: 'settlement_pending' as const, groupId: 'g1', groupName: 'Asado',
+      paymentId: 'p1', amount: 500, currency: 'ARS' as const,
+    },
+  };
+
+  beforeEach(() => {
+    useNoticeInboxStore.setState({ items: [SIN_ACCION, CON_ACCION] });
+  });
+
+  it('el badge baja de 2 a 1 al abrir: sólo se marcó la que no pide acción', () => {
+    const r = montar();
+    expect(r.getAllByText('2').length).toBeGreaterThan(0);
+
+    fireEvent.press(r.getByTestId('notice-bell'));
+
+    expect(useNoticeInboxStore.getState().items.find(i => i.id === 'n1')!.readAt).not.toBeNull();
+    expect(useNoticeInboxStore.getState().items.find(i => i.id === 'n2')!.readAt).toBeNull();
+    expect(r.queryAllByText('2')).toHaveLength(0);
+    expect(r.getAllByText('1').length).toBeGreaterThan(0);
+  });
+});
+
+/**
  * **Guard de clase.** El valor de unificar el header es que la próxima tab lo
  * herede sin acordarse. Una tab que monte `CollapsibleHeader` a mano se queda
  * sin campana —o sea, sin forma de enterarse de nada— y nadie lo nota hasta que

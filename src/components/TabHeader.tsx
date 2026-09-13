@@ -15,6 +15,7 @@ import { useSettingsStore } from '@/src/store/settingsStore';
 import {
   useNoticeInboxStore, useUnreadNoticeCount, type StoredNotice,
 } from '@/src/store/noticeInboxStore';
+import { esAccionable } from '@/src/services/syncNotices';
 import { hapticLight } from '@/src/utils/haptics';
 import { syncedNow } from '@/src/utils/syncedClock';
 
@@ -49,11 +50,25 @@ export function TabHeader({ title, scrollY }: { title: string; scrollY: Animated
 
   const inboxItems  = useNoticeInboxStore(s => s.items);
   const sinLeer     = useUnreadNoticeCount();
-  const markRead    = useNoticeInboxStore(s => s.markRead);
-  const markAllRead = useNoticeInboxStore(s => s.markAllRead);
+  const markRead      = useNoticeInboxStore(s => s.markRead);
+  const markAllRead   = useNoticeInboxStore(s => s.markAllRead);
+  const markReadWhere = useNoticeInboxStore(s => s.markReadWhere);
 
   const [bandeja, setBandeja] = useState(false);
   const [monedas, setMonedas] = useState(false);
+
+  /**
+   * **Abrir la campana marca leídas las que NO piden acción** (PO 2026-09-13,
+   * T-119). Las accionables (`esAccionable`: `deletion`, `settlement_pending`,
+   * `sync_down`) siguen pendientes — abrirlas no las resuelve, hace falta
+   * actuar (objetar/acusar recibo/reintentar). El botón "Marcar todo" de la
+   * bandeja sigue siendo la vía explícita para apagar TODO, accionables
+   * incluidas — este auto-marcado no lo reemplaza.
+   */
+  function abrirCampana() {
+    markReadWhere(item => !esAccionable(item.notice.kind));
+    setBandeja(true);
+  }
 
   function abrirAviso(item: StoredNotice) {
     markRead(item.id);
@@ -92,7 +107,7 @@ export function TabHeader({ title, scrollY }: { title: string; scrollY: Animated
         }
         right={
           <>
-            <NoticeBell unread={sinLeer} onPress={() => setBandeja(true)} />
+            <NoticeBell unread={sinLeer} onPress={abrirCampana} />
             <HeaderCurrency code={cur} onPress={() => setMonedas(true)} />
           </>
         }

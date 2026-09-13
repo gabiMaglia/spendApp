@@ -44,6 +44,7 @@ interface NoticeInboxState {
   record: (notices: Notice[], now?: number) => void;
   markRead: (id: string, now?: number) => void;
   markAllRead: (now?: number) => void;
+  markReadWhere: (predicate: (item: StoredNotice) => boolean, now?: number) => void;
   unreadCount: () => number;
   hydrate: () => void;
   clear: () => void;
@@ -96,6 +97,27 @@ export function createNoticeInboxStore() {
 
       markAllRead: (now = Date.now()) => {
         const items = get().items.map(i => (i.readAt === null ? { ...i, readAt: now } : i));
+        persist(items);
+        set({ items });
+      },
+
+      /**
+       * Marca leídos sólo los avisos SIN LEER que cumplen `predicate` (T-119).
+       *
+       * Existe para «abrir la campana marca como leídas las que no piden
+       * acción»: el predicado de accionabilidad vive en `syncNotices.ts`
+       * (`esAccionable`), no acá — el store no conoce esa clasificación, sólo
+       * ejecuta el filtro que le pasan. Genérico a propósito: es la misma
+       * forma que `markAllRead`, con un filtro en el medio.
+       */
+      markReadWhere: (predicate, now = Date.now()) => {
+        let cambio = false;
+        const items = get().items.map(i => {
+          if (i.readAt !== null || !predicate(i)) return i;
+          cambio = true;
+          return { ...i, readAt: now };
+        });
+        if (!cambio) return;
         persist(items);
         set({ items });
       },
