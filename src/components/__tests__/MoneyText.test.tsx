@@ -32,9 +32,10 @@ describe('MoneyText', () => {
 
   // T-106: los "montos grandes de bloque" pasan `rollId` para rodar. Sin él,
   // MoneyText se comporta EXACTO como antes (default, sin romper nada).
-  it('con rollId, el texto sigue siendo accesible igual que como Text plano', () => {
+  it('con rollId, el texto sigue siendo accesible igual que como Text plano', async () => {
     render(<MoneyText minor={150000} code="ARS" rollId="test.monto" registry={crearRegistroDeMontos()} />);
-    expect(screen.getByLabelText('$1.500')).toBeTruthy();
+    // Primera aparición: espera el asentamiento post-semilla de MontoRodante (T-106).
+    expect(await screen.findByLabelText('$1.500')).toBeTruthy();
   });
 
   it('sin rollId no cambia nada: sigue siendo un <Text> con el texto directo', () => {

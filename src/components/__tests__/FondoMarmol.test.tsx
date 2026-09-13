@@ -41,12 +41,15 @@ describe('FondoMarmol', () => {
     expect(r.UNSAFE_getByType(Image).props.source).toBe('ASSET_MARMOL_OSCURO');
   });
 
-  it('cubre todo el fondo, alineada arriba, sin capturar toques ni lectores de pantalla', () => {
+  // PO: "estirá la imagen para que se adapte al alto del header, que no se
+  // vean pedacitos nomás" — `fill` en vez de `cover`, para que entre la
+  // textura COMPLETA (todas las vetas + el fundido de abajo) sin importar
+  // cuánto mida la superficie del header (fijo o colapsable).
+  it('estira la imagen al tamaño exacto del header (fill), sin capturar toques ni lectores de pantalla', () => {
     useThemeStore.setState({ themeChoice: 'light' });
     const r = render(<FondoMarmol />);
     const img = r.UNSAFE_getByType(Image);
-    expect(img.props.contentFit).toBe('cover');
-    expect(img.props.contentPosition).toBe('top');
+    expect(img.props.contentFit).toBe('fill');
     expect(img.props.pointerEvents).toBe('none');
     expect(img.props.accessibilityElementsHidden).toBe(true);
   });

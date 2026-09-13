@@ -8,6 +8,7 @@ import { Typography } from '@/src/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { MontoRodante } from '@/src/components/MontoRodante';
 import type { MontoRegistry } from '@/src/utils/montoRodanteRegistry';
+import type { CurrencyCode } from '@/src/constants/currencies';
 
 /**
  * Primitivas del reskin "flat bands".
@@ -134,14 +135,19 @@ export function BandRow({
  */
 export type StatItem = {
   label: string;
+  /** Texto YA formateado — el que se ve sin `id`, y la referencia exacta que valida `MontoRodante` con `id`. */
   value: string;
   color?: string;
   /**
    * Sólo para los MONTOS-RESUMEN de bloque (T-106): con `id`, el valor rueda
    * (`MontoRodante`) en vez de aparecer directo. Sin `id` (default), es el
    * mismo `<Text>` de siempre — ningún consumidor existente cambia.
+   * Requiere `minor` (y `code` si es un monto de moneda; omitir `code` para
+   * un conteo simple, ej. "cantidad de grupos").
    */
   id?: string;
+  minor?: number;
+  code?: CurrencyCode;
 };
 
 export function SplitStat({
@@ -174,7 +180,8 @@ export function SplitStat({
               {it.id ? (
                 <MontoRodante
                   id={it.id}
-                  value={it.value}
+                  minor={it.minor ?? 0}
+                  code={it.code}
                   style={[Typography.amountM, { color: it.color ?? c.text }]}
                   registry={registry}
                 />
@@ -233,7 +240,8 @@ export function StatGrid({
       {it.id ? (
         <MontoRodante
           id={it.id}
-          value={it.value}
+          minor={it.minor ?? 0}
+          code={it.code}
           style={[Typography.amountM, { color: it.color ?? c.text }]}
           registry={registry}
         />
@@ -362,9 +370,10 @@ export function Segmented<T extends string>({
    * horizontal ABAJO (default `'abajo'`, sin cambios). Grupos (T-108) la pega
    * al primer elemento de su lista — ahí el borde tiene que ir ARRIBA, si no
    * quedan dos líneas donde tiene que haber una (mismo criterio que
-   * `Band noTop`). El resto de la app no pasa esta prop y no cambia.
+   * `Band noTop`). Actividad (T-108, agregado del PO) quiere las DOS
+   * (`'ambos'`). El resto de la app no pasa esta prop y no cambia.
    */
-  borde?: 'abajo' | 'arriba';
+  borde?: 'abajo' | 'arriba' | 'ambos';
 }) {
   const c = useC();
 
@@ -403,7 +412,9 @@ export function Segmented<T extends string>({
       );
     });
 
-    const estiloBorde = borde === 'arriba'
+    const estiloBorde = borde === 'ambos'
+      ? { borderTopWidth: 1, borderTopColor: c.hair, borderBottomColor: c.hair }
+      : borde === 'arriba'
       ? { borderBottomWidth: 0, borderTopWidth: 1, borderTopColor: c.hair }
       : { borderTopWidth: 0, borderBottomColor: c.hair };
 

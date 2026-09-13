@@ -159,6 +159,7 @@ export default function ActivityScreen() {
         <Segmented
           variant="tabs"
           scroll
+          borde="ambos"
           value={activeFilter}
           onChange={f => { hapticSelection(); setActiveFilter(f); }}
           options={allGroupNames.map(f => ({

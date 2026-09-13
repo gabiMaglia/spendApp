@@ -4,6 +4,7 @@ import { fireEvent, render } from '@testing-library/react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SectionLabel, Segmented, SplitStat, StatGrid } from '../Band';
 import { crearRegistroDeMontos } from '@/src/utils/montoRodanteRegistry';
+import { formatMoney } from '@/src/constants/currencies';
 
 /**
  * `Segmented` tiene dos variantes porque tiene dos trabajos: `control` elige
@@ -109,6 +110,14 @@ describe('Segmented', () => {
     expect(estilo.borderTopWidth).toBe(1);
     expect(estilo.borderBottomWidth ?? 0).toBe(0);
   });
+
+  // T-108 (agregado del PO): Actividad quiere línea arriba Y abajo.
+  it('con `borde="ambos"`, dibuja las dos líneas', () => {
+    const r = render(<Segmented variant="tabs" borde="ambos" options={opciones} value="a" onChange={() => {}} />);
+    const estilo = StyleSheet.flatten(r.getByTestId('segmented-tabs-wrap').props.style);
+    expect(estilo.borderTopWidth).toBe(1);
+    expect(estilo.borderBottomWidth).toBe(1);
+  });
 });
 
 /**
@@ -145,15 +154,17 @@ describe('SplitStat', () => {
     expect(r.getByText('$200')).toBeTruthy();
   });
 
-  it('con id en el item, el valor es accesible igual (rueda vía MontoRodante)', () => {
+  it('con id en el item, el valor es accesible igual (rueda vía MontoRodante)', async () => {
     const registro = crearRegistroDeMontos();
     const r = render(
       <SplitStat
-        items={[{ label: 'A', value: '$100', id: 'a' }]}
+        items={[{ label: 'A', value: '$100', id: 'a', minor: 10000, code: 'ARS' }]}
         registry={registro}
       />,
     );
-    expect(r.getByLabelText('$100')).toBeTruthy();
+    // Primera aparición: monta con la semilla y pasa al real al frame
+    // siguiente (T-106) — se espera ese asentamiento, no se testea la animación.
+    expect(await r.findByLabelText('$100')).toBeTruthy();
   });
 });
 
@@ -187,10 +198,21 @@ describe('StatGrid', () => {
   });
 
   // T-106: Groups pasa `id` en los cuatro items del box — todos ruedan.
-  it('con id en los items, los cuatro valores son accesibles igual (ruedan vía MontoRodante)', () => {
+  // Groups (T-106): los 4 ruedan — los 2 conteos simples (sin `code`) y los
+  // 2 montos (con `code`). Datos propios (no los de `items` arriba): esos
+  // son sólo para el rendering plano, sin pasar por `formatMoney`.
+  it('con id en los items, los cuatro valores son accesibles igual (ruedan vía MontoRodante)', async () => {
     const registro = crearRegistroDeMontos();
-    const conId = items.map((it, i) => ({ ...it, id: `stat-${i}` }));
+    const conId = [
+      { label: 'GRUPOS',   value: '3',  id: 'g1', minor: 3 },
+      { label: 'GASTOS',   value: '47', id: 'g2', minor: 47 },
+      { label: 'TE DEBEN', value: formatMoney(1240000, 'ARS'), color: undefined, id: 'g3', minor: 1240000, code: 'ARS' as const },
+      { label: 'DEBÉS',    value: formatMoney(300000, 'ARS'),  color: undefined, id: 'g4', minor: 300000,  code: 'ARS' as const },
+    ];
     const r = render(<StatGrid items={conId as never} registry={registro} />);
-    items.forEach(i => expect(r.getByLabelText(i.value)).toBeTruthy());
+    // Primera aparición de cada uno: esperar el asentamiento post-semilla (T-106).
+    for (const i of conId) {
+      expect(await r.findByLabelText(i.value)).toBeTruthy();
+    }
   });
 });

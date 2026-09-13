@@ -1,4 +1,4 @@
-import { crearRegistroDeMontos, debeRodar } from '../montoRodanteRegistry';
+import { crearRegistroDeMontos, debeRodar, numeroSemilla } from '../montoRodanteRegistry';
 
 /**
  * Decisión pura de "¿anima o no?" para `MontoRodante` (T-106).
@@ -53,5 +53,43 @@ describe('debeRodar', () => {
     debeRodar(registro, 'personal.disponible', '$500'); // "monta" con $500
     // "desmonta" (no se toca el registro) y "remonta" con el mismo valor:
     expect(debeRodar(registro, 'personal.disponible', '$500')).toBe(false);
+  });
+});
+
+/**
+ * T-106 — «si el valor es 0, igual tiene que girar»: la semilla de la primera
+ * aparición tiene que ser DISTINTA del valor real en cada dígito (para que
+ * `number-flow-react-native`, que sólo anima por diferencia, vea un cambio
+ * genuino), con el mismo formato/cantidad de dígitos.
+ */
+describe('numeroSemilla', () => {
+  it('para 0, devuelve algo distinto de 0 con el mismo formato (un dígito)', () => {
+    const semilla = numeroSemilla(0);
+    expect(semilla).not.toBe(0);
+    expect(String(semilla)).toHaveLength(1);
+  });
+
+  it('cada dígito de la semilla es el opuesto en la rueda (+5 mod 10) del real', () => {
+    expect(numeroSemilla(0)).toBe(5);
+    expect(numeroSemilla(5)).toBe(0);
+    expect(numeroSemilla(9)).toBe(4);
+  });
+
+  it('mantiene la misma cantidad de dígitos que el valor real (no salta el ancho)', () => {
+    expect(String(numeroSemilla(1234))).toHaveLength(4);
+    expect(String(Math.trunc(numeroSemilla(1234.5)))).toHaveLength(4);
+  });
+
+  it('difiere del real en TODAS las posiciones, no sólo en una', () => {
+    const real = 1234;
+    const semilla = String(numeroSemilla(real));
+    const textoReal = String(real);
+    for (let i = 0; i < textoReal.length; i++) {
+      expect(semilla[i]).not.toBe(textoReal[i]);
+    }
+  });
+
+  it('funciona igual para negativos (opera sobre el valor absoluto)', () => {
+    expect(numeroSemilla(-5)).toBe(0);
   });
 });

@@ -278,7 +278,9 @@ export default function GroupDetailScreen() {
             </Text>
             <MontoRodante
               id={`groupDetail.balance:${group.id}`}
-              value={`${mainBalance > 0 ? '+' : ''}${formatMoney(mainBalance, group.currency)}`}
+              minor={mainBalance}
+              code={group.currency}
+              prefix={mainBalance > 0 ? '+' : ''}
               style={[Typography.amountXL, { color: balanceColor, marginTop: 2 }]}
             />
             <Text style={[Typography.caption, { color: c.textTertiary, marginTop: 4 }]}>

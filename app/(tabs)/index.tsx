@@ -119,8 +119,8 @@ export default function AccountScreen() {
         {/* Banda de deuda direccional: los dos lados no se netean (ADR-006) */}
         <SplitStat
           items={[
-            { label: t('friends.owed_to_you'), value: formatMoney(owedToYou, cur), color: c.semantic.positive, id: 'home.owedToYou' },
-            { label: t('friends.you_owe'),     value: formatMoney(youOwe, cur),    color: c.textSecondary,     id: 'home.youOwe' },
+            { label: t('friends.owed_to_you'), value: formatMoney(owedToYou, cur), color: c.semantic.positive, id: 'home.owedToYou', minor: owedToYou, code: cur },
+            { label: t('friends.you_owe'),     value: formatMoney(youOwe, cur),    color: c.textSecondary,     id: 'home.youOwe',   minor: youOwe,    code: cur },
           ]}
         />
 

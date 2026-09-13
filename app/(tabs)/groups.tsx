@@ -102,10 +102,10 @@ export default function GroupsScreen() {
             selector. */}
         <StatGrid
           items={[
-            { label: t('groups.stat_groups'),  value: String(idsActivos.size), id: 'groups.count' },
-            { label: t('groups.stat_expenses'), value: String(gastos), id: 'groups.expenseCount' },
-            { label: t('groups.stat_owed_to_you'), value: formatMoney(owedToYou, cur), color: c.semantic.positive, id: 'groups.owedToYou' },
-            { label: t('groups.stat_you_owe'),     value: formatMoney(youOwe, cur),    color: c.textSecondary,     id: 'groups.youOwe' },
+            { label: t('groups.stat_groups'),  value: String(idsActivos.size), id: 'groups.count', minor: idsActivos.size },
+            { label: t('groups.stat_expenses'), value: String(gastos), id: 'groups.expenseCount', minor: gastos },
+            { label: t('groups.stat_owed_to_you'), value: formatMoney(owedToYou, cur), color: c.semantic.positive, id: 'groups.owedToYou', minor: owedToYou, code: cur },
+            { label: t('groups.stat_you_owe'),     value: formatMoney(youOwe, cur),    color: c.textSecondary,     id: 'groups.youOwe',   minor: youOwe,    code: cur },
           ]}
         />
 

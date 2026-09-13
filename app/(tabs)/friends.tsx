@@ -109,8 +109,8 @@ export default function FriendsScreen() {
         {(owedToYou > 0 || youOwe > 0) && (
           <SplitStat
             items={[
-              { label: t('friends.owed_to_you'), value: formatMoney(owedToYou, cur), color: c.semantic.positive, id: 'friends.owedToYou' },
-              { label: t('friends.you_owe'),     value: formatMoney(youOwe, cur),    color: c.textSecondary,     id: 'friends.youOwe' },
+              { label: t('friends.owed_to_you'), value: formatMoney(owedToYou, cur), color: c.semantic.positive, id: 'friends.owedToYou', minor: owedToYou, code: cur },
+              { label: t('friends.you_owe'),     value: formatMoney(youOwe, cur),    color: c.textSecondary,     id: 'friends.youOwe',   minor: youOwe,    code: cur },
             ]}
           />
         )}

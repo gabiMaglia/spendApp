@@ -35,10 +35,15 @@ export function MoneyText({
   minor, code, prefix = '', suffix = '',
   style, minimumFontScale = 0.6, rollId, registry, ...rest
 }: MoneyTextProps) {
-  const texto = `${prefix}${formatMoney(minor, code)}${suffix}`;
-
   if (rollId) {
-    return <MontoRodante id={rollId} value={texto} style={style} registry={registry} testID={rest.testID} />;
+    // `suffix` no tiene equivalente en `MontoRodante` (nadie lo combina con
+    // `rollId` hoy — ningún call site pasa las dos cosas juntas).
+    return (
+      <MontoRodante
+        id={rollId} minor={minor} code={code} prefix={prefix}
+        style={style} registry={registry} testID={rest.testID}
+      />
+    );
   }
 
   return (
@@ -49,7 +54,7 @@ export function MoneyText({
       style={style}
       {...rest}
     >
-      {texto}
+      {prefix}{formatMoney(minor, code)}{suffix}
     </Text>
   );
 }

@@ -17,8 +17,13 @@ const MARMOL_OSCURO = require('../../assets/images/marmol-oscuro.jpg');
  * taparla progresivamente con la superficie del header (ver `CollapsibleHeader`
  * y `DetailHeader`, que la montan detrás de su propio tinte).
  *
- * `contentPosition="top"` porque las vetas más definidas están arriba de la
- * imagen (1290×720) — cubrir desde abajo mostraría antes la zona ya diluida.
+ * `contentFit="fill"` (pedido del PO, corrección 2026-09-13: "que no se vean
+ * pedacitos nomás") — ESTIRA la textura al ancho/alto exacto del contenedor
+ * en vez de recortarla (`cover`), así entra siempre la imagen COMPLETA (todas
+ * las vetas + el fundido de abajo), sin importar cuánto mida la superficie:
+ * el header fijo de `DetailHeader`, o la de `CollapsibleHeader` cambiando de
+ * alto al colapsar — `StyleSheet.absoluteFill` ya la sigue en cada re-render.
+ * `contentPosition` no aplica con `fill` (no hay recorte que posicionar).
  */
 export function FondoMarmol({ style }: { style?: StyleProp<ImageStyle> }) {
   const scheme = useColorScheme() ?? 'light';
@@ -29,8 +34,7 @@ export function FondoMarmol({ style }: { style?: StyleProp<ImageStyle> }) {
       testID="fondo-marmol"
       source={fuente}
       style={[StyleSheet.absoluteFill, style]}
-      contentFit="cover"
-      contentPosition="top"
+      contentFit="fill"
       pointerEvents="none"
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
