@@ -47,7 +47,8 @@ describe('CollapsibleHeader — bloque título (T-114/T-125/T-126, vigente)', ()
 
   it('useHeaderPadding incluye el nuevo alto del bloque título', () => {
     const r = render(<Probe aire={16} />);
-    expect(Number(r.getByTestId('pad').props.children)).toBe(HEADER_BAR_H + TITLE_BLOCK_H + 16);
+    // T-131: la barra fija la aporta `useLimiteContenido` (margen del ScrollView), no el padding.
+    expect(Number(r.getByTestId('pad').props.children)).toBe(TITLE_BLOCK_H + 16);
   });
 
   it('sin subtítulo, sólo se ve el título', () => {

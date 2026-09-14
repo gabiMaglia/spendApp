@@ -28,7 +28,7 @@ import type { ActivityKind } from '@/src/store/selectors';
 import { EmptyState } from '@/src/components/EmptyState';
 import { Band, SectionLabel, Segmented } from '@/src/components/Band';
 import { TabHeader } from '@/src/components/TabHeader';
-import { useHeaderPadding } from '@/src/components/CollapsibleHeader';
+import { useHeaderPadding, useLimiteContenido } from '@/src/components/CollapsibleHeader';
 import { hapticSelection } from '@/src/utils/haptics';
 import { syncedNow } from '@/src/utils/syncedClock';
 import { mismaPersona } from '@/src/store/identityAlias';
@@ -49,6 +49,7 @@ function relativeTime(ts: number): string {
 export default function ActivityScreen() {
   const { t } = useTranslation();
   const headerPad = useHeaderPadding();
+  const limiteContenido = useLimiteContenido();
   const scheme = useColorScheme() ?? 'light';
   const c = Colors[scheme];
   const { currentUser } = useAuthStore();
@@ -129,6 +130,7 @@ export default function ActivityScreen() {
   return (
     <SafeAreaView edges={['bottom']} style={[styles.safe, { backgroundColor: c.bg }]}>
       <Animated.ScrollView
+        style={limiteContenido}
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
         onScroll={scrollHandler}

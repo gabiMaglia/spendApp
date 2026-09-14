@@ -38,7 +38,7 @@ import { listErrors } from '@/src/services/errorLog';
 import { exportarDiagnostico } from '@/src/services/exportDiagnostico';
 import { useLiveValue } from '@/src/hooks/useLiveValue';
 import { TabHeader } from '@/src/components/TabHeader';
-import { useHeaderPadding } from '@/src/components/CollapsibleHeader';
+import { useHeaderPadding, useLimiteContenido } from '@/src/components/CollapsibleHeader';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Sharing from 'expo-sharing';
 import { File, Paths } from 'expo-file-system';
@@ -49,6 +49,7 @@ import {
 export default function UserScreen() {
   const scheme = useColorScheme() ?? 'light';
   const headerPad = useHeaderPadding();
+  const limiteContenido = useLimiteContenido();
   const c = Colors[scheme];
   const { t, i18n } = useTranslation();
   const { currentUser, isPro, signOut } = useAuthStore();
@@ -198,6 +199,7 @@ export default function UserScreen() {
   return (
     <SafeAreaView edges={['bottom']} style={[styles.safe, { backgroundColor: c.bg }]}>
       <Animated.ScrollView
+        style={limiteContenido}
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
         onScroll={scrollHandler}

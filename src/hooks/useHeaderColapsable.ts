@@ -5,8 +5,6 @@ import {
 
 import { TITLE_BLOCK_H } from '@/src/constants/header';
 
-/** Cuánto scroll hace falta para colapsar, en múltiplos del alto del bloque título. */
-export const FACTOR_RECORRIDO = 1.5;
 
 /**
  * **Header colapsable de las seis tabs** (T-128, pedido del PO 2026-09-13,
@@ -55,10 +53,18 @@ export function suavizar(progreso: number): number {
   return p * p * (3 - 2 * p);
 }
 
-/** Alto interpolado del header según el progreso de colapso, con curva suave. */
+/**
+ * Alto interpolado del header según el progreso de colapso — **lineal, 1:1 con el scroll**.
+ *
+ * T-131 (PO: «el elemento superior siempre termina adentro de la barra, no debería pasar;
+ * el límite fijo»): el borde inferior del header tiene que acompañar EXACTO al contenido
+ * mientras colapsa. Con curva o con más recorrido, el contenido subía más rápido que el
+ * header se achicaba y se metía debajo de la barra. La suavidad queda en los fades.
+ */
 export function alturaHeaderColapsable(progreso: number, expandido: number, colapsado: number): number {
   'worklet';
-  return expandido - suavizar(progreso) * (expandido - colapsado);
+  const p = Math.min(1, Math.max(0, progreso));
+  return expandido - p * (expandido - colapsado);
 }
 
 /**
@@ -143,9 +149,8 @@ export function useHeaderColapsable(
   /** Para `contentContainerStyle`: garantiza que el header pueda colapsar con poco contenido. */
   contenidoMinimo: { minHeight: number };
 } {
-  // Más recorrido que el alto que se pierde: el colapso se reparte en más scroll y se siente
-  // menos brusco (PO 2026-09-13).
-  const distancia = options.distanciaColapso ?? Math.round(TITLE_BLOCK_H * FACTOR_RECORRIDO);
+  // 1:1 con lo que pierde el header (T-131): así su borde inferior sigue exacto al contenido.
+  const distancia = options.distanciaColapso ?? TITLE_BLOCK_H;
   const progress = useSharedValue(0);
 
   const scrollHandler = useAnimatedScrollHandler({

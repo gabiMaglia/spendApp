@@ -28,13 +28,14 @@ import { EmptyState } from '@/src/components/EmptyState';
 import { BottomSheet } from '@/src/components/Sheet';
 import { Band, BandRow, SectionLabel, SplitStat } from '@/src/components/Band';
 import { TabHeader } from '@/src/components/TabHeader';
-import { useHeaderPadding } from '@/src/components/CollapsibleHeader';
+import { useHeaderPadding, useLimiteContenido } from '@/src/components/CollapsibleHeader';
 import { syncedNow } from '@/src/utils/syncedClock';
 import { esYo, idCanonico } from '@/src/store/identityAlias';
 
 export default function FriendsScreen() {
   const { t } = useTranslation();
   const headerPad = useHeaderPadding();
+  const limiteContenido = useLimiteContenido();
   const scheme = useColorScheme() ?? 'light';
   const c = Colors[scheme];
   const { currentUser } = useAuthStore();
@@ -106,6 +107,7 @@ export default function FriendsScreen() {
   return (
     <SafeAreaView edges={['bottom']} style={[styles.safe, { backgroundColor: c.bg }]}>
       <Animated.ScrollView
+        style={limiteContenido}
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
         onScroll={scrollHandler}
