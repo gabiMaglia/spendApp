@@ -74,6 +74,10 @@ export async function bootstrapSecureStorage(): Promise<void> {
         logStorageFailure(id, e);
       }
     }
+    // Idempotente: si un corte previo dejó la marca escrita pero la v1
+    // huérfana (murió justo entre el `meta.set` y el `borrarClaveV1` de más
+    // abajo), este arranque la termina de borrar.
+    await borrarClaveV1();
     return;
   }
 
@@ -81,6 +85,7 @@ export async function bootstrapSecureStorage(): Promise<void> {
   let claveV1: string | null = null;
   try { claveV1 = await leerClaveV1(); } catch { claveV1 = null; }
 
+  let algunoFallo = false;
   for (const id of SECURE_IDS) {
     try {
       const cifradoConV1 = meta?.getBoolean(`enc_${id}_v1`) === true && !!claveV1;
@@ -94,6 +99,7 @@ export async function bootstrapSecureStorage(): Promise<void> {
     } catch (e) {
       // Un id falla → cae a memoria solo ese id; el resto sigue.
       logStorageFailure(id, e);
+      algunoFallo = true;
     }
   }
 
@@ -101,7 +107,12 @@ export async function bootstrapSecureStorage(): Promise<void> {
     try { new MMKV({ id }).clearAll(); } catch (e) { logStorageFailure(id, e); }
   }
 
-  if (!meta) return; // sin meta no hay marca: el próximo arranque lo reintenta
+  // Si algún bucket falló, NO se escribe la marca ni se borra la v1: el
+  // estado final tiene que ser idéntico en los 10 buckets (spec §3.2). Una
+  // marca con un bucket sin vaciar/recifrar lo dejaría afuera de todo reintento
+  // para siempre, porque el próximo arranque vería `yaEnV2` y ya no repasaría
+  // el camino de arranque en limpio para ese id.
+  if (algunoFallo || !meta) return; // sin meta tampoco hay marca: se reintenta
   meta.set(MARCA_CLAVE_V2, true);
   for (const id of SECURE_IDS) meta.delete(`enc_${id}_v1`);
   await borrarClaveV1();

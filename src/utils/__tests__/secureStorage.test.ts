@@ -172,7 +172,7 @@ describe('secureStorage · arranque en limpio con clave v2 (T-124 L-E)', () => {
     expect(mockKeychain.has('mmkv_encryption_key_v1')).toBe(false);
   });
 
-  it('un bucket que falla cae a memoria y los demás siguen cifrados con v2', async () => {
+  it('un bucket que falla cae a memoria, no escribe la marca, no borra la v1, y el próximo arranque repite todo', async () => {
     sembrarInstalacionV1();
     mockRecryptFallaEn = 'payments';
     const consola = jest.spyOn(console, 'error').mockImplementation(() => {});
@@ -188,7 +188,42 @@ describe('secureStorage · arranque en limpio con clave v2 (T-124 L-E)', () => {
     createSecureStorage('payments').set('k', 'v');
     expect(createSecureStorage('payments').getString('k')).toBe('v');
     expect(mockMaps.get('payments')!.has('k')).toBe(false);
+
+    // Un bucket sin vaciar/recifrar no puede quedar bajo la marca: si quedara,
+    // el próximo arranque lo vería "yaEnV2" y ese bucket jamás se repararía.
+    expect(mockMaps.get('enc_meta')!.get(MARCA_CLAVE_V2)).not.toBe(true);
+    expect(mockKeychain.has('mmkv_encryption_key_v1')).toBe(true);
+
+    // Arranque siguiente: el corte se resolvió, ahora sí recifra todo y termina
+    // en el mismo estado final que una instalación sin fallas.
+    mockRecryptFallaEn = null;
+    reiniciar();
+    await bootstrapSecureStorage();
+
+    const v2b = mockKeychain.get('mmkv_encryption_key_v2')!;
+    const recifrados2 = mockEventos.filter(e => e.tipo === 'recrypt').map(e => e.id);
+    expect([...new Set(recifrados2)].sort()).toEqual([...SECURE_IDS].sort());
+    expect(mockMaps.get('enc_meta')!.get(MARCA_CLAVE_V2)).toBe(true);
+    expect(mockKeychain.has('mmkv_encryption_key_v1')).toBe(false);
+    expect(createSecureStorage('payments').getString('data_v1')).toBeUndefined();
+    void v2b;
     consola.mockRestore();
+  });
+
+  it('con la marca v2 y una v1 huérfana en el llavero, la borra', async () => {
+    // Corte simulado ENTRE `meta.set(MARCA_CLAVE_V2, true)` y `borrarClaveV1()`:
+    // la marca quedó escrita pero la clave v1 sigue en el llavero.
+    const meta = new Map<string, string | number | boolean>();
+    meta.set(MARCA_CLAVE_V2, true);
+    mockMaps.set('enc_meta', meta);
+    mockKeychain.set('mmkv_encryption_key_v1', V1);
+    mockKeychain.set('mmkv_encryption_key_v2', 'x'.repeat(16));
+
+    await bootstrapSecureStorage();
+
+    expect(mockKeychain.has('mmkv_encryption_key_v1')).toBe(false);
+    expect(mockEventos.filter(e => e.tipo === 'clearAll')).toHaveLength(0);
+    expect(mockEventos.filter(e => e.tipo === 'recrypt')).toHaveLength(0);
   });
 
   it('antes del bootstrap cae a memoria sin romper (Expo Go / arranque)', () => {
