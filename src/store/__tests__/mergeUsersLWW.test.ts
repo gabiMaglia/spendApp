@@ -1,4 +1,5 @@
 import { mergeUsersLWW } from '../mergeUsersLWW';
+import { incomingWins } from '../lww';
 import { TOLERANCIA_RELOJ_MS } from '@/src/sync/voteCore';
 import type { User } from '@/src/types/models';
 
@@ -78,5 +79,46 @@ describe('mergeUsersLWW — el futuro no gana (T-137 / ADR-012)', () => {
   it('lista vacía de entrantes: no cambia nada', () => {
     const current = [user({ updatedAt: 1_000 })];
     expect(mergeUsersLWW(current, [], NOW)).toEqual(current);
+  });
+});
+
+/**
+ * **D1 (verificador ciego, ronda 2) — el LWW normal (ninguno de los dos es
+ * futuro) copiado adentro de `mergeUsersLWW` no tenía test propio.**
+ *
+ * Antes de T-137, `userStore` llamaba a `mergeByIdLWW` (`lww.ts`), que SÍ está
+ * cubierto por `lww.test.ts`. Al meter el tope de reloj hubo que reimplementar
+ * el loop acá adentro — y esa copia se quedó sin la misma red: la mutación
+ * `if (curEsFuturo || incomingWins(inc, cur))` → `if (true)` (todo entrante NO
+ * futuro pisa siempre, sin importar si es más viejo o pierde el empate) dejaba
+ * pasar la suite COMPLETA. Estos tests exigen exactamente lo que esa mutación
+ * rompe.
+ */
+describe('mergeUsersLWW — el LWW normal (sin futuros de por medio) sigue igual que lww.ts', () => {
+  it('un entrante MÁS VIEJO y no futuro no pisa a un local MÁS NUEVO y no futuro', () => {
+    const current = [user({ name: 'Carol', updatedAt: 5_000 })];
+    const incoming = [user({ name: 'Vieja', updatedAt: 1_000 })];
+
+    const out = mergeUsersLWW(current, incoming, NOW);
+    expect(out.find(u => u.id === 'carol')!.name).toBe('Carol');
+  });
+
+  it('empate de updatedAt, el entrante gana el desempate por contenido: se aplica', () => {
+    // 'ZZZ' > 'AAA' canónicamente (mismo criterio que incomingWins/lww.ts).
+    const current = [user({ name: 'AAA', updatedAt: 5_000 })];
+    const incoming = [user({ name: 'ZZZ', updatedAt: 5_000 })];
+    expect(incomingWins(incoming[0]!, current[0]!)).toBe(true); // fija la premisa del test
+
+    const out = mergeUsersLWW(current, incoming, NOW);
+    expect(out.find(u => u.id === 'carol')!.name).toBe('ZZZ');
+  });
+
+  it('empate de updatedAt, el entrante PIERDE el desempate por contenido: NO se aplica', () => {
+    const current = [user({ name: 'ZZZ', updatedAt: 5_000 })];
+    const incoming = [user({ name: 'AAA', updatedAt: 5_000 })];
+    expect(incomingWins(incoming[0]!, current[0]!)).toBe(false); // fija la premisa del test
+
+    const out = mergeUsersLWW(current, incoming, NOW);
+    expect(out.find(u => u.id === 'carol')!.name).toBe('ZZZ');
   });
 });
