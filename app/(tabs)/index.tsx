@@ -34,7 +34,8 @@ import { esYo } from '@/src/store/identityAlias';
 
 export default function AccountScreen() {
   const { t } = useTranslation();
-  const headerPad = useHeaderPadding();
+  // Sin aire entre el header y el primer elemento (PO 2026-09-13, T-130).
+  const headerPad = useHeaderPadding(0);
   const scheme = useColorScheme() ?? 'light';
   const c = Colors[scheme];
   const { currentUser } = useAuthStore();
