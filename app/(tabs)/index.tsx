@@ -23,11 +23,13 @@ import {
 import { UnconvertedNotice } from '@/src/components/UnconvertedNotice';
 import { useGroupStore } from '@/src/store/groupStore';
 import { router } from 'expo-router';
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { hapticLight } from '@/src/utils/haptics';
 import { useTranslation } from 'react-i18next';
-import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useHeaderColapsable } from '@/src/hooks/useHeaderColapsable';
 import { esYo } from '@/src/store/identityAlias';
 
 export default function AccountScreen() {
@@ -43,7 +45,7 @@ export default function AccountScreen() {
   const { entries: personalEntries, budget } = usePersonalStore();
   const { fx, display: cur, loading: fxLoading } = useFx();
 
-  const scrollY = useRef(new Animated.Value(0)).current;
+  const { scrollHandler, progress, contenidoMinimo } = useHeaderColapsable();
 
   const thisMonth = toMonthKey(Date.now());
   const monthEntries = personalEntries.filter(
@@ -115,8 +117,8 @@ export default function AccountScreen() {
       <Animated.ScrollView
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
-        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: false })}
-        contentContainerStyle={{ paddingTop: headerPad, paddingBottom: 150 }}
+        onScroll={scrollHandler}
+        contentContainerStyle={[{ paddingTop: headerPad, paddingBottom: 150 }, contenidoMinimo]}
       >
         {/* Banda de deuda direccional: los dos lados no se netean (ADR-006) */}
         <SplitStat
@@ -240,7 +242,7 @@ export default function AccountScreen() {
       <TabHeader
         title={t('dashboard.title')}
         subtitle={t('dashboard.greeting', { name: firstName })}
-        scrollY={scrollY}
+        progress={progress}
       />
 
       <FabRow>

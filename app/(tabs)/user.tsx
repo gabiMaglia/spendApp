@@ -1,8 +1,10 @@
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import {
-  Alert, Animated, Linking, Pressable, StyleSheet, Switch, Text, TextInput, View,
+  Alert, Linking, Pressable, StyleSheet, Switch, Text, TextInput, View,
 } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useHeaderColapsable } from '@/src/hooks/useHeaderColapsable';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -50,7 +52,7 @@ export default function UserScreen() {
   const c = Colors[scheme];
   const { t, i18n } = useTranslation();
   const { currentUser, isPro, signOut } = useAuthStore();
-  const scrollY = useRef(new Animated.Value(0)).current;
+  const { scrollHandler, progress, contenidoMinimo } = useHeaderColapsable();
 
   const [editingName, setEditingName] = useState(false);
   const [draftName, setDraftName] = useState('');
@@ -198,13 +200,13 @@ export default function UserScreen() {
       <Animated.ScrollView
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
-        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: false })}
+        onScroll={scrollHandler}
         // paddingBottom 120→Spacing[6] (PO 2026-09-13): ese colchón grande era
         // para dejar lugar al FAB de otras tabs; "Yo" no tiene uno y el fondo
         // de la versión quedaba con un salto enorme y vacío. La SafeAreaView
         // (`edges=['bottom']`) ya cubre el inset del sistema, y como la tab
         // bar no es `position:absolute` React Navigation ya reserva su alto.
-        contentContainerStyle={{ paddingTop: headerPad, paddingBottom: Spacing[6] }}
+        contentContainerStyle={[{ paddingTop: headerPad, paddingBottom: Spacing[6] }, contenidoMinimo]}
       >
 
         {/* Mi cuenta */}
@@ -444,7 +446,7 @@ export default function UserScreen() {
         </Text>
       </Animated.ScrollView>
 
-      <TabHeader title={t('profile.title')} scrollY={scrollY} />
+      <TabHeader title={t('profile.title')} progress={progress} />
 
       <AvatarCropSheet
         visible={aRecortar !== null}

@@ -135,3 +135,4 @@ jest.mock('expo-localization', () => ({
   getLocales: () => [{ languageCode: 'es', languageTag: 'es-AR', regionCode: 'AR' }],
   getCalendars: () => [{ timeZone: 'America/Argentina/Buenos_Aires' }],
 }));
+

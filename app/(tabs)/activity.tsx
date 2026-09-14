@@ -1,6 +1,8 @@
-import React, { useRef, useState } from 'react';
-import { Animated, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import React, { useState } from 'react';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useHeaderColapsable } from '@/src/hooks/useHeaderColapsable';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
@@ -52,7 +54,7 @@ export default function ActivityScreen() {
   const { currentUser } = useAuthStore();
   const { getUserName } = useUserStore();
   const updateExpense = useExpenseStore(st => st.updateExpense);
-  const scrollY = useRef(new Animated.Value(0)).current;
+  const { scrollHandler, progress, contenidoMinimo } = useHeaderColapsable();
 
   function restaurar(expenseId: string) {
     const gasto = useExpenseStore.getState().expenses.find(e => e.id === expenseId);
@@ -129,8 +131,8 @@ export default function ActivityScreen() {
       <Animated.ScrollView
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
-        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: false })}
-        contentContainerStyle={{ paddingTop: headerPad, paddingBottom: 120, flexGrow: 1 }}
+        onScroll={scrollHandler}
+        contentContainerStyle={[{ paddingTop: headerPad, paddingBottom: 120, flexGrow: 1 }, contenidoMinimo]}
       >
 
         <View style={[styles.searchBar, { backgroundColor: c.bgGrouped, borderColor: c.hair }]}>
@@ -225,7 +227,7 @@ export default function ActivityScreen() {
         )}
       </Animated.ScrollView>
 
-      <TabHeader title={t('activity.title')} scrollY={scrollY} />
+      <TabHeader title={t('activity.title')} progress={progress} />
     </SafeAreaView>
   );
 }

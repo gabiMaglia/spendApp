@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { TabHeader } from '@/src/components/TabHeader';
 import {
-  Alert, Animated, Pressable, StyleSheet, Text, TextInput, View,
+  Alert, Pressable, StyleSheet, Text, TextInput, View,
 } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useHeaderColapsable } from '@/src/hooks/useHeaderColapsable';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -86,7 +88,7 @@ export default function PersonalScreen() {
   } = useAmountInput(budgetCurrency, budget.monthlyAmount);
 
   /** Scroll del header colapsable. */
-  const scrollY = useRef(new Animated.Value(0)).current;
+  const { scrollHandler, progress, contenidoMinimo } = useHeaderColapsable();
 
   const { fx, display: cur, loading: fxLoading } = useFx();
   const [avisoVisto, setAvisoVisto] = useState(false);
@@ -224,8 +226,8 @@ export default function PersonalScreen() {
       <Animated.ScrollView
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
-        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: false })}
-        contentContainerStyle={{ paddingTop: headerPad, paddingBottom: 140 }}
+        onScroll={scrollHandler}
+        contentContainerStyle={[{ paddingTop: headerPad, paddingBottom: 140 }, contenidoMinimo]}
       >
         {/* T-114: el título pasó al header (fijo, ya no scrollea); esta fila
             ahora sólo aloja el botón de ajustes, pegado a la derecha como
@@ -419,7 +421,7 @@ export default function PersonalScreen() {
         )}
       </Animated.ScrollView>
 
-      <TabHeader title={t('personal.title')} scrollY={scrollY} />
+      <TabHeader title={t('personal.title')} progress={progress} />
 
       <FabRow>
         <Fab

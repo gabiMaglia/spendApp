@@ -1,8 +1,9 @@
 import React from 'react';
-import { Animated, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { useSharedValue } from 'react-native-reanimated';
 import { readdirSync, readFileSync } from 'fs';
 import { join } from 'path';
-import { fireEvent, render } from '@testing-library/react-native';
+import { fireEvent, render, renderHook } from '@testing-library/react-native';
 import { TabHeader } from '../TabHeader';
 import { useAuthStore } from '@/src/store/authStore';
 import { useUserStore } from '@/src/store/userStore';
@@ -18,8 +19,12 @@ const FOTO = 'data:image/png;base64,iVBORw0KGgo=';
 
 const ANA = { id: 'ana', name: 'Ana' } as User;
 
+function crearProgress(valor = 0) {
+  return renderHook(() => useSharedValue(valor)).result.current;
+}
+
 function montar() {
-  return render(<TabHeader title="Test" scrollY={new Animated.Value(0)} />);
+  return render(<TabHeader title="Test" progress={crearProgress()} />);
 }
 
 beforeEach(() => {
@@ -141,10 +146,15 @@ describe('subtítulo (saludo) — sólo cuando la pantalla lo pasa', () => {
   });
 
   it('con subtitle, aparece arriba del título', () => {
-    const r = render(<TabHeader title="Tus cuentas" subtitle="Hola, Ana" scrollY={new Animated.Value(0)} />);
+    const r = render(<TabHeader title="Tus cuentas" subtitle="Hola, Ana" progress={crearProgress()} />);
     expect(r.getByTestId('header-subtitle')).toBeTruthy();
     expect(r.getByText('Hola, Ana')).toBeTruthy();
-    expect(r.getByText('Tus cuentas')).toBeTruthy();
+    // T-128: "Tus cuentas" vive en dos lugares — el título grande (siempre en
+    // el DOM, recortado por el header al colapsar) y el título chico junto a
+    // la foto de perfil (oculto por opacidad hasta que se colapsa).
+    expect(r.getAllByText('Tus cuentas', { includeHiddenElements: true }).length).toBe(2);
+    // El chico está oculto al lector de pantalla (T-128): se anuncia UNA sola vez.
+    expect(r.getAllByText('Tus cuentas').length).toBe(1);
   });
 });
 

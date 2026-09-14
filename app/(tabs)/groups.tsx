@@ -1,6 +1,8 @@
-import React, { useMemo, useRef, useState } from 'react';
-import { Animated, StyleSheet, Text, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useHeaderColapsable } from '@/src/hooks/useHeaderColapsable';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
@@ -38,7 +40,7 @@ export default function GroupsScreen() {
   const setArchived = useArchiveStore(s => s.setArchived);
   const groupTotals = useGroupsTotalBalance(currentUser?.id ?? '');
 
-  const scrollY = useRef(new Animated.Value(0)).current;
+  const { scrollHandler, progress, contenidoMinimo } = useHeaderColapsable();
 
   const { fx, display: cur } = useFx();
   const deben = sumConverted(
@@ -82,8 +84,8 @@ export default function GroupsScreen() {
       <Animated.ScrollView
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
-        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: false })}
-        contentContainerStyle={{ paddingTop: headerPad, paddingBottom: 150, flexGrow: 1 }}
+        onScroll={scrollHandler}
+        contentContainerStyle={[{ paddingTop: headerPad, paddingBottom: 150, flexGrow: 1 }, contenidoMinimo]}
       >
 
         {/* **Todo lo de arriba del segmentado no depende de la pestaña.**
@@ -161,7 +163,7 @@ export default function GroupsScreen() {
         )}
       </Animated.ScrollView>
 
-      <TabHeader title={t('groups.title')} scrollY={scrollY} />
+      <TabHeader title={t('groups.title')} progress={progress} />
 
       <FabRow>
         <Fab
