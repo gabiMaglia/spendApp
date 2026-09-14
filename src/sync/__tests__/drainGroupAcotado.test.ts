@@ -26,6 +26,8 @@ import { usePersonalStore } from '@/src/store/personalStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { usePaymentStore } from '@/src/store/paymentStore';
+import { useRecurringStore } from '@/src/store/recurringStore';
+import { useCommentStore } from '@/src/store/commentStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useAuthStore } from '@/src/store/authStore';
 import { createSecureStorage } from '@/src/utils/secureStorage';
@@ -52,6 +54,11 @@ describe('S3-A1 — drainGroup no adopta claves ajenas ni inyecta personal/regis
     useGroupKeyStore.setState({ keys: [] });
     usePersonalStore.setState({ entries: [] });
     useExpenseStore.setState({ expenses: [] });
+    useGroupStore.setState({ groups: [] });
+    usePaymentStore.setState({ payments: [] });
+    useRecurringStore.setState({ recurring: [] });
+    useCommentStore.setState({ comments: [] });
+    useUserStore.setState({ users: [] });
     jest.clearAllMocks();
   });
 
@@ -132,9 +139,11 @@ describe('S3-A1 — drainGroup no adopta claves ajenas ni inyecta personal/regis
       ok: true, envelopes: [{ seq: 1, payload: signedPayload }], cursor: 1,
     });
 
-    // El nuevo miembro (VICTIM) no tiene nada local todavía.
+    // El nuevo miembro (VICTIM) no tiene nada local todavía — ni grupo, ni
+    // gasto, ni un solo perfil conocido (incluido el del propio publicador).
     useGroupStore.setState({ groups: [] });
     useExpenseStore.setState({ expenses: [] });
+    useUserStore.setState({ users: [] });
     useAuthStore.setState({ currentUser: { id: VICTIM } as User });
 
     const r = await drainGroup('A', VICTIM, 'dev2', 0);
@@ -142,5 +151,80 @@ describe('S3-A1 — drainGroup no adopta claves ajenas ni inyecta personal/regis
     expect(r).toMatchObject({ ok: true, applied: 1 });
     expect(useGroupStore.getState().groups.map(g => g.id)).toEqual(['A']);
     expect(useExpenseStore.getState().expenses.map(e => e.id)).toEqual(['histA']);
+    // Con nada local que pisar, los perfiles de TODOS los miembros llegan —
+    // incluido el del publicador, que la víctima nunca había visto.
+    expect(useUserStore.getState().users.map(u => u.id).sort()).toEqual(['publisher']);
+  });
+
+  /**
+   * Ronda 2 (`engram/qa/T-132.md`, `engram/qa/T-132-verifier.md`): el filtro
+   * de ronda 1 confiaba en lo que el propio registro entrante DECLARABA
+   * (`groupId`, `expenseId`, `memberIds`), pero el merge de abajo
+   * (`mergeByIdLevels`/`mergeByIdLWW`) une por `id` sin verificar esos campos.
+   * Reproduce, punta a punta por `drainGroup`, los tres ataques exactos del
+   * veredicto: robo+borrado de un gasto de OTRO grupo declarando `groupId`
+   * propio, reasignación de un comentario ajeno, y suplantación de un perfil
+   * ya conocido metiéndolo en `memberIds` del mismo sobre.
+   */
+  it('un co-miembro de A no puede robar/borrar un gasto de B, reescribir su comentario ni suplantar un perfil metiéndolo en memberIds del mismo sobre', async () => {
+    useGroupKeyStore.getState().adoptKeys([{ groupId: 'A', key: toHex(generateGroupKey()), epoch: 1 }]);
+    const keyA = useGroupKeyStore.getState().getKey('A')!;
+
+    // Estado previo de la víctima: grupo A real, gasto+comentario de OTRO
+    // grupo (B), y un perfil conocido (bob) que NO es miembro local de A.
+    useGroupStore.setState({ groups: [
+      { id: 'A', name: 'Asado', memberIds: [VICTIM, 'mallory'], currency: 'ARS',
+        createdAt: 0, createdById: VICTIM, deletionVotes: [], updatedAt: 1_000, isDeleted: false } as any,
+    ]});
+    useExpenseStore.setState({ expenses: [
+      { id: 'eB', groupId: 'B', description: 'de B', amount: 1, currency: 'ARS',
+        paidById: VICTIM, splitMode: 'equal', splits: [], category: 'food', date: 0,
+        createdAt: 0, createdById: VICTIM, deletionVotes: [], updatedAt: 1_000, isDeleted: false } as any,
+    ]});
+    useCommentStore.setState({ comments: [
+      { id: 'cB', expenseId: 'eB', authorId: VICTIM, text: 'original', createdAt: 0,
+        updatedAt: 1_000, isDeleted: false } as any,
+    ]});
+    useUserStore.setState({ users: [{ id: 'bob', name: 'Bob real', authProvider: 'google' } as any] });
+
+    const delta = {
+      version: 1 as const, featureVersion: 2, fromUserId: 'mallory', timestamp: Date.now(),
+      groups: [{ id: 'A', name: 'Asado', memberIds: [VICTIM, 'mallory', 'bob'], currency: 'ARS',
+        createdAt: 0, createdById: 'mallory', deletionVotes: [], updatedAt: 999_999, isDeleted: false }],
+      // (a) robar+borrar el gasto de B declarando groupId propio.
+      expenses: [{
+        id: 'eB', groupId: 'A', rev: 999, isDeleted: true, description: 'robado',
+        amount: 1, currency: 'USD', paidById: 'mallory', splits: [], updatedAt: 999_999,
+        createdAt: 0, createdById: 'mallory',
+      }],
+      payments: [],
+      // (c) suplantar el perfil de bob, ya conocido pero no miembro local de A.
+      users: [{ id: 'bob', name: 'BOB HACKEADO', email: 'evil@x' }],
+      recurring: [],
+      // (b) reescribir el comentario de B colgándolo de un gasto que declara ser de A.
+      comments: [{ id: 'cB', expenseId: 'eB', rev: 999, text: 'HACK', authorId: 'mallory',
+        createdAt: 0, updatedAt: 999_999, isDeleted: false }],
+    } as any;
+
+    const sealed = sealEnvelope(fromHex(keyA.key), JSON.stringify(delta));
+    const payload = signEnvelope(sealed, ensureIdentity().privateKey);
+    (relay.fetchSince as jest.Mock).mockResolvedValue({ ok: true, envelopes: [{ seq: 1, payload }], cursor: 1 });
+
+    const r = await drainGroup('A', VICTIM, 'dev1', 0);
+    expect(r).toMatchObject({ ok: true, applied: 1 });
+
+    // (a) el gasto de B sigue siendo de B y vivo.
+    const eB = useExpenseStore.getState().expenses.find(e => e.id === 'eB');
+    expect(eB?.groupId).toBe('B');
+    expect(eB?.isDeleted).toBe(false);
+
+    // (b) el comentario de B no fue reescrito.
+    const cB = useCommentStore.getState().comments.find(c => c.id === 'cB');
+    expect(cB?.text).toBe('original');
+
+    // (c) el perfil de bob no fue sobrescrito aunque el sobre lo metió en
+    // memberIds de A en el mismo envío.
+    const bob = useUserStore.getState().users.find(u => u.id === 'bob');
+    expect(bob?.name).toBe('Bob real');
   });
 });
