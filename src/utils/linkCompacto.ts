@@ -1,5 +1,6 @@
 import { fromHex, toHex, utf8Bytes, utf8FromBytes } from '@/src/sync/hexBytes';
 import { esNombreSeguro, limpiarNombre } from '@/src/utils/nombreSeguro';
+import { esIdDeCuenta } from '@/src/utils/idDeCuenta';
 import type { ContactPayload } from '@/src/utils/contactLink';
 import type { GroupInvite } from '@/src/sync/groupInvite';
 
@@ -78,7 +79,8 @@ const VERSION = 1;
 const ID_TEXTO = 0, ID_UUID = 1, ID_NUMERO = 2;
 const HAY_SECRETO = 1 << 2, HAY_WRAP = 1 << 3, HAY_FIRMA = 1 << 4;
 
-const RE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+/** Exportado: `groupInvite.ts` lo usa para validar el `groupId` del formato largo (T-124 · SEC L-B). */
+export const RE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const RE_NUMERO = /^[1-9][0-9]{0,76}$/;
 const esHex = (s: unknown, bytes: number): s is string =>
   typeof s === 'string' && new RegExp(`^[0-9a-f]{${bytes * 2}}$`).test(s);
@@ -244,6 +246,10 @@ export function decodificarContacto(codigo: string): ContactPayload | null {
     if (flags & ~0b11111) return null;
 
     const id = leerId(r, flags & 0b11, true);
+    // T-124 · SEC L-B: la forma UUID/número ya sale canónica de `leerId`; lo que
+    // faltaba validar era la forma TEXTO, que hasta acá aceptaba cualquier UTF-8
+    // (NUL, RLO, `../x`, `__proto__`) con sólo el tope de bytes de más arriba.
+    if (!esIdDeCuenta(id)) return null;
     const clave = (bit: number) => (flags & bit ? toHex(r.bytes(32)) : undefined);
     const secret = clave(HAY_SECRETO);
     const wrapPublicKey = clave(HAY_WRAP);
@@ -297,6 +303,12 @@ export function decodificarInvitacion(codigo: string): GroupInvite | null {
     if (flags & ~0b11) return null;
 
     const groupId = leerId(r, flags & 0b11, false);
+    // T-124 · SEC L-B: todo `groupId` real es un UUID generado en el
+    // dispositivo (regla de negocio #5); la forma TEXTO quedaba sin validar.
+    // El codificador se auto-verifica decodificando lo que produce, así que
+    // esto además hace que `codificarInvitacion` rechace un groupId no-UUID
+    // en vez de comprimirlo (cae al link largo, donde se valida igual).
+    if (!RE_UUID.test(groupId)) return null;
     const token = toHex(r.bytes(32));
     const inviterFingerprint = toHex(r.bytes(16));
     let expiresAt = 0;

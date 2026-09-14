@@ -30,15 +30,21 @@ function claim(over: Partial<InviteClaim> = {}): InviteClaim {
 }
 
 describe('link de invitación', () => {
+  // Todo groupId real es un UUID generado en el dispositivo (regla de negocio
+  // #5, T-124 · SEC L-B); 'g1' sigue sirviendo donde el link no se arma/lee
+  // de verdad (ver más abajo), pero un round-trip por `inviteToLink`/
+  // `parseInviteLink` sí exige la forma real.
+  const GROUP_ID = '3f1c9a52-7b1e-4c0d-9a8e-2b6f1d3c4e5a';
+
   it('ida y vuelta sin pérdida', () => {
-    const inv = createInvite('g1', 'Viaje a Bariloche', generateIdentity().publicKey, AHORA);
+    const inv = createInvite(GROUP_ID, 'Viaje a Bariloche', generateIdentity().publicKey, AHORA);
     const leido = parseInviteLink(inviteToLink(inv));
 
     expect(leido).toEqual(inv);
   });
 
   it('el link es https: Gmail y los chats sólo enlazan http/https', () => {
-    const link = inviteToLink(createInvite('g1', 'Viaje', generateIdentity().publicKey, AHORA));
+    const link = inviteToLink(createInvite(GROUP_ID, 'Viaje', generateIdentity().publicKey, AHORA));
     expect(link.startsWith('https://')).toBe(true);
     expect(link).toMatch(/#g[A-Za-z0-9_-]+$/);
   });
@@ -47,7 +53,7 @@ describe('link de invitación', () => {
   // secretos del link. Un link viejo ya compartido con esa base deja de
   // leerse; el largo sobre la base nueva se sigue aceptando (test siguiente).
   it('un link largo del Pages personal viejo (gabimaglia) ya NO se lee (T-102)', () => {
-    const inv = createInvite('g1', 'Viaje', generateIdentity().publicKey, AHORA);
+    const inv = createInvite(GROUP_ID, 'Viaje', generateIdentity().publicKey, AHORA);
     const params = new URLSearchParams({
       g: inv.groupId, n: inv.groupName, t: inv.token, f: inv.inviterFingerprint, e: String(inv.expiresAt),
     });
@@ -56,7 +62,7 @@ describe('link de invitación', () => {
   });
 
   it('un link largo sobre la base nueva (spendapp.github.io) se sigue leyendo', () => {
-    const inv = createInvite('g1', 'Viaje', generateIdentity().publicKey, AHORA);
+    const inv = createInvite(GROUP_ID, 'Viaje', generateIdentity().publicKey, AHORA);
     const params = new URLSearchParams({
       g: inv.groupId, n: inv.groupName, t: inv.token, f: inv.inviterFingerprint, e: String(inv.expiresAt),
     });
@@ -65,7 +71,7 @@ describe('link de invitación', () => {
   });
 
   it('sobrevive nombres con acentos y espacios', () => {
-    const inv = createInvite('g1', 'Año Nuevo en Córdoba', generateIdentity().publicKey, AHORA);
+    const inv = createInvite(GROUP_ID, 'Año Nuevo en Córdoba', generateIdentity().publicKey, AHORA);
     expect(parseInviteLink(inviteToLink(inv))!.groupName).toBe('Año Nuevo en Córdoba');
   });
 
@@ -396,8 +402,12 @@ describe('entrega de la clave del grupo', () => {
 });
 
 describe('inviteFromParams', () => {
+  // Todo groupId real es un UUID generado en el dispositivo (regla de negocio
+  // #5); 'g1' era sólo un valor de prueba cómodo, no una forma real.
+  const GROUP_ID = '3f1c9a52-7b1e-4c0d-9a8e-2b6f1d3c4e5a';
+
   it('lee los parámetros que entrega el router', () => {
-    const inv = createInvite('g1', 'Viaje', 'aa'.repeat(32), AHORA);
+    const inv = createInvite(GROUP_ID, 'Viaje', 'aa'.repeat(32), AHORA);
     const leido = inviteFromParams({
       g: inv.groupId, n: inv.groupName, t: inv.token,
       f: inv.inviterFingerprint, e: String(inv.expiresAt),
@@ -407,15 +417,15 @@ describe('inviteFromParams', () => {
   });
 
   it('sin token no hay invitación', () => {
-    expect(inviteFromParams({ g: 'g1', e: '123' })).toBeNull();
+    expect(inviteFromParams({ g: GROUP_ID, e: '123' })).toBeNull();
   });
 
   it('un vencimiento que no es número se rechaza', () => {
-    expect(inviteFromParams({ g: 'g1', t: 'tok', e: 'mañana' })).toBeNull();
+    expect(inviteFromParams({ g: GROUP_ID, t: 'tok', e: 'mañana' })).toBeNull();
   });
 
   it('formato largo validado (T-098 · SEC L-2)', () => {
-    const inv = createInvite('g1', 'Viaje', 'aa'.repeat(32), AHORA);
+    const inv = createInvite(GROUP_ID, 'Viaje', 'aa'.repeat(32), AHORA);
     const ok = { g: inv.groupId, n: inv.groupName, t: inv.token, f: inv.inviterFingerprint, e: String(inv.expiresAt) };
     expect(inviteFromParams(ok)).toEqual(inv);
     expect(inviteFromParams({ ...ok, t: 'tok' })).toBeNull();
@@ -425,5 +435,15 @@ describe('inviteFromParams', () => {
     expect(inviteFromParams({ ...ok, n: 'a‮b' })).toBeNull();
     // Sin huella (links largos muy viejos) sigue valiendo, como hoy.
     expect(inviteFromParams({ ...ok, f: undefined })).not.toBeNull();
+  });
+
+  // T-124 · SEC L-B: un `groupId` sin forma (texto arbitrario, `../g`, mayúsculas)
+  // pasaba entero. Ahora sólo un UUID minúscula lo abre.
+  it('un groupId que no es UUID se rechaza (T-124 · SEC L-B)', () => {
+    const inv = createInvite(GROUP_ID, 'Viaje', 'aa'.repeat(32), AHORA);
+    const ok = { g: inv.groupId, n: inv.groupName, t: inv.token, f: inv.inviterFingerprint, e: String(inv.expiresAt) };
+    expect(inviteFromParams({ ...ok, g: 'g1' })).toBeNull();
+    expect(inviteFromParams({ ...ok, g: '../g1' })).toBeNull();
+    expect(inviteFromParams({ ...ok, g: GROUP_ID.toUpperCase() })).toBeNull();
   });
 });

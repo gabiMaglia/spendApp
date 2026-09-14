@@ -3,7 +3,7 @@ import { hkdf } from '@noble/hashes/hkdf.js';
 import { sha256 } from '@noble/hashes/sha2.js';
 import * as Crypto from 'expo-crypto';
 import { enlaceCompacto, enlaceCompartible, rutaDeEnlace } from '@/src/utils/appLink';
-import { codificarInvitacion, decodificarInvitacion } from '@/src/utils/linkCompacto';
+import { codificarInvitacion, decodificarInvitacion, RE_UUID } from '@/src/utils/linkCompacto';
 import { esNombreSeguro, limpiarNombre } from '@/src/utils/nombreSeguro';
 import { sealEnvelope, openEnvelope, toHex, fromHex } from './envelopeCrypto';
 
@@ -108,6 +108,9 @@ export function inviteFromParams(params: Record<string, unknown>): GroupInvite |
   const groupId = str(params.g), token = str(params.t), expiresAt = str(params.e);
   if (!groupId || !token || !expiresAt) return null;
   // Validado como el compacto (T-098 · SEC L-2): antes pasaban `t=tok` y `e=1e308`.
+  // T-124 · SEC L-B: `groupId` sin forma pasaba entero — todo groupId real es
+  // un UUID generado en el dispositivo (regla de negocio #5).
+  if (!RE_UUID.test(groupId)) return null;
   if (!/^[0-9a-fA-F]{64}$/.test(token)) return null;
   if (!/^\d{1,15}$/.test(expiresAt) || Number(expiresAt) > 2 ** 48 - 1) return null;
   const inviterFingerprint = str(params.f) ?? '';

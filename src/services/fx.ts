@@ -1,4 +1,4 @@
-import { minorFactor, type CurrencyCode } from '@/src/constants/currencies';
+import { minorFactor, SUPPORTED_CURRENCIES, type CurrencyCode } from '@/src/constants/currencies';
 import { createStorage } from '@/src/utils/createStorage';
 
 /**
@@ -30,6 +30,16 @@ const ENDPOINT = 'https://open.er-api.com/v6/latest/USD';
 const KEY = 'rates_v1';
 /** Sólo si la API no mandó `time_next_update_unix`. */
 const TTL_FALLBACK_MS = 12 * 60 * 60 * 1000;
+/**
+ * Tope duro de confianza en lo que la API dice sobre sí misma (T-124 · SEC L-C).
+ * `time_next_update_unix` salía derecho al cache sin techo: una API comprometida
+ * (o simplemente un bug del lado de ellos) podía fijar tasas falsas PARA SIEMPRE
+ * — `isStale` nunca daba `true`. 24h es más que suficiente margen sobre el
+ * ritmo real (~diario) de `open.er-api.com`.
+ */
+const MAX_NEXT_UPDATE_MS = 24 * 60 * 60 * 1000;
+
+const CODIGOS_SOPORTADOS = new Set<string>(SUPPORTED_CURRENCIES.map(c => c.code));
 
 // Las cotizaciones NO son dato personal: son públicas e iguales para todos.
 // Por eso este storage no va scopeado por cuenta — dos cuentas en el mismo
@@ -55,9 +65,16 @@ export function needsRates(present: CurrencyCode[], display: CurrencyCode): bool
   return !distintas.has(display);
 }
 
-/** Se respeta el `nextUpdate` que manda la API; el TTL propio es el respaldo. */
+/**
+ * Se respeta el `nextUpdate` que manda la API, con techo — una cache escrita
+ * por una versión vieja de este código (antes de T-124 · SEC L-C, sin el
+ * `min()` de `refreshRates`) puede tener un `nextUpdateAt` sin tope guardado en
+ * disco; esta relectura evita confiar en él para siempre. El TTL propio es el
+ * respaldo cuando la API no mandó nada.
+ */
 export function isStale(cache: FxCache | null, now: number): boolean {
   if (!cache) return true;
+  if (cache.nextUpdateAt > cache.fetchedAt + MAX_NEXT_UPDATE_MS) return true;
   if (cache.nextUpdateAt > 0) return now >= cache.nextUpdateAt;
   return now - cache.fetchedAt >= TTL_FALLBACK_MS;
 }
@@ -127,11 +144,21 @@ export async function refreshRates(now: number = Date.now()): Promise<FxCache | 
     };
     if (json.result !== 'success' || !json.rates || json.base_code !== 'USD') return readCache();
 
+    // T-124 · SEC L-C: nunca confiar más de 24h en lo que la API dice sobre sí
+    // misma (ver `MAX_NEXT_UPDATE_MS`).
     const next = typeof json.time_next_update_unix === 'number' && json.time_next_update_unix > 0
-      ? json.time_next_update_unix * 1000
+      ? Math.min(json.time_next_update_unix * 1000, now + MAX_NEXT_UPDATE_MS)
       : 0;
 
-    const cache: FxCache = { base: 'USD', rates: json.rates, fetchedAt: now, nextUpdateAt: next };
+    // T-124 · SEC L-C: sólo las 9 monedas del proyecto, y con una tasa que
+    // sirva de verdad — el resto de las ~166 que manda la API no aporta nada
+    // y sólo agranda lo que queda escrito en disco para siempre.
+    const rates: Record<string, number> = {};
+    for (const [code, r] of Object.entries(json.rates)) {
+      if (CODIGOS_SOPORTADOS.has(code) && rateOk(r)) rates[code] = r;
+    }
+
+    const cache: FxCache = { base: 'USD', rates, fetchedAt: now, nextUpdateAt: next };
     writeCache(cache);
     return cache;
   } catch {

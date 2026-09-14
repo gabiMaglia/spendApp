@@ -147,8 +147,10 @@ describe('vínculo de contacto en AMBOS sentidos (T-031)', () => {
 });
 
 describe('secreto de contacto en el código', () => {
+  // T-124 · SEC L-B: `esIdDeCuenta` exige al menos un dígito (forma real de
+  // Google/Apple/UUID); 'u-ana' era sólo un valor de prueba cómodo.
   const yo = {
-    id: 'u-ana', name: 'Ana', email: 'ana@test.com', authProvider: 'google' as const,
+    id: 'u-ana1', name: 'Ana', email: 'ana@test.com', authProvider: 'google' as const,
     createdAt: 0, updatedAt: 0, isDeleted: false,
   };
   const SECRETO = 'ab'.repeat(32);
@@ -166,7 +168,7 @@ describe('secreto de contacto en el código', () => {
 
   it('sin secreto el código sigue siendo válido, pero de una sola dirección', () => {
     const leido = parseContactPayload(buildContactPayload(yo));
-    expect(leido?.id).toBe('u-ana');
+    expect(leido?.id).toBe('u-ana1');
     expect(leido?.secret).toBeUndefined();
   });
 
@@ -179,7 +181,7 @@ describe('secreto de contacto en el código', () => {
 
 describe('claves públicas en el código', () => {
   const yo = {
-    id: 'u-ana', name: 'Ana', email: 'ana@test.com', authProvider: 'google' as const,
+    id: 'u-ana1', name: 'Ana', email: 'ana@test.com', authProvider: 'google' as const,
     createdAt: 0, updatedAt: 0, isDeleted: false,
   };
   const CLAVES = {
@@ -231,5 +233,12 @@ describe('formato largo validado (T-098 · SEC L-2)', () => {
 
   it('un id de más de 255 bytes invalida el link', () => {
     expect(parseContactLink(largo(`id=${'i'.repeat(256)}&name=Ada`))).toBeNull();
+  });
+
+  // T-124 · SEC L-B: antes sólo se topaba con el tope de 255 bytes.
+  it('un id sin forma (NUL, traversal, sin dígito) invalida el link', () => {
+    expect(parseContactLink(largo(`id=${encodeURIComponent('a b')}&name=Ada`))).toBeNull();
+    expect(parseContactLink(largo(`id=${encodeURIComponent('../x1')}&name=Ada`))).toBeNull();
+    expect(parseContactLink(largo(`id=__proto__&name=Ada`))).toBeNull(); // sin dígito
   });
 });

@@ -2,7 +2,7 @@ import type { User } from '@/src/types/models';
 import { enlaceCompacto, enlaceCompartible, rutaDeEnlace } from '@/src/utils/appLink';
 import { codificarContacto, decodificarContacto } from '@/src/utils/linkCompacto';
 import { esNombreSeguro, limpiarNombre } from '@/src/utils/nombreSeguro';
-import { utf8Bytes } from '@/src/sync/hexBytes';
+import { esIdDeCuenta } from '@/src/utils/idDeCuenta';
 
 /**
  * Lo que viaja en el QR / link de contacto.
@@ -98,8 +98,10 @@ export function contactFromParams(params: Record<string, unknown>): ContactPaylo
   const id = str(params.id), name = str(params.name);
   if (!id || !name) return null;
   // El largo se valida igual que el compacto (T-098 · SEC L-2): antes aceptaba
-  // `s=not-hex` y guardaba claves basura.
-  if (utf8Bytes(id).length > 255 || !esNombreSeguro(name)) return null;
+  // `s=not-hex` y guardaba claves basura. `esIdDeCuenta` (T-124 · SEC L-B):
+  // antes un id con NUL, RLO, `../x` o `__proto__` sólo se topaba con el tope
+  // de 255 bytes.
+  if (!esIdDeCuenta(id) || !esNombreSeguro(name)) return null;
   const HEX32 = /^[0-9a-fA-F]{64}$/;
   const secret = str(params.s), wrapPublicKey = str(params.w), identityPublicKey = str(params.k);
   if ([secret, wrapPublicKey, identityPublicKey].some(v => v !== undefined && !HEX32.test(v))) return null;
