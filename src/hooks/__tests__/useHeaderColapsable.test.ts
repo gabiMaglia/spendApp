@@ -1,4 +1,4 @@
-import { renderHook } from '@testing-library/react-native';
+import { act, renderHook } from '@testing-library/react-native';
 import {
   progresoColapso, alturaHeaderColapsable, alturaBloqueTituloVisible, opacidadTituloCompacto,
   useHeaderColapsable, suavizar, opacidadTituloGrande, opacidadTituloGrandeSinMovimiento,
@@ -131,8 +131,12 @@ describe('movimiento suave del header (PO 2026-09-13)', () => {
   });
 
 
-  it('con poco contenido igual se puede colapsar: el mínimo supera la pantalla en el recorrido', () => {
+  it('con poco contenido igual se puede colapsar: el mínimo supera el alto visible en el recorrido', () => {
     expect(altoMinimoContenido(800, 150)).toBe(950);
+  });
+
+  it('sin medir el ScrollView todavía no fuerza ningún mínimo (T-135)', () => {
+    expect(altoMinimoContenido(0, 150)).toBe(0);
   });
 });
 
@@ -145,6 +149,15 @@ describe('useHeaderColapsable — hook compartido por las seis tabs', () => {
   it('expone un scrollHandler para pasarle a Animated.ScrollView/FlatList', () => {
     const { result } = renderHook(() => useHeaderColapsable());
     expect(result.current.scrollHandler).toBeTruthy();
+  });
+
+  it('el mínimo sale del alto MEDIDO del ScrollView, no de la ventana: el scroll sobrante es exactamente el recorrido (T-135)', () => {
+    const { result } = renderHook(() => useHeaderColapsable({ distanciaColapso: 135 }));
+    act(() => {
+      result.current.alMedirScroll({ nativeEvent: { layout: { x: 0, y: 0, width: 390, height: 600 } } } as never);
+    });
+    // Scroll máximo = minHeight - alto visible = recorrido de colapso, ni un punto más.
+    expect(result.current.contenidoMinimo.minHeight - 600).toBe(135);
   });
 
   it('acepta una distancia de colapso configurable', () => {

@@ -1,4 +1,5 @@
-import { useWindowDimensions } from 'react-native';
+import { useCallback, useState } from 'react';
+import type { LayoutChangeEvent } from 'react-native';
 import {
   useAnimatedScrollHandler, useSharedValue, type SharedValue,
 } from 'react-native-reanimated';
@@ -122,11 +123,15 @@ export function opacidadTituloCompactoSinMovimiento(progreso: number): number {
 /**
  * **Alto mínimo del contenido para que el header SIEMPRE pueda colapsar** (PO 2026-09-13).
  * En pestañas con poco contenido el scroll no llegaba al recorrido de colapso y el header
- * quedaba a medias. Con este mínimo (alto de ventana + recorrido) se puede subir hasta
- * colapsarlo del todo y queda ahí hasta que se scrollea hacia abajo.
+ * quedaba a medias. Con este mínimo (alto VISIBLE del ScrollView + recorrido) se puede subir
+ * exactamente hasta colapsarlo y ni un punto más.
+ *
+ * T-135 (PO 2026-09-14): antes se usaba el alto de la VENTANA, que es mayor que el del
+ * ScrollView (le restan notch, barra y tab bar): esa diferencia era scroll de sobra y el
+ * contenido corto se podía ir entero hacia arriba. Sin medir todavía (0) no fuerza nada.
  */
-export function altoMinimoContenido(altoVentana: number, recorrido: number): number {
-  return altoVentana + recorrido;
+export function altoMinimoContenido(altoVisible: number, recorrido: number): number {
+  return altoVisible > 0 ? altoVisible + recorrido : 0;
 }
 
 export type UseHeaderColapsableOptions = {
@@ -148,6 +153,8 @@ export function useHeaderColapsable(
   progress: SharedValue<number>;
   /** Para `contentContainerStyle`: garantiza que el header pueda colapsar con poco contenido. */
   contenidoMinimo: { minHeight: number };
+  /** Para el `onLayout` del ScrollView: mide su alto visible real. */
+  alMedirScroll: (e: LayoutChangeEvent) => void;
 } {
   // 1:1 con lo que pierde el header (T-131): así su borde inferior sigue exacto al contenido.
   const distancia = options.distanciaColapso ?? TITLE_BLOCK_H;
@@ -160,6 +167,13 @@ export function useHeaderColapsable(
     },
   });
 
-  const { height } = useWindowDimensions();
-  return { scrollHandler, progress, contenidoMinimo: { minHeight: altoMinimoContenido(height, distancia) } };
+  const [altoVisible, setAltoVisible] = useState(0);
+  const alMedirScroll = useCallback((e: LayoutChangeEvent) => {
+    const h = e.nativeEvent.layout.height;
+    setAltoVisible((prev) => (prev === h ? prev : h));
+  }, []);
+  return {
+    scrollHandler, progress, alMedirScroll,
+    contenidoMinimo: { minHeight: altoMinimoContenido(altoVisible, distancia) },
+  };
 }

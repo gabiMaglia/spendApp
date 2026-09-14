@@ -47,7 +47,7 @@ export default function AccountScreen() {
   const { entries: personalEntries, budget } = usePersonalStore();
   const { fx, display: cur, loading: fxLoading } = useFx();
 
-  const { scrollHandler, progress, contenidoMinimo } = useHeaderColapsable();
+  const { scrollHandler, progress, contenidoMinimo, alMedirScroll } = useHeaderColapsable();
 
   const thisMonth = toMonthKey(Date.now());
   const monthEntries = personalEntries.filter(
@@ -118,6 +118,7 @@ export default function AccountScreen() {
     <SafeAreaView edges={['bottom']} style={[styles.safe, { backgroundColor: c.bg }]}>
       <Animated.ScrollView
         style={limiteContenido}
+        onLayout={alMedirScroll}
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
         onScroll={scrollHandler}

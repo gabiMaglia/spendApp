@@ -55,7 +55,7 @@ export default function ActivityScreen() {
   const { currentUser } = useAuthStore();
   const { getUserName } = useUserStore();
   const updateExpense = useExpenseStore(st => st.updateExpense);
-  const { scrollHandler, progress, contenidoMinimo } = useHeaderColapsable();
+  const { scrollHandler, progress, contenidoMinimo, alMedirScroll } = useHeaderColapsable();
 
   function restaurar(expenseId: string) {
     const gasto = useExpenseStore.getState().expenses.find(e => e.id === expenseId);
@@ -131,6 +131,7 @@ export default function ActivityScreen() {
     <SafeAreaView edges={['bottom']} style={[styles.safe, { backgroundColor: c.bg }]}>
       <Animated.ScrollView
         style={limiteContenido}
+        onLayout={alMedirScroll}
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
         onScroll={scrollHandler}
