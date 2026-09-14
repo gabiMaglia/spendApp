@@ -106,7 +106,9 @@ describe('las páginas están completas', () => {
     // La política afirma que no hay analítica. Una página con un `gtag` la
     // volvería mentira aunque la app siga limpia.
     for (const archivo of readdirSync(WEB)) {
-      const html = readFileSync(join(WEB, archivo), 'utf8');
+      const ruta = join(WEB, archivo);
+      if (!statSync(ruta).isFile()) continue;
+      const html = readFileSync(ruta, 'utf8');
       if (CON_SCRIPT_INLINE.includes(archivo)) {
         // Sin `src`: el script está en la página, no se trae de ningún lado.
         expect(html).not.toMatch(/<script[^>]*\ssrc\s*=/i);

@@ -19,3 +19,15 @@ export const BASE_URL = 'https://spendapp.github.io';
  * `https://spendapp.github.io/#…`, y el `index.html` del sitio es `docs/web/abrir.html`.
  */
 export const LINKS_URL = `${BASE_URL}/`;
+
+/**
+ * Apple Developer Team ID (PO, 2026-09-14). Arma el appID del AASA del sitio:
+ * `<TEAM>.<bundleIdentifier>` (T-097). Un test lo ata a `app.json` y al AASA.
+ */
+export const APPLE_TEAM_ID = '4GP6785MU4';
+
+/**
+ * Id de spendApp en App Store (PO, 2026-09-14). Lo usan el Smart App Banner y el botón
+ * «Descargar» de `docs/web/abrir.html` (T-097).
+ */
+export const APP_STORE_ID = '6801922014';
