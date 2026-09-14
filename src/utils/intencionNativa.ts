@@ -13,15 +13,6 @@ export const ESQUEMA_GOOGLE_SIGNIN = 'com.googleusercontent.apps.918898015438-vd
 /** El dev client de Expo (`expo-development-client`), usado sólo en desarrollo. */
 const ESQUEMA_DEV_CLIENT = 'exp+spendapp:';
 
-/**
- * Retorno de Google Sign-In: la ÚNICA forma de URL de ese esquema que pasa intacta.
- *
- * T-120 · SEC M-5: dejar pasar el esquema entero era un bypass — expo-router convierte
- * CUALQUIER esquema en ruta, así que `com.googleusercontent.apps…:/groups/leave?id=` abría
- * `groups/leave`. Se permite sólo el camino del retorno de OAuth.
- */
-const RETORNO_GOOGLE = /^\/*oauth2redirect(?:[/?#]|$)/i;
-
 /** Extrae el esquema (`scheme:`) de una URL, en minúsculas, o `undefined` si no tiene uno válido (RFC 3986). */
 function esquemaDe(url: string): string | undefined {
   return /^[a-z][a-z0-9+.-]*:/i.exec(url)?.[0].toLowerCase();
@@ -50,8 +41,9 @@ function normalizar(url: string): string {
  * 1. Se normaliza (trim + bordes de control).
  * 2. Si es un link de la app (`spendapp:` en cualquier capitalización, ruta `/…`, o el
  *    https de la página) → su pantalla si es enlazable, si no `/`.
- * 3. Si no, pasa intacta SÓLO el retorno de OAuth de Google y, en desarrollo, el dev client
- *    (T-120).
+ * 3. Si no, el esquema de Google Sign-In nunca navega (`''`, T-133 · reabre T-120: JS no
+ *    necesita ver ese redirect, lo consume el SDK nativo); en desarrollo, el dev client
+ *    pasa intacto.
  * 4. Cualquier otro caso → `/`.
  *
  * Nunca lanza: un error acá cierra la app (ver `NativeIntent` en expo-router).
@@ -71,10 +63,19 @@ export function destinoDeUrlExterna(pathCrudo: string, isDev: boolean = __DEV__)
     if (enMinuscula.startsWith(ENLACE_BASE.replace(/\/$/, '').toLowerCase())) return hrefInterno(path) ?? '/';
 
     const esquema = esquemaDe(path);
-    // Google: sólo el retorno de OAuth. Cualquier otra ruta con ese esquema, al inicio.
-    if (esquema === ESQUEMA_GOOGLE_SIGNIN) {
-      return RETORNO_GOOGLE.test(path.slice(esquema.length)) ? pathCrudo : '/';
-    }
+    // Google: nunca navega (T-133 · SEC3 S3-M1, reabre T-120 · SEC M-5).
+    //
+    // Antes se dejaba pasar intacto sólo el path del retorno de OAuth (`oauth2redirect`),
+    // pero el chequeo era por PREFIJO: `oauth2redirect/../settle/new` matcheaba igual y el
+    // `..` llegaba entero a expo-router, que lo normaliza (WHATWG URL) y termina abriendo
+    // `settle/new` con query params precargados — el mismo bypass de T-120 con un paso más.
+    //
+    // La app no necesita que JS reciba esa ruta en absoluto: `GoogleSignInAppDelegate`
+    // (`@react-native-google-signin/google-signin`, `expo/ios/.../GoogleSignInAppDelegate.swift`)
+    // intercepta la URL a nivel nativo (`GIDSignIn.sharedInstance.handle(url)`) y resuelve el
+    // login ahí — no existe ninguna ruta `oauth2redirect` en `app/`. `''` no navega
+    // (`link/linking.js`: `if (href) listener(href)`), así que no interrumpe un login en curso.
+    if (esquema === ESQUEMA_GOOGLE_SIGNIN) return '';
     // Dev client: sólo en desarrollo. En un build de producción el esquema puede seguir
     // registrado y su `?url=` llevaba a cualquier pantalla (T-120 · SEC M-5).
     if (esquema === ESQUEMA_DEV_CLIENT) return isDev ? pathCrudo : '/';

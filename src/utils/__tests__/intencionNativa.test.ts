@@ -52,13 +52,15 @@ describe('destinoDeUrlExterna', () => {
     expect(destinoDeUrlExterna(url)).toBe('/');
   });
 
-  it('no toca URLs que no son de la app (login de Google, dev client)', () => {
-    // El esquema de Google es el REAL de `app.json` (ver test de abajo que los ata):
-    // ronda 3 pasó a "deniega por defecto" y ya no deja pasar un esquema `com.googleusercontent.apps.*`
-    // cualquiera — sólo el nuestro. Un id inventado ahora cae a `/` (ver test siguiente).
+  it('el esquema de Google nunca navega (JS no necesita ver su redirect; lo consume el SDK nativo) y el dev client sigue pasando intacto', () => {
+    // El esquema de Google es el REAL de `app.json` (ver test de abajo que los ata).
+    // T-133 (reabre T-120 · S3-M1): antes se dejaba pasar `oauth2redirect` intacto y
+    // expo-router normalizaba `..` hacia otra pantalla. `GoogleSignInAppDelegate` (nativo)
+    // ya consume ese redirect antes de que JS lo vea — no hay ninguna ruta `oauth2redirect`
+    // en `app/` — así que ahora NINGÚN path con este esquema navega, siempre `''`.
     const google = `${ESQUEMA_GOOGLE_SIGNIN}/oauth2redirect?code=x`;
     const devClient = 'exp+spendapp://expo-development-client/?url=http%3A%2F%2F192.168.0.2%3A8081';
-    expect(destinoDeUrlExterna(google)).toBe(google);
+    expect(destinoDeUrlExterna(google)).toBe('');
     expect(destinoDeUrlExterna(devClient)).toBe(devClient);
   });
 
@@ -68,13 +70,13 @@ describe('destinoDeUrlExterna', () => {
       `${ESQUEMA_GOOGLE_SIGNIN}//settle/new?toId=x`,
       `${ESQUEMA_GOOGLE_SIGNIN}/settings/borrar-cuenta`,
       `${ESQUEMA_GOOGLE_SIGNIN}/oauth2redirectX/debug/identity`,
-    ])('Google con una ruta que no es el retorno de OAuth va al inicio: %s', (url) => {
-      expect(destinoDeUrlExterna(url, false)).toBe('/');
+    ])('Google con una ruta que no es el retorno de OAuth no navega: %s', (url) => {
+      expect(destinoDeUrlExterna(url, false)).toBe('');
     });
 
-    it('el retorno de OAuth de Google sigue pasando intacto, también en producción', () => {
+    it('el retorno legítimo de OAuth de Google tampoco navega — no hace falta, el SDK nativo ya lo consumió', () => {
       const retorno = `${ESQUEMA_GOOGLE_SIGNIN}/oauth2redirect?code=x`;
-      expect(destinoDeUrlExterna(retorno, false)).toBe(retorno);
+      expect(destinoDeUrlExterna(retorno, false)).toBe('');
     });
 
     it.each([
@@ -87,6 +89,25 @@ describe('destinoDeUrlExterna', () => {
     it('en desarrollo el dev client sigue funcionando', () => {
       const dev = 'exp+spendapp://expo-development-client/?url=http%3A%2F%2F192.168.0.2%3A8081';
       expect(destinoDeUrlExterna(dev, true)).toBe(dev);
+    });
+  });
+
+  describe('T-133 · SEC3 S3-M1 (reabre T-120) — path traversal en el redirect de Google', () => {
+    // PoC de la auditoría: expo-router normaliza `..` en el pathname (WHATWG URL) DESPUÉS
+    // de que `destinoDeUrlExterna` decida dejarlo pasar. El regex viejo (`RETORNO_GOOGLE`)
+    // sólo miraba el PREFIJO (`oauth2redirect/`) y no rechazaba lo que viniera después, así
+    // que `oauth2redirect/../settle/new` matcheaba igual y el `..` llegaba intacto a
+    // expo-router, que lo resolvía a `settle/new` con los query params precargados.
+    it.each([
+      `${ESQUEMA_GOOGLE_SIGNIN}/oauth2redirect/../settle/new?toId=x&maxAmount=9`,
+      `${ESQUEMA_GOOGLE_SIGNIN}/oauth2redirect/%2e%2e/settings/borrar-cuenta`,
+      `${ESQUEMA_GOOGLE_SIGNIN}/oauth2redirect/%2E%2E/settings/borrar-cuenta`,
+      `${ESQUEMA_GOOGLE_SIGNIN}/OAUTH2REDIRECT/../groups/leave?id=g1`,
+      `${ESQUEMA_GOOGLE_SIGNIN}/oauth2redirect/..%2fgroups/leave?id=g1`,
+      `${ESQUEMA_GOOGLE_SIGNIN}/oauth2redirect//../settle/new?toId=x`,
+      `${ESQUEMA_GOOGLE_SIGNIN}/oauth2redirect/..\\settle/new?toId=x`,
+    ])('un `..` (o su escape/mayúscula/barra múltiple/backslash) tras oauth2redirect no navega: %s', (url) => {
+      expect(destinoDeUrlExterna(url, false)).toBe('');
     });
   });
 
