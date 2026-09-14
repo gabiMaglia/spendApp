@@ -102,7 +102,7 @@ describe('CollapsibleHeader — colapso al scrollear (T-128)', () => {
   it('el título chico junto a la foto de perfil arranca invisible (progreso 0)', () => {
     const progress = crearProgress(0);
     const r = render(<CollapsibleHeader title="Tus cuentas" progress={progress} />);
-    const chico = r.getByTestId('header-title-compact');
+    const chico = r.getByTestId('header-title-compact', { includeHiddenElements: true });
     const flat = Array.isArray(chico.props.style) ? Object.assign({}, ...chico.props.style.flat(Infinity)) : chico.props.style;
     expect(flat.opacity).toBe(0);
   });
@@ -110,7 +110,7 @@ describe('CollapsibleHeader — colapso al scrollear (T-128)', () => {
   it('el título chico se ve del todo con el header colapsado (progreso 1)', () => {
     const progress = crearProgress(1);
     const r = render(<CollapsibleHeader title="Tus cuentas" progress={progress} />);
-    const chico = r.getByTestId('header-title-compact');
+    const chico = r.getByTestId('header-title-compact', { includeHiddenElements: true });
     const flat = Array.isArray(chico.props.style) ? Object.assign({}, ...chico.props.style.flat(Infinity)) : chico.props.style;
     expect(flat.opacity).toBe(1);
   });

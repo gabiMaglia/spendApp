@@ -152,7 +152,9 @@ describe('subtítulo (saludo) — sólo cuando la pantalla lo pasa', () => {
     // T-128: "Tus cuentas" vive en dos lugares — el título grande (siempre en
     // el DOM, recortado por el header al colapsar) y el título chico junto a
     // la foto de perfil (oculto por opacidad hasta que se colapsa).
-    expect(r.getAllByText('Tus cuentas').length).toBe(2);
+    expect(r.getAllByText('Tus cuentas', { includeHiddenElements: true }).length).toBe(2);
+    // El chico está oculto al lector de pantalla (T-128): se anuncia UNA sola vez.
+    expect(r.getAllByText('Tus cuentas').length).toBe(1);
   });
 });
 

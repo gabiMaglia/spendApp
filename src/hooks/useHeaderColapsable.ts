@@ -2,7 +2,7 @@ import {
   useAnimatedScrollHandler, useSharedValue, type SharedValue,
 } from 'react-native-reanimated';
 
-import { TITLE_BLOCK_H } from '@/src/components/CollapsibleHeader';
+import { TITLE_BLOCK_H } from '@/src/constants/header';
 
 /**
  * **Header colapsable de las seis tabs** (T-128, pedido del PO 2026-09-13,
@@ -35,6 +35,7 @@ import { TITLE_BLOCK_H } from '@/src/components/CollapsibleHeader';
  * colapsado en ningún frame.
  */
 export function progresoColapso(scrollY: number, expandido: number, colapsado: number): number {
+  'worklet';
   const distancia = expandido - colapsado;
   if (distancia <= 0) return 0;
   return Math.min(1, Math.max(0, scrollY / distancia));
@@ -42,6 +43,7 @@ export function progresoColapso(scrollY: number, expandido: number, colapsado: n
 
 /** Alto interpolado del header según el progreso de colapso. */
 export function alturaHeaderColapsable(progreso: number, expandido: number, colapsado: number): number {
+  'worklet';
   const p = Math.min(1, Math.max(0, progreso));
   return expandido - p * (expandido - colapsado);
 }
@@ -60,6 +62,7 @@ export function alturaHeaderColapsable(progreso: number, expandido: number, cola
 export function alturaBloqueTituloVisible(
   alturaHeaderActual: number, insetsTop: number, barH: number, tituloBlockH: number,
 ): number {
+  'worklet';
   return Math.min(tituloBlockH, Math.max(0, alturaHeaderActual - insetsTop - barH));
 }
 
@@ -70,7 +73,14 @@ export function alturaBloqueTituloVisible(
  * colapso: invisible expandido, opaco del todo colapsado.
  */
 export function opacidadTituloCompacto(progreso: number): number {
+  'worklet';
   return Math.min(1, Math.max(0, progreso));
+}
+
+/** Opacidad del título chico con «reducir movimiento»: sin fade, aparece recién colapsado (T-128). */
+export function opacidadTituloCompactoSinMovimiento(progreso: number): number {
+  'worklet';
+  return progreso >= 1 ? 1 : 0;
 }
 
 export type UseHeaderColapsableOptions = {

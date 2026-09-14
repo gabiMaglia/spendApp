@@ -1,6 +1,6 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import Animated, { useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useReducedMotion, type SharedValue } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -8,7 +8,10 @@ import { Colors } from '@/src/constants/colors';
 import { Spacing } from '@/src/constants/spacing';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { FondoMarmol } from '@/src/components/FondoMarmol';
-import { alturaHeaderColapsable, alturaBloqueTituloVisible, opacidadTituloCompacto } from '@/src/hooks/useHeaderColapsable';
+import { HEADER_BAR_H, TITLE_BOTTOM_GAP, TITLE_BLOCK_H } from '@/src/constants/header';
+import {
+  alturaHeaderColapsable, alturaBloqueTituloVisible, opacidadTituloCompacto, opacidadTituloCompactoSinMovimiento,
+} from '@/src/hooks/useHeaderColapsable';
 
 /**
  * Header fijo común a todas las tabs.
@@ -33,27 +36,11 @@ import { alturaHeaderColapsable, alturaBloqueTituloVisible, opacidadTituloCompac
  * el header pierde alto (`alturaBloqueTituloVisible`). El título CHICO junto
  * a la foto de perfil sí tiene fade propio, sincronizado con el progreso.
  */
-/** Alto de la fila de botones, sin el notch. */
-export const HEADER_BAR_H = 52;
-
-/**
- * Alto total del header (fila de botones + bloque título) que vio el PO en el teléfono
- * tras T-114: 52 + 33 = 85pt, sin el notch. Base del pedido de T-125.
- */
-export const HEADER_TOTAL_H_T114 = 85;
-
-/** «El doble y un poco más» (PO 2026-09-13, T-125): ×2,2 sobre el header de T-114. */
-export const FACTOR_ALTO_HEADER = 2.2;
-
-/**
- * **Alto del bloque título** (T-114 → T-125): lo que queda del alto total pedido después
- * de la fila de botones. La fila de botones no cambia; crece el espacio del título, que
- * va abajo con `space-between`. Es un piso: en Inicio el saludo suma una línea.
- */
-/** Distancia máxima del título al borde inferior del header (PO, T-126). */
-export const TITLE_BOTTOM_GAP = 6;
-
-export const TITLE_BLOCK_H = Math.round(HEADER_TOTAL_H_T114 * FACTOR_ALTO_HEADER) - HEADER_BAR_H;
+// Medidas del header en `src/constants/header.ts`: así el hook de colapso no importa este
+// componente y no se arma un ciclo de require (T-128). Se re-exportan por compatibilidad.
+export {
+  HEADER_BAR_H, HEADER_TOTAL_H_T114, FACTOR_ALTO_HEADER, TITLE_BOTTOM_GAP, TITLE_BLOCK_H,
+} from '@/src/constants/header';
 
 /**
  * Cuánto padding necesita el contenido para arrancar DEBAJO del header.
@@ -74,7 +61,7 @@ export function useHeaderPadding(aire: number = Spacing[4]): number {
 }
 
 /** Margen extra, en pt, del mármol más allá del alto expandido — colchón de seguridad para que nunca se vea un hueco. */
-const MARMOL_BLEED = 80;
+export const MARMOL_BLEED = 80;
 
 export function CollapsibleHeader({
   title, subtitle, progress, right, left,
@@ -108,8 +95,12 @@ export function CollapsibleHeader({
     ),
   }));
 
+  // «Reducir movimiento»: el título chico no hace fade, aparece recién colapsado (T-128).
+  const reducirMovimiento = useReducedMotion();
   const tituloCompactoStyle = useAnimatedStyle(() => ({
-    opacity: opacidadTituloCompacto(progress.value),
+    opacity: reducirMovimiento
+      ? opacidadTituloCompactoSinMovimiento(progress.value)
+      : opacidadTituloCompacto(progress.value),
   }));
 
   return (
@@ -131,8 +122,11 @@ export function CollapsibleHeader({
         <View style={styles.buttonsRow}>
           <View style={styles.buttonsLeft}>
             {left}
+            {/* Duplica el título grande: oculto al lector de pantalla para no anunciarlo dos veces (T-128). */}
             <Animated.Text
               testID="header-title-compact"
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
               numberOfLines={1}
               style={[styles.titleCompact, tituloCompactoStyle, { color: c.text }]}
             >
