@@ -54,7 +54,7 @@ export default function ActivityScreen() {
   const { currentUser } = useAuthStore();
   const { getUserName } = useUserStore();
   const updateExpense = useExpenseStore(st => st.updateExpense);
-  const { scrollHandler, progress } = useHeaderColapsable();
+  const { scrollHandler, progress, contenidoMinimo } = useHeaderColapsable();
 
   function restaurar(expenseId: string) {
     const gasto = useExpenseStore.getState().expenses.find(e => e.id === expenseId);
@@ -132,7 +132,7 @@ export default function ActivityScreen() {
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
         onScroll={scrollHandler}
-        contentContainerStyle={{ paddingTop: headerPad, paddingBottom: 120, flexGrow: 1 }}
+        contentContainerStyle={[{ paddingTop: headerPad, paddingBottom: 120, flexGrow: 1 }, contenidoMinimo]}
       >
 
         <View style={[styles.searchBar, { backgroundColor: c.bgGrouped, borderColor: c.hair }]}>

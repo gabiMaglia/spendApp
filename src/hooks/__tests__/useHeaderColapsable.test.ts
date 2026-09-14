@@ -1,7 +1,8 @@
 import { renderHook } from '@testing-library/react-native';
 import {
   progresoColapso, alturaHeaderColapsable, alturaBloqueTituloVisible, opacidadTituloCompacto,
-  useHeaderColapsable,
+  useHeaderColapsable, suavizar, opacidadTituloGrande, opacidadTituloGrandeSinMovimiento,
+  FACTOR_RECORRIDO, altoMinimoContenido,
 } from '../useHeaderColapsable';
 
 /**
@@ -93,8 +94,44 @@ describe('opacidadTituloCompacto (título chico junto a la foto de perfil)', () 
     expect(opacidadTituloCompacto(1)).toBe(1);
   });
 
-  it('a mitad de progreso, a mitad de opacidad', () => {
-    expect(opacidadTituloCompacto(0.5)).toBeCloseTo(0.5);
+  it('entra recién en la segunda mitad del colapso (cambio de spec del PO: más suave)', () => {
+    expect(opacidadTituloCompacto(0.5)).toBe(0);
+    expect(opacidadTituloCompacto(0.75)).toBeCloseTo(0.5);
+  });
+});
+
+describe('movimiento suave del header (PO 2026-09-13)', () => {
+  it('suavizar: extremos fijos y monótona', () => {
+    expect(suavizar(0)).toBe(0);
+    expect(suavizar(1)).toBe(1);
+    expect(suavizar(0.5)).toBeCloseTo(0.5);
+    for (let p = 0; p < 1; p += 0.05) expect(suavizar(p + 0.05)).toBeGreaterThanOrEqual(suavizar(p));
+  });
+
+  it('el alto arranca y termina despacio (no lineal)', () => {
+    const exp = 300, col = 100;
+    expect(exp - alturaHeaderColapsable(0.1, exp, col)).toBeLessThan(0.1 * (exp - col));
+  });
+
+  it('el título grande se va en la primera mitad y el chico entra en la segunda: nunca los dos a la vez', () => {
+    expect(opacidadTituloGrande(0)).toBe(1);
+    expect(opacidadTituloGrande(0.5)).toBe(0);
+    for (let p = 0; p <= 1; p += 0.02) {
+      expect(opacidadTituloGrande(p) > 0 && opacidadTituloCompacto(p) > 0).toBe(false);
+    }
+  });
+
+  it('con «reducir movimiento» el título grande no se desvanece hasta colapsar', () => {
+    expect(opacidadTituloGrandeSinMovimiento(0.9)).toBe(1);
+    expect(opacidadTituloGrandeSinMovimiento(1)).toBe(0);
+  });
+
+  it('el colapso se reparte en más scroll que el alto que se pierde', () => {
+    expect(FACTOR_RECORRIDO).toBeGreaterThan(1);
+  });
+
+  it('con poco contenido igual se puede colapsar: el mínimo supera la pantalla en el recorrido', () => {
+    expect(altoMinimoContenido(800, 150)).toBe(950);
   });
 });
 

@@ -45,7 +45,7 @@ export default function AccountScreen() {
   const { entries: personalEntries, budget } = usePersonalStore();
   const { fx, display: cur, loading: fxLoading } = useFx();
 
-  const { scrollHandler, progress } = useHeaderColapsable();
+  const { scrollHandler, progress, contenidoMinimo } = useHeaderColapsable();
 
   const thisMonth = toMonthKey(Date.now());
   const monthEntries = personalEntries.filter(
@@ -118,7 +118,7 @@ export default function AccountScreen() {
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
         onScroll={scrollHandler}
-        contentContainerStyle={{ paddingTop: headerPad, paddingBottom: 150 }}
+        contentContainerStyle={[{ paddingTop: headerPad, paddingBottom: 150 }, contenidoMinimo]}
       >
         {/* Banda de deuda direccional: los dos lados no se netean (ADR-006) */}
         <SplitStat

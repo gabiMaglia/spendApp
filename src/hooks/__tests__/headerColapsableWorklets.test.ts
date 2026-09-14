@@ -14,6 +14,7 @@ const FUENTE = readFileSync(join(__dirname, '..', 'useHeaderColapsable.ts'), 'ut
 const DESDE_EL_HILO_DE_UI = [
   'progresoColapso', 'alturaHeaderColapsable', 'alturaBloqueTituloVisible',
   'opacidadTituloCompacto', 'opacidadTituloCompactoSinMovimiento',
+  'suavizar', 'opacidadTituloGrande', 'opacidadTituloGrandeSinMovimiento',
 ];
 
 function primerStatement(nombre: string): string {

@@ -52,7 +52,7 @@ export default function UserScreen() {
   const c = Colors[scheme];
   const { t, i18n } = useTranslation();
   const { currentUser, isPro, signOut } = useAuthStore();
-  const { scrollHandler, progress } = useHeaderColapsable();
+  const { scrollHandler, progress, contenidoMinimo } = useHeaderColapsable();
 
   const [editingName, setEditingName] = useState(false);
   const [draftName, setDraftName] = useState('');
@@ -206,7 +206,7 @@ export default function UserScreen() {
         // de la versión quedaba con un salto enorme y vacío. La SafeAreaView
         // (`edges=['bottom']`) ya cubre el inset del sistema, y como la tab
         // bar no es `position:absolute` React Navigation ya reserva su alto.
-        contentContainerStyle={{ paddingTop: headerPad, paddingBottom: Spacing[6] }}
+        contentContainerStyle={[{ paddingTop: headerPad, paddingBottom: Spacing[6] }, contenidoMinimo]}
       >
 
         {/* Mi cuenta */}

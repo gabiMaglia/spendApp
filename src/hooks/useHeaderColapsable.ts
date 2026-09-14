@@ -1,8 +1,12 @@
+import { useWindowDimensions } from 'react-native';
 import {
   useAnimatedScrollHandler, useSharedValue, type SharedValue,
 } from 'react-native-reanimated';
 
 import { TITLE_BLOCK_H } from '@/src/constants/header';
+
+/** Cuánto scroll hace falta para colapsar, en múltiplos del alto del bloque título. */
+export const FACTOR_RECORRIDO = 1.5;
 
 /**
  * **Header colapsable de las seis tabs** (T-128, pedido del PO 2026-09-13,
@@ -41,11 +45,30 @@ export function progresoColapso(scrollY: number, expandido: number, colapsado: n
   return Math.min(1, Math.max(0, scrollY / distancia));
 }
 
-/** Alto interpolado del header según el progreso de colapso. */
-export function alturaHeaderColapsable(progreso: number, expandido: number, colapsado: number): number {
+/**
+ * Curva suave (smoothstep): arranca y termina despacio. El alto y los fades la usan en vez
+ * del progreso lineal — el PO pidió el movimiento entero más suave (2026-09-13).
+ */
+export function suavizar(progreso: number): number {
   'worklet';
   const p = Math.min(1, Math.max(0, progreso));
-  return expandido - p * (expandido - colapsado);
+  return p * p * (3 - 2 * p);
+}
+
+/** Alto interpolado del header según el progreso de colapso, con curva suave. */
+export function alturaHeaderColapsable(progreso: number, expandido: number, colapsado: number): number {
+  'worklet';
+  return expandido - suavizar(progreso) * (expandido - colapsado);
+}
+
+/**
+ * Opacidad del título grande (y del saludo en Inicio): se desvanece en la primera mitad
+ * del colapso, suave, en vez de cortarse contra la fila de botones (PO: «desaparece muy
+ * abrupto», 2026-09-13). Totalmente transparente antes de que el recorte lo alcance.
+ */
+export function opacidadTituloGrande(progreso: number): number {
+  'worklet';
+  return 1 - suavizar(Math.min(1, Math.max(0, progreso) / 0.5));
 }
 
 /**
@@ -74,13 +97,30 @@ export function alturaBloqueTituloVisible(
  */
 export function opacidadTituloCompacto(progreso: number): number {
   'worklet';
-  return Math.min(1, Math.max(0, progreso));
+  // Entra en la segunda mitad, cuando el grande ya se fue: nunca se ven los dos a la vez.
+  return suavizar((Math.min(1, Math.max(0, progreso)) - 0.5) / 0.5);
 }
 
 /** Opacidad del título chico con «reducir movimiento»: sin fade, aparece recién colapsado (T-128). */
+/** Con «reducir movimiento» el título grande no se desvanece: queda hasta estar colapsado. */
+export function opacidadTituloGrandeSinMovimiento(progreso: number): number {
+  'worklet';
+  return progreso >= 1 ? 0 : 1;
+}
+
 export function opacidadTituloCompactoSinMovimiento(progreso: number): number {
   'worklet';
   return progreso >= 1 ? 1 : 0;
+}
+
+/**
+ * **Alto mínimo del contenido para que el header SIEMPRE pueda colapsar** (PO 2026-09-13).
+ * En pestañas con poco contenido el scroll no llegaba al recorrido de colapso y el header
+ * quedaba a medias. Con este mínimo (alto de ventana + recorrido) se puede subir hasta
+ * colapsarlo del todo y queda ahí hasta que se scrollea hacia abajo.
+ */
+export function altoMinimoContenido(altoVentana: number, recorrido: number): number {
+  return altoVentana + recorrido;
 }
 
 export type UseHeaderColapsableOptions = {
@@ -97,8 +137,15 @@ export type UseHeaderColapsableOptions = {
  */
 export function useHeaderColapsable(
   options: UseHeaderColapsableOptions = {},
-): { scrollHandler: ReturnType<typeof useAnimatedScrollHandler>; progress: SharedValue<number> } {
-  const distancia = options.distanciaColapso ?? TITLE_BLOCK_H;
+): {
+  scrollHandler: ReturnType<typeof useAnimatedScrollHandler>;
+  progress: SharedValue<number>;
+  /** Para `contentContainerStyle`: garantiza que el header pueda colapsar con poco contenido. */
+  contenidoMinimo: { minHeight: number };
+} {
+  // Más recorrido que el alto que se pierde: el colapso se reparte en más scroll y se siente
+  // menos brusco (PO 2026-09-13).
+  const distancia = options.distanciaColapso ?? Math.round(TITLE_BLOCK_H * FACTOR_RECORRIDO);
   const progress = useSharedValue(0);
 
   const scrollHandler = useAnimatedScrollHandler({
@@ -108,5 +155,6 @@ export function useHeaderColapsable(
     },
   });
 
-  return { scrollHandler, progress };
+  const { height } = useWindowDimensions();
+  return { scrollHandler, progress, contenidoMinimo: { minHeight: altoMinimoContenido(height, distancia) } };
 }

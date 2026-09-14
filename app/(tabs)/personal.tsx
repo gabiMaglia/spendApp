@@ -88,7 +88,7 @@ export default function PersonalScreen() {
   } = useAmountInput(budgetCurrency, budget.monthlyAmount);
 
   /** Scroll del header colapsable. */
-  const { scrollHandler, progress } = useHeaderColapsable();
+  const { scrollHandler, progress, contenidoMinimo } = useHeaderColapsable();
 
   const { fx, display: cur, loading: fxLoading } = useFx();
   const [avisoVisto, setAvisoVisto] = useState(false);
@@ -227,7 +227,7 @@ export default function PersonalScreen() {
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
         onScroll={scrollHandler}
-        contentContainerStyle={{ paddingTop: headerPad, paddingBottom: 140 }}
+        contentContainerStyle={[{ paddingTop: headerPad, paddingBottom: 140 }, contenidoMinimo]}
       >
         {/* T-114: el título pasó al header (fijo, ya no scrollea); esta fila
             ahora sólo aloja el botón de ajustes, pegado a la derecha como

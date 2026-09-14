@@ -11,6 +11,7 @@ import { FondoMarmol } from '@/src/components/FondoMarmol';
 import { HEADER_BAR_H, TITLE_BOTTOM_GAP, TITLE_BLOCK_H } from '@/src/constants/header';
 import {
   alturaHeaderColapsable, alturaBloqueTituloVisible, opacidadTituloCompacto, opacidadTituloCompactoSinMovimiento,
+  opacidadTituloGrande, opacidadTituloGrandeSinMovimiento,
 } from '@/src/hooks/useHeaderColapsable';
 
 /**
@@ -82,6 +83,9 @@ export function CollapsibleHeader({
   const expandido = insets.top + HEADER_BAR_H + TITLE_BLOCK_H;
   const colapsado = insets.top + HEADER_BAR_H;
 
+  // «Reducir movimiento»: sin fades en los títulos (T-128).
+  const reducirMovimiento = useReducedMotion();
+
   const wrapStyle = useAnimatedStyle(() => ({
     height: alturaHeaderColapsable(progress.value, expandido, colapsado),
   }));
@@ -90,13 +94,14 @@ export function CollapsibleHeader({
   // sólo se recorta con el `overflow: hidden` del contenedor de arriba. Este
   // estilo achica ESE contenedor puntual, no el header entero.
   const clipTituloStyle = useAnimatedStyle(() => ({
+    opacity: reducirMovimiento
+      ? opacidadTituloGrandeSinMovimiento(progress.value)
+      : opacidadTituloGrande(progress.value),
     height: alturaBloqueTituloVisible(
       alturaHeaderColapsable(progress.value, expandido, colapsado), insets.top, HEADER_BAR_H, TITLE_BLOCK_H,
     ),
   }));
 
-  // «Reducir movimiento»: el título chico no hace fade, aparece recién colapsado (T-128).
-  const reducirMovimiento = useReducedMotion();
   const tituloCompactoStyle = useAnimatedStyle(() => ({
     opacity: reducirMovimiento
       ? opacidadTituloCompactoSinMovimiento(progress.value)

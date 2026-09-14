@@ -42,7 +42,7 @@ export default function FriendsScreen() {
 
   const personBalances = useGlobalPersonBalances(currentUser?.id ?? '');
   const conHistorial   = useContactosConHistorial(currentUser?.id ?? '');
-  const { scrollHandler, progress } = useHeaderColapsable();
+  const { scrollHandler, progress, contenidoMinimo } = useHeaderColapsable();
 
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState('');
@@ -109,7 +109,7 @@ export default function FriendsScreen() {
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
         onScroll={scrollHandler}
-        contentContainerStyle={{ paddingTop: headerPad, paddingBottom: 150, flexGrow: 1 }}
+        contentContainerStyle={[{ paddingTop: headerPad, paddingBottom: 150, flexGrow: 1 }, contenidoMinimo]}
       >
 
         {(owedToYou > 0 || youOwe > 0) && (

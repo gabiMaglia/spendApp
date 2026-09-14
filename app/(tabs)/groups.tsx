@@ -40,7 +40,7 @@ export default function GroupsScreen() {
   const setArchived = useArchiveStore(s => s.setArchived);
   const groupTotals = useGroupsTotalBalance(currentUser?.id ?? '');
 
-  const { scrollHandler, progress } = useHeaderColapsable();
+  const { scrollHandler, progress, contenidoMinimo } = useHeaderColapsable();
 
   const { fx, display: cur } = useFx();
   const deben = sumConverted(
@@ -85,7 +85,7 @@ export default function GroupsScreen() {
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
         onScroll={scrollHandler}
-        contentContainerStyle={{ paddingTop: headerPad, paddingBottom: 150, flexGrow: 1 }}
+        contentContainerStyle={[{ paddingTop: headerPad, paddingBottom: 150, flexGrow: 1 }, contenidoMinimo]}
       >
 
         {/* **Todo lo de arriba del segmentado no depende de la pestaña.**
