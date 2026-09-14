@@ -1,0 +1,4 @@
+{
+  "NSCameraUsageDescription": "Usamos la cámara para sacar una foto del ticket al cargar un gasto y para escanear códigos QR al agregar un contacto.",
+  "NSPhotoLibraryUsageDescription": "Usamos tu galería de fotos para elegir tu foto de perfil."
+}
