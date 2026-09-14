@@ -5,7 +5,8 @@ import {
   type SimpleStorage,
   registrarBucket,
 } from './createStorage';
-import { getOrCreateEncryptionKey } from './encryptionKey';
+import { borrarClaveV1, getOrCreateEncryptionKey, leerClaveV1 } from './encryptionKey';
+import { SCOPED_PLAIN } from '@/src/constants/storageBuckets';
 
 // IDs de storage con datos sensibles (financieros / de identidad) que se cifran
 // at-rest. El resto (theme/lang/settings/tier) queda en claro por lectura
@@ -25,10 +26,19 @@ function memFor(id: string): SimpleStorage {
   return m;
 }
 
+/** Marca en `enc_meta`: los buckets ya se vaciaron y recifraron con la clave v2. */
+export const MARCA_CLAVE_V2 = 'enc_clave_v2';
+
 /**
- * Carga/genera la clave y abre cada storage sensible CIFRADO. Migra datos
- * existentes en claro a cifrado in-place con `recrypt` (una vez por id, con
- * flag persistido) — así no se pierde nada de lo ya guardado.
+ * Carga/genera la clave v2 y abre cada storage sensible CIFRADO.
+ *
+ * **Arranque en limpio (T-124 L-E, decisión del PO 2026-09-14).** La clave v1
+ * daba 64 bits reales (ver `encryptionKey.ts`). Sin la marca `enc_clave_v2`, se
+ * vacía cada bucket cifrado y se recifra con la v2, se vacían los buckets en
+ * claro por cuenta (`SCOPED_PLAIN`), se escribe la marca y RECIÉN DESPUÉS se
+ * borra la clave v1. No se preservan datos: no había instalaciones con datos
+ * reales. Si la app muere antes de la marca, el arranque siguiente repite todo
+ * y llega al mismo estado (todo vacío con v2): por eso no hay marcas por bucket.
  *
  * Debe llamarse (y await-earse) ANTES de hidratar los stores sensibles. Es
  * idempotente. Si MMKV no está (Expo Go) o el cifrado falla, los proxies caen a
@@ -49,32 +59,71 @@ export async function bootstrapSecureStorage(): Promise<void> {
     return;
   }
 
-  // Meta store EN CLARO: solo guarda flags de migración (no datos sensibles).
+  // Meta store EN CLARO: solo guarda marcas de migración (no datos sensibles).
   let meta: SimpleStorage | null = null;
   try { meta = new MMKV({ id: 'enc_meta' }); } catch { meta = null; }
 
+  let yaEnV2 = false;
+  try { yaEnV2 = meta?.getBoolean(MARCA_CLAVE_V2) === true; } catch { yaEnV2 = false; }
+  if (yaEnV2) {
+    for (const id of SECURE_IDS) {
+      try {
+        const inst: SimpleStorage = new MMKV({ id, encryptionKey: key });
+        inst.contains('__probe__'); // smoke test nativo
+        instances.set(id, inst);
+      } catch (e) {
+        logStorageFailure(id, e);
+      }
+    }
+    // Idempotente: si un corte previo dejó la marca escrita pero la v1
+    // huérfana (murió justo entre el `meta.set` y el `borrarClaveV1` de más
+    // abajo), este arranque la termina de borrar.
+    await borrarClaveV1();
+    return;
+  }
+
+  // ── Arranque en limpio ───────────────────────────────────────────────────
+  let claveV1: string | null = null;
+  try { claveV1 = await leerClaveV1(); } catch { claveV1 = null; }
+
+  let algunoFallo = false;
   for (const id of SECURE_IDS) {
     try {
-      const migratedFlag = `enc_${id}_v1`;
-      const already = meta?.getBoolean(migratedFlag) === true;
-
-      let inst: SimpleStorage;
-      if (already) {
-        // Ya cifrado en una corrida anterior → abrir directo con la clave.
-        inst = new MMKV({ id, encryptionKey: key });
-      } else {
-        // Primera vez: abrir en claro (datos existentes) y cifrar in-place.
-        inst = new MMKV({ id });
-        (inst as unknown as { recrypt: (k: string) => void }).recrypt(key);
-        meta?.set(migratedFlag, true);
-      }
+      const cifradoConV1 = meta?.getBoolean(`enc_${id}_v1`) === true && !!claveV1;
+      const inst: SimpleStorage = cifradoConV1
+        ? new MMKV({ id, encryptionKey: claveV1 })
+        : new MMKV({ id });
+      inst.clearAll();
+      (inst as unknown as { recrypt: (k: string) => void }).recrypt(key);
       inst.contains('__probe__'); // smoke test nativo
       instances.set(id, inst);
     } catch (e) {
       // Un id falla → cae a memoria solo ese id; el resto sigue.
       logStorageFailure(id, e);
+      algunoFallo = true;
     }
   }
+
+  for (const id of SCOPED_PLAIN) {
+    try { new MMKV({ id }).clearAll(); } catch (e) { logStorageFailure(id, e); algunoFallo = true; }
+  }
+
+  // Si algún bucket falló —cifrado (SECURE_IDS) O en claro (SCOPED_PLAIN)— NO
+  // se escribe la marca ni se borra la v1: el estado final tiene que ser
+  // idéntico en los 10 buckets cifrados Y en los buckets en claro por cuenta
+  // (spec §3.2). Una marca con cualquiera de ellos sin vaciar/recifrar lo
+  // dejaría afuera de todo reintento para siempre, porque el próximo arranque
+  // vería `yaEnV2` y ya no repasaría el camino de arranque en limpio para ese
+  // bucket — ni para los cifrados ni para los en claro.
+  if (algunoFallo || !meta) {
+    // Sin marca: el próximo arranque va a repetir el camino de arranque en
+    // limpio entero. No se loguean datos ni claves, sólo que quedó pendiente.
+    console.warn('[secure] arranque en limpio incompleto (algún bucket falló) → se reintenta en el próximo inicio');
+    return;
+  }
+  meta.set(MARCA_CLAVE_V2, true);
+  for (const id of SECURE_IDS) meta.delete(`enc_${id}_v1`);
+  await borrarClaveV1();
 }
 
 /** Solo para tests. */

@@ -51,10 +51,11 @@ function AuthGuard() {
     // Tema en claro y síncrono: se puede hidratar ya (evita flash).
     hydrateTheme();
 
-    // Stores sensibles: primero abrimos el storage CIFRADO (carga la clave del
-    // llavero + migra datos en claro a cifrado in-place), recién ahí hidratamos
-    // los datos de la cuenta activa. authStore arranca isLoading:true, así que
-    // el AuthGuard espera este await.
+    // Stores sensibles: primero abrimos los buckets cifrados con la clave v2
+    // del llavero (haciendo el arranque en limpio de una sola vez, T-124 L-E,
+    // si todavía no corrió), recién ahí hidratamos los datos de la cuenta
+    // activa. authStore arranca isLoading:true, así que el AuthGuard espera
+    // este await.
     let active = true;
     (async () => {
       await bootstrapSecureStorage();

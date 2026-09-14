@@ -1,5 +1,6 @@
 import { createSecureStorage, SECURE_IDS } from '@/src/utils/secureStorage';
 import { createStorage } from '@/src/utils/createStorage';
+import { DEVICE_PREFS, SCOPED_PLAIN } from '@/src/constants/storageBuckets';
 import { useAuthStore } from './authStore';
 
 /**
@@ -12,12 +13,6 @@ import { useAuthStore } from './authStore';
  * NO toca las preferencias de dispositivo (tema e idioma): no son de ninguna
  * cuenta y borrarlas sólo molesta.
  */
-
-/** Lo que NO se borra: preferencias globales del dispositivo, no de una cuenta. */
-const DEVICE_PREFS = ['theme', 'lang'] as const;
-
-/** Storages en claro que sí son por-cuenta. */
-const SCOPED_PLAIN = ['settings', 'tier'] as const;
 
 export type WipeReport = {
   secureBuckets: number;
