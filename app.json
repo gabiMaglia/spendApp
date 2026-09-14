@@ -12,6 +12,7 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.splitp2p.app",
       "usesAppleSignIn": true,
+      "associatedDomains": ["applinks:spendapp.github.io"],
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Usamos tu galería de fotos para elegir tu foto de perfil.",
         "ITSAppUsesNonExemptEncryption": false

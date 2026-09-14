@@ -1,7 +1,8 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { ENLACE_BASE, RUTAS_ENLAZABLES, TIPOS_COMPACTOS } from '@/src/utils/appLink';
-import { BASE_URL, LINKS_URL } from '@/src/constants/web';
+import * as vm from 'vm';
+import { APP_STORE_ID, BASE_URL, LINKS_URL } from '@/src/constants/web';
 
 /**
  * La página que abre la app desde un link (`docs/web/abrir.html`).
@@ -91,5 +92,94 @@ describe('docs/web/abrir.html', () => {
 
   it('la query del formato largo sólo pasa si cumple la whitelist (T-098 L-1)', () => {
     expect(HTML).toContain('/^[A-Za-z0-9%._~=&+-]*$/.test(query)');
+  });
+});
+
+/**
+ * Ejecuta el script real de la página con un `window`/`document`/`navigator` mínimos.
+ * No hay navegador en Jest: esto alcanza para ver QUÉ hace la página por plataforma
+ * (a dónde manda, qué muestra), que es lo que protege el secreto del link (T-097).
+ */
+function ejecutarPagina(opts: { userAgent: string; hash: string; maxTouchPoints?: number; language?: string }) {
+  const script = /<script>([\s\S]*?)<\/script>/.exec(HTML)![1];
+  const elementos: Record<string, { textContent: string; href: string; hidden: boolean }> = {};
+  const el = (id: string) => (elementos[id] ??= { textContent: '', href: '', hidden: true });
+  const metas: Record<string, string>[] = [];
+  const replace = jest.fn();
+  const location = { hash: opts.hash, href: `https://spendapp.github.io/${opts.hash}`, replace };
+  const document = {
+    documentElement: { lang: 'es' },
+    title: '',
+    getElementById: el,
+    createElement: () => {
+      const attrs: Record<string, string> = {};
+      return { attrs, setAttribute: (k: string, v: string) => { attrs[k] = v; } };
+    },
+    head: { appendChild: (nodo: { attrs: Record<string, string> }) => { metas.push(nodo.attrs); } },
+  };
+  vm.runInNewContext(script, {
+    window: { location },
+    document,
+    navigator: { userAgent: opts.userAgent, language: opts.language ?? 'es', maxTouchPoints: opts.maxTouchPoints ?? 0 },
+  });
+  return { elementos, metas, replace, location };
+}
+
+const UA_IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1';
+const UA_IPADOS = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15';
+const UA_ANDROID = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Mobile Safari/537.36';
+
+describe('docs/web/abrir.html en iOS (T-097 · SEC M-4)', () => {
+  it.each([
+    ['iPhone', UA_IPHONE, 0],
+    ['iPadOS (Macintosh con touch)', UA_IPADOS, 5],
+  ])('%s: nunca manda el link por spendapp://', (_n, userAgent, maxTouchPoints) => {
+    const { elementos, replace } = ejecutarPagina({ userAgent, maxTouchPoints, hash: '#cABC_-' });
+    expect(replace).not.toHaveBeenCalled();
+    for (const e of Object.values(elementos)) expect(e.href).not.toMatch(/^spendapp:/i);
+  });
+
+  it('iPhone: pone el Smart App Banner con la URL completa, fragmento incluido', () => {
+    const { metas, location } = ejecutarPagina({ userAgent: UA_IPHONE, hash: '#cABC_-' });
+    expect(metas).toEqual([
+      { name: 'apple-itunes-app', content: `app-id=${APP_STORE_ID}, app-argument=${location.href}` },
+    ]);
+    expect(location.href).toContain('#cABC_-');
+  });
+
+  it('iPhone: el botón lleva a la App Store y la nota explica cómo abrirla', () => {
+    const { elementos } = ejecutarPagina({ userAgent: UA_IPHONE, hash: '#cABC_-' });
+    expect(elementos.abrir.href).toBe(`https://apps.apple.com/app/id${APP_STORE_ID}`);
+    expect(elementos.abrir.textContent).toBe('Descargar spendApp');
+    expect(elementos.nota.textContent).toBe('Si no se abre sola: mantené apretado el link y elegí "Abrir en spendApp", o abrilo desde Safari.');
+    expect(elementos.valido.hidden).toBe(false);
+  });
+
+  it.each([
+    ['en', 'Get spendApp', 'If it doesn\'t open by itself: press and hold the link and choose "Open in spendApp", or open it in Safari.'],
+    ['pt', 'Baixar spendApp', 'Se não abrir sozinho: mantenha o link pressionado e escolha "Abrir no spendApp", ou abra no Safari.'],
+  ])('iPhone en %s: textos traducidos', (language, boton, nota) => {
+    const { elementos } = ejecutarPagina({ userAgent: UA_IPHONE, hash: '#cABC_-', language });
+    expect(elementos.abrir.textContent).toBe(boton);
+    expect(elementos.nota.textContent).toBe(nota);
+  });
+
+  it('Android sigue abriendo con intent:// atado al paquete', () => {
+    const { elementos, replace, metas } = ejecutarPagina({ userAgent: UA_ANDROID, hash: '#cABC_-' });
+    const esperado = 'intent://contact/add?c=ABC_-#Intent;scheme=spendapp;package=com.splitp2p.app;end';
+    expect(elementos.abrir.href).toBe(esperado);
+    expect(replace).toHaveBeenCalledWith(esperado);
+    expect(metas).toEqual([]);
+  });
+
+  it('en iOS un link inválido sigue mostrando «incompleto», sin banner', () => {
+    const { elementos, metas, replace } = ejecutarPagina({ userAgent: UA_IPHONE, hash: '#settle/new?x=1' });
+    expect(elementos.invalido.hidden).toBe(false);
+    expect(metas).toEqual([]);
+    expect(replace).not.toHaveBeenCalled();
+  });
+
+  it('el id de la App Store de la página es el de constants/web', () => {
+    expect(HTML).toContain(`var APP_STORE_ID = '${APP_STORE_ID}'`);
   });
 });

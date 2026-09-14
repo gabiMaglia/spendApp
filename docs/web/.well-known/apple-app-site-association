@@ -1,0 +1,15 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["4GP6785MU4.com.splitp2p.app"],
+        "components": [
+          { "/": "/", "#": "c*", "comment": "contacto, formato compacto" },
+          { "/": "/", "#": "g*", "comment": "invitación, formato compacto" },
+          { "/": "/", "#": "contact/add*", "comment": "contacto, formato largo" },
+          { "/": "/", "#": "groups/join*", "comment": "invitación, formato largo" }
+        ]
+      }
+    ]
+  }
+}
