@@ -256,10 +256,17 @@ describe('guard: quién usa qué merge', () => {
   });
 
   it('los que NO tienen núcleo siguen con el LWW liso', () => {
-    for (const archivo of ['userStore.ts', 'personalStore.ts']) {
-      const texto = readFileSync(resolve(__dirname, '..', archivo), 'utf8');
-      expect(texto).toContain('mergeByIdLWW');
-    }
+    const personal = readFileSync(resolve(__dirname, '..', 'personalStore.ts'), 'utf8');
+    expect(personal).toContain('mergeByIdLWW');
+
+    // userStore.ts (T-137, ADR-012): sigue en la familia LWW lisa — nunca pasa
+    // a `mergeByIdLevels` — pero ya no llama al genérico `mergeByIdLWW`
+    // directo: usa `mergeUsersLWW`, que le agrega el tope de reloj
+    // (`TOLERANCIA_RELOJ_MS`) y por abajo sigue desempatando con
+    // `incomingWins` de `lww.ts`.
+    const user = readFileSync(resolve(__dirname, '..', 'userStore.ts'), 'utf8');
+    expect(user).toContain('mergeUsersLWW');
+    expect(user).not.toContain('mergeByIdLevels');
   });
 });
 

@@ -125,8 +125,11 @@ describe('S3-A1 — drainGroup no adopta claves ajenas ni inyecta personal/regis
     ]});
     usePaymentStore.setState({ payments: [] });
     useUserStore.setState({ users: [
-      { id: 'publisher', name: 'Publisher' } as any,
-      { id: VICTIM, name: 'Victim' } as any,
+      // `updatedAt` numérico y real: T-137 (D2) rechaza un perfil con
+      // `updatedAt` no finito como si fuera basura vandalizada, y esta
+      // fixture representa el estado LEGÍTIMO del publicador, no un ataque.
+      { id: 'publisher', name: 'Publisher', updatedAt: 1_000 } as any,
+      { id: VICTIM, name: 'Victim', updatedAt: 1_000 } as any,
     ]});
 
     const payload = buildGroupPayload('A', 'publisher');

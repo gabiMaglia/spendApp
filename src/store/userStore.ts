@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { readScoped, writeScoped } from './userScope';
-import { mergeByIdLWW } from './lww';
+import { mergeUsersLWW } from './mergeUsersLWW';
 import i18n from '@/src/i18n';
 import { preservarAvatar } from './userAvatar';
 import type { User } from '@/src/types/models';
@@ -16,7 +16,7 @@ interface UserStoreState {
   getUserName: (id: string) => string;
   addOrUpdateUser: (user: User) => void;
   removeUser: (id: string) => void;
-  mergeUsers: (incoming: User[]) => void;
+  mergeUsers: (incoming: User[], now?: number) => void;
   hydrate: () => void;
 }
 
@@ -70,11 +70,17 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
    * ⚠️ **El perfil ajeno NO se verifica, y es una decisión escrita, no un
    * olvido** (T-091). `CORE_KINDS` no incluye `'user'`, así que estos registros
    * no pasan por ninguna firma: **cualquiera con la clave de un grupo puede
-   * reescribirle el nombre y la foto a cualquier miembro.** El riesgo se acepta
-   * declarado — está acotado a miembros del grupo, es reversible (el dueño
-   * reescribe su nombre y gana por LWW con `updatedAt` nuevo) y **no mueve un
-   * centavo**: los importes viven en `Expense` y `Payment`, que sí están
-   * firmados desde T-041.
+   * cambiarle el nombre y la foto visibles a cualquier miembro.** El riesgo se
+   * acepta declarado — está acotado a miembros del grupo, es **reversible**
+   * (el dueño reescribe su nombre y gana por LWW con `updatedAt` nuevo) y **no
+   * mueve un centavo**: los importes viven en `Expense` y `Payment`, que sí
+   * están firmados desde T-041. «Reversible» es la premisa que T-137 (ADR-012)
+   * tuvo que restaurar: sin tope de reloj, un `updatedAt: 9e15` la volvía
+   * falsa — el dueño no podía volver a ganar nunca. `mergeUsersLWW`
+   * (`./mergeUsersLWW.ts`) descarta el desempate por fecha para cualquier
+   * `updatedAt` a más de `TOLERANCIA_RELOJ_MS` de `now`, así que el riesgo
+   * aceptado hoy es **suplantación visual reversible**, no permanente. Ver
+   * ADR-012 opción 1 (`engram/02_architecture.md`).
    *
    * **Lo que sí conviene saber, y la auditoría lo agregó:** el dueño **no se
    * entera**. Su propio teléfono filtra su perfil del sobre entrante
@@ -88,12 +94,19 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
    * la marca sería ruido permanente sobre gente honesta. El costeo completo está
    * en `engram/plans/T-091.md`; el guard que impide reabrirlo por descuido, en
    * `src/sync/__tests__/usersNoEstaFirmado.test.ts`.
+   *
+   * `now` se inyecta con default `syncedNow()` ACÁ, no dentro de
+   * `mergeUsersLWW`: esa función es pura y no puede importar `syncedClock`
+   * (abre almacenamiento nativo). Los tres caminos que sincronizan perfiles
+   * —relay y QR (comparten `applyDelta`, `useSyncQR.ts:145`) y backup
+   * (`src/services/backup.ts:119`)— no pasan `now`, así que los tres heredan
+   * este default.
    */
-  mergeUsers: (incoming) => {
+  mergeUsers: (incoming, now = syncedNow()) => {
     // Los previos se leen ANTES del merge: después de mergear ya no está lo que
     // había, que es justo contra lo que hay que proteger la foto.
     const previos = new Map(get().users.map(u => [u.id, u]));
-    const merged = mergeByIdLWW(get().users, incoming)
+    const merged = mergeUsersLWW(get().users, incoming, now)
       .map(u => preservarAvatar(previos.get(u.id), u));
     persist(merged);
     set({ users: merged });
