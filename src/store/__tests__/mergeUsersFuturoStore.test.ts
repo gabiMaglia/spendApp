@@ -52,12 +52,16 @@ describe('mergeUsers — default `now` (sin pasarlo, como llaman los 3 caminos r
   });
 
   it('camino backup: restaurar un backup con updatedAt futuro no lo adopta', () => {
+    // `applyBackup` REEMPLAZA (vacía el store y mergea sobre `[]`, ver
+    // `backup.ts:102-107`), así que acá no hay local previo con quien competir:
+    // el caso es "id nuevo con updatedAt futuro", que el criterio 1 tampoco deja
+    // agregar — el backup queda SIN carol, no con la vandalizada.
     applyBackup({
       version: 1,
       groups: [], expenses: [], payments: [], recurring: [], comments: [],
       users: [carol({ name: 'Vandalizada por backup', updatedAt: 9e15 })],
       personalEntries: [], personalBudget: {},
     } as never);
-    expect(useUserStore.getState().getUserName('carol')).toBe('Carol');
+    expect(useUserStore.getState().getUserById('carol')).toBeUndefined();
   });
 });
