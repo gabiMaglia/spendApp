@@ -141,3 +141,36 @@ describe('destinoDeUrlExterna', () => {
     expect(destinoDeUrlExterna(undefined as unknown as string)).toBe('/');
   });
 });
+
+describe('destinoDeUrlExterna · Universal Link (T-097)', () => {
+  // Con `applinks:spendapp.github.io`, iOS entrega a la app la URL https completa que se
+  // tocó, fragmento incluido. Tiene que caer en la misma lista blanca que el esquema.
+  it('el link compacto https abre su pantalla', () => {
+    expect(destinoDeUrlExterna('https://spendapp.github.io/#cABC_-')).toBe('/contact/add?c=ABC_-');
+    expect(destinoDeUrlExterna('https://spendapp.github.io/#gXYZ')).toBe('/groups/join?c=XYZ');
+    expect(destinoDeUrlExterna(enlaceCompacto('c', 'QWE'))).toBe('/contact/add?c=QWE');
+  });
+
+  it('el formato largo https abre su pantalla', () => {
+    expect(destinoDeUrlExterna('https://spendapp.github.io/#contact/add?id=u1&name=Ada'))
+      .toBe('/contact/add?id=u1&name=Ada');
+  });
+
+  it.each([
+    'HTTPS://SPENDAPP.GITHUB.IO/#cABC_-',
+    'https://spendapp.github.io#cABC_-',
+  ])('mayúsculas en esquema/host y la variante sin barra también: %s', (url) => {
+    expect(destinoDeUrlExterna(url)).toBe('/contact/add?c=ABC_-');
+  });
+
+  it.each([
+    'https://spendapp.github.io/#settle/new?toId=x&maxAmount=999',
+    'https://spendapp.github.io/#debug/identity',
+    'https://spendapp.github.io/',
+    'https://spendapp.github.io.evil.com/#cABC_-',
+    'https://evil.com/?spendapp.github.io#cABC_-',
+    'https://evil.com/#cABC_-',
+  ])('un https que no es un link enlazable del sitio va al inicio: %s', (url) => {
+    expect(destinoDeUrlExterna(url)).toBe('/');
+  });
+});
