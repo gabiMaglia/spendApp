@@ -43,7 +43,7 @@ export default function FriendsScreen() {
 
   const personBalances = useGlobalPersonBalances(currentUser?.id ?? '');
   const conHistorial   = useContactosConHistorial(currentUser?.id ?? '');
-  const { scrollHandler, progress, contenidoMinimo } = useHeaderColapsable();
+  const { scrollHandler, progress, contenidoMinimo, alMedirScroll } = useHeaderColapsable();
 
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState('');
@@ -108,6 +108,7 @@ export default function FriendsScreen() {
     <SafeAreaView edges={['bottom']} style={[styles.safe, { backgroundColor: c.bg }]}>
       <Animated.ScrollView
         style={limiteContenido}
+        onLayout={alMedirScroll}
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
         onScroll={scrollHandler}

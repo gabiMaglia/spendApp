@@ -42,7 +42,7 @@ export default function GroupsScreen() {
   const setArchived = useArchiveStore(s => s.setArchived);
   const groupTotals = useGroupsTotalBalance(currentUser?.id ?? '');
 
-  const { scrollHandler, progress, contenidoMinimo } = useHeaderColapsable();
+  const { scrollHandler, progress, contenidoMinimo, alMedirScroll } = useHeaderColapsable();
 
   const { fx, display: cur } = useFx();
   const deben = sumConverted(
@@ -85,6 +85,7 @@ export default function GroupsScreen() {
     <SafeAreaView edges={['bottom']} style={[styles.safe, { backgroundColor: c.bg }]}>
       <Animated.ScrollView
         style={limiteContenido}
+        onLayout={alMedirScroll}
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
         onScroll={scrollHandler}

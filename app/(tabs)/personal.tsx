@@ -89,7 +89,7 @@ export default function PersonalScreen() {
   } = useAmountInput(budgetCurrency, budget.monthlyAmount);
 
   /** Scroll del header colapsable. */
-  const { scrollHandler, progress, contenidoMinimo } = useHeaderColapsable();
+  const { scrollHandler, progress, contenidoMinimo, alMedirScroll } = useHeaderColapsable();
 
   const { fx, display: cur, loading: fxLoading } = useFx();
   const [avisoVisto, setAvisoVisto] = useState(false);
@@ -226,6 +226,7 @@ export default function PersonalScreen() {
     <SafeAreaView edges={['bottom']} style={[styles.safe, { backgroundColor: c.bg }]}>
       <Animated.ScrollView
         style={limiteContenido}
+        onLayout={alMedirScroll}
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
         onScroll={scrollHandler}
