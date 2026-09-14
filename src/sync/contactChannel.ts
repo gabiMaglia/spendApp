@@ -268,6 +268,14 @@ function adoptDroppedKey(drop: GroupKeyDrop, myUserId: string): boolean {
     return false;
   }
 
+  // T-132 criterio 4 (`qa/SEC3-2026-09-14.md`): esta guarda es la que hace que
+  // S3-A1 NO se repita acá. `adoptKeys` sólo compara épocas cuando YA existe un
+  // registro para ese `groupId` (`groupKeyStore.ts`); ese branch nunca corre
+  // desde este canal porque acá se corta antes, sin mirar `drop.epoch` para
+  // nada. Sea cual sea la época que traiga el mensaje, no hay sustitución
+  // posible de una clave que ya tenemos. Ver `contactChannel.test.ts` — "una
+  // época absurda en el mensaje NO alcanza para sustituir una clave que ya
+  // tenemos".
   if (useGroupKeyStore.getState().getKey(drop.groupId)) return false; // ya la teníamos
 
   const wrap = ensureWrapKeypair();
