@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-4W/g0DeXO0mcSQX852t9Uvrxr6v+uPZUdmwEROP6Ccw='; style-src 'sha256-KCkMpeLMDZKpQyjwhkkrzJb8R51IFuCQfaZaZ6bYNgQ='; img-src 'none'; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-YYLb4U8BbuJTI7+zHCDjaJM3tNKICK6/HyXWNPuOzjA='; style-src 'sha256-KCkMpeLMDZKpQyjwhkkrzJb8R51IFuCQfaZaZ6bYNgQ='; img-src 'none'; connect-src 'none'; form-action 'none'; base-uri 'none'">
 <title>Abrir en spendApp</title>
 <!--
   Página intermedia de los links que comparte la app (src/utils/appLink.ts).
@@ -19,8 +19,12 @@
   secretos del link — y `src/utils/appLink.ts` ya no acepta esa base.
 
   Gmail y casi cualquier cliente de mail o chat sólo convierten en link lo que empieza con
-  http(s)://, así que la app comparte un link a esta página y la página abre la app con
-  spendapp://.
+  http(s)://, así que la app comparte un link a esta página.
+
+  T-097 (SEC M-4): en iOS, con Universal Links (AASA en /.well-known/), el link abre la app
+  sin pasar por acá. Si la página igual se carga, NUNCA usa spendapp:// —otra app podría
+  declarar ese esquema y quedarse con el secreto—: muestra el Smart App Banner y un botón a
+  la App Store. En Android abre con intent:// atado al paquete.
 
   ⚠️ Los datos llegan en el FRAGMENTO (#ruta?params). El navegador NO manda el fragmento al
   servidor, y el link de contacto lleva un secreto. Por eso esta página no carga NADA de
@@ -93,12 +97,16 @@
   // página NO lo decodifica: se lo pasa a la app como `?c=`, y la app decodifica.
   var TIPOS = { c: 'contact/add', g: 'groups/join' };
   var PAQUETE_ANDROID = 'com.splitp2p.app';
+  // T-097: id de la App Store (src/constants/web.ts, APP_STORE_ID; un test los ata).
+  var APP_STORE_ID = '6801922014';
 
   var TEXTOS = {
     es: {
       'contact/add': ['Te quieren agregar como contacto', 'Abrí el link en spendApp para agregar a esta persona.'],
       'groups/join': ['Te invitaron a un grupo', 'Abrí el link en spendApp para unirte.'],
       abrir: 'Abrir en spendApp',
+      descargar: 'Descargar spendApp',
+      ayudaIos: 'Si no se abre sola: mantené apretado el link y elegí "Abrir en spendApp", o abrilo desde Safari.',
       nota: 'Tenés que tener spendApp instalada en este teléfono. Si el botón no hace nada, abrí este mail o mensaje desde el teléfono donde está la app.',
       inicioTitulo: 'App para dividir gastos',
       inicioCuerpo: 'Los links de contacto y de invitación a grupos que se comparten desde spendApp se abren desde acá.',
@@ -110,6 +118,8 @@
       'contact/add': ['Someone wants to add you as a contact', 'Open the link in spendApp to add this person.'],
       'groups/join': ["You've been invited to a group", 'Open the link in spendApp to join.'],
       abrir: 'Open in spendApp',
+      descargar: 'Get spendApp',
+      ayudaIos: 'If it doesn\'t open by itself: press and hold the link and choose "Open in spendApp", or open it in Safari.',
       nota: 'spendApp needs to be installed on this phone. If the button does nothing, open this email or message on the phone that has the app.',
       inicioTitulo: 'An app to split expenses',
       inicioCuerpo: 'Contact and group invitation links shared from spendApp open from here.',
@@ -121,6 +131,8 @@
       'contact/add': ['Querem adicionar você como contato', 'Abra o link no spendApp para adicionar esta pessoa.'],
       'groups/join': ['Você foi convidado para um grupo', 'Abra o link no spendApp para entrar.'],
       abrir: 'Abrir no spendApp',
+      descargar: 'Baixar spendApp',
+      ayudaIos: 'Se não abrir sozinho: mantenha o link pressionado e escolha "Abrir no spendApp", ou abra no Safari.',
       nota: 'O spendApp precisa estar instalado neste telefone. Se o botão não fizer nada, abra este e-mail ou mensagem no telefone que tem o app.',
       inicioTitulo: 'App para dividir despesas',
       inicioCuerpo: 'Os links de contato e de convite para grupos compartilhados pelo spendApp abrem por aqui.',
@@ -173,22 +185,42 @@
     return;
   }
 
+  texto('titulo', T[ruta][0]);
+  texto('cuerpo', T[ruta][1]);
+  var boton = document.getElementById('abrir');
+  document.getElementById('valido').hidden = false;
+  document.title = T.abrir;
+
+  // iPadOS se presenta como Macintosh: se distingue por el touch.
+  var ua = navigator.userAgent;
+  var esIOS = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+
+  if (esIOS) {
+    // T-097 · SEC M-4: en iOS cualquier app puede declarar `spendapp://` y recibir el
+    // secreto del link. Acá NUNCA se usa el esquema. Con Universal Links la app abre sin
+    // pasar por esta página; si igual se cargó (navegador interno, link pegado), el Smart
+    // App Banner le entrega la URL https completa a spendApp, sin esquema de por medio.
+    var meta = document.createElement('meta');
+    meta.setAttribute('name', 'apple-itunes-app');
+    meta.setAttribute('content', 'app-id=' + APP_STORE_ID + ', app-argument=' + window.location.href);
+    document.head.appendChild(meta);
+    texto('nota', T.ayudaIos);
+    boton.textContent = T.descargar;
+    boton.href = 'https://apps.apple.com/app/id' + APP_STORE_ID;
+    return;
+  }
+
   var destino = ruta + '?' + query;
-  var esAndroid = /android/i.test(navigator.userAgent);
+  var esAndroid = /android/i.test(ua);
   // En Android, `intent://` es la forma confiable de abrir una app desde Chrome; con un
-  // esquema pelado algunos navegadores no hacen nada.
+  // esquema pelado algunos navegadores no hacen nada. Lleva el paquete: sólo abre ESTA app.
   var href = esAndroid
     ? 'intent://' + destino + '#Intent;scheme=spendapp;package=' + PAQUETE_ANDROID + ';end'
     : 'spendapp://' + destino;
 
-  texto('titulo', T[ruta][0]);
-  texto('cuerpo', T[ruta][1]);
   texto('nota', T.nota);
-  var boton = document.getElementById('abrir');
   boton.textContent = T.abrir;
   boton.href = href;
-  document.getElementById('valido').hidden = false;
-  document.title = T.abrir;
 
   // Se intenta abrir solo. Muchos navegadores lo bloquean sin un toque del usuario, y
   // para eso está el botón.
