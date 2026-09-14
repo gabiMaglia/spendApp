@@ -10,17 +10,31 @@
 # Borra del sitio lo que ya no esté en docs/web, para que no quede una página legal vieja
 # publicada que diga algo distinto de la actual.
 #
+# T-134 (SEC3 S3-B1): publica docs/web del COMMIT (HEAD), nunca del árbol de trabajo. Antes
+# copiaba los archivos tal cual estaban en disco, y así podía salir un abrir.html editado a
+# mano que no había pasado sus tests. Si docs/web tiene cambios sin commitear, se niega.
+# También copia docs/web/.well-known/ (el AASA de Universal Links que va a necesitar T-097).
+#
 # Uso: scripts/publicar-sitio.sh
 set -euo pipefail
 
 RAIZ="$(cd "$(dirname "$0")/.." && pwd)"
-WEB="$RAIZ/docs/web"
 DESTINO="https://github.com/spendapp/spendapp.github.io.git"
 
-[ -f "$WEB/abrir.html" ] || { echo "no existe $WEB/abrir.html" >&2; exit 1; }
+if [ -n "$(git -C "$RAIZ" status --porcelain -- docs/web)" ]; then
+  echo "docs/web tiene cambios sin commitear: commitealos (y que pasen los tests) antes de publicar" >&2
+  exit 1
+fi
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
+
+# La fuente es el commit, no el disco.
+mkdir -p "$TMP/fuente"
+git -C "$RAIZ" archive HEAD docs/web | tar -x -C "$TMP/fuente"
+WEB="$TMP/fuente/docs/web"
+
+[ -f "$WEB/abrir.html" ] || { echo "no existe docs/web/abrir.html en HEAD" >&2; exit 1; }
 
 git clone --quiet "$DESTINO" "$TMP/sitio"
 cd "$TMP/sitio"
@@ -38,7 +52,11 @@ for f in "$WEB"/*.html; do
     *) cp "$f" "$nombre" ;;
   esac
 done
-# Sin Jekyll: son HTML estáticos y no hay nada que procesar.
+# Universal Links (T-097): el AASA vive en .well-known/ y va sin extensión.
+if [ -d "$WEB/.well-known" ]; then
+  cp -R "$WEB/.well-known" .well-known
+fi
+# Sin Jekyll: son HTML estáticos y no hay nada que procesar (y Jekyll ignora los .dirs).
 touch .nojekyll
 
 git add -A
