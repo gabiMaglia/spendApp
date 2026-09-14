@@ -45,13 +45,21 @@ necesita cambios, porque el fix es interno a `groupInvite.ts` y la firma públic
    Un receptor que no conozca el prefijo (código anterior a esta ADR) recibe un string con `:`,
    carácter fuera del alfabeto base64 propio del repo (`envelopeCrypto.ts`); su decodificación
    **falla explícito** (`null`), nunca silencioso con una clave equivocada.
-4. **Ventana de transición: 30 días**, igual al TTL del buzón del relay
-   (`supabase/004_compaction.sql`, regla de negocio #8 de `CLAUDE.md`). Es la cota real de cuánto
-   puede seguir "en vuelo" una entrega de clave emitida antes de este cambio: más larga que la
-   invitación por link (48hs) y una cota razonable para la entrega por contacto conocido, que no
-   declara su propio TTL y hereda el del buzón. Durante la ventana, `unwrapGroupKey` acepta
-   **v2** (con el prefijo, HKDF) siempre, y **v1** (sin prefijo, secreto crudo) como
-   compatibilidad. Pasados los 30 días de este cambio, la rama v1 se retira en un ticket aparte.
+4. **Ventana de transición: fecha de corte fija, `V1_ACEPTADO_HASTA` = 2026-10-14T00:00:00Z**
+   (`src/sync/groupInvite.ts`), 30 días desde este cambio (2026-09-14) — el mismo TTL del buzón
+   del relay (`supabase/004_compaction.sql:4`: "Hoy la única retención es el TTL de 30 días.",
+   regla de negocio #8 de `CLAUDE.md`). Es la cota real de cuánto puede seguir "en vuelo" una
+   entrega de clave emitida antes de este cambio: más larga que la invitación por link (48hs) y
+   una cota razonable para la entrega por contacto conocido, que no declara su propio TTL y
+   hereda el del buzón. Es una fecha FIJA en código, no un reloj relativo: el reloj de quien
+   verifica (el receptor) es el único que entra en juego, y manipularlo sólo afecta a ese
+   dispositivo (igual razonamiento que `isInviteExpired`) — no hay pérdida de seguridad en que
+   sea manipulable, porque no hay nada que ganar manipulándolo. `unwrapGroupKey` recibe `ahora`
+   como parámetro inyectable (default `Date.now()`) para poder testear los dos lados del corte.
+   Durante la ventana, acepta **v2** (con el prefijo, HKDF) siempre, y **v1** (sin prefijo,
+   secreto crudo) sólo si `ahora < V1_ACEPTADO_HASTA`; pasado el corte, un v1 devuelve `null`.
+   La rama v1 en sí (el código) se retira en un ticket aparte — lo que cambia acá es que deja de
+   ejecutarse sola, sin depender de ese ticket.
 5. **Sin otros cambios al protocolo:** firmas Ed25519, formato de sobre
    (`envelopeCrypto.ts`) y las demás derivaciones SHA-256 con separación de dominio
    (`inviteKey`/`deriveInviteTopic` de `groupInvite.ts`, `contactChannel.ts`) quedan igual —
@@ -80,9 +88,36 @@ necesita cambios, porque el fix es interno a `groupInvite.ts` y la firma públic
 
 ## 5 · Verificación
 
-- `src/sync/__tests__/groupInvite.test.ts` — describe `KDF con separación de dominio (T-129)`:
-  round-trip v2, prefijo de versión, la clave v2 difiere del secreto crudo, un v1 fabricado a
-  mano sigue abriendo, abrir v2 como v1 falla, cambiar la etiqueta del `info` o invertir el
-  orden de las públicas falla.
+QA Strong (`engram/qa/T-129.md`) y el verificador ciego (`engram/qa/T-129-verifier.md`) rechazaron
+la ronda 1 por dos motivos, ya corregidos: (a) la ventana de v1 no existía en código, sólo en
+comentarios/ADR — corregida con `V1_ACEPTADO_HASTA` (punto 4 arriba); (b) el test que decía probar
+"la clave v2 es distinta del secreto crudo" pasaba por una causa ajena (el `:` del prefijo `v2:`
+rompe el parseo base64 antes de que la clave se use), confirmado por una mutación real en
+`deriveWrapKey` (devolver `shared.slice(0, 32)` sin HKDF) que dejaba la suite en verde.
+
+Estado actual, verificado por mí (no sólo declarado):
+
+- `src/sync/__tests__/groupInvite.test.ts`, describe `KDF con separación de dominio (T-129)`:
+  - round-trip v2 (prefijo `v2:`, sólo el destinatario abre).
+  - **"la clave v2 es distinta del secreto compartido crudo"** — corregida: abre el ciphertext
+    SIN el prefijo (`envuelta.slice('v2:'.length)`) con la clave cruda y exige `null`. Discrimina
+    de verdad la derivación, ya no el parseo del prefijo.
+  - **positivo nuevo** — arma la envoltura a mano con `hkdf(sha256, shared, undefined, info, 32)`
+    e `info` idéntico al que calcula `deriveWrapKey` (dominio + públicas ordenadas), la abre con
+    `unwrapGroupKey` y exige que devuelva la clave de grupo real.
+  - "un v1 fabricado a mano sigue abriendo" (antes del corte) y **"receptor viejo ante v2 falla
+    explícito"** — este último reetiquetado: cubre interoperabilidad hacia atrás (un
+    `openEnvelope` directo con el string `v2:...` falla por el `:` fuera del alfabeto base64), no
+    la derivación de clave — esa la cubren los dos casos anteriores.
+  - cambiar la etiqueta del `info` o invertir el orden de las públicas falla.
+  - **ventana de v1 (fecha fija)**: v1 abre antes de `V1_ACEPTADO_HASTA`, `null` después; v2 abre
+    igual a ambos lados del corte.
+- **Proof of red ejecutado**: reemplacé temporalmente el cuerpo de `deriveWrapKey` por
+  `return shared.slice(0, 32);` (sin HKDF). Cayeron exactamente los dos tests que debían
+  detectarlo — "la clave v2 es distinta del secreto compartido crudo" y "la clave v2 fabricada a
+  mano con HKDF real abre el sobre (positivo)" — 38/40 en verde, 2 en rojo. Se restauró la línea
+  original y se confirmó con `git diff` que no quedó la mutación.
+- `npx jest` (suite completa): 239/239 suites, 2854/2854 tests, verde. `npx tsc --noEmit`: sin
+  errores. `npm run lint`: 127/0 (warnings preexistentes, ninguno en los archivos tocados).
 - `src/sync/__tests__/inviteEngine.test.ts` y `src/sync/__tests__/contactChannel.test.ts` (no
   tocados) siguen en verde sin aflojar ninguna aserción.
