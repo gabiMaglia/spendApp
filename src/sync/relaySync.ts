@@ -1,4 +1,5 @@
 import { buildDelta, applyDelta, type SyncDelta } from './useSyncQR';
+import { acotarDeltaAlGrupo } from './acotarDeltaAlGrupo';
 import { sealEnvelope, openEnvelope, deriveTopic } from './envelopeCrypto';
 import { sendEnvelope, fetchSince, deleteMyEnvelopes, type DeleteResult } from './relay';
 import { groupKeyBytes, useGroupKeyStore } from '@/src/store/groupKeyStore';
@@ -204,7 +205,12 @@ export async function drainGroup(
     void observeAuthor(groupId, delta.fromUserId, firmado.senderKey);
 
     try {
-      applyDelta(delta, currentUserId);
+      // S3-A1: acá pasaba el delta crudo. La firma y el cifrado sólo prueban
+      // quién lo mandó y que tiene la clave del TOPIC — nunca acotan qué puede
+      // venir adentro. Se arma un delta nuevo, campo por campo, con sólo lo que
+      // pertenece a `groupId` antes de tocar cualquier store (ver
+      // `acotarDeltaAlGrupo.ts`).
+      applyDelta(acotarDeltaAlGrupo(delta, groupId), currentUserId);
       applied++;
     } catch {
       skipped++;

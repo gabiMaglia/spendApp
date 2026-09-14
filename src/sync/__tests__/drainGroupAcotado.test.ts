@@ -27,13 +27,16 @@ jest.mock('@/src/sync/relay', () => ({
 jest.mock('@/src/sync/authorHealth', () => ({ observeAuthor: jest.fn() }));
 jest.mock('@/src/sync/authorKeys', () => ({ refreshPendingAuthors: jest.fn(async () => {}) }));
 
-import { drainGroup } from '../relaySync';
+import { drainGroup, buildGroupPayload } from '../relaySync';
 import { sealEnvelope, generateGroupKey, fromHex } from '../envelopeCrypto';
 import { signEnvelope } from '../envelopeSign';
 import { ensureIdentity } from '@/src/store/identityStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { usePersonalStore } from '@/src/store/personalStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
+import { useGroupStore } from '@/src/store/groupStore';
+import { usePaymentStore } from '@/src/store/paymentStore';
+import { useUserStore } from '@/src/store/userStore';
 import { useAuthStore } from '@/src/store/authStore';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import * as relay from '../relay';
@@ -94,5 +97,50 @@ describe('S3-A1 — drainGroup no adopta claves ajenas ni inyecta personal/regis
     // El gasto con groupId '' (el que se cuela a la pestaña Personal vía T-116)
     // no se aplica.
     expect(useExpenseStore.getState().expenses.find(e => e.id === 'x1')).toBeUndefined();
+  });
+
+  // Regla #8 de CLAUDE.md: quien entra tarde a un grupo tiene que ver TODO el
+  // historial por el relay. El recorte no puede tirar el caso legítimo junto
+  // con el hostil.
+  it('un miembro nuevo que drena el sobre legítimo del grupo sigue viendo todo el historial', async () => {
+    // El publicador (otro dispositivo) arma su estado real de A.
+    useAuthStore.setState({ currentUser: { id: 'publisher' } as User });
+    useGroupStore.setState({ groups: [
+      { id: 'A', name: 'Asado', memberIds: ['publisher', VICTIM], currency: 'ARS',
+        createdAt: 0, createdById: 'publisher', deletionVotes: [],
+        updatedAt: 1_000, isDeleted: false } as any,
+    ]});
+    useExpenseStore.setState({ expenses: [
+      { id: 'histA', groupId: 'A', description: 'Carne', amount: 20_000, currency: 'ARS',
+        paidById: 'publisher', splitMode: 'equal', splits: [], category: 'food', date: 0,
+        createdAt: 0, createdById: 'publisher', deletionVotes: [],
+        updatedAt: 1_000, isDeleted: false } as any,
+    ]});
+    usePaymentStore.setState({ payments: [] });
+    useUserStore.setState({ users: [
+      { id: 'publisher', name: 'Publisher' } as any,
+      { id: VICTIM, name: 'Victim' } as any,
+    ]});
+
+    const payload = buildGroupPayload('A', 'publisher');
+    useGroupKeyStore.getState().adoptKeys([{ groupId: 'A', key: toHex(generateGroupKey()), epoch: 1 }]);
+    const keyA = useGroupKeyStore.getState().getKey('A')!;
+
+    const sealed = sealEnvelope(fromHex(keyA.key), JSON.stringify(payload));
+    const signedPayload = signEnvelope(sealed, ensureIdentity().privateKey);
+    (relay.fetchSince as jest.Mock).mockResolvedValue({
+      ok: true, envelopes: [{ seq: 1, payload: signedPayload }], cursor: 1,
+    });
+
+    // El nuevo miembro (VICTIM) no tiene nada local todavía.
+    useGroupStore.setState({ groups: [] });
+    useExpenseStore.setState({ expenses: [] });
+    useAuthStore.setState({ currentUser: { id: VICTIM } as User });
+
+    const r = await drainGroup('A', VICTIM, 'dev2', 0);
+
+    expect(r).toMatchObject({ ok: true, applied: 1 });
+    expect(useGroupStore.getState().groups.map(g => g.id)).toEqual(['A']);
+    expect(useExpenseStore.getState().expenses.map(e => e.id)).toEqual(['histA']);
   });
 });
