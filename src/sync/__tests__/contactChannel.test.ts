@@ -426,6 +426,41 @@ describe('crear un grupo con un contacto: le llega solo', () => {
     expect(r.joinedGroups).toEqual([]);
     expect(useGroupKeyStore.getState().getKey('g1')?.key).toBe(propia);
   });
+
+  // T-132 criterio 4 (`qa/SEC3-2026-09-14.md`, nota de alcance sobre
+  // `contactChannel.ts:279`): S3-A1 sustituye una clave EXISTENTE porque
+  // `groupKeyStore.adoptKeys` compara épocas cuando ya hay un registro para ese
+  // `groupId`. Acá el guard de `adoptDroppedKey` (`contactChannel.ts:271`,
+  // `if (useGroupKeyStore.getState().getKey(drop.groupId)) return false`)
+  // corta ANTES de llegar a `adoptKeys` si ya tenemos la clave — así que ese
+  // branch de comparación de épocas nunca se ejecuta desde este canal, sea cual
+  // sea la época que traiga el mensaje. No es "lo mismo que S3-A1": no hay
+  // sustitución posible, con época absurda o sin ella.
+  it('una época absurda en el mensaje NO alcanza para sustituir una clave que ya tenemos', async () => {
+    const { deBeto } = await yaSonContactos();
+
+    usar(ANA);
+    useGroupKeyStore.getState().ensureKey('g1'); // época 1
+    await sendGroupKey(BETO.id, { id: 'g1', name: 'Viaje' }, 'dev-ana');
+
+    usar(BETO);
+    const propia = useGroupKeyStore.getState().ensureKey('g1'); // Beto ya la tiene
+    await drainContacts(deBeto, 'dev-beto', 0); // se descarta por "ya la teníamos"
+
+    // Ana (o un cliente modificado que se hace pasar por ella, firmando con su
+    // identidad real) sube su propia época a un valor absurdo y reenvía.
+    usar(ANA);
+    useGroupKeyStore.setState({
+      keys: useGroupKeyStore.getState().keys.map(k => k.groupId === 'g1' ? { ...k, epoch: 1e9 } : k),
+    });
+    await sendGroupKey(BETO.id, { id: 'g1', name: 'Viaje' }, 'dev-ana');
+
+    usar(BETO);
+    const r = await drainContacts(deBeto, 'dev-beto', 1); // sólo el segundo envío
+
+    expect(r.joinedGroups).toEqual([]);
+    expect(useGroupKeyStore.getState().getKey('g1')).toEqual(propia);
+  });
 });
 
 describe('claves de grupo: lo que NO se acepta', () => {
