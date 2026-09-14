@@ -1,4 +1,6 @@
-import { snapshot, noticesFor, esAccionable, msRestanteDeBorrado, type Notice } from '../syncNotices';
+import {
+  snapshot, noticesFor, esAccionable, msRestanteDeBorrado, nombreDeGrupoEnConflicto, type Notice,
+} from '../syncNotices';
 import { DELETION_TIMEOUT_MS } from '@/src/sync/SyncEngine';
 import type { Expense, Group, Payment } from '@/src/types/models';
 
@@ -368,7 +370,7 @@ describe('avisos de saldo', () => {
 });
 
 describe('esAccionable (T-062)', () => {
-  it('deletion, settlement_pending, sync_down y clock_off piden acción; el resto informa', () => {
+  it('deletion, settlement_pending, sync_down, clock_off y group_key_conflict piden acción; el resto informa', () => {
     // `Record<Notice['kind'], boolean>` en vez de dos ejemplos sueltos: si se
     // agrega un `kind` a `Notice` sin decidir acá, este objeto deja de
     // compilar — la exhaustividad la garantiza el tipo, no el `expect` de abajo.
@@ -377,6 +379,7 @@ describe('esAccionable (T-062)', () => {
       settlement_pending: esAccionable('settlement_pending'),
       sync_down: esAccionable('sync_down'),
       clock_off: esAccionable('clock_off'),
+      group_key_conflict: esAccionable('group_key_conflict'),
       expenses: esAccionable('expenses'),
       settled: esAccionable('settled'),
       restored: esAccionable('restored'),
@@ -387,8 +390,21 @@ describe('esAccionable (T-062)', () => {
       // app: clasificarlo como historia dejaría al usuario viendo fechas mal
       // para siempre sin saber por qué.
       deletion: true, settlement_pending: true, sync_down: true, clock_off: true,
+      // T-136: leerlo no lo resuelve — hay que elegir una clave.
+      group_key_conflict: true,
       expenses: false, settled: false, restored: false, joined: false,
     });
+  });
+});
+
+describe('nombreDeGrupoEnConflicto (T-136)', () => {
+  const t = (key: string, opts?: Record<string, unknown>) => `${key}(${JSON.stringify(opts ?? {})})`;
+
+  it('siempre se marca «sin verificar», aunque el nombre sea el del grupo local (PO 2026-09-14)', () => {
+    // Un grupo local en conflicto pudo drenarse con la clave en disputa: su nombre
+    // puede haberlo escrito el atacante tanto como el del drop.
+    expect(nombreDeGrupoEnConflicto({ groupName: 'Viaje' }, t))
+      .toBe('sync.keyConflict.unverified_name({"group":"Viaje"})');
   });
 });
 

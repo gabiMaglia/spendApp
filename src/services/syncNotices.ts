@@ -84,6 +84,15 @@ export type Notice =
    */
   | { kind: 'sync_down'; groupId: string; groupName: string; reason: BlockingReason }
   /**
+   * Dos o más contactos entregaron claves DISTINTAS para el mismo grupo
+   * (T-136 · ADR-013). No se adoptó ninguna sola: el usuario elige.
+   *
+   * El nombre se muestra siempre «sin verificar» (`nombreDeGrupoEnConflicto`):
+   * pudo escribirlo el remitente. `senderIds` es la foto del momento del aviso; la
+   * tarjeta relee las ofertas vivas (`ofertasDe`).
+   */
+  | { kind: 'group_key_conflict'; groupId: string; groupName: string; senderIds: string[] }
+  /**
    * El reloj del teléfono está mal por más de cinco minutos (T-038).
    *
    * El merge ya está corregido —`syncedNow()` lo compensa contra el relay— pero
@@ -114,6 +123,8 @@ export function esAccionable(kind: Notice['kind']): boolean {
     // clasificara como historia, el usuario no arreglaría nunca la hora y
     // seguiría viendo fechas equivocadas sin saber por qué.
     case 'clock_off':
+    // T-136: leerlo no resuelve nada; hay que elegir una clave.
+    case 'group_key_conflict':
       return true;
     case 'expenses':
     case 'settled':
@@ -121,6 +132,23 @@ export function esAccionable(kind: Notice['kind']): boolean {
     case 'joined':
       return false;
   }
+}
+
+export type KeyConflictNotice = Extract<Notice, { kind: 'group_key_conflict' }>;
+
+/**
+ * Nombre del grupo tal como se muestra en un conflicto de clave (T-136).
+ * Una sola función para el aviso y para la tarjeta: dos redacciones del mismo
+ * «sin verificar» se contradicen sin que nadie mire.
+ *
+ * SIEMPRE «sin verificar» (PO, 2026-09-14): aunque el grupo exista localmente,
+ * pudo drenarse con la clave en disputa y su nombre ser del atacante.
+ */
+export function nombreDeGrupoEnConflicto(
+  notice: Pick<KeyConflictNotice, 'groupName'>,
+  t: (key: string, opts?: Record<string, unknown>) => string,
+): string {
+  return t('sync.keyConflict.unverified_name', { group: notice.groupName });
 }
 
 export type Snapshot = {

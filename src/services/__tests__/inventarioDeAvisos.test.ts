@@ -62,6 +62,12 @@ const INVENTARIO: Record<string, string> = {
    * (`sync/clockNotice.ts`), así que no puede volverse ruido.
    */
   clock_off: 'el reloj del teléfono está mal y las fechas se ven cambiadas',
+  /**
+   * **Pide elegir, y entra igual** (T-136 · ADR-013). Lo que llega a la bandeja
+   * es enterarse; la elección se hace en la tarjeta que abre el aviso, con los
+   * remitentes delante. Un modal en el arranque sería lo que el PO no quiere.
+   */
+  group_key_conflict: 'dos o más contactos entregaron claves distintas para un grupo y hay que elegir una',
 };
 
 /** Los `kind` declarados en la unión `Notice`, leídos del fuente. */
