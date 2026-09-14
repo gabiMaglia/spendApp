@@ -17,16 +17,6 @@
  * `scratchpad/poc/sec3RelayScope.test.ts`, con aserciones en vez de logs.
  */
 
-jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
-jest.mock('@/src/sync/relayEngine', () => ({ schedulePublish: jest.fn(), deviceId: () => 'dev' }));
-jest.mock('@/src/sync/relay', () => ({
-  ...jest.requireActual('@/src/sync/relay'),
-  fetchSince: jest.fn(),
-  sendEnvelope: jest.fn(async () => ({ ok: true, seq: 1 })),
-}));
-jest.mock('@/src/sync/authorHealth', () => ({ observeAuthor: jest.fn() }));
-jest.mock('@/src/sync/authorKeys', () => ({ refreshPendingAuthors: jest.fn(async () => {}) }));
-
 import { drainGroup, buildGroupPayload } from '../relaySync';
 import { sealEnvelope, generateGroupKey, fromHex } from '../envelopeCrypto';
 import { signEnvelope } from '../envelopeSign';
@@ -41,6 +31,16 @@ import { useAuthStore } from '@/src/store/authStore';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import * as relay from '../relay';
 import type { User } from '@/src/types/models';
+
+jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
+jest.mock('@/src/sync/relayEngine', () => ({ schedulePublish: jest.fn(), deviceId: () => 'dev' }));
+jest.mock('@/src/sync/relay', () => ({
+  ...jest.requireActual('@/src/sync/relay'),
+  fetchSince: jest.fn(),
+  sendEnvelope: jest.fn(async () => ({ ok: true, seq: 1 })),
+}));
+jest.mock('@/src/sync/authorHealth', () => ({ observeAuthor: jest.fn() }));
+jest.mock('@/src/sync/authorKeys', () => ({ refreshPendingAuthors: jest.fn(async () => {}) }));
 
 const toHex = (b: Uint8Array) => Array.from(b).map(x => x.toString(16).padStart(2, '0')).join('');
 const VICTIM = 'victim';
