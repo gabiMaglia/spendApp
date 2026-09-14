@@ -13,10 +13,31 @@
       "bundleIdentifier": "com.splitp2p.app",
       "usesAppleSignIn": true,
       "infoPlist": {
-        "NSPhotoLibraryUsageDescription": "Necesitamos acceso a tus fotos para adjuntar imágenes de tickets.",
-        "ITSAppUsesNonExemptEncryption": false,
-        "NSFaceIDUsageDescription": "spendApp usa Face ID para proteger la app cuando la abrís."
+        "NSPhotoLibraryUsageDescription": "Usamos tu galería de fotos para elegir tu foto de perfil.",
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "privacyManifests": {
+        "NSPrivacyCollectedDataTypes": [
+          {
+            "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypeEmailAddress",
+            "NSPrivacyCollectedDataTypeLinked": true,
+            "NSPrivacyCollectedDataTypeTracking": false,
+            "NSPrivacyCollectedDataTypePurposes": ["NSPrivacyCollectedDataTypePurposeAppFunctionality"]
+          },
+          {
+            "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypeUserID",
+            "NSPrivacyCollectedDataTypeLinked": true,
+            "NSPrivacyCollectedDataTypeTracking": false,
+            "NSPrivacyCollectedDataTypePurposes": ["NSPrivacyCollectedDataTypePurposeAppFunctionality"]
+          }
+        ],
+        "NSPrivacyTracking": false
       }
+    },
+    "locales": {
+      "es": "./locales/es.json",
+      "en": "./locales/en.json",
+      "pt": "./locales/pt.json"
     },
     "android": {
       "package": "com.splitp2p.app",
@@ -64,7 +85,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Necesitamos acceso a la cámara para escanear tickets y códigos QR.",
+          "cameraPermission": "Usamos la cámara para sacar una foto del ticket al cargar un gasto y para escanear códigos QR al agregar un contacto.",
           "microphonePermission": false,
           "recordAudioAndroid": false
         }
@@ -72,7 +93,7 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Necesitamos acceso a tus fotos para adjuntar imágenes de tickets."
+          "photosPermission": "Usamos tu galería de fotos para elegir tu foto de perfil."
         }
       ],
       [
