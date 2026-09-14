@@ -6,6 +6,9 @@ import {
 } from '../groupInvite';
 import { openEnvelope, sealEnvelope, fromHex } from '../envelopeCrypto';
 import * as Crypto from 'expo-crypto';
+import { x25519 } from '@noble/curves/ed25519.js';
+import { hkdf } from '@noble/hashes/hkdf.js';
+import { sha256 } from '@noble/hashes/sha2.js';
 
 /** La misma derivación que usa el módulo, para poder alterar un sobre sellado. */
 async function claveDelToken(token: string): Promise<Uint8Array> {
@@ -163,6 +166,84 @@ describe('envoltura de la clave del grupo', () => {
     const gk = 'dd'.repeat(32);
 
     expect(wrapGroupKey(gk, invitado.publicKey, miembro.privateKey)).not.toContain(gk);
+  });
+
+  // T-129: el secreto X25519 ya no se usa directo como clave AEAD (T-121 §1.3.4).
+  describe('KDF con separación de dominio (T-129)', () => {
+    it('la envoltura nueva se emite versionada (v2)', () => {
+      const miembro = generateWrapKeypair();
+      const invitado = generateWrapKeypair();
+
+      const envuelta = wrapGroupKey('cc'.repeat(32), invitado.publicKey, miembro.privateKey);
+
+      expect(envuelta.startsWith('v2:')).toBe(true);
+    });
+
+    it('la clave v2 es distinta del secreto compartido crudo', () => {
+      const miembro = generateWrapKeypair();
+      const invitado = generateWrapKeypair();
+      const gk = 'cc'.repeat(32);
+
+      const envuelta = wrapGroupKey(gk, invitado.publicKey, miembro.privateKey);
+      const shared = x25519.getSharedSecret(fromHex(miembro.privateKey), fromHex(invitado.publicKey));
+
+      // Un lector que sólo conoce el secreto crudo (pre-T-129) no puede abrir
+      // el sobre nuevo: ni la clave ni el formato coinciden con lo que espera.
+      expect(openEnvelope(shared.slice(0, 32), envuelta)).not.toBe(gk);
+    });
+
+    it('un mensaje v1 (secreto crudo, sin prefijo) emitido antes de este cambio se sigue abriendo', () => {
+      const miembro = generateWrapKeypair();
+      const invitado = generateWrapKeypair();
+      const gk = 'ee'.repeat(32);
+
+      // Fabricado como lo hacía el código viejo: sin KDF, sin prefijo de versión.
+      const shared = x25519.getSharedSecret(fromHex(miembro.privateKey), fromHex(invitado.publicKey));
+      const v1 = sealEnvelope(shared.slice(0, 32), gk);
+
+      expect(unwrapGroupKey(v1, miembro.publicKey, invitado.privateKey)).toBe(gk);
+    });
+
+    it('un intento de abrir un sobre v2 como si fuera v1 falla', () => {
+      const miembro = generateWrapKeypair();
+      const invitado = generateWrapKeypair();
+      const gk = 'ff'.repeat(32);
+
+      const envuelta = wrapGroupKey(gk, invitado.publicKey, miembro.privateKey);
+      // "Como v1": un unwrapGroupKey viejo no sabe de prefijos ni de HKDF, sólo
+      // sabe abrir con el secreto crudo tal cual llega el string.
+      const shared = x25519.getSharedSecret(fromHex(invitado.privateKey), fromHex(miembro.publicKey));
+      expect(openEnvelope(shared.slice(0, 32), envuelta)).not.toBe(gk);
+    });
+
+    it('si se cambia la etiqueta de contexto del info, el descifrado falla', () => {
+      const miembro = generateWrapKeypair();
+      const invitado = generateWrapKeypair();
+      const gk = '11'.repeat(32);
+
+      const shared = x25519.getSharedSecret(fromHex(miembro.privateKey), fromHex(invitado.publicKey));
+      const [a, b] = [miembro.publicKey, invitado.publicKey].sort();
+      const infoConEtiquetaVieja = new TextEncoder().encode(`spendapp/grupo-clave/v1:${a}:${b}`);
+      const key = hkdf(sha256, shared, undefined, infoConEtiquetaVieja, 32);
+      const fabricado = 'v2:' + sealEnvelope(key, gk);
+
+      expect(unwrapGroupKey(fabricado, miembro.publicKey, invitado.privateKey)).toBeNull();
+    });
+
+    it('si el info invierte el orden canónico de las públicas, el descifrado falla', () => {
+      const miembro = generateWrapKeypair();
+      const invitado = generateWrapKeypair();
+      const gk = '22'.repeat(32);
+
+      const shared = x25519.getSharedSecret(fromHex(miembro.privateKey), fromHex(invitado.publicKey));
+      const [a, b] = [miembro.publicKey, invitado.publicKey].sort();
+      // Orden invertido respecto del canónico (a < b): b primero, a segundo.
+      const infoInvertido = new TextEncoder().encode(`spendapp/grupo-clave/v2:${b}:${a}`);
+      const key = hkdf(sha256, shared, undefined, infoInvertido, 32);
+      const fabricado = 'v2:' + sealEnvelope(key, gk);
+
+      expect(unwrapGroupKey(fabricado, miembro.publicKey, invitado.privateKey)).toBeNull();
+    });
   });
 });
 
