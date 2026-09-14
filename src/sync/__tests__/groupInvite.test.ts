@@ -2,7 +2,7 @@ import {
   generateIdentity, generateWrapKeypair, fingerprint,
   createInvite, inviteToLink, parseInviteLink, inviteFromParams, isInviteExpired,
   deriveInviteTopic, sealClaim, openClaim, sealGrant, openGrant,
-  wrapGroupKey, unwrapGroupKey, type InviteClaim, type UnsignedGrant,
+  wrapGroupKey, unwrapGroupKey, V1_ACEPTADO_HASTA, type InviteClaim, type UnsignedGrant,
 } from '../groupInvite';
 import { openEnvelope, sealEnvelope, fromHex } from '../envelopeCrypto';
 import * as Crypto from 'expo-crypto';
@@ -187,9 +187,28 @@ describe('envoltura de la clave del grupo', () => {
       const envuelta = wrapGroupKey(gk, invitado.publicKey, miembro.privateKey);
       const shared = x25519.getSharedSecret(fromHex(miembro.privateKey), fromHex(invitado.publicKey));
 
-      // Un lector que sólo conoce el secreto crudo (pre-T-129) no puede abrir
-      // el sobre nuevo: ni la clave ni el formato coinciden con lo que espera.
-      expect(openEnvelope(shared.slice(0, 32), envuelta)).not.toBe(gk);
+      // QA T-129 (ronda 2): con el prefijo "v2:" puesto, `:` rompe el parseo
+      // base64 ANTES de que la clave se use — el test pasaba por eso, no por
+      // la derivación, y no detectaba una regresión que devolviera el secreto
+      // crudo. Hay que sacar el prefijo para comparar de verdad la clave.
+      expect(openEnvelope(shared.slice(0, 32), envuelta.slice('v2:'.length))).not.toBe(gk);
+    });
+
+    it('la clave v2 fabricada a mano con HKDF real abre el sobre (positivo)', () => {
+      const miembro = generateWrapKeypair();
+      const invitado = generateWrapKeypair();
+      const gk = '33'.repeat(32);
+
+      // Arma la envoltura EXACTAMENTE como `deriveWrapKey`: mismo dominio,
+      // mismas públicas en orden canónico. Si `unwrapGroupKey` esperara otra
+      // cosa (otro `info`, otro orden, sin HKDF), esto no abriría.
+      const shared = x25519.getSharedSecret(fromHex(miembro.privateKey), fromHex(invitado.publicKey));
+      const [a, b] = [miembro.publicKey, invitado.publicKey].sort();
+      const infoEsperado = new TextEncoder().encode(`spendapp/grupo-clave/v2:${a}:${b}`);
+      const key = hkdf(sha256, shared, undefined, infoEsperado, 32);
+      const fabricado = 'v2:' + sealEnvelope(key, gk);
+
+      expect(unwrapGroupKey(fabricado, miembro.publicKey, invitado.privateKey)).toBe(gk);
     });
 
     it('un mensaje v1 (secreto crudo, sin prefijo) emitido antes de este cambio se sigue abriendo', () => {
@@ -204,16 +223,18 @@ describe('envoltura de la clave del grupo', () => {
       expect(unwrapGroupKey(v1, miembro.publicKey, invitado.privateKey)).toBe(gk);
     });
 
-    it('un intento de abrir un sobre v2 como si fuera v1 falla', () => {
+    it('receptor viejo ante v2 falla explícito (interoperabilidad hacia atrás, no deriva clave)', () => {
       const miembro = generateWrapKeypair();
       const invitado = generateWrapKeypair();
       const gk = 'ff'.repeat(32);
 
       const envuelta = wrapGroupKey(gk, invitado.publicKey, miembro.privateKey);
-      // "Como v1": un unwrapGroupKey viejo no sabe de prefijos ni de HKDF, sólo
-      // sabe abrir con el secreto crudo tal cual llega el string.
+      // Un receptor pre-T-129 no conoce el prefijo "v2:" ni HKDF: llama
+      // directo a `openEnvelope` con el string completo (con el ":" adentro).
+      // Falla explícito (null) por parseo base64 — no es la propiedad de
+      // derivación de clave (ver el test anterior, que sí la aisla).
       const shared = x25519.getSharedSecret(fromHex(invitado.privateKey), fromHex(miembro.publicKey));
-      expect(openEnvelope(shared.slice(0, 32), envuelta)).not.toBe(gk);
+      expect(openEnvelope(shared.slice(0, 32), envuelta)).toBeNull();
     });
 
     it('si se cambia la etiqueta de contexto del info, el descifrado falla', () => {
@@ -243,6 +264,40 @@ describe('envoltura de la clave del grupo', () => {
       const fabricado = 'v2:' + sealEnvelope(key, gk);
 
       expect(unwrapGroupKey(fabricado, miembro.publicKey, invitado.privateKey)).toBeNull();
+    });
+
+    describe('ventana de v1: fecha de corte fija (QA T-129 ronda 2)', () => {
+      it('un v1 sigue abriendo antes del corte', () => {
+        const miembro = generateWrapKeypair();
+        const invitado = generateWrapKeypair();
+        const gk = '44'.repeat(32);
+        const shared = x25519.getSharedSecret(fromHex(miembro.privateKey), fromHex(invitado.publicKey));
+        const v1 = sealEnvelope(shared.slice(0, 32), gk);
+
+        const antesDelCorte = V1_ACEPTADO_HASTA - 1;
+        expect(unwrapGroupKey(v1, miembro.publicKey, invitado.privateKey, antesDelCorte)).toBe(gk);
+      });
+
+      it('un v1 ya NO abre pasado el corte', () => {
+        const miembro = generateWrapKeypair();
+        const invitado = generateWrapKeypair();
+        const gk = '55'.repeat(32);
+        const shared = x25519.getSharedSecret(fromHex(miembro.privateKey), fromHex(invitado.publicKey));
+        const v1 = sealEnvelope(shared.slice(0, 32), gk);
+
+        const despuesDelCorte = V1_ACEPTADO_HASTA + 1;
+        expect(unwrapGroupKey(v1, miembro.publicKey, invitado.privateKey, despuesDelCorte)).toBeNull();
+      });
+
+      it('v2 abre igual, antes y después del corte — el corte sólo afecta la rama v1', () => {
+        const miembro = generateWrapKeypair();
+        const invitado = generateWrapKeypair();
+        const gk = '66'.repeat(32);
+        const envuelta = wrapGroupKey(gk, invitado.publicKey, miembro.privateKey);
+
+        expect(unwrapGroupKey(envuelta, miembro.publicKey, invitado.privateKey, V1_ACEPTADO_HASTA - 1)).toBe(gk);
+        expect(unwrapGroupKey(envuelta, miembro.publicKey, invitado.privateKey, V1_ACEPTADO_HASTA + 1)).toBe(gk);
+      });
     });
   });
 });

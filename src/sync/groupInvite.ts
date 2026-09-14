@@ -306,6 +306,23 @@ const WRAP_KDF_INFO_PREFIX = 'spendapp/grupo-clave/v2';
 const WRAP_V2_PREFIX = 'v2:';
 
 /**
+ * Corte de la ventana de transición v1 (QA T-129 ronda 2: la ventana "de 30
+ * días" no estaba implementada, sólo documentada).
+ *
+ * Es una FECHA FIJA en código, no un reloj relativo (`Date.now() - emitidoEn
+ * < 30dias` o similar): el reloj de quien VERIFICA (el receptor) es el único
+ * que importa acá — igual que en `isInviteExpired` — y una fecha fija no le
+ * da a nadie nada que ganar manipulándolo. Si alguien adelanta su propio
+ * reloj, sólo logra que SU dispositivo deje de aceptar v1 antes; si lo
+ * atrasa, sigue aceptando v1 un rato más, pero eso ya era cierto sin fecha de
+ * corte (v1 abría siempre). No hay una fecha de emisión firmada en el sobre
+ * v1 (es sólo el secreto crudo, sin metadata) de la que derivar un vencimiento
+ * relativo sin tocar el formato del sobre — y tocar el formato está fuera de
+ * alcance de este ticket ("sin cambios a sobres ni firmas").
+ */
+export const V1_ACEPTADO_HASTA = Date.UTC(2026, 9, 14, 0, 0, 0); // 2026-10-14T00:00:00Z
+
+/**
  * Deriva la clave simétrica del secreto X25519 con HKDF-SHA256 (RFC 5869) y
  * separación de dominio. El `info` ata las DOS públicas, en orden canónico
  * (lexicográfico) — así emisor y receptor derivan la misma clave sin que
@@ -340,15 +357,19 @@ export function wrapGroupKey(
 
 /**
  * Abre una envoltura. Acepta v2 (HKDF) siempre, y v1 (secreto crudo, sin
- * prefijo) durante la ventana de transición documentada en el ADR de T-129:
- * 30 días, el mismo TTL del buzón del relay — es la cota real de cuánto puede
- * seguir "en vuelo" una entrega vieja (invitación de grupo o de contacto).
- * Pasada esa ventana, la rama v1 se puede retirar en un ticket aparte.
+ * prefijo) sólo hasta `V1_ACEPTADO_HASTA`. Pasado ese corte, un sobre v1
+ * devuelve `null` — igual que si estuviera corrupto — en vez de intentar
+ * abrirlo: la rama v1 sigue en el código (retirarla es un ticket aparte),
+ * pero deja de ejecutarse.
+ *
+ * `ahora` es inyectable (default `Date.now()`) para poder testear los dos
+ * lados del corte sin manipular el reloj real.
  */
 export function unwrapGroupKey(
   wrapped: string,
   senderWrapPublicKey: string,
   recipientPrivateKey: string,
+  ahora: number = Date.now(),
 ): string | null {
   const shared = x25519.getSharedSecret(fromHex(recipientPrivateKey), fromHex(senderWrapPublicKey));
 
@@ -358,7 +379,9 @@ export function unwrapGroupKey(
     return openEnvelope(key, wrapped.slice(WRAP_V2_PREFIX.length));
   }
 
-  // v1: sin prefijo, secreto crudo. Deuda heredada de T-121 §1.3.4, en transición.
+  // v1: sin prefijo, secreto crudo. Deuda heredada de T-121 §1.3.4, en
+  // transición sólo hasta el corte fijo — ver `V1_ACEPTADO_HASTA`.
+  if (ahora >= V1_ACEPTADO_HASTA) return null;
   return openEnvelope(shared.slice(0, 32), wrapped);
 }
 
