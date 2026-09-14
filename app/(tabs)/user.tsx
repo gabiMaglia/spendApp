@@ -40,8 +40,8 @@ import { useLiveValue } from '@/src/hooks/useLiveValue';
 import { TabHeader } from '@/src/components/TabHeader';
 import { useHeaderPadding, useLimiteContenido } from '@/src/components/CollapsibleHeader';
 import * as DocumentPicker from 'expo-document-picker';
-import * as Sharing from 'expo-sharing';
-import { File, Paths } from 'expo-file-system';
+import { File } from 'expo-file-system';
+import { compartirArchivoTemporal } from '@/src/services/compartirArchivoTemporal';
 import {
   buildBackup, serializeBackup, parseBackup, applyBackup, backupFileName,
 } from '@/src/services/backup';
@@ -133,18 +133,24 @@ export default function UserScreen() {
     void Linking.openURL(urlDeTienda());
   }
 
-  async function handleExport() {
+  // T-124 · SEC L-F: el respaldo trae nombre/email/gastos/comentarios de OTRAS
+  // personas del grupo, en claro. El usuario tiene que saberlo ANTES de
+  // elegir a dónde lo manda (WhatsApp, iCloud Drive, lo que sea) — confirmar
+  // acá, no después, es lo único que puede evitar que lo mande sin pensar.
+  function handleExport() {
+    Alert.alert(
+      t('backup.export_warning_title'),
+      t('backup.export_warning_body'),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        { text: t('backup.export_warning_confirm'), onPress: () => void ejecutarExport() },
+      ],
+    );
+  }
+
+  async function ejecutarExport() {
     try {
-      const file = new File(Paths.cache, backupFileName());
-      file.write(serializeBackup(buildBackup()));
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(file.uri, {
-          mimeType: 'application/json',
-          dialogTitle: t('backup.export'),
-        });
-      } else {
-        Alert.alert(t('backup.export'), file.uri);
-      }
+      await compartirArchivoTemporal(backupFileName(), serializeBackup(buildBackup()), t('backup.export'));
     } catch {
       Alert.alert(t('backup.export_error'));
     }
