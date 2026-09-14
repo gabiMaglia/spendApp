@@ -25,6 +25,11 @@ import { join } from 'path';
  * detectarse a sí mismo. Si alguien lo convierte en un barrido de `src/`,
  * tiene que excluir `__tests__` — al proyecto ya le pasó tres veces
  * (`src/__tests__/noHardcodedCurrency.test.ts`).
+ *
+ * **T-122 · OTA apagado (PO, 2026-09-14).** El PO decidió no usar actualizaciones por
+ * aire en producción: `updates.enabled` es `false` y la dependencia queda instalada. Los
+ * tests de `runtimeVersion`, `url` y canales siguen, porque describen la config correcta
+ * para el día que se reactive — con firma de código (ADR-014).
  */
 const RAIZ = join(__dirname, '..', '..');
 
@@ -104,5 +109,21 @@ describe('la dependencia', () => {
     // Sin el módulo nativo en el binario, la config de arriba no hace nada: un
     // build compilado sin él no puede recibir actualizaciones NUNCA.
     expect(Object.keys(pkg().dependencies)).toContain('expo-updates');
+  });
+});
+
+describe('OTA en producción (T-122)', () => {
+  it('updates.enabled es exactamente false', () => {
+    const enabled = app().expo.updates?.enabled;
+
+    expect(
+      enabled === false
+        ? 'apagado'
+        : `updates.enabled es ${JSON.stringify(enabled)}. Tiene que ser false (T-122 · SEC M-6): ` +
+          'con OTA activo, cualquiera con acceso a la cuenta de Expo publica código que corre en ' +
+          'todos los teléfonos sin pasar por App Review. Antes de reactivarlo hay que configurar ' +
+          '`updates.codeSigningCertificate` y `updates.codeSigningMetadata`, decidirlo con un ADR ' +
+          '(ver ADR-014) y actualizar este test.',
+    ).toBe('apagado');
   });
 });
