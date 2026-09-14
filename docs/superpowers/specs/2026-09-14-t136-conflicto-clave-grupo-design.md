@@ -57,7 +57,7 @@ La membresía no sirve para arbitrar. El roster viaja cifrado con la clave en di
 - `adoptDroppedKey` ya no adopta dentro del loop. Al final del lote, `drainContacts` resuelve por grupo:
   - `unanime` → `adoptKeys` + `marcarAdoptada` y el grupo va a `joinedGroups`;
   - `conflicto` → el grupo va a un campo nuevo `conflictedGroups: string[]` de `DrainContactsResult`.
-- `src/sync/relayEngine.ts`: por cada grupo de `conflictedGroups`, `announce({ kind: 'group_key_conflict', groupId, groupName, senderIds })`. `groupName` sale del grupo local si existe; si no, del drop, con la marca «sin verificar».
+- `src/sync/relayEngine.ts`: por cada grupo de `conflictedGroups`, `announce({ kind: 'group_key_conflict', groupId, groupName, senderIds })`. `groupName` sale del grupo local si existe; si no, del drop. Se muestra **siempre** con la marca «sin verificar» (PO, 2026-09-14): un grupo local en conflicto pudo drenarse con la clave en disputa.
 
 **Invitación — `src/sync/inviteEngine.ts` (`redeem`)**
 - Si ya hay clave local, se hace el unwrap del grant.
@@ -84,7 +84,7 @@ La membresía no sirve para arbitrar. El roster viaja cifrado con la clave en di
 **Aviso en la campana**
 - Título: «Dos personas te mandaron claves distintas para "‹grupo›"». Con más de dos remitentes: «Recibiste claves distintas para "‹grupo›"».
 - Cuerpo: «Sólo una es la real. Elegí la de alguien que sepas que está en el grupo. El nombre es el que tenés guardado del contacto; la app no puede verificar quién es.»
-- Si el nombre del grupo no está verificado: «‹grupo› (nombre sin verificar)».
+- El nombre del grupo se muestra siempre como «‹grupo› (nombre sin verificar)».
 
 **Tarjeta — `src/components/GroupKeyConflictCard.tsx` (nuevo)**
 - Dentro de `ButtonRack`, un `ActionButton` por remitente, con nombre y avatar del contacto: «Usar la clave de ‹nombre›».

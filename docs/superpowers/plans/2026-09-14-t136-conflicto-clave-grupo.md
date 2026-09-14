@@ -38,7 +38,7 @@
 
 1. **Oferta ya adoptada no se reemplaza.** El spec dice «clave distinta del mismo remitente → reemplaza su oferta». Si esa oferta ya está `adoptada`, reemplazarla borraría la única prueba de que la clave local vino de contacto (`claveLocalVinoDeContacto` pasaría a `false`) y dejaría un «conflicto» de un solo remitente imposible de resolver. Se ignora. Antes de adoptar, el reemplazo funciona como dice el spec.
 2. **Remitente de una oferta de invitación.** `InviteGrant` no trae `userId` de quien entrega. `fromUserId` de una oferta `origen: 'invite'` es `invite:<inviterFingerprint>` (`idDeOfertaDeInvitacion`), y la tarjeta la nombra con `sync.keyConflict.invite_sender` («la invitación»), sin avatar.
-3. **`Notice` lleva `nombreVerificado: boolean`.** El spec pide mostrar «(nombre sin verificar)» cuando el nombre sale del drop; sin un campo, el aviso congelado en la bandeja no puede saberlo.
+3. **El nombre del grupo en un conflicto va SIEMPRE «sin verificar»** (decisión del PO, 2026-09-14, sobre el riesgo que marcó el arquitecto). El spec lo pedía sólo cuando el nombre salía del drop, pero un grupo local también pudo haberse drenado con la clave en disputa: su nombre puede ser del atacante. Por eso `Notice` NO lleva `nombreVerificado` y `nombreDeGrupoEnConflicto` marca siempre.
 4. **`DrainContactsResult.nombresDeDrop`.** `relayEngine` necesita el nombre del drop para el aviso y `conflictedGroups: string[]` no lo trae.
 5. **`elegirClaveDeGrupo` paso 4.** `purgarGrupoLocalmente` ya olvida TODAS las ofertas del grupo (spec), así que «marcarAdoptada y descartar las demás» se implementa re-registrando la elegida y marcándola adoptada. Además llama `await marcarConTopic([groupId])` (la marca de `adoptKeys` es `void`) y `void startRelay()` tras drenar, igual que `drainContactsNow` al entrar a un grupo.
 6. **Clave de i18n extra:** `unknown_name`, `invite_sender`, `failed` (elegir devolvió `false`).
@@ -115,9 +115,9 @@ Dependencias entre tareas: Task 1 → {Task 2, Task 3, Task 4} (independientes e
   - `export function idDeOfertaDeInvitacion(inviterFingerprint: string): string`
   - `export function esOfertaDeInvitacion(fromUserId: string): boolean`
 - Produces (`src/services/syncNotices.ts`):
-  - miembro de `Notice`: `{ kind: 'group_key_conflict'; groupId: string; groupName: string; nombreVerificado: boolean; senderIds: string[] }`
+  - miembro de `Notice`: `{ kind: 'group_key_conflict'; groupId: string; groupName: string; senderIds: string[] }`
   - `export type KeyConflictNotice = Extract<Notice, { kind: 'group_key_conflict' }>;`
-  - `export function nombreDeGrupoEnConflicto(notice: Pick<KeyConflictNotice, 'groupName' | 'nombreVerificado'>, t: (key: string, opts?: Record<string, unknown>) => string): string`
+  - `export function nombreDeGrupoEnConflicto(notice: Pick<KeyConflictNotice, 'groupName'>, t: (key: string, opts?: Record<string, unknown>) => string): string`
 - Produces (`src/services/notifications.ts`): `export async function announceKeyConflict(notice: KeyConflictNotice): Promise<number>`
 - Contrato fijado para Task 4/5 (se implementa en Task 4): `elegirClaveDeGrupo(groupId: string, fromUserId: string): Promise<boolean>`.
 
@@ -540,12 +540,10 @@ describe('esAccionable (T-062)', () => {
 describe('nombreDeGrupoEnConflicto (T-136)', () => {
   const t = (key: string, opts?: Record<string, unknown>) => `${key}(${JSON.stringify(opts ?? {})})`;
 
-  it('con el nombre del grupo local, se muestra tal cual', () => {
-    expect(nombreDeGrupoEnConflicto({ groupName: 'Viaje', nombreVerificado: true }, t)).toBe('Viaje');
-  });
-
-  it('con el nombre que trajo el drop, se marca «sin verificar»', () => {
-    expect(nombreDeGrupoEnConflicto({ groupName: 'Viaje', nombreVerificado: false }, t))
+  it('siempre se marca «sin verificar», aunque el nombre sea el del grupo local (PO 2026-09-14)', () => {
+    // Un grupo local en conflicto pudo drenarse con la clave en disputa: su nombre
+    // puede haberlo escrito el atacante tanto como el del drop.
+    expect(nombreDeGrupoEnConflicto({ groupName: 'Viaje' }, t))
       .toBe('sync.keyConflict.unverified_name({"group":"Viaje"})');
   });
 });
@@ -556,11 +554,10 @@ Al final de `src/services/__tests__/notifications.test.ts` agregar:
 ```ts
 describe('conflicto de clave de grupo (T-136)', () => {
   const dos: Notice = {
-    kind: 'group_key_conflict', groupId: 'g1', groupName: 'Viaje', nombreVerificado: true,
+    kind: 'group_key_conflict', groupId: 'g1', groupName: 'Viaje',
     senderIds: ['u-beto', 'u-mallory'],
   };
   const tres: Notice = { ...dos, senderIds: ['u-beto', 'u-mallory', 'u-carla'] };
-  const sinVerificar: Notice = { ...dos, nombreVerificado: false };
 
   it('mira el toggle de invitaciones', () => {
     useSettingsStore.setState({ notifInvites: false });
@@ -573,10 +570,6 @@ describe('conflicto de clave de grupo (T-136)', () => {
     expect(textFor(dos).title).not.toBe(textFor(tres).title);
     expect(textFor(dos).body).toBeTruthy();
     expect(textFor(dos).body).toBe(textFor(tres).body);
-  });
-
-  it('un nombre sin verificar no se muestra igual que uno verificado', () => {
-    expect(textFor(sinVerificar).title).not.toBe(textFor(dos).title);
   });
 });
 ```
@@ -604,7 +597,7 @@ y agregar al final del archivo:
 ```ts
 describe('announceKeyConflict (T-136): como máximo un aviso sin leer por grupo', () => {
   const conflicto: KeyConflictNotice = {
-    kind: 'group_key_conflict', groupId: 'g1', groupName: 'Viaje', nombreVerificado: false,
+    kind: 'group_key_conflict', groupId: 'g1', groupName: 'Viaje',
     senderIds: ['u-beto', 'u-mallory'],
   };
 
@@ -667,12 +660,11 @@ por:
    * Dos o más contactos entregaron claves DISTINTAS para el mismo grupo
    * (T-136 · ADR-013). No se adoptó ninguna sola: el usuario elige.
    *
-   * `nombreVerificado` es `false` cuando el nombre salió del drop, que lo
-   * escribe el remitente. `senderIds` es la foto del momento del aviso; la
+   * El nombre se muestra siempre «sin verificar» (`nombreDeGrupoEnConflicto`):
+   * pudo escribirlo el remitente. `senderIds` es la foto del momento del aviso; la
    * tarjeta relee las ofertas vivas (`ofertasDe`).
    */
-  | { kind: 'group_key_conflict'; groupId: string; groupName: string; nombreVerificado: boolean;
-      senderIds: string[] }
+  | { kind: 'group_key_conflict'; groupId: string; groupName: string; senderIds: string[] }
 ```
 
 En `esAccionable`, reemplazar:
@@ -700,14 +692,15 @@ export type KeyConflictNotice = Extract<Notice, { kind: 'group_key_conflict' }>;
  * Nombre del grupo tal como se muestra en un conflicto de clave (T-136).
  * Una sola función para el aviso y para la tarjeta: dos redacciones del mismo
  * «sin verificar» se contradicen sin que nadie mire.
+ *
+ * SIEMPRE «sin verificar» (PO, 2026-09-14): aunque el grupo exista localmente,
+ * pudo drenarse con la clave en disputa y su nombre ser del atacante.
  */
 export function nombreDeGrupoEnConflicto(
-  notice: Pick<KeyConflictNotice, 'groupName' | 'nombreVerificado'>,
+  notice: Pick<KeyConflictNotice, 'groupName'>,
   t: (key: string, opts?: Record<string, unknown>) => string,
 ): string {
-  return notice.nombreVerificado
-    ? notice.groupName
-    : t('sync.keyConflict.unverified_name', { group: notice.groupName });
+  return t('sync.keyConflict.unverified_name', { group: notice.groupName });
 }
 ```
 
@@ -875,11 +868,11 @@ describe('noticeDeConflicto', () => {
     expect(noticeDeConflicto('g1', 'Viaje')).toBeNull();
   });
 
-  it('sin grupo local, el nombre sale del drop y va SIN VERIFICAR', () => {
+  it('sin grupo local, el nombre sale del drop', () => {
     registrarOferta(oferta('u-beto', 'ab'.repeat(32)));
     registrarOferta(oferta('u-mallory', 'cd'.repeat(32)));
     expect(noticeDeConflicto('g1', 'Viaje')).toEqual({
-      kind: 'group_key_conflict', groupId: 'g1', groupName: 'Viaje', nombreVerificado: false,
+      kind: 'group_key_conflict', groupId: 'g1', groupName: 'Viaje',
       senderIds: ['u-beto', 'u-mallory'],
     });
   });
@@ -888,7 +881,7 @@ describe('noticeDeConflicto', () => {
     registrarOferta(oferta('u-beto', 'ab'.repeat(32)));
     registrarOferta(oferta('u-mallory', 'cd'.repeat(32)));
     useGroupStore.setState({ groups: [{ id: 'g1', name: 'Asado', isDeleted: false } as never] });
-    expect(noticeDeConflicto('g1', 'Otro')).toMatchObject({ groupName: 'Asado', nombreVerificado: true });
+    expect(noticeDeConflicto('g1', 'Otro')).toMatchObject({ groupName: 'Asado' });
   });
 });
 
@@ -1032,7 +1025,7 @@ describe('T-136 · claves distintas para el mismo grupo', () => {
     expect(r.conflictedGroups).toEqual(['g1']);
     const avisos = conflictosDe('g1');
     expect(avisos).toHaveLength(1);
-    expect(avisos[0]).toMatchObject({ groupName: 'Viaje', nombreVerificado: false });
+    expect(avisos[0]).toMatchObject({ groupName: 'Viaje' });
     expect([...avisos[0]!.senderIds].sort()).toEqual([BETO.id, MALLORY.id].sort());
   });
 
@@ -1145,7 +1138,6 @@ export function noticeDeConflicto(groupId: string, nombreDelDrop: string | undef
     kind: 'group_key_conflict',
     groupId,
     groupName: nombreLocal ?? nombreDelDrop ?? '',
-    nombreVerificado: nombreLocal !== undefined,
     senderIds,
   };
 }
@@ -1519,7 +1511,7 @@ describe('T-136 · la invitación choca con una clave plantada por contacto', ()
       key: clave, fromUserId: idDeOfertaDeInvitacion(invite.inviterFingerprint), adoptada: false,
     });
     expect(avisos()).toHaveLength(1);
-    expect(avisos()[0]!.notice).toMatchObject({ groupName: 'Viaje', nombreVerificado: false });
+    expect(avisos()[0]!.notice).toMatchObject({ groupName: 'Viaje' });
     expect(listPendingJoins()).toHaveLength(0);
   });
 
@@ -2008,7 +2000,7 @@ import pt from '@/src/i18n/locales/pt.json';
 const elegir = elegirClaveDeGrupo as jest.MockedFunction<typeof elegirClaveDeGrupo>;
 
 const NOTICE: KeyConflictNotice = {
-  kind: 'group_key_conflict', groupId: 'g1', groupName: 'Viaje', nombreVerificado: false,
+  kind: 'group_key_conflict', groupId: 'g1', groupName: 'Viaje',
   senderIds: ['u-beto', 'u-mallory'],
 };
 
@@ -2364,7 +2356,7 @@ Al final del archivo agregar:
  */
 describe('T-136 · el aviso de claves en disputa abre la elección', () => {
   const conflicto: KeyConflictNotice = {
-    kind: 'group_key_conflict', groupId: 'g1', groupName: 'Viaje', nombreVerificado: false,
+    kind: 'group_key_conflict', groupId: 'g1', groupName: 'Viaje',
     senderIds: ['u-beto', 'u-mallory'],
   };
 
@@ -2774,7 +2766,7 @@ Agregar arriba de `engram/05_handoff_log.md` (después de `# Handoff Log — spl
 **Status:** código completo en `fix/T-136-conflicto-clave`, En revisión QA (Strong + verificador ciego).
 **Spec / plan:** `docs/superpowers/specs/2026-09-14-t136-conflicto-clave-grupo-design.md` · `docs/superpowers/plans/2026-09-14-t136-conflicto-clave-grupo.md`.
 **Files:** `src/sync/groupKeyOffers.ts` (nuevo), `src/sync/keyConflictNotice.ts` (nuevo), `src/services/elegirClaveDeGrupo.ts` (nuevo), `src/components/GroupKeyConflictCard.tsx` (nuevo), `contactChannel.ts`, `relayEngine.ts`, `inviteEngine.ts`, `salirDelGrupo.ts`, `syncNotices.ts`, `notifications.ts`, `TabHeader.tsx`, `accountLink.ts`, `groupKeyStore.ts` (comentario), locales es/en/pt, `docs/ARCHITECTURE.md`.
-**Desvíos del spec (plan §Global Constraints):** oferta adoptada no se reemplaza; remitente de invitación `invite:<huella>`; `Notice.nombreVerificado`; `DrainContactsResult.nombresDeDrop`; elegir re-registra la elegida tras la purga y espera `marcarConTopic`; claves i18n extra `unknown_name`/`invite_sender`/`failed`; `sync/groupKeyOffers` excluido de la fusión.
+**Desvíos del spec (plan §Global Constraints):** oferta adoptada no se reemplaza; remitente de invitación `invite:<huella>`; nombre del grupo siempre «sin verificar» (PO); `DrainContactsResult.nombresDeDrop`; elegir re-registra la elegida tras la purga y espera `marcarConTopic`; claves i18n extra `unknown_name`/`invite_sender`/`failed`; `sync/groupKeyOffers` excluido de la fusión.
 **Riesgo para el PO:** con grupo local existente, el nombre se muestra como verificado aunque vino del topic de la clave en disputa (así lo pide el spec).
 **Proof of red:** salida de Task 2 Step 2 (criterios 1 y 2 en rojo contra el `adoptDroppedKey` de `main`), Task 3 Step 1, Task 5 Step 4.
 **Mutaciones:** M1 → tests caídos de Task 6 Step 3; M2 → Step 4; M3 → Step 5; M4 → Step 6.
