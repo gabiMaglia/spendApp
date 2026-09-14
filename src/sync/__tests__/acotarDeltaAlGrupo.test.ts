@@ -288,4 +288,10 @@ describe('ronda 2 — el filtro no confía en lo que declara el registro entrant
     const r = acotarDeltaAlGrupo(delta, 'A');
     expect(r.users.map(u => u.id)).toContain('carol');
   });
+
+  // Residual declarado y aceptado fuera de este ticket (arbitraje P-2 de
+  // nerv-arquitecto, anexo de `engram/plans/T-132.md`): `mergeUsers` es LWW
+  // sin tope de reloj, así que un perfil con `updatedAt` en el futuro gana y
+  // queda envenenado de forma permanente. El fix va en `mergeUsers`, no acá.
+  it.todo('T-137: perfil con updatedAt futuro no gana (ADR-012)');
 });

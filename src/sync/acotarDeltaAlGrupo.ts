@@ -92,13 +92,15 @@ function snapshotFromStores(): LocalSnapshot {
  *    (nunca el `groups` del propio sobre). Un id YA CONOCIDO localmente sólo
  *    entra si YA es miembro local de `groupId`; si el id es TOTALMENTE nuevo
  *    (sin perfil previo que pisar), entra igual — es el caso normal de "me
- *    uno a un grupo y veo los perfiles de sus miembros" (regla #8). **Efecto
- *    colateral documentado:** si el dueño real de A agrega a un miembro que
- *    la víctima YA conocía de otro grupo, ese perfil no se actualiza por A
- *    hasta el PRÓXIMO drenaje — recién cuando la membresía de A (que si se
- *    actualiza en este mismo sobre, vía `groups`) ya forme parte del snapshot
- *    local del drenaje siguiente. Con la sync automática cada 15' (regla #10
- *    de CLAUDE.md) esto se autocorrige solo, sin ventana de suplantación.
+ *    uno a un grupo y veo los perfiles de sus miembros" (regla #8).
+ *
+ *    **Esto reduce el riesgo respecto de `main`, pero NO autentica perfiles**
+ *    (arbitraje P-2 de nerv-arquitecto, 2026-09-14, anexo de
+ *    `engram/plans/T-132.md`): la membresía local que se usa de autoridad la
+ *    escribe LWW cualquier miembro del grupo (`memberIds` es `'fuera'` del
+ *    núcleo firmado, `src/sync/recordCore.ts`), y un id que la víctima no
+ *    conocía todavía entra sin ninguna atadura real al grupo. Residual
+ *    declarado y aceptado fuera de este ticket — va a **T-137 / ADR-012**.
  */
 export function acotarDeltaAlGrupo(
   delta: SyncDelta,
