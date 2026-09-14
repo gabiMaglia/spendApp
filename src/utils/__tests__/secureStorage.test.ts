@@ -6,6 +6,8 @@ const mockMaps = new Map<string, Map<string, string | number | boolean>>();
 const mockEventos: { tipo: 'abrir' | 'clearAll' | 'recrypt' | 'borrarV1' | 'marca'; id: string; key?: string }[] = [];
 const mockKeychain = new Map<string, string>();
 let mockRecryptFallaEn: string | null = null;
+let mockClearAllFallaEn: string | null = null;
+let mockGetBooleanFallaEn: string | null = null;
 
 jest.mock('react-native-mmkv', () => ({
   MMKV: jest.fn().mockImplementation((opts: { id: string; encryptionKey?: string }) => {
@@ -19,12 +21,19 @@ jest.mock('react-native-mmkv', () => ({
         m.set(k, v);
       },
       getString: (k: string) => m.get(k),
-      getBoolean: (k: string) => m.get(k),
+      getBoolean: (k: string) => {
+        if (mockGetBooleanFallaEn === id) throw new Error('corte simulado (getBoolean)');
+        return m.get(k);
+      },
       getNumber: (k: string) => m.get(k),
       delete: (k: string) => m.delete(k),
       contains: (k: string) => m.has(k),
       getAllKeys: () => [...m.keys()],
-      clearAll: () => { mockEventos.push({ tipo: 'clearAll', id }); m.clear(); },
+      clearAll: () => {
+        if (mockClearAllFallaEn === id) throw new Error('corte simulado (clearAll)');
+        mockEventos.push({ tipo: 'clearAll', id });
+        m.clear();
+      },
       recrypt: (key: string) => {
         if (mockRecryptFallaEn === id) throw new Error('corte simulado');
         mockEventos.push({ tipo: 'recrypt', id, key });
@@ -84,6 +93,8 @@ describe('secureStorage · arranque en limpio con clave v2 (T-124 L-E)', () => {
     mockEventos.length = 0;
     mockKeychain.clear();
     mockRecryptFallaEn = null;
+    mockClearAllFallaEn = null;
+    mockGetBooleanFallaEn = null;
   });
 
   it('instalación v1: vacía y recifra con v2 los 10 buckets, vacía settings/tier y respeta theme/lang', async () => {
@@ -176,6 +187,7 @@ describe('secureStorage · arranque en limpio con clave v2 (T-124 L-E)', () => {
     sembrarInstalacionV1();
     mockRecryptFallaEn = 'payments';
     const consola = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const advertencia = jest.spyOn(console, 'warn').mockImplementation(() => {});
 
     await bootstrapSecureStorage();
 
@@ -208,6 +220,49 @@ describe('secureStorage · arranque en limpio con clave v2 (T-124 L-E)', () => {
     expect(createSecureStorage('payments').getString('data_v1')).toBeUndefined();
     void v2b;
     consola.mockRestore();
+    advertencia.mockRestore();
+  });
+
+  it('si falla el vaciado de settings, no escribe la marca ni borra la v1, y el próximo arranque lo reintenta', async () => {
+    sembrarInstalacionV1();
+    mockClearAllFallaEn = 'settings';
+    const consola = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const advertencia = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await bootstrapSecureStorage();
+
+    // Los buckets cifrados se procesaron bien (la falla es sólo en settings),
+    // pero la marca no se escribe ni se borra la v1: settings quedó sin vaciar
+    // y ese estado no puede quedar bajo `yaEnV2` o nunca se repararía.
+    const recifrados = mockEventos.filter(e => e.tipo === 'recrypt').map(e => e.id);
+    expect([...new Set(recifrados)].sort()).toEqual([...SECURE_IDS].sort());
+    expect(mockMaps.get('enc_meta')!.get(MARCA_CLAVE_V2)).not.toBe(true);
+    expect(mockKeychain.has('mmkv_encryption_key_v1')).toBe(true);
+    expect(mockMaps.get('settings')!.get('currency')).toBe('ARS'); // sin vaciar
+
+    // Arranque siguiente: settings ya no falla → reintenta todo el camino de
+    // arranque en limpio y llega al mismo estado final que sin fallas.
+    mockClearAllFallaEn = null;
+    reiniciar();
+    await bootstrapSecureStorage();
+
+    expect(mockMaps.get('enc_meta')!.get(MARCA_CLAVE_V2)).toBe(true);
+    expect(mockKeychain.has('mmkv_encryption_key_v1')).toBe(false);
+    expect(mockMaps.get('settings')!.size).toBe(0);
+    consola.mockRestore();
+    advertencia.mockRestore();
+  });
+
+  it('si `enc_meta` lanza al leer la marca, el bootstrap no rechaza (cae al arranque en limpio)', async () => {
+    sembrarInstalacionV1();
+    mockGetBooleanFallaEn = 'enc_meta';
+    const consola = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const advertencia = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await expect(bootstrapSecureStorage()).resolves.toBeUndefined();
+
+    consola.mockRestore();
+    advertencia.mockRestore();
   });
 
   it('con la marca v2 y una v1 huérfana en el llavero, la borra', async () => {

@@ -63,7 +63,8 @@ export async function bootstrapSecureStorage(): Promise<void> {
   let meta: SimpleStorage | null = null;
   try { meta = new MMKV({ id: 'enc_meta' }); } catch { meta = null; }
 
-  const yaEnV2 = meta?.getBoolean(MARCA_CLAVE_V2) === true;
+  let yaEnV2 = false;
+  try { yaEnV2 = meta?.getBoolean(MARCA_CLAVE_V2) === true; } catch { yaEnV2 = false; }
   if (yaEnV2) {
     for (const id of SECURE_IDS) {
       try {
@@ -104,15 +105,22 @@ export async function bootstrapSecureStorage(): Promise<void> {
   }
 
   for (const id of SCOPED_PLAIN) {
-    try { new MMKV({ id }).clearAll(); } catch (e) { logStorageFailure(id, e); }
+    try { new MMKV({ id }).clearAll(); } catch (e) { logStorageFailure(id, e); algunoFallo = true; }
   }
 
-  // Si algún bucket falló, NO se escribe la marca ni se borra la v1: el
-  // estado final tiene que ser idéntico en los 10 buckets (spec §3.2). Una
-  // marca con un bucket sin vaciar/recifrar lo dejaría afuera de todo reintento
-  // para siempre, porque el próximo arranque vería `yaEnV2` y ya no repasaría
-  // el camino de arranque en limpio para ese id.
-  if (algunoFallo || !meta) return; // sin meta tampoco hay marca: se reintenta
+  // Si algún bucket falló —cifrado (SECURE_IDS) O en claro (SCOPED_PLAIN)— NO
+  // se escribe la marca ni se borra la v1: el estado final tiene que ser
+  // idéntico en los 10 buckets cifrados Y en los buckets en claro por cuenta
+  // (spec §3.2). Una marca con cualquiera de ellos sin vaciar/recifrar lo
+  // dejaría afuera de todo reintento para siempre, porque el próximo arranque
+  // vería `yaEnV2` y ya no repasaría el camino de arranque en limpio para ese
+  // bucket — ni para los cifrados ni para los en claro.
+  if (algunoFallo || !meta) {
+    // Sin marca: el próximo arranque va a repetir el camino de arranque en
+    // limpio entero. No se loguean datos ni claves, sólo que quedó pendiente.
+    console.warn('[secure] arranque en limpio incompleto (algún bucket falló) → se reintenta en el próximo inicio');
+    return;
+  }
   meta.set(MARCA_CLAVE_V2, true);
   for (const id of SECURE_IDS) meta.delete(`enc_${id}_v1`);
   await borrarClaveV1();
