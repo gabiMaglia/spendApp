@@ -122,3 +122,73 @@ describe('mergeUsersLWW — el LWW normal (sin futuros de por medio) sigue igual
     expect(out.find(u => u.id === 'carol')!.name).toBe('ZZZ');
   });
 });
+
+/**
+ * **D2 (verificador ciego, ronda 2) — un `updatedAt` no numérico esquiva el
+ * tope y reproduce la vandalización PERMANENTE.**
+ *
+ * `inc.updatedAt > limiteFuturo` con `"zzz"` da `false` (una comparación con
+ * un string no numérico nunca es `>`), así que pasa el tope como si fuera
+ * plausible. Peor: en `incomingWins`, `real.updatedAt > "zzz"` TAMBIÉN da
+ * `false` (JS no convierte `"zzz"` a `NaN` para el operador `>` de forma que
+ * favorezca al numérico — la comparación entera es `false`), así que el
+ * perfil real **nunca vuelve a ganar**. Es la misma permanencia que motivó
+ * T-137 para `9e15`, por una puerta distinta: el delta del relay se castea
+ * sin validar tipos (`src/sync/relaySync.ts:193`, `JSON.parse(...) as
+ * SyncDelta`), y `acotarDeltaAlGrupo.ts` sólo filtra por id, no por forma.
+ *
+ * El fix es `Number.isFinite`: cubre `"zzz"`, `NaN`, `Infinity`, `null` y
+ * `undefined` de una sola vez, sin lista de casos especiales.
+ */
+describe('mergeUsersLWW — un updatedAt no numérico tampoco gana (D2, verificador ronda 2)', () => {
+  const conUpdatedAt = (raw: unknown): User => ({ ...user(), updatedAt: raw as number });
+
+  it.each([
+    ['string no numérico', 'zzz'],
+    ['NaN', NaN],
+    ['Infinity', Infinity],
+    ['null', null],
+    ['undefined', undefined],
+  ])('un entrante NUEVO con updatedAt %s no se agrega', (_desc, raw) => {
+    const out = mergeUsersLWW([], [conUpdatedAt(raw)], NOW);
+    expect(out.find(u => u.id === 'carol')).toBeUndefined();
+  });
+
+  it.each([
+    ['string no numérico', 'zzz'],
+    ['NaN', NaN],
+    ['Infinity', Infinity],
+    ['null', null],
+    ['undefined', undefined],
+  ])('un entrante con updatedAt %s no reemplaza a un local válido', (_desc, raw) => {
+    const current = [user({ name: 'Carol', updatedAt: 1_000 })];
+    const out = mergeUsersLWW(current, [conUpdatedAt(raw)], NOW);
+    expect(out.find(u => u.id === 'carol')!.name).toBe('Carol');
+  });
+
+  it('un LOCAL con updatedAt no numérico cuenta como envenenado: pierde contra cualquier entrante plausible', () => {
+    // Sin el fix, `incomingWins(real, cur='zzz')` da `500 > 'zzz'` → `false`
+    // por coerción a NaN: el local "gana" aunque sea basura. Nombres
+    // distintos para que el assert sea real, no un empate accidental.
+    const current = [{ ...conUpdatedAt('zzz'), name: 'Vandalizada' }];
+    const incoming = [user({ name: 'Carol', updatedAt: 500 })];
+
+    const out = mergeUsersLWW(current, incoming, NOW);
+    expect(out.find(u => u.id === 'carol')!.name).toBe('Carol');
+  });
+
+  it('el ataque completo (D2): id NUEVO con updatedAt "zzz" primero, DESPUÉS el updatedAt real → el real gana', () => {
+    // Paso 1: carol no existe todavía. El primer sobre malicioso es "id
+    // nuevo" — el camino que el verificador señaló como el que de verdad
+    // se cuela ("se agrega si el id es nuevo").
+    const tras_ataque = mergeUsersLWW([], [{ ...conUpdatedAt('zzz'), name: 'Vandalizada' }], NOW);
+    expect(tras_ataque.find(u => u.id === 'carol')).toBeUndefined();
+
+    // Paso 2: sin el fix, si "zzz" se hubiera colado como local, el real
+    // nunca le gana (`real > "zzz"` es `false` por coerción). Con el fix,
+    // el ataque nunca entró en el paso 1, así que acá simplemente se agrega
+    // limpio.
+    const tras_real = mergeUsersLWW(tras_ataque, [user({ name: 'Carol Real', updatedAt: NOW + 1_000 })], NOW + 2_000);
+    expect(tras_real.find(u => u.id === 'carol')!.name).toBe('Carol Real');
+  });
+});
