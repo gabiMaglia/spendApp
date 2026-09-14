@@ -2,7 +2,7 @@ import { renderHook } from '@testing-library/react-native';
 import {
   progresoColapso, alturaHeaderColapsable, alturaBloqueTituloVisible, opacidadTituloCompacto,
   useHeaderColapsable, suavizar, opacidadTituloGrande, opacidadTituloGrandeSinMovimiento,
-  FACTOR_RECORRIDO, altoMinimoContenido,
+  altoMinimoContenido,
 } from '../useHeaderColapsable';
 
 /**
@@ -108,9 +108,13 @@ describe('movimiento suave del header (PO 2026-09-13)', () => {
     for (let p = 0; p < 1; p += 0.05) expect(suavizar(p + 0.05)).toBeGreaterThanOrEqual(suavizar(p));
   });
 
-  it('el alto arranca y termina despacio (no lineal)', () => {
+  it('el borde inferior del header sigue EXACTO al contenido mientras colapsa (T-131, límite fijo)', () => {
+    // El contenido sube 1:1 con el scroll; el header tiene que achicarse lo mismo, sin
+    // adelantarse ni atrasarse: si no, el primer elemento se mete debajo de la barra.
     const exp = 300, col = 100;
-    expect(exp - alturaHeaderColapsable(0.1, exp, col)).toBeLessThan(0.1 * (exp - col));
+    for (let y = 0; y <= exp - col; y += 7) {
+      expect(alturaHeaderColapsable(progresoColapso(y, exp, col), exp, col)).toBeCloseTo(exp - y);
+    }
   });
 
   it('el título grande se va en la primera mitad y el chico entra en la segunda: nunca los dos a la vez', () => {
@@ -126,9 +130,6 @@ describe('movimiento suave del header (PO 2026-09-13)', () => {
     expect(opacidadTituloGrandeSinMovimiento(1)).toBe(0);
   });
 
-  it('el colapso se reparte en más scroll que el alto que se pierde', () => {
-    expect(FACTOR_RECORRIDO).toBeGreaterThan(1);
-  });
 
   it('con poco contenido igual se puede colapsar: el mínimo supera la pantalla en el recorrido', () => {
     expect(altoMinimoContenido(800, 150)).toBe(950);

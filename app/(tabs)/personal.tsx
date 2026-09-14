@@ -21,7 +21,7 @@ import { Fab, FabRow } from '@/src/components/Fab';
 import {
   Band, BandRow, Meter, SectionLabel, SplitStat, StatLead,
 } from '@/src/components/Band';
-import { useHeaderPadding } from '@/src/components/CollapsibleHeader';
+import { useHeaderPadding, useLimiteContenido } from '@/src/components/CollapsibleHeader';
 import { useAuthStore } from '@/src/store/authStore';
 import { usePersonalStore, toMonthKey, currentMonthKey } from '@/src/store/personalStore';
 import { reasonKey } from '@/src/algorithms/entryOrigin';
@@ -68,6 +68,7 @@ const ENTRY_KIND_META = {
 export default function PersonalScreen() {
   const scheme = useColorScheme() ?? 'light';
   const headerPad = useHeaderPadding();
+  const limiteContenido = useLimiteContenido();
   const { t } = useTranslation();
   const c = Colors[scheme];
 
@@ -224,6 +225,7 @@ export default function PersonalScreen() {
   return (
     <SafeAreaView edges={['bottom']} style={[styles.safe, { backgroundColor: c.bg }]}>
       <Animated.ScrollView
+        style={limiteContenido}
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
         onScroll={scrollHandler}

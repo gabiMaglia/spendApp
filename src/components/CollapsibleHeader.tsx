@@ -57,8 +57,19 @@ export {
  * lo que el header ahora ocupa de más.
  */
 export function useHeaderPadding(aire: number = Spacing[4]): number {
+  // T-131: el scroll ya arranca debajo de la barra fija (`useLimiteContenido`), así que el
+  // padding sólo cubre el bloque título que se colapsa.
+  return TITLE_BLOCK_H + aire;
+}
+
+/**
+ * **Límite fijo del contenido** (T-131, PO): el `ScrollView` de cada pestaña arranca debajo de
+ * la fila de botones (el alto colapsado del header). Así ningún elemento puede quedar dibujado
+ * adentro de la barra: lo que sube más allá se recorta en ese borde.
+ */
+export function useLimiteContenido(): { marginTop: number } {
   const insets = useSafeAreaInsets();
-  return insets.top + HEADER_BAR_H + TITLE_BLOCK_H + aire;
+  return { marginTop: insets.top + HEADER_BAR_H };
 }
 
 /** Margen extra, en pt, del mármol más allá del alto expandido — colchón de seguridad para que nunca se vea un hueco. */

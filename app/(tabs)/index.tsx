@@ -8,7 +8,7 @@ import { Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { Band, BandLink, Meter, SectionLabel, SplitStat } from '@/src/components/Band';
 import { TabHeader } from '@/src/components/TabHeader';
-import { useHeaderPadding } from '@/src/components/CollapsibleHeader';
+import { useHeaderPadding, useLimiteContenido } from '@/src/components/CollapsibleHeader';
 import { GroupCard } from '@/src/components/GroupCard';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGlobalPersonBalances, useGroupBalance, useGroupExpenseCount } from '@/src/store/selectors';
@@ -36,6 +36,7 @@ export default function AccountScreen() {
   const { t } = useTranslation();
   // Sin aire entre el header y el primer elemento (PO 2026-09-13, T-130).
   const headerPad = useHeaderPadding(0);
+  const limiteContenido = useLimiteContenido();
   const scheme = useColorScheme() ?? 'light';
   const c = Colors[scheme];
   const { currentUser } = useAuthStore();
@@ -116,6 +117,7 @@ export default function AccountScreen() {
   return (
     <SafeAreaView edges={['bottom']} style={[styles.safe, { backgroundColor: c.bg }]}>
       <Animated.ScrollView
+        style={limiteContenido}
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
         onScroll={scrollHandler}

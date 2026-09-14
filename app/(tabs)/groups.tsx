@@ -24,7 +24,7 @@ import { SwipeToArchive } from '@/src/components/SwipeToArchive';
 import { EmptyState } from '@/src/components/EmptyState';
 import { Band, Segmented, StatGrid } from '@/src/components/Band';
 import { TabHeader } from '@/src/components/TabHeader';
-import { useHeaderPadding } from '@/src/components/CollapsibleHeader';
+import { useHeaderPadding, useLimiteContenido } from '@/src/components/CollapsibleHeader';
 import { hapticLight } from '@/src/utils/haptics';
 import type { Group } from '@/src/types/models';
 import { esYo } from '@/src/store/identityAlias';
@@ -33,6 +33,7 @@ export default function GroupsScreen() {
   const { t } = useTranslation();
   // Sin aire entre el header y el primer elemento (PO 2026-09-13, T-130).
   const headerPad = useHeaderPadding(0);
+  const limiteContenido = useLimiteContenido();
   const scheme = useColorScheme() ?? 'light';
   const c = Colors[scheme];
   const { currentUser } = useAuthStore();
@@ -83,6 +84,7 @@ export default function GroupsScreen() {
   return (
     <SafeAreaView edges={['bottom']} style={[styles.safe, { backgroundColor: c.bg }]}>
       <Animated.ScrollView
+        style={limiteContenido}
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
         onScroll={scrollHandler}
