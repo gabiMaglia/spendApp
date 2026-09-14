@@ -150,6 +150,11 @@ describe('nadie vuelve a filtrar los pagos a mano', () => {
       'el sobre lleva el ESTADO COMPLETO del grupo (regla #8 / ADR-007): un ' +
       'pago rechazado tiene que viajar igual, o el rechazo no llega nunca al ' +
       'otro lado y cada teléfono deriva un estado distinto',
+    [join('src', 'sync', 'acotarDeltaAlGrupo.ts')]:
+      'mismo motivo que relaySync.ts, del lado receptor (T-132/S3-A1): recorta ' +
+      'el delta del RELAY a lo que pertenece a `groupId` (aislamiento entre ' +
+      'grupos), no a lo que cuenta para el balance — un pago rechazado tiene ' +
+      'que seguir aplicándose vía LWW o el rechazo nunca llega al otro lado',
   };
 
   function archivos(dir: string, out: string[] = []): string[] {
