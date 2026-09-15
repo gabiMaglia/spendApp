@@ -3,6 +3,7 @@ import { esNombreSeguro, limpiarNombre } from '@/src/utils/nombreSeguro';
 import { esIdDeCuenta } from '@/src/utils/idDeCuenta';
 import type { ContactPayload } from '@/src/utils/contactLink';
 import type { GroupInvite } from '@/src/sync/groupInvite';
+import type { ContactInvite } from '@/src/sync/contactInvite';
 
 /**
  * # La regla de compresión de los links — formato compacto v1 (PO, 2026-09-12)
@@ -50,6 +51,17 @@ import type { GroupInvite } from '@/src/sync/groupInvite';
  * | 16 | huella de quien invita |
  * | 6 | vencimiento en milisegundos, entero sin signo big-endian (alcanza hasta el año 10889) |
  * | resto | nombre del grupo, UTF-8 (puede ser vacío) |
+ *
+ * ## Cómo reconstruirlo — invitación de contacto (`i`, T-096)
+ *
+ * | bytes | contenido |
+ * |---|---|
+ * | 1 | versión = `1` |
+ * | 32 | token |
+ * | 16 | huella de quien invita |
+ * | 32 | pública X25519 de envoltura de quien invita (I1, cierre — revisión final de T-096 · ADR-015) |
+ * | 6 | vencimiento en milisegundos, entero sin signo big-endian |
+ * | resto | nombre de quien invita, UTF-8 (puede ser vacío) |
  *
  * ## Las tres garantías
  *
@@ -317,6 +329,51 @@ export function decodificarInvitacion(codigo: string): GroupInvite | null {
     if (groupName !== '' && !esNombreSeguro(groupName)) return null;
 
     return { groupId, groupName, token, inviterFingerprint, expiresAt };
+  } catch {
+    return null;
+  }
+}
+
+// ── invitación de contacto ──────────────────────────────────────────────────
+
+export function codificarInvitacionDeContacto(inv: ContactInvite): string | null {
+  if (!esHex(inv.token, 32) || !esHex(inv.inviterFingerprint, 16) || !esHex(inv.inviterWrapPublicKey, 32)) {
+    return null;
+  }
+  if (!Number.isInteger(inv.expiresAt) || inv.expiresAt < 0 || inv.expiresAt > MAX_UINT48) return null;
+
+  const cuerpo: number[] = [
+    ...fromHex(inv.token), ...fromHex(inv.inviterFingerprint), ...fromHex(inv.inviterWrapPublicKey),
+  ];
+
+  // 6 bytes big-endian sin operadores de bits: `<<` en JS trunca a 32 bits
+  // (mismo motivo que en `codificarInvitacion`).
+  let e = inv.expiresAt;
+  const vence = new Array<number>(6);
+  for (let i = 5; i >= 0; i--) { vence[i] = e % 256; e = Math.floor(e / 256); }
+  cuerpo.push(...vence, ...utf8Bytes(limpiarNombre(inv.fromName ?? '')));
+
+  const codigo = aBase64Url(Uint8Array.from([VERSION, ...cuerpo]));
+  // Garantía 1 del encabezado: nunca se entrega un código que no se pueda leer.
+  return decodificarInvitacionDeContacto(codigo) ? codigo : null;
+}
+
+export function decodificarInvitacionDeContacto(codigo: string): ContactInvite | null {
+  if (codigo.length > MAX_CODIGO) return null;
+  const bytes = desdeBase64Url(codigo);
+  if (!bytes || bytes.length < 1 + 32 + 16 + 32 + 6) return null;
+  try {
+    const r = new Lector(bytes);
+    if (r.byte() !== VERSION) return null;
+    const token = toHex(r.bytes(32));
+    const inviterFingerprint = toHex(r.bytes(16));
+    const inviterWrapPublicKey = toHex(r.bytes(32));
+    let expiresAt = 0;
+    for (const b of r.bytes(6)) expiresAt = expiresAt * 256 + b;
+    const fromName = utf8FromBytes(r.resto());
+    if (fromName !== '' && !esNombreSeguro(fromName)) return null;
+
+    return { fromName, token, inviterFingerprint, inviterWrapPublicKey, expiresAt };
   } catch {
     return null;
   }

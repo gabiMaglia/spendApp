@@ -10,74 +10,53 @@ import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuthStore } from '@/src/store/authStore';
-import { useGroupStore } from '@/src/store/groupStore';
 import { hapticLight, hapticSuccess } from '@/src/utils/haptics';
-import { inviteFromParams, isInviteExpired } from '@/src/sync/groupInvite';
-import { publishClaim, processInvite } from '@/src/sync/inviteEngine';
-import { deviceId, drainNow, startRelay } from '@/src/sync/relayEngine';
-import { esYo } from '@/src/store/identityAlias';
+import { contactInviteFromParams, isContactInviteExpired } from '@/src/sync/contactInvite';
+import { publishContactClaim, processContactInvite } from '@/src/sync/contactInviteEngine';
+import { deviceId, startRelay } from '@/src/sync/relayEngine';
 import { shortFingerprint } from '@/src/utils/keyFingerprint';
 
 /**
- * Pantalla que recibe el link de invitación (`spendapp://groups/join?...`).
- *
- * Entrar a un grupo NO es instantáneo por diseño: hace falta que alguien que ya
- * está adentro entregue la clave, y esa persona puede tener la app cerrada. Por
- * eso la pantalla distingue dos finales buenos:
- *
- *  - **entré**: llegó la clave, ya se ve el grupo;
- *  - **quedó pedido**: el reclamo está publicado y espera. No es un error, y
- *    decirle "falló" al usuario lo haría reintentar para nada.
- *
- * El pedido queda persistido, así que se completa solo cuando el otro abra la
- * app — el usuario puede cerrar todo sin perder nada.
+ * Pantalla que recibe el link de contacto por invitación (T-096 · ADR-015):
+ * `spendapp://contact/claim?...`. Mismo patrón que `app/groups/join.tsx`: no
+ * es instantáneo, porque el secreto real recién llega cuando quien compartió
+ * el link procesa mi reclamo — puede tener la app cerrada.
  */
 
-/** Cuánto esperamos con la pantalla abierta antes de pasar a "quedó pedido". */
 const ESPERA_MS = 25_000;
 const REINTENTO_MS = 3_000;
 
 type Estado = 'listo' | 'entrando' | 'entre' | 'esperando';
 
-export default function JoinGroupScreen() {
+export default function ContactClaimScreen() {
   const scheme = useColorScheme() ?? 'light';
   const c = Colors[scheme];
   const { t } = useTranslation();
 
   const params = useLocalSearchParams();
   const currentUser = useAuthStore(s => s.currentUser);
-  const getById = useGroupStore(s => s.getById);
 
-  const invite = useMemo(() => inviteFromParams(params as Record<string, unknown>), [params]);
+  const invite = useMemo(() => contactInviteFromParams(params as Record<string, unknown>), [params]);
   const [estado, setEstado] = useState<Estado>('listo');
   const vivo = useRef(true);
 
   useEffect(() => () => { vivo.current = false; }, []);
 
-  const yaSoyMiembro = Boolean(
-    invite && currentUser &&
-    getById(invite.groupId)?.memberIds.some(esYo),
-  );
-
-  async function handleJoin() {
+  async function handleAdd() {
     if (!invite || estado !== 'listo') return;
     hapticLight();
     setEstado('entrando');
 
-    await publishClaim(invite, deviceId());
-    // Deja la app escuchando el buzón: si el otro contesta mientras miramos la
-    // pantalla, entra por acá sin esperar al próximo sondeo.
+    await publishContactClaim(invite, deviceId());
     void startRelay();
 
     const limite = Date.now() + ESPERA_MS;
     while (vivo.current && Date.now() < limite) {
-      const adoptados = await processInvite(invite, deviceId());
-      if (adoptados.length > 0) {
-        await drainNow(invite.groupId);
+      const huboNovedad = await processContactInvite(invite, deviceId());
+      if (huboNovedad) {
         if (!vivo.current) return;
         hapticSuccess();
         setEstado('entre');
-        void startRelay(); // ahora sí, suscripción al grupo nuevo
         return;
       }
       await new Promise(r => setTimeout(r, REINTENTO_MS));
@@ -88,24 +67,20 @@ export default function JoinGroupScreen() {
 
   function cerrar() {
     if (router.canGoBack()) router.back();
-    else router.replace('/(tabs)');
+    else router.replace('/(tabs)/friends');
   }
 
   const contenido = () => {
-    if (!invite) return mensaje('alert-circle-outline', c.semantic.error, t('join.invalid_title'), t('join.invalid_body'));
-    if (isInviteExpired(invite)) return mensaje('time-outline', c.semantic.error, t('join.expired_title'), t('join.expired_body'));
-    if (!currentUser) return mensaje('person-outline', c.textSecondary, t('join.need_login_title'), t('join.need_login_body'));
+    if (!invite) return mensaje('alert-circle-outline', c.semantic.error, t('contact.claim.invalid_title'), t('contact.claim.invalid_body'));
+    if (isContactInviteExpired(invite)) return mensaje('time-outline', c.semantic.error, t('contact.claim.expired_title'), t('contact.claim.expired_body'));
+    if (!currentUser) return mensaje('person-outline', c.textSecondary, t('contact.claim.need_login_title'), t('contact.claim.need_login_body'));
 
-    if (estado === 'entre' || yaSoyMiembro) {
+    if (estado === 'entre') {
       return (
         <>
-          {mensaje('checkmark-circle-outline', c.semantic.positive, t('join.joined_title'), t('join.joined_body', { group: invite.groupName }))}
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => router.replace(`/groups/${invite.groupId}`)}
-            style={[styles.cta, { backgroundColor: c.brand.primary }]}
-          >
-            <Text style={[Typography.bodyM, styles.ctaText]}>{t('join.open_group')}</Text>
+          {mensaje('checkmark-circle-outline', c.semantic.positive, t('contact.claim.added_title'), t('contact.claim.added_body', { name: invite.fromName }))}
+          <Pressable accessibilityRole="button" onPress={cerrar} style={[styles.cta, { backgroundColor: c.brand.primary }]}>
+            <Text style={[Typography.bodyM, styles.ctaText]}>{t('common.close')}</Text>
           </Pressable>
         </>
       );
@@ -114,12 +89,8 @@ export default function JoinGroupScreen() {
     if (estado === 'esperando') {
       return (
         <>
-          {mensaje('hourglass-outline', c.textSecondary, t('join.pending_title'), t('join.pending_body'))}
-          <Pressable
-            accessibilityRole="button"
-            onPress={cerrar}
-            style={[styles.cta, { backgroundColor: c.brand.primary }]}
-          >
+          {mensaje('hourglass-outline', c.textSecondary, t('contact.claim.pending_title'), t('contact.claim.pending_body', { name: invite.fromName }))}
+          <Pressable accessibilityRole="button" onPress={cerrar} style={[styles.cta, { backgroundColor: c.brand.primary }]}>
             <Text style={[Typography.bodyM, styles.ctaText]}>{t('common.close')}</Text>
           </Pressable>
         </>
@@ -129,32 +100,31 @@ export default function JoinGroupScreen() {
     return (
       <>
         <View style={[styles.icon, { backgroundColor: c.brand.primary + '1A' }]}>
-          <Ionicons name="people-outline" size={32} color={c.brand.primary} />
+          <Ionicons name="person-add-outline" size={32} color={c.brand.primary} />
         </View>
-        <Text style={[Typography.h2, styles.centro, { color: c.text }]}>{invite.groupName}</Text>
-        <Text style={[Typography.bodyS, styles.centro, { color: c.textSecondary }]}>
-          {t('join.intro')}
+        <Text style={[Typography.h2, styles.centro, { color: c.text }]}>
+          {t('contact.claim.intro', { name: invite.fromName })}
         </Text>
         {invite.inviterFingerprint !== '' && (
           <Text style={[Typography.caption, styles.centro, { color: c.textSecondary }]}>
-            {t('join.inviter_fingerprint', { fingerprint: shortFingerprint(invite.inviterFingerprint) })}
+            {t('contact.claim.inviter_fingerprint', { fingerprint: shortFingerprint(invite.inviterFingerprint) })}
           </Text>
         )}
 
         <Pressable
           accessibilityRole="button"
           disabled={estado === 'entrando'}
-          onPress={handleJoin}
+          onPress={handleAdd}
           style={[styles.cta, { backgroundColor: c.brand.primary, opacity: estado === 'entrando' ? 0.6 : 1 }]}
         >
           {estado === 'entrando'
             ? <ActivityIndicator color="#fff" />
-            : <Text style={[Typography.bodyM, styles.ctaText]}>{t('join.accept')}</Text>}
+            : <Text style={[Typography.bodyM, styles.ctaText]}>{t('contact.claim.accept')}</Text>}
         </Pressable>
 
         {estado === 'entrando' && (
           <Text style={[Typography.caption, styles.centro, { color: c.textSecondary }]}>
-            {t('join.waiting_key')}
+            {t('contact.claim.waiting_key')}
           </Text>
         )}
       </>
@@ -180,7 +150,6 @@ export default function JoinGroupScreen() {
           <Ionicons name="close" size={24} color={c.text} />
         </Pressable>
       </View>
-
       <View style={styles.body}>{contenido()}</View>
     </SafeAreaView>
   );

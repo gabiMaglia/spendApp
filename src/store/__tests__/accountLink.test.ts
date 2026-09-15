@@ -539,3 +539,64 @@ describe('T-098 · SEC L-4 (ronda 2) — invitaciones y joins pendientes se fusi
     expect(readInvites(GOOGLE).map(i => i.token)).toEqual(['cc'.repeat(32)]);
   });
 });
+
+describe('T-096 · el link de contacto también se fusiona', () => {
+  const gk = () => createSecureStorage('groupkeys');
+  const CONTACT_INVITES = 'contact_invites_v1';
+  const CONTACT_PENDING = 'contact_pending_claims_v1';
+  const AHORA = 1_789_000_000_000;
+
+  const cinv = (token: string, expiresAt = AHORA + 3_600_000) => ({
+    fromName: 'Ana', token, inviterFingerprint: 'cd'.repeat(16), expiresAt,
+  });
+  const writeContactInvites = (uid: string, list: unknown[]) =>
+    gk().set(`${CONTACT_INVITES}::u:${uid}`, JSON.stringify(list));
+  const readContactInvites = (uid: string): { token: string }[] => {
+    const raw = gk().getString(`${CONTACT_INVITES}::u:${uid}`);
+    return raw ? (JSON.parse(raw) as { token: string }[]) : [];
+  };
+  const writeContactPending = (uid: string, list: unknown[]) =>
+    gk().set(`${CONTACT_PENDING}::u:${uid}`, JSON.stringify(list));
+  const readContactPending = (uid: string): { token: string }[] => {
+    const raw = gk().getString(`${CONTACT_PENDING}::u:${uid}`);
+    return raw ? (JSON.parse(raw) as { token: string }[]) : [];
+  };
+
+  beforeEach(() => {
+    gk().clearAll();
+    jest.spyOn(Date, 'now').mockReturnValue(AHORA);
+  });
+  afterEach(() => jest.restoreAllMocks());
+
+  it('las invitaciones de contacto que emitió A llegan a B', () => {
+    writeContactInvites(APPLE, [cinv('aa'.repeat(32))]);
+    mergeAccounts(APPLE, GOOGLE);
+    expect(readContactInvites(GOOGLE).map(i => i.token)).toEqual(['aa'.repeat(32)]);
+  });
+
+  it('los reclamos de contacto pendientes de A llegan a B', () => {
+    writeContactPending(APPLE, [cinv('bb'.repeat(32))]);
+    mergeAccounts(APPLE, GOOGLE);
+    expect(readContactPending(GOOGLE).map(i => i.token)).toEqual(['bb'.repeat(32)]);
+  });
+
+  it('se unen las de las dos cuentas, sin duplicar por token', () => {
+    writeContactInvites(APPLE,  [cinv('aa'.repeat(32))]);
+    writeContactInvites(GOOGLE, [cinv('cc'.repeat(32)), cinv('aa'.repeat(32))]);
+    mergeAccounts(APPLE, GOOGLE);
+    expect(readContactInvites(GOOGLE).map(i => i.token).sort()).toEqual(['aa'.repeat(32), 'cc'.repeat(32)]);
+  });
+
+  it('una invitación de contacto vencida no se hereda', () => {
+    writeContactInvites(APPLE, [cinv('aa'.repeat(32), AHORA - 1_000)]);
+    mergeAccounts(APPLE, GOOGLE);
+    expect(readContactInvites(GOOGLE)).toEqual([]);
+  });
+
+  it('un scope corrupto no tumba la fusión', () => {
+    gk().set(`${CONTACT_INVITES}::u:${APPLE}`, 'no es json');
+    writeContactInvites(GOOGLE, [cinv('cc'.repeat(32))]);
+    expect(() => mergeAccounts(APPLE, GOOGLE)).not.toThrow();
+    expect(readContactInvites(GOOGLE).map(i => i.token)).toEqual(['cc'.repeat(32)]);
+  });
+});

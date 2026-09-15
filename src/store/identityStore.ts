@@ -4,6 +4,7 @@ import { createSecureStorage } from '@/src/utils/secureStorage';
 import { readScoped, writeScoped } from '@/src/store/userScope';
 import { toHex, utf8Bytes } from '@/src/sync/hexBytes';
 import { generateIdentity, generateWrapKeypair, type GroupInvite } from '@/src/sync/groupInvite';
+import type { ContactInvite } from '@/src/sync/contactInvite';
 
 /**
  * Identidad criptográfica de ESTE dispositivo y las invitaciones que emitió.
@@ -27,6 +28,8 @@ const K_WRAP     = 'wrapkeys_v1';
 // ahí, y tiene que ser la base real o la fusión y la purga leerían otra cosa.
 export const K_INVITES = 'invites_v1';
 export const K_PENDING = 'pending_joins_v1';
+export const K_CONTACT_INVITES = 'contact_invites_v1';
+export const K_CONTACT_PENDING = 'contact_pending_claims_v1';
 
 type Keypair = { privateKey: string; publicKey: string };
 
@@ -116,7 +119,7 @@ export function destruirIdentidadDelAparato(): void {
   }
   // Invitaciones y joins pendientes son de la CUENTA (T-098 · SEC L-4): no hay un
   // "delete" scopeado en `userScope`, así que se vacían en el scope activo.
-  for (const k of [K_INVITES, K_PENDING]) {
+  for (const k of [K_INVITES, K_PENDING, K_CONTACT_INVITES, K_CONTACT_PENDING]) {
     writeScoped(storage, k, '[]');
   }
 }
@@ -135,6 +138,13 @@ export function listInvites(): GroupInvite[] {
 /** Recupera el token de una invitación emitida, para abrir el reclamo. */
 export function findInviteToken(groupId: string, token: string): GroupInvite | undefined {
   return listInvites().find(i => i.groupId === groupId && i.token === token);
+}
+
+/** Marca quién canjeó una invitación (T-096): un solo uso, un solo destinatario. */
+export function markInviteClaimed(groupId: string, token: string, userId: string): void {
+  const invite = findInviteToken(groupId, token);
+  if (!invite) return;
+  saveInvite({ ...invite, claimedBy: userId });
 }
 
 /**
@@ -158,4 +168,40 @@ export function listPendingJoins(): GroupInvite[] {
 export function removePendingJoin(token: string): void {
   const all = readScopedJson<GroupInvite[]>(K_PENDING, []);
   writeScoped(storage, K_PENDING, JSON.stringify(all.filter(i => i.token !== token)));
+}
+
+export function saveContactInvite(invite: ContactInvite): void {
+  const all = readScopedJson<ContactInvite[]>(K_CONTACT_INVITES, []);
+  const vivas = all.filter(i => i.expiresAt > Date.now() && i.token !== invite.token);
+  writeScoped(storage, K_CONTACT_INVITES, JSON.stringify([...vivas, invite]));
+}
+
+export function listContactInvites(): ContactInvite[] {
+  return readScopedJson<ContactInvite[]>(K_CONTACT_INVITES, []).filter(i => i.expiresAt > Date.now());
+}
+
+export function findContactInviteToken(token: string): ContactInvite | undefined {
+  return listContactInvites().find(i => i.token === token);
+}
+
+/** Marca quién canjeó un link de contacto (T-096): un solo uso, un solo destinatario. */
+export function markContactInviteClaimed(token: string, userId: string): void {
+  const invite = findContactInviteToken(token);
+  if (!invite) return;
+  saveContactInvite({ ...invite, claimedBy: userId });
+}
+
+export function savePendingContactClaim(invite: ContactInvite): void {
+  const all = readScopedJson<ContactInvite[]>(K_CONTACT_PENDING, []);
+  const vivas = all.filter(i => i.expiresAt > Date.now() && i.token !== invite.token);
+  writeScoped(storage, K_CONTACT_PENDING, JSON.stringify([...vivas, invite]));
+}
+
+export function listPendingContactClaims(): ContactInvite[] {
+  return readScopedJson<ContactInvite[]>(K_CONTACT_PENDING, []).filter(i => i.expiresAt > Date.now());
+}
+
+export function removePendingContactClaim(token: string): void {
+  const all = readScopedJson<ContactInvite[]>(K_CONTACT_PENDING, []);
+  writeScoped(storage, K_CONTACT_PENDING, JSON.stringify(all.filter(i => i.token !== token)));
 }

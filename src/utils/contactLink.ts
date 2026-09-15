@@ -1,7 +1,7 @@
 import type { User } from '@/src/types/models';
-import { enlaceCompacto, enlaceCompartible, rutaDeEnlace } from '@/src/utils/appLink';
-import { codificarContacto, decodificarContacto } from '@/src/utils/linkCompacto';
-import { esNombreSeguro, limpiarNombre } from '@/src/utils/nombreSeguro';
+import { rutaDeEnlace } from '@/src/utils/appLink';
+import { decodificarContacto } from '@/src/utils/linkCompacto';
+import { esNombreSeguro } from '@/src/utils/nombreSeguro';
 import { esIdDeCuenta } from '@/src/utils/idDeCuenta';
 
 /**
@@ -63,22 +63,6 @@ export function parseContactPayload(raw: string): ContactPayload | null {
   } catch {
     return null;
   }
-}
-
-/**
- * El link para compartir por mail o chat. Es `https` y no `spendapp://`: ver `utils/appLink`.
- */
-export function buildContactDeepLink(user: User, keys?: ContactKeys | null): string {
-  // Compacto si la regla lo puede representar sin pérdida; si no, el largo (`linkCompacto`).
-  const codigo = codificarContacto({ id: user.id, name: user.name, ...(keys ?? {}) });
-  if (codigo) return enlaceCompacto('c', codigo);
-
-  // El fallback largo tampoco manda email, por la misma razón (T-093 / SEC H-1).
-  const params = new URLSearchParams({ id: user.id, name: limpiarNombre(user.name) });
-  if (keys?.secret) params.set('s', keys.secret);
-  if (keys?.wrapPublicKey) params.set('w', keys.wrapPublicKey);
-  if (keys?.identityPublicKey) params.set('k', keys.identityPublicKey);
-  return enlaceCompartible('contact/add', params);
 }
 
 /**

@@ -57,6 +57,11 @@ export type GroupInvite = {
   /** Huella de quien invita: el invitado la muestra antes de entrar. */
   inviterFingerprint: string;
   expiresAt: number;
+  /**
+   * Quién ya canjeó esta invitación (T-096 · ADR-015). Sólo en la copia
+   * persistida de quien invita — nunca se codifica en el link.
+   */
+  claimedBy?: string;
 };
 
 export function createInvite(

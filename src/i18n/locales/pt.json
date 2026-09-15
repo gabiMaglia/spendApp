@@ -538,7 +538,23 @@
     "added_half_body": "Você adicionou {{name}} neste telefone. Para que {{name}} também tenha você, ainda falta escanear o seu código.",
     "show_my_code": "Mostrar meu código",
     "later": "Mais tarde",
-    "added_both_body": "Você e {{name}} ficaram adicionados nos dois celulares. Ela não precisa escanear nada."
+    "added_both_body": "Você e {{name}} ficaram adicionados nos dois celulares. Ela não precisa escanear nada.",
+    "claim": {
+      "invalid_title": "Link inválido",
+      "invalid_body": "Este link de contato está incompleto ou foi copiado errado. Peça para quem te mandou enviar de novo.",
+      "expired_title": "O link venceu",
+      "expired_body": "Esses links duram 48 horas. Peça para quem te mandou compartilhar um novo.",
+      "need_login_title": "Entre primeiro",
+      "need_login_body": "Entre com sua conta e reabra o link para adicionar o contato.",
+      "intro": "{{name}} está te convidando para se adicionar como contato.",
+      "inviter_fingerprint": "Impressão: {{fingerprint}}",
+      "accept": "Adicionar",
+      "waiting_key": "Esperando confirmação…",
+      "added_title": "Contato adicionado",
+      "added_body": "Agora você tem {{name}} nos seus contatos.",
+      "pending_title": "Seu pedido foi enviado",
+      "pending_body": "Falta {{name}} abrir o app para confirmar. Quando isso acontecer, o contato vai aparecer sozinho."
+    }
   },
   "friends": {
     "add_by_qr": "Adicionar por QR",
@@ -599,7 +615,8 @@
     "joined_body": "Você entrou em “{{group}}”. As despesas sincronizam sozinhas.",
     "open_group": "Ver o grupo",
     "pending_title": "Seu pedido foi enviado",
-    "pending_body": "Falta quem te convidou abrir o app para liberar seu acesso. Quando isso acontecer, o grupo aparece sozinho — você não precisa fazer mais nada."
+    "pending_body": "Falta quem te convidou abrir o app para liberar seu acesso. Quando isso acontecer, o grupo aparece sozinho — você não precisa fazer mais nada.",
+    "inviter_fingerprint": "Convite de alguém com impressão {{fingerprint}}"
   },
   "leave": {
     "title": "Sair do grupo",

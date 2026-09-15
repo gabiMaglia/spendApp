@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-YYLb4U8BbuJTI7+zHCDjaJM3tNKICK6/HyXWNPuOzjA='; style-src 'sha256-KCkMpeLMDZKpQyjwhkkrzJb8R51IFuCQfaZaZ6bYNgQ='; img-src 'none'; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-WpQRXnRWYptDtWzH1BxN1l2sJ0f8I7EVD8UiMv2lEmU='; style-src 'sha256-KCkMpeLMDZKpQyjwhkkrzJb8R51IFuCQfaZaZ6bYNgQ='; img-src 'none'; connect-src 'none'; form-action 'none'; base-uri 'none'">
 <title>Abrir en spendApp</title>
 <!--
   Página intermedia de los links que comparte la app (src/utils/appLink.ts).
@@ -92,10 +92,10 @@
 
 <script>
 (function () {
-  var RUTAS = ['contact/add', 'groups/join'];
+  var RUTAS = ['contact/add', 'groups/join', 'contact/claim'];
   // Formato compacto (src/utils/linkCompacto.ts): una letra de tipo y un código. Esta
   // página NO lo decodifica: se lo pasa a la app como `?c=`, y la app decodifica.
-  var TIPOS = { c: 'contact/add', g: 'groups/join' };
+  var TIPOS = { c: 'contact/add', g: 'groups/join', i: 'contact/claim' };
   var PAQUETE_ANDROID = 'com.splitp2p.app';
   // T-097: id de la App Store (src/constants/web.ts, APP_STORE_ID; un test los ata).
   var APP_STORE_ID = '6801922014';
@@ -104,6 +104,7 @@
     es: {
       'contact/add': ['Te quieren agregar como contacto', 'Abrí el link en spendApp para agregar a esta persona.'],
       'groups/join': ['Te invitaron a un grupo', 'Abrí el link en spendApp para unirte.'],
+      'contact/claim': ['Te invitan a agregarte como contacto', 'Abrí el link en spendApp para agregar a esta persona.'],
       abrir: 'Abrir en spendApp',
       descargar: 'Descargar spendApp',
       ayudaIos: 'Si no se abre sola: mantené apretado el link y elegí "Abrir en spendApp", o abrilo desde Safari.',
@@ -117,6 +118,7 @@
     en: {
       'contact/add': ['Someone wants to add you as a contact', 'Open the link in spendApp to add this person.'],
       'groups/join': ["You've been invited to a group", 'Open the link in spendApp to join.'],
+      'contact/claim': ["You've been invited to add a contact", 'Open the link in spendApp to add this person.'],
       abrir: 'Open in spendApp',
       descargar: 'Get spendApp',
       ayudaIos: 'If it doesn\'t open by itself: press and hold the link and choose "Open in spendApp", or open it in Safari.',
@@ -130,6 +132,7 @@
     pt: {
       'contact/add': ['Querem adicionar você como contato', 'Abra o link no spendApp para adicionar esta pessoa.'],
       'groups/join': ['Você foi convidado para um grupo', 'Abra o link no spendApp para entrar.'],
+      'contact/claim': ['Te convidaram para adicionar um contato', 'Abra o link no spendApp para adicionar esta pessoa.'],
       abrir: 'Abrir no spendApp',
       descargar: 'Baixar spendApp',
       ayudaIos: 'Se não abrir sozinho: mantenha o link pressionado e escolha "Abrir no spendApp", ou abra no Safari.',

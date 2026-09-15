@@ -5,6 +5,7 @@ import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import {
   ensureIdentity, ensureWrapKeypair,
   savePendingJoin, removePendingJoin, listInvites, listPendingJoins,
+  findInviteToken, markInviteClaimed,
 } from '@/src/store/identityStore';
 import { publishToGroup } from './relaySync';
 import { sendEnvelope, fetchSince } from './relay';
@@ -83,6 +84,13 @@ export async function publishClaim(invite: GroupInvite, deviceId: string): Promi
  * rol lo decide el contenido de cada sobre, no quién llama. Devuelve los grupos
  * cuya clave adoptamos — el llamador es el que sabe qué hacer con eso (drenar,
  * resuscribirse), y así este módulo no depende del motor del relay.
+ *
+ * Single-use invites (T-096 · ADR-015): el primer reclamo válido de distinto
+ * usuario consume la invitación para cualquier otro. El chequeo es sólo contra
+ * lo PERSISTIDO (`findInviteToken`/`actual.claimedBy` en `admit`) — no hay
+ * rastreo aparte en memoria dentro del batch, ese mecanismo (`claimedByInBatch`)
+ * se sacó en una ronda de fixes anterior. El MISMO reclamante puede reintentar
+ * (idempotente).
  */
 export async function processInvite(invite: GroupInvite, deviceId: string): Promise<string[]> {
   const me = useAuthStore.getState().currentUser;
@@ -105,7 +113,10 @@ export async function processInvite(invite: GroupInvite, deviceId: string): Prom
     // para cualquiera que tenga el link.
     try {
       const claim = await openClaim(invite.token, envelope.payload);
-      if (claim) { await admit(claim, invite, topic, deviceId, me.id); continue; }
+      if (claim) {
+        if (!await admit(claim, invite, topic, deviceId, me.id)) continue;
+        continue;
+      }
 
       const grant = await openGrant(invite.token, envelope.payload, invite.inviterFingerprint);
       if (grant && await redeem(grant, invite, me.id)) adoptados.push(grant.groupId);
@@ -121,6 +132,10 @@ export async function processInvite(invite: GroupInvite, deviceId: string): Prom
  * Se re-entrega cada vez que se ve el reclamo, aunque ya sea miembro. Es el
  * mecanismo de reintento: si la entrega anterior se perdió, el invitado quedaría
  * esperando para siempre sin nada que la vuelva a mandar.
+ *
+ * Single-use guard (T-096 · ADR-015): Re-lee el campo `claimedBy` persistido
+ * antes de admitir. Si ya fue reclamado por otro usuario, rechaza. El mismo
+ * usuario puede reintentar (idempotente).
  */
 async function admit(
   claim: InviteClaim,
@@ -128,14 +143,29 @@ async function admit(
   topic: string,
   deviceId: string,
   myUserId: string,
-): Promise<void> {
-  if (claim.groupId !== invite.groupId || claim.userId === myUserId) return;
+): Promise<boolean> {
+  if (claim.groupId !== invite.groupId || claim.userId === myUserId) return false;
+
+  // Un solo uso (T-096 · ADR-015): el primer reclamo válido consume la
+  // invitación para cualquier otra persona. El MISMO reclamante puede seguir
+  // reintentando — es lo que ya hace resiliente el reintento existente.
+  //
+  // Solo quien EMITIÓ la invitación puede admitir reclamos. Quien solo reclama
+  // (no tiene record de haber emitido) rechaza automáticamente. Esto previene
+  // que un segundo device (claimant en un grupo, nunca inviter) admita claims.
+  const actual = findInviteToken(invite.groupId, invite.token);
+  if (!actual) return false; // Este dispositivo no emitió esta invitación — no puede admitir (T-096)
+  if (actual.claimedBy && actual.claimedBy !== claim.userId) return false;
 
   // Sólo puede admitir un miembro vivo que tenga la clave. Un tercero con el
   // link no puede fabricar una entrega válida porque no la tiene.
   const record = useGroupKeyStore.getState().getKey(claim.groupId);
   const group = useGroupStore.getState().getById(claim.groupId);
-  if (!record || !group || group.isDeleted || !group.memberIds.includes(myUserId)) return;
+  if (!record || !group || group.isDeleted || !group.memberIds.includes(myUserId)) return false;
+
+  // Marcar como canjeado en storage si no estaba ya (para robustez entre app closes).
+  // `actual` ya está garantizado no-nulo por el `if (!actual) return false` de arriba.
+  if (!actual.claimedBy) markInviteClaimed(invite.groupId, invite.token, claim.userId);
 
   const users = useUserStore.getState();
   if (!users.getUserById(claim.userId)) {
@@ -174,6 +204,7 @@ async function admit(
   }, identity.privateKey);
 
   await sendEnvelope(topic, sealed, deviceId);
+  return true;
 }
 
 /**

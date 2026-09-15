@@ -76,8 +76,9 @@ const relayMock = jest.requireMock('../relay') as {
   __reset: () => void;
 };
 
-const ANA  = usuario('u-ana', 'Ana');
-const BETO = usuario('u-beto', 'Beto');
+const ANA    = usuario('u-ana', 'Ana');
+const BETO   = usuario('u-beto', 'Beto');
+const MALLORY = usuario('u-mallory', 'Mallory');
 
 function usuario(id: string, name: string): User {
   return {
@@ -96,7 +97,10 @@ function grupo(memberIds: string[]): Group {
 
 // --- alternancia de dispositivos ---------------------------------------------
 
-const CLAVES = ['identity_v1', 'wrapkeys_v1', 'invites_v1', 'pending_joins_v1', 'device_id'];
+// T-098 scoped storage: invites/pending_joins are stored under scoped keys like invites_v1::u:u-ana
+// while identity/wrapkeys/device_id are per-device (unscoped)
+const CLAVES_APARATO = ['identity_v1', 'wrapkeys_v1', 'device_id'];   // dispositivo, sin scope
+const CLAVES_CUENTA   = ['invites_v1', 'pending_joins_v1'];            // por cuenta, con scope (T-098 · SEC L-4)
 
 type Estado = {
   storage: Record<string, string | undefined>;
@@ -112,8 +116,12 @@ let actual: string | null = null;
 function capturar(): Estado | null {
   if (!actual) return null;
   const storage = createSecureStorage('groupkeys');
+  const uid = useAuthStore.getState().currentUser!.id;
   return {
-    storage: Object.fromEntries(CLAVES.map(k => [k, storage.getString(k)])),
+    storage: Object.fromEntries([
+      ...CLAVES_APARATO.map(k => [k, storage.getString(k)]),
+      ...CLAVES_CUENTA.map(k => [k, storage.getString(`${k}::u:${uid}`)]),
+    ]),
     groups: useGroupStore.getState().groups,
     users:  useUserStore.getState().users,
     keys:   useGroupKeyStore.getState().keys,
@@ -131,7 +139,16 @@ function usar(id: string, me: User): void {
 
   const estado = guardados.get(id);
   if (estado) {
-    for (const [k, v] of Object.entries(estado.storage)) if (v !== undefined) storage.set(k, v);
+    // Restore unscoped device keys
+    for (const k of CLAVES_APARATO) {
+      const v = estado.storage[k];
+      if (v !== undefined) storage.set(k, v);
+    }
+    // Restore scoped account keys with the NEW user's ID (not the old one)
+    for (const k of CLAVES_CUENTA) {
+      const v = estado.storage[k];
+      if (v !== undefined) storage.set(`${k}::u:${me.id}`, v);
+    }
     useGroupStore.setState({ groups: estado.groups });
     useUserStore.setState({ users: estado.users });
     useGroupKeyStore.setState({ keys: estado.keys });
@@ -547,5 +564,75 @@ describe('T-136 · la invitación resuelve un grupo en conflicto forzado sin cla
     expect(useGroupKeyStore.getState().getKey('g1')?.key).toBe(clave);
     expect(conflictoForzado('g1')).toBe(false);
     expect(ofertasDe('g1')).toEqual([]);
+  });
+});
+
+describe('T-096 · invitación de un solo uso (claimedBy)', () => {
+  it('un segundo reclamante distinto no se admite tras el primero (T-096, un solo uso)', async () => {
+    relayMock.__reset();
+    const { invite } = anaInvita();
+
+    usar('beto', BETO);
+    await publishClaim(invite, 'device-beto');
+
+    usar('mallory', MALLORY);
+    await publishClaim(invite, 'device-mallory');
+
+    usar('ana', ANA);
+    await processInvite(invite, 'device-ana');
+
+    // El mismo lote ya tiene los dos reclamos (Beto y Mallory publicaron antes de
+    // que Ana procesara): sólo Beto debe quedar admitido.
+    expect(useGroupStore.getState().getById('g1')!.memberIds).toContain(BETO.id);
+    expect(useGroupStore.getState().getById('g1')!.memberIds).not.toContain(MALLORY.id);
+
+    usar('mallory', MALLORY);
+    const adoptadosMallory = await processInvite(invite, 'device-mallory');
+    expect(adoptadosMallory).toEqual([]);
+  });
+
+  it('el mismo reclamante puede reintentar después de haber sido admitido', async () => {
+    relayMock.__reset();
+    const { invite } = anaInvita();
+
+    usar('beto', BETO);
+    await publishClaim(invite, 'device-beto');
+
+    usar('ana', ANA);
+    await processInvite(invite, 'device-ana');
+
+    usar('beto', BETO);
+    const adoptados = await processInvite(invite, 'device-beto');
+    // Beto ya fue admitido y recibe la llave.
+    expect(adoptados).toEqual(['g1']);
+  });
+
+  it('la vulnerabilidad cross-device NO es reachable: activeInvites vacio tras redeem (T-096)', async () => {
+    // Verifica que el escenario criticado por el reviewer (otro dispositivo reabre
+    // el invite tras que alguien se une) NO es reachable en el flujo normal,
+    // porque removePendingJoin() limpia el invite de la lista de activeInvites().
+    relayMock.__reset();
+    const { invite } = anaInvita();
+
+    usar('beto', BETO);
+    await publishClaim(invite, 'device-beto');
+    // Beto tiene el invite pendiente
+    expect(listPendingJoins().map(i => i.token)).toContain(invite.token);
+
+    usar('ana', ANA);
+    await processInvite(invite, 'device-ana');
+
+    usar('beto', BETO);
+    const adoptados = await processInvite(invite, 'device-beto');
+    expect(adoptados).toEqual(['g1']); // Beto recibe la llave y entra
+
+    // GARANTIA: removePendingJoin limpió el invite de K_PENDING de Beto.
+    // Beto tampoco tiene el invite en K_INVITES (nunca llamó saveInvite).
+    // Por lo tanto, activeInvites() en Beto no lo incluye.
+    expect(listPendingJoins().map(i => i.token)).not.toContain(invite.token);
+    // Resultado: processAllInvites() nunca lo reprocessaría en Beto's device,
+    // así que el riesgo de que Beto (nuevo miembro) admita a Mallory NO es reachable
+    // a través del flujo normal. (Sí lo sería si algo explícitamente llamara
+    // processInvite(invite), pero eso no es un code path actual.)
   });
 });

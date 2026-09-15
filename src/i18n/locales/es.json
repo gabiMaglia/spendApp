@@ -538,7 +538,23 @@
     "added_half_body": "Agregaste a {{name}} en este teléfono. Para que {{name}} también te tenga a vos, todavía falta que escanee tu código.",
     "show_my_code": "Mostrar mi código",
     "later": "Más tarde",
-    "added_both_body": "{{name}} y vos quedaron agregados en los dos teléfonos. No hace falta que escanee nada."
+    "added_both_body": "{{name}} y vos quedaron agregados en los dos teléfonos. No hace falta que escanee nada.",
+    "claim": {
+      "invalid_title": "Link inválido",
+      "invalid_body": "Este link de contacto está incompleto o mal copiado. Pedile a quien te lo mandó que te lo mande de nuevo.",
+      "expired_title": "El link venció",
+      "expired_body": "Estos links duran 48 horas. Pedile a quien te lo mandó que comparta uno nuevo.",
+      "need_login_title": "Iniciá sesión primero",
+      "need_login_body": "Entrá con tu cuenta y volvé a abrir el link para agregar el contacto.",
+      "intro": "{{name}} te invita a agregarse como contacto.",
+      "inviter_fingerprint": "Huella: {{fingerprint}}",
+      "accept": "Agregar",
+      "waiting_key": "Esperando confirmación…",
+      "added_title": "Contacto agregado",
+      "added_body": "Ya tenés a {{name}} en tus contactos.",
+      "pending_title": "Tu pedido quedó enviado",
+      "pending_body": "Falta que {{name}} abra la app para confirmar. Cuando pase, el contacto te va a aparecer solo."
+    }
   },
   "friends": {
     "add_by_qr": "Agregar por QR",
@@ -599,7 +615,8 @@
     "joined_body": "Te uniste a «{{group}}». Los gastos se sincronizan solos.",
     "open_group": "Ver el grupo",
     "pending_title": "Tu pedido quedó enviado",
-    "pending_body": "Falta que quien te invitó abra la app para darte acceso. Cuando pase, el grupo te va a aparecer solo — no hace falta que hagas nada más."
+    "pending_body": "Falta que quien te invitó abra la app para darte acceso. Cuando pase, el grupo te va a aparecer solo — no hace falta que hagas nada más.",
+    "inviter_fingerprint": "Invitación de alguien con huella {{fingerprint}}"
   },
   "leave": {
     "title": "Salir del grupo",

@@ -3,9 +3,10 @@ import { bucketsAbiertos, createStorage, type SimpleStorage } from '@/src/utils/
 import { mergeAccountData, type MergeReport } from './mergeAccountData';
 import { AUTH_KEYS } from './authKeys';
 import { mergeProviderUser } from '@/src/utils/mergeProviderUser';
-import { K_INVITES, K_PENDING } from './identityStore';
+import { K_INVITES, K_PENDING, K_CONTACT_INVITES, K_CONTACT_PENDING } from './identityStore';
 import type { User } from '@/src/types/models';
 import type { GroupInvite } from '@/src/sync/groupInvite';
+import type { ContactInvite } from '@/src/sync/contactInvite';
 
 /**
  * Los stores de datos que se fusionan cuando dos cuentas resultan ser la misma
@@ -125,6 +126,8 @@ const kPendienteDrenaje = ranura('groupkeys', PENDIENTE_DRENAJE_BASE);
  */
 const kInvites = ranura('groupkeys', K_INVITES);
 const kPending = ranura('groupkeys', K_PENDING);
+const kContactInvites = ranura('groupkeys', K_CONTACT_INVITES);
+const kContactPending = ranura('groupkeys', K_CONTACT_PENDING);
 
 /**
  * Fusiona TODOS los datos de `fromAccountId` dentro de `toAccountId`.
@@ -146,6 +149,8 @@ export function mergeAccounts(fromAccountId: string, toAccountId: string): Merge
   mergePendingDrain(fromAccountId, toAccountId);
   mergeInvites(fromAccountId, toAccountId);
   mergePendingJoins(fromAccountId, toAccountId);
+  mergeContactInvites(fromAccountId, toAccountId);
+  mergePendingContactClaims(fromAccountId, toAccountId);
   recordMerge(fromAccountId);
   return report;
 }
@@ -237,18 +242,20 @@ function mergePendingDrain(fromAccountId: string, toAccountId: string): void {
  * hace `identityStore.ts` al guardar: no tiene sentido heredar una invitación
  * muerta.
  */
-function mergeInviteList(key: (uid: string) => string, fromAccountId: string, toAccountId: string): void {
+function mergeInviteList<T extends { token: string; expiresAt: number }>(
+  key: (uid: string) => string, fromAccountId: string, toAccountId: string,
+): void {
   if (fromAccountId === toAccountId) return;
   const storage = createSecureStorage('groupkeys');
   const ahora = Date.now();
 
-  const leer = (uid: string): GroupInvite[] => {
+  const leer = (uid: string): T[] => {
     const raw = storage.getString(key(uid));
     if (!raw) return [];
     try {
       const v = JSON.parse(raw);
       return Array.isArray(v)
-        ? (v as GroupInvite[]).filter(i => i && typeof i.token === 'string' && i.expiresAt > ahora)
+        ? (v as T[]).filter(i => i && typeof i.token === 'string' && i.expiresAt > ahora)
         : [];
     } catch {
       return [];
@@ -263,11 +270,19 @@ function mergeInviteList(key: (uid: string) => string, fromAccountId: string, to
 }
 
 function mergeInvites(fromAccountId: string, toAccountId: string): void {
-  mergeInviteList(kInvites, fromAccountId, toAccountId);
+  mergeInviteList<GroupInvite>(kInvites, fromAccountId, toAccountId);
 }
 
 function mergePendingJoins(fromAccountId: string, toAccountId: string): void {
-  mergeInviteList(kPending, fromAccountId, toAccountId);
+  mergeInviteList<GroupInvite>(kPending, fromAccountId, toAccountId);
+}
+
+function mergeContactInvites(fromAccountId: string, toAccountId: string): void {
+  mergeInviteList<ContactInvite>(kContactInvites, fromAccountId, toAccountId);
+}
+
+function mergePendingContactClaims(fromAccountId: string, toAccountId: string): void {
+  mergeInviteList<ContactInvite>(kContactPending, fromAccountId, toAccountId);
 }
 
 /**
@@ -709,7 +724,7 @@ export const COBERTURA_FUSION: Record<string, string> = {
   'store/identityAlias':  'aparte · mergeAlias (alias_v1: unión de los alias del origen MÁS el id del origen, bajo el scope destino). Es lo que hace el alias transitivo A→B→C; sin la unión, la primera identidad se pierde en la segunda fusión.',
   'sync/pendingDrain':    'aparte · mergePendingDrain (pending_drain_v1: UNIÓN de las marcas de las dos cuentas). Unir es el lado seguro: heredar una marca de más cuesta un drenaje; perder una deja publicar un grupo heredado sin leer su buzón, que es el defecto de T-089.',
   'sync/contactChannel':  'aparte · mergeContactPeers (contact_peers_v1: unión por userId, el destino gana campo por campo). El secreto propio y el acuse de tarjeta NO se fusionan — ver el docblock de mergeContactPeers.',
-  'store/identityStore':  'aparte · mergeInvites/mergePendingJoins (invites_v1/pending_joins_v1: unión por token, vencidas descartadas de los dos lados). Las privadas (identity_v1/owner_secret_v1/wrapkeys_v1) siguen siendo del APARATO y no pasan por writeScoped ni por ranura().',
+  'store/identityStore':  'aparte · mergeInvites/mergePendingJoins/mergeContactInvites/mergePendingContactClaims (invites_v1/pending_joins_v1/contact_invites_v1/contact_pending_claims_v1: unión por token, vencidas descartadas de los dos lados). Las privadas (identity_v1/owner_secret_v1/wrapkeys_v1) siguen siendo del APARATO y no pasan por writeScoped ni por ranura().',
 };
 
 /**
