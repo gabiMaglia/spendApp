@@ -9,6 +9,8 @@ import { Colors } from '@/src/constants/colors';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { NoticeBell } from './NoticeBell';
 import { NoticeInboxSheet } from './NoticeInboxSheet';
+import { GroupKeyConflictCard } from './GroupKeyConflictCard';
+import { BottomSheet } from './Sheet';
 import { CurrencySheet } from './CurrencyPicker';
 import { UserAvatar } from './UserAvatar';
 import { useAuthStore } from '@/src/store/authStore';
@@ -18,7 +20,8 @@ import { useSettingsStore } from '@/src/store/settingsStore';
 import {
   useNoticeInboxStore, useUnreadNoticeCount, type StoredNotice,
 } from '@/src/store/noticeInboxStore';
-import { esAccionable } from '@/src/services/syncNotices';
+import { esAccionable, type KeyConflictNotice } from '@/src/services/syncNotices';
+import { ofertasDe } from '@/src/sync/groupKeyOffers';
 import { hapticLight } from '@/src/utils/haptics';
 import { syncedNow } from '@/src/utils/syncedClock';
 
@@ -69,6 +72,8 @@ export function TabHeader({
 
   const [bandeja, setBandeja] = useState(false);
   const [monedas, setMonedas] = useState(false);
+  /** Aviso de claves en disputa abierto (T-136): el id para marcarlo leído al resolver. */
+  const [conflicto, setConflicto] = useState<{ id: string; notice: KeyConflictNotice } | null>(null);
 
   /**
    * **Abrir la campana marca leídas las que NO piden acción** (PO 2026-09-13,
@@ -84,15 +89,29 @@ export function TabHeader({
   }
 
   function abrirAviso(item: StoredNotice) {
+    // La constante es necesaria para que TypeScript estreche el union: sobre
+    // `item.notice` el `in` no acota nada.
+    const aviso = item.notice;
+
+    /**
+     * T-136: leer este aviso no lo resuelve — hay que elegir una clave. Se abre
+     * la tarjeta y queda sin leer hasta que la elección salga bien. Si ya no
+     * quedan dos ofertas, el conflicto se resolvió por otro lado: se marca
+     * leído y no se abre nada.
+     */
+    if (aviso.kind === 'group_key_conflict') {
+      setBandeja(false);
+      if (ofertasDe(aviso.groupId).length < 2) { markRead(item.id); return; }
+      setConflicto({ id: item.id, notice: aviso });
+      return;
+    }
+
     markRead(item.id);
     setBandeja(false);
 
     // No todo aviso es de un grupo: el del reloj (T-038) es del aparato. Se
     // marca leído y no se navega a ningún lado, que es lo correcto — no hay
     // pantalla adentro de la app donde arreglar la hora del teléfono.
-    // La constante es necesaria para que TypeScript estreche el union: sobre
-    // `item.notice` el `in` no acota nada.
-    const aviso = item.notice;
     if (!('groupId' in aviso)) return;
 
     const grupo = groups.find(g => g.id === aviso.groupId && !g.isDeleted);
@@ -149,6 +168,16 @@ export function TabHeader({
         onOpenNotice={abrirAviso}
         onMarkAll={() => markAllRead()}
       />
+      {conflicto && (
+        <BottomSheet visible onClose={() => setConflicto(null)}>
+          <GroupKeyConflictCard
+            notice={conflicto.notice}
+            senderIds={ofertasDe(conflicto.notice.groupId).map(o => o.fromUserId)}
+            onResuelto={() => { markRead(conflicto.id); setConflicto(null); }}
+            onDespues={() => setConflicto(null)}
+          />
+        </BottomSheet>
+      )}
     </>
   );
 }
