@@ -105,10 +105,6 @@ export async function processInvite(invite: GroupInvite, deviceId: string): Prom
   if (!r.ok) return [];
 
   const adoptados: string[] = [];
-  // Rastreo local del reclamo dentro del lote (T-096): garantiza que incluso si
-  // el persistence tiene delays de scope, rechazamos multiples claimants en la
-  // misma llamada. Tambien persiste el claimedBy para robustez entre app closes.
-  let claimedByInBatch: string | undefined;
 
   for (const envelope of r.envelopes) {
     // Un sobre ajeno o corrupto no puede frenar la cola: el buzón es público
@@ -116,11 +112,7 @@ export async function processInvite(invite: GroupInvite, deviceId: string): Prom
     try {
       const claim = await openClaim(invite.token, envelope.payload);
       if (claim) {
-        if (!await admit(claim, invite, topic, deviceId, me.id, claimedByInBatch)) continue;
-        // Si admit devolvio true (se admitio al claimant), marcar en batch
-        if (!claimedByInBatch && invite.groupId === claim.groupId && claim.userId !== me.id) {
-          claimedByInBatch = claim.userId;
-        }
+        if (!await admit(claim, invite, topic, deviceId, me.id)) continue;
         continue;
       }
 
@@ -141,8 +133,7 @@ export async function processInvite(invite: GroupInvite, deviceId: string): Prom
  *
  * Single-use guard (T-096 · ADR-015): Re-lee el campo `claimedBy` persistido
  * antes de admitir. Si ya fue reclamado por otro usuario, rechaza. El mismo
- * usuario puede reintentar (idempotente). Dentro del mismo batch, MMKV sincrónico
- * garantiza que iteraciones posteriores ven las marcas de iteraciones anteriores.
+ * usuario puede reintentar (idempotente).
  */
 async function admit(
   claim: InviteClaim,
@@ -150,7 +141,6 @@ async function admit(
   topic: string,
   deviceId: string,
   myUserId: string,
-  claimedByInBatch?: string,
 ): Promise<boolean> {
   if (claim.groupId !== invite.groupId || claim.userId === myUserId) return false;
 
@@ -158,13 +148,12 @@ async function admit(
   // invitación para cualquier otra persona. El MISMO reclamante puede seguir
   // reintentando — es lo que ya hace resiliente el reintento existente.
   //
-  // Comprobamos DOS capas:
-  // 1. claimedByInBatch: rastreo local durante este batch (eficiente)
-  // 2. actual.claimedBy: persistido en storage (robustez entre app closes)
-  if (claimedByInBatch && claimedByInBatch !== claim.userId) return false;
-
+  // Solo quien EMITIÓ la invitación puede admitir reclamos. Quien solo reclama
+  // (no tiene record de haber emitido) rechaza automáticamente. Esto previene
+  // que un segundo device (claimant en un grupo, nunca inviter) admita claims.
   const actual = findInviteToken(invite.groupId, invite.token);
-  if (actual?.claimedBy && actual.claimedBy !== claim.userId) return false;
+  if (!actual) return false; // Este dispositivo no emitió esta invitación — no puede admitir (T-096)
+  if (actual.claimedBy && actual.claimedBy !== claim.userId) return false;
 
   // Sólo puede admitir un miembro vivo que tenga la clave. Un tercero con el
   // link no puede fabricar una entrega válida porque no la tiene.

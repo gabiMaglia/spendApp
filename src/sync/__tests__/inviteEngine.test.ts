@@ -97,7 +97,10 @@ function grupo(memberIds: string[]): Group {
 
 // --- alternancia de dispositivos ---------------------------------------------
 
-const CLAVES = ['identity_v1', 'wrapkeys_v1', 'invites_v1', 'pending_joins_v1', 'device_id'];
+// T-098 scoped storage: invites/pending_joins are stored under scoped keys like invites_v1::u:u-ana
+// while identity/wrapkeys/device_id are per-device (unscoped)
+const CLAVES_APARATO = ['identity_v1', 'wrapkeys_v1', 'device_id'];   // dispositivo, sin scope
+const CLAVES_CUENTA   = ['invites_v1', 'pending_joins_v1'];            // por cuenta, con scope (T-098 · SEC L-4)
 
 type Estado = {
   storage: Record<string, string | undefined>;
@@ -113,8 +116,12 @@ let actual: string | null = null;
 function capturar(): Estado | null {
   if (!actual) return null;
   const storage = createSecureStorage('groupkeys');
+  const uid = useAuthStore.getState().currentUser!.id;
   return {
-    storage: Object.fromEntries(CLAVES.map(k => [k, storage.getString(k)])),
+    storage: Object.fromEntries([
+      ...CLAVES_APARATO.map(k => [k, storage.getString(k)]),
+      ...CLAVES_CUENTA.map(k => [k, storage.getString(`${k}::u:${uid}`)]),
+    ]),
     groups: useGroupStore.getState().groups,
     users:  useUserStore.getState().users,
     keys:   useGroupKeyStore.getState().keys,
@@ -132,7 +139,16 @@ function usar(id: string, me: User): void {
 
   const estado = guardados.get(id);
   if (estado) {
-    for (const [k, v] of Object.entries(estado.storage)) if (v !== undefined) storage.set(k, v);
+    // Restore unscoped device keys
+    for (const k of CLAVES_APARATO) {
+      const v = estado.storage[k];
+      if (v !== undefined) storage.set(k, v);
+    }
+    // Restore scoped account keys with the NEW user's ID (not the old one)
+    for (const k of CLAVES_CUENTA) {
+      const v = estado.storage[k];
+      if (v !== undefined) storage.set(`${k}::u:${me.id}`, v);
+    }
     useGroupStore.setState({ groups: estado.groups });
     useUserStore.setState({ users: estado.users });
     useGroupKeyStore.setState({ keys: estado.keys });
