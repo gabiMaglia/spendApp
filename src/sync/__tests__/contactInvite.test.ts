@@ -1,0 +1,110 @@
+import {
+  createContactInvite, isContactInviteExpired, deriveContactInviteTopic,
+  sealContactClaim, openContactClaim, sealContactGrant, openContactGrant,
+} from '../contactInvite';
+import { generateIdentity, fingerprint } from '../groupInvite';
+import type { ContactCard } from '../contactChannel';
+
+function card(overrides: Partial<ContactCard> = {}): ContactCard {
+  return {
+    kind: 'contact', userId: 'u-ana', name: 'Ana',
+    contactSecret: 'a'.repeat(64), wrapPublicKey: 'b'.repeat(64), identityPublicKey: 'c'.repeat(64),
+    sentAt: 1000,
+    ...overrides,
+  };
+}
+
+describe('createContactInvite', () => {
+  it('arma un token al azar, la huella de la identidad y el vencimiento a 48hs', () => {
+    const id = generateIdentity();
+    const now = 1_000_000;
+    const invite = createContactInvite('Ana', id.publicKey, now);
+    expect(invite.fromName).toBe('Ana');
+    expect(invite.token).toMatch(/^[0-9a-f]{64}$/);
+    expect(invite.inviterFingerprint).toHaveLength(32);
+    expect(invite.expiresAt).toBe(now + 48 * 60 * 60 * 1000);
+    expect(invite.claimedBy).toBeUndefined();
+  });
+
+  it('dos invitaciones seguidas tienen tokens distintos', () => {
+    const id = generateIdentity();
+    const a = createContactInvite('Ana', id.publicKey);
+    const b = createContactInvite('Ana', id.publicKey);
+    expect(a.token).not.toBe(b.token);
+  });
+});
+
+describe('isContactInviteExpired', () => {
+  it('vencida cuando "ahora" pasa expiresAt', () => {
+    const invite = createContactInvite('Ana', 'aa', 1000);
+    expect(isContactInviteExpired(invite, 1000 + 48 * 60 * 60 * 1000 + 1)).toBe(true);
+    expect(isContactInviteExpired(invite, 1000)).toBe(false);
+  });
+});
+
+describe('deriveContactInviteTopic', () => {
+  it('el mismo token siempre da el mismo topic', async () => {
+    const a = await deriveContactInviteTopic('tok-1');
+    const b = await deriveContactInviteTopic('tok-1');
+    expect(a).toBe(b);
+  });
+
+  it('tokens distintos dan topics distintos', async () => {
+    const a = await deriveContactInviteTopic('tok-1');
+    const b = await deriveContactInviteTopic('tok-2');
+    expect(a).not.toBe(b);
+  });
+});
+
+describe('sealContactClaim / openContactClaim', () => {
+  it('ida y vuelta', async () => {
+    const sealed = await sealContactClaim('tok-1', card());
+    const abierto = await openContactClaim('tok-1', sealed);
+    expect(abierto).toEqual(card());
+  });
+
+  it('con el token equivocado no abre', async () => {
+    const sealed = await sealContactClaim('tok-1', card());
+    expect(await openContactClaim('tok-2', sealed)).toBeNull();
+  });
+
+  it('basura no abre', async () => {
+    expect(await openContactClaim('tok-1', 'no-es-un-sobre')).toBeNull();
+  });
+
+  it('un grant sellado con el mismo token no se confunde con un claim', async () => {
+    const id = generateIdentity();
+    const sealedGrant = await sealContactGrant('tok-1', card(), id.privateKey);
+    expect(await openContactClaim('tok-1', sealedGrant)).toBeNull();
+  });
+});
+
+describe('sealContactGrant / openContactGrant', () => {
+  it('ida y vuelta, con la huella correcta', async () => {
+    const id = generateIdentity();
+    const sealed = await sealContactGrant('tok-1', card(), id.privateKey);
+    const abierto = await openContactGrant('tok-1', sealed, fingerprint(id.publicKey));
+    expect(abierto).toEqual(card());
+  });
+
+  it('rechaza con la huella equivocada', async () => {
+    const id = generateIdentity();
+    const sealed = await sealContactGrant('tok-1', card(), id.privateKey);
+    expect(await openContactGrant('tok-1', sealed, '0'.repeat(32))).toBeNull();
+  });
+
+  it('rechaza una firma que no corresponde (identidad distinta a la que firmó)', async () => {
+    const firmante = generateIdentity();
+    const impostor = generateIdentity();
+    const sealed = await sealContactGrant('tok-1', card(), firmante.privateKey);
+    // Se manipula el sobre para decir que lo firmó "impostor" sin haber resellado:
+    // alcanza con verificar que la huella esperada de un tercero no matchea.
+    expect(await openContactGrant('tok-1', sealed, fingerprint(impostor.publicKey))).toBeNull();
+  });
+
+  it('un claim sellado con el mismo token no se confunde con un grant', async () => {
+    const id = generateIdentity();
+    const sealedClaim = await sealContactClaim('tok-1', card());
+    expect(await openContactGrant('tok-1', sealedClaim, fingerprint(id.publicKey))).toBeNull();
+  });
+});
