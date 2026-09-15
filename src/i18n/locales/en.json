@@ -385,7 +385,11 @@
       "unknown_name": "Unnamed contact",
       "invite_sender": "the invite link",
       "failed": "That key couldn't be used. Open the notice again.",
-      "dissent_dropped": "Another key for this group arrived but couldn't be saved. Wait for that person to open the app so it's sent again before you choose."
+      "dissent_dropped": "Another key for this group arrived but couldn't be saved, so it isn't safe to choose. Delete the group from this phone and ask someone in the group to invite you again.",
+      "forget_group": "Delete the group from this phone",
+      "forget_confirm_title": "Delete \"{{group}}\" from this phone?",
+      "forget_confirm_body": "The group, its expenses and the keys that arrived are deleted from this phone. Nothing is published.",
+      "forget_confirm": "Delete"
     },
     "synced": "Synced",
     "syncing": "Syncing…",

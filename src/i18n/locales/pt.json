@@ -385,7 +385,11 @@
       "unknown_name": "Contato sem nome",
       "invite_sender": "o convite",
       "failed": "Não foi possível usar essa chave. Abra o aviso de novo.",
-      "dissent_dropped": "Chegou outra chave para este grupo que não pôde ser salva. Espere essa pessoa abrir o app para reenviá-la antes de escolher."
+      "dissent_dropped": "Chegou outra chave para este grupo que não pôde ser salva, então não é seguro escolher. Apague o grupo deste telefone e peça para alguém do grupo convidar você de novo.",
+      "forget_group": "Apagar o grupo deste telefone",
+      "forget_confirm_title": "Apagar \"{{group}}\" deste telefone?",
+      "forget_confirm_body": "O grupo, suas despesas e as chaves que chegaram são apagados deste telefone. Nada é publicado.",
+      "forget_confirm": "Apagar"
     },
     "synced": "Sincronizado",
     "syncing": "Sincronizando…",

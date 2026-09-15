@@ -385,7 +385,11 @@
       "unknown_name": "Contacto sin nombre",
       "invite_sender": "la invitación",
       "failed": "No se pudo usar esa clave. Volvé a abrir el aviso.",
-      "dissent_dropped": "Llegó otra clave para este grupo que no se pudo guardar. Esperá a que esa persona abra la app para que te la reenvíe antes de elegir."
+      "dissent_dropped": "Llegó otra clave para este grupo que no se pudo guardar, así que no es seguro elegir. Borrá el grupo de este teléfono y pedile a alguien del grupo que te invite de nuevo.",
+      "forget_group": "Borrar el grupo de este teléfono",
+      "forget_confirm_title": "¿Borrar \"{{group}}\" de este teléfono?",
+      "forget_confirm_body": "Se borran de este teléfono el grupo, sus gastos y las claves que llegaron. No se publica nada.",
+      "forget_confirm": "Borrar"
     },
     "synced": "Sincronizado",
     "syncing": "Sincronizando…",

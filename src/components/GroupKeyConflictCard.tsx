@@ -9,6 +9,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { textFor } from '@/src/services/notifications';
 import { nombreDeGrupoEnConflicto, type KeyConflictNotice } from '@/src/services/syncNotices';
 import { elegirClaveDeGrupo } from '@/src/services/elegirClaveDeGrupo';
+import { purgarGrupoLocalmente } from '@/src/services/salirDelGrupo';
 import { conflictoForzado, esOfertaDeInvitacion } from '@/src/sync/groupKeyOffers';
 import { useUserStore } from '@/src/store/userStore';
 import { ActionButton } from './ActionButton';
@@ -19,7 +20,7 @@ export interface GroupKeyConflictCardProps {
   notice: KeyConflictNotice;
   /** Remitentes con oferta HOY (`ofertasDe`), no la foto congelada del aviso. */
   senderIds: string[];
-  /** La elección salió bien: quien la aloja marca el aviso leído y cierra. */
+  /** La elección (o el borrado local) salió bien: quien la aloja marca el aviso leído y cierra. */
   onResuelto: () => void;
   /** «Decidir después»: cierra y el aviso sigue pendiente. */
   onDespues: () => void;
@@ -40,8 +41,15 @@ export interface GroupKeyConflictCardProps {
  * no entró a la tabla de ofertas porque un tope estaba lleno. La real puede no
  * estar entre las ofertas visibles, así que elegir a ciegas acá sería adoptar
  * justo lo que un atacante quiso colar. En ese caso no se ofrece ningún botón
- * de elegir — sólo la advertencia y «Decidir después», hasta que la persona
- * real reenvíe su clave (se reintenta sola en cada arranque).
+ * de elegir.
+ *
+ * Y esperar tampoco sirve (revisión final, O-1): la marca de forzado sólo se
+ * limpia al olvidar las ofertas del grupo, y un reenvío de la persona real
+ * vuelve a chocar con el mismo tope. Por eso el texto no promete que se
+ * destraba solo: la única salida es borrar el grupo de este teléfono
+ * (`purgarGrupoLocalmente` — grupo, gastos, ofertas, marca y clave, sin
+ * publicar nada) y pedir una invitación nueva. El botón aparece SÓLO en este
+ * estado, con confirmación.
  */
 export function GroupKeyConflictCard({ notice, senderIds, onResuelto, onDespues }: GroupKeyConflictCardProps) {
   const scheme = useColorScheme() ?? 'light';
@@ -65,6 +73,24 @@ export function GroupKeyConflictCard({ notice, senderIds, onResuelto, onDespues 
     setEligiendo(null);
     if (ok) onResuelto();
     else Alert.alert(t('sync.key_conflict.failed'));
+  }
+
+  function confirmarBorrado(): void {
+    Alert.alert(
+      t('sync.key_conflict.forget_confirm_title', { group: grupo }),
+      t('sync.key_conflict.forget_confirm_body'),
+      [
+        { text: t('sync.key_conflict.cancel'), style: 'cancel' },
+        {
+          text: t('sync.key_conflict.forget_confirm'),
+          style: 'destructive',
+          onPress: () => {
+            purgarGrupoLocalmente(notice.groupId);
+            onResuelto();
+          },
+        },
+      ],
+    );
   }
 
   function confirmar(userId: string): void {
@@ -110,6 +136,16 @@ export function GroupKeyConflictCard({ notice, senderIds, onResuelto, onDespues 
             />
           </View>
         ))}
+        {forzado && (
+          <ActionButton
+            testID="key-conflict-forget-group"
+            label={t('sync.key_conflict.forget_group')}
+            icon="trash-outline"
+            variant="danger"
+            full
+            action={confirmarBorrado}
+          />
+        )}
         <ActionButton
           testID="key-conflict-later"
           label={t('sync.key_conflict.decide_later')}

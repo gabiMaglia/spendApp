@@ -3,6 +3,7 @@ import { Alert, type AlertButton } from 'react-native';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import { GroupKeyConflictCard } from '../GroupKeyConflictCard';
 import { elegirClaveDeGrupo } from '@/src/services/elegirClaveDeGrupo';
+import { purgarGrupoLocalmente } from '@/src/services/salirDelGrupo';
 import { conflictoForzado, idDeOfertaDeInvitacion } from '@/src/sync/groupKeyOffers';
 import { useAuthStore } from '@/src/store/authStore';
 import { useUserStore } from '@/src/store/userStore';
@@ -18,6 +19,7 @@ jest.mock('@/src/sync/relayEngine', () => ({
   publishNow: jest.fn(async () => {}), drainNow: jest.fn(async () => 0), startRelay: jest.fn(async () => {}),
 }));
 jest.mock('@/src/services/elegirClaveDeGrupo', () => ({ elegirClaveDeGrupo: jest.fn(async () => true) }));
+jest.mock('@/src/services/salirDelGrupo', () => ({ purgarGrupoLocalmente: jest.fn() }));
 jest.mock('@/src/sync/groupKeyOffers', () => {
   const real = jest.requireActual('@/src/sync/groupKeyOffers');
   return { ...real, conflictoForzado: jest.fn(() => false) };
@@ -25,6 +27,7 @@ jest.mock('@/src/sync/groupKeyOffers', () => {
 
 const elegir = elegirClaveDeGrupo as jest.MockedFunction<typeof elegirClaveDeGrupo>;
 const forzado = conflictoForzado as jest.MockedFunction<typeof conflictoForzado>;
+const purgar = purgarGrupoLocalmente as jest.MockedFunction<typeof purgarGrupoLocalmente>;
 
 const NOTICE: KeyConflictNotice = {
   kind: 'group_key_conflict', groupId: 'g1', groupName: 'Viaje',
@@ -141,8 +144,9 @@ describe('elegir', () => {
 /**
  * Conflicto FORZADO (T-136 fix round 1): una clave distinta no entró a la
  * tabla porque un tope estaba lleno. La real puede no estar entre las ofertas
- * visibles, así que acá NO se puede elegir a ciegas — sólo queda esperar a
- * que la persona real reenvíe su clave, o «Decidir después».
+ * visibles, así que acá NO se puede elegir a ciegas. Esperar tampoco lo
+ * destraba (revisión final, O-1): la salida es borrar el grupo de este
+ * teléfono y pedir una invitación nueva.
  */
 describe('conflicto forzado (tope lleno, T-136 fix round 1)', () => {
   it('forzado: muestra la advertencia y no los botones de elegir', () => {
@@ -162,6 +166,52 @@ describe('conflicto forzado (tope lleno, T-136 fix round 1)', () => {
     expect(r.queryByText('sync.key_conflict.dissent_dropped')).toBeNull();
     expect(r.getByTestId('key-conflict-sender-u-beto')).toBeTruthy();
   });
+
+  it('forzado: ofrece borrar el grupo de este teléfono', () => {
+    forzado.mockReturnValue(true);
+    const r = render(<GroupKeyConflictCard {...props} />);
+
+    expect(r.getByTestId('key-conflict-forget-group')).toBeTruthy();
+  });
+
+  it('no forzado: no ofrece borrar el grupo', () => {
+    forzado.mockReturnValue(false);
+    const r = render(<GroupKeyConflictCard {...props} />);
+
+    expect(r.queryByTestId('key-conflict-forget-group')).toBeNull();
+  });
+
+  it('borrar pide confirmación y todavía no purga', () => {
+    forzado.mockReturnValue(true);
+    const r = render(<GroupKeyConflictCard {...props} />);
+    fireEvent.press(r.getByTestId('key-conflict-forget-group'));
+
+    expect(alerta).toHaveBeenCalledTimes(1);
+    expect(String(alerta.mock.calls[0]![0])).toContain('sync.key_conflict.forget_confirm_title');
+    expect(purgar).not.toHaveBeenCalled();
+    expect(props.onResuelto).not.toHaveBeenCalled();
+  });
+
+  it('confirmar el borrado purga el grupo localmente y da el aviso por resuelto', () => {
+    forzado.mockReturnValue(true);
+    const r = render(<GroupKeyConflictCard {...props} />);
+    fireEvent.press(r.getByTestId('key-conflict-forget-group'));
+    botones().find(b => b.style === 'destructive')!.onPress!();
+
+    expect(purgar).toHaveBeenCalledWith('g1');
+    expect(props.onResuelto).toHaveBeenCalledTimes(1);
+    expect(elegir).not.toHaveBeenCalled();
+  });
+
+  it('cancelar el borrado no purga ni resuelve', () => {
+    forzado.mockReturnValue(true);
+    const r = render(<GroupKeyConflictCard {...props} />);
+    fireEvent.press(r.getByTestId('key-conflict-forget-group'));
+    botones().find(b => b.style === 'cancel')!.onPress?.();
+
+    expect(purgar).not.toHaveBeenCalled();
+    expect(props.onResuelto).not.toHaveBeenCalled();
+  });
 });
 
 describe('textos (spec §3.2, aprobados por el PO)', () => {
@@ -170,7 +220,7 @@ describe('textos (spec §3.2, aprobados por el PO)', () => {
   const CLAVES = [
     'title_two', 'title_many', 'body', 'unverified_name', 'use_key_of', 'decide_later',
     'confirm_title', 'confirm_body', 'cancel', 'confirm_use', 'unknown_name', 'invite_sender', 'failed',
-    'dissent_dropped',
+    'dissent_dropped', 'forget_group', 'forget_confirm_title', 'forget_confirm_body', 'forget_confirm',
   ];
 
   it.each(CLAVES)('sync.key_conflict.%s existe en es, en y pt', clave => {
@@ -191,11 +241,15 @@ describe('textos (spec §3.2, aprobados por el PO)', () => {
     expect(k.confirm_body).toBe('Se borra lo que tenés de "{{group}}" en este teléfono y se vuelve a bajar con esa clave. Lo que hayas cargado desde que llegó la otra clave se pierde.');
     expect(k.cancel).toBe('Cancelar');
     expect(k.confirm_use).toBe('Usar esta clave');
-    expect(k.dissent_dropped).toBe('Llegó otra clave para este grupo que no se pudo guardar. Esperá a que esa persona abra la app para que te la reenvíe antes de elegir.');
+    expect(k.dissent_dropped).toBe('Llegó otra clave para este grupo que no se pudo guardar, así que no es seguro elegir. Borrá el grupo de este teléfono y pedile a alguien del grupo que te invite de nuevo.');
+    expect(k.forget_group).toBe('Borrar el grupo de este teléfono');
+    expect(k.forget_confirm_title).toBe('¿Borrar "{{group}}" de este teléfono?');
+    expect(k.forget_confirm_body).toBe('Se borran de este teléfono el grupo, sus gastos y las claves que llegaron. No se publica nada.');
+    expect(k.forget_confirm).toBe('Borrar');
   });
 
   it('en y pt están traducidos, no copiados del español', () => {
-    for (const clave of ['title_two', 'body', 'confirm_body', 'dissent_dropped']) {
+    for (const clave of ['title_two', 'body', 'confirm_body', 'dissent_dropped', 'forget_group', 'forget_confirm_body', 'forget_confirm']) {
       const textos = Object.values(dicts).map(d => d.sync.key_conflict?.[clave]);
       expect(new Set(textos).size).toBe(3);
     }
