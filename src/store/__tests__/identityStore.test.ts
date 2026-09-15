@@ -1,4 +1,4 @@
-import { ensureIdentity, ensureWrapKeypair, saveInvite, listInvites, findInviteToken } from '../identityStore';
+import { ensureIdentity, ensureWrapKeypair, saveInvite, listInvites, findInviteToken, markInviteClaimed } from '../identityStore';
 import { createInvite } from '@/src/sync/groupInvite';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { useAuthStore } from '@/src/store/authStore';
@@ -78,5 +78,34 @@ describe('invitaciones emitidas', () => {
     const inv = createInvite('g1', 'Viaje', 'aa'.repeat(32), AHORA);
     saveInvite(inv); saveInvite(inv);
     expect(listInvites()).toHaveLength(1);
+  });
+
+  describe('markInviteClaimed', () => {
+    it('persiste quién canjeó la invitación', () => {
+      const inv = createInvite('g1', 'Viaje', 'aa'.repeat(32), AHORA);
+      saveInvite(inv);
+      markInviteClaimed('g1', inv.token, 'u-beto');
+      expect(findInviteToken('g1', inv.token)?.claimedBy).toBe('u-beto');
+    });
+
+    it('no rompe si el token no existe', () => {
+      expect(() => markInviteClaimed('g1', 'no-existe', 'u-beto')).not.toThrow();
+    });
+
+    it('preserva el resto de los campos al marcar', () => {
+      const inv = createInvite('g1', 'Casa', 'aa'.repeat(32), AHORA);
+      saveInvite(inv);
+      markInviteClaimed('g1', inv.token, 'u-beto');
+      const guardada = findInviteToken('g1', inv.token)!;
+      expect(guardada.groupName).toBe('Casa');
+      expect(guardada.token).toBe(inv.token);
+    });
+
+    it('listInvites sigue devolviendo la invitación marcada mientras no venza', () => {
+      const inv = createInvite('g1', 'Viaje', 'aa'.repeat(32), AHORA);
+      saveInvite(inv);
+      markInviteClaimed('g1', inv.token, 'u-beto');
+      expect(listInvites().find(i => i.token === inv.token)?.claimedBy).toBe('u-beto');
+    });
   });
 });

@@ -5,6 +5,7 @@ import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import {
   ensureIdentity, ensureWrapKeypair,
   savePendingJoin, removePendingJoin, listInvites, listPendingJoins,
+  findInviteToken, markInviteClaimed,
 } from '@/src/store/identityStore';
 import { publishToGroup } from './relaySync';
 import { sendEnvelope, fetchSince } from './relay';
@@ -99,13 +100,23 @@ export async function processInvite(invite: GroupInvite, deviceId: string): Prom
   if (!r.ok) return [];
 
   const adoptados: string[] = [];
+  // Seguimiento local del reclamo durante este lote: dentro del mismo lote
+  // sólo el primer reclamante válido distinto se admite (T-096).
+  let claimedByInBatch: string | undefined;
 
   for (const envelope of r.envelopes) {
     // Un sobre ajeno o corrupto no puede frenar la cola: el buzón es público
     // para cualquiera que tenga el link.
     try {
       const claim = await openClaim(invite.token, envelope.payload);
-      if (claim) { await admit(claim, invite, topic, deviceId, me.id); continue; }
+      if (claim) {
+        await admit(claim, invite, topic, deviceId, me.id, claimedByInBatch);
+        // Si el reclamo fue procesado y admitido, marcar al reclamante.
+        if (!claimedByInBatch && invite.groupId === claim.groupId && claim.userId !== me.id) {
+          claimedByInBatch = claim.userId;
+        }
+        continue;
+      }
 
       const grant = await openGrant(invite.token, envelope.payload, invite.inviterFingerprint);
       if (grant && await redeem(grant, invite, me.id)) adoptados.push(grant.groupId);
@@ -128,14 +139,31 @@ async function admit(
   topic: string,
   deviceId: string,
   myUserId: string,
+  claimedByInBatch?: string,
 ): Promise<void> {
   if (claim.groupId !== invite.groupId || claim.userId === myUserId) return;
+
+  // Un solo uso (T-096 · ADR-015): el primer reclamo válido consume la
+  // invitación para cualquier otra persona. El MISMO reclamante puede seguir
+  // reintentando — es lo que ya hace resiliente el reintento existente.
+  //
+  // Se comprueban DOS fuentes de estado:
+  // 1. `claimedByInBatch`: rastreo local dentro del lote actual (eficiente)
+  // 2. `actual.claimedBy`: persistido en storage (para robustez si el invitador
+  //    reabre la app y vuelve a procesar el buzón)
+  if (claimedByInBatch && claimedByInBatch !== claim.userId) return;
+
+  const actual = findInviteToken(invite.groupId, invite.token);
+  if (actual?.claimedBy && actual.claimedBy !== claim.userId) return;
 
   // Sólo puede admitir un miembro vivo que tenga la clave. Un tercero con el
   // link no puede fabricar una entrega válida porque no la tiene.
   const record = useGroupKeyStore.getState().getKey(claim.groupId);
   const group = useGroupStore.getState().getById(claim.groupId);
   if (!record || !group || group.isDeleted || !group.memberIds.includes(myUserId)) return;
+
+  // Marcar como canjeado en storage si no estaba ya (para robustez entre app closes)
+  if (!actual?.claimedBy) markInviteClaimed(invite.groupId, invite.token, claim.userId);
 
   const users = useUserStore.getState();
   if (!users.getUserById(claim.userId)) {

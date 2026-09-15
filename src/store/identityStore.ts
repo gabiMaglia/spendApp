@@ -137,6 +137,13 @@ export function findInviteToken(groupId: string, token: string): GroupInvite | u
   return listInvites().find(i => i.groupId === groupId && i.token === token);
 }
 
+/** Marca quién canjeó una invitación (T-096): un solo uso, un solo destinatario. */
+export function markInviteClaimed(groupId: string, token: string, userId: string): void {
+  const invite = findInviteToken(groupId, token);
+  if (!invite) return;
+  saveInvite({ ...invite, claimedBy: userId });
+}
+
 /**
  * Invitaciones que ACEPTAMOS y todavía no se completaron.
  *

@@ -76,8 +76,9 @@ const relayMock = jest.requireMock('../relay') as {
   __reset: () => void;
 };
 
-const ANA  = usuario('u-ana', 'Ana');
-const BETO = usuario('u-beto', 'Beto');
+const ANA    = usuario('u-ana', 'Ana');
+const BETO   = usuario('u-beto', 'Beto');
+const MALLORY = usuario('u-mallory', 'Mallory');
 
 function usuario(id: string, name: string): User {
   return {
@@ -547,5 +548,46 @@ describe('T-136 · la invitación resuelve un grupo en conflicto forzado sin cla
     expect(useGroupKeyStore.getState().getKey('g1')?.key).toBe(clave);
     expect(conflictoForzado('g1')).toBe(false);
     expect(ofertasDe('g1')).toEqual([]);
+  });
+});
+
+describe('T-096 · invitación de un solo uso (claimedBy)', () => {
+  it('un segundo reclamante distinto no se admite tras el primero (T-096, un solo uso)', async () => {
+    relayMock.__reset();
+    const { invite } = anaInvita();
+
+    usar('beto', BETO);
+    await publishClaim(invite, 'device-beto');
+
+    usar('mallory', MALLORY);
+    await publishClaim(invite, 'device-mallory');
+
+    usar('ana', ANA);
+    await processInvite(invite, 'device-ana');
+
+    // El mismo lote ya tiene los dos reclamos (Beto y Mallory publicaron antes de
+    // que Ana procesara): sólo Beto debe quedar admitido.
+    expect(useGroupStore.getState().getById('g1')!.memberIds).toContain(BETO.id);
+    expect(useGroupStore.getState().getById('g1')!.memberIds).not.toContain(MALLORY.id);
+
+    usar('mallory', MALLORY);
+    const adoptadosMallory = await processInvite(invite, 'device-mallory');
+    expect(adoptadosMallory).toEqual([]);
+  });
+
+  it('el mismo reclamante puede reintentar después de haber sido admitido', async () => {
+    relayMock.__reset();
+    const { invite } = anaInvita();
+
+    usar('beto', BETO);
+    await publishClaim(invite, 'device-beto');
+
+    usar('ana', ANA);
+    await processInvite(invite, 'device-ana');
+
+    usar('beto', BETO);
+    const adoptados = await processInvite(invite, 'device-beto');
+    // Beto ya fue admitido y recibe la llave.
+    expect(adoptados).toEqual(['g1']);
   });
 });
