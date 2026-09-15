@@ -14,7 +14,9 @@ import {
   type GroupInvite, type InviteClaim, type InviteGrant,
 } from './groupInvite';
 import { syncedNow } from '@/src/utils/syncedClock';
-import { claveLocalVinoDeContacto, idDeOfertaDeInvitacion, registrarOferta } from './groupKeyOffers';
+import {
+  claveLocalVinoDeContacto, idDeOfertaDeInvitacion, olvidarOfertas, registrarOferta,
+} from './groupKeyOffers';
 import { avisarConflictoDeClave } from './keyConflictNotice';
 
 /**
@@ -212,6 +214,17 @@ async function redeem(grant: InviteGrant, invite: GroupInvite, myUserId: string)
   }
 
   if (!clave) return false;
+
+  // El grupo no tenía clave, así que esta invitación lo resuelve de verdad. Las
+  // ofertas de contacto que hubieran quedado dando vueltas —y la marca de
+  // conflicto FORZADO, que `olvidarOfertas` limpia junto con ellas— ya no
+  // describen nada: sin esto, la tarjeta de conflicto seguiría ofreciendo como
+  // única salida borrar un grupo que acaba de quedar bien (revisión final,
+  // D-3). Va ANTES de `adoptKeys`, como la purga de `elegirClaveDeGrupo`: la
+  // clave recién adoptada queda sin oferta adoptada que la respalde, así que
+  // `claveLocalVinoDeContacto` da `false` y no es disputable por contacto
+  // (S3-A1). Si después llegan ofertas de contacto, arrancan de cero.
+  olvidarOfertas(grant.groupId);
 
   useGroupKeyStore.getState().adoptKeys([
     { groupId: grant.groupId, key: clave, epoch: grant.epoch },

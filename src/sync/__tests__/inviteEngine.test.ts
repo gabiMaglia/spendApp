@@ -14,7 +14,10 @@ import { useGroupKeyStore, type GroupKeyRecord } from '@/src/store/groupKeyStore
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import type { Group, User } from '@/src/types/models';
 import { useNoticeInboxStore } from '@/src/store/noticeInboxStore';
-import { idDeOfertaDeInvitacion, marcarAdoptada, ofertasDe, registrarOferta } from '../groupKeyOffers';
+import {
+  conflictoForzado, idDeOfertaDeInvitacion, marcarAdoptada, marcarConflictoForzado,
+  ofertasDe, registrarOferta,
+} from '../groupKeyOffers';
 
 jest.mock('expo-notifications', () => ({
   setNotificationHandler: () => {},
@@ -438,22 +441,22 @@ describe('activeInvites', () => {
  * T-136 criterio 5. Antes, `redeem` veía «ya tengo clave» y cerraba el ingreso
  * en silencio: una clave plantada por contacto también bloqueaba el link.
  */
+const FALSA = 'ab'.repeat(32);
+
+/** Ana invitó y ya entregó el grant; Beto todavía no procesó su buzón. */
+async function grantEsperandoABeto(): Promise<{ invite: GroupInvite; clave: string }> {
+  const { invite, clave } = anaInvita();
+  usar('beto', BETO);
+  await publishClaim(invite, 'dev-beto');
+  usar('ana', ANA);
+  await processInvite(invite, 'dev-ana');
+  usar('beto', BETO);
+  createSecureStorage('notices').clearAll();
+  useNoticeInboxStore.setState({ items: [] });
+  return { invite, clave };
+}
+
 describe('T-136 · la invitación choca con una clave plantada por contacto', () => {
-  const FALSA = 'ab'.repeat(32);
-
-  /** Ana invitó y ya entregó el grant; Beto todavía no procesó su buzón. */
-  async function grantEsperandoABeto(): Promise<{ invite: GroupInvite; clave: string }> {
-    const { invite, clave } = anaInvita();
-    usar('beto', BETO);
-    await publishClaim(invite, 'dev-beto');
-    usar('ana', ANA);
-    await processInvite(invite, 'dev-ana');
-    usar('beto', BETO);
-    createSecureStorage('notices').clearAll();
-    useNoticeInboxStore.setState({ items: [] });
-    return { invite, clave };
-  }
-
   /** Lo que habría dejado `drainContacts`: la clave de Mallory, adoptada por contacto. */
   function plantadaPorContacto(key: string): void {
     useGroupKeyStore.setState({ keys: [{ groupId: 'g1', key, epoch: 1e9 }] });
@@ -513,5 +516,36 @@ describe('T-136 · la invitación choca con una clave plantada por contacto', ()
     expect(ofertasDe('g1')).toEqual([]);
     expect(avisos()).toHaveLength(0);
     expect(listPendingJoins()).toHaveLength(0);
+  });
+});
+
+/**
+ * T-136 · D-3 (revisión final). El grupo nunca tuvo clave local y un atacante
+ * lo dejó en conflicto FORZADO (claves Sybil que no entraron por el tope). Si
+ * la invitación legítima adopta la clave real sin limpiar nada, el grupo queda
+ * bien pero la tarjeta de conflicto sigue ofreciendo como única salida borrarlo
+ * — el usuario destruiría un grupo ya resuelto.
+ */
+describe('T-136 · la invitación resuelve un grupo en conflicto forzado sin clave local', () => {
+  it('adopta la clave y deja el grupo sin conflicto forzado ni ofertas pendientes', async () => {
+    const { invite, clave } = await grantEsperandoABeto();
+
+    // El ataque: varias claves de contacto distintas, la última fuera de tabla.
+    for (let i = 0; i < 3; i++) {
+      registrarOferta({
+        groupId: 'g1', fromUserId: `u-sybil-${i}`, key: `0${i}`.repeat(32),
+        epoch: 1, origen: 'contact', receivedAt: 0, adoptada: false,
+      });
+    }
+    marcarConflictoForzado('g1');
+
+    expect(conflictoForzado('g1')).toBe(true);
+    expect(useGroupKeyStore.getState().getKey('g1')).toBeUndefined();
+
+    expect(await processInvite(invite, 'dev-beto')).toEqual(['g1']);
+
+    expect(useGroupKeyStore.getState().getKey('g1')?.key).toBe(clave);
+    expect(conflictoForzado('g1')).toBe(false);
+    expect(ofertasDe('g1')).toEqual([]);
   });
 });
