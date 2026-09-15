@@ -1,7 +1,7 @@
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
-import { marcarConTopic } from '@/src/sync/pendingDrain';
+import { marcarConTopic, marcarPendienteDeDrenaje } from '@/src/sync/pendingDrain';
 import {
-  claveLocalVinoDeContacto, conflictoForzado, marcarAdoptada, ofertasDe, registrarOferta,
+  claveLocalVinoDeContacto, conflictoForzado, ofertasDe, registrarOferta,
 } from '@/src/sync/groupKeyOffers';
 import { purgarGrupoLocalmente } from './salirDelGrupo';
 
@@ -21,10 +21,15 @@ import { purgarGrupoLocalmente } from './salirDelGrupo';
  *     (`claveLocalVinoDeContacto`). Las de `ensureKey`, QR o invitación nunca
  *     se sustituyen por acá: es lo que mantiene cerrado S3-A1.
  *
- * El orden importa: **primero se purga** la copia local del grupo. Si se
- * adoptara antes, lo que vino del topic falso se publicaría con la clave real
- * (regla #8: se publica el estado completo). Después se adopta, queda
- * pendiente de drenaje y se drena el topic real.
+ * El orden importa, y no sólo entre pasos grandes: **primero se purga** la
+ * copia local del grupo — si se adoptara antes, lo que vino del topic falso
+ * se publicaría con la clave real (regla #8: se publica el estado completo).
+ * Después, la marca de pendiente-de-drenaje y la adopción de la oferta van
+ * ANTES de `adoptKeys` (fix round 1, T-136): `adoptKeys` pone la clave con un
+ * `set()` síncrono pero sólo DISPARA su propia marca sin esperarla, así que
+ * hay una ventana real en la que un `schedulePublish` viejo (de cuando el
+ * grupo tenía la clave falsa) podría publicar el payload purgado con la clave
+ * REAL. Recién después se drena el topic real.
  *
  * No llama a `salirDelGrupo`: eso publicaría una salida en el topic del
  * atacante. Lo cargado desde que llegó la clave falsa se pierde; la
@@ -41,16 +46,41 @@ export async function elegirClaveDeGrupo(groupId: string, fromUserId: string): P
   // 2 · purga (incluye `forgetKey` y `olvidarOfertas`)
   purgarGrupoLocalmente(groupId);
 
-  // 3 · adoptar. La marca de `adoptKeys` es `void`: se espera acá para que el
-  // grupo quede pendiente ANTES de cualquier publicación.
+  // 3 · pendiente de drenaje, SINCRÓNICO y ANTES de tocar la clave (fix round 1).
+  // `adoptKeys` guarda la clave con un `set()` síncrono, pero internamente
+  // sólo DISPARA `marcarConTopic` (`void`, sin esperarlo) — no lo espera antes
+  // de volver. Entre que la clave real queda puesta y esa marca aparece hay
+  // una ventana real: un `schedulePublish` con debounce que haya quedado vivo
+  // de cuando el grupo tenía la clave falsa puede disparar justo ahí, y
+  // `publishNow` sellaría el payload recién purgado —casi vacío— con la clave
+  // REAL, compactable como si fuera el estado real del grupo. Marcar acá,
+  // antes de tocar la clave, cierra esa ventana del todo.
+  marcarPendienteDeDrenaje(groupId);
+
+  // 4 · la oferta elegida queda adoptada en una sola escritura, TAMBIÉN antes
+  // de `adoptKeys` (fix round 1): si el proceso se cae entre medio, no puede
+  // quedar una clave local sin ninguna oferta adoptada que la respalde —eso
+  // dejaría `claveLocalVinoDeContacto` en `false` para siempre y la clave
+  // local recién puesta quedaría inelegible por este camino. La purga ya
+  // descartó el resto de las ofertas del grupo, así que ésta es la única que
+  // queda.
+  //
+  // Si `fromUserId` es una invitación (`invite:<huella>`) la oferta queda
+  // IGUAL de adoptada: el usuario la eligió a mano frente a un conflicto, así
+  // que sigue siendo tan disputable como cualquier otra clave adoptada por
+  // este camino si más tarde llega una oferta de contacto distinta.
+  registrarOferta({ ...elegida, adoptada: true });
+
+  // 5 · adoptar la clave con la época de la oferta.
   useGroupKeyStore.getState().adoptKeys([{ groupId, key: elegida.key, epoch: elegida.epoch }]);
+
+  // 6 · `marcarConTopic` de nuevo: la marca de arriba ya cerró la ventana de
+  // publicación; esto es sólo para olvidar el cursor del topic REAL (deriva
+  // el topic de la clave recién adoptada) — sin eso `drainNow` pediría
+  // `seq > cursor_viejo` y podría no traer nada.
   await marcarConTopic([groupId]);
 
-  // 4 · la elegida queda como única oferta, adoptada: la purga ya descartó las demás.
-  registrarOferta({ ...elegida, adoptada: false });
-  marcarAdoptada(groupId, fromUserId);
-
-  // 5 · drenar el topic real. Perezoso como en `salirDelGrupo`: `relayEngine`
+  // 7 · drenar el topic real. Perezoso como en `salirDelGrupo`: `relayEngine`
   // importa a los stores que esto usa.
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports

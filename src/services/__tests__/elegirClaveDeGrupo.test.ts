@@ -1,14 +1,14 @@
 import { elegirClaveDeGrupo } from '../elegirClaveDeGrupo';
-import {
-  claveLocalVinoDeContacto, marcarAdoptada, marcarConflictoForzado, ofertasDe, registrarOferta, type KeyOffer,
-} from '@/src/sync/groupKeyOffers';
-import { estaPendienteDeDrenaje } from '@/src/sync/pendingDrain';
+import * as groupKeyOffersModule from '@/src/sync/groupKeyOffers';
+import * as pendingDrainModule from '@/src/sync/pendingDrain';
 import { useAuthStore } from '@/src/store/authStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import type { User } from '@/src/types/models';
+
+type KeyOffer = groupKeyOffersModule.KeyOffer;
 
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
 jest.mock('@/src/sync/relayEngine', () => ({
@@ -62,9 +62,9 @@ function trasElAtaque(): void {
     { groupId: 'g1', key: FALSA, epoch: 1e9 },
     { groupId: 'g2', key: OTRA, epoch: 1 },
   ] });
-  registrarOferta(oferta('u-mallory', FALSA, 1e9));
-  marcarAdoptada('g1', 'u-mallory');
-  registrarOferta(oferta('u-beto', REAL, 3));
+  groupKeyOffersModule.registrarOferta(oferta('u-mallory', FALSA, 1e9));
+  groupKeyOffersModule.marcarAdoptada('g1', 'u-mallory');
+  groupKeyOffersModule.registrarOferta(oferta('u-beto', REAL, 3));
 }
 
 const idsDeGastos = () => useExpenseStore.getState().expenses.map(e => e.id);
@@ -79,7 +79,7 @@ describe('elegir la clave de un remitente', () => {
     expect(useGroupKeyStore.getState().getKey('g1')).toEqual({ groupId: 'g1', key: REAL, epoch: 3 });
     expect(idsDeGastos()).toEqual(['e-otro']);
     expect(idsDeGrupos()).toEqual(['g2']);
-    expect(estaPendienteDeDrenaje('g1')).toBe(true);
+    expect(pendingDrainModule.estaPendienteDeDrenaje('g1')).toBe(true);
     expect(relayEngine.drainNow).toHaveBeenCalledWith('g1');
   });
 
@@ -87,8 +87,9 @@ describe('elegir la clave de un remitente', () => {
     trasElAtaque();
     await elegirClaveDeGrupo('g1', 'u-beto');
 
-    expect(ofertasDe('g1')).toEqual([expect.objectContaining({ fromUserId: 'u-beto', adoptada: true })]);
-    expect(claveLocalVinoDeContacto('g1')).toBe(true);
+    expect(groupKeyOffersModule.ofertasDe('g1')).toEqual(
+      [expect.objectContaining({ fromUserId: 'u-beto', adoptada: true })]);
+    expect(groupKeyOffersModule.claveLocalVinoDeContacto('g1')).toBe(true);
   });
 
   it('no toca la clave de otros grupos', async () => {
@@ -105,8 +106,8 @@ describe('elegir la clave de un remitente', () => {
   });
 
   it('criterio 2 · sin clave local y con ofertas en conflicto (mismo lote) se puede elegir', async () => {
-    registrarOferta(oferta('u-mallory', FALSA, 1e9));
-    registrarOferta(oferta('u-beto', REAL, 3));
+    groupKeyOffersModule.registrarOferta(oferta('u-mallory', FALSA, 1e9));
+    groupKeyOffersModule.registrarOferta(oferta('u-beto', REAL, 3));
 
     expect(await elegirClaveDeGrupo('g1', 'u-beto')).toBe(true);
     expect(useGroupKeyStore.getState().getKey('g1')?.key).toBe(REAL);
@@ -126,8 +127,8 @@ describe('cuándo NO se puede elegir (S3-A1)', () => {
 
   it('una clave local de ensureKey/QR/invitación (sin oferta adoptada) → false aunque haya ofertas', async () => {
     // Conflicto en el mismo lote (no se adoptó nada) y después el QR trajo otra clave.
-    registrarOferta(oferta('u-mallory', FALSA, 1e9));
-    registrarOferta(oferta('u-beto', REAL, 3));
+    groupKeyOffersModule.registrarOferta(oferta('u-mallory', FALSA, 1e9));
+    groupKeyOffersModule.registrarOferta(oferta('u-beto', REAL, 3));
     useGroupKeyStore.setState({ keys: [{ groupId: 'g1', key: 'ff'.repeat(32), epoch: 2 }] });
 
     expect(await elegirClaveDeGrupo('g1', 'u-beto')).toBe(false);
@@ -142,12 +143,105 @@ describe('cuándo NO se puede elegir (S3-A1)', () => {
     // lleno, pero `marcarConflictoForzado` la deja registrada igual: elegir acá
     // sería inventar que la real está entre las ofertas cuando puede no estarlo.
     trasElAtaque();
-    marcarConflictoForzado('g1');
+    groupKeyOffersModule.marcarConflictoForzado('g1');
 
     expect(await elegirClaveDeGrupo('g1', 'u-beto')).toBe(false);
 
     expect(useGroupKeyStore.getState().getKey('g1')?.key).toBe(FALSA);
     expect(idsDeGastos()).toContain('e-falso');
     expect(relayEngine.drainNow).not.toHaveBeenCalled();
+  });
+});
+
+describe('T-136 fix round 1 · orden interno', () => {
+  /**
+   * `adoptKeys` guarda la clave con un `set()` síncrono, pero la marca de
+   * pendiente-de-drenaje que dispara internamente (`marcarConTopic`) es
+   * `void` — no se espera. Hay una ventana real entre que la clave real queda
+   * puesta y esa marca aparece: un `schedulePublish` con debounce que haya
+   * quedado vivo de cuando el grupo tenía la clave falsa podría disparar
+   * justo ahí, y `publishNow` sellaría el payload recién purgado —casi
+   * vacío— con la clave REAL como si fuera el estado real del grupo.
+   *
+   * Por eso `elegirClaveDeGrupo` tiene que marcar pendiente de drenaje, y
+   * registrar la oferta elegida como adoptada, ANTES de llamar a
+   * `adoptKeys` — no después.
+   *
+   * ⚠️ Ojo con CÓMO se prueba esto: espiar `useGroupKeyStore.getState().adoptKeys`
+   * directamente (una acción del store) CONTAMINA los tests siguientes. El
+   * store hace `Object.assign({}, estadoActual, parcial)` en cada `set()`
+   * interno (p.ej. el `forgetKey` de la purga, que corre ANTES de llegar acá),
+   * así que copia la referencia mutada hacia el objeto de estado siguiente —
+   * y `mockRestore()` sólo repara el objeto viejo sobre el que se espió, no el
+   * nuevo que ya quedó circulando. Por eso acá se espía la función de MÓDULO
+   * (`marcarPendienteDeDrenaje` / `registrarOferta`, exports planos, no
+   * acciones del store) y se mira el estado de la clave en el momento en que
+   * cada una corre — sin tocar nunca una acción del store.
+   */
+  it('marca pendiente de drenaje ANTES de que la clave real quede adoptada', async () => {
+    trasElAtaque();
+
+    let claveYaEraLaRealAlMarcar: boolean | null = null;
+    const real = jest.requireActual<typeof import('@/src/sync/pendingDrain')>('@/src/sync/pendingDrain')
+      .marcarPendienteDeDrenaje;
+    const spy = jest.spyOn(pendingDrainModule, 'marcarPendienteDeDrenaje')
+      .mockImplementation((groupId: string, topic?: string) => {
+        claveYaEraLaRealAlMarcar = useGroupKeyStore.getState().getKey('g1')?.key === REAL;
+        real(groupId, topic);
+      });
+
+    try {
+      expect(await elegirClaveDeGrupo('g1', 'u-beto')).toBe(true);
+    } finally {
+      spy.mockRestore();
+    }
+
+    expect(claveYaEraLaRealAlMarcar).toBe(false);
+    expect(pendingDrainModule.estaPendienteDeDrenaje('g1')).toBe(true);
+  });
+
+  it('registra la oferta elegida como adoptada ANTES de que adoptKeys cambie la clave', async () => {
+    trasElAtaque();
+
+    let claveYaEraLaRealAlRegistrar: boolean | null = null;
+    const real = jest.requireActual<typeof import('@/src/sync/groupKeyOffers')>('@/src/sync/groupKeyOffers')
+      .registrarOferta;
+    const spy = jest.spyOn(groupKeyOffersModule, 'registrarOferta')
+      .mockImplementation((o: KeyOffer) => {
+        claveYaEraLaRealAlRegistrar = useGroupKeyStore.getState().getKey('g1')?.key === REAL;
+        return real(o);
+      });
+
+    try {
+      expect(await elegirClaveDeGrupo('g1', 'u-beto')).toBe(true);
+    } finally {
+      spy.mockRestore();
+    }
+
+    expect(claveYaEraLaRealAlRegistrar).toBe(false);
+    expect(groupKeyOffersModule.ofertasDe('g1')).toEqual(
+      [expect.objectContaining({ fromUserId: 'u-beto', adoptada: true })]);
+  });
+});
+
+describe('T-136 fix round 1 · ofertas de invitación', () => {
+  /**
+   * Una oferta de invitación (`invite:<huella>`) elegida a mano sigue las
+   * mismas reglas que cualquier otra: queda ADOPTADA. No es un caso especial
+   * que se deje "sin marcar" — sigue siendo tan disputable como cualquier
+   * clave adoptada por este camino si más tarde llega una oferta de contacto
+   * distinta para el mismo grupo.
+   */
+  it('elegir una oferta de invitación adopta su clave y la deja marcada adoptada', async () => {
+    const fromUserId = groupKeyOffersModule.idDeOfertaDeInvitacion('huella-1');
+    groupKeyOffersModule.registrarOferta({
+      groupId: 'g1', fromUserId, key: REAL, epoch: 5, origen: 'invite', receivedAt: 0, adoptada: false,
+    });
+
+    expect(await elegirClaveDeGrupo('g1', fromUserId)).toBe(true);
+
+    expect(useGroupKeyStore.getState().getKey('g1')).toEqual({ groupId: 'g1', key: REAL, epoch: 5 });
+    expect(groupKeyOffersModule.ofertasDe('g1')).toEqual(
+      [expect.objectContaining({ fromUserId, adoptada: true })]);
   });
 });
