@@ -742,6 +742,8 @@ export const EXCLUIDOS_FUSION: Record<string, string> = {
     'Acuse local "a este grupo ya le avisé que dejó de sincronizar", para no repetir el aviso en cada intento de publicación. Mismo caso que `card_sent_v1`: es el registro de algo que YA se le dijo a esta persona en este teléfono, no data suya. Si se pierde, el peor efecto es un aviso repetido; heredar el de otra cuenta sería peor — suprimiría el primer aviso de una caída que la cuenta destino todavía no vio.',
   'sync/recordHealth':
     'Medición de T-041: cuántos registros verificaron, fallaron o no eran verificables. Mismo caso que authorHealth — diagnóstico para decidir si se enciende el rechazo, no data del usuario, y se reacumula con el uso.',
+  'sync/groupKeyOffers':
+    'Ofertas de clave de grupo por remitente (T-136, ADR-013): el estado de una decisión pendiente de ESTE teléfono. Heredar las de otra cuenta mezclaría conflictos ajenos. Perderlas es el lado seguro: sin oferta adoptada, claveLocalVinoDeContacto da false y ninguna clave queda elegible (S3-A1 sigue cerrado); un conflicto real vuelve a registrarse con el reenvío de cada arranque (relayEngine.reenviarClavesDeGrupo).',
 };
 
 export { MERGEABLE_STORES };

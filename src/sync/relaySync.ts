@@ -150,7 +150,20 @@ export async function deleteMyGroupEnvelopes(
 
 export type DrainResult =
   | { ok: true; applied: number; skipped: number; cursor: number }
-  | { ok: false; reason: 'no_key' | 'not_configured' | 'network'; detail?: string };
+  | { ok: false; reason: 'no_key' | 'not_configured' | 'network' | 'key_changed'; detail?: string };
+
+/**
+ * ¿La clave del grupo sigue siendo la de la foto? Compara material Y época.
+ *
+ * T-136 · D-1: un drenaje captura la clave al empezar y espera la red. Si en
+ * ese `await` el usuario eligió otra clave (`elegirClaveDeGrupo`), lo que vuelve
+ * es del topic VIEJO —en disputa, posiblemente del atacante— y no puede
+ * tocar el grupo recién purgado ni dar por drenado el topic real.
+ */
+export function sigueSiendoLaClave(groupId: string, foto: { key: string; epoch: number }): boolean {
+  const actual = useGroupKeyStore.getState().getKey(groupId);
+  return !!actual && actual.key.toLowerCase() === foto.key.toLowerCase() && actual.epoch === foto.epoch;
+}
 
 /**
  * Baja lo pendiente del grupo, lo descifra y lo aplica.
@@ -175,6 +188,11 @@ export async function drainGroup(
 
   const r = await fetchSince(topic, sinceSeq, deviceId);
   if (!r.ok) return { ok: false, reason: r.reason, detail: r.detail };
+
+  // T-136 · D-1: la clave cambió mientras se esperaba la red. El lote entero
+  // se descarta ANTES de abrir un solo sobre: nada se aplica y quien llama no
+  // avanza el cursor ni limpia la marca de pendiente.
+  if (!sigueSiendoLaClave(groupId, record)) return { ok: false, reason: 'key_changed' };
 
   let applied = 0;
   let skipped = 0;

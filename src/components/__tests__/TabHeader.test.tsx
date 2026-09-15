@@ -9,6 +9,9 @@ import { useAuthStore } from '@/src/store/authStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useNoticeInboxStore } from '@/src/store/noticeInboxStore';
+import { registrarOferta } from '@/src/sync/groupKeyOffers';
+import { createSecureStorage } from '@/src/utils/secureStorage';
+import type { KeyConflictNotice } from '@/src/services/syncNotices';
 import type { User } from '@/src/types/models';
 
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
@@ -176,5 +179,61 @@ describe('ninguna tab arma su propio header', () => {
       expect(`${tab}: ${src.includes('<TabHeader')}`).toBe(`${tab}: true`);
       expect(`${tab}: ${src.includes('<CollapsibleHeader')}`).toBe(`${tab}: false`);
     }
+  });
+});
+
+/**
+ * T-136: el aviso de claves en disputa se resuelve eligiendo, no leyéndolo.
+ * Tocarlo abre la tarjeta; «Decidir después» la cierra y el aviso sigue
+ * pendiente.
+ */
+describe('T-136 · el aviso de claves en disputa abre la elección', () => {
+  const conflicto: KeyConflictNotice = {
+    kind: 'group_key_conflict', groupId: 'g1', groupName: 'Viaje',
+    senderIds: ['u-beto', 'u-mallory'],
+  };
+
+  function dosOfertas(): void {
+    registrarOferta({ groupId: 'g1', fromUserId: 'u-beto', key: 'cd'.repeat(32), epoch: 1, origen: 'contact', receivedAt: 0, adoptada: false });
+    registrarOferta({ groupId: 'g1', fromUserId: 'u-mallory', key: 'ab'.repeat(32), epoch: 1, origen: 'contact', receivedAt: 0, adoptada: false });
+  }
+
+  beforeEach(() => {
+    createSecureStorage('groupkeys').clearAll();
+    useNoticeInboxStore.setState({ items: [{ id: 'n1', readAt: null, createdAt: 0, notice: conflicto }] });
+  });
+
+  const leido = () => useNoticeInboxStore.getState().items[0]!.readAt;
+
+  it('tocar el aviso abre la tarjeta con los remitentes y NO lo marca leído', () => {
+    dosOfertas();
+    const r = montar();
+    fireEvent.press(r.getByTestId('notice-bell'));
+    fireEvent.press(r.getByTestId('notice-n1'));
+
+    expect(r.getByTestId('key-conflict-card')).toBeTruthy();
+    expect(r.getByTestId('key-conflict-sender-u-beto')).toBeTruthy();
+    expect(r.getByTestId('key-conflict-sender-u-mallory')).toBeTruthy();
+    expect(leido()).toBeNull();
+  });
+
+  it('«Decidir después» cierra la tarjeta y el aviso sigue pendiente', () => {
+    dosOfertas();
+    const r = montar();
+    fireEvent.press(r.getByTestId('notice-bell'));
+    fireEvent.press(r.getByTestId('notice-n1'));
+    fireEvent.press(r.getByTestId('key-conflict-later'));
+
+    expect(r.queryByTestId('key-conflict-card')).toBeNull();
+    expect(leido()).toBeNull();
+  });
+
+  it('si ya no hay conflicto (menos de dos ofertas), tocarlo lo marca leído sin abrir nada', () => {
+    const r = montar();
+    fireEvent.press(r.getByTestId('notice-bell'));
+    fireEvent.press(r.getByTestId('notice-n1'));
+
+    expect(r.queryByTestId('key-conflict-card')).toBeNull();
+    expect(leido()).not.toBeNull();
   });
 });

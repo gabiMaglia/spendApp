@@ -371,6 +371,26 @@
     "wait": "o esperar a mañana · se renueva en {{time}}"
   },
   "sync": {
+    "key_conflict": {
+      "title_two": "Dos personas te mandaron claves distintas para \"{{group}}\"",
+      "title_many": "Recibiste claves distintas para \"{{group}}\"",
+      "body": "Sólo una es la real. Elegí la de alguien que sepas que está en el grupo. El nombre es el que tenés guardado del contacto; la app no puede verificar quién es.",
+      "unverified_name": "{{group}} (nombre sin verificar)",
+      "use_key_of": "Usar la clave de {{name}}",
+      "decide_later": "Decidir después",
+      "confirm_title": "¿Usar la clave de {{name}}?",
+      "confirm_body": "Se borra lo que tenés de \"{{group}}\" en este teléfono y se vuelve a bajar con esa clave. Lo que hayas cargado desde que llegó la otra clave se pierde.",
+      "cancel": "Cancelar",
+      "confirm_use": "Usar esta clave",
+      "unknown_name": "Contacto sin nombre",
+      "invite_sender": "la invitación",
+      "failed": "No se pudo usar esa clave. Volvé a abrir el aviso.",
+      "dissent_dropped": "Llegó otra clave para este grupo que no se pudo guardar, así que no es seguro elegir. Borrá el grupo de este teléfono y pedile a alguien del grupo que te invite de nuevo.",
+      "forget_group": "Borrar el grupo de este teléfono",
+      "forget_confirm_title": "¿Borrar \"{{group}}\" de este teléfono?",
+      "forget_confirm_body": "Se borran de este teléfono el grupo, sus gastos y las claves que llegaron. No se publica nada.",
+      "forget_confirm": "Borrar"
+    },
     "synced": "Sincronizado",
     "syncing": "Sincronizando…",
     "pending": "Cambios pendientes",

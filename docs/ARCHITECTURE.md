@@ -245,6 +245,18 @@ Un "token de invitación" contiene `groupId` + clave de cifrado AES-256 del grup
 
 **Nota sobre username sin servidor**: Sin servidor de directorio, un username solo puede usarse para invitar a alguien que ya fue peer tuyo en el pasado (su perfil está en tu DB local). Para el MVP, los métodos principales son QR y deep link. El username como atajo para peers conocidos se agrega en Fase 2.
 
+### Clave de grupo entregada por contacto (T-136 · ADR-013)
+
+Crear un grupo con un contacto le entrega la clave por el buzón de contacto (`sendGroupKey`), firmada y envuelta para su X25519. La firma prueba **quién** manda, no que sea miembro: «contacto» es cualquiera que haya escaneado mi QR. Por eso una clave entregada no se adopta a ciegas:
+
+- Cada entrega válida es una **oferta** por (grupo, remitente) en `src/sync/groupKeyOffers.ts` (bucket cifrado `groupkeys`, scopeado por cuenta, tope de 5 remitentes por grupo, dedupe del reenvío de cada arranque).
+- Al final de cada drenaje (`drainContacts`), un grupo sin clave local cuyas ofertas coinciden se **adopta solo**: es el camino normal.
+- Si las ofertas difieren —entre sí, o contra una clave local que vino de contacto— **no se adopta ni se sustituye nada**. Se avisa `group_key_conflict` (un solo aviso sin leer por grupo) y el usuario elige un remitente en `GroupKeyConflictCard`. Lo mismo si un grant de invitación choca con una clave de contacto (`inviteEngine.redeem`).
+- Elegir (`services/elegirClaveDeGrupo.ts`) sólo es posible si la clave local, de existir, vino de una oferta adoptada. Purga la copia local del grupo (`purgarGrupoLocalmente`), adopta la elegida, marca el grupo pendiente de drenaje y drena el topic real. No publica nada.
+- Las claves de `ensureKey`, del QR y de la invitación **nunca** son sustituibles por este camino: S3-A1 sigue cerrado.
+
+Residual (ADR-013): atar el `groupId` a su creador con firma daría un árbitro criptográfico y haría innecesaria la elección manual; un usuario engañado puede elegir mal, y el aviso aclara que el nombre del contacto no está verificado.
+
 ---
 
 ## Capa P2P: `useP2PConnection`

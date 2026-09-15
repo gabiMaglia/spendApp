@@ -3,14 +3,38 @@ import {
   deriveContactTopic, savePeer, peerSecret, listPeers, sendGroupKey,
   getPeer, peersIncompletos, hasConflictingPinnedKeys,
 } from '../contactChannel';
+import { ofertasDe, registrarOferta, idDeOfertaDeInvitacion } from '../groupKeyOffers';
+import { avisarConflictosDelDrenaje } from '../keyConflictNotice';
+import { estaPendienteDeDrenaje } from '../pendingDrain';
+import { elegirClaveDeGrupo } from '@/src/services/elegirClaveDeGrupo';
+import { useExpenseStore } from '@/src/store/expenseStore';
+import { useGroupStore } from '@/src/store/groupStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { ensureIdentity, ensureWrapKeypair } from '@/src/store/identityStore';
 import { useAuthStore } from '@/src/store/authStore';
 import { useUserStore } from '@/src/store/userStore';
+import { useNoticeInboxStore } from '@/src/store/noticeInboxStore';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { openEnvelope, sealEnvelope, fromHex } from '../envelopeCrypto';
 import * as Crypto from 'expo-crypto';
+import type { KeyConflictNotice } from '@/src/services/syncNotices';
 import type { User } from '@/src/types/models';
+
+jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
+// `keyConflictNotice` → `groupStore` → `relayEngine`: se corta acá para que el
+// motor real no arranque en los tests del canal.
+jest.mock('@/src/sync/relayEngine', () => ({
+  schedulePublish: jest.fn(), deviceId: () => 'dev', olvidarCursor: jest.fn(),
+  publishNow: jest.fn(async () => {}), drainNow: jest.fn(async () => 0), startRelay: jest.fn(async () => {}),
+}));
+jest.mock('expo-notifications', () => ({
+  setNotificationHandler: () => {},
+  getPermissionsAsync: async () => ({ granted: true }),
+  requestPermissionsAsync: async () => ({ granted: true }),
+  scheduleNotificationAsync: async () => 'id',
+}));
+
+const relayEngineMock = jest.requireMock('@/src/sync/relayEngine') as { drainNow: jest.Mock };
 
 /**
  * Agregar un contacto tiene que quedar en LOS DOS teléfonos con un solo
@@ -781,5 +805,380 @@ describe('ids hostiles en la tabla de peers (T-098 · SEC L-3)', () => {
     savePeer('__proto__', { secret: 'ab'.repeat(32) });
     expect(getPeer('__proto__')?.secret).toBe('ab'.repeat(32));
     expect(getPeer('constructor')).toBeUndefined();
+  });
+});
+
+/**
+ * T-136 · ADR-013. «Peer» es cualquiera que haya escaneado mi QR: su firma
+ * prueba quién manda, no que sea miembro del grupo. Mallory escaneó el QR de
+ * Ana y no está en el grupo; Beto sí.
+ */
+describe('T-136 · claves distintas para el mismo grupo', () => {
+  const MALLORY = usuario('u-mallory', 'Mallory');
+  const FALSA = 'ab'.repeat(32);
+
+  /** Beto y Mallory escanearon el QR de Ana, y Ana recogió las dos tarjetas. */
+  async function anaTieneDosContactos(): Promise<{ deAna: string; cursor: number }> {
+    usar(ANA);
+    const deAna = ensureContactSecret()!;
+    const tarjeta = myContactCard()!;
+    for (const quien of [BETO, MALLORY]) {
+      usar(quien);
+      savePeer(ANA.id, {
+        secret: deAna,
+        wrapPublicKey: tarjeta.wrapPublicKey,
+        identityPublicKey: tarjeta.identityPublicKey,
+      });
+      await announceContact(deAna, `dev-${quien.id}`);
+    }
+    usar(ANA);
+    const r = await drainContacts(deAna, 'dev-ana', 0);
+    return { deAna, cursor: r.cursor };
+  }
+
+  /** Mallory planta una clave suya para g1, con una época absurda. */
+  async function malloryPlanta(): Promise<void> {
+    usar(MALLORY);
+    useGroupKeyStore.setState({ keys: [{ groupId: 'g1', key: FALSA, epoch: 1e9 }] });
+    await sendGroupKey(ANA.id, { id: 'g1', name: 'Viaje' }, 'dev-mallory');
+  }
+
+  /** Beto, el miembro real, entrega la clave de verdad. */
+  async function betoEntrega(): Promise<string> {
+    usar(BETO);
+    const clave = useGroupKeyStore.getState().ensureKey('g1').key;
+    await sendGroupKey(ANA.id, { id: 'g1', name: 'Viaje' }, 'dev-beto');
+    return clave;
+  }
+
+  /** Lo mismo que hace `relayEngine.drainContactsNow` con el resultado. */
+  async function anaDrena(deAna: string, desde: number) {
+    usar(ANA);
+    const r = await drainContacts(deAna, 'dev-ana', desde);
+    await avisarConflictosDelDrenaje(r);
+    return r;
+  }
+
+  const conflictosDe = (groupId: string): KeyConflictNotice[] => useNoticeInboxStore.getState().items
+    .map(i => i.notice)
+    .filter((n): n is KeyConflictNotice => n.kind === 'group_key_conflict' && n.groupId === groupId);
+
+  beforeEach(() => {
+    createSecureStorage('notices').clearAll();
+    useNoticeInboxStore.setState({ items: [] });
+  });
+
+  it('criterio 2 · mismo lote: claves distintas de dos remitentes → no se adopta ninguna y hay UN aviso', async () => {
+    const { deAna, cursor } = await anaTieneDosContactos();
+    await malloryPlanta();
+    await betoEntrega();
+
+    const r = await anaDrena(deAna, cursor);
+
+    expect(useGroupKeyStore.getState().getKey('g1')).toBeUndefined();
+    expect(r.joinedGroups).not.toContain('g1');
+    expect(r.conflictedGroups).toEqual(['g1']);
+    const avisos = conflictosDe('g1');
+    expect(avisos).toHaveLength(1);
+    expect(avisos[0]).toMatchObject({ groupName: 'Viaje' });
+    expect([...avisos[0]!.senderIds].sort()).toEqual([BETO.id, MALLORY.id].sort());
+  });
+
+  it('criterio 1 (sin elegir) · dos lotes: la primera clave queda y la segunda distinta levanta el conflicto', async () => {
+    const { deAna, cursor } = await anaTieneDosContactos();
+    await malloryPlanta();
+    const r1 = await anaDrena(deAna, cursor);
+    expect(r1.joinedGroups).toEqual(['g1']); // un solo remitente: camino feliz
+
+    await betoEntrega();
+    const r2 = await anaDrena(deAna, r1.cursor);
+
+    expect(useGroupKeyStore.getState().getKey('g1')).toEqual({ groupId: 'g1', key: FALSA, epoch: 1e9 });
+    expect(r2.joinedGroups).not.toContain('g1');
+    expect(r2.conflictedGroups).toEqual(['g1']);
+    expect(conflictosDe('g1')).toHaveLength(1);
+  });
+
+  it('criterio 3/6 · los reenvíos de cada arranque no crean ofertas ni avisos nuevos', async () => {
+    const { deAna, cursor } = await anaTieneDosContactos();
+    await malloryPlanta();
+    const r1 = await anaDrena(deAna, cursor);
+    await betoEntrega();
+    const r2 = await anaDrena(deAna, r1.cursor);
+
+    await malloryPlanta();
+    await betoEntrega();
+    const r3 = await anaDrena(deAna, r2.cursor);
+
+    expect(r3.conflictedGroups).toEqual([]);
+    expect(ofertasDe('g1')).toHaveLength(2);
+    expect(conflictosDe('g1')).toHaveLength(1);
+  });
+
+  it('criterio 3 · la misma clave del mismo remitente N veces en un lote deja UNA oferta y adopta', async () => {
+    const { deAna, cursor } = await anaTieneDosContactos();
+    usar(BETO);
+    const clave = useGroupKeyStore.getState().ensureKey('g1').key;
+    for (let i = 0; i < 3; i++) await sendGroupKey(ANA.id, { id: 'g1', name: 'Viaje' }, 'dev-beto');
+
+    const r = await anaDrena(deAna, cursor);
+
+    expect(r.joinedGroups).toEqual(['g1']);
+    expect(ofertasDe('g1')).toHaveLength(1);
+    expect(useGroupKeyStore.getState().getKey('g1')?.key).toBe(clave);
+    expect(conflictosDe('g1')).toHaveLength(0);
+  });
+
+  it('criterio 3 · dos remitentes con la MISMA clave adoptan sin aviso', async () => {
+    const { deAna, cursor } = await anaTieneDosContactos();
+    const clave = await betoEntrega();
+    usar(MALLORY);
+    useGroupKeyStore.setState({ keys: [{ groupId: 'g1', key: clave, epoch: 1 }] });
+    await sendGroupKey(ANA.id, { id: 'g1', name: 'Viaje' }, 'dev-mallory');
+
+    const r = await anaDrena(deAna, cursor);
+
+    expect(r.joinedGroups).toEqual(['g1']);
+    expect(r.conflictedGroups).toEqual([]);
+    expect(useGroupKeyStore.getState().getKey('g1')?.key).toBe(clave);
+    expect(conflictosDe('g1')).toHaveLength(0);
+  });
+
+  it('criterio 4 · S3-A1: con una clave local que NO vino de contacto, otra clave no deja oferta ni aviso', async () => {
+    const { deAna, cursor } = await anaTieneDosContactos();
+    usar(ANA);
+    const propia = useGroupKeyStore.getState().ensureKey('g1');
+    await betoEntrega();
+
+    const r = await anaDrena(deAna, cursor);
+
+    expect(useGroupKeyStore.getState().getKey('g1')).toEqual(propia);
+    expect(r.conflictedGroups).toEqual([]);
+    expect(ofertasDe('g1')).toEqual([]);
+    expect(conflictosDe('g1')).toHaveLength(0);
+  });
+
+  const GRUPO_FALSO = {
+    id: 'g1', name: 'Viaje', memberIds: [ANA.id, MALLORY.id], currency: 'ARS',
+    createdAt: 0, createdById: MALLORY.id, deletionVotes: [], updatedAt: 1, isDeleted: false,
+  } as never;
+  const GASTO_FALSO = {
+    id: 'e-falso', groupId: 'g1', description: 'cargado sobre la clave falsa', amount: 1, currency: 'ARS',
+    paidById: ANA.id, splitMode: 'equal', splits: [], category: 'other', date: 0,
+    createdAt: 0, createdById: ANA.id, deletionVotes: [], updatedAt: 1, isDeleted: false,
+  } as never;
+
+  it('criterio 1 · dos lotes y elección de Beto: clave real con su época, nada del grupo falso, pendiente de drenaje', async () => {
+    const { deAna, cursor } = await anaTieneDosContactos();
+    await malloryPlanta();
+    const r1 = await anaDrena(deAna, cursor);
+    expect(r1.joinedGroups).toEqual(['g1']);
+
+    // Ana drenó el topic de K' (el grupo falso de Mallory) y cargó algo encima.
+    useGroupStore.setState({ groups: [GRUPO_FALSO] });
+    useExpenseStore.setState({ expenses: [GASTO_FALSO] });
+
+    const real = await betoEntrega();
+    const r2 = await anaDrena(deAna, r1.cursor);
+
+    expect(useGroupKeyStore.getState().getKey('g1')).toEqual({ groupId: 'g1', key: FALSA, epoch: 1e9 });
+    expect(r2.joinedGroups).not.toContain('g1');
+    const avisos = conflictosDe('g1');
+    expect(avisos).toHaveLength(1);
+    expect([...avisos[0]!.senderIds].sort()).toEqual([BETO.id, MALLORY.id].sort());
+
+    expect(await elegirClaveDeGrupo('g1', BETO.id)).toBe(true);
+
+    expect(useGroupKeyStore.getState().getKey('g1')).toEqual({ groupId: 'g1', key: real, epoch: 1 });
+    expect(useGroupStore.getState().groups.filter(g => g.id === 'g1')).toEqual([]);
+    expect(useExpenseStore.getState().expenses.filter(e => e.groupId === 'g1')).toEqual([]);
+    expect(estaPendienteDeDrenaje('g1')).toBe(true);
+    expect(relayEngineMock.drainNow).toHaveBeenCalledWith('g1');
+  });
+
+  it('criterio 2 · mismo lote y elección: se adopta la clave de Beto', async () => {
+    const { deAna, cursor } = await anaTieneDosContactos();
+    await malloryPlanta();
+    const real = await betoEntrega();
+    await anaDrena(deAna, cursor);
+
+    expect(await elegirClaveDeGrupo('g1', BETO.id)).toBe(true);
+    expect(useGroupKeyStore.getState().getKey('g1')?.key).toBe(real);
+  });
+
+  it('D-2 · tras elegir una oferta de INVITACIÓN, una entrega de contacto distinta se ignora sin oferta ni aviso', async () => {
+    const { deAna, cursor } = await anaTieneDosContactos();
+    await malloryPlanta();
+    const r1 = await anaDrena(deAna, cursor);
+    expect(r1.joinedGroups).toEqual(['g1']);
+
+    // Llega una invitación a g1 con otra clave: queda como oferta en disputa.
+    const INVITADA = 'cd'.repeat(32);
+    const deInvitacion = idDeOfertaDeInvitacion('huella-inv');
+    registrarOferta({
+      groupId: 'g1', fromUserId: deInvitacion, key: INVITADA, epoch: 2, origen: 'invite', receivedAt: 0, adoptada: false,
+    });
+    expect(await elegirClaveDeGrupo('g1', deInvitacion)).toBe(true);
+    expect(useGroupKeyStore.getState().getKey('g1')).toEqual({ groupId: 'g1', key: INVITADA, epoch: 2 });
+    const avisosAntes = conflictosDe('g1').length;
+
+    // Mallory vuelve a mandar su clave (distinta de la elegida).
+    await malloryPlanta();
+    const r2 = await anaDrena(deAna, r1.cursor);
+
+    expect(useGroupKeyStore.getState().getKey('g1')).toEqual({ groupId: 'g1', key: INVITADA, epoch: 2 });
+    expect(r2.conflictedGroups).toEqual([]);
+    expect(r2.joinedGroups).not.toContain('g1');
+    expect(ofertasDe('g1')).toEqual([]);
+    expect(conflictosDe('g1')).toHaveLength(avisosAntes);
+  });
+
+  it('criterio 4 · un remitente sin oferta no se puede elegir', async () => {
+    const { deAna, cursor } = await anaTieneDosContactos();
+    await malloryPlanta();
+    const r1 = await anaDrena(deAna, cursor);
+    await betoEntrega();
+    await anaDrena(deAna, r1.cursor);
+
+    expect(await elegirClaveDeGrupo('g1', 'u-nadie')).toBe(false);
+    expect(useGroupKeyStore.getState().getKey('g1')?.key).toBe(FALSA);
+  });
+});
+
+/**
+ * T-136 · fix round 1 (Sybil vía el tope). Con `MAX_OFERTAS_POR_GRUPO = 5`
+ * como tope de REMITENTES, un atacante que conoce el secreto de contacto de
+ * la víctima podía pinnear 5 peers falsos (tarjetas auto-descriptas) y
+ * llenarle el tope del grupo con la MISMA clave falsa antes de que el
+ * miembro real entregara la suya: la oferta real quedaba afuera en
+ * silencio — ni oferta, ni conflicto, ni aviso — y la falsa se adoptaba
+ * como si fuera unánime. El tope pasa a ser de CLAVES DISTINTAS, no de
+ * remitentes, así que 5 remitentes con la misma clave no le quitan lugar
+ * a un sexto con una clave distinta.
+ */
+describe('T-136 · Sybil: el tope de remitentes ya no tapa al miembro real', () => {
+  const FAKES = ['1', '2', '3', '4', '5'].map(n => usuario(`u-fake-${n}`, `Fake ${n}`));
+  const FALSA = 'ef'.repeat(32);
+
+  beforeEach(() => {
+    createSecureStorage('notices').clearAll();
+    useNoticeInboxStore.setState({ items: [] });
+  });
+
+  /** Beto y los 5 falsos escanearon el QR de Ana (o ella el de ellos). */
+  async function anaTieneContactos(): Promise<{ deAna: string; cursor: number }> {
+    usar(ANA);
+    const deAna = ensureContactSecret()!;
+    const tarjeta = myContactCard()!;
+    for (const quien of [BETO, ...FAKES]) {
+      usar(quien);
+      savePeer(ANA.id, {
+        secret: deAna,
+        wrapPublicKey: tarjeta.wrapPublicKey,
+        identityPublicKey: tarjeta.identityPublicKey,
+      });
+      await announceContact(deAna, `dev-${quien.id}`);
+    }
+    usar(ANA);
+    const r = await drainContacts(deAna, 'dev-ana', 0);
+    return { deAna, cursor: r.cursor };
+  }
+
+  /** Los 5 falsos plantan la MISMA clave inventada — es lo que llenaba el tope viejo. */
+  async function falsosPlantan(): Promise<void> {
+    for (const fake of FAKES) {
+      usar(fake);
+      useGroupKeyStore.setState({ keys: [{ groupId: 'g1', key: FALSA, epoch: 1 }] });
+      await sendGroupKey(ANA.id, { id: 'g1', name: 'Viaje' }, `dev-${fake.id}`);
+    }
+  }
+
+  async function betoEntrega(): Promise<void> {
+    usar(BETO);
+    useGroupKeyStore.getState().ensureKey('g1');
+    await sendGroupKey(ANA.id, { id: 'g1', name: 'Viaje' }, 'dev-beto');
+  }
+
+  async function anaDrena(deAna: string, desde: number) {
+    usar(ANA);
+    const r = await drainContacts(deAna, 'dev-ana', desde);
+    await avisarConflictosDelDrenaje(r);
+    return r;
+  }
+
+  const conflictosDe = (groupId: string): KeyConflictNotice[] => useNoticeInboxStore.getState().items
+    .map(i => i.notice)
+    .filter((n): n is KeyConflictNotice => n.kind === 'group_key_conflict' && n.groupId === groupId);
+
+  it('mismo lote: 5 falsos con la misma clave + Beto real → NO se adopta la falsa, hay conflicto', async () => {
+    const { deAna, cursor } = await anaTieneContactos();
+    await falsosPlantan();
+    await betoEntrega();
+
+    const r = await anaDrena(deAna, cursor);
+
+    expect(useGroupKeyStore.getState().getKey('g1')).toBeUndefined();
+    expect(r.joinedGroups).not.toContain('g1');
+    expect(r.conflictedGroups).toEqual(['g1']);
+    const avisos = conflictosDe('g1');
+    expect(avisos).toHaveLength(1);
+    expect(avisos[0]!.senderIds).toEqual(expect.arrayContaining([BETO.id]));
+  });
+
+  it('dos lotes: la falsa (5 remitentes) queda local, y el lote de Beto NO se pierde por el tope', async () => {
+    const { deAna, cursor } = await anaTieneContactos();
+    await falsosPlantan();
+    const r1 = await anaDrena(deAna, cursor);
+    expect(r1.joinedGroups).toEqual(['g1']);
+    expect(useGroupKeyStore.getState().getKey('g1')?.key).toBe(FALSA);
+
+    await betoEntrega();
+    const r2 = await anaDrena(deAna, r1.cursor);
+
+    // La clave local sigue siendo la falsa: no se sustituye sola.
+    expect(useGroupKeyStore.getState().getKey('g1')?.key).toBe(FALSA);
+    // Pero el grupo queda en conflicto — la oferta de Beto (el 6to remitente)
+    // no se pierde por el tope. Ésta es la falla de fondo: antes, con el tope
+    // viejo de 5 REMITENTES ya lleno de falsos, `registrarOferta` para Beto
+    // devolvía `false` sin dejar rastro y este `r2.conflictedGroups` daba `[]`.
+    expect(r2.conflictedGroups).toEqual(['g1']);
+    const avisos = conflictosDe('g1');
+    expect(avisos).toHaveLength(1);
+    expect(avisos[0]!.senderIds).toEqual(expect.arrayContaining([BETO.id]));
+  });
+
+  /**
+   * T-136 · mutación M5 (Task 6). Acá el tope que se llena es el de CLAVES
+   * DISTINTAS —5 falsos, 5 claves distintas cada uno, no la misma— así que la
+   * tabla queda REALMENTE llena y en conflicto natural desde el lote 1. La
+   * clave real de Beto llega SOLA en un lote nuevo y no puede entrar a la
+   * tabla por el tope: sin `marcarConflictoForzado` (que M5 le saca a
+   * `registrarOferta`), `registrarDropComoOferta` devuelve `false`, el grupo
+   * no entra al `conOfertaNueva` de este lote, y `resolverOfertas` ni se entera
+   * de que hay un sexto remitente disidente — el lote de Beto queda con
+   * `conflictedGroups: []` en silencio, aunque el grupo siga tan en disputa
+   * como antes.
+   */
+  it('tope de CLAVES lleno en un lote anterior: la clave real de un lote nuevo no se pierde en silencio', async () => {
+    const clave = (n: number): string => n.toString(16).padStart(2, '0').repeat(32);
+    const { deAna, cursor } = await anaTieneContactos();
+
+    for (let i = 0; i < FAKES.length; i++) {
+      usar(FAKES[i]!);
+      useGroupKeyStore.setState({ keys: [{ groupId: 'g1', key: clave(i + 1), epoch: 1 }] });
+      await sendGroupKey(ANA.id, { id: 'g1', name: 'Viaje' }, `dev-${FAKES[i]!.id}`);
+    }
+    const r1 = await anaDrena(deAna, cursor);
+    expect(r1.conflictedGroups).toEqual(['g1']); // 5 claves distintas: conflicto natural, sin forzar nada.
+
+    usar(BETO);
+    useGroupKeyStore.setState({ keys: [{ groupId: 'g1', key: clave(6), epoch: 1 }] });
+    await sendGroupKey(ANA.id, { id: 'g1', name: 'Viaje' }, 'dev-beto');
+
+    const r2 = await anaDrena(deAna, r1.cursor);
+
+    // La clave de Beto no entra a la tabla (tope de 5 claves distintas ya
+    // lleno), pero la disidencia tiene que seguir viéndose EN ESTE LOTE.
+    expect(r2.conflictedGroups).toEqual(['g1']);
   });
 });

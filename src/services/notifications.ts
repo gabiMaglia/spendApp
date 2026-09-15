@@ -1,7 +1,7 @@
 import i18n from '@/src/i18n';
 import { formatMoney } from '@/src/constants/currencies';
 import { useSettingsStore } from '@/src/store/settingsStore';
-import type { Notice } from './syncNotices';
+import { nombreDeGrupoEnConflicto, type KeyConflictNotice, type Notice } from './syncNotices';
 import { useNoticeInboxStore } from '@/src/store/noticeInboxStore';
 import { claveDeFalloDeSync } from '@/src/sync/publishHealth';
 
@@ -156,6 +156,8 @@ export function isEnabled(notice: Notice): boolean {
      * vez por desvío (`sync/clockNotice.ts`), así que no puede volverse ruido.
      */
     case 'clock_off': return true;
+    // T-136: es sobre a qué grupo entrás; mismo dominio que `joined`.
+    case 'group_key_conflict': return s.notifInvites;
   }
 }
 
@@ -219,6 +221,15 @@ export function textFor(notice: Notice): { title: string; body: string } {
         // redacciones para el mismo problema se contradicen sin que nadie mire.
         body: t(claveDeFalloDeSync(notice.reason)),
       };
+    case 'group_key_conflict': {
+      const group = nombreDeGrupoEnConflicto(notice, t);
+      return {
+        title: notice.senderIds.length > 2
+          ? t('sync.key_conflict.title_many', { group })
+          : t('sync.key_conflict.title_two', { group }),
+        body: t('sync.key_conflict.body'),
+      };
+    }
   }
 }
 
@@ -280,4 +291,20 @@ export async function announce(notices: Notice[]): Promise<number> {
     // La bandeja es lo secundario: que falle no puede costar el aviso.
   }
   return deliver(notices);
+}
+
+/**
+ * Anuncia un conflicto de clave **sin apilar** (T-136, spec §4.6).
+ *
+ * Un atacante reenvía en cada arranque; sin este tope, cada clave nueva de un
+ * remitente ya en conflicto sumaría otro aviso. Si ya hay uno SIN LEER de ese
+ * grupo no se anuncia nada: la tarjeta relee las ofertas vivas al abrirse.
+ */
+export async function announceKeyConflict(notice: KeyConflictNotice): Promise<number> {
+  const yaHay = useNoticeInboxStore.getState().items.some(i =>
+    i.readAt === null
+    && i.notice.kind === 'group_key_conflict'
+    && i.notice.groupId === notice.groupId);
+  if (yaHay) return 0;
+  return announce([notice]);
 }

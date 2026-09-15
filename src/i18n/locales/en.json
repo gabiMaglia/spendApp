@@ -371,6 +371,26 @@
     "wait": "or wait until tomorrow · resets in {{time}}"
   },
   "sync": {
+    "key_conflict": {
+      "title_two": "Two people sent you different keys for \"{{group}}\"",
+      "title_many": "You got different keys for \"{{group}}\"",
+      "body": "Only one is the real one. Pick someone you know is in the group. The name is the one you saved for the contact; the app can't verify who they are.",
+      "unverified_name": "{{group}} (unverified name)",
+      "use_key_of": "Use {{name}}'s key",
+      "decide_later": "Decide later",
+      "confirm_title": "Use {{name}}'s key?",
+      "confirm_body": "Everything you have from \"{{group}}\" on this phone is deleted and downloaded again with that key. Anything you added since the other key arrived is lost.",
+      "cancel": "Cancel",
+      "confirm_use": "Use this key",
+      "unknown_name": "Unnamed contact",
+      "invite_sender": "the invite link",
+      "failed": "That key couldn't be used. Open the notice again.",
+      "dissent_dropped": "Another key for this group arrived but couldn't be saved, so it isn't safe to choose. Delete the group from this phone and ask someone in the group to invite you again.",
+      "forget_group": "Delete the group from this phone",
+      "forget_confirm_title": "Delete \"{{group}}\" from this phone?",
+      "forget_confirm_body": "The group, its expenses and the keys that arrived are deleted from this phone. Nothing is published.",
+      "forget_confirm": "Delete"
+    },
     "synced": "Synced",
     "syncing": "Syncing…",
     "pending": "Pending changes",

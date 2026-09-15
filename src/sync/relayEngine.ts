@@ -9,18 +9,18 @@ import { snapshot, noticesFor, type Snapshot } from '@/src/services/syncNotices'
 import { announce } from '@/src/services/notifications';
 import { useAuthStore } from '@/src/store/authStore';
 import { esYo } from '@/src/store/identityAlias';
-import { deriveTopic } from './envelopeCrypto';
+import { deriveTopic, fromHex } from './envelopeCrypto';
 import { subscribeTopic, isRelayConfigured } from './relay';
-import { publishToGroup, drainGroup, type PublishResult } from './relaySync';
+import { publishToGroup, drainGroup, sigueSiendoLaClave, type PublishResult } from './relaySync';
 import { recordPublish } from './publishHealth';
 import { noticeDeCaida } from './syncDownNotices';
 import { noticeDeReloj } from './clockNotice';
 import { estaPendienteDeDrenaje, limpiarPendienteDeDrenaje } from './pendingDrain';
 import { resolvePendingDeletions } from '@/src/services/resolveDeletions';
 import { applyApprovedLeaves } from '@/src/services/applyLeave';
-import { fromHex } from './envelopeCrypto';
 import { deriveInviteTopic, type GroupInvite } from './groupInvite';
 import { activeInvites, processInvite, processAllInvites } from './inviteEngine';
+import { avisarConflictosDelDrenaje } from './keyConflictNotice';
 import { verifyMyKeyRegistered } from './deviceKeys';
 import {
   ensureContactSecret, deriveContactTopic, drainContacts, sendGroupKey,
@@ -230,6 +230,12 @@ export async function drainNow(groupId: string): Promise<number> {
     const r = await drainGroup(groupId, userId, deviceId(), readCursor(topic));
     if (!r.ok) return 0;
 
+    // T-136 · D-1: si la clave cambió desde la foto de entrada (el usuario
+    // eligió otra mientras esto esperaba), este cursor es del topic viejo y
+    // la marca de pendiente es del topic NUEVO: no se escribe uno ni se
+    // limpia la otra. El drenaje que lanzó la elección se ocupa del real.
+    if (!sigueSiendoLaClave(groupId, record)) return 0;
+
     writeCursor(topic, r.cursor);
 
     /**
@@ -285,7 +291,7 @@ export async function drainAll(): Promise<number> {
 
 // --- suscripción -------------------------------------------------------------
 
-let unsubs: Array<() => void> = [];
+let unsubs: (() => void)[] = [];
 
 /**
  * Escucha los avisos de todos los grupos. El aviso NO trae el sobre: sólo
@@ -484,6 +490,13 @@ export async function drainContactsNow(): Promise<number> {
     const r = await drainContacts(secret, deviceId(), readCursor(topic));
     writeCursor(topic, r.cursor);
 
+    // T-136 (fix round 1): va ANTES del drainNow/joined-groups de abajo. Ese
+    // bloque puede tirar (red, store), y si el aviso quedara después, un
+    // throw ahí se comería el único aviso de un conflicto de clave que ya
+    // quedó persistido. El cursor y el aviso son lo mínimo que no se puede
+    // perder de este drenaje.
+    await avisarConflictosDelDrenaje(r);
+
     // Llegó la clave de un grupo nuevo: hay que bajar su contenido y quedarse
     // escuchando. Sin esto el grupo aparecería recién al reabrir la app.
     if (r.joinedGroups.length > 0) {
@@ -499,7 +512,7 @@ export async function drainContactsNow(): Promise<number> {
       })).filter(n => n.groupName !== ''));
     }
 
-    return r.added + r.joinedGroups.length;
+    return r.added + r.joinedGroups.length + r.conflictedGroups.length;
   } catch {
     return 0; // offline: se reintenta al próximo arranque o aviso
   }

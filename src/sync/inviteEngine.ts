@@ -14,6 +14,10 @@ import {
   type GroupInvite, type InviteClaim, type InviteGrant,
 } from './groupInvite';
 import { syncedNow } from '@/src/utils/syncedClock';
+import {
+  claveLocalVinoDeContacto, idDeOfertaDeInvitacion, olvidarOfertas, registrarOferta,
+} from './groupKeyOffers';
+import { avisarConflictoDeClave } from './keyConflictNotice';
 
 /**
  * El encuentro entre quien invita y quien entra.
@@ -104,7 +108,7 @@ export async function processInvite(invite: GroupInvite, deviceId: string): Prom
       if (claim) { await admit(claim, invite, topic, deviceId, me.id); continue; }
 
       const grant = await openGrant(invite.token, envelope.payload, invite.inviterFingerprint);
-      if (grant && redeem(grant, invite, me.id)) adoptados.push(grant.groupId);
+      if (grant && await redeem(grant, invite, me.id)) adoptados.push(grant.groupId);
     } catch { /* sobre inservible: se saltea */ }
   }
 
@@ -172,23 +176,58 @@ async function admit(
   await sendEnvelope(topic, sealed, deviceId);
 }
 
-/** Lado del que entra: abre la clave y la adopta. `true` si adoptó algo nuevo. */
-function redeem(grant: InviteGrant, invite: GroupInvite, myUserId: string): boolean {
+/**
+ * Lado del que entra: abre la clave y la adopta. `true` si adoptó algo nuevo.
+ *
+ * T-136 · ADR-013: si ya hay clave local y vino de CONTACTO, un grant con otra
+ * clave no se cierra en silencio — queda como oferta de la invitación y se
+ * avisa el conflicto. Una clave local de `ensureKey`, QR o invitación cierra el
+ * ingreso como siempre (S3-A1).
+ */
+async function redeem(grant: InviteGrant, invite: GroupInvite, myUserId: string): Promise<boolean> {
   if (grant.forUserId !== myUserId || grant.groupId !== invite.groupId) return false;
-  if (useGroupKeyStore.getState().getKey(grant.groupId)) {
-    removePendingJoin(invite.token); // ya la teníamos: el ingreso está cerrado
+
+  const wrap = ensureWrapKeypair();
+  const abierta = unwrapGroupKey(grant.wrappedKey, grant.senderWrapPublicKey, wrap.privateKey);
+  // Una clave del largo equivocado no se adopta ni se ofrece: dejaría el grupo
+  // ilegible para siempre y sin síntoma más claro que "no llega nada".
+  const clave = abierta && /^[0-9a-f]{64}$/i.test(abierta) ? abierta : null;
+
+  const local = useGroupKeyStore.getState().getKey(grant.groupId);
+  if (local) {
+    if (clave !== null && clave.toLowerCase() !== local.key.toLowerCase() && claveLocalVinoDeContacto(grant.groupId)) {
+      const nueva = registrarOferta({
+        groupId: grant.groupId,
+        fromUserId: idDeOfertaDeInvitacion(invite.inviterFingerprint),
+        key: clave.toLowerCase(),
+        epoch: grant.epoch,
+        origen: 'invite',
+        receivedAt: Date.now(),
+        adoptada: false,
+      });
+      if (nueva) await avisarConflictoDeClave(grant.groupId, invite.groupName);
+    }
+    // El ingreso por link está cerrado: o ya la teníamos, o decide el usuario
+    // desde el aviso.
+    removePendingJoin(invite.token);
     return false;
   }
 
-  const wrap = ensureWrapKeypair();
-  const key = unwrapGroupKey(grant.wrappedKey, grant.senderWrapPublicKey, wrap.privateKey);
+  if (!clave) return false;
 
-  // Una clave del largo equivocado no se adopta: dejaría el grupo ilegible para
-  // siempre y sin síntoma más claro que "no llega nada".
-  if (!key || !/^[0-9a-f]{64}$/i.test(key)) return false;
+  // El grupo no tenía clave, así que esta invitación lo resuelve de verdad. Las
+  // ofertas de contacto que hubieran quedado dando vueltas —y la marca de
+  // conflicto FORZADO, que `olvidarOfertas` limpia junto con ellas— ya no
+  // describen nada: sin esto, la tarjeta de conflicto seguiría ofreciendo como
+  // única salida borrar un grupo que acaba de quedar bien (revisión final,
+  // D-3). Va ANTES de `adoptKeys`, como la purga de `elegirClaveDeGrupo`: la
+  // clave recién adoptada queda sin oferta adoptada que la respalde, así que
+  // `claveLocalVinoDeContacto` da `false` y no es disputable por contacto
+  // (S3-A1). Si después llegan ofertas de contacto, arrancan de cero.
+  olvidarOfertas(grant.groupId);
 
   useGroupKeyStore.getState().adoptKeys([
-    { groupId: grant.groupId, key, epoch: grant.epoch },
+    { groupId: grant.groupId, key: clave, epoch: grant.epoch },
   ]);
   removePendingJoin(invite.token);
   return true;

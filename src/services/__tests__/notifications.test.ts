@@ -159,3 +159,24 @@ describe('avisos nuevos', () => {
     expect(textFor(caido).title).toContain('Viaje');
   });
 });
+
+describe('conflicto de clave de grupo (T-136)', () => {
+  const dos: Notice = {
+    kind: 'group_key_conflict', groupId: 'g1', groupName: 'Viaje',
+    senderIds: ['u-beto', 'u-mallory'],
+  };
+  const tres: Notice = { ...dos, senderIds: ['u-beto', 'u-mallory', 'u-carla'] };
+
+  it('mira el toggle de invitaciones', () => {
+    useSettingsStore.setState({ notifInvites: false });
+    expect(isEnabled(dos)).toBe(false);
+    useSettingsStore.setState({ notifInvites: true });
+    expect(isEnabled(dos)).toBe(true);
+  });
+
+  it('el título cambia con más de dos remitentes', () => {
+    expect(textFor(dos).title).not.toBe(textFor(tres).title);
+    expect(textFor(dos).body).toBeTruthy();
+    expect(textFor(dos).body).toBe(textFor(tres).body);
+  });
+});

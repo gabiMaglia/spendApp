@@ -62,6 +62,12 @@ const INVENTARIO: Record<string, string> = {
    * (`sync/clockNotice.ts`), así que no puede volverse ruido.
    */
   clock_off: 'el reloj del teléfono está mal y las fechas se ven cambiadas',
+  /**
+   * **Pide elegir, y entra igual** (T-136 · ADR-013). Lo que llega a la bandeja
+   * es enterarse; la elección se hace en la tarjeta que abre el aviso, con los
+   * remitentes delante. Un modal en el arranque sería lo que el PO no quiere.
+   */
+  group_key_conflict: 'dos o más contactos entregaron claves distintas para un grupo y hay que elegir una',
 };
 
 /** Los `kind` declarados en la unión `Notice`, leídos del fuente. */
@@ -122,7 +128,11 @@ describe('quién puede escribir en la bandeja', () => {
  * ausente = un aviso que no dice de qué grupo habla).
  */
 describe('el texto de los avisos nuevos, en es/en/pt', () => {
-  const dicts = { es, en, pt } as Record<string, Record<string, Record<string, string>>>;
+  // T-136 anidó `sync.key_conflict` (un objeto, no un string): el cast directo
+  // ya no estructura bien contra `Record<string, Record<string, string>>`. Pasa
+  // por `unknown` a propósito — ninguno de los `it.each` de abajo lee esa
+  // clave anidada, así que el chequeo de forma no protege nada acá.
+  const dicts = { es, en, pt } as unknown as Record<string, Record<string, Record<string, string>>>;
 
   it.each([
     ['notifications.restored', '{{description}}'],
