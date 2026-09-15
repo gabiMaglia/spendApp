@@ -13,6 +13,15 @@ import { useGroupStore } from '@/src/store/groupStore';
 import { useGroupKeyStore, type GroupKeyRecord } from '@/src/store/groupKeyStore';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import type { Group, User } from '@/src/types/models';
+import { useNoticeInboxStore } from '@/src/store/noticeInboxStore';
+import { idDeOfertaDeInvitacion, marcarAdoptada, ofertasDe, registrarOferta } from '../groupKeyOffers';
+
+jest.mock('expo-notifications', () => ({
+  setNotificationHandler: () => {},
+  getPermissionsAsync: async () => ({ granted: true }),
+  requestPermissionsAsync: async () => ({ granted: true }),
+  scheduleNotificationAsync: async () => 'id',
+}));
 
 /**
  * El flujo de ingreso completo, con los DOS dispositivos.
@@ -422,5 +431,87 @@ describe('activeInvites', () => {
     saveInvite(invite);
 
     expect(activeInvites().map(i => i.token)).toEqual([invite.token]);
+  });
+});
+
+/**
+ * T-136 criterio 5. Antes, `redeem` veía «ya tengo clave» y cerraba el ingreso
+ * en silencio: una clave plantada por contacto también bloqueaba el link.
+ */
+describe('T-136 · la invitación choca con una clave plantada por contacto', () => {
+  const FALSA = 'ab'.repeat(32);
+
+  /** Ana invitó y ya entregó el grant; Beto todavía no procesó su buzón. */
+  async function grantEsperandoABeto(): Promise<{ invite: GroupInvite; clave: string }> {
+    const { invite, clave } = anaInvita();
+    usar('beto', BETO);
+    await publishClaim(invite, 'dev-beto');
+    usar('ana', ANA);
+    await processInvite(invite, 'dev-ana');
+    usar('beto', BETO);
+    createSecureStorage('notices').clearAll();
+    useNoticeInboxStore.setState({ items: [] });
+    return { invite, clave };
+  }
+
+  /** Lo que habría dejado `drainContacts`: la clave de Mallory, adoptada por contacto. */
+  function plantadaPorContacto(key: string): void {
+    useGroupKeyStore.setState({ keys: [{ groupId: 'g1', key, epoch: 1e9 }] });
+    registrarOferta({
+      groupId: 'g1', fromUserId: 'u-mallory', key, epoch: 1e9,
+      origen: 'contact', receivedAt: 0, adoptada: false,
+    });
+    marcarAdoptada('g1', 'u-mallory');
+  }
+
+  const avisos = () => useNoticeInboxStore.getState().items.filter(i => i.notice.kind === 'group_key_conflict');
+
+  it('con OTRA clave: registra la oferta de la invitación, avisa y no sustituye', async () => {
+    const { invite, clave } = await grantEsperandoABeto();
+    plantadaPorContacto(FALSA);
+
+    expect(await processInvite(invite, 'dev-beto')).toEqual([]);
+
+    expect(useGroupKeyStore.getState().getKey('g1')?.key).toBe(FALSA);
+    expect(ofertasDe('g1').find(o => o.origen === 'invite')).toMatchObject({
+      key: clave, fromUserId: idDeOfertaDeInvitacion(invite.inviterFingerprint), adoptada: false,
+    });
+    expect(avisos()).toHaveLength(1);
+    expect(avisos()[0]!.notice).toMatchObject({ groupName: 'Viaje' });
+    expect(listPendingJoins()).toHaveLength(0);
+  });
+
+  it('reprocesar el mismo buzón no apila ofertas ni avisos', async () => {
+    const { invite } = await grantEsperandoABeto();
+    plantadaPorContacto(FALSA);
+
+    await processInvite(invite, 'dev-beto');
+    await processInvite(invite, 'dev-beto');
+
+    expect(ofertasDe('g1').filter(o => o.origen === 'invite')).toHaveLength(1);
+    expect(avisos()).toHaveLength(1);
+  });
+
+  it('con la MISMA clave: se cierra como siempre, sin oferta ni aviso', async () => {
+    const { invite, clave } = await grantEsperandoABeto();
+    plantadaPorContacto(clave);
+
+    expect(await processInvite(invite, 'dev-beto')).toEqual([]);
+
+    expect(ofertasDe('g1').filter(o => o.origen === 'invite')).toEqual([]);
+    expect(avisos()).toHaveLength(0);
+    expect(listPendingJoins()).toHaveLength(0);
+  });
+
+  it('S3-A1 · clave local que NO vino de contacto: se cierra como siempre, sin oferta ni aviso', async () => {
+    const { invite } = await grantEsperandoABeto();
+    useGroupKeyStore.setState({ keys: [{ groupId: 'g1', key: FALSA, epoch: 1 }] });
+
+    expect(await processInvite(invite, 'dev-beto')).toEqual([]);
+
+    expect(useGroupKeyStore.getState().getKey('g1')?.key).toBe(FALSA);
+    expect(ofertasDe('g1')).toEqual([]);
+    expect(avisos()).toHaveLength(0);
+    expect(listPendingJoins()).toHaveLength(0);
   });
 });
