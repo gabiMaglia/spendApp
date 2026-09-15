@@ -21,25 +21,28 @@ describe('createContactInvite', () => {
   it('arma un token al azar, la huella de la identidad y el vencimiento a 48hs', () => {
     const id = generateIdentity();
     const now = 1_000_000;
-    const invite = createContactInvite('Ana', id.publicKey, now);
+    const wrap = generateWrapKeypair();
+    const invite = createContactInvite('Ana', id.publicKey, wrap.publicKey, now);
     expect(invite.fromName).toBe('Ana');
     expect(invite.token).toMatch(/^[0-9a-f]{64}$/);
     expect(invite.inviterFingerprint).toHaveLength(32);
+    expect(invite.inviterWrapPublicKey).toBe(wrap.publicKey);
     expect(invite.expiresAt).toBe(now + 48 * 60 * 60 * 1000);
     expect(invite.claimedBy).toBeUndefined();
   });
 
   it('dos invitaciones seguidas tienen tokens distintos', () => {
     const id = generateIdentity();
-    const a = createContactInvite('Ana', id.publicKey);
-    const b = createContactInvite('Ana', id.publicKey);
+    const wrap = generateWrapKeypair();
+    const a = createContactInvite('Ana', id.publicKey, wrap.publicKey);
+    const b = createContactInvite('Ana', id.publicKey, wrap.publicKey);
     expect(a.token).not.toBe(b.token);
   });
 });
 
 describe('isContactInviteExpired', () => {
   it('vencida cuando "ahora" pasa expiresAt', () => {
-    const invite = createContactInvite('Ana', 'aa', 1000);
+    const invite = createContactInvite('Ana', 'aa', 'bb', 1000);
     expect(isContactInviteExpired(invite, 1000 + 48 * 60 * 60 * 1000 + 1)).toBe(true);
     expect(isContactInviteExpired(invite, 1000)).toBe(false);
   });
@@ -60,14 +63,33 @@ describe('deriveContactInviteTopic', () => {
 });
 
 describe('sealContactClaim / openContactClaim', () => {
-  it('ida y vuelta', async () => {
-    const sealed = await sealContactClaim('tok-1', card());
+  it('ida y vuelta: la tarjeta viaja sin el secreto, y quien invita desenvuelve el real', async () => {
+    const inviterWrap = generateWrapKeypair();
+    const claimantWrap = generateWrapKeypair();
+    const c = card({ wrapPublicKey: claimantWrap.publicKey });
+
+    const sealed = await sealContactClaim('tok-1', c, inviterWrap.publicKey, claimantWrap.privateKey);
     const abierto = await openContactClaim('tok-1', sealed);
-    expect(abierto).toEqual(card());
+
+    expect(abierto).not.toBeNull();
+    // La tarjeta que devuelve NO trae el secreto en claro (I1): viaja aparte, envuelto.
+    expect(abierto!.card).not.toHaveProperty('contactSecret');
+    expect(abierto!.card).toEqual({
+      kind: c.kind, userId: c.userId, name: c.name,
+      wrapPublicKey: c.wrapPublicKey, identityPublicKey: c.identityPublicKey, sentAt: c.sentAt,
+    });
+
+    // Sólo con la privada de envoltura de quien invita se recupera el secreto real.
+    const destapado = unwrapGroupKey(abierto!.wrappedSecret, abierto!.card.wrapPublicKey, inviterWrap.privateKey);
+    expect(destapado).toBe(c.contactSecret);
   });
 
   it('con el token equivocado no abre', async () => {
-    const sealed = await sealContactClaim('tok-1', card());
+    const inviterWrap = generateWrapKeypair();
+    const claimantWrap = generateWrapKeypair();
+    const sealed = await sealContactClaim(
+      'tok-1', card({ wrapPublicKey: claimantWrap.publicKey }), inviterWrap.publicKey, claimantWrap.privateKey,
+    );
     expect(await openContactClaim('tok-2', sealed)).toBeNull();
   });
 
@@ -84,6 +106,37 @@ describe('sealContactClaim / openContactClaim', () => {
       claimantWrap.publicKey, id.privateKey, senderWrap.privateKey,
     );
     expect(await openContactClaim('tok-1', sealedGrant)).toBeNull();
+  });
+
+  // I1 (cierre — revisión final de T-096 · ADR-015): mismo hallazgo que C2 pero
+  // en la dirección del reclamo. Antes de este fix, el `contactSecret` del
+  // RECLAMANTE viajaba en CLARO dentro del sobre sellado sólo con la clave
+  // simétrica del token — la misma que cualquiera con el link reenviado puede
+  // derivar, sin haber reclamado ni haber sido admitido nunca. Este test se
+  // pone en el lugar de ESE bystander: sólo tiene el token y aun así puede
+  // abrir el sobre exterior del claim igual que quien invitó. Lo que tiene que
+  // fallarle es desenvolver el secreto real.
+  it('un bystander con sólo el token (link reenviado) NO puede recuperar el contactSecret del reclamante', async () => {
+    const inviterWrap = generateWrapKeypair();     // de quien comparte (Ana) — destinatario legítimo del claim
+    const claimantWrap = generateWrapKeypair();    // del reclamante (Beto)
+    const bystanderWrap = generateWrapKeypair();   // de un tercero que sólo tiene el link
+    const c = card({ wrapPublicKey: claimantWrap.publicKey });
+
+    const sealed = await sealContactClaim('tok-1', c, inviterWrap.publicKey, claimantWrap.privateKey);
+
+    // El bystander tiene el token (por el link reenviado): abre el sobre
+    // exterior exactamente igual que Ana, sin haber reclamado nada.
+    const abierto = await openContactClaim('tok-1', sealed);
+    expect(abierto).not.toBeNull(); // el sobre exterior SÍ abre — es público para el token
+
+    // Pero intentar desenvolver el secreto con SU privada (no la de Ana) no da el real.
+    const conBystander = unwrapGroupKey(abierto!.wrappedSecret, abierto!.card.wrapPublicKey, bystanderWrap.privateKey);
+    expect(conBystander).not.toBe(c.contactSecret);
+
+    // Confirmación de que el mecanismo funciona (no es sólo que unwrap siempre falle):
+    // con la privada CORRECTA (la de Ana, la destinataria real del claim) sí se recupera.
+    const conInvitadorReal = unwrapGroupKey(abierto!.wrappedSecret, abierto!.card.wrapPublicKey, inviterWrap.privateKey);
+    expect(conInvitadorReal).toBe(c.contactSecret);
   });
 });
 
@@ -138,7 +191,11 @@ describe('sealContactGrant / openContactGrant', () => {
 
   it('un claim sellado con el mismo token no se confunde con un grant', async () => {
     const id = generateIdentity();
-    const sealedClaim = await sealContactClaim('tok-1', card());
+    const inviterWrap = generateWrapKeypair();
+    const claimantWrap = generateWrapKeypair();
+    const sealedClaim = await sealContactClaim(
+      'tok-1', card({ wrapPublicKey: claimantWrap.publicKey }), inviterWrap.publicKey, claimantWrap.privateKey,
+    );
     expect(await openContactGrant('tok-1', sealedClaim, fingerprint(id.publicKey))).toBeNull();
   });
 
@@ -219,7 +276,7 @@ async function reseal_sinFirmar(token: string, msg: Record<string, unknown>): Pr
 
 describe('contactInviteToLink / parseContactInviteLink', () => {
   it('ida y vuelta, formato compacto', () => {
-    const invite = createContactInvite('Ana', generateIdentity().publicKey, 1000);
+    const invite = createContactInvite('Ana', generateIdentity().publicKey, generateWrapKeypair().publicKey, 1000);
     const link = contactInviteToLink(invite);
     expect(link).toContain('#i');
     const parsed = parseContactInviteLink(link);
@@ -227,7 +284,7 @@ describe('contactInviteToLink / parseContactInviteLink', () => {
   });
 
   it('el link NUNCA contiene el secreto permanente de una cuenta (64 hex chars fuera del token)', () => {
-    const invite = createContactInvite('Ana', generateIdentity().publicKey, 1000);
+    const invite = createContactInvite('Ana', generateIdentity().publicKey, generateWrapKeypair().publicKey, 1000);
     const link = contactInviteToLink(invite);
     // El único bloque hex de 64 chars que puede aparecer es el token mismo.
     const hex64 = link.match(/[0-9a-f]{64}/gi) ?? [];

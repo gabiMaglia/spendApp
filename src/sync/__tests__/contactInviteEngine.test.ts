@@ -2,7 +2,7 @@ import {
   publishContactClaim, processContactInvite, activeContactInvites, processAllContactInvites,
 } from '../contactInviteEngine';
 import { createContactInvite, type ContactInvite } from '../contactInvite';
-import { ensureIdentity, saveContactInvite, listPendingContactClaims } from '@/src/store/identityStore';
+import { ensureIdentity, ensureWrapKeypair, saveContactInvite, listPendingContactClaims } from '@/src/store/identityStore';
 import { getPeer } from '../contactChannel';
 import { useAuthStore } from '@/src/store/authStore';
 import { createSecureStorage } from '@/src/utils/secureStorage';
@@ -153,7 +153,7 @@ describe('ingreso de contacto por link, de punta a punta', () => {
     relayMock.__reset();
 
     usar('ana', ANA);
-    const invite = createContactInvite('Ana', ensureIdentity().publicKey);
+    const invite = createContactInvite('Ana', ensureIdentity().publicKey, ensureWrapKeypair().publicKey);
     saveContactInvite(invite);
 
     usar('beto', BETO);
@@ -179,7 +179,7 @@ describe('ingreso de contacto por link, de punta a punta', () => {
     relayMock.__reset();
 
     usar('ana', ANA);
-    const invite = createContactInvite('Ana', ensureIdentity().publicKey);
+    const invite = createContactInvite('Ana', ensureIdentity().publicKey, ensureWrapKeypair().publicKey);
     saveContactInvite(invite);
 
     usar('beto', BETO);
@@ -202,7 +202,7 @@ describe('ingreso de contacto por link, de punta a punta', () => {
     relayMock.__reset();
 
     usar('ana', ANA);
-    const invite = createContactInvite('Ana', ensureIdentity().publicKey);
+    const invite = createContactInvite('Ana', ensureIdentity().publicKey, ensureWrapKeypair().publicKey);
     saveContactInvite(invite);
 
     usar('beto', BETO);
@@ -231,7 +231,7 @@ describe('lo que el buzón de invitación de contacto NO permite', () => {
     relayMock.__reset();
 
     usar('ana', ANA);
-    const invite = createContactInvite('Ana', ensureIdentity().publicKey);
+    const invite = createContactInvite('Ana', ensureIdentity().publicKey, ensureWrapKeypair().publicKey);
     saveContactInvite(invite);
 
     usar('beto', BETO);
@@ -260,7 +260,7 @@ describe('lo que el buzón de invitación de contacto NO permite', () => {
     relayMock.__reset();
 
     usar('ana', ANA);
-    const invite = createContactInvite('Ana', ensureIdentity().publicKey);
+    const invite = createContactInvite('Ana', ensureIdentity().publicKey, ensureWrapKeypair().publicKey);
     const vencida: ContactInvite = { ...invite, expiresAt: Date.now() - 1 };
 
     usar('beto', BETO);
@@ -272,7 +272,7 @@ describe('lo que el buzón de invitación de contacto NO permite', () => {
     relayMock.__reset();
 
     usar('ana', ANA);
-    const invite = createContactInvite('Ana', ensureIdentity().publicKey);
+    const invite = createContactInvite('Ana', ensureIdentity().publicKey, ensureWrapKeypair().publicKey);
     saveContactInvite(invite);
 
     usar('beto', BETO);
@@ -286,7 +286,7 @@ describe('lo que el buzón de invitación de contacto NO permite', () => {
     relayMock.__reset();
 
     usar('ana', ANA);
-    const invite = createContactInvite('Ana', ensureIdentity().publicKey);
+    const invite = createContactInvite('Ana', ensureIdentity().publicKey, ensureWrapKeypair().publicKey);
     saveContactInvite(invite);
 
     usar('beto', BETO);
@@ -299,7 +299,7 @@ describe('lo que el buzón de invitación de contacto NO permite', () => {
 describe('activeContactInvites', () => {
   it('junta lo que emití y lo que estoy reclamando', () => {
     usar('ana', ANA);
-    const invite = createContactInvite('Ana', ensureIdentity().publicKey);
+    const invite = createContactInvite('Ana', ensureIdentity().publicKey, ensureWrapKeypair().publicKey);
     saveContactInvite(invite);
     expect(activeContactInvites().map(i => i.token)).toContain(invite.token);
   });
@@ -310,7 +310,7 @@ describe('processAllContactInvites', () => {
     relayMock.__reset();
 
     usar('ana', ANA);
-    const invite = createContactInvite('Ana', ensureIdentity().publicKey);
+    const invite = createContactInvite('Ana', ensureIdentity().publicKey, ensureWrapKeypair().publicKey);
     saveContactInvite(invite);
 
     usar('beto', BETO);

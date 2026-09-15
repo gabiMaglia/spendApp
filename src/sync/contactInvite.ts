@@ -36,6 +36,14 @@ export type ContactInvite = {
   token: string;
   /** Huella de la identidad de quien comparte — se contrasta al abrir el grant. */
   inviterFingerprint: string;
+  /**
+   * Pública X25519 de envoltura de quien comparte (I1, cierre — revisión final
+   * de T-096 · ADR-015). Es información pública, igual que `inviterFingerprint`
+   * — viaja en el link a propósito: es contra ELLA que el reclamante envuelve
+   * su `contactSecret` en `sealContactClaim`, así sólo la privada de quien
+   * comparte lo recupera. Ver el comentario largo en `sealContactClaim`.
+   */
+  inviterWrapPublicKey: string;
   expiresAt: number;
   /** Quién ya lo canjeó. Sólo en la copia persistida de quien comparte — nunca viaja en el link. */
   claimedBy?: string;
@@ -44,12 +52,14 @@ export type ContactInvite = {
 export function createContactInvite(
   fromName: string,
   inviterIdentityPublicKey: string,
+  inviterWrapPublicKey: string,
   now: number = Date.now(),
 ): ContactInvite {
   return {
     fromName,
     token: toHex(Crypto.getRandomBytes(32)),
     inviterFingerprint: fingerprint(inviterIdentityPublicKey),
+    inviterWrapPublicKey,
     expiresAt: now + CONTACT_INVITE_TTL_MS,
   };
 }
@@ -73,10 +83,28 @@ export async function deriveContactInviteTopic(token: string): Promise<string> {
   );
 }
 
-type ContactClaimMsg = { kind: 'claim'; card: ContactCard };
-
 /** La tarjeta de una entrega, pero SIN el secreto en claro — va envuelto aparte, ver `ContactGrantMsg`. */
 type ContactCardSinSecreto = Omit<ContactCard, 'contactSecret'>;
+
+type ContactClaimMsg = {
+  kind: 'claim';
+  card: ContactCardSinSecreto;
+  /**
+   * `contactSecret` del reclamante, envuelto con X25519 a la pública de
+   * envoltura de quien comparte (I1, cierre — revisión final de T-096 ·
+   * ADR-015). `card.wrapPublicKey` es la pública de envoltura de QUIEN
+   * RECLAMA — con ella quien comparte deriva el mismo secreto compartido para
+   * abrir esto. Ver el comentario largo en `sealContactClaim`.
+   */
+  wrappedSecret: string;
+};
+
+/**
+ * Lo que abre un reclamo válido: la tarjeta del reclamante SIN el secreto
+ * (todavía envuelto). El llamador (`admitContactClaim`) es quien desenvuelve
+ * `wrappedSecret` con su propia privada de envoltura — ver `sealContactClaim`.
+ */
+export type ContactClaim = { card: ContactCardSinSecreto; wrappedSecret: string };
 
 type ContactGrantMsg = {
   kind: 'grant';
@@ -117,13 +145,7 @@ async function open(token: string, sealed: string): Promise<ContactInviteMessage
   }
 }
 
-function tarjetaValida(card: unknown): card is ContactCard {
-  const c = card as ContactCard;
-  return Boolean(c) && c.kind === 'contact' && Boolean(c.userId) && Boolean(c.name)
-    && Boolean(c.contactSecret) && Boolean(c.wrapPublicKey) && Boolean(c.identityPublicKey);
-}
-
-/** Misma validación que `tarjetaValida`, para la tarjeta de una entrega — que viaja SIN `contactSecret` (C2). */
+/** Validación de la tarjeta de una entrega o de un reclamo — los dos viajan SIN `contactSecret` (C2/I1). */
 function tarjetaSinSecretoValida(card: unknown): card is ContactCardSinSecreto {
   const c = card as ContactCardSinSecreto;
   return Boolean(c) && c.kind === 'contact' && Boolean(c.userId) && Boolean(c.name)
@@ -132,39 +154,58 @@ function tarjetaSinSecretoValida(card: unknown): card is ContactCardSinSecreto {
 
 /**
  * Publica quién soy: mi propia `ContactCard`, sin firmar — el que comparte no
- * tiene de antemano nada contra qué verificarla.
+ * tiene de antemano nada contra qué verificarla (no hay firma posible: el que
+ * comparte no tiene ninguna huella pre-establecida del reclamante contra la
+ * cual verificarla, a diferencia del grant, que el reclamante SÍ puede
+ * verificar contra `inviterFingerprint`).
  *
- * ⚠️ **Límite conocido, documentado y no cerrado en este pase (I1, revisión
- * final de T-096 · ADR-015):** esto sella la tarjeta completa —con
- * `contactSecret` del RECLAMANTE en claro— con la clave simétrica derivada
- * del token, la misma que puede calcular cualquiera que tenga el link
- * reenviado (no sólo quien lo compartió originalmente). Un bystander con el
- * mismo link — que nunca reclama nada, sólo lee el buzón — puede leer el
- * secreto permanente del reclamante exactamente igual que el bystander de C2
- * podía leer el del que comparte antes de esa corrección.
+ * **CERRADO (I1, revisión final de T-096 · ADR-015):** antes esto sellaba la
+ * tarjeta completa —con `contactSecret` del RECLAMANTE en claro— con la clave
+ * simétrica derivada del token, la misma que puede calcular cualquiera que
+ * tenga el link reenviado (no sólo quien lo compartió originalmente). Un
+ * bystander con el mismo link —que nunca reclama nada, sólo lee el buzón—
+ * podía leer el secreto permanente del reclamante exactamente igual que el
+ * bystander de C2 podía leer el del que comparte antes de esa corrección.
  *
- * No se cierra acá porque, a diferencia de C2, acá el `ContactInvite` (lo que
- * viaja en el link) no lleva ninguna clave pública del que COMPARTE contra la
- * cual el reclamante pueda envolver su secreto — sólo `token`/`inviterFingerprint`.
- * Agregarla exige tocar `ContactInvite`, el formato compacto (`linkCompacto.ts`
- * §`i`) y el link largo, ampliando el alcance de este pase de fixes más allá
- * de lo que da el tiempo disponible.
+ * El cierre es el mismo mecanismo de C2, en la dirección inversa:
+ * `ContactInvite` ahora lleva `inviterWrapPublicKey` (pública X25519 de
+ * envoltura de quien comparte, información pública — viaja en el link a
+ * propósito). El reclamante envuelve su `contactSecret` con X25519 a ESA
+ * pública (`wrapGroupKey`), no sólo lo sella con la clave del token. Sin la
+ * privada de quien comparte, `unwrapGroupKey` no recupera nada, aunque se
+ * tenga el token y se pueda abrir el sobre exterior — igual que en
+ * `sealContactGrant`.
  *
- * Se considera de MENOR severidad que C2 porque acá el expuesto es el propio
- * reclamante: fue SU decisión activa tocar el link y reclamar, mientras que en
- * C2 el expuesto (quien comparte) es una parte pasiva que ni se entera de que
- * alguien más leyó su secreto. Igual sigue siendo una filtración real —
- * cualquier reenvío del link expone al que reclama— y queda pendiente como
- * ticket aparte, con el mismo patrón de wrap ya usado en `sealContactGrant`.
+ * A diferencia del grant, un reclamo no lleva `forUserId` ni firma: sólo hay
+ * un destinatario posible (quien generó la invitación), así que no hace
+ * falta desambiguar entre varios — y no hay firma porque quien comparte no
+ * tiene ninguna huella pre-establecida del reclamante para verificarla contra
+ * algo (el reclamante, en cambio, SÍ puede verificar el grant contra
+ * `inviterFingerprint`, que ya conocía por el link).
  */
-export async function sealContactClaim(token: string, card: ContactCard): Promise<string> {
-  return seal(token, { kind: 'claim', card });
+export async function sealContactClaim(
+  token: string,
+  card: ContactCard,
+  inviterWrapPublicKey: string,
+  claimantWrapPrivateKey: string,
+): Promise<string> {
+  const { contactSecret, ...cardSinSecreto } = card;
+  const wrappedSecret = wrapGroupKey(contactSecret, inviterWrapPublicKey, claimantWrapPrivateKey);
+  return seal(token, { kind: 'claim', card: cardSinSecreto, wrappedSecret });
 }
 
-export async function openContactClaim(token: string, sealed: string): Promise<ContactCard | null> {
+/**
+ * Abre un reclamo. Cualquiera que tenga el token puede llamarla — abrir el
+ * sobre exterior no prueba nada más que eso. **No desenvuelve `wrappedSecret`
+ * acá** (mismo motivo que `openContactGrant`): quien llama (`admitContactClaim`)
+ * es quien tiene la privada de envoltura correcta (la de quien comparte) para
+ * desenvolver de verdad.
+ */
+export async function openContactClaim(token: string, sealed: string): Promise<ContactClaim | null> {
   const msg = await open(token, sealed);
   if (msg === null || msg.kind !== 'claim') return null;
-  return tarjetaValida(msg.card) ? msg.card : null;
+  if (!tarjetaSinSecretoValida(msg.card) || !msg.wrappedSecret) return null;
+  return { card: msg.card, wrappedSecret: msg.wrappedSecret };
 }
 
 /**
@@ -282,6 +323,7 @@ export function contactInviteToLink(invite: ContactInvite): string {
     n: limpiarNombre(invite.fromName),
     t: invite.token,
     f: invite.inviterFingerprint,
+    w: invite.inviterWrapPublicKey,
     e: String(invite.expiresAt),
   });
   return enlaceCompartible('contact/claim', params);
@@ -300,10 +342,12 @@ export function contactInviteFromParams(params: Record<string, unknown>): Contac
   if (!/^\d{1,15}$/.test(expiresAt) || Number(expiresAt) > 2 ** 48 - 1) return null;
   const inviterFingerprint = str(params.f) ?? '';
   if (inviterFingerprint !== '' && !/^[0-9a-fA-F]{32}$/.test(inviterFingerprint)) return null;
+  const inviterWrapPublicKey = str(params.w) ?? '';
+  if (!/^[0-9a-fA-F]{64}$/.test(inviterWrapPublicKey)) return null;
   const fromName = str(params.n) ?? '';
   if (fromName !== '' && !esNombreSeguro(fromName)) return null;
 
-  return { fromName, token, inviterFingerprint, expiresAt: Number(expiresAt) };
+  return { fromName, token, inviterFingerprint, inviterWrapPublicKey, expiresAt: Number(expiresAt) };
 }
 
 export function parseContactInviteLink(link: string): ContactInvite | null {

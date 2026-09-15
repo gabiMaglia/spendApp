@@ -117,7 +117,10 @@ describe('invitaciones emitidas', () => {
 });
 
 function contactInvite(overrides: Partial<ContactInvite> = {}): ContactInvite {
-  return { fromName: 'Ana', token: 'tok-c1', inviterFingerprint: 'ff', expiresAt: Date.now() + 1000, ...overrides };
+  return {
+    fromName: 'Ana', token: 'tok-c1', inviterFingerprint: 'ff', inviterWrapPublicKey: 'ee',
+    expiresAt: Date.now() + 1000, ...overrides,
+  };
 }
 
 describe('contact invites', () => {

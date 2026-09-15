@@ -8,10 +8,10 @@ import { sendEnvelope, fetchSince } from './relay';
 import {
   deriveContactInviteTopic, sealContactClaim, openContactClaim,
   sealContactGrant, openContactGrant, isContactInviteExpired,
-  type ContactInvite,
+  type ContactInvite, type ContactClaim,
 } from './contactInvite';
 import { unwrapGroupKey } from './groupInvite';
-import { myContactCard, savePeerFromCard, type ContactCard } from './contactChannel';
+import { myContactCard, savePeerFromCard } from './contactChannel';
 
 /**
  * El encuentro entre quien comparte un link de contacto y quien lo abre
@@ -32,7 +32,13 @@ export async function publishContactClaim(invite: ContactInvite, deviceId: strin
 
   try {
     const topic = await deriveContactInviteTopic(invite.token);
-    const r = await sendEnvelope(topic, await sealContactClaim(invite.token, card), deviceId);
+    // Mi `contactSecret` viaja envuelto a la pública de quien invita (I1,
+    // cierre — revisión final de T-096 · ADR-015): sin esto, cualquier
+    // bystander con el mismo link reenviado leía mi secreto permanente igual
+    // que cualquier cliente legítimo, con sólo abrir el sobre del token.
+    const wrap = ensureWrapKeypair();
+    const sealed = await sealContactClaim(invite.token, card, invite.inviterWrapPublicKey, wrap.privateKey);
+    const r = await sendEnvelope(topic, sealed, deviceId);
     return r.ok;
   } catch {
     return false;
@@ -48,41 +54,49 @@ export async function publishContactClaim(invite: ContactInvite, deviceId: strin
  * se ignora sin efecto.
  */
 async function admitContactClaim(
-  claim: ContactCard,
+  claim: ContactClaim,
   invite: ContactInvite,
   topic: string,
   deviceId: string,
   myUserId: string,
 ): Promise<boolean> {
-  if (claim.userId === myUserId) return false;
+  if (claim.card.userId === myUserId) return false;
 
   const actual = findContactInviteToken(invite.token);
   if (!actual) return false; // no soy quien la generó
-  if (actual.claimedBy && actual.claimedBy !== claim.userId) return false;
+  if (actual.claimedBy && actual.claimedBy !== claim.card.userId) return false;
 
   const me = myContactCard();
   if (!me) return false;
 
-  if (!actual.claimedBy) markContactInviteClaimed(invite.token, claim.userId);
+  const wrap = ensureWrapKeypair();
+  // El secreto del reclamante viaja envuelto a MI pública de envoltura (I1,
+  // cierre — revisión final de T-096 · ADR-015): sólo mi privada lo destapa,
+  // aunque cualquier otro con el mismo link haya podido abrir el sobre
+  // exterior con la clave del token. `claim.card.wrapPublicKey` es la pública
+  // de envoltura del RECLAMANTE — con ella deriva el mismo secreto compartido.
+  const secretoReclamante = unwrapGroupKey(claim.wrappedSecret, claim.card.wrapPublicKey, wrap.privateKey);
+  if (!secretoReclamante || !/^[0-9a-f]{64}$/i.test(secretoReclamante)) return false;
+
+  if (!actual.claimedBy) markContactInviteClaimed(invite.token, claim.card.userId);
 
   // Guardo al que reclamó: nunca pisa una clave pinneada que ya tuviera
   // (mismo criterio que `savePeerFromCard` en cualquier tarjeta que llega por
   // relay, no por presencia física).
-  savePeerFromCard(claim.userId, {
-    secret: claim.contactSecret,
-    wrapPublicKey: claim.wrapPublicKey,
-    identityPublicKey: claim.identityPublicKey,
+  savePeerFromCard(claim.card.userId, {
+    secret: secretoReclamante,
+    wrapPublicKey: claim.card.wrapPublicKey,
+    identityPublicKey: claim.card.identityPublicKey,
   });
 
   const identity = ensureIdentity();
-  const wrap = ensureWrapKeypair();
   // `forUserId` + secreto ENVUELTO (T-096 · ADR-015, C2 de la revisión final):
-  // `claim.wrapPublicKey` es la pública de envoltura del reclamante — es a ELLA
-  // que se envuelve mi `contactSecret`, no sólo se sella con la clave del token.
-  // Sin esto, cualquier otro que tenga el mismo link (admitido o no) leería
-  // igual mi secreto permanente en el sobre público de esta entrega.
+  // `claim.card.wrapPublicKey` es la pública de envoltura del reclamante — es
+  // a ELLA que se envuelve mi `contactSecret`, no sólo se sella con la clave
+  // del token. Sin esto, cualquier otro que tenga el mismo link (admitido o
+  // no) leería igual mi secreto permanente en el sobre público de esta entrega.
   const sealed = await sealContactGrant(
-    invite.token, me, claim.userId, claim.wrapPublicKey, identity.privateKey, wrap.privateKey,
+    invite.token, me, claim.card.userId, claim.card.wrapPublicKey, identity.privateKey, wrap.privateKey,
   );
   await sendEnvelope(topic, sealed, deviceId);
   return true;

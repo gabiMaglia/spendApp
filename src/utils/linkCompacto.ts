@@ -59,6 +59,7 @@ import type { ContactInvite } from '@/src/sync/contactInvite';
  * | 1 | versión = `1` |
  * | 32 | token |
  * | 16 | huella de quien invita |
+ * | 32 | pública X25519 de envoltura de quien invita (I1, cierre — revisión final de T-096 · ADR-015) |
  * | 6 | vencimiento en milisegundos, entero sin signo big-endian |
  * | resto | nombre de quien invita, UTF-8 (puede ser vacío) |
  *
@@ -336,10 +337,14 @@ export function decodificarInvitacion(codigo: string): GroupInvite | null {
 // ── invitación de contacto ──────────────────────────────────────────────────
 
 export function codificarInvitacionDeContacto(inv: ContactInvite): string | null {
-  if (!esHex(inv.token, 32) || !esHex(inv.inviterFingerprint, 16)) return null;
+  if (!esHex(inv.token, 32) || !esHex(inv.inviterFingerprint, 16) || !esHex(inv.inviterWrapPublicKey, 32)) {
+    return null;
+  }
   if (!Number.isInteger(inv.expiresAt) || inv.expiresAt < 0 || inv.expiresAt > MAX_UINT48) return null;
 
-  const cuerpo: number[] = [...fromHex(inv.token), ...fromHex(inv.inviterFingerprint)];
+  const cuerpo: number[] = [
+    ...fromHex(inv.token), ...fromHex(inv.inviterFingerprint), ...fromHex(inv.inviterWrapPublicKey),
+  ];
 
   // 6 bytes big-endian sin operadores de bits: `<<` en JS trunca a 32 bits
   // (mismo motivo que en `codificarInvitacion`).
@@ -356,18 +361,19 @@ export function codificarInvitacionDeContacto(inv: ContactInvite): string | null
 export function decodificarInvitacionDeContacto(codigo: string): ContactInvite | null {
   if (codigo.length > MAX_CODIGO) return null;
   const bytes = desdeBase64Url(codigo);
-  if (!bytes || bytes.length < 1 + 32 + 16 + 6) return null;
+  if (!bytes || bytes.length < 1 + 32 + 16 + 32 + 6) return null;
   try {
     const r = new Lector(bytes);
     if (r.byte() !== VERSION) return null;
     const token = toHex(r.bytes(32));
     const inviterFingerprint = toHex(r.bytes(16));
+    const inviterWrapPublicKey = toHex(r.bytes(32));
     let expiresAt = 0;
     for (const b of r.bytes(6)) expiresAt = expiresAt * 256 + b;
     const fromName = utf8FromBytes(r.resto());
     if (fromName !== '' && !esNombreSeguro(fromName)) return null;
 
-    return { fromName, token, inviterFingerprint, expiresAt };
+    return { fromName, token, inviterFingerprint, inviterWrapPublicKey, expiresAt };
   } catch {
     return null;
   }

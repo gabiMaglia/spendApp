@@ -306,7 +306,7 @@ export default function AddContactScreen() {
   async function handleShare() {
     if (!currentUser) return;
     // Sin háptico acá: el `Fab` ya lo dispara al tocarlo.
-    const invite = createContactInvite(currentUser.name, ensureIdentity().publicKey);
+    const invite = createContactInvite(currentUser.name, ensureIdentity().publicKey, ensureWrapKeypair().publicKey);
     saveContactInvite(invite);
     try {
       await Share.share({

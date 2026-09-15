@@ -83,28 +83,35 @@ Módulo nuevo, **`src/sync/contactInvite.ts`**, con la misma forma que `groupInv
 
 ```typescript
 export type ContactInvite = {
-  /** Quien comparte: para mostrar "vas a agregar a X" antes de cualquier red. */
-  fromUserId: string;
   fromName: string;
   token: string;
-  inviterFingerprint: string;      // fingerprint(identityPublicKey de quien comparte)
-  expiresAt: number;               // now + 48h, misma constante que INVITE_TTL_MS
+  inviterFingerprint: string;       // fingerprint(identityPublicKey de quien comparte)
+  inviterWrapPublicKey: string;     // pública X25519 de envoltura de quien comparte (I1, ver abajo)
+  expiresAt: number;                // now + 48h, misma constante que INVITE_TTL_MS
   claimedBy?: string;               // sólo en la copia persistida de quien comparte
 };
 ```
 
-Reutiliza de `groupInvite.ts`: `fingerprint()`, `sealEnvelope`/`openEnvelope` (vía `envelopeCrypto`), el patrón `CLAIM_DOMAIN`/`TOPIC_DOMAIN` (dominios separados nuevos: `splitp2p/contact-invite/v1` y `.../v1/topic`, para no colisionar con los de invitación a grupo ni con los del canal de contacto ya establecido).
+> Estado real de la implementación (revisión final de T-096 · ADR-015, C2 + I1
+> cerrados): no hay `fromUserId` — el que comparte se identifica por
+> `inviterFingerprint`, ya suficiente para verificar el `grant`. Sí se agregó
+> `inviterWrapPublicKey`, no contemplado en el diseño original, para cerrar I1
+> (ver abajo).
+
+Reutiliza de `groupInvite.ts`: `fingerprint()`, `wrapGroupKey`/`unwrapGroupKey`, `sealEnvelope`/`openEnvelope` (vía `envelopeCrypto`), el patrón `CLAIM_DOMAIN`/`TOPIC_DOMAIN` (dominios separados nuevos: `splitp2p/contact-invite/v1` y `.../v1/topic`, para no colisionar con los de invitación a grupo ni con los del canal de contacto ya establecido).
 
 **Funciones:**
-- `createContactInvite(me, deviceId): ContactInvite` — arma el registro con token al azar (`Crypto.getRandomBytes(32)`) y lo persiste (nuevo store, `K_CONTACT_INVITES`, mismo patrón que `K_INVITES`).
+- `createContactInvite(fromName, inviterIdentityPublicKey, inviterWrapPublicKey, now?): ContactInvite` — arma el registro con token al azar (`Crypto.getRandomBytes(32)`). La persistencia (`saveContactInvite`) la hace el llamador (`app/contact/add.tsx`), no la función — ver la nota de C1/I2 más abajo.
 - `contactInviteToLink(invite): string` — arma el link. Formato compacto nuevo, letra `i` (ver §3.4), o el largo vía `enlaceCompartible('contact/claim', params)` si no calza.
 - `parseContactInviteLink(link): ContactInvite | null` — inverso, valida formas igual que `inviteFromParams`.
-- `sealContactClaim` / `openContactClaim` / `sealContactGrant` / `openContactGrant` — mismos roles que sus equivalentes de `groupInvite.ts`, pero el `claim` y el `grant` llevan una `ContactCard` completa (tipo ya existente en `contactChannel.ts`) en vez de una clave de grupo envuelta. El `grant` va firmado con la Ed25519 de quien lo manda y se verifica contra `inviterFingerprint`, igual que `openGrant`.
+- `sealContactClaim(token, card, inviterWrapPublicKey, claimantWrapPrivateKey)` / `openContactClaim(token, sealed): Promise<ContactClaim | null>` — el reclamo. La `ContactCard` viaja SIN `contactSecret`: el secreto va aparte, envuelto con X25519 a la pública de envoltura de QUIEN COMPARTE (`inviterWrapPublicKey`, que ahora viaja en el `ContactInvite` — I1, cierre de la revisión final). Sin firma ni `forUserId`: hay un solo destinatario posible (quien generó el link) y quien comparte no tiene ninguna huella pre-establecida del reclamante contra la cual verificar una firma.
+- `sealContactGrant(token, card, forUserId, claimantWrapPublicKey, signingPrivateKey, senderWrapPrivateKey)` / `openContactGrant(token, sealed, expectedFingerprint): Promise<ContactGrant | null>` — la entrega. Misma forma: la `ContactCard` viaja SIN `contactSecret`, envuelto con X25519 a la pública de envoltura del reclamante puntual (`claimantWrapPublicKey` — C2, cierre de la revisión final). Va firmado con la Ed25519 de quien comparte y se verifica contra `inviterFingerprint`; `forUserId` viaja DENTRO de lo firmado para que un bystander no pueda resellar la entrega con otro destinatario.
 
 **Motor, `src/sync/contactInviteEngine.ts`** (mirror de `inviteEngine.ts`):
-- `publishContactClaim(invite, deviceId): Promise<boolean>` — llamado cuando alguien toca «Agregar» sobre un link de contacto recibido. Arma su propia `ContactCard` (`myContactCard()`, sin cambios) y la publica sellada con la clave derivada del token, en el topic derivado del token (no en el buzón permanente de nadie).
-- `processContactInvites(deviceId): Promise<string[]>` — llamado en cada tick de sync (`relayEngine.ts`, al lado de donde hoy se llama `processAllInvites`), para **cada `ContactInvite` que yo generé** que siga sin `claimedBy`: lee el buzón efímero, abre el primer reclamo válido, guarda a esa persona como peer (`savePeerFromCard`, función ya existente) y contesta con mi `ContactCard` real sellada como `grant`. Marca `claimedBy` en el registro persistido antes de mandar el grant (mismo orden que T-136 enseñó a respetar: primero el estado que cierra la puerta, después el efecto de red). Un segundo reclamo de otra persona, sobre el mismo token, se ignora — misma guarda que §3.1.
-- Del lado de quien reclamó: sigue drenando su propia bandeja de invitaciones de contacto pendientes (mismo mecanismo que `listPendingJoins`, nuevo `listPendingContactClaims`) hasta ver el `grant` o hasta que expire a las 48hs. Al abrir el grant, llama a `savePeerFromCard` con MI `ContactCard`, completando el alta mutua.
+- `publishContactClaim(invite, deviceId): Promise<boolean>` — llamado cuando alguien toca «Agregar» sobre un link de contacto recibido. Arma su propia `ContactCard` (`myContactCard()`, sin cambios), la sella como `claim` (con su `contactSecret` envuelto a `invite.inviterWrapPublicKey`) y la publica en el topic derivado del token (no en el buzón permanente de nadie).
+- `processContactInvite(invite, deviceId): Promise<boolean>` — llamado en cada tick de sync, en los DOS roles a la vez (el rol lo decide el contenido de cada sobre, no quién llama). Del lado de quien comparte (`admitContactClaim`): abre el primer reclamo válido, desenvuelve el `contactSecret` del reclamante con su propia privada de envoltura, valida que matchee `/^[0-9a-f]{64}$/i`, guarda a esa persona como peer (`savePeerFromCard`) y contesta con su `ContactCard` real sellada como `grant`. Marca `claimedBy` en el registro persistido antes de mandar el grant. Un segundo reclamo de otra persona, sobre el mismo token, se ignora — misma guarda que §3.1.
+- Del lado de quien reclamó: sigue drenando su propia bandeja de invitaciones de contacto pendientes (`listPendingContactClaims`) hasta ver el `grant` o hasta que expire a las 48hs. Al abrirlo, desenvuelve el `contactSecret` de quien compartió con su propia privada de envoltura y llama a `savePeerFromCard`, completando el alta mutua.
+- `activeContactInvites()` / `processAllContactInvites(deviceId)` — agregan los dos lados (emitidas + reclamos pendientes) y procesan todos los buzones activos.
 
 **Costo aceptado (documentado en el diseño, no un defecto):** con este cambio, tocar «Agregar» sobre un link de contacto deja de ser instantáneo — antes guardaba el contacto mutuo en el mismo instante porque el link ya traía el secreto real; ahora depende de que quien compartió el link sincronice al menos una vez (`processContactInvites`) para que la entrega llegue. Es el mismo costo que ya tiene hoy la invitación a grupo, y es inevitable: es la única forma de que el secreto permanente no quede regalado a cualquiera que reenvíe el link.
 
@@ -121,14 +128,21 @@ Nueva entrada en `src/utils/linkCompacto.ts`, letra de tipo `i` (invitación de 
 | bytes | contenido |
 |---|---|
 | 1 | versión = `1` |
-| 1 | flags. bits 0-1: forma del id de quien invita (`0` texto, `1` UUID, `2` número) |
-| id | igual que en `c` |
 | 32 | token |
 | 16 | huella de quien invita |
+| 32 | pública X25519 de envoltura de quien invita (`inviterWrapPublicKey`, I1, cierre — revisión final de T-096 · ADR-015) |
 | 6 | vencimiento en milisegundos, entero sin signo big-endian |
-| resto | nombre de quien invita, UTF-8 (no vacío) |
+| resto | nombre de quien invita, UTF-8 (puede ser vacío) |
 
-Misma estructura que la tabla de invitación a grupo (§ya documentada en `linkCompacto.ts`), sin el `groupId`/nombre de grupo. `codificarInvitacionDeContacto`/`decodificarInvitacionDeContacto`, mismas garantías de ida y vuelta exacta que las otras dos.
+> Estado real de la implementación (revisión final de T-096 · ADR-015): NO hay
+> byte de flags ni campo de id de quien invita — a diferencia de `c` y `g`,
+> este formato no identifica a quien invita por un id de cuenta, sólo por
+> `inviterFingerprint` (16 bytes fijos, siempre presente) y ahora también por
+> `inviterWrapPublicKey` (32 bytes fijos, agregados para cerrar I1). El nombre
+> puede ir vacío (a diferencia de `g`), porque mostrar "vas a agregar a X" es
+> menos crítico acá que en una invitación a grupo.
+
+`codificarInvitacionDeContacto`/`decodificarInvitacionDeContacto`, mismas garantías de ida y vuelta exacta que las otras dos.
 
 ### 3.5 Huella del invitador en `join.tsx`
 
