@@ -1,6 +1,6 @@
 import { ed25519 } from '@noble/curves/ed25519.js';
 import * as Crypto from 'expo-crypto';
-import { fingerprint } from './groupInvite';
+import { fingerprint, wrapGroupKey } from './groupInvite';
 import { sealEnvelope, openEnvelope, toHex, fromHex } from './envelopeCrypto';
 import type { ContactCard } from './contactChannel';
 import { enlaceCompacto, enlaceCompartible, rutaDeEnlace } from '@/src/utils/appLink';
@@ -74,9 +74,21 @@ export async function deriveContactInviteTopic(token: string): Promise<string> {
 }
 
 type ContactClaimMsg = { kind: 'claim'; card: ContactCard };
+
+/** La tarjeta de una entrega, pero SIN el secreto en claro — va envuelto aparte, ver `ContactGrantMsg`. */
+type ContactCardSinSecreto = Omit<ContactCard, 'contactSecret'>;
+
 type ContactGrantMsg = {
   kind: 'grant';
-  card: ContactCard;
+  card: ContactCardSinSecreto;
+  /**
+   * `contactSecret` del que comparte, envuelto con X25519 a la pública de
+   * envoltura de ESE reclamante puntual (C2, hallazgo de la revisión final de
+   * T-096). `card.wrapPublicKey` es la pública de quien envuelve — con ella el
+   * receptor deriva el mismo secreto compartido para abrir esto. Ver el
+   * comentario largo en `sealContactGrant`.
+   */
+  wrappedSecret: string;
   /** Para quién es. Con un link reenviado puede haber más de un reclamante; cada uno tiene el suyo. */
   forUserId: string;
   signedBy: string;
@@ -84,8 +96,12 @@ type ContactGrantMsg = {
 };
 type ContactInviteMessage = ContactClaimMsg | ContactGrantMsg;
 
-/** Lo que abre una entrega válida: la tarjeta real y para quién era. */
-export type ContactGrant = { card: ContactCard; forUserId: string };
+/**
+ * Lo que abre una entrega válida: la tarjeta SIN el secreto (todavía envuelto)
+ * y para quién era. El llamador (`processContactInvite`) es quien desenvuelve
+ * `wrappedSecret` con su propia privada de envoltura — ver `openContactGrant`.
+ */
+export type ContactGrant = { card: ContactCardSinSecreto; wrappedSecret: string; forUserId: string };
 
 async function seal(token: string, msg: ContactInviteMessage): Promise<string> {
   return sealEnvelope(await inviteKey(token), JSON.stringify(msg));
@@ -107,7 +123,40 @@ function tarjetaValida(card: unknown): card is ContactCard {
     && Boolean(c.contactSecret) && Boolean(c.wrapPublicKey) && Boolean(c.identityPublicKey);
 }
 
-/** Publica quién soy: mi propia `ContactCard`, sin firmar — el que comparte no tiene de antemano nada contra qué verificarla. */
+/** Misma validación que `tarjetaValida`, para la tarjeta de una entrega — que viaja SIN `contactSecret` (C2). */
+function tarjetaSinSecretoValida(card: unknown): card is ContactCardSinSecreto {
+  const c = card as ContactCardSinSecreto;
+  return Boolean(c) && c.kind === 'contact' && Boolean(c.userId) && Boolean(c.name)
+    && Boolean(c.wrapPublicKey) && Boolean(c.identityPublicKey);
+}
+
+/**
+ * Publica quién soy: mi propia `ContactCard`, sin firmar — el que comparte no
+ * tiene de antemano nada contra qué verificarla.
+ *
+ * ⚠️ **Límite conocido, documentado y no cerrado en este pase (I1, revisión
+ * final de T-096 · ADR-015):** esto sella la tarjeta completa —con
+ * `contactSecret` del RECLAMANTE en claro— con la clave simétrica derivada
+ * del token, la misma que puede calcular cualquiera que tenga el link
+ * reenviado (no sólo quien lo compartió originalmente). Un bystander con el
+ * mismo link — que nunca reclama nada, sólo lee el buzón — puede leer el
+ * secreto permanente del reclamante exactamente igual que el bystander de C2
+ * podía leer el del que comparte antes de esa corrección.
+ *
+ * No se cierra acá porque, a diferencia de C2, acá el `ContactInvite` (lo que
+ * viaja en el link) no lleva ninguna clave pública del que COMPARTE contra la
+ * cual el reclamante pueda envolver su secreto — sólo `token`/`inviterFingerprint`.
+ * Agregarla exige tocar `ContactInvite`, el formato compacto (`linkCompacto.ts`
+ * §`i`) y el link largo, ampliando el alcance de este pase de fixes más allá
+ * de lo que da el tiempo disponible.
+ *
+ * Se considera de MENOR severidad que C2 porque acá el expuesto es el propio
+ * reclamante: fue SU decisión activa tocar el link y reclamar, mientras que en
+ * C2 el expuesto (quien comparte) es una parte pasiva que ni se entera de que
+ * alguien más leyó su secreto. Igual sigue siendo una filtración real —
+ * cualquier reenvío del link expone al que reclama— y queda pendiente como
+ * ticket aparte, con el mismo patrón de wrap ya usado en `sealContactGrant`.
+ */
 export async function sealContactClaim(token: string, card: ContactCard): Promise<string> {
   return seal(token, { kind: 'claim', card });
 }
@@ -128,8 +177,8 @@ export async function openContactClaim(token: string, sealed: string): Promise<C
  * válida porque no cubría ese campo. Ver `groupInvite.ts#grantPayload`, que ya
  * hace exactamente esto para la invitación a grupo.
  */
-function grantPayload(card: ContactCard, forUserId: string): string {
-  return [card.userId, card.contactSecret, card.wrapPublicKey, card.identityPublicKey, forUserId].join('|');
+function grantPayload(card: ContactCardSinSecreto, wrappedSecret: string, forUserId: string): string {
+  return [card.userId, card.wrapPublicKey, card.identityPublicKey, wrappedSecret, forUserId].join('|');
 }
 
 function utf8(s: string): Uint8Array {
@@ -145,24 +194,44 @@ function utf8(s: string): Uint8Array {
 }
 
 /**
- * Entrega mi tarjeta real, firmada para un destinatario puntual.
+ * Entrega mi tarjeta, firmada para un destinatario puntual — con mi secreto
+ * permanente envuelto SÓLO para ese destinatario (C2, hallazgo de la revisión
+ * final de T-096 · ADR-015).
  *
- * `forUserId` (T-096 · ADR-015): con un link reenviado, el mismo buzón puede
- * tener más de un reclamo — el primero válido es el único que se admite, pero
- * el sobre de la entrega es público en ese tópico para cualquiera que tenga el
- * token. Sin destinatario, cualquier otro reclamante (admitido o no) leería
- * igual mi tarjeta real, secreto de contacto permanente incluido. Mismo motivo
- * que `forUserId` en `groupInvite.ts#InviteGrant`.
+ * `forUserId`: con un link reenviado, el mismo buzón puede tener más de un
+ * reclamo — el primero válido es el único que se admite, pero el sobre de la
+ * entrega es público en ese tópico para cualquiera que tenga el token. Sin
+ * destinatario, cualquier otro reclamante (admitido o no) sabría igual que
+ * esta entrega existe. Mismo motivo que `forUserId` en `groupInvite.ts#InviteGrant`.
+ *
+ * `contactSecret` envuelto (C2): antes viajaba en claro dentro del sobre
+ * sellado sólo con la clave simétrica del TOKEN — y esa clave la puede derivar
+ * cualquiera que tenga el link, no sólo el destinatario admitido, porque el
+ * link es justo lo único que hace falta para calcularla. `forUserId` no lo
+ * evitaba: es un campo que un bystander hostil ignora al descifrar con su
+ * propia copia de la clave del token — no es una puerta criptográfica, sólo
+ * protege de que un cliente HONESTO se confunda de destinatario. Envolver el
+ * secreto con X25519 a la pública de envoltura del reclamante puntual
+ * (`claimantWrapPublicKey`, la que trae su `claim.wrapPublicKey`) es lo que sí
+ * cierra el acceso: sin la privada de ESE reclamante, `unwrapGroupKey` no
+ * recupera nada, aunque se tenga el token y se pueda abrir el sobre exterior.
+ * Mismo patrón exacto que `groupInvite.ts#wrapGroupKey` para la clave de grupo.
  */
 export async function sealContactGrant(
   token: string,
   card: ContactCard,
   forUserId: string,
+  claimantWrapPublicKey: string,
   signingPrivateKey: string,
+  senderWrapPrivateKey: string,
 ): Promise<string> {
+  const { contactSecret, ...cardSinSecreto } = card;
+  const wrappedSecret = wrapGroupKey(contactSecret, claimantWrapPublicKey, senderWrapPrivateKey);
   const signedBy = toHex(ed25519.getPublicKey(fromHex(signingPrivateKey)));
-  const signature = toHex(ed25519.sign(utf8(grantPayload(card, forUserId)), fromHex(signingPrivateKey)));
-  return seal(token, { kind: 'grant', card, forUserId, signedBy, signature });
+  const signature = toHex(
+    ed25519.sign(utf8(grantPayload(cardSinSecreto, wrappedSecret, forUserId)), fromHex(signingPrivateKey)),
+  );
+  return seal(token, { kind: 'grant', card: cardSinSecreto, wrappedSecret, forUserId, signedBy, signature });
 }
 
 /**
@@ -173,6 +242,12 @@ export async function sealContactGrant(
  * esa privada. `forUserId` viaja DENTRO de lo firmado — ver `grantPayload` —
  * así que el llamador tiene que contrastarlo contra su propio id antes de
  * adoptar nada; acá sólo se verifica que el campo esté y no fue alterado.
+ *
+ * **No desenvuelve `wrappedSecret` acá** (C2): esta función la puede llamar
+ * cualquiera que tenga el token, admitido o no — es sólo apertura + verificación
+ * de firma, no prueba de destinatario. Quien llama (`processContactInvite`)
+ * es quien ya validó `forUserId === miUserId` y tiene la privada de envoltura
+ * correcta para desenvolver de verdad.
  */
 export async function openContactGrant(
   token: string,
@@ -181,14 +256,18 @@ export async function openContactGrant(
 ): Promise<ContactGrant | null> {
   const msg = await open(token, sealed);
   if (msg === null || msg.kind !== 'grant') return null;
-  if (!tarjetaValida(msg.card) || !msg.signedBy || !msg.signature || !msg.forUserId) return null;
+  if (!tarjetaSinSecretoValida(msg.card) || !msg.wrappedSecret || !msg.signedBy || !msg.signature || !msg.forUserId) {
+    return null;
+  }
   if (fingerprint(msg.signedBy) !== expectedFingerprint) return null;
 
   try {
     const ok = ed25519.verify(
-      fromHex(msg.signature), utf8(grantPayload(msg.card, msg.forUserId)), fromHex(msg.signedBy),
+      fromHex(msg.signature),
+      utf8(grantPayload(msg.card, msg.wrappedSecret, msg.forUserId)),
+      fromHex(msg.signedBy),
     );
-    return ok ? { card: msg.card, forUserId: msg.forUserId } : null;
+    return ok ? { card: msg.card, wrappedSecret: msg.wrappedSecret, forUserId: msg.forUserId } : null;
   } catch {
     return null; // firma con formato inválido
   }

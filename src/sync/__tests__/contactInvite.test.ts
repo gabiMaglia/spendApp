@@ -3,7 +3,7 @@ import {
   sealContactClaim, openContactClaim, sealContactGrant, openContactGrant,
   contactInviteToLink, parseContactInviteLink,
 } from '../contactInvite';
-import { generateIdentity, fingerprint } from '../groupInvite';
+import { generateIdentity, generateWrapKeypair, fingerprint, unwrapGroupKey } from '../groupInvite';
 import { sealEnvelope, openEnvelope, fromHex } from '../envelopeCrypto';
 import * as Crypto from 'expo-crypto';
 import type { ContactCard } from '../contactChannel';
@@ -77,29 +77,60 @@ describe('sealContactClaim / openContactClaim', () => {
 
   it('un grant sellado con el mismo token no se confunde con un claim', async () => {
     const id = generateIdentity();
-    const sealedGrant = await sealContactGrant('tok-1', card(), 'u-beto', id.privateKey);
+    const senderWrap = generateWrapKeypair();
+    const claimantWrap = generateWrapKeypair();
+    const sealedGrant = await sealContactGrant(
+      'tok-1', card({ wrapPublicKey: senderWrap.publicKey }), 'u-beto',
+      claimantWrap.publicKey, id.privateKey, senderWrap.privateKey,
+    );
     expect(await openContactClaim('tok-1', sealedGrant)).toBeNull();
   });
 });
 
 describe('sealContactGrant / openContactGrant', () => {
-  it('ida y vuelta, con la huella correcta', async () => {
+  it('ida y vuelta, con la huella correcta, y el destinatario correcto desenvuelve el secreto real', async () => {
     const id = generateIdentity();
-    const sealed = await sealContactGrant('tok-1', card(), 'u-beto', id.privateKey);
+    const senderWrap = generateWrapKeypair();
+    const claimantWrap = generateWrapKeypair();
+    const c = card({ wrapPublicKey: senderWrap.publicKey });
+
+    const sealed = await sealContactGrant('tok-1', c, 'u-beto', claimantWrap.publicKey, id.privateKey, senderWrap.privateKey);
     const abierto = await openContactGrant('tok-1', sealed, fingerprint(id.publicKey));
-    expect(abierto).toEqual({ card: card(), forUserId: 'u-beto' });
+
+    expect(abierto).not.toBeNull();
+    expect(abierto!.forUserId).toBe('u-beto');
+    // La tarjeta que devuelve NO trae el secreto en claro (C2): viaja aparte, envuelto.
+    expect(abierto!.card).not.toHaveProperty('contactSecret');
+    expect(abierto!.card).toEqual({
+      kind: c.kind, userId: c.userId, name: c.name,
+      wrapPublicKey: c.wrapPublicKey, identityPublicKey: c.identityPublicKey, sentAt: c.sentAt,
+    });
+
+    // Sólo con la privada de envoltura del destinatario correcto se recupera el secreto real.
+    const destapado = unwrapGroupKey(abierto!.wrappedSecret, abierto!.card.wrapPublicKey, claimantWrap.privateKey);
+    expect(destapado).toBe(c.contactSecret);
   });
 
   it('rechaza con la huella equivocada', async () => {
     const id = generateIdentity();
-    const sealed = await sealContactGrant('tok-1', card(), 'u-beto', id.privateKey);
+    const senderWrap = generateWrapKeypair();
+    const claimantWrap = generateWrapKeypair();
+    const sealed = await sealContactGrant(
+      'tok-1', card({ wrapPublicKey: senderWrap.publicKey }), 'u-beto',
+      claimantWrap.publicKey, id.privateKey, senderWrap.privateKey,
+    );
     expect(await openContactGrant('tok-1', sealed, '0'.repeat(32))).toBeNull();
   });
 
   it('rechaza una firma que no corresponde (identidad distinta a la que firmó)', async () => {
     const firmante = generateIdentity();
     const impostor = generateIdentity();
-    const sealed = await sealContactGrant('tok-1', card(), 'u-beto', firmante.privateKey);
+    const senderWrap = generateWrapKeypair();
+    const claimantWrap = generateWrapKeypair();
+    const sealed = await sealContactGrant(
+      'tok-1', card({ wrapPublicKey: senderWrap.publicKey }), 'u-beto',
+      claimantWrap.publicKey, firmante.privateKey, senderWrap.privateKey,
+    );
     // Se manipula el sobre para decir que lo firmó "impostor" sin haber resellado:
     // alcanza con verificar que la huella esperada de un tercero no matchea.
     expect(await openContactGrant('tok-1', sealed, fingerprint(impostor.publicKey))).toBeNull();
@@ -118,11 +149,50 @@ describe('sealContactGrant / openContactGrant', () => {
   // destinatario legítimo. Éste es el test que un bug así rompe.
   it('cambiar el destinatario sin resellar rompe la firma (forUserId está adentro de lo firmado)', async () => {
     const id = generateIdentity();
-    const sealed = await sealContactGrant('tok-1', card(), 'u-beto', id.privateKey);
+    const senderWrap = generateWrapKeypair();
+    const claimantWrap = generateWrapKeypair();
+    const sealed = await sealContactGrant(
+      'tok-1', card({ wrapPublicKey: senderWrap.publicKey }), 'u-beto',
+      claimantWrap.publicKey, id.privateKey, senderWrap.privateKey,
+    );
     const abierto = await open_sinVerificar(sealed);
     const alterado = { ...abierto, forUserId: 'u-mallory' };
     const reseallado = await reseal_sinFirmar('tok-1', alterado);
     expect(await openContactGrant('tok-1', reseallado, fingerprint(id.publicKey))).toBeNull();
+  });
+
+  // C2 (hallazgo de la revisión final de T-096 · ADR-015): antes de este fix, el
+  // `contactSecret` viajaba en CLARO dentro del sobre sellado sólo con la clave
+  // simétrica del token — la misma que cualquiera con el link reenviado puede
+  // derivar, admitido o no. Este test se pone en el lugar de ESE bystander: sólo
+  // tiene el token (nunca reclamó, nunca fue admitido) y sin embargo puede abrir
+  // el sobre exterior igual que Ana o Beto, porque abrir el sobre sólo requiere
+  // el token. Lo que tiene que fallarle es desenvolver el secreto real.
+  it('un bystander con sólo el token (link reenviado, nunca admitido) NO puede recuperar el contactSecret real', async () => {
+    const emisor = generateIdentity();
+    const senderWrap = generateWrapKeypair();       // de quien comparte (Ana)
+    const claimantWrap = generateWrapKeypair();      // del reclamante admitido (Beto)
+    const bystanderWrap = generateWrapKeypair();     // de un tercero que sólo tiene el link
+    const c = card({ wrapPublicKey: senderWrap.publicKey });
+
+    const sealed = await sealContactGrant(
+      'tok-1', c, 'u-beto', claimantWrap.publicKey, emisor.privateKey, senderWrap.privateKey,
+    );
+
+    // El bystander tiene el token (por el link reenviado) y por lo tanto la
+    // huella pública de quien invita también viaja en el link: puede llamar a
+    // openContactGrant exactamente igual que un cliente legítimo.
+    const abierto = await openContactGrant('tok-1', sealed, fingerprint(emisor.publicKey));
+    expect(abierto).not.toBeNull(); // el sobre exterior SÍ abre — es público para el token
+
+    // Pero intentar desenvolver el secreto con SU privada (no la de Beto) no da el real.
+    const conBystander = unwrapGroupKey(abierto!.wrappedSecret, abierto!.card.wrapPublicKey, bystanderWrap.privateKey);
+    expect(conBystander).not.toBe(c.contactSecret);
+
+    // Confirmación de que el mecanismo funciona (no es sólo que unwrap siempre falle):
+    // con la privada CORRECTA (la de Beto, el destinatario real) sí se recupera.
+    const conDestinatarioReal = unwrapGroupKey(abierto!.wrappedSecret, abierto!.card.wrapPublicKey, claimantWrap.privateKey);
+    expect(conDestinatarioReal).toBe(c.contactSecret);
   });
 });
 

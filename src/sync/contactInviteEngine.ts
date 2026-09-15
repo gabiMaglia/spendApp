@@ -1,6 +1,6 @@
 import { useAuthStore } from '@/src/store/authStore';
 import {
-  ensureIdentity, findContactInviteToken, markContactInviteClaimed,
+  ensureIdentity, ensureWrapKeypair, findContactInviteToken, markContactInviteClaimed,
   savePendingContactClaim, listContactInvites, listPendingContactClaims,
   removePendingContactClaim,
 } from '@/src/store/identityStore';
@@ -10,6 +10,7 @@ import {
   sealContactGrant, openContactGrant, isContactInviteExpired,
   type ContactInvite,
 } from './contactInvite';
+import { unwrapGroupKey } from './groupInvite';
 import { myContactCard, savePeerFromCard, type ContactCard } from './contactChannel';
 
 /**
@@ -74,10 +75,15 @@ async function admitContactClaim(
   });
 
   const identity = ensureIdentity();
-  // `forUserId` (T-096 · ADR-015): sin esto, cualquier otro reclamante que
-  // lea el mismo tópico público recibiría igual mi tarjeta real —secreto de
-  // contacto permanente incluido— aunque nunca haya sido admitido.
-  const sealed = await sealContactGrant(invite.token, me, claim.userId, identity.privateKey);
+  const wrap = ensureWrapKeypair();
+  // `forUserId` + secreto ENVUELTO (T-096 · ADR-015, C2 de la revisión final):
+  // `claim.wrapPublicKey` es la pública de envoltura del reclamante — es a ELLA
+  // que se envuelve mi `contactSecret`, no sólo se sella con la clave del token.
+  // Sin esto, cualquier otro que tenga el mismo link (admitido o no) leería
+  // igual mi secreto permanente en el sobre público de esta entrega.
+  const sealed = await sealContactGrant(
+    invite.token, me, claim.userId, claim.wrapPublicKey, identity.privateKey, wrap.privateKey,
+  );
   await sendEnvelope(topic, sealed, deviceId);
   return true;
 }
@@ -119,13 +125,20 @@ export async function processContactInvite(invite: ContactInvite, deviceId: stri
       // dirigido a otro reclamante no es para mí, aunque lo haya podido leer
       // en el mismo tópico público.
       if (grant && grant.forUserId === me.id) {
-        savePeerFromCard(grant.card.userId, {
-          secret: grant.card.contactSecret,
-          wrapPublicKey: grant.card.wrapPublicKey,
-          identityPublicKey: grant.card.identityPublicKey,
-        });
-        removePendingContactClaim(invite.token);
-        huboNovedad = true;
+        // El secreto viaja envuelto para MI pública de envoltura (C2, revisión
+        // final): sólo mi privada lo destapa, aunque cualquier otro con el
+        // mismo link haya podido abrir el sobre exterior con la clave del token.
+        const wrap = ensureWrapKeypair();
+        const secret = unwrapGroupKey(grant.wrappedSecret, grant.card.wrapPublicKey, wrap.privateKey);
+        if (secret && /^[0-9a-f]{64}$/i.test(secret)) {
+          savePeerFromCard(grant.card.userId, {
+            secret,
+            wrapPublicKey: grant.card.wrapPublicKey,
+            identityPublicKey: grant.card.identityPublicKey,
+          });
+          removePendingContactClaim(invite.token);
+          huboNovedad = true;
+        }
       }
     } catch { /* sobre inservible: se saltea */ }
   }
