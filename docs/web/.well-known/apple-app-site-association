@@ -6,8 +6,10 @@
         "components": [
           { "/": "/", "#": "c*", "comment": "contacto, formato compacto" },
           { "/": "/", "#": "g*", "comment": "invitación, formato compacto" },
+          { "/": "/", "#": "i*", "comment": "invitación de contacto, formato compacto" },
           { "/": "/", "#": "contact/add*", "comment": "contacto, formato largo" },
-          { "/": "/", "#": "groups/join*", "comment": "invitación, formato largo" }
+          { "/": "/", "#": "groups/join*", "comment": "invitación, formato largo" },
+          { "/": "/", "#": "contact/claim*", "comment": "invitación de contacto, formato largo" }
         ]
       }
     ]

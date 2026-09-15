@@ -38,7 +38,7 @@ const BASES_ACEPTADAS = [
  * Formato compacto (`utils/linkCompacto`): una letra de tipo y el código. La página no
  * decodifica — abre la ruta con `?c=<código>` y la app decodifica.
  */
-export const TIPOS_COMPACTOS = { c: 'contact/add', g: 'groups/join' } as const;
+export const TIPOS_COMPACTOS = { c: 'contact/add', g: 'groups/join', i: 'contact/claim' } as const;
 type TipoCompacto = keyof typeof TIPOS_COMPACTOS;
 
 const ESQUEMA = 'spendapp:';
@@ -48,7 +48,7 @@ const ESQUEMA = 'spendapp:';
  * llega de afuera, y no tiene por qué poder abrir cualquier pantalla de la app. La página
  * `abrir.html` repite esta misma lista, y un guard verifica que coincidan.
  */
-export const RUTAS_ENLAZABLES = ['contact/add', 'groups/join'] as const;
+export const RUTAS_ENLAZABLES = ['contact/add', 'groups/join', 'contact/claim'] as const;
 export type RutaEnlazable = (typeof RUTAS_ENLAZABLES)[number];
 
 /** Formato largo: la ruta y los parámetros legibles. Es el respaldo del compacto. */

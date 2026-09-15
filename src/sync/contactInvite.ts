@@ -3,6 +3,9 @@ import * as Crypto from 'expo-crypto';
 import { fingerprint } from './groupInvite';
 import { sealEnvelope, openEnvelope, toHex, fromHex } from './envelopeCrypto';
 import type { ContactCard } from './contactChannel';
+import { enlaceCompacto, enlaceCompartible, rutaDeEnlace } from '@/src/utils/appLink';
+import { codificarInvitacionDeContacto, decodificarInvitacionDeContacto } from '@/src/utils/linkCompacto';
+import { esNombreSeguro, limpiarNombre } from '@/src/utils/nombreSeguro';
 
 /**
  * Link de contacto por invitación — token efímero de un solo uso (T-096 · ADR-015).
@@ -189,4 +192,43 @@ export async function openContactGrant(
   } catch {
     return null; // firma con formato inválido
   }
+}
+
+/** Link para compartir por cualquier canal. Compacto si calza; si no, el largo. */
+export function contactInviteToLink(invite: ContactInvite): string {
+  const codigo = codificarInvitacionDeContacto(invite);
+  if (codigo) return enlaceCompacto('i', codigo);
+
+  const params = new URLSearchParams({
+    n: limpiarNombre(invite.fromName),
+    t: invite.token,
+    f: invite.inviterFingerprint,
+    e: String(invite.expiresAt),
+  });
+  return enlaceCompartible('contact/claim', params);
+}
+
+export function contactInviteFromParams(params: Record<string, unknown>): ContactInvite | null {
+  const str = (v: unknown): string | undefined =>
+    typeof v === 'string' ? v : Array.isArray(v) && typeof v[0] === 'string' ? v[0] : undefined;
+
+  const codigo = str(params.c);
+  if (codigo !== undefined) return decodificarInvitacionDeContacto(codigo);
+
+  const token = str(params.t), expiresAt = str(params.e);
+  if (!token || !expiresAt) return null;
+  if (!/^[0-9a-fA-F]{64}$/.test(token)) return null;
+  if (!/^\d{1,15}$/.test(expiresAt) || Number(expiresAt) > 2 ** 48 - 1) return null;
+  const inviterFingerprint = str(params.f) ?? '';
+  if (inviterFingerprint !== '' && !/^[0-9a-fA-F]{32}$/.test(inviterFingerprint)) return null;
+  const fromName = str(params.n) ?? '';
+  if (fromName !== '' && !esNombreSeguro(fromName)) return null;
+
+  return { fromName, token, inviterFingerprint, expiresAt: Number(expiresAt) };
+}
+
+export function parseContactInviteLink(link: string): ContactInvite | null {
+  const r = rutaDeEnlace(link);
+  if (!r || r.ruta !== 'contact/claim') return null;
+  return contactInviteFromParams(Object.fromEntries(r.params.entries()));
 }

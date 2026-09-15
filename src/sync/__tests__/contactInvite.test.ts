@@ -1,6 +1,7 @@
 import {
   createContactInvite, isContactInviteExpired, deriveContactInviteTopic,
   sealContactClaim, openContactClaim, sealContactGrant, openContactGrant,
+  contactInviteToLink, parseContactInviteLink,
 } from '../contactInvite';
 import { generateIdentity, fingerprint } from '../groupInvite';
 import { sealEnvelope, openEnvelope, fromHex } from '../envelopeCrypto';
@@ -145,3 +146,21 @@ async function open_sinVerificar(sealed: string): Promise<Record<string, unknown
 async function reseal_sinFirmar(token: string, msg: Record<string, unknown>): Promise<string> {
   return sealEnvelope(await inviteKeyDeTest(token), JSON.stringify(msg));
 }
+
+describe('contactInviteToLink / parseContactInviteLink', () => {
+  it('ida y vuelta, formato compacto', () => {
+    const invite = createContactInvite('Ana', generateIdentity().publicKey, 1000);
+    const link = contactInviteToLink(invite);
+    expect(link).toContain('#i');
+    const parsed = parseContactInviteLink(link);
+    expect(parsed).toEqual(invite);
+  });
+
+  it('el link NUNCA contiene el secreto permanente de una cuenta (64 hex chars fuera del token)', () => {
+    const invite = createContactInvite('Ana', generateIdentity().publicKey, 1000);
+    const link = contactInviteToLink(invite);
+    // El único bloque hex de 64 chars que puede aparecer es el token mismo.
+    const hex64 = link.match(/[0-9a-f]{64}/gi) ?? [];
+    expect(hex64.filter(h => h.toLowerCase() !== invite.token.toLowerCase())).toEqual([]);
+  });
+});
