@@ -11,7 +11,7 @@ import { useAuthStore } from '@/src/store/authStore';
 import { esYo } from '@/src/store/identityAlias';
 import { deriveTopic, fromHex } from './envelopeCrypto';
 import { subscribeTopic, isRelayConfigured } from './relay';
-import { publishToGroup, drainGroup, type PublishResult } from './relaySync';
+import { publishToGroup, drainGroup, sigueSiendoLaClave, type PublishResult } from './relaySync';
 import { recordPublish } from './publishHealth';
 import { noticeDeCaida } from './syncDownNotices';
 import { noticeDeReloj } from './clockNotice';
@@ -229,6 +229,12 @@ export async function drainNow(groupId: string): Promise<number> {
     const topic = await deriveTopic(fromHex(record.key), record.epoch);
     const r = await drainGroup(groupId, userId, deviceId(), readCursor(topic));
     if (!r.ok) return 0;
+
+    // T-136 · D-1: si la clave cambió desde la foto de entrada (el usuario
+    // eligió otra mientras esto esperaba), este cursor es del topic viejo y
+    // la marca de pendiente es del topic NUEVO: no se escribe uno ni se
+    // limpia la otra. El drenaje que lanzó la elección se ocupa del real.
+    if (!sigueSiendoLaClave(groupId, record)) return 0;
 
     writeCursor(topic, r.cursor);
 
