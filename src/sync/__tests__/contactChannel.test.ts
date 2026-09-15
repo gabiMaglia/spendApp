@@ -1,15 +1,33 @@
+jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
+// `keyConflictNotice` → `groupStore` → `relayEngine`: se corta acá para que el
+// motor real no arranque en los tests del canal.
+jest.mock('@/src/sync/relayEngine', () => ({
+  schedulePublish: jest.fn(), deviceId: () => 'dev', olvidarCursor: jest.fn(),
+  publishNow: jest.fn(async () => {}), drainNow: jest.fn(async () => 0), startRelay: jest.fn(async () => {}),
+}));
+jest.mock('expo-notifications', () => ({
+  setNotificationHandler: () => {},
+  getPermissionsAsync: async () => ({ granted: true }),
+  requestPermissionsAsync: async () => ({ granted: true }),
+  scheduleNotificationAsync: async () => 'id',
+}));
+
 import {
   ensureContactSecret, myContactCard, announceContact, drainContacts,
   deriveContactTopic, savePeer, peerSecret, listPeers, sendGroupKey,
   getPeer, peersIncompletos, hasConflictingPinnedKeys,
 } from '../contactChannel';
+import { ofertasDe } from '../groupKeyOffers';
+import { avisarConflictosDelDrenaje } from '../keyConflictNotice';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { ensureIdentity, ensureWrapKeypair } from '@/src/store/identityStore';
 import { useAuthStore } from '@/src/store/authStore';
 import { useUserStore } from '@/src/store/userStore';
+import { useNoticeInboxStore } from '@/src/store/noticeInboxStore';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { openEnvelope, sealEnvelope, fromHex } from '../envelopeCrypto';
 import * as Crypto from 'expo-crypto';
+import type { KeyConflictNotice } from '@/src/services/syncNotices';
 import type { User } from '@/src/types/models';
 
 /**
@@ -781,5 +799,156 @@ describe('ids hostiles en la tabla de peers (T-098 · SEC L-3)', () => {
     savePeer('__proto__', { secret: 'ab'.repeat(32) });
     expect(getPeer('__proto__')?.secret).toBe('ab'.repeat(32));
     expect(getPeer('constructor')).toBeUndefined();
+  });
+});
+
+/**
+ * T-136 · ADR-013. «Peer» es cualquiera que haya escaneado mi QR: su firma
+ * prueba quién manda, no que sea miembro del grupo. Mallory escaneó el QR de
+ * Ana y no está en el grupo; Beto sí.
+ */
+describe('T-136 · claves distintas para el mismo grupo', () => {
+  const MALLORY = usuario('u-mallory', 'Mallory');
+  const FALSA = 'ab'.repeat(32);
+
+  /** Beto y Mallory escanearon el QR de Ana, y Ana recogió las dos tarjetas. */
+  async function anaTieneDosContactos(): Promise<{ deAna: string; cursor: number }> {
+    usar(ANA);
+    const deAna = ensureContactSecret()!;
+    const tarjeta = myContactCard()!;
+    for (const quien of [BETO, MALLORY]) {
+      usar(quien);
+      savePeer(ANA.id, {
+        secret: deAna,
+        wrapPublicKey: tarjeta.wrapPublicKey,
+        identityPublicKey: tarjeta.identityPublicKey,
+      });
+      await announceContact(deAna, `dev-${quien.id}`);
+    }
+    usar(ANA);
+    const r = await drainContacts(deAna, 'dev-ana', 0);
+    return { deAna, cursor: r.cursor };
+  }
+
+  /** Mallory planta una clave suya para g1, con una época absurda. */
+  async function malloryPlanta(): Promise<void> {
+    usar(MALLORY);
+    useGroupKeyStore.setState({ keys: [{ groupId: 'g1', key: FALSA, epoch: 1e9 }] });
+    await sendGroupKey(ANA.id, { id: 'g1', name: 'Viaje' }, 'dev-mallory');
+  }
+
+  /** Beto, el miembro real, entrega la clave de verdad. */
+  async function betoEntrega(): Promise<string> {
+    usar(BETO);
+    const clave = useGroupKeyStore.getState().ensureKey('g1').key;
+    await sendGroupKey(ANA.id, { id: 'g1', name: 'Viaje' }, 'dev-beto');
+    return clave;
+  }
+
+  /** Lo mismo que hace `relayEngine.drainContactsNow` con el resultado. */
+  async function anaDrena(deAna: string, desde: number) {
+    usar(ANA);
+    const r = await drainContacts(deAna, 'dev-ana', desde);
+    await avisarConflictosDelDrenaje(r);
+    return r;
+  }
+
+  const conflictosDe = (groupId: string): KeyConflictNotice[] => useNoticeInboxStore.getState().items
+    .map(i => i.notice)
+    .filter((n): n is KeyConflictNotice => n.kind === 'group_key_conflict' && n.groupId === groupId);
+
+  beforeEach(() => {
+    createSecureStorage('notices').clearAll();
+    useNoticeInboxStore.setState({ items: [] });
+  });
+
+  it('criterio 2 · mismo lote: claves distintas de dos remitentes → no se adopta ninguna y hay UN aviso', async () => {
+    const { deAna, cursor } = await anaTieneDosContactos();
+    await malloryPlanta();
+    await betoEntrega();
+
+    const r = await anaDrena(deAna, cursor);
+
+    expect(useGroupKeyStore.getState().getKey('g1')).toBeUndefined();
+    expect(r.joinedGroups).not.toContain('g1');
+    expect(r.conflictedGroups).toEqual(['g1']);
+    const avisos = conflictosDe('g1');
+    expect(avisos).toHaveLength(1);
+    expect(avisos[0]).toMatchObject({ groupName: 'Viaje' });
+    expect([...avisos[0]!.senderIds].sort()).toEqual([BETO.id, MALLORY.id].sort());
+  });
+
+  it('criterio 1 (sin elegir) · dos lotes: la primera clave queda y la segunda distinta levanta el conflicto', async () => {
+    const { deAna, cursor } = await anaTieneDosContactos();
+    await malloryPlanta();
+    const r1 = await anaDrena(deAna, cursor);
+    expect(r1.joinedGroups).toEqual(['g1']); // un solo remitente: camino feliz
+
+    await betoEntrega();
+    const r2 = await anaDrena(deAna, r1.cursor);
+
+    expect(useGroupKeyStore.getState().getKey('g1')).toEqual({ groupId: 'g1', key: FALSA, epoch: 1e9 });
+    expect(r2.joinedGroups).not.toContain('g1');
+    expect(r2.conflictedGroups).toEqual(['g1']);
+    expect(conflictosDe('g1')).toHaveLength(1);
+  });
+
+  it('criterio 3/6 · los reenvíos de cada arranque no crean ofertas ni avisos nuevos', async () => {
+    const { deAna, cursor } = await anaTieneDosContactos();
+    await malloryPlanta();
+    const r1 = await anaDrena(deAna, cursor);
+    await betoEntrega();
+    const r2 = await anaDrena(deAna, r1.cursor);
+
+    await malloryPlanta();
+    await betoEntrega();
+    const r3 = await anaDrena(deAna, r2.cursor);
+
+    expect(r3.conflictedGroups).toEqual([]);
+    expect(ofertasDe('g1')).toHaveLength(2);
+    expect(conflictosDe('g1')).toHaveLength(1);
+  });
+
+  it('criterio 3 · la misma clave del mismo remitente N veces en un lote deja UNA oferta y adopta', async () => {
+    const { deAna, cursor } = await anaTieneDosContactos();
+    usar(BETO);
+    const clave = useGroupKeyStore.getState().ensureKey('g1').key;
+    for (let i = 0; i < 3; i++) await sendGroupKey(ANA.id, { id: 'g1', name: 'Viaje' }, 'dev-beto');
+
+    const r = await anaDrena(deAna, cursor);
+
+    expect(r.joinedGroups).toEqual(['g1']);
+    expect(ofertasDe('g1')).toHaveLength(1);
+    expect(useGroupKeyStore.getState().getKey('g1')?.key).toBe(clave);
+    expect(conflictosDe('g1')).toHaveLength(0);
+  });
+
+  it('criterio 3 · dos remitentes con la MISMA clave adoptan sin aviso', async () => {
+    const { deAna, cursor } = await anaTieneDosContactos();
+    const clave = await betoEntrega();
+    usar(MALLORY);
+    useGroupKeyStore.setState({ keys: [{ groupId: 'g1', key: clave, epoch: 1 }] });
+    await sendGroupKey(ANA.id, { id: 'g1', name: 'Viaje' }, 'dev-mallory');
+
+    const r = await anaDrena(deAna, cursor);
+
+    expect(r.joinedGroups).toEqual(['g1']);
+    expect(r.conflictedGroups).toEqual([]);
+    expect(useGroupKeyStore.getState().getKey('g1')?.key).toBe(clave);
+    expect(conflictosDe('g1')).toHaveLength(0);
+  });
+
+  it('criterio 4 · S3-A1: con una clave local que NO vino de contacto, otra clave no deja oferta ni aviso', async () => {
+    const { deAna, cursor } = await anaTieneDosContactos();
+    usar(ANA);
+    const propia = useGroupKeyStore.getState().ensureKey('g1');
+    await betoEntrega();
+
+    const r = await anaDrena(deAna, cursor);
+
+    expect(useGroupKeyStore.getState().getKey('g1')).toEqual(propia);
+    expect(r.conflictedGroups).toEqual([]);
+    expect(ofertasDe('g1')).toEqual([]);
+    expect(conflictosDe('g1')).toHaveLength(0);
   });
 });

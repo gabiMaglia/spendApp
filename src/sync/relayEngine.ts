@@ -21,6 +21,7 @@ import { applyApprovedLeaves } from '@/src/services/applyLeave';
 import { fromHex } from './envelopeCrypto';
 import { deriveInviteTopic, type GroupInvite } from './groupInvite';
 import { activeInvites, processInvite, processAllInvites } from './inviteEngine';
+import { avisarConflictosDelDrenaje } from './keyConflictNotice';
 import { verifyMyKeyRegistered } from './deviceKeys';
 import {
   ensureContactSecret, deriveContactTopic, drainContacts, sendGroupKey,
@@ -499,7 +500,11 @@ export async function drainContactsNow(): Promise<number> {
       })).filter(n => n.groupName !== ''));
     }
 
-    return r.added + r.joinedGroups.length;
+    // T-136: claves distintas para un mismo grupo. No se adoptó nada; el
+    // usuario elige desde la bandeja. Un solo aviso sin leer por grupo.
+    await avisarConflictosDelDrenaje(r);
+
+    return r.added + r.joinedGroups.length + r.conflictedGroups.length;
   } catch {
     return 0; // offline: se reintenta al próximo arranque o aviso
   }

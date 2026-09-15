@@ -11,6 +11,9 @@ import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { wrapGroupKey, unwrapGroupKey } from './groupInvite';
 import { ed25519 } from '@noble/curves/ed25519.js';
 import { syncedNow } from '@/src/utils/syncedClock';
+import {
+  claveLocalVinoDeContacto, estado, marcarAdoptada, ofertasDe, registrarOferta,
+} from './groupKeyOffers';
 
 /** Bytes UTF-8 de un texto: `Buffer` no existe en React Native. */
 function utf8(s: string): Uint8Array {
@@ -244,14 +247,22 @@ export async function sendGroupKey(
 }
 
 /**
- * Adopta una clave que llegó por el canal de contacto.
+ * Registra como OFERTA una clave que llegó por el canal de contacto
+ * (T-136 · ADR-013). Ya no adopta: eso se decide al final del lote, en
+ * `resolverOfertas`, mirando todas las ofertas del grupo.
  *
  * Se acepta SÓLO si viene de alguien que escaneamos y la firma corresponde a la
  * identidad que guardamos de esa persona. Sin este chequeo, cualquiera que
  * conozca el buzón (todos los que escanearon el mismo código) podría meter una
- * clave inventada y dejarnos con un grupo que no descifra nada.
+ * clave inventada.
+ *
+ * Lo que la firma NO prueba: que el remitente sea miembro del grupo. Por eso
+ * una oferta sola nunca sustituye nada.
+ *
+ * `true` sólo si dejó una oferta nueva o cambiada: es lo que marca al grupo
+ * para resolverlo en este lote.
  */
-function adoptDroppedKey(drop: GroupKeyDrop, myUserId: string): boolean {
+function registrarDropComoOferta(drop: GroupKeyDrop, myUserId: string): boolean {
   // Redundante con la criptografía —una entrega envuelta para otro no la puedo
   // abrir igual— y por eso ningún test puede matarlo. Se deja porque hace
   // explícita la intención y corta antes de gastar una operación de curva.
@@ -268,32 +279,91 @@ function adoptDroppedKey(drop: GroupKeyDrop, myUserId: string): boolean {
     return false;
   }
 
-  // T-132 criterio 4 (`qa/SEC3-2026-09-14.md`): esta guarda es la que hace que
-  // S3-A1 NO se repita acá. `adoptKeys` sólo compara épocas cuando YA existe un
-  // registro para ese `groupId` (`groupKeyStore.ts`); ese branch nunca corre
-  // desde este canal porque acá se corta antes, sin mirar `drop.epoch` para
-  // nada. Sea cual sea la época que traiga el mensaje, no hay sustitución
-  // posible de una clave que ya tenemos. Ver `contactChannel.test.ts` — "una
-  // época absurda en el mensaje NO alcanza para sustituir una clave que ya
-  // tenemos".
-  if (useGroupKeyStore.getState().getKey(drop.groupId)) return false; // ya la teníamos
-
+  // El unwrap va ANTES de mirar la clave local (T-136): para saber si hay
+  // conflicto hay que comparar claves. Destinatario y firma ya se verificaron.
   const wrap = ensureWrapKeypair();
   const key = unwrapGroupKey(drop.wrappedKey, drop.senderWrapPublicKey, wrap.privateKey);
   // Una clave del largo equivocado dejaría el grupo ilegible para siempre, sin
   // más síntoma que "no me llega nada".
   if (!key || !/^[0-9a-f]{64}$/i.test(key)) return false;
 
-  useGroupKeyStore.getState().adoptKeys([{ groupId: drop.groupId, key, epoch: drop.epoch }]);
-  return true;
+  const local = useGroupKeyStore.getState().getKey(drop.groupId);
+  if (local) {
+    if (local.key.toLowerCase() === key.toLowerCase()) return false; // ya la teníamos
+
+    // T-132 criterio 4 (`qa/SEC3-2026-09-14.md`): esta guarda es la que hace
+    // que S3-A1 NO se repita acá. Una clave local de `ensureKey`, QR o
+    // invitación no deja ni oferta ni aviso, y `drop.epoch` no se mira para
+    // nada: no hay sustitución posible. Ver `contactChannel.test.ts` — "una
+    // época absurda en el mensaje NO alcanza para sustituir una clave que ya
+    // tenemos". Sólo una clave que vino de contacto puede entrar en disputa, y
+    // aun así la decide el usuario (`elegirClaveDeGrupo`).
+    if (!claveLocalVinoDeContacto(drop.groupId)) return false;
+  }
+
+  return registrarOferta({
+    groupId: drop.groupId,
+    fromUserId: drop.fromUserId,
+    key: key.toLowerCase(),
+    epoch: drop.epoch,
+    origen: 'contact',
+    receivedAt: Date.now(),
+    adoptada: false,
+  });
 }
 
 export type DrainContactsResult = {
   added: number;
   /** Grupos cuya clave adoptamos: el llamador tiene que drenarlos. */
   joinedGroups: string[];
+  /**
+   * Grupos con claves DISTINTAS de remitentes distintos (T-136). No se adoptó
+   * ni se sustituyó nada: el llamador avisa y decide el usuario.
+   */
+  conflictedGroups: string[];
+  /** Nombre que traía el drop de cada grupo en conflicto. SIN VERIFICAR: lo escribe el remitente. */
+  nombresDeDrop: Record<string, string>;
   cursor: number;
 };
+
+function sinNovedades(cursor: number): DrainContactsResult {
+  return { added: 0, joinedGroups: [], conflictedGroups: [], nombresDeDrop: {}, cursor };
+}
+
+/**
+ * Decide, grupo por grupo, qué hacer con las ofertas nuevas de este lote (T-136).
+ *
+ *  - Todas iguales y sin clave local → se adopta: el camino feliz de siempre.
+ *  - Distintas entre sí, o contra la local que vino de contacto → no se adopta
+ *    ni se sustituye nada; el grupo vuelve como conflicto.
+ *
+ * Al final del lote y no dentro del loop, a propósito: si Mallory y Beto mandan
+ * claves distintas en el mismo drenaje, adoptar la primera sería exactamente el
+ * «primero en llegar gana» que este ticket cierra.
+ */
+function resolverOfertas(grupos: string[]): { joinedGroups: string[]; conflictedGroups: string[] } {
+  const joinedGroups: string[] = [];
+  const conflictedGroups: string[] = [];
+
+  for (const groupId of grupos) {
+    const local = useGroupKeyStore.getState().getKey(groupId);
+    const ofertas = ofertasDe(groupId);
+    const est = estado(groupId, local?.key);
+
+    if (est === 'conflicto') {
+      conflictedGroups.push(groupId);
+      continue;
+    }
+    if (est !== 'unanime' || local) continue;
+
+    const epoch = Math.max(...ofertas.map(o => o.epoch));
+    useGroupKeyStore.getState().adoptKeys([{ groupId, key: ofertas[0]!.key, epoch }]);
+    for (const o of ofertas) marcarAdoptada(groupId, o.fromUserId);
+    joinedGroups.push(groupId);
+  }
+
+  return { joinedGroups, conflictedGroups };
+}
 
 /**
  * Recoge las tarjetas que dejaron en MI buzón y las guarda como contactos.
@@ -307,7 +377,7 @@ export async function drainContacts(
   sinceSeq: number,
 ): Promise<DrainContactsResult> {
   const me = useAuthStore.getState().currentUser;
-  if (!me || !mySecret) return { added: 0, joinedGroups: [], cursor: sinceSeq };
+  if (!me || !mySecret) return sinNovedades(sinceSeq);
 
   let topic: string;
   let key: Uint8Array;
@@ -315,16 +385,17 @@ export async function drainContacts(
     topic = await deriveContactTopic(mySecret);
     key = await contactKey(mySecret);
   } catch {
-    return { added: 0, joinedGroups: [], cursor: sinceSeq };
+    return sinNovedades(sinceSeq);
   }
 
   const r = await fetchSince(topic, sinceSeq, deviceId);
-  if (!r.ok) return { added: 0, joinedGroups: [], cursor: sinceSeq };
+  if (!r.ok) return sinNovedades(sinceSeq);
 
   let added = 0;
-  const joinedGroups: string[] = [];
   /** Buzones a los que hay que devolverles nuestra tarjeta. Ver abajo. */
   const responder: string[] = [];
+  /** Grupos con una oferta nueva en ESTE lote, con el nombre con que llegó. */
+  const conOfertaNueva = new Map<string, string>();
 
   for (const envelope of r.envelopes) {
     // Un sobre que no abre es basura de alguien que conoce el topic: se saltea
@@ -366,12 +437,17 @@ export async function drainContacts(
       continue;
     }
 
-    if (adoptDroppedKey(msg, me.id)) joinedGroups.push(msg.groupId);
+    if (registrarDropComoOferta(msg, me.id)) conOfertaNueva.set(msg.groupId, msg.groupName);
   }
+
+  const { joinedGroups, conflictedGroups } = resolverOfertas([...conOfertaNueva.keys()]);
+  const nombresDeDrop = Object.fromEntries(
+    conflictedGroups.map(groupId => [groupId, conOfertaNueva.get(groupId) ?? '']),
+  );
 
   for (const secreto of responder) await announceContact(secreto, deviceId);
 
-  return { added, joinedGroups, cursor: r.cursor };
+  return { added, joinedGroups, conflictedGroups, nombresDeDrop, cursor: r.cursor };
 }
 
 /**
