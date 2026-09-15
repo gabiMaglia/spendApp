@@ -224,11 +224,10 @@ export function textFor(notice: Notice): { title: string; body: string } {
     case 'group_key_conflict': {
       const group = nombreDeGrupoEnConflicto(notice, t);
       return {
-        title: t(
-          notice.senderIds.length > 2 ? 'sync.keyConflict.title_many' : 'sync.keyConflict.title_two',
-          { group },
-        ),
-        body: t('sync.keyConflict.body'),
+        title: notice.senderIds.length > 2
+          ? t('sync.key_conflict.title_many', { group })
+          : t('sync.key_conflict.title_two', { group }),
+        body: t('sync.key_conflict.body'),
       };
     }
   }

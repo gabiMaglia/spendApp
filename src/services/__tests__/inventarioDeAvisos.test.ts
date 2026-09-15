@@ -128,7 +128,11 @@ describe('quién puede escribir en la bandeja', () => {
  * ausente = un aviso que no dice de qué grupo habla).
  */
 describe('el texto de los avisos nuevos, en es/en/pt', () => {
-  const dicts = { es, en, pt } as Record<string, Record<string, Record<string, string>>>;
+  // T-136 anidó `sync.key_conflict` (un objeto, no un string): el cast directo
+  // ya no estructura bien contra `Record<string, Record<string, string>>`. Pasa
+  // por `unknown` a propósito — ninguno de los `it.each` de abajo lee esa
+  // clave anidada, así que el chequeo de forma no protege nada acá.
+  const dicts = { es, en, pt } as unknown as Record<string, Record<string, Record<string, string>>>;
 
   it.each([
     ['notifications.restored', '{{description}}'],

@@ -371,6 +371,22 @@
     "wait": "ou esperar até amanhã · renova em {{time}}"
   },
   "sync": {
+    "key_conflict": {
+      "title_two": "Duas pessoas te enviaram chaves diferentes para \"{{group}}\"",
+      "title_many": "Você recebeu chaves diferentes para \"{{group}}\"",
+      "body": "Só uma é a verdadeira. Escolha a de alguém que você sabe que está no grupo. O nome é o que você salvou do contato; o app não consegue verificar quem é.",
+      "unverified_name": "{{group}} (nome não verificado)",
+      "use_key_of": "Usar a chave de {{name}}",
+      "decide_later": "Decidir depois",
+      "confirm_title": "Usar a chave de {{name}}?",
+      "confirm_body": "O que você tem de \"{{group}}\" neste telefone é apagado e baixado de novo com essa chave. O que você adicionou desde que a outra chave chegou se perde.",
+      "cancel": "Cancelar",
+      "confirm_use": "Usar esta chave",
+      "unknown_name": "Contato sem nome",
+      "invite_sender": "o convite",
+      "failed": "Não foi possível usar essa chave. Abra o aviso de novo.",
+      "dissent_dropped": "Chegou outra chave para este grupo que não pôde ser salva. Espere essa pessoa abrir o app para reenviá-la antes de escolher."
+    },
     "synced": "Sincronizado",
     "syncing": "Sincronizando…",
     "pending": "Alterações pendentes",

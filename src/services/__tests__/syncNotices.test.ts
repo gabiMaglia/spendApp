@@ -404,7 +404,7 @@ describe('nombreDeGrupoEnConflicto (T-136)', () => {
     // Un grupo local en conflicto pudo drenarse con la clave en disputa: su nombre
     // puede haberlo escrito el atacante tanto como el del drop.
     expect(nombreDeGrupoEnConflicto({ groupName: 'Viaje' }, t))
-      .toBe('sync.keyConflict.unverified_name({"group":"Viaje"})');
+      .toBe('sync.key_conflict.unverified_name({"group":"Viaje"})');
   });
 });
 

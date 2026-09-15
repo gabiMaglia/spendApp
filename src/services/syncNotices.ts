@@ -148,7 +148,7 @@ export function nombreDeGrupoEnConflicto(
   notice: Pick<KeyConflictNotice, 'groupName'>,
   t: (key: string, opts?: Record<string, unknown>) => string,
 ): string {
-  return t('sync.keyConflict.unverified_name', { group: notice.groupName });
+  return t('sync.key_conflict.unverified_name', { group: notice.groupName });
 }
 
 export type Snapshot = {
