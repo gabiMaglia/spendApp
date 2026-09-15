@@ -34,7 +34,7 @@ describe('JoinGroupScreen - inviterFingerprint display', () => {
     expect(getByText(/aa11 bb22 cc33 dd44/)).toBeTruthy();
   });
 
-  it('no rompe cuando no hay huella (formato largo viejo sin ese parámetro)', () => {
+  it('no muestra la huella cuando no hay (formato largo viejo sin ese parámetro)', () => {
     const { useLocalSearchParams } = jest.requireMock('expo-router');
     useLocalSearchParams.mockReturnValue({
       g: '550e8400-e29b-41d4-a716-446655440000', // valid UUID
@@ -44,6 +44,10 @@ describe('JoinGroupScreen - inviterFingerprint display', () => {
       e: String(Date.now() + 48 * 60 * 60 * 1000),
     });
 
-    expect(() => render(<JoinGroupScreen />)).not.toThrow();
+    const { queryByText } = render(<JoinGroupScreen />);
+    // M3 (revisión final de T-096): no alcanza con que renderice sin tirar — hay
+    // que confirmar que el texto de la huella (mocks de i18next devuelven la
+    // clave) no aparece cuando `inviterFingerprint` viene vacío.
+    expect(queryByText(/join.inviter_fingerprint/)).toBeNull();
   });
 });

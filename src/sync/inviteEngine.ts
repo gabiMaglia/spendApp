@@ -85,10 +85,12 @@ export async function publishClaim(invite: GroupInvite, deviceId: string): Promi
  * cuya clave adoptamos — el llamador es el que sabe qué hacer con eso (drenar,
  * resuscribirse), y así este módulo no depende del motor del relay.
  *
- * Single-use invites (T-096 · ADR-015): El primer reclamo válido de distinto usuario
- * consume la invitación para cualquier otro. Dentro del mismo batch se rastrea
- * localmente (eficiente, maneja timing de persistence) y se persiste para robustez
- * entre app closes. El MISMO reclamante puede reintentar (idempotente).
+ * Single-use invites (T-096 · ADR-015): el primer reclamo válido de distinto
+ * usuario consume la invitación para cualquier otro. El chequeo es sólo contra
+ * lo PERSISTIDO (`findInviteToken`/`actual.claimedBy` en `admit`) — no hay
+ * rastreo aparte en memoria dentro del batch, ese mecanismo (`claimedByInBatch`)
+ * se sacó en una ronda de fixes anterior. El MISMO reclamante puede reintentar
+ * (idempotente).
  */
 export async function processInvite(invite: GroupInvite, deviceId: string): Promise<string[]> {
   const me = useAuthStore.getState().currentUser;
@@ -161,8 +163,9 @@ async function admit(
   const group = useGroupStore.getState().getById(claim.groupId);
   if (!record || !group || group.isDeleted || !group.memberIds.includes(myUserId)) return false;
 
-  // Marcar como canjeado en storage si no estaba ya (para robustez entre app closes)
-  if (!actual?.claimedBy) markInviteClaimed(invite.groupId, invite.token, claim.userId);
+  // Marcar como canjeado en storage si no estaba ya (para robustez entre app closes).
+  // `actual` ya está garantizado no-nulo por el `if (!actual) return false` de arriba.
+  if (!actual.claimedBy) markInviteClaimed(invite.groupId, invite.token, claim.userId);
 
   const users = useUserStore.getState();
   if (!users.getUserById(claim.userId)) {

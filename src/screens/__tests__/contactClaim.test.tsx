@@ -159,6 +159,22 @@ describe('ContactClaimScreen', () => {
     expect(queryByText(/Agregar/i)).toBeFalsy();
   });
 
+  // M3 (revisión final de T-096): `app/contact/claim.tsx` tiene el mismo guard
+  // que `app/groups/join.tsx` para una huella vacía (formato largo viejo sin
+  // `f`), pero no tenía ningún test que lo cubriera.
+  it('no muestra la huella cuando viene vacía (formato largo viejo sin ese parámetro)', () => {
+    mockParams = {
+      n: 'Ana',
+      t: 'aa11bb22cc33dd44ee55ff6600112233aa11bb22cc33dd44ee55ff6600112233',
+      f: '', // empty fingerprint
+      e: String(Date.now() + 48 * 60 * 60 * 1000),
+    };
+
+    const { getByText, queryByText } = render(<ContactClaimScreen />);
+    expect(getByText(/Ana/)).toBeTruthy();
+    expect(queryByText(/contact.claim.inviter_fingerprint/)).toBeNull();
+  });
+
   it('sin login muestra el estado de necesita login', () => {
     mockParams = {
       n: 'Ana',
