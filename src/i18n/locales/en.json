@@ -538,7 +538,23 @@
     "added_half_body": "You added {{name}} on this phone. For {{name}} to have you too, they still need to scan your code.",
     "show_my_code": "Show my code",
     "later": "Later",
-    "added_both_body": "You and {{name}} are now added on both phones. They don't need to scan anything."
+    "added_both_body": "You and {{name}} are now added on both phones. They don't need to scan anything.",
+    "claim": {
+      "invalid_title": "Invalid link",
+      "invalid_body": "This contact link is incomplete or was copied wrong. Ask whoever sent it to send it again.",
+      "expired_title": "The link expired",
+      "expired_body": "These links last 48 hours. Ask whoever sent it to share a new one.",
+      "need_login_title": "Sign in first",
+      "need_login_body": "Sign in with your account and reopen the link to add the contact.",
+      "intro": "{{name}} is inviting you to add them as a contact.",
+      "inviter_fingerprint": "Fingerprint: {{fingerprint}}",
+      "accept": "Add",
+      "waiting_key": "Waiting for confirmation…",
+      "added_title": "Contact added",
+      "added_body": "You now have {{name}} in your contacts.",
+      "pending_title": "Your request was sent",
+      "pending_body": "It's waiting for {{name}} to open the app to confirm. When that happens, the contact will just show up."
+    }
   },
   "friends": {
     "add_by_qr": "Add by QR",
