@@ -1,3 +1,11 @@
+import { avisarConflictosDelDrenaje, noticeDeConflicto } from '../keyConflictNotice';
+import { registrarOferta, type KeyOffer } from '../groupKeyOffers';
+import { useAuthStore } from '@/src/store/authStore';
+import { useGroupStore } from '@/src/store/groupStore';
+import { useNoticeInboxStore } from '@/src/store/noticeInboxStore';
+import { createSecureStorage } from '@/src/utils/secureStorage';
+import type { User } from '@/src/types/models';
+
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
 jest.mock('@/src/sync/relayEngine', () => ({
   schedulePublish: jest.fn(), deviceId: () => 'dev', olvidarCursor: jest.fn(),
@@ -9,14 +17,6 @@ jest.mock('expo-notifications', () => ({
   requestPermissionsAsync: async () => ({ granted: true }),
   scheduleNotificationAsync: async () => 'id',
 }));
-
-import { avisarConflictosDelDrenaje, noticeDeConflicto } from '../keyConflictNotice';
-import { registrarOferta, type KeyOffer } from '../groupKeyOffers';
-import { useAuthStore } from '@/src/store/authStore';
-import { useGroupStore } from '@/src/store/groupStore';
-import { useNoticeInboxStore } from '@/src/store/noticeInboxStore';
-import { createSecureStorage } from '@/src/utils/secureStorage';
-import type { User } from '@/src/types/models';
 
 const oferta = (fromUserId: string, key: string, groupId = 'g1'): KeyOffer => ({
   groupId, fromUserId, key, epoch: 1, origen: 'contact', receivedAt: 0, adoptada: false,

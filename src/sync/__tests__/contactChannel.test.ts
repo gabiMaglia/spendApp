@@ -1,17 +1,3 @@
-jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
-// `keyConflictNotice` → `groupStore` → `relayEngine`: se corta acá para que el
-// motor real no arranque en los tests del canal.
-jest.mock('@/src/sync/relayEngine', () => ({
-  schedulePublish: jest.fn(), deviceId: () => 'dev', olvidarCursor: jest.fn(),
-  publishNow: jest.fn(async () => {}), drainNow: jest.fn(async () => 0), startRelay: jest.fn(async () => {}),
-}));
-jest.mock('expo-notifications', () => ({
-  setNotificationHandler: () => {},
-  getPermissionsAsync: async () => ({ granted: true }),
-  requestPermissionsAsync: async () => ({ granted: true }),
-  scheduleNotificationAsync: async () => 'id',
-}));
-
 import {
   ensureContactSecret, myContactCard, announceContact, drainContacts,
   deriveContactTopic, savePeer, peerSecret, listPeers, sendGroupKey,
@@ -29,6 +15,20 @@ import { openEnvelope, sealEnvelope, fromHex } from '../envelopeCrypto';
 import * as Crypto from 'expo-crypto';
 import type { KeyConflictNotice } from '@/src/services/syncNotices';
 import type { User } from '@/src/types/models';
+
+jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
+// `keyConflictNotice` → `groupStore` → `relayEngine`: se corta acá para que el
+// motor real no arranque en los tests del canal.
+jest.mock('@/src/sync/relayEngine', () => ({
+  schedulePublish: jest.fn(), deviceId: () => 'dev', olvidarCursor: jest.fn(),
+  publishNow: jest.fn(async () => {}), drainNow: jest.fn(async () => 0), startRelay: jest.fn(async () => {}),
+}));
+jest.mock('expo-notifications', () => ({
+  setNotificationHandler: () => {},
+  getPermissionsAsync: async () => ({ granted: true }),
+  requestPermissionsAsync: async () => ({ granted: true }),
+  scheduleNotificationAsync: async () => 'id',
+}));
 
 /**
  * Agregar un contacto tiene que quedar en LOS DOS teléfonos con un solo
@@ -950,5 +950,108 @@ describe('T-136 · claves distintas para el mismo grupo', () => {
     expect(r.conflictedGroups).toEqual([]);
     expect(ofertasDe('g1')).toEqual([]);
     expect(conflictosDe('g1')).toHaveLength(0);
+  });
+});
+
+/**
+ * T-136 · fix round 1 (Sybil vía el tope). Con `MAX_OFERTAS_POR_GRUPO = 5`
+ * como tope de REMITENTES, un atacante que conoce el secreto de contacto de
+ * la víctima podía pinnear 5 peers falsos (tarjetas auto-descriptas) y
+ * llenarle el tope del grupo con la MISMA clave falsa antes de que el
+ * miembro real entregara la suya: la oferta real quedaba afuera en
+ * silencio — ni oferta, ni conflicto, ni aviso — y la falsa se adoptaba
+ * como si fuera unánime. El tope pasa a ser de CLAVES DISTINTAS, no de
+ * remitentes, así que 5 remitentes con la misma clave no le quitan lugar
+ * a un sexto con una clave distinta.
+ */
+describe('T-136 · Sybil: el tope de remitentes ya no tapa al miembro real', () => {
+  const FAKES = ['1', '2', '3', '4', '5'].map(n => usuario(`u-fake-${n}`, `Fake ${n}`));
+  const FALSA = 'ef'.repeat(32);
+
+  beforeEach(() => {
+    createSecureStorage('notices').clearAll();
+    useNoticeInboxStore.setState({ items: [] });
+  });
+
+  /** Beto y los 5 falsos escanearon el QR de Ana (o ella el de ellos). */
+  async function anaTieneContactos(): Promise<{ deAna: string; cursor: number }> {
+    usar(ANA);
+    const deAna = ensureContactSecret()!;
+    const tarjeta = myContactCard()!;
+    for (const quien of [BETO, ...FAKES]) {
+      usar(quien);
+      savePeer(ANA.id, {
+        secret: deAna,
+        wrapPublicKey: tarjeta.wrapPublicKey,
+        identityPublicKey: tarjeta.identityPublicKey,
+      });
+      await announceContact(deAna, `dev-${quien.id}`);
+    }
+    usar(ANA);
+    const r = await drainContacts(deAna, 'dev-ana', 0);
+    return { deAna, cursor: r.cursor };
+  }
+
+  /** Los 5 falsos plantan la MISMA clave inventada — es lo que llenaba el tope viejo. */
+  async function falsosPlantan(): Promise<void> {
+    for (const fake of FAKES) {
+      usar(fake);
+      useGroupKeyStore.setState({ keys: [{ groupId: 'g1', key: FALSA, epoch: 1 }] });
+      await sendGroupKey(ANA.id, { id: 'g1', name: 'Viaje' }, `dev-${fake.id}`);
+    }
+  }
+
+  async function betoEntrega(): Promise<void> {
+    usar(BETO);
+    useGroupKeyStore.getState().ensureKey('g1');
+    await sendGroupKey(ANA.id, { id: 'g1', name: 'Viaje' }, 'dev-beto');
+  }
+
+  async function anaDrena(deAna: string, desde: number) {
+    usar(ANA);
+    const r = await drainContacts(deAna, 'dev-ana', desde);
+    await avisarConflictosDelDrenaje(r);
+    return r;
+  }
+
+  const conflictosDe = (groupId: string): KeyConflictNotice[] => useNoticeInboxStore.getState().items
+    .map(i => i.notice)
+    .filter((n): n is KeyConflictNotice => n.kind === 'group_key_conflict' && n.groupId === groupId);
+
+  it('mismo lote: 5 falsos con la misma clave + Beto real → NO se adopta la falsa, hay conflicto', async () => {
+    const { deAna, cursor } = await anaTieneContactos();
+    await falsosPlantan();
+    await betoEntrega();
+
+    const r = await anaDrena(deAna, cursor);
+
+    expect(useGroupKeyStore.getState().getKey('g1')).toBeUndefined();
+    expect(r.joinedGroups).not.toContain('g1');
+    expect(r.conflictedGroups).toEqual(['g1']);
+    const avisos = conflictosDe('g1');
+    expect(avisos).toHaveLength(1);
+    expect(avisos[0]!.senderIds).toEqual(expect.arrayContaining([BETO.id]));
+  });
+
+  it('dos lotes: la falsa (5 remitentes) queda local, y el lote de Beto NO se pierde por el tope', async () => {
+    const { deAna, cursor } = await anaTieneContactos();
+    await falsosPlantan();
+    const r1 = await anaDrena(deAna, cursor);
+    expect(r1.joinedGroups).toEqual(['g1']);
+    expect(useGroupKeyStore.getState().getKey('g1')?.key).toBe(FALSA);
+
+    await betoEntrega();
+    const r2 = await anaDrena(deAna, r1.cursor);
+
+    // La clave local sigue siendo la falsa: no se sustituye sola.
+    expect(useGroupKeyStore.getState().getKey('g1')?.key).toBe(FALSA);
+    // Pero el grupo queda en conflicto — la oferta de Beto (el 6to remitente)
+    // no se pierde por el tope. Ésta es la falla de fondo: antes, con el tope
+    // viejo de 5 REMITENTES ya lleno de falsos, `registrarOferta` para Beto
+    // devolvía `false` sin dejar rastro y este `r2.conflictedGroups` daba `[]`.
+    expect(r2.conflictedGroups).toEqual(['g1']);
+    const avisos = conflictosDe('g1');
+    expect(avisos).toHaveLength(1);
+    expect(avisos[0]!.senderIds).toEqual(expect.arrayContaining([BETO.id]));
   });
 });

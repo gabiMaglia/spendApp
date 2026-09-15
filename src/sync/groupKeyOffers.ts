@@ -16,18 +16,43 @@ import { useGroupKeyStore } from '@/src/store/groupKeyStore';
  * (`services/elegirClaveDeGrupo.ts`). La membresía no sirve para arbitrar: el
  * roster viaja cifrado con la clave en disputa y `memberIds` no está firmado.
  *
+ * **Fix round 1 (Sybil vía el tope).** El primer tope era de 5 REMITENTES por
+ * grupo. Un atacante que conoce el secreto de contacto de la víctima puede
+ * pinnear varios peers falsos con tarjetas auto-descriptas (nada verifica que
+ * el nombre o el id de una tarjeta sea real): con 5 de ellos entregando la
+ * MISMA clave inventada antes de que el miembro real entregara la suya, el
+ * tope de remitentes quedaba lleno y la oferta real —el sexto remitente— se
+ * ignoraba en silencio: ni oferta, ni conflicto, ni aviso, y la falsa se
+ * adoptaba como unánime. El tope pasa a ser de **claves distintas**
+ * (`MAX_CLAVES_DISTINTAS_POR_GRUPO`), que es lo que de verdad hay que acotar
+ * para que `estadoDe` siga siendo barato de calcular; el tope de remitentes
+ * (`MAX_REMITENTES_POR_GRUPO`) queda sólo como cota de almacenamiento, muy por
+ * encima de cualquier grupo real, así que nunca tapa una clave distinta por sí
+ * solo. Cuando una clave distinta NO puede guardarse porque un tope está
+ * lleno, el grupo se marca en conflicto igual (`marcarConflictoForzado`): la
+ * regla de oro es que ninguna disidencia se pierde en silencio, aunque no
+ * entre en la tabla.
+ *
  * Guarda CLAVES: por eso vive en el bucket cifrado `groupkeys` y scopeado por
  * cuenta, igual que `groupKeyStore`. No es un store de zustand ni cachea en
  * memoria: se lee del disco en cada llamada, así que no hay nada que soltar al
  * cambiar de cuenta.
  */
 
-export const MAX_OFERTAS_POR_GRUPO = 5;
+/** Tope de CLAVES DISTINTAS por grupo: lo que de verdad hay que acotar. */
+export const MAX_CLAVES_DISTINTAS_POR_GRUPO = 5;
+/**
+ * Tope de REMITENTES por grupo: sólo una cota de almacenamiento. Muy por
+ * encima de cualquier grupo real, para que nunca sea éste —y no el de claves
+ * distintas— el que decida si una disidencia entra o no a la tabla.
+ */
+export const MAX_REMITENTES_POR_GRUPO = 50;
 export const BUCKET_OFERTAS = 'groupkeys';
 export const PREFIJO_OFERTA_INVITACION = 'invite:';
 
 const storage = createSecureStorage(BUCKET_OFERTAS);
 const K_OFERTAS = 'key_offers_v1';
+const K_CONFLICTOS = 'key_offer_conflicts_v1';
 
 export type OrigenOferta = 'contact' | 'invite';
 
@@ -46,30 +71,72 @@ export type KeyOffer = {
 
 export type EstadoOfertas = 'sin_ofertas' | 'unanime' | 'conflicto';
 
+export type ResultadoAplicarOferta = {
+  /** `null` si esta llamada no cambia la lista de ofertas. */
+  lista: KeyOffer[] | null;
+  /**
+   * `true` si esta llamada encontró una clave DISTINTA que no pudo guardarse
+   * por algún tope lleno. Es la señal de "no pierdas esta disidencia": aunque
+   * la oferta no entre a la tabla, el grupo tiene que quedar en conflicto
+   * igual (`marcarConflictoForzado`) — nunca silenciarse.
+   */
+  forzarConflicto: boolean;
+};
+
 /**
- * Suma una oferta a la lista. `null` si no cambia nada.
+ * Suma una oferta a la lista.
  *
  *  - Misma clave del mismo remitente → no-op: es el reenvío de cada arranque.
  *  - Otra clave del mismo remitente → reemplaza SU oferta, salvo que ya esté
- *    adoptada: esa es la prueba de origen de la clave local y no se pisa.
- *  - Remitente nuevo con el grupo lleno (`MAX_OFERTAS_POR_GRUPO`) → se ignora.
+ *    adoptada (esa es la prueba de origen de la clave local y no se pisa) o que
+ *    la clave nueva no entre por el tope de claves distintas — en ese caso se
+ *    fuerza conflicto en vez de perder la disidencia.
+ *  - Remitente nuevo con una clave YA presente entre las del grupo → se agrega
+ *    mientras no se llene el tope de REMITENTES (sólo almacenamiento: nunca
+ *    tapa una clave distinta).
+ *  - Remitente nuevo con una clave DISTINTA de todas las del grupo → se agrega
+ *    sólo si hay lugar en los dos topes; si no, se fuerza conflicto.
  */
-export function aplicarOferta(lista: readonly KeyOffer[], o: KeyOffer): KeyOffer[] | null {
+export function aplicarOferta(lista: readonly KeyOffer[], o: KeyOffer): ResultadoAplicarOferta {
   const entrante: KeyOffer = { ...o, key: o.key.toLowerCase() };
-  const i = lista.findIndex(x => x.groupId === entrante.groupId && x.fromUserId === entrante.fromUserId);
+  const delGrupo = lista.filter(x => x.groupId === entrante.groupId);
+  const i = delGrupo.findIndex(x => x.fromUserId === entrante.fromUserId);
+  const SIN_CAMBIO: ResultadoAplicarOferta = { lista: null, forzarConflicto: false };
 
   if (i !== -1) {
-    const previa = lista[i]!;
-    if (previa.key === entrante.key) return null;
-    if (previa.adoptada) return null;
-    const nueva = [...lista];
-    nueva[i] = entrante;
-    return nueva;
+    const previa = delGrupo[i]!;
+    if (previa.key === entrante.key) return SIN_CAMBIO;
+    if (previa.adoptada) return SIN_CAMBIO;
+
+    // Reemplazo de SU oferta: el resto del grupo no cambia de remitentes, así
+    // que sólo el tope de claves distintas puede llegar a importar acá.
+    const clavesSinEsteRemitente = new Set(delGrupo.filter((_, idx) => idx !== i).map(x => x.key));
+    if (!clavesSinEsteRemitente.has(entrante.key) && clavesSinEsteRemitente.size >= MAX_CLAVES_DISTINTAS_POR_GRUPO) {
+      return { lista: null, forzarConflicto: true };
+    }
+
+    const nueva = lista.map(x =>
+      (x.groupId === entrante.groupId && x.fromUserId === entrante.fromUserId) ? entrante : x);
+    return { lista: nueva, forzarConflicto: false };
   }
 
-  const delGrupo = lista.filter(x => x.groupId === entrante.groupId).length;
-  if (delGrupo >= MAX_OFERTAS_POR_GRUPO) return null;
-  return [...lista, entrante];
+  // Remitente nuevo.
+  const claves = new Set(delGrupo.map(x => x.key));
+  const esClaveYaPresente = claves.has(entrante.key);
+
+  if (delGrupo.length >= MAX_REMITENTES_POR_GRUPO) {
+    // Tope de remitentes lleno. Si la clave que trae ya está entre las del
+    // grupo, no hay disidencia nueva que perder: sólo se descarta por espacio.
+    // Si es DISTINTA, es la disidencia que el atacante quiere tapar — se
+    // fuerza conflicto igual, aunque no entre a la tabla.
+    return { lista: null, forzarConflicto: !esClaveYaPresente };
+  }
+
+  if (!esClaveYaPresente && claves.size >= MAX_CLAVES_DISTINTAS_POR_GRUPO) {
+    return { lista: null, forzarConflicto: true };
+  }
+
+  return { lista: [...lista, entrante], forzarConflicto: false };
 }
 
 /** ¿Las ofertas (y la clave local, si se pasa) coinciden todas? */
@@ -105,11 +172,47 @@ function guardar(lista: KeyOffer[]): void {
   writeScoped(storage, K_OFERTAS, JSON.stringify(lista));
 }
 
-/** `true` si la oferta dejó la tabla distinta (nueva o reemplazada). */
+function leerConflictos(): string[] {
+  const raw = readScoped(storage, K_CONFLICTOS);
+  if (!raw) return [];
+  try {
+    const v: unknown = JSON.parse(raw);
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+  } catch {
+    return []; // dato corrupto: sin flag no hay conflicto forzado, que es el lado seguro
+  }
+}
+
+function guardarConflictos(lista: string[]): void {
+  writeScoped(storage, K_CONFLICTOS, JSON.stringify(lista));
+}
+
+/**
+ * Marca el grupo como en conflicto FORZADO: una clave distinta no entró a la
+ * tabla por un tope lleno, pero la disidencia no se puede perder.
+ * Persistido junto a las ofertas — `olvidarOfertas` lo limpia.
+ */
+export function marcarConflictoForzado(groupId: string): void {
+  const lista = leerConflictos();
+  if (!lista.includes(groupId)) guardarConflictos([...lista, groupId]);
+}
+
+export function conflictoForzado(groupId: string): boolean {
+  return leerConflictos().includes(groupId);
+}
+
+/**
+ * `true` si la llamada dejó al grupo con algo NUEVO que resolver: una oferta
+ * nueva o reemplazada en la tabla, o un conflicto forzado por tope lleno. Es
+ * lo que el canal usa para decidir qué grupos revisar al final del lote — un
+ * conflicto forzado sin cambio de tabla igual tiene que entrar a esa revisión,
+ * o `estado()` nunca se vuelve a mirar para este grupo en este lote.
+ */
 export function registrarOferta(o: KeyOffer): boolean {
-  const nueva = aplicarOferta(leer(), o);
-  if (!nueva) return false;
-  guardar(nueva);
+  const r = aplicarOferta(leer(), o);
+  if (r.forzarConflicto) marcarConflictoForzado(o.groupId);
+  if (!r.lista) return r.forzarConflicto;
+  guardar(r.lista);
   return true;
 }
 
@@ -117,7 +220,13 @@ export function ofertasDe(groupId: string): KeyOffer[] {
   return leer().filter(o => o.groupId === groupId);
 }
 
+/**
+ * Ve todas las ofertas del grupo, MÁS el conflicto forzado si lo hay: una
+ * clave distinta que no entró a la tabla por tope lleno sigue siendo
+ * conflicto, aunque `estadoDe` sobre la tabla sola no la vea.
+ */
 export function estado(groupId: string, claveLocal?: string): EstadoOfertas {
+  if (conflictoForzado(groupId)) return 'conflicto';
   return estadoDe(ofertasDe(groupId), claveLocal);
 }
 
@@ -135,6 +244,10 @@ export function olvidarOfertas(groupId: string): void {
   const lista = leer();
   const quedan = lista.filter(o => o.groupId !== groupId);
   if (quedan.length !== lista.length) guardar(quedan);
+
+  const conflictos = leerConflictos();
+  const sinEste = conflictos.filter(g => g !== groupId);
+  if (sinEste.length !== conflictos.length) guardarConflictos(sinEste);
 }
 
 /**
