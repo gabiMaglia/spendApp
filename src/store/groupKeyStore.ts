@@ -62,7 +62,10 @@ export const useGroupKeyStore = create<GroupKeyState>((set, get) => ({
   },
 
   /**
-   * Regla de adopción: **nunca se pisa una clave que ya tenemos**.
+   * Regla de adopción: **una clave que ya tenemos nunca se pisa
+   * automáticamente**. Sólo por elección del usuario, sobre una clave que vino
+   * de contacto, y previa purga del grupo (`services/elegirClaveDeGrupo.ts`,
+   * ADR-013 · T-136). Ningún mensaje de red la sustituye solo (S3-A1).
    *
    * Si dos dispositivos generaron cada uno la suya para el mismo grupo antes de
    * conocerse, aceptar la ajena dejaría ilegibles todos los sobres propios ya
