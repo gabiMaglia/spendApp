@@ -43,22 +43,14 @@
 
 - [ ] **Step 1: Escribir el test que falla — dos reclamantes distintos, mismo link**
 
-Agregar a `src/sync/__tests__/inviteEngine.test.ts` (seguir el patrón de alternancia de dispositivos ya usado en ese archivo — `usar(id, me)`, `ANA`/`BETO`, `grupo()`, el mock de `../relay`):
+Agregar a `src/sync/__tests__/inviteEngine.test.ts`, reusando el helper `anaInvita()` que el archivo YA tiene (línea ~149: arma a Ana con el grupo `'g1'`, su `GroupKeyRecord` vía `useGroupKeyStore.getState().ensureKey('g1')`, identidad y una invitación guardada — devuelve `{ invite, clave, identidadDeAna }`):
 
 ```typescript
 const MALLORY = usuario('u-mallory', 'Mallory');
 
 it('un segundo reclamante distinto no se admite tras el primero (T-096, un solo uso)', async () => {
   relayMock.__reset();
-
-  usar('ana', ANA);
-  useGroupStore.getState().addGroup(grupo([ANA.id]));
-  const key = generateGroupKey ? undefined : undefined; // placeholder eliminado abajo
-  // Ana ya tiene la clave del grupo (setup mínimo: usar el helper existente del
-  // archivo para dejarle una GroupKeyRecord a 'g1' antes de invitar — seguir el
-  // mismo patrón que el resto de los tests de este archivo para armar la clave).
-  const invite = createInvite('g1', 'Viaje', ensureIdentity().publicKey);
-  saveInvite(invite);
+  const { invite } = anaInvita();
 
   usar('beto', BETO);
   await publishClaim(invite, 'device-beto');
@@ -82,11 +74,7 @@ it('un segundo reclamante distinto no se admite tras el primero (T-096, un solo 
 
 it('el mismo reclamante puede reintentar después de haber sido admitido', async () => {
   relayMock.__reset();
-
-  usar('ana', ANA);
-  useGroupStore.getState().addGroup(grupo([ANA.id]));
-  const invite = createInvite('g1', 'Viaje', ensureIdentity().publicKey);
-  saveInvite(invite);
+  const { invite } = anaInvita();
 
   usar('beto', BETO);
   await publishClaim(invite, 'device-beto');
@@ -107,7 +95,7 @@ it('el mismo reclamante puede reintentar después de haber sido admitido', async
 });
 ```
 
-Ajustar el setup exacto de la clave de grupo (`useGroupKeyStore`) al patrón real que ya usa el resto del archivo — mirar cómo los tests existentes de `processInvite`/`admit` le dan a Ana una `GroupKeyRecord` antes de invitar, y replicarlo (no inventar una API nueva).
+`anaInvita()` ya deja a Ana como dispositivo activo al terminar — no hace falta `usar('ana', ANA)` antes de usar su retorno.
 
 - [ ] **Step 2: Correr los tests y verificar que fallan**
 
