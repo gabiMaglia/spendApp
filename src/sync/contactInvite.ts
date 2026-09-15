@@ -71,8 +71,18 @@ export async function deriveContactInviteTopic(token: string): Promise<string> {
 }
 
 type ContactClaimMsg = { kind: 'claim'; card: ContactCard };
-type ContactGrantMsg = { kind: 'grant'; card: ContactCard; signedBy: string; signature: string };
+type ContactGrantMsg = {
+  kind: 'grant';
+  card: ContactCard;
+  /** Para quién es. Con un link reenviado puede haber más de un reclamante; cada uno tiene el suyo. */
+  forUserId: string;
+  signedBy: string;
+  signature: string;
+};
 type ContactInviteMessage = ContactClaimMsg | ContactGrantMsg;
+
+/** Lo que abre una entrega válida: la tarjeta real y para quién era. */
+export type ContactGrant = { card: ContactCard; forUserId: string };
 
 async function seal(token: string, msg: ContactInviteMessage): Promise<string> {
   return sealEnvelope(await inviteKey(token), JSON.stringify(msg));
@@ -105,9 +115,18 @@ export async function openContactClaim(token: string, sealed: string): Promise<C
   return tarjetaValida(msg.card) ? msg.card : null;
 }
 
-/** Lo que se firma de una entrega: los campos que el que reclama va a confiar. */
-function grantPayload(card: ContactCard): string {
-  return [card.userId, card.contactSecret, card.wrapPublicKey, card.identityPublicKey].join('|');
+/**
+ * Lo que se firma de una entrega: los campos que el que reclama va a confiar,
+ * MÁS `forUserId` (T-096 · ADR-015). Sin `forUserId` adentro de lo firmado, un
+ * bystander que sólo tiene el link —cualquiera a quien se lo hayan reenviado—
+ * podría tomar la entrega real (la ve porque el tópico y la clave simétrica
+ * salen del mismo token que él también tiene), reescribirle el destinatario y
+ * resellarla para sí mismo sin tocar la firma: la firma seguiría siendo
+ * válida porque no cubría ese campo. Ver `groupInvite.ts#grantPayload`, que ya
+ * hace exactamente esto para la invitación a grupo.
+ */
+function grantPayload(card: ContactCard, forUserId: string): string {
+  return [card.userId, card.contactSecret, card.wrapPublicKey, card.identityPublicKey, forUserId].join('|');
 }
 
 function utf8(s: string): Uint8Array {
@@ -122,15 +141,25 @@ function utf8(s: string): Uint8Array {
   return new Uint8Array(out);
 }
 
-/** Entrega mi tarjeta real, firmada: el que reclama la va a contrastar contra la huella del link. */
+/**
+ * Entrega mi tarjeta real, firmada para un destinatario puntual.
+ *
+ * `forUserId` (T-096 · ADR-015): con un link reenviado, el mismo buzón puede
+ * tener más de un reclamo — el primero válido es el único que se admite, pero
+ * el sobre de la entrega es público en ese tópico para cualquiera que tenga el
+ * token. Sin destinatario, cualquier otro reclamante (admitido o no) leería
+ * igual mi tarjeta real, secreto de contacto permanente incluido. Mismo motivo
+ * que `forUserId` en `groupInvite.ts#InviteGrant`.
+ */
 export async function sealContactGrant(
   token: string,
   card: ContactCard,
+  forUserId: string,
   signingPrivateKey: string,
 ): Promise<string> {
   const signedBy = toHex(ed25519.getPublicKey(fromHex(signingPrivateKey)));
-  const signature = toHex(ed25519.sign(utf8(grantPayload(card)), fromHex(signingPrivateKey)));
-  return seal(token, { kind: 'grant', card, signedBy, signature });
+  const signature = toHex(ed25519.sign(utf8(grantPayload(card, forUserId)), fromHex(signingPrivateKey)));
+  return seal(token, { kind: 'grant', card, forUserId, signedBy, signature });
 }
 
 /**
@@ -138,21 +167,25 @@ export async function sealContactGrant(
  * token sola no alcanza: cualquiera que lo haya reenviado la conoce también —
  * es justo lo que este mecanismo está cerrando. La huella ata la entrega a la
  * identidad que el link prometió, y la firma prueba que quien la mandó tiene
- * esa privada.
+ * esa privada. `forUserId` viaja DENTRO de lo firmado — ver `grantPayload` —
+ * así que el llamador tiene que contrastarlo contra su propio id antes de
+ * adoptar nada; acá sólo se verifica que el campo esté y no fue alterado.
  */
 export async function openContactGrant(
   token: string,
   sealed: string,
   expectedFingerprint: string,
-): Promise<ContactCard | null> {
+): Promise<ContactGrant | null> {
   const msg = await open(token, sealed);
   if (msg === null || msg.kind !== 'grant') return null;
-  if (!tarjetaValida(msg.card) || !msg.signedBy || !msg.signature) return null;
+  if (!tarjetaValida(msg.card) || !msg.signedBy || !msg.signature || !msg.forUserId) return null;
   if (fingerprint(msg.signedBy) !== expectedFingerprint) return null;
 
   try {
-    const ok = ed25519.verify(fromHex(msg.signature), utf8(grantPayload(msg.card)), fromHex(msg.signedBy));
-    return ok ? msg.card : null;
+    const ok = ed25519.verify(
+      fromHex(msg.signature), utf8(grantPayload(msg.card, msg.forUserId)), fromHex(msg.signedBy),
+    );
+    return ok ? { card: msg.card, forUserId: msg.forUserId } : null;
   } catch {
     return null; // firma con formato inválido
   }
