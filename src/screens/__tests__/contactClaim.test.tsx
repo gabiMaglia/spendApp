@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, fireEvent, waitFor, act } from '@testing-library/react-native';
+import { render, fireEvent } from '@testing-library/react-native';
 import ContactClaimScreen from '@/app/contact/claim';
 import { useAuthStore } from '@/src/store/authStore';
 import type { User } from '@/src/types/models';
@@ -80,7 +80,7 @@ describe('ContactClaimScreen', () => {
     const { processContactInvite } = jest.requireMock('@/src/sync/contactInviteEngine');
     processContactInvite.mockResolvedValue(false);
 
-    const { getByText, getByTestId } = render(<ContactClaimScreen />);
+    const { getByText } = render(<ContactClaimScreen />);
     fireEvent.press(getByText('contact.claim.accept'));
 
     expect(publishContactClaim).toHaveBeenCalled();
