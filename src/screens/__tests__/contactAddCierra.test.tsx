@@ -7,6 +7,7 @@ import { useAuthStore } from '@/src/store/authStore';
 import { useUserStore } from '@/src/store/userStore';
 import { buildContactPayload } from '@/src/utils/contactLink';
 import { codificarContacto } from '@/src/utils/linkCompacto';
+import { ensureContactSecret } from '@/src/sync/contactChannel';
 import type { User } from '@/src/types/models';
 
 /**
@@ -40,8 +41,8 @@ jest.mock('@/src/sync/contactChannel', () => ({
   hasConflictingPinnedKeys: jest.fn(() => false),
 }));
 jest.mock('@/src/store/identityStore', () => ({
-  ensureIdentity: () => ({ publicKey: 'id-pub' }),
-  ensureWrapKeypair: () => ({ publicKey: 'wrap-pub' }),
+  ensureIdentity: () => ({ publicKey: 'aa'.repeat(32) }),
+  ensureWrapKeypair: () => ({ publicKey: 'bb'.repeat(32) }),
 }));
 jest.mock('@/src/sync/relayEngine', () => ({ deviceId: () => 'dev-1' }));
 
@@ -287,12 +288,31 @@ describe('compartir link de contacto', () => {
     await act(async () => { fireEvent.press(boton); });
 
     expect(share).toHaveBeenCalledTimes(1);
-    expect(share.mock.calls[0][0].message).toContain('https://spendapp.github.io/#c');
+    // T-096 · ADR-015: ya no es el `#c` con el secreto de la cuenta — es la
+    // invitación de un solo uso (`#i`), ver el test de abajo.
+    expect(share.mock.calls[0][0].message).toContain('https://spendapp.github.io/#i');
   });
 
   it('en «Escanear» no aparece: taparía la cámara', () => {
     const r = render(<AddContactScreen />);
     fireEvent.press(r.getByText('contact.tab_scan'));
     expect(r.queryByTestId('contact-share-link')).toBeNull();
+  });
+
+  // T-096 · ADR-015: el link de "Compartir" pasa a ser una invitación de un
+  // solo uso (`createContactInvite`/`contactInviteToLink`), y no el secreto
+  // permanente de la cuenta embebido — quien lo reenvíe ya no se vuelve un
+  // contacto mutuo con el dueño sin que éste se entere.
+  it('el link de "Compartir" no lleva el secreto permanente de la cuenta', async () => {
+    const share = jest.spyOn(Share, 'share').mockResolvedValue({ action: 'sharedAction' } as any);
+    const r = render(<AddContactScreen />);
+
+    const boton = r.getByTestId('contact-share-link');
+    await act(async () => { fireEvent.press(boton); });
+
+    expect(share).toHaveBeenCalledTimes(1);
+    const mensaje = share.mock.calls[0][0].message as string;
+    expect(mensaje).not.toContain(ensureContactSecret());
+    expect(mensaje).toContain('#i');
   });
 });

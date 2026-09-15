@@ -1,4 +1,4 @@
-import { buildContactPayload, parseContactPayload, buildContactDeepLink, parseContactLink } from '../contactLink';
+import { buildContactPayload, parseContactPayload, parseContactLink } from '../contactLink';
 import { ENLACE_BASE } from '@/src/utils/appLink';
 import type { User } from '@/src/types/models';
 
@@ -41,23 +41,6 @@ describe('contactLink', () => {
     expect(parsed).toEqual({ id: 'u1', name: 'Ada', email: '' });
   });
 
-  it('link: es https (Gmail sólo enlaza http/https) y codifica los params (espacios/acentos)', () => {
-    const link = buildContactDeepLink(user({ name: 'José Pérez', email: 'jose@x.com' }));
-    // Formato compacto (`linkCompacto`): una letra de tipo y un código base64url.
-    expect(link).toMatch(new RegExp(`^${ENLACE_BASE.replace(/[.]/g, '\\.')}#c[A-Za-z0-9_-]+$`));
-    const leido = parseContactLink(link);
-    expect(leido?.id).toBe('u1');
-    expect(leido?.name).toBe('José Pérez');
-    // El mail no viaja en el link compacto: no hace falta para agregar a nadie.
-    expect(leido?.email).toBe('');
-  });
-
-  it('link: también se lee en la forma spendapp:// con la que la página abre la app', () => {
-    const link = buildContactDeepLink(user({ name: 'Ada' }));
-    const interno = 'spendapp://' + link.slice(link.indexOf('#') + 1);
-    expect(parseContactLink(interno)?.name).toBe('Ada');
-  });
-
   // T-102 (PO, 2026-09-13): el Pages personal del PO se apaga — esa copia
   // vieja de la página ve los secretos del link. Deja de leerse, aunque el
   // link sea por lo demás válido. El formato LARGO nuevo (sobre
@@ -79,26 +62,6 @@ describe('contactLink', () => {
     expect(leido?.name).toBe('José');
     expect(leido?.email).toBe('j@x.com');
     expect(leido?.secret).toBe('ab'.repeat(32));
-  });
-
-  it('si la regla compacta no puede representar un campo sin pérdida, cae al link largo', () => {
-    // Una clave en mayúsculas no vuelve idéntica del binario: el compacto la rechaza.
-    const raro = { secret: 'AB'.repeat(32) };
-    const link = buildContactDeepLink(user({ name: 'Ada' }), raro);
-    expect(link).toContain('#contact/add?');
-    expect(parseContactLink(link)?.secret).toBe('AB'.repeat(32));
-  });
-
-  // T-093 / SEC H-1: el fallback largo (`contactLink.ts`, rama de
-  // `URLSearchParams`) es el que la auditoría señaló armando `email=...` en la
-  // URL. Ya no lo arma — se sigue LEYENDO en links largos viejos (test de
-  // arriba), pero uno nuevo no lo emite.
-  it('el link LARGO nuevo no arma el param email, ni con un mail real', () => {
-    const raro = { secret: 'AB'.repeat(32) };
-    const link = buildContactDeepLink(user({ name: 'Ada', email: 'ada@secreta.com' }), raro);
-    expect(link).not.toContain('email');
-    expect(link).not.toContain('ada%40secreta.com');
-    expect(parseContactLink(link)?.email).toBe('');
   });
 
   it('link de otra pantalla no es un contacto', () => {
@@ -162,10 +125,6 @@ describe('secreto de contacto en el código', () => {
     expect(leido?.secret).toBe(SECRETO);
   });
 
-  it('el link de contacto también lo lleva', () => {
-    expect(parseContactLink(buildContactDeepLink(yo, { secret: SECRETO }))?.secret).toBe(SECRETO);
-  });
-
   it('sin secreto el código sigue siendo válido, pero de una sola dirección', () => {
     const leido = parseContactPayload(buildContactPayload(yo));
     expect(leido?.id).toBe('u-ana1');
@@ -204,13 +163,6 @@ describe('claves públicas en el código', () => {
       .toBe(CLAVES.identityPublicKey);
   });
 
-  it('el link de contacto lleva las tres, y leerlo las devuelve las tres', () => {
-    const link = buildContactDeepLink(yo, CLAVES);
-    const leido = parseContactLink(link);
-    expect(leido?.secret).toBe(CLAVES.secret);
-    expect(leido?.wrapPublicKey).toBe(CLAVES.wrapPublicKey);
-    expect(leido?.identityPublicKey).toBe(CLAVES.identityPublicKey);
-  });
 });
 
 describe('formato largo validado (T-098 · SEC L-2)', () => {

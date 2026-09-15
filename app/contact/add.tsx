@@ -21,9 +21,10 @@ import { useAuthStore } from '@/src/store/authStore';
 import { useUserStore } from '@/src/store/userStore';
 import { hapticLight, hapticSuccess, hapticWarning } from '@/src/utils/haptics';
 import {
-  buildContactPayload, parseContactPayload, buildContactDeepLink, contactFromParams, parseContactLink,
+  buildContactPayload, parseContactPayload, contactFromParams, parseContactLink,
   type ContactPayload,
 } from '@/src/utils/contactLink';
+import { createContactInvite, contactInviteToLink } from '@/src/sync/contactInvite';
 import { ensureContactSecret, announceContact, savePeer, hasConflictingPinnedKeys } from '@/src/sync/contactChannel';
 import { deviceId } from '@/src/sync/relayEngine';
 import { ensureIdentity, ensureWrapKeypair } from '@/src/store/identityStore';
@@ -75,7 +76,9 @@ export default function AddContactScreen() {
     identityPublicKey: ensureIdentity().publicKey,
   } : null;
   const myQRData  = currentUser ? buildContactPayload(currentUser, misClaves) : '';
-  const deepLink  = currentUser ? buildContactDeepLink(currentUser, misClaves) : '';
+  const deepLink  = currentUser
+    ? contactInviteToLink(createContactInvite(currentUser.name, ensureIdentity().publicKey))
+    : '';
 
   /**
    * Lo que hacía `procesarContacto` de punta a punta ANTES de este ticket: agrega el

@@ -20,6 +20,7 @@ import { resolvePendingDeletions } from '@/src/services/resolveDeletions';
 import { applyApprovedLeaves } from '@/src/services/applyLeave';
 import { deriveInviteTopic, type GroupInvite } from './groupInvite';
 import { activeInvites, processInvite, processAllInvites } from './inviteEngine';
+import { processAllContactInvites } from './contactInviteEngine';
 import { avisarConflictosDelDrenaje } from './keyConflictNotice';
 import { verifyMyKeyRegistered } from './deviceKeys';
 import {
@@ -320,6 +321,7 @@ async function doStartRelay(): Promise<void> {
   // clave del grupo, y recién con esa clave el grupo entra en `syncableGroupIds`
   // y se puede suscribir abajo. Al revés habría que esperar al próximo arranque.
   const adoptados = await processAllInvites(deviceId()).catch(() => [] as string[]);
+  await processAllContactInvites(deviceId()).catch(() => false);
 
   for (const groupId of syncableGroupIds()) {
     const record = useGroupKeyStore.getState().getKey(groupId);
@@ -381,6 +383,7 @@ async function releerTodo(): Promise<void> {
   try {
     await drainContactsNow();
     await drainAll();
+    await processAllContactInvites(deviceId());
   } catch { /* offline: se reintenta en la próxima vuelta */ }
 }
 

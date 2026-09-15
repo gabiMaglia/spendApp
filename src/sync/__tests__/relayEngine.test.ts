@@ -1,7 +1,10 @@
 import {
   readCursor, writeCursor, deviceId, syncableGroupIds,
   schedulePublish, cancelPendingPublishes, PUBLISH_DEBOUNCE_MS, startRelay, publishNow,
+  stopRelay, POLL_INTERVAL_MS,
 } from '../relayEngine';
+import * as relay from '../relay';
+import { processAllContactInvites } from '../contactInviteEngine';
 import { useAuthStore } from '@/src/store/authStore';
 import { publishFailures, clearPublishFailures } from '../publishHealth';
 import { useGroupStore } from '@/src/store/groupStore';
@@ -10,6 +13,36 @@ import { createSecureStorage } from '@/src/utils/secureStorage';
 import type { Group, User } from '@/src/types/models';
 
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
+
+// El motor no debe adoptar invitaciones de GRUPO reales al arrancar en este
+// archivo — sólo interesa el enganche de las de CONTACTO (T-096). `activeInvites()`
+// leería del `identityStore` real y podría arrastrar estado de otro test si algo
+// quedó sin limpiar; se lo aísla acá.
+jest.mock('../inviteEngine', () => ({
+  activeInvites: () => [],
+  processInvite: jest.fn(async () => [] as string[]),
+  processAllInvites: jest.fn(async () => [] as string[]),
+}));
+
+// El "buzón tonto" de contactos no importa para este archivo: sin secreto ni
+// tarjeta propia, todo el camino de `contactChannel` queda en no-op y el único
+// punto bajo prueba es que `processAllContactInvites` se llame (T-096).
+jest.mock('../contactChannel', () => ({
+  ensureContactSecret: () => null,
+  deriveContactTopic: jest.fn(async () => 'topic-contactos'),
+  drainContacts: jest.fn(async () => ({ cursor: 0, added: 0, joinedGroups: [], conflictedGroups: [] })),
+  sendGroupKey: jest.fn(async () => true),
+  announceContact: jest.fn(async () => true),
+  listPeers: () => ({}),
+  myContactCard: () => null,
+  cardFingerprint: () => '',
+  cardYaEnviada: () => false,
+  marcarCardEnviada: () => {},
+}));
+
+jest.mock('../contactInviteEngine', () => ({
+  processAllContactInvites: jest.fn(async () => false),
+}));
 
 const ME = 'ua';
 const group = (over: Partial<Group> = {}): Group => ({
@@ -158,5 +191,43 @@ describe('publicar deja rastro cuando falla', () => {
     await publishNow('g1');
 
     expect(publishFailures()).toEqual([]);
+  });
+});
+
+describe('invitaciones de contacto en el ciclo de sync (T-096)', () => {
+  // `doStartRelay`/`releerTodo` sólo llegan a procesar algo si el relay está
+  // "configurado" — acá se lo fuerza sin credenciales reales: `getRelayClient()`
+  // sigue devolviendo `null` (no hay `EXPO_PUBLIC_SUPABASE_*` en el entorno de
+  // test), así que todo lo que de verdad hablaría con la red sigue siendo un
+  // no-op, y sólo se ejercita el enganche que interesa acá.
+  beforeEach(() => {
+    createSecureStorage('groupkeys').clearAll();
+    useAuthStore.setState({ currentUser: null });
+    useGroupStore.setState({ groups: [], isLoading: false });
+    useGroupKeyStore.setState({ keys: [] });
+    (processAllContactInvites as jest.Mock).mockClear();
+    jest.spyOn(relay, 'isRelayConfigured').mockReturnValue(true);
+  });
+
+  afterEach(() => {
+    stopRelay();
+    jest.restoreAllMocks();
+    jest.useRealTimers();
+  });
+
+  it('doStartRelay procesa las invitaciones de contacto pendientes', async () => {
+    await startRelay();
+
+    expect(processAllContactInvites).toHaveBeenCalledWith(deviceId());
+  });
+
+  it('la relectura periódica también procesa las invitaciones de contacto', async () => {
+    jest.useFakeTimers();
+    await startRelay();
+    (processAllContactInvites as jest.Mock).mockClear();
+
+    await jest.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
+
+    expect(processAllContactInvites).toHaveBeenCalledWith(deviceId());
   });
 });
