@@ -1119,4 +1119,39 @@ describe('T-136 · Sybil: el tope de remitentes ya no tapa al miembro real', () 
     expect(avisos).toHaveLength(1);
     expect(avisos[0]!.senderIds).toEqual(expect.arrayContaining([BETO.id]));
   });
+
+  /**
+   * T-136 · mutación M5 (Task 6). Acá el tope que se llena es el de CLAVES
+   * DISTINTAS —5 falsos, 5 claves distintas cada uno, no la misma— así que la
+   * tabla queda REALMENTE llena y en conflicto natural desde el lote 1. La
+   * clave real de Beto llega SOLA en un lote nuevo y no puede entrar a la
+   * tabla por el tope: sin `marcarConflictoForzado` (que M5 le saca a
+   * `registrarOferta`), `registrarDropComoOferta` devuelve `false`, el grupo
+   * no entra al `conOfertaNueva` de este lote, y `resolverOfertas` ni se entera
+   * de que hay un sexto remitente disidente — el lote de Beto queda con
+   * `conflictedGroups: []` en silencio, aunque el grupo siga tan en disputa
+   * como antes.
+   */
+  it('tope de CLAVES lleno en un lote anterior: la clave real de un lote nuevo no se pierde en silencio', async () => {
+    const clave = (n: number): string => n.toString(16).padStart(2, '0').repeat(32);
+    const { deAna, cursor } = await anaTieneContactos();
+
+    for (let i = 0; i < FAKES.length; i++) {
+      usar(FAKES[i]!);
+      useGroupKeyStore.setState({ keys: [{ groupId: 'g1', key: clave(i + 1), epoch: 1 }] });
+      await sendGroupKey(ANA.id, { id: 'g1', name: 'Viaje' }, `dev-${FAKES[i]!.id}`);
+    }
+    const r1 = await anaDrena(deAna, cursor);
+    expect(r1.conflictedGroups).toEqual(['g1']); // 5 claves distintas: conflicto natural, sin forzar nada.
+
+    usar(BETO);
+    useGroupKeyStore.setState({ keys: [{ groupId: 'g1', key: clave(6), epoch: 1 }] });
+    await sendGroupKey(ANA.id, { id: 'g1', name: 'Viaje' }, 'dev-beto');
+
+    const r2 = await anaDrena(deAna, r1.cursor);
+
+    // La clave de Beto no entra a la tabla (tope de 5 claves distintas ya
+    // lleno), pero la disidencia tiene que seguir viéndose EN ESTE LOTE.
+    expect(r2.conflictedGroups).toEqual(['g1']);
+  });
 });
