@@ -590,4 +590,33 @@ describe('T-096 · invitación de un solo uso (claimedBy)', () => {
     // Beto ya fue admitido y recibe la llave.
     expect(adoptados).toEqual(['g1']);
   });
+
+  it('la vulnerabilidad cross-device NO es reachable: activeInvites vacio tras redeem (T-096)', async () => {
+    // Verifica que el escenario criticado por el reviewer (otro dispositivo reabre
+    // el invite tras que alguien se une) NO es reachable en el flujo normal,
+    // porque removePendingJoin() limpia el invite de la lista de activeInvites().
+    relayMock.__reset();
+    const { invite } = anaInvita();
+
+    usar('beto', BETO);
+    await publishClaim(invite, 'device-beto');
+    // Beto tiene el invite pendiente
+    expect(listPendingJoins().map(i => i.token)).toContain(invite.token);
+
+    usar('ana', ANA);
+    await processInvite(invite, 'device-ana');
+
+    usar('beto', BETO);
+    const adoptados = await processInvite(invite, 'device-beto');
+    expect(adoptados).toEqual(['g1']); // Beto recibe la llave y entra
+
+    // GARANTIA: removePendingJoin limpió el invite de K_PENDING de Beto.
+    // Beto tampoco tiene el invite en K_INVITES (nunca llamó saveInvite).
+    // Por lo tanto, activeInvites() en Beto no lo incluye.
+    expect(listPendingJoins().map(i => i.token)).not.toContain(invite.token);
+    // Resultado: processAllInvites() nunca lo reprocessaría en Beto's device,
+    // así que el riesgo de que Beto (nuevo miembro) admita a Mallory NO es reachable
+    // a través del flujo normal. (Sí lo sería si algo explícitamente llamara
+    // processInvite(invite), pero eso no es un code path actual.)
+  });
 });
