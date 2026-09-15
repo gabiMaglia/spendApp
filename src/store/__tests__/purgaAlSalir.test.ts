@@ -8,6 +8,7 @@ import { useRecurringStore } from '@/src/store/recurringStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { purgarGrupoLocalmente } from '@/src/services/salirDelGrupo';
+import { conflictoForzado, marcarConflictoForzado, ofertasDe, registrarOferta } from '@/src/sync/groupKeyOffers';
 import type { User } from '@/src/types/models';
 
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
@@ -128,5 +129,31 @@ describe('el borrado es LOCAL, no un tombstone que viaja', () => {
 
     expect(useExpenseStore.getState().expenses.map(x => x.id)).toEqual(['eH']);
     expect(useGroupStore.getState().groups.map(x => x.id)).toEqual(['H']);
+  });
+});
+
+describe('T-136 · las ofertas de clave del grupo', () => {
+  it('se olvidan con la purga, sin tocar las de otros grupos', () => {
+    for (const groupId of ['G', 'H']) {
+      registrarOferta({
+        groupId, fromUserId: 'beto', key: 'ab'.repeat(32), epoch: 1,
+        origen: 'contact', receivedAt: 0, adoptada: false,
+      });
+    }
+
+    purgarGrupoLocalmente('G');
+
+    expect(ofertasDe('G')).toEqual([]);
+    expect(ofertasDe('H')).toHaveLength(1);
+  });
+
+  it('también olvida el conflicto forzado del grupo, sin tocar el de otros', () => {
+    marcarConflictoForzado('G');
+    marcarConflictoForzado('H');
+
+    purgarGrupoLocalmente('G');
+
+    expect(conflictoForzado('G')).toBe(false);
+    expect(conflictoForzado('H')).toBe(true);
   });
 });

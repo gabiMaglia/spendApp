@@ -5,6 +5,7 @@ import { useCommentStore } from '@/src/store/commentStore';
 import { useRecurringStore } from '@/src/store/recurringStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { marcarConTopic } from '@/src/sync/pendingDrain';
+import { olvidarOfertas } from '@/src/sync/groupKeyOffers';
 
 /**
  * **Salir de un grupo, en el orden que importa** (T-089 · §5).
@@ -95,6 +96,12 @@ export function purgarGrupoLocalmente(groupId: string): void {
   // La clave del grupo: sin ella este teléfono ya no puede abrir sus sobres.
   // El cursor del topic lo olvidó `marcarConTopic` antes de llegar acá.
   useGroupKeyStore.getState().forgetKey(groupId);
+
+  // Y las ofertas de clave de ese grupo (T-136): sin la copia local no queda
+  // nada que elegir, y una oferta vieja adoptada haría «elegible» una clave
+  // que el grupo ya no tiene. `olvidarOfertas` también limpia el conflicto
+  // forzado del grupo.
+  olvidarOfertas(groupId);
 }
 
 /**
