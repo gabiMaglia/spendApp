@@ -18,8 +18,9 @@ import { noticeDeReloj } from './clockNotice';
 import { estaPendienteDeDrenaje, limpiarPendienteDeDrenaje } from './pendingDrain';
 import { resolvePendingDeletions } from '@/src/services/resolveDeletions';
 import { applyApprovedLeaves } from '@/src/services/applyLeave';
-import { deriveInviteTopic, type GroupInvite } from './groupInvite';
+import { deriveInviteTopic } from './groupInvite';
 import { activeInvites, processInvite, processAllInvites } from './inviteEngine';
+import { findInviteToken } from '@/src/store/identityStore';
 import { avisarConflictosDelDrenaje } from './keyConflictNotice';
 import { verifyMyKeyRegistered } from './deviceKeys';
 import {
@@ -453,12 +454,17 @@ async function reenviarClavesDeGrupo(): Promise<void> {
  * Escucha los buzones de invitación abiertos, en los dos roles: el que invita
  * espera reclamos, el que entra espera su clave. Sin esto, entrar a un grupo
  * exigiría que las dos personas reinicien la app en el orden correcto.
+ *
+ * IMPORTANTE (T-096): Pasamos token + groupId al callback, NO el objeto invite.
+ * Así el callback puede descartar invitaciones que fueron removidas de activeInvites
+ * (ej: redeem que llamó removePendingJoin). Esto previene que una suscripción vieja
+ * admita un reclamo de otra persona usando un invite ya retirado (cross-device attack).
  */
 async function subscribeInvites(): Promise<void> {
   for (const invite of activeInvites()) {
     try {
       const topic = await deriveInviteTopic(invite.token);
-      unsubs.push(subscribeTopic(topic, () => { void onInviteNews(invite); }));
+      unsubs.push(subscribeTopic(topic, () => { void onInviteNews(invite.token, invite.groupId); }));
     } catch { /* una invitación rota no debe impedir las demás */ }
   }
 }
@@ -557,7 +563,18 @@ export async function announceGroupToContacts(groupId: string): Promise<number> 
   return enviados;
 }
 
-async function onInviteNews(invite: GroupInvite): Promise<void> {
+/**
+ * Callback para nuevos sobres en buzones de invitación.
+ *
+ * Busca el invite fresco de storage en lugar de usar una closure stale.
+ * Si el invite fue removido de activeInvites (ej: tras redeem), retorna sin
+ * procesar — esto previene que un reclamo tardío sea admitido por quien ya
+ * se unió y removió el invite de su storage (T-096 cross-device guard).
+ */
+async function onInviteNews(inviteToken: string, groupId: string): Promise<void> {
+  const invite = findInviteToken(groupId, inviteToken);
+  if (!invite) return; // El invite se removió de activeInvites, no lo reprocessamos
+
   const adoptados = await processInvite(invite, deviceId()).catch(() => [] as string[]);
   if (adoptados.length === 0) return;
 
