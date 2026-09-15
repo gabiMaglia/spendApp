@@ -5,6 +5,10 @@ import {
 } from '../contactChannel';
 import { ofertasDe } from '../groupKeyOffers';
 import { avisarConflictosDelDrenaje } from '../keyConflictNotice';
+import { estaPendienteDeDrenaje } from '../pendingDrain';
+import { elegirClaveDeGrupo } from '@/src/services/elegirClaveDeGrupo';
+import { useExpenseStore } from '@/src/store/expenseStore';
+import { useGroupStore } from '@/src/store/groupStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { ensureIdentity, ensureWrapKeypair } from '@/src/store/identityStore';
 import { useAuthStore } from '@/src/store/authStore';
@@ -29,6 +33,8 @@ jest.mock('expo-notifications', () => ({
   requestPermissionsAsync: async () => ({ granted: true }),
   scheduleNotificationAsync: async () => 'id',
 }));
+
+const relayEngineMock = jest.requireMock('@/src/sync/relayEngine') as { drainNow: jest.Mock };
 
 /**
  * Agregar un contacto tiene que quedar en LOS DOS teléfonos con un solo
@@ -950,6 +956,65 @@ describe('T-136 · claves distintas para el mismo grupo', () => {
     expect(r.conflictedGroups).toEqual([]);
     expect(ofertasDe('g1')).toEqual([]);
     expect(conflictosDe('g1')).toHaveLength(0);
+  });
+
+  const GRUPO_FALSO = {
+    id: 'g1', name: 'Viaje', memberIds: [ANA.id, MALLORY.id], currency: 'ARS',
+    createdAt: 0, createdById: MALLORY.id, deletionVotes: [], updatedAt: 1, isDeleted: false,
+  } as never;
+  const GASTO_FALSO = {
+    id: 'e-falso', groupId: 'g1', description: 'cargado sobre la clave falsa', amount: 1, currency: 'ARS',
+    paidById: ANA.id, splitMode: 'equal', splits: [], category: 'other', date: 0,
+    createdAt: 0, createdById: ANA.id, deletionVotes: [], updatedAt: 1, isDeleted: false,
+  } as never;
+
+  it('criterio 1 · dos lotes y elección de Beto: clave real con su época, nada del grupo falso, pendiente de drenaje', async () => {
+    const { deAna, cursor } = await anaTieneDosContactos();
+    await malloryPlanta();
+    const r1 = await anaDrena(deAna, cursor);
+    expect(r1.joinedGroups).toEqual(['g1']);
+
+    // Ana drenó el topic de K' (el grupo falso de Mallory) y cargó algo encima.
+    useGroupStore.setState({ groups: [GRUPO_FALSO] });
+    useExpenseStore.setState({ expenses: [GASTO_FALSO] });
+
+    const real = await betoEntrega();
+    const r2 = await anaDrena(deAna, r1.cursor);
+
+    expect(useGroupKeyStore.getState().getKey('g1')).toEqual({ groupId: 'g1', key: FALSA, epoch: 1e9 });
+    expect(r2.joinedGroups).not.toContain('g1');
+    const avisos = conflictosDe('g1');
+    expect(avisos).toHaveLength(1);
+    expect([...avisos[0]!.senderIds].sort()).toEqual([BETO.id, MALLORY.id].sort());
+
+    expect(await elegirClaveDeGrupo('g1', BETO.id)).toBe(true);
+
+    expect(useGroupKeyStore.getState().getKey('g1')).toEqual({ groupId: 'g1', key: real, epoch: 1 });
+    expect(useGroupStore.getState().groups.filter(g => g.id === 'g1')).toEqual([]);
+    expect(useExpenseStore.getState().expenses.filter(e => e.groupId === 'g1')).toEqual([]);
+    expect(estaPendienteDeDrenaje('g1')).toBe(true);
+    expect(relayEngineMock.drainNow).toHaveBeenCalledWith('g1');
+  });
+
+  it('criterio 2 · mismo lote y elección: se adopta la clave de Beto', async () => {
+    const { deAna, cursor } = await anaTieneDosContactos();
+    await malloryPlanta();
+    const real = await betoEntrega();
+    await anaDrena(deAna, cursor);
+
+    expect(await elegirClaveDeGrupo('g1', BETO.id)).toBe(true);
+    expect(useGroupKeyStore.getState().getKey('g1')?.key).toBe(real);
+  });
+
+  it('criterio 4 · un remitente sin oferta no se puede elegir', async () => {
+    const { deAna, cursor } = await anaTieneDosContactos();
+    await malloryPlanta();
+    const r1 = await anaDrena(deAna, cursor);
+    await betoEntrega();
+    await anaDrena(deAna, r1.cursor);
+
+    expect(await elegirClaveDeGrupo('g1', 'u-nadie')).toBe(false);
+    expect(useGroupKeyStore.getState().getKey('g1')?.key).toBe(FALSA);
   });
 });
 
