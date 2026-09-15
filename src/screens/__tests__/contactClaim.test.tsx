@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, fireEvent } from '@testing-library/react-native';
+import { render, fireEvent, waitFor } from '@testing-library/react-native';
 import ContactClaimScreen from '@/app/contact/claim';
 import { useAuthStore } from '@/src/store/authStore';
 import type { User } from '@/src/types/models';
@@ -51,6 +51,7 @@ const ANA = { id: 'ana1', name: 'Ana' } as User;
 beforeEach(() => {
   mockParams = {};
   jest.clearAllMocks();
+  jest.useRealTimers();
   useAuthStore.setState({ currentUser: ANA });
 });
 
@@ -68,7 +69,7 @@ describe('ContactClaimScreen', () => {
     expect(getByText(/aa11 bb22 cc33 dd44/)).toBeTruthy();
   });
 
-  it('al tocar Agregar, publica el reclamo y muestra indicador de carga', () => {
+  it('al tocar Agregar, muestra estado entrando, y si no llega grant, alcanza esperando', async () => {
     mockParams = {
       n: 'Ana',
       t: 'aa11bb22cc33dd44ee55ff6600112233aa11bb22cc33dd44ee55ff6600112233',
@@ -78,26 +79,61 @@ describe('ContactClaimScreen', () => {
     const { publishContactClaim } = jest.requireMock('@/src/sync/contactInviteEngine');
     publishContactClaim.mockResolvedValue(true);
     const { processContactInvite } = jest.requireMock('@/src/sync/contactInviteEngine');
+    // Always return false: no grant arrives
     processContactInvite.mockResolvedValue(false);
 
-    const { getByText } = render(<ContactClaimScreen />);
+    const { getByText, queryByText } = render(<ContactClaimScreen />);
+
+    // Initial state: listo
+    expect(getByText(/Ana/)).toBeTruthy();
+
+    // Press the button
     fireEvent.press(getByText('contact.claim.accept'));
 
-    expect(publishContactClaim).toHaveBeenCalled();
-  });
+    // State transitions to entrando: shows ActivityIndicator and waiting_key text
+    await waitFor(() => {
+      expect(queryByText('contact.claim.waiting_key')).toBeTruthy();
+    }, { timeout: 2000 });
 
-  it('muestra el estado de éxito cuando se agrega el contacto', () => {
+    expect(publishContactClaim).toHaveBeenCalled();
+
+    // After timeout, transitions to esperando: pending_title appears
+    await waitFor(() => {
+      expect(queryByText('contact.claim.pending_title')).toBeTruthy();
+    }, { timeout: 30000 });
+  }, 35000); // Allow extra timeout for this long-running test
+
+  it('si grant llega durante polling, pantalla transiciona a entre (success)', async () => {
     mockParams = {
       n: 'Ana',
       t: 'aa11bb22cc33dd44ee55ff6600112233aa11bb22cc33dd44ee55ff6600112233',
       f: 'aa11bb22cc33dd44ee55ff66',
       e: String(Date.now() + 48 * 60 * 60 * 1000),
     };
+    const { publishContactClaim } = jest.requireMock('@/src/sync/contactInviteEngine');
+    publishContactClaim.mockResolvedValue(true);
+    const { processContactInvite } = jest.requireMock('@/src/sync/contactInviteEngine');
+    // Mock: processContactInvite returns false first, then true
+    // This simulates: first retry has no grant, second retry has grant
+    processContactInvite
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true);
 
-    const { getByText } = render(<ContactClaimScreen />);
-    // The text is interpolated with the name, so we just verify Ana is shown
-    expect(getByText(/Ana/)).toBeTruthy();
-  });
+    const { getByText, queryByText } = render(<ContactClaimScreen />);
+
+    // Press the button
+    fireEvent.press(getByText('contact.claim.accept'));
+
+    // After grant arrives (during polling), state becomes entre
+    // Should see success message (added_title) within ~6s (3s for first retry + 3s for second)
+    await waitFor(() => {
+      expect(queryByText('contact.claim.added_title')).toBeTruthy();
+    }, { timeout: 10000 });
+
+    // Verify the flow actually happened
+    expect(publishContactClaim).toHaveBeenCalled();
+    expect(processContactInvite).toHaveBeenCalled();
+  }, 15000); // Allow timeout for this test
 
   it('link vencido muestra el estado de vencido, no el de aceptar', () => {
     mockParams = {
