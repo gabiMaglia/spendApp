@@ -1,7 +1,7 @@
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { marcarConTopic, marcarPendienteDeDrenaje } from '@/src/sync/pendingDrain';
 import {
-  claveLocalVinoDeContacto, conflictoForzado, ofertasDe, registrarOferta,
+  claveLocalVinoDeContacto, conflictoForzado, esOfertaDeInvitacion, ofertasDe, registrarOferta,
 } from '@/src/sync/groupKeyOffers';
 import { purgarGrupoLocalmente } from './salirDelGrupo';
 
@@ -19,7 +19,8 @@ import { purgarGrupoLocalmente } from './salirDelGrupo';
  *  2. tiene que haber una oferta de ese remitente, y
  *  3. la clave local, si existe, tiene que haber venido de contacto
  *     (`claveLocalVinoDeContacto`). Las de `ensureKey`, QR o invitación nunca
- *     se sustituyen por acá: es lo que mantiene cerrado S3-A1.
+ *     se sustituyen por acá: es lo que mantiene cerrado S3-A1. Y elegir una
+ *     oferta de invitación deja la clave igual de protegida (paso 4).
  *
  * El orden importa, y no sólo entre pasos grandes: **primero se purga** la
  * copia local del grupo — si se adoptara antes, lo que vino del topic falso
@@ -65,11 +66,14 @@ export async function elegirClaveDeGrupo(groupId: string, fromUserId: string): P
   // descartó el resto de las ofertas del grupo, así que ésta es la única que
   // queda.
   //
-  // Si `fromUserId` es una invitación (`invite:<huella>`) la oferta queda
-  // IGUAL de adoptada: el usuario la eligió a mano frente a un conflicto, así
-  // que sigue siendo tan disputable como cualquier otra clave adoptada por
-  // este camino si más tarde llega una oferta de contacto distinta.
-  registrarOferta({ ...elegida, adoptada: true });
+  // EXCEPCIÓN: si `fromUserId` es una invitación (`invite:<huella>`), NO se
+  // registra nada (revisión final, D-2). La purga ya olvidó todas las ofertas
+  // del grupo y la marca de conflicto forzado, así que la clave adoptada queda
+  // sin oferta adoptada que la respalde: `claveLocalVinoDeContacto` da `false`
+  // y una entrega de contacto posterior con otra clave se ignora sin oferta ni
+  // aviso. Es lo que exige S3-A1: una clave recibida por invitación nunca
+  // queda disputable por contacto, la haya elegido el usuario o no.
+  if (!esOfertaDeInvitacion(fromUserId)) registrarOferta({ ...elegida, adoptada: true });
 
   // 5 · adoptar la clave con la época de la oferta.
   useGroupKeyStore.getState().adoptKeys([{ groupId, key: elegida.key, epoch: elegida.epoch }]);

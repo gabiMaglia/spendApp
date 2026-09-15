@@ -3,7 +3,7 @@ import {
   deriveContactTopic, savePeer, peerSecret, listPeers, sendGroupKey,
   getPeer, peersIncompletos, hasConflictingPinnedKeys,
 } from '../contactChannel';
-import { ofertasDe } from '../groupKeyOffers';
+import { ofertasDe, registrarOferta, idDeOfertaDeInvitacion } from '../groupKeyOffers';
 import { avisarConflictosDelDrenaje } from '../keyConflictNotice';
 import { estaPendienteDeDrenaje } from '../pendingDrain';
 import { elegirClaveDeGrupo } from '@/src/services/elegirClaveDeGrupo';
@@ -1004,6 +1004,33 @@ describe('T-136 · claves distintas para el mismo grupo', () => {
 
     expect(await elegirClaveDeGrupo('g1', BETO.id)).toBe(true);
     expect(useGroupKeyStore.getState().getKey('g1')?.key).toBe(real);
+  });
+
+  it('D-2 · tras elegir una oferta de INVITACIÓN, una entrega de contacto distinta se ignora sin oferta ni aviso', async () => {
+    const { deAna, cursor } = await anaTieneDosContactos();
+    await malloryPlanta();
+    const r1 = await anaDrena(deAna, cursor);
+    expect(r1.joinedGroups).toEqual(['g1']);
+
+    // Llega una invitación a g1 con otra clave: queda como oferta en disputa.
+    const INVITADA = 'cd'.repeat(32);
+    const deInvitacion = idDeOfertaDeInvitacion('huella-inv');
+    registrarOferta({
+      groupId: 'g1', fromUserId: deInvitacion, key: INVITADA, epoch: 2, origen: 'invite', receivedAt: 0, adoptada: false,
+    });
+    expect(await elegirClaveDeGrupo('g1', deInvitacion)).toBe(true);
+    expect(useGroupKeyStore.getState().getKey('g1')).toEqual({ groupId: 'g1', key: INVITADA, epoch: 2 });
+    const avisosAntes = conflictosDe('g1').length;
+
+    // Mallory vuelve a mandar su clave (distinta de la elegida).
+    await malloryPlanta();
+    const r2 = await anaDrena(deAna, r1.cursor);
+
+    expect(useGroupKeyStore.getState().getKey('g1')).toEqual({ groupId: 'g1', key: INVITADA, epoch: 2 });
+    expect(r2.conflictedGroups).toEqual([]);
+    expect(r2.joinedGroups).not.toContain('g1');
+    expect(ofertasDe('g1')).toEqual([]);
+    expect(conflictosDe('g1')).toHaveLength(avisosAntes);
   });
 
   it('criterio 4 · un remitente sin oferta no se puede elegir', async () => {

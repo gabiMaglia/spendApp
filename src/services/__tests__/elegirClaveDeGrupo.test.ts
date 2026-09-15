@@ -224,16 +224,18 @@ describe('T-136 fix round 1 · orden interno', () => {
   });
 });
 
-describe('T-136 fix round 1 · ofertas de invitación', () => {
+describe('T-136 revisión final (D-2) · ofertas de invitación', () => {
   /**
-   * Una oferta de invitación (`invite:<huella>`) elegida a mano sigue las
-   * mismas reglas que cualquier otra: queda ADOPTADA. No es un caso especial
-   * que se deje "sin marcar" — sigue siendo tan disputable como cualquier
-   * clave adoptada por este camino si más tarde llega una oferta de contacto
-   * distinta para el mismo grupo.
+   * Una oferta de invitación (`invite:<huella>`) elegida a mano adopta su
+   * clave pero NO queda registrada como adoptada: el grupo se queda sin
+   * ofertas, así que la clave cuenta como recibida por invitación y no puede
+   * disputarla un contacto (S3-A1). Este test afirmaba lo contrario —la dejaba
+   * adoptada y disputable— por un ruling de la Task 4 que la revisión final
+   * revirtió para alinearse con el spec; no es un test debilitado.
    */
-  it('elegir una oferta de invitación adopta su clave y la deja marcada adoptada', async () => {
+  it('elegir una oferta de invitación adopta su clave y no deja oferta adoptada', async () => {
     const fromUserId = groupKeyOffersModule.idDeOfertaDeInvitacion('huella-1');
+    trasElAtaque();
     groupKeyOffersModule.registrarOferta({
       groupId: 'g1', fromUserId, key: REAL, epoch: 5, origen: 'invite', receivedAt: 0, adoptada: false,
     });
@@ -241,7 +243,9 @@ describe('T-136 fix round 1 · ofertas de invitación', () => {
     expect(await elegirClaveDeGrupo('g1', fromUserId)).toBe(true);
 
     expect(useGroupKeyStore.getState().getKey('g1')).toEqual({ groupId: 'g1', key: REAL, epoch: 5 });
-    expect(groupKeyOffersModule.ofertasDe('g1')).toEqual(
-      [expect.objectContaining({ fromUserId, adoptada: true })]);
+    expect(groupKeyOffersModule.ofertasDe('g1')).toEqual([]);
+    expect(groupKeyOffersModule.conflictoForzado('g1')).toBe(false);
+    expect(groupKeyOffersModule.claveLocalVinoDeContacto('g1')).toBe(false);
+    expect(pendingDrainModule.estaPendienteDeDrenaje('g1')).toBe(true);
   });
 });
