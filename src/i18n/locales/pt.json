@@ -599,7 +599,8 @@
     "joined_body": "Você entrou em “{{group}}”. As despesas sincronizam sozinhas.",
     "open_group": "Ver o grupo",
     "pending_title": "Seu pedido foi enviado",
-    "pending_body": "Falta quem te convidou abrir o app para liberar seu acesso. Quando isso acontecer, o grupo aparece sozinho — você não precisa fazer mais nada."
+    "pending_body": "Falta quem te convidou abrir o app para liberar seu acesso. Quando isso acontecer, o grupo aparece sozinho — você não precisa fazer mais nada.",
+    "inviter_fingerprint": "Convite de alguém com impressão {{fingerprint}}"
   },
   "leave": {
     "title": "Sair do grupo",

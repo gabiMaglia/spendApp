@@ -599,7 +599,8 @@
     "joined_body": "You joined “{{group}}”. Expenses sync automatically.",
     "open_group": "Open the group",
     "pending_title": "Your request was sent",
-    "pending_body": "Whoever invited you needs to open the app to grant you access. When they do, the group will show up on its own — nothing else for you to do."
+    "pending_body": "Whoever invited you needs to open the app to grant you access. When they do, the group will show up on its own — nothing else for you to do.",
+    "inviter_fingerprint": "Invitation from someone with fingerprint {{fingerprint}}"
   },
   "leave": {
     "title": "Leave group",

@@ -16,6 +16,7 @@ import { inviteFromParams, isInviteExpired } from '@/src/sync/groupInvite';
 import { publishClaim, processInvite } from '@/src/sync/inviteEngine';
 import { deviceId, drainNow, startRelay } from '@/src/sync/relayEngine';
 import { esYo } from '@/src/store/identityAlias';
+import { shortFingerprint } from '@/src/utils/keyFingerprint';
 
 /**
  * Pantalla que recibe el link de invitación (`spendapp://groups/join?...`).
@@ -134,6 +135,11 @@ export default function JoinGroupScreen() {
         <Text style={[Typography.bodyS, styles.centro, { color: c.textSecondary }]}>
           {t('join.intro')}
         </Text>
+        {invite.inviterFingerprint !== '' && (
+          <Text style={[Typography.caption, styles.centro, { color: c.textSecondary }]}>
+            {t('join.inviter_fingerprint', { fingerprint: shortFingerprint(invite.inviterFingerprint) })}
+          </Text>
+        )}
 
         <Pressable
           accessibilityRole="button"
