@@ -41,8 +41,9 @@ jest.mock('@/src/sync/contactChannel', () => ({
   hasConflictingPinnedKeys: jest.fn(() => false),
 }));
 jest.mock('@/src/store/identityStore', () => ({
-  ensureIdentity: () => ({ publicKey: 'aa'.repeat(32) }),
-  ensureWrapKeypair: () => ({ publicKey: 'bb'.repeat(32) }),
+  ensureIdentity: () => ({ publicKey: 'aa'.repeat(32), privateKey: 'aa'.repeat(32) }),
+  ensureWrapKeypair: () => ({ publicKey: 'bb'.repeat(32), privateKey: 'bb'.repeat(32) }),
+  saveContactInvite: jest.fn(),
 }));
 jest.mock('@/src/sync/relayEngine', () => ({ deviceId: () => 'dev-1' }));
 

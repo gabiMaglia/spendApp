@@ -27,7 +27,7 @@ import {
 import { createContactInvite, contactInviteToLink } from '@/src/sync/contactInvite';
 import { ensureContactSecret, announceContact, savePeer, hasConflictingPinnedKeys } from '@/src/sync/contactChannel';
 import { deviceId } from '@/src/sync/relayEngine';
-import { ensureIdentity, ensureWrapKeypair } from '@/src/store/identityStore';
+import { ensureIdentity, ensureWrapKeypair, saveContactInvite } from '@/src/store/identityStore';
 import { useTranslation } from 'react-i18next';
 import { syncedNow } from '@/src/utils/syncedClock';
 import { esYo } from '@/src/store/identityAlias';
@@ -76,9 +76,6 @@ export default function AddContactScreen() {
     identityPublicKey: ensureIdentity().publicKey,
   } : null;
   const myQRData  = currentUser ? buildContactPayload(currentUser, misClaves) : '';
-  const deepLink  = currentUser
-    ? contactInviteToLink(createContactInvite(currentUser.name, ensureIdentity().publicKey))
-    : '';
 
   /**
    * Lo que hacía `procesarContacto` de punta a punta ANTES de este ticket: agrega el
@@ -289,11 +286,31 @@ export default function AddContactScreen() {
     procesarContacto(contact, 'link');
   }, [params, currentUser, procesarContacto]);
 
+  /**
+   * Arma el link de invitación de contacto recién ACÁ, al tocar "Compartir" —
+   * no en el cuerpo del componente (I2, revisión final de T-096 · ADR-015).
+   * Calcularlo en render minaba un token nuevo en cada re-render (cualquier
+   * cambio de store, cambio de pestaña) y lo persistía en `saveContactInvite`
+   * sin que el usuario hubiera compartido nada todavía — invitaciones muertas
+   * acumulándose en `K_CONTACT_INVITES` y un riesgo real de que el token
+   * mostrado en un render no fuera el mismo que terminaba compartiéndose.
+   *
+   * `saveContactInvite` (C1, revisión final): sin esto la invitación nunca
+   * quedaba en el storage de quien comparte, así que `activeContactInvites`/
+   * `processAllContactInvites` no la procesaban nunca del lado de quien
+   * comparte — el link de "Compartir" no completaba jamás, aunque alguien lo
+   * reclamara. Mismo patrón que `handleShareInvite` en `app/groups/[id].tsx`
+   * (`createInvite` + `saveInvite` explícitos en el handler, no dentro de
+   * `createInvite`/`createContactInvite`).
+   */
   async function handleShare() {
+    if (!currentUser) return;
     // Sin háptico acá: el `Fab` ya lo dispara al tocarlo.
+    const invite = createContactInvite(currentUser.name, ensureIdentity().publicKey);
+    saveContactInvite(invite);
     try {
       await Share.share({
-        message: t('contact.share_message', { link: deepLink }),
+        message: t('contact.share_message', { link: contactInviteToLink(invite) }),
         title: t('contact.share_title'),
       });
     } catch {
