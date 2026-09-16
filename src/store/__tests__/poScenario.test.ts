@@ -3,6 +3,20 @@ import { useGroupStore } from '../groupStore';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { mergeProviderUser } from '@/src/utils/mergeProviderUser';
 
+// El anon key real vive en el env de jest (igual que en producción), así que
+// `getRelayClient()` no es null acá — sin este mock, `createClient` real de
+// supabase-js intenta armar el socket de Realtime y explota en Node sin
+// WebSocket nativo (pasa en la nube de EAS, no en toda versión de Node local).
+// `jest.mock` se hoistea solo al tope del módulo, no hace falta escribirlo ahí.
+jest.mock('@supabase/supabase-js', () => ({
+  createClient: () => ({
+    auth: {
+      signOut: async () => ({ error: null }),
+      signInWithIdToken: async () => ({ error: null }),
+    },
+  }),
+}));
+
 /**
  * Reproducción del escenario EXACTO del PO en su iPhone.
  *

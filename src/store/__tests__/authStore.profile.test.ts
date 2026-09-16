@@ -3,6 +3,20 @@ import { createSecureStorage } from '@/src/utils/secureStorage';
 import { mergeProviderUser } from '@/src/utils/mergeProviderUser';
 import type { User } from '@/src/types/models';
 
+// El anon key real vive en el env de jest (igual que en producción), así que
+// `getRelayClient()` no es null acá — sin este mock, `createClient` real de
+// supabase-js intenta armar el socket de Realtime y explota en Node sin
+// WebSocket nativo (pasa en la nube de EAS, no en toda versión de Node local).
+// `jest.mock` se hoistea solo al tope del módulo, no hace falta escribirlo ahí.
+jest.mock('@supabase/supabase-js', () => ({
+  createClient: () => ({
+    auth: {
+      signOut: async () => ({ error: null }),
+      signInWithIdToken: async () => ({ error: null }),
+    },
+  }),
+}));
+
 const APPLE_ID = 'apple:000123.abc';
 
 function appleUser(over: Partial<User> = {}): User {
