@@ -8,6 +8,7 @@ jobs:
     name: Gate de calidad
     type: custom
     steps:
+      - uses: eas/checkout
       - run: npm ci
       - run: npm run lint
       - run: npx tsc --noEmit
