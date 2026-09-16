@@ -1,0 +1,31 @@
+name: Build de producción
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  gate_calidad:
+    name: Gate de calidad
+    type: custom
+    steps:
+      - run: npm ci
+      - run: npm run lint
+      - run: npx tsc --noEmit
+      - run: npm test -- --ci
+      - run: node scripts/verificar-requisitos-tienda.js
+
+  build_ios:
+    name: Build iOS (production)
+    type: build
+    needs: [gate_calidad]
+    params:
+      platform: ios
+      profile: production
+
+  build_android:
+    name: Build Android (production)
+    type: build
+    needs: [gate_calidad]
+    params:
+      platform: android
+      profile: production
