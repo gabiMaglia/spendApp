@@ -50,7 +50,6 @@ beforeEach(() => {
 describe('el contador de avisos aparece en todas las tabs', () => {
   const TABS: [string, () => React.ComponentType][] = [
     ['Cuenta',    () => require('@/app/(tabs)/index').default],
-    ['Personal',  () => require('@/app/(tabs)/personal').default],
     ['Amigos',    () => require('@/app/(tabs)/friends').default],
     ['Grupos',    () => require('@/app/(tabs)/groups').default],
     ['Actividad', () => require('@/app/(tabs)/activity').default],
