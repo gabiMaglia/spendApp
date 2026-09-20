@@ -89,8 +89,7 @@ export default function TabLayout() {
         tabBarIconStyle: { marginBottom: -2 },
       }}
     >
-      {screen('index',     t('tabs.home'),     'home-outline')}
-      {screen('personal',  t('tabs.personal'), 'analytics-outline')}
+      {screen('index',     t('tabs.personal'), 'analytics-outline')}
       {screen('friends',   t('tabs.friends'),  'people-outline')}
       {screen('groups',    t('tabs.groups'),   'grid-outline')}
       {screen('activity',  t('tabs.activity'), 'pulse-outline')}

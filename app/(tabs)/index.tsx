@@ -1,118 +1,226 @@
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { Fab, FabRow } from '@/src/components/Fab';
-import { Colors } from '@/src/constants/colors';
-import { MoneyText } from '@/src/components/MoneyText';
-import { formatMoney } from '@/src/constants/currencies';
-import i18n from '@/src/i18n';
-import { Spacing } from '@/src/constants/spacing';
-import { Typography } from '@/src/constants/typography';
-import { Band, BandLink, Meter, SectionLabel, SplitStat } from '@/src/components/Band';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { TabHeader } from '@/src/components/TabHeader';
-import { useHeaderPadding, useLimiteContenido } from '@/src/components/CollapsibleHeader';
-import { GroupCard } from '@/src/components/GroupCard';
-import { useAuthStore } from '@/src/store/authStore';
-import { useGlobalPersonBalances, useGroupBalance, useGroupExpenseCount } from '@/src/store/selectors';
-import { usePersonalStore, toMonthKey } from '@/src/store/personalStore';
-import { useFx } from '@/src/store/useFx';
-import { convertMinor } from '@/src/services/fx';
-import { sumConverted } from '@/src/services/fxTotals';
-import type { PersonalEntry, Group } from '@/src/types/models';
 import {
-  repartirDelMes, BALDES_GASTADOS, BALDES_DISPONIBLES, type BucketPersonal,
-} from '@/src/algorithms/personalMonth';
-import { UnconvertedNotice } from '@/src/components/UnconvertedNotice';
-import { useGroupStore } from '@/src/store/groupStore';
-import { router } from 'expo-router';
-import React, { useMemo, useState } from 'react';
-import { hapticLight } from '@/src/utils/haptics';
-import { useTranslation } from 'react-i18next';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+  Alert, Pressable, StyleSheet, Text, TextInput, View,
+} from 'react-native';
 import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useHeaderColapsable } from '@/src/hooks/useHeaderColapsable';
-import { esYo } from '@/src/store/identityAlias';
+import { router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 
-export default function AccountScreen() {
-  const { t } = useTranslation();
-  // Sin aire entre el header y el primer elemento (PO 2026-09-13, T-130).
-  const headerPad = useHeaderPadding(0);
-  const limiteContenido = useLimiteContenido();
+import { Colors } from '@/src/constants/colors';
+import { Radius, Spacing } from '@/src/constants/spacing';
+import { Typography } from '@/src/constants/typography';
+import { formatMoney } from '@/src/constants/currencies';
+import { MoneyText } from '@/src/components/MoneyText';
+import type { CurrencyCode } from '@/src/constants/currencies';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useAmountInput } from '@/src/hooks/useAmountInput';
+import { Fab, FabRow } from '@/src/components/Fab';
+import {
+  Band, BandRow, Meter, SectionLabel, SplitStat, StatLead,
+} from '@/src/components/Band';
+import { useHeaderPadding, useLimiteContenido } from '@/src/components/CollapsibleHeader';
+import { useAuthStore } from '@/src/store/authStore';
+import { usePersonalStore, toMonthKey, currentMonthKey } from '@/src/store/personalStore';
+import { reasonKey } from '@/src/algorithms/entryOrigin';
+import { useDirectedDebts, useGlobalPersonBalances } from '@/src/store/selectors';
+import { hapticLight, hapticSelection, hapticWarning } from '@/src/utils/haptics';
+import { v4 as uuidv4 } from 'uuid';
+import { BottomSheet } from '@/src/components/Sheet';
+import type { PersonalEntry } from '@/src/types/models';
+import { useTranslation } from 'react-i18next';
+import i18n from '@/src/i18n';
+import { totalIOwe, totalOwedToMe } from '@/src/algorithms/directedDebts';
+import { repartirDelMes, type BucketPersonal } from '@/src/algorithms/personalMonth';
+import { useFx } from '@/src/store/useFx';
+import { UnconvertedNotice } from '@/src/components/UnconvertedNotice';
+import { sumConverted } from '@/src/services/fxTotals';
+import { syncedNow } from '@/src/utils/syncedClock';
+
+function monthLabel(key: string): string {
+  const [year, month] = key.split('-').map(Number);
+  const d = new Date(year, month - 1, 1);
+  const s = d.toLocaleDateString(i18n.language, { month: 'long', year: 'numeric' });
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+function prevMonth(key: string): string {
+  const [year, month] = key.split('-').map(Number);
+  const d = new Date(year, month - 2, 1);
+  return toMonthKey(d.getTime());
+}
+
+function nextMonth(key: string): string {
+  const [year, month] = key.split('-').map(Number);
+  const d = new Date(year, month, 1);
+  return toMonthKey(d.getTime());
+}
+
+const ENTRY_KIND_META = {
+  expense:         { icon: 'trending-down-outline' as const, labelKey: 'personal.kind_expense' },
+  income:          { icon: 'trending-up-outline'   as const, labelKey: 'personal.kind_income' },
+  group_replicated:{ icon: 'people-outline'        as const, labelKey: 'personal.kind_group' },
+  carryover:       { icon: 'refresh-outline'       as const, labelKey: 'personal.kind_carryover' },
+};
+
+export default function PersonalScreen() {
   const scheme = useColorScheme() ?? 'light';
+  const headerPad = useHeaderPadding();
+  const limiteContenido = useLimiteContenido();
+  const { t } = useTranslation();
   const c = Colors[scheme];
+
   const { currentUser } = useAuthStore();
+  const { entries, budget, removeEntry, setBudget, lastSeenMonth } = usePersonalStore();
+  useGlobalPersonBalances(currentUser?.id ?? '');
 
-  const personBalances = useGlobalPersonBalances(currentUser?.id ?? '');
-  const firstName = currentUser?.name?.split(' ')[0] ?? 'vos';
+  const today = toMonthKey(Date.now());
+  const [activeMonth, setActiveMonth] = useState(today);
+  const [showBudgetSheet, setShowBudgetSheet] = useState(false);
+  const [includeOwedToMe, setIncludeOwedToMe] = useState(budget.includeOwedToMe);
+  const [budgetCurrency] = useState<CurrencyCode>(budget.currency);
+  const {
+    text: budgetInput,
+    minor: budgetAmount,
+    onChangeText: setBudgetInput,
+    onBlur: onBudgetInputBlur,
+  } = useAmountInput(budgetCurrency, budget.monthlyAmount);
 
-  const { entries: personalEntries, budget } = usePersonalStore();
-  const { fx, display: cur, loading: fxLoading } = useFx();
-
+  /** Scroll del header colapsable. */
   const { scrollHandler, progress, contenidoMinimo, alMedirScroll } = useHeaderColapsable();
 
-  const thisMonth = toMonthKey(Date.now());
-  const monthEntries = personalEntries.filter(
-    e => !e.isDeleted && toMonthKey(e.date) === thisMonth,
-  );
-
-  const baldes = repartirDelMes(monthEntries);
-  const aMonto = (e: PersonalEntry) => ({ currency: e.currency, minor: e.amount });
-  const deBaldes = (cuales: readonly BucketPersonal[]) =>
-    sumConverted(cuales.flatMap(b => baldes[b]).map(aMonto), cur, fx);
-
-  const gastos   = deBaldes(BALDES_GASTADOS);
-  const ingresos = deBaldes(BALDES_DISPONIBLES);
-  const aFavor = sumConverted(
-    personBalances.filter(b => b.amount > 0).map(b => ({ currency: b.currency, minor: b.amount })),
-    cur, fx,
-  );
-
-  const totalSpent      = gastos.totalMinor;
-  const totalAcreditado = ingresos.totalMinor;
-  const owedToMeInCur   = aFavor.totalMinor;
-
-  const pendientes    = gastos.unconverted;
-  const pendientesFav = aFavor.unconverted;
+  const { fx, display: cur, loading: fxLoading } = useFx();
   const [avisoVisto, setAvisoVisto] = useState(false);
 
-  const groups = useGroupStore(st => st.groups);
+  const deudas = useDirectedDebts(currentUser?.id ?? '');
+  const owedToMe = useMemo(() => totalOwedToMe(deudas, cur), [deudas, cur]);
+  const youOwe   = useMemo(() => totalIOwe(deudas, cur), [deudas, cur]);
 
-  const misGrupos = useMemo(
-    () => groups.filter(g => !g.isDeleted && !!currentUser && g.memberIds.some(esYo)),
-    [groups, currentUser],
+  const owedToMeRef = useRef(owedToMe);
+  useEffect(() => { owedToMeRef.current = owedToMe; }, [owedToMe]);
+
+  // Month-rollover: sin cambios respecto del original (ADR-005/006).
+  useEffect(() => {
+    const thisMonth = currentMonthKey();
+    if (!lastSeenMonth || lastSeenMonth >= thisMonth) return;
+
+    const { entries: allEntries, budget: curBudget, addEntry: add, setLastSeenMonth: setSeen } =
+      usePersonalStore.getState();
+    const cy = curBudget.currency;
+
+    const alreadyCarried = allEntries.some(
+      e => !e.isDeleted && e.kind === 'carryover' && toMonthKey(e.date) === thisMonth,
+    );
+    if (alreadyCarried) { setSeen(thisMonth); return; }
+
+    const prevEntries = allEntries.filter(
+      e => !e.isDeleted && e.currency === cy && toMonthKey(e.date) === lastSeenMonth,
+    );
+
+    const prevIncome   = prevEntries.filter(e => e.kind === 'income').reduce((s, e) => s + e.amount, 0);
+    const prevExpense  = prevEntries.filter(e => e.kind === 'expense').reduce((s, e) => s + e.amount, 0);
+    const prevGroup    = prevEntries.filter(e => e.kind === 'group_replicated').reduce((s, e) => s + e.amount, 0);
+    const prevPosCarry = prevEntries.filter(e => e.kind === 'carryover' && e.isPositiveCarryover).reduce((s, e) => s + e.amount, 0);
+    const prevNegCarry = prevEntries.filter(e => e.kind === 'carryover' && !e.isPositiveCarryover).reduce((s, e) => s + e.amount, 0);
+
+    const prevEffective = curBudget.monthlyAmount + prevIncome + prevPosCarry +
+      (curBudget.includeOwedToMe ? owedToMeRef.current : 0);
+    const prevSpent     = prevExpense + prevGroup + prevNegCarry;
+    const prevRemaining = prevEffective - prevSpent;
+
+    if (Math.abs(prevRemaining) >= 0.01) {
+      const firstOfMonth = new Date(`${thisMonth}-01T12:00:00`).getTime();
+      add({
+        id:                  uuidv4(),
+        kind:                'carryover',
+        isPositiveCarryover: prevRemaining > 0,
+        description:         `Saldo de ${monthLabel(lastSeenMonth)}`,
+        amount:              Math.abs(prevRemaining),
+        currency:            cy,
+        category:            'other',
+        date:                firstOfMonth,
+        createdAt:           Date.now(),
+        updatedAt:           syncedNow(),
+        isDeleted:           false,
+      });
+    }
+
+    setSeen(thisMonth);
+  }, [lastSeenMonth]);
+
+  const monthEntries = useMemo(
+    () => entries.filter(e => !e.isDeleted && toMonthKey(e.date) === activeMonth),
+    [entries, activeMonth],
   );
 
+  const sumar = (pred: (e: PersonalEntry) => boolean) =>
+    sumConverted(
+      monthEntries.filter(pred).map(e => ({ currency: e.currency, minor: e.amount })),
+      cur, fx,
+    );
 
-  const effectiveBudget =
-    (convertMinor(budget.monthlyAmount, budget.currency, cur, fx) ?? 0)
-    + totalAcreditado + (budget.includeOwedToMe ? owedToMeInCur : 0);
-  const budgetPct = effectiveBudget > 0 ? Math.min(totalSpent / effectiveBudget, 1) : 0;
-  const hasBudget = budget.monthlyAmount > 0;
+  const baldes   = repartirDelMes(monthEntries);
+  const porBalde = (b: BucketPersonal) => sumar(e => baldes[b].includes(e));
+  const income   = porBalde('income');
+  const expense  = porBalde('expense');
+  const group    = porBalde('group');
+  const carryPos = porBalde('carryPos');
+  const carryNeg = porBalde('carryNeg');
 
-  const deben = sumConverted(
-    personBalances.filter(p => p.amount > 0).map(p => ({ currency: p.currency, minor: p.amount })),
-    cur, fx,
-  );
-  const debo = sumConverted(
-    personBalances.filter(p => p.amount < 0).map(p => ({ currency: p.currency, minor: -p.amount })),
-    cur, fx,
-  );
-  const owedToYou = deben.totalMinor;
-  const youOwe    = debo.totalMinor;
-  const net = owedToYou - youOwe;
+  const totalIncome       = income.totalMinor;
+  const totalExpense      = expense.totalMinor;
+  const totalGroup        = group.totalMinor;
+  const positiveCarryover = carryPos.totalMinor;
+  const negativeCarryover = carryNeg.totalMinor;
+  const totalSpent        = totalExpense + totalGroup + negativeCarryover;
 
-  // T-109: `pending` de verdad (placeholder `--`, sin animar) sólo mientras
-  // el fetch de cotizaciones sigue en vuelo (`fxLoading`) — si ya terminó y
-  // sigue faltando la tasa, es un fallo real y se sigue el camino de siempre
-  // (`unconverted`/`UnconvertedNotice`), no un `--` para siempre.
+  const pendientes = [...expense.unconverted, ...group.unconverted];
+
+  // T-109: cualquiera de los baldes que compone "Gastado"/"Disponible" puede
+  // haber quedado afuera por falta de cache (no por tasa ausente) — mientras
+  // el fetch siga en vuelo, los dos montos muestran `--` en vez de un total
+  // parcial que después salta al real.
+  const personalPending = fxLoading
+    && (income.pending || expense.pending || group.pending || carryPos.pending || carryNeg.pending);
   const pendingCalculando = t('fx.calculating');
-  const owedToYouPending = deben.pending && fxLoading;
-  const youOwePending    = debo.pending && fxLoading;
-  const netPending       = owedToYouPending || youOwePending;
-  const personalSpentPending = gastos.pending && fxLoading;
 
-  const barColor = budgetPct >= 1 ? c.semantic.negative
-    : budgetPct >= 0.8 ? c.semantic.warning
+  const baseBudget      = budget.monthlyAmount;
+  const effectiveBudget = baseBudget + totalIncome + positiveCarryover + (budget.includeOwedToMe ? owedToMe : 0);
+  const remaining       = effectiveBudget - totalSpent;
+  const pct             = effectiveBudget > 0 ? Math.min(totalSpent / effectiveBudget, 1) : 0;
+  const hasBudget       = baseBudget > 0;
+
+  const barColor = pct >= 1 ? c.semantic.negative
+    : pct >= 0.8 ? c.semantic.warning
     : c.brand.primary;
+
+  const atCurrentMonth = activeMonth >= today;
+
+  function handleSaveBudget() {
+    setBudget({ currency: budgetCurrency, monthlyAmount: budgetAmount, includeOwedToMe });
+    hapticLight();
+    setShowBudgetSheet(false);
+  }
+
+  function handleRemove(entry: PersonalEntry) {
+    const motivo = reasonKey(entry);
+    if (motivo) {
+      hapticWarning();
+      Alert.alert(t('personal.locked_title'), t(motivo));
+      return;
+    }
+    hapticWarning();
+    Alert.alert(
+      t('personal.remove_title'),
+      t('personal.remove_body', { desc: entry.description }),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        { text: t('common.delete'), style: 'destructive', onPress: () => removeEntry(entry.id) },
+      ],
+    );
+  }
 
   return (
     <SafeAreaView edges={['bottom']} style={[styles.safe, { backgroundColor: c.bg }]}>
@@ -122,171 +230,342 @@ export default function AccountScreen() {
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
         onScroll={scrollHandler}
-        contentContainerStyle={[{ paddingTop: headerPad, paddingBottom: 150 }, contenidoMinimo]}
+        contentContainerStyle={[{ paddingTop: headerPad, paddingBottom: 140 }, contenidoMinimo]}
       >
-        {/* Banda de deuda direccional: los dos lados no se netean (ADR-006) */}
-        <SplitStat
+        {/* T-114: el título pasó al header (fijo, ya no scrollea); esta fila
+            ahora sólo aloja el botón de ajustes, pegado a la derecha como
+            antes. */}
+        <View style={styles.titleRow}>
+          <Pressable
+            onPress={() => { hapticLight(); setShowBudgetSheet(true); }}
+            style={[styles.iconBtn, { backgroundColor: c.bgGrouped }]}
+          >
+            <Ionicons name="settings-outline" size={17} color={c.textSecondary} />
+          </Pressable>
+        </View>
+
+        {/* Navegador de mes */}
+        <View style={styles.monthNav}>
+          <Pressable onPress={() => { hapticSelection(); setActiveMonth(prevMonth(activeMonth)); }} hitSlop={12}>
+            <Ionicons name="chevron-back" size={19} color={c.textSecondary} />
+          </Pressable>
+          <Text style={{ fontSize: 15, fontWeight: '700', color: c.text }}>
+            {monthLabel(activeMonth)}
+          </Text>
+          <Pressable
+            onPress={() => { hapticSelection(); setActiveMonth(nextMonth(activeMonth)); }}
+            disabled={atCurrentMonth}
+            hitSlop={12}
+            style={{ opacity: atCurrentMonth ? 0.3 : 1 }}
+          >
+            <Ionicons name="chevron-forward" size={19} color={c.textSecondary} />
+          </Pressable>
+        </View>
+
+        {/* Banda medidor */}
+        {hasBudget ? (
+          <Band>
+            <View style={styles.meterPad}>
+              <View style={styles.meterTop}>
+                <View>
+                  <Text style={[Typography.label, styles.upper, { color: c.textTertiary }]}>
+                    {t('personal.spent')}
+                  </Text>
+                  <MoneyText
+                    minor={totalSpent}
+                    code={cur}
+                    rollId="personal.gastado"
+                    pending={personalPending}
+                    pendingAccessibilityLabel={pendingCalculando}
+                    style={[Typography.amountM, { color: c.text }]}
+                  />
+                </View>
+                <View style={{ alignItems: 'flex-end', flexShrink: 0, marginLeft: 16 }}>
+                  <Text style={[Typography.label, styles.upper, { color: c.textTertiary }]}>
+                    {remaining >= 0 ? t('personal.available') : t('personal.exceeded')}
+                  </Text>
+                  <MoneyText
+                    minor={Math.abs(remaining)}
+                    code={cur}
+                    rollId="personal.disponible"
+                    pending={personalPending}
+                    pendingAccessibilityLabel={pendingCalculando}
+                    style={[Typography.amountM, { color: remaining >= 0 ? c.semantic.positive : c.semantic.negative }]}
+                  />
+                </View>
+              </View>
+
+              <View style={{ marginTop: 14, marginBottom: 10 }}>
+                <Meter pct={pct} color={barColor} />
+              </View>
+
+              <Text style={[Typography.caption, { color: c.textTertiary, textAlign: 'center' }]}>
+                {t('personal.budget_progress', { pct: Math.round(pct * 100), amount: formatMoney(effectiveBudget, cur) })}
+                {budget.includeOwedToMe && owedToMe > 0
+                  ? t('personal.budget_includes_owed', { amount: formatMoney(owedToMe, cur) })
+                  : ''}
+              </Text>
+            </View>
+          </Band>
+        ) : (
+          <Band>
+            <Pressable
+              onPress={() => { hapticLight(); setShowBudgetSheet(true); }}
+              style={styles.meterEmpty}
+            >
+              <Ionicons name="bar-chart-outline" size={26} color={c.textTertiary} />
+              <Text style={[Typography.bodyM, { color: c.textSecondary, textAlign: 'center' }]}>
+                {t('personal.budget_empty')}
+              </Text>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: c.brand.primary }}>
+                {t('personal.budget_configure')}
+              </Text>
+            </Pressable>
+          </Band>
+        )}
+
+        {/* El ingreso a lo ancho y los dos gastos abajo (PO 2026-09-02). En una
+            sola fila de tres, un ingreso y dos gastos se leen como comparables
+            entre sí, y no lo son: los de abajo salen del de arriba. */}
+        <StatLead
+          sunken
+          lead={{
+            label: t('personal.summary_income'),
+            value: `+${formatMoney(totalIncome, cur)}`,
+            color: c.semantic.positive,
+          }}
           items={[
-            {
-              label: t('friends.owed_to_you'), value: formatMoney(owedToYou, cur), color: c.semantic.positive,
-              id: 'home.owedToYou', minor: owedToYou, code: cur,
-              pending: owedToYouPending, pendingLabel: pendingCalculando,
-            },
-            {
-              label: t('friends.you_owe'), value: formatMoney(youOwe, cur), color: c.textSecondary,
-              id: 'home.youOwe', minor: youOwe, code: cur,
-              pending: youOwePending, pendingLabel: pendingCalculando,
-            },
+            { label: t('personal.summary_personal'), value: formatMoney(totalExpense, cur) },
+            { label: t('personal.summary_groups'),   value: formatMoney(totalGroup, cur) },
           ]}
         />
 
-        {/* Fila de neto */}
-        <Band sunken>
-          <Pressable
-            accessibilityRole="button"
-            testID="groups-card"
-            onPress={() => { hapticLight(); router.push('/(tabs)/groups' as any); }}
-            style={styles.netRow}
-          >
-            <Text style={[Typography.caption, { color: c.textSecondary, flex: 1 }]}>
-              {t('dashboard.groups_balance')} ·{' '}
-              {misGrupos.length === 1
-                ? t('dashboard.groups_count_one')
-                : t('dashboard.groups_count', { count: misGrupos.length })}
-            </Text>
-            <MoneyText
-              minor={net}
-              code={cur}
-              prefix={net > 0 ? '+' : ''}
-              rollId="home.net"
-              pending={netPending}
-              pendingAccessibilityLabel={pendingCalculando}
-              style={[Typography.amountS, {
-                color: net > 0 ? c.semantic.positive : net < 0 ? c.semantic.negative : c.text,
-              }]}
-            />
-          </Pressable>
-        </Band>
+        {/* Deuda direccional: banda propia, nunca mezclada con lo gastado
+            (ADR-006). Era un párrafo con los montos embebidos en la frase; el
+            PO pidió una caja con los números afuera, y agregó el que faltaba:
+            cuánto queda disponible DESPUÉS de pagar lo que se debe. Ese número
+            es el que decide si podés gastar, y antes había que restarlo a mano. */}
+        {youOwe > 0 ? (
+          <SplitStat
+            items={[
+              ...(owedToMe > 0
+                ? [{
+                    label: t('personal.owed_to_me'),
+                    value: formatMoney(owedToMe, cur),
+                    color: c.semantic.positive,
+                  }]
+                : []),
+              {
+                label: t('personal.i_owe'),
+                value: formatMoney(youOwe, cur),
+                color: c.semantic.negative,
+              },
+              {
+                label: t('personal.available_after_debts'),
+                value: formatMoney(Math.abs(remaining - youOwe), cur),
+                // En rojo cuando pagar lo que debés te deja en negativo: es
+                // justamente el caso en el que el número importa.
+                color: remaining - youOwe >= 0 ? c.semantic.positive : c.semantic.negative,
+              },
+            ]}
+          />
+        ) : owedToMe > 0 ? (
+          <SplitStat
+            items={[{
+              label: t('personal.owed_to_me'),
+              value: formatMoney(owedToMe, cur),
+              color: c.semantic.positive,
+            }]}
+          />
+        ) : null}
 
-        {/* Personal del mes */}
-        <SectionLabel
-          label={`${t('dashboard.personal_label')} · ${new Date().toLocaleString(i18n.language, { month: 'long' })}`}
-          right={<BandLink label={t('dashboard.see_month')} onPress={() => router.push('/(tabs)/personal' as any)} />}
-        />
-        <Band>
-          <Pressable
-            onPress={() => { hapticLight(); router.push('/(tabs)/personal' as any); }}
-            style={styles.personalPad}
-          >
-            <View style={styles.personalTop}>
-              <MoneyText
-                minor={totalSpent}
-                code={cur}
-                rollId="home.personalSpent"
-                pending={personalSpentPending}
-                pendingAccessibilityLabel={pendingCalculando}
-                style={[Typography.amountL, {
-                  color: totalAcreditado >= totalSpent ? c.text : c.semantic.negative,
-                }]}
-              />
-              <Text style={[Typography.caption, { color: c.textTertiary }]}>
-                {t('dashboard.spent')}
+        {/* La aclaración sobrevive al párrafo que la contenía: la deuda NO
+            afecta lo gastado hasta que se salda (ADR-006), y sin decirlo los
+            números de arriba parecerían no cerrar. */}
+        {(youOwe > 0 || owedToMe > 0) && (
+          <Text style={[Typography.caption, styles.debtsNote, { color: c.textTertiary }]}>
+            {t('personal.debts_note')}
+          </Text>
+        )}
+
+        {pendientes.length > 0 && (
+          <UnconvertedNotice
+            visible={!avisoVisto}
+            display={cur}
+            unconverted={pendientes}
+            onClose={() => setAvisoVisto(true)}
+          />
+        )}
+
+        {/* T-108: aire antes de la lista de movimientos, doblado (22 → 44,
+            redondeado a Spacing[8]=40, ver handoff). */}
+        <SectionLabel label={t('personal.movements_count', { count: monthEntries.length })} topOverride={Spacing[8]} />
+
+        {monthEntries.length === 0 ? (
+          <Band>
+            <View style={styles.emptyBox}>
+              <Ionicons name="receipt-outline" size={26} color={c.textTertiary} />
+              <Text style={[Typography.bodyM, { color: c.textTertiary, marginTop: 8, textAlign: 'center' }]}>
+                {t('personal.no_movements', { month: monthLabel(activeMonth) })}
               </Text>
             </View>
-
-            {hasBudget ? (
-              <>
-                <View style={{ marginTop: 13, marginBottom: 9 }}>
-                  <Meter pct={budgetPct} color={barColor} height={4} />
-                </View>
-                <Text style={[Typography.caption, { color: c.textTertiary }]}>
-                  {t('dashboard.available')}{' '}
-                  {formatMoney(Math.max(effectiveBudget - totalSpent, 0), cur)} · {formatMoney(effectiveBudget, cur)}
-                </Text>
-              </>
-            ) : (
-              <Text style={[Typography.caption, { color: c.brand.primary, marginTop: 10, fontWeight: '700' }]}>
-                {t('dashboard.set_budget')}
-              </Text>
-            )}
-          </Pressable>
-        </Band>
-
-        <UnconvertedNotice
-          visible={(pendientes.length > 0 || pendientesFav.length > 0) && !avisoVisto}
-          display={cur}
-          unconverted={pendientes}
-          owed={pendientesFav}
-          onClose={() => setAvisoVisto(true)}
-        />
-
-        {/* Grupos. T-108: el aire antes de esta lista se dobla (22 → 44,
-            redondeado al token más cercano: Spacing[8]=40, ver handoff). */}
-        <SectionLabel
-          label={t('tabs.groups')}
-          topOverride={Spacing[8]}
-          right={<BandLink label={t('groups.new_group')} onPress={() => router.push('/groups/new' as any)} />}
-        />
-        {misGrupos.length > 0 && (
+          </Band>
+        ) : (
           <Band>
-            {misGrupos.map((g, i) => (
-              <HomeGroupRow
-                key={g.id}
-                group={g}
-                currentUserId={currentUser?.id ?? ''}
-                last={i === misGrupos.length - 1}
-                onPress={() => router.push(`/groups/${g.id}` as any)}
+            {[...monthEntries].sort((a, b) => b.date - a.date).map((entry, i, arr) => (
+              <EntryRow
+                key={entry.id}
+                entry={entry}
+                last={i === arr.length - 1}
+                onRemove={() => handleRemove(entry)}
               />
             ))}
           </Band>
         )}
       </Animated.ScrollView>
 
-      {/* T-114: el saludo pasa a vivir en el header — ya no scrollea con el contenido. */}
-      <TabHeader
-        title={t('dashboard.title')}
-        subtitle={t('dashboard.greeting', { name: firstName })}
-        progress={progress}
-      />
+      <TabHeader title={t('personal.title')} progress={progress} />
 
       <FabRow>
         <Fab
-          onPress={() => router.push('/expense/new')}
+          variant="secondary"
+          onPress={() => router.push({ pathname: '/expense/new', params: { allowIncome: '1', kind: 'income' } } as any)}
+          icon="trending-up-outline"
+          label={t('personal.fab_income')}
+          backgroundColor={c.semantic.positiveSoft}
+          borderColor={c.hair}
+          iconColor={c.semantic.positive}
+          textColor={c.semantic.positive}
+        />
+        <Fab
+          onPress={() => router.push({ pathname: '/expense/new', params: { allowIncome: '1' } } as any)}
           icon="add"
-          label={t('dashboard.add_expense')}
+          label={t('personal.fab_expense')}
           backgroundColor={c.brand.primary}
         />
       </FabRow>
+
+      <BottomSheet visible={showBudgetSheet} onClose={() => setShowBudgetSheet(false)}>
+        <Text style={[Typography.h3, { color: c.text, marginBottom: 6 }]}>{t('personal.budget_sheet_title')}</Text>
+        <Text style={[Typography.bodyS, { color: c.textSecondary, marginBottom: 20 }]}>
+          {t('personal.budget_reset_note')}
+        </Text>
+
+        <Text style={[Typography.label, styles.upper, { color: c.textTertiary, marginBottom: 8 }]}>
+          {t('personal.amount')}
+        </Text>
+        <View style={[styles.budgetInput, { backgroundColor: c.bgGrouped, borderColor: c.hair }]}>
+          <Text style={[Typography.bodyM, { color: c.textTertiary }]}>$</Text>
+          <TextInput
+            value={budgetInput}
+            onChangeText={setBudgetInput}
+            onBlur={onBudgetInputBlur}
+            keyboardType="decimal-pad"
+            placeholder="0"
+            placeholderTextColor={c.textTertiary}
+            style={[Typography.bodyM, { flex: 1, color: c.text, padding: 0 }]}
+            returnKeyType="done"
+          />
+        </View>
+
+        <Pressable
+          onPress={() => { hapticSelection(); setIncludeOwedToMe(v => !v); }}
+          style={[styles.toggleRow, { backgroundColor: c.bgGrouped, borderColor: c.hair }]}
+        >
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={[Typography.bodyL, { color: c.text }]}>{t('personal.include_owed')}</Text>
+            <Text style={[Typography.bodyS, { color: c.textSecondary }]}>{t('personal.include_owed_sub')}</Text>
+          </View>
+          <View style={[styles.toggle, { backgroundColor: includeOwedToMe ? c.brand.primary : c.hair }]}>
+            <View style={[styles.toggleKnob, includeOwedToMe && styles.toggleKnobOn]} />
+          </View>
+        </Pressable>
+
+        <Pressable onPress={handleSaveBudget} style={[styles.saveBtn, { backgroundColor: c.brand.primary }]}>
+          <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff' }}>{t('personal.save_budget')}</Text>
+        </Pressable>
+      </BottomSheet>
     </SafeAreaView>
   );
 }
 
-/** Fila de grupo del home: resuelve su propio balance y conteo de gastos. */
-function HomeGroupRow({
-  group, currentUserId, onPress, last,
-}: { group: Group; currentUserId: string; onPress: () => void; last?: boolean }) {
-  const balances     = useGroupBalance(group.id, currentUserId);
-  const expenseCount = useGroupExpenseCount(group.id);
-  const mainBalance  = balances.find(b => b.currency === group.currency)?.amount ?? 0;
+function EntryRow({
+  entry, onRemove, last,
+}: { entry: PersonalEntry; onRemove: () => void; last?: boolean }) {
+  const scheme = useColorScheme() ?? 'light';
+  const { t } = useTranslation();
+  const c = Colors[scheme];
+  const meta = ENTRY_KIND_META[entry.kind];
+  const isCarryover = entry.kind === 'carryover';
+  const isPositive  = entry.kind === 'income' || (isCarryover && entry.isPositiveCarryover === true);
+  const isReadOnly  = entry.kind === 'group_replicated' || isCarryover;
+  const dateLabel   = new Date(entry.date).toLocaleDateString(i18n.language, { day: 'numeric', month: 'short' });
+
+  const iconBg    = isPositive ? c.semantic.positiveSoft : c.hair2;
+  const iconColor = isPositive ? c.semantic.positive : c.textTertiary;
+  const amountColor = isPositive ? c.semantic.positive
+    : isCarryover ? c.semantic.negative : c.text;
+
   return (
-    <GroupCard
-      name={group.name}
-      memberIds={group.memberIds}
-      balance={mainBalance}
-      currency={group.currency}
-      subtitle={`${expenseCount} gastos`}
-      onPress={onPress}
-      last={last}
-    />
+    <BandRow last={last}>
+      <View style={[styles.entryIcon, { backgroundColor: iconBg }]}>
+        <Ionicons name={meta.icon} size={17} color={iconColor} />
+      </View>
+      <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+        <Text style={[Typography.bodyL, { color: c.text }]} numberOfLines={1}>
+          {entry.description}
+        </Text>
+        <Text style={[Typography.caption, { color: c.textTertiary }]} numberOfLines={1}>
+          {t(meta.labelKey)}
+          {entry.sourceGroupName ? ` · ${entry.sourceGroupName}` : ''}
+          {' · '}{dateLabel}
+        </Text>
+      </View>
+      <View style={{ alignItems: 'flex-end', gap: 5 }}>
+        <Text style={[Typography.amountS, { color: amountColor }]}>
+          {isPositive ? '+' : '-'}{formatMoney(entry.amount, entry.currency)}
+        </Text>
+        {isReadOnly
+          ? <Ionicons name="lock-closed-outline" size={12} color={c.textTertiary} />
+          : (
+            <Pressable onPress={onRemove} hitSlop={8}>
+              <Ionicons name="trash-outline" size={14} color={c.textTertiary} />
+            </Pressable>
+          )}
+      </View>
+    </BandRow>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  netRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingHorizontal: Spacing.screenPad, paddingVertical: 11,
+  debtsNote: { paddingHorizontal: Spacing.screenPad, marginTop: 6 },
+  upper: { textTransform: 'uppercase' },
+  titleRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end',
+    paddingHorizontal: Spacing.screenPad, paddingBottom: 14,
   },
-  personalPad: { paddingHorizontal: Spacing.screenPad, paddingTop: 14, paddingBottom: 16 },
-  personalTop: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 },
+  iconBtn: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  monthNav: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: Spacing.screenPad, paddingBottom: 16,
+  },
+  meterPad:  { paddingHorizontal: Spacing.screenPad, paddingTop: 15, paddingBottom: 16 },
+  meterTop:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  meterEmpty:{ alignItems: 'center', gap: 10, paddingVertical: Spacing[6], paddingHorizontal: Spacing[6] },
+  emptyBox:  { alignItems: 'center', justifyContent: 'center', padding: Spacing[6] },
+  entryIcon: { width: 36, height: 36, borderRadius: Radius.sm, alignItems: 'center', justifyContent: 'center' },
+  budgetInput: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    borderRadius: Radius.md, borderWidth: 1,
+    paddingHorizontal: 16, paddingVertical: 14, marginBottom: 16,
+  },
+  toggleRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    borderRadius: Radius.md, borderWidth: 1, padding: 14,
+  },
+  toggle:      { width: 42, height: 25, borderRadius: 13, padding: 3 },
+  toggleKnob:  { width: 19, height: 19, borderRadius: 10, backgroundColor: '#fff' },
+  toggleKnobOn:{ transform: [{ translateX: 17 }] },
+  saveBtn:     { borderRadius: Radius.md, paddingVertical: 14, alignItems: 'center', marginTop: 16 },
 });
