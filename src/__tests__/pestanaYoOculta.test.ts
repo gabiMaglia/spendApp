@@ -32,8 +32,8 @@ describe('la pestaña "Yo" ya no está en el tab bar (T-115)', () => {
     expect(existsSync(join(RAIZ, 'app/(tabs)/user.tsx'))).toBe(true);
   });
 
-  it('las otras cinco pestañas siguen usando el helper visible', () => {
-    for (const name of ['index', 'personal', 'friends', 'groups', 'activity']) {
+  it('las otras cuatro pestañas siguen usando el helper visible', () => {
+    for (const name of ['index', 'friends', 'groups', 'activity']) {
       expect(LAYOUT).toMatch(new RegExp(`screen\\(\\s*'${name}'`));
     }
   });

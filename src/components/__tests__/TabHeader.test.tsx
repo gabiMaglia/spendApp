@@ -169,11 +169,11 @@ describe('subtítulo (saludo) — sólo cuando la pantalla lo pasa', () => {
  * la bandeja.
  */
 describe('ninguna tab arma su propio header', () => {
-  it('las seis usan TabHeader', () => {
+  it('las cinco usan TabHeader', () => {
     const dir = join(__dirname, '..', '..', '..', 'app', '(tabs)');
     const tabs = readdirSync(dir).filter(f => f.endsWith('.tsx') && f !== '_layout.tsx');
 
-    expect(tabs.length).toBe(6);
+    expect(tabs.length).toBe(5);
     for (const tab of tabs) {
       const src = readFileSync(join(dir, tab), 'utf8');
       expect(`${tab}: ${src.includes('<TabHeader')}`).toBe(`${tab}: true`);
