@@ -250,11 +250,15 @@ beforeEach(() => {
  * primero que aparece en el contenido de la pantalla.
  */
 describe('fusión Inicio→Personal: header y bloque de deuda arriba de todo', () => {
-  it('el header muestra "Tus cuentas" y el saludo con el primer nombre', () => {
+  // El mock de i18n en src/test-utils/setup.ts hace que `t(key, opts)`
+  // devuelva la CLAVE (y `key({"opt":val})` cuando hay opts) en vez del
+  // texto traducido — así es como todos los tests de este repo verifican
+  // textos i18n, nunca contra el string en español.
+  it('el header muestra la clave dashboard.title y el saludo con el primer nombre', () => {
     const r = render(<PersonalScreen />);
 
-    expect(r.getByText('Tus cuentas')).toBeTruthy();
-    expect(r.getByText('Hola, Gabriel')).toBeTruthy();
+    expect(r.getByText('dashboard.title')).toBeTruthy();
+    expect(r.getByText('dashboard.greeting({"name":"Gabriel"})')).toBeTruthy();
   });
 
   it('sin nombre de usuario, el saludo cae a "vos"', () => {
@@ -262,10 +266,10 @@ describe('fusión Inicio→Personal: header y bloque de deuda arriba de todo', (
 
     const r = render(<PersonalScreen />);
 
-    expect(r.getByText('Hola, vos')).toBeTruthy();
+    expect(r.getByText('dashboard.greeting({"name":"vos"})')).toBeTruthy();
   });
 
-  it('el bloque "Te deben" aparece antes que la fila de ajustes', () => {
+  it('el bloque "Te deben" (friends.owed_to_you) aparece antes que la fila de ajustes', () => {
     const r = render(<PersonalScreen />);
 
     // getByTestId/getByText no dan posición, pero el árbol serializado sí
@@ -273,7 +277,7 @@ describe('fusión Inicio→Personal: header y bloque de deuda arriba de todo', (
     // únicas en ese JSON es una forma simple y determinística de verificar
     // orden sin depender de una API de traversal más frágil.
     const arbol = JSON.stringify(r.toJSON());
-    const indiceDeuda    = arbol.indexOf('Te deben');
+    const indiceDeuda    = arbol.indexOf('friends.owed_to_you');
     const indiceAjustes  = arbol.indexOf('personal-settings-btn');
 
     expect(indiceDeuda).toBeGreaterThanOrEqual(0);
@@ -285,7 +289,7 @@ describe('fusión Inicio→Personal: header y bloque de deuda arriba de todo', (
 - [ ] **Step 2: Run it to confirm it fails**
 
 Run: `npm test -- --testPathPattern=fusionHeaderYDeudas`
-Expected: FAIL — `Tus cuentas` and `Hola, Gabriel` don't exist yet in the rendered output (the header still says Personal's own title, and there's no debt block above the settings row); `personal-settings-btn` testID doesn't exist yet either.
+Expected: FAIL — `dashboard.title` and `dashboard.greeting({"name":"Gabriel"})` don't exist yet in the rendered output (the header still says `personal.title`, and there's no debt block above the settings row); `personal-settings-btn` testID doesn't exist yet either.
 
 - [ ] **Step 3: Implement — header change**
 
@@ -469,7 +473,12 @@ describe('fusión Inicio→Personal: fila Grupos · Balance', () => {
 
     const r = render(<PersonalScreen />);
 
-    expect(r.getByText(/1 grupo/)).toBeTruthy();
+    // Con un solo grupo propio, el conteo usa la clave singular
+    // (dashboard.groups_count_one, sin opts) — el mock de i18n en
+    // src/test-utils/setup.ts devuelve la clave literal, no el texto
+    // traducido. El label completo concatena ambas claves con " · ",
+    // igual que ya lo hace el patrón probado en ActivityLine.test.tsx.
+    expect(r.getByText('dashboard.groups_balance · dashboard.groups_count_one')).toBeTruthy();
   });
 });
 ```
