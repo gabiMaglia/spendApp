@@ -474,7 +474,6 @@
     "activity": "Activity"
   },
   "personal": {
-    "title": "Personal",
     "spent": "Spent",
     "available": "Available",
     "exceeded": "Exceeded",

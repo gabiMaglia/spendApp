@@ -67,12 +67,15 @@ const ENTRY_KIND_META = {
 
 export default function PersonalScreen() {
   const scheme = useColorScheme() ?? 'light';
-  const headerPad = useHeaderPadding();
+  // T-121: sin aire entre el header y el bloque de deuda migrado (mismo
+  // criterio que tenía Inicio, T-130).
+  const headerPad = useHeaderPadding(0);
   const limiteContenido = useLimiteContenido();
   const { t } = useTranslation();
   const c = Colors[scheme];
 
   const { currentUser } = useAuthStore();
+  const firstName = currentUser?.name?.split(' ')[0] ?? 'vos';
   const { entries, budget, removeEntry, setBudget, lastSeenMonth } = usePersonalStore();
   useGlobalPersonBalances(currentUser?.id ?? '');
 
@@ -235,8 +238,22 @@ export default function PersonalScreen() {
         {/* T-114: el título pasó al header (fijo, ya no scrollea); esta fila
             ahora sólo aloja el botón de ajustes, pegado a la derecha como
             antes. */}
+        {/* T-121: migrado de Inicio — reusa owedToMe/youOwe, ya derivados
+            más abajo de useDirectedDebts (no se duplica el cálculo). Sin
+            pending: a diferencia de la vieja Inicio (que salía de
+            useGlobalPersonBalances + sumConverted), esta fuente no tiene
+            noción de "conversión en vuelo" — igual que el SplitStat de
+            deuda de Personal que ya convive en este archivo, más abajo. */}
+        <SplitStat
+          items={[
+            { label: t('friends.owed_to_you'), value: formatMoney(owedToMe, cur), color: c.semantic.positive },
+            { label: t('friends.you_owe'),     value: formatMoney(youOwe, cur),   color: c.textSecondary },
+          ]}
+        />
+
         <View style={styles.titleRow}>
           <Pressable
+            testID="personal-settings-btn"
             onPress={() => { hapticLight(); setShowBudgetSheet(true); }}
             style={[styles.iconBtn, { backgroundColor: c.bgGrouped }]}
           >
@@ -424,7 +441,11 @@ export default function PersonalScreen() {
         )}
       </Animated.ScrollView>
 
-      <TabHeader title={t('personal.title')} progress={progress} />
+      <TabHeader
+        title={t('dashboard.title')}
+        subtitle={t('dashboard.greeting', { name: firstName })}
+        progress={progress}
+      />
 
       <FabRow>
         <Fab
