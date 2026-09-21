@@ -29,10 +29,16 @@ jest.mock('../authorKeys', () => ({ refreshPendingAuthors: jest.fn(async () => {
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
-import { useGroupKeyStore } from '@/src/store/groupKeyStore';
+import { useGroupKeyStore, groupKeyBytes } from '@/src/store/groupKeyStore';
+import { useUserStore } from '@/src/store/userStore';
 import { publishToGroup, drainGroup } from '../relaySync';
 import { manifestGapFor, clearManifestGaps } from '../manifestHealth';
-import type { Group, Expense } from '@/src/types/models';
+import * as avatarTopic from '../avatarTopic';
+import { sealEnvelope, deriveTopic } from '../envelopeCrypto';
+import { signEnvelope } from '../envelopeSign';
+import { ensureIdentity } from '@/src/store/identityStore';
+import { sendEnvelope } from '../relay';
+import type { Group, Expense, User } from '@/src/types/models';
 
 const relayMock = jest.requireMock('../relay') as {
   __buzones: Map<string, { ckey?: string; compactable?: boolean; payload: string }[]>;
@@ -206,6 +212,105 @@ describe('drainGroup aplica rebanadas y detecta manifiestos incompletos', () => 
     const result = await drainGroup('G', 'u1', 'device2', 0);
     expect(result.ok).toBe(true);
     expect(manifestGapFor('G')).toBeNull();
+  });
+
+  /**
+   * Revisión de Task 9, hallazgo #1 (Critical): el guard viejo de
+   * `fetchAvatarIfMissing` comparaba el `avatarDigest` entrante contra
+   * `local.avatarDigest` — pero para cuando esa función corre, la rebanada
+   * `users` YA se mergeó (`mergeUsersLWW`), así que `local.avatarDigest` YA es
+   * el digest NUEVO mientras `local.avatar` sigue con los bytes VIEJOS. El
+   * guard viejo daba un empate trivial y la foto nueva nunca se pedía. Este
+   * test publica una foto, la drena, después CAMBIA la foto (mismo usuario,
+   * nuevo digest) y verifica que la segunda vuelta sí trae los bytes nuevos.
+   */
+  it('si la foto de un usuario ya conocido CAMBIA, el siguiente drenaje trae y adopta los bytes nuevos', async () => {
+    useGroupStore.setState({ groups: [{ ...grupo(), memberIds: ['u1', 'u2'] }] } as never);
+    useExpenseStore.setState({ expenses: [gasto('e1')] } as never);
+
+    const fotoVieja = 'foto-vieja-'.repeat(200);
+    const fotoNueva = 'foto-nueva-'.repeat(200);
+
+    // Ronda 1: u2 publica su foto vieja.
+    useUserStore.setState({ users: [
+      { id: 'u2', name: 'Dos', email: '', authProvider: 'google', createdAt: 1, avatar: fotoVieja, updatedAt: 1, isDeleted: false } as unknown as User,
+    ] });
+    await publishToGroup('G', 'u2', 'deviceU2');
+
+    let result = await drainGroup('G', 'u1', 'deviceU1', 0);
+    expect(result.ok).toBe(true);
+    expect(useUserStore.getState().getUserById('u2')?.avatar).toBe(fotoVieja);
+
+    // Ronda 2: u2 cambia de foto y vuelve a publicar (mismo usuario, digest
+    // distinto — NO es un usuario nuevo).
+    useUserStore.setState({ users: [
+      { id: 'u2', name: 'Dos', email: '', authProvider: 'google', createdAt: 1, avatar: fotoNueva, updatedAt: 2, isDeleted: false } as unknown as User,
+    ] });
+    await publishToGroup('G', 'u2', 'deviceU2');
+
+    result = await drainGroup('G', 'u1', 'deviceU1', 0);
+    expect(result.ok).toBe(true);
+
+    const u2Final = useUserStore.getState().getUserById('u2');
+    // Con el bug viejo, esto se quedaba pegado en `fotoVieja` para siempre.
+    expect(u2Final?.avatar).toBe(fotoNueva);
+    expect(u2Final?.avatarDigest).toBeTruthy();
+  });
+
+  /**
+   * Revisión de Task 9, hallazgo #2 (Critical, clase T-132/S3-A1): el loop de
+   * fetch de avatares en `drainGroup` iteraba `delta.users` CRUDO en vez de la
+   * salida de `acotarDeltaAlGrupo`, así que un miembro de un grupo podía
+   * declarar un `avatarDigest` para un contacto que la víctima conoce de OTRO
+   * grupo (no miembro de ESTE), y el código lo adoptaba igual — aunque el
+   * merge normal de `users` ya lo descarta.
+   *
+   * El envío se arma A MANO (mismos primitivos que usa `relaySync.ts`:
+   * `sealEnvelope`/`signEnvelope`/`deriveTopic`) en vez de usar
+   * `publishToGroup`, a propósito: `buildGroupPayload` YA filtra `users` por
+   * la membresía que declara el propio remitente (`delGrupo[0]?.memberIds`),
+   * así que un envío honesto por esa vía jamás incluiría a un no-miembro. El
+   * ataque real (S3-A1) es justamente que un miembro del grupo NO está atado
+   * a mandar sólo lo que la app arma — puede escribir cualquier sobre válido
+   * (firmado con su clave, sellado con la clave del grupo) directo al buzón.
+   */
+  it('un avatarDigest declarado para un contacto que NO es miembro de este grupo no se fetch-ea ni se adopta', async () => {
+    const fetchSpy = jest.spyOn(avatarTopic, 'fetchAvatarIfMissing').mockResolvedValue(undefined);
+
+    useGroupStore.setState({ groups: [{ ...grupo(), memberIds: ['u1', 'uAtt'] }] } as never);
+    useExpenseStore.setState({ expenses: [] } as never);
+
+    // La víctima YA conoce a 'u3' (de otro grupo), con su foto real cacheada.
+    // Esto es lo que hace que `acotarDeltaAlGrupo` lo trate como "conocido,
+    // pero no miembro de G" y lo descarte, en vez de como "perfil nuevo".
+    useUserStore.setState({ users: [
+      { id: 'u3', name: 'Contacto ajeno', email: '', authProvider: 'google', createdAt: 1, avatar: 'foto-contacto-real', updatedAt: 1, isDeleted: false } as unknown as User,
+    ] });
+
+    // El atacante ('uAtt', miembro legítimo de G) arma a mano un sobre que
+    // declara un `avatarDigest` malicioso para 'u3' — sin pasar por
+    // `publishToGroup`/`buildGroupPayload`, que jamás lo dejaría salir así.
+    const key = groupKeyBytes('G')!;
+    const record = useGroupKeyStore.getState().getKey('G')!;
+    const topic = await deriveTopic(key, record.epoch);
+    const deltaMalicioso = {
+      version: 1, featureVersion: 2, fromUserId: 'uAtt', timestamp: Date.now(),
+      groups: [], expenses: [], payments: [], recurring: [], comments: [],
+      users: [{ id: 'u3', name: 'Contacto ajeno', email: '', authProvider: 'google', createdAt: 1, avatarDigest: 'digest-malicioso', updatedAt: 999, isDeleted: false }],
+    };
+    const sealed = sealEnvelope(key, JSON.stringify(deltaMalicioso));
+    const firmado = signEnvelope(sealed, ensureIdentity().privateKey);
+    await sendEnvelope(topic, firmado, 'deviceAttacker', false);
+
+    const result = await drainGroup('G', 'u1', 'deviceVictima', 0);
+    expect(result.ok).toBe(true);
+
+    // Con el bug viejo (iterando `delta.users` crudo), esto se llamaba igual.
+    expect(fetchSpy).not.toHaveBeenCalledWith('G', 'u3', expect.anything());
+    expect(useUserStore.getState().getUserById('u3')?.avatar).toBe('foto-contacto-real');
+    expect(useUserStore.getState().getUserById('u3')?.avatarDigest).toBeUndefined();
+
+    fetchSpy.mockRestore();
   });
 });
 

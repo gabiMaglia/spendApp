@@ -22,11 +22,13 @@ jest.mock('../relay', () => {
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
-import { useGroupKeyStore } from '@/src/store/groupKeyStore';
+import { useGroupKeyStore, groupKeyBytes } from '@/src/store/groupKeyStore';
 import { useUserStore } from '@/src/store/userStore';
 import { publishToGroup } from '../relaySync';
 import { isManifest } from '../manifest';
-import type { Group, Expense } from '@/src/types/models';
+import { openEnvelope } from '../envelopeCrypto';
+import { verifyEnvelope } from '../envelopeSign';
+import type { Group, Expense, User } from '@/src/types/models';
 
 const relayMock = jest.requireMock('../relay') as {
   __buzones: Map<string, { ckey?: string; compactable?: boolean; payload: string }[]>;
@@ -88,18 +90,53 @@ describe('publishToGroup publica rebanadas + manifiesto', () => {
     expect(ckeys.size).toBe(sobres.length); // cada rebanada (y el manifiesto) tiene su propia ckey única
   });
 
-  it('no reenvía los bytes de la foto de un usuario que no cambió', async () => {
+  it('no reenvía los bytes de la foto en la rebanada de users, pero sí los publica aparte', async () => {
     useAuthStore.setState({ user: { id: 'u1' } } as never);
-    const conFoto = { id: 'u1', name: 'Uno', email: '', authProvider: 'google', createdAt: 1, avatar: 'foto-base64-larga'.repeat(500), updatedAt: 1, isDeleted: false } as never;
+    const fotoOriginal = 'foto-base64-larga'.repeat(500);
+    const conFoto = { id: 'u1', name: 'Uno', email: '', authProvider: 'google', createdAt: 1, avatar: fotoOriginal, updatedAt: 1, isDeleted: false } as never;
     useUserStore.setState({ users: [conFoto] });
     useGroupStore.setState({ groups: [{ ...grupo(), memberIds: ['u1'] }] } as never);
     useExpenseStore.setState({ expenses: [gasto('e1')] } as never);
 
     await publishToGroup('G', 'u1', 'device1');
 
-    for (const sobres of relayMock.__buzones.values()) {
-      const contieneFotoLarga = sobres.some(s => s.payload.includes('foto-base64-larga'));
-      expect(contieneFotoLarga).toBe(false); // la foto viaja en su propio topic, no en la rebanada de users
+    // Superficialmente esto ya era cierto en el código VIEJO (roto): todo
+    // payload es ciphertext base64, así que un substring en claro nunca iba a
+    // aparecer en él, hubiera o no elisión real. La única forma de probar que
+    // la elisión ocurrió es DESCIFRAR cada sobre con la clave real del grupo
+    // (mismo mecanismo que usa `drainGroup`) y mirar el contenido en claro.
+    const key = groupKeyBytes('G')!;
+    expect(key).toBeTruthy();
+
+    const decrypted: { topic: string; content: unknown; raw: string }[] = [];
+    for (const [topic, sobres] of relayMock.__buzones.entries()) {
+      for (const sobre of sobres) {
+        const firmado = verifyEnvelope(sobre.payload);
+        expect(firmado).not.toBeNull();
+        const plain = openEnvelope(key, firmado!.sealed);
+        expect(plain).not.toBeNull();
+        let content: unknown = plain;
+        try { content = JSON.parse(plain!); } catch { /* la foto viaja como string plano, no JSON */ }
+        decrypted.push({ topic, content, raw: plain! });
+      }
     }
+
+    // (a) la rebanada `users` (JSON, no manifiesto) trae `avatarDigest` y
+    // NUNCA los bytes reales de la foto para u1.
+    const rebanadaUsers = decrypted.find(d =>
+      typeof d.content === 'object' && d.content !== null && !isManifest(d.content) &&
+      Array.isArray((d.content as { users?: unknown }).users) &&
+      ((d.content as { users: User[] }).users.length > 0));
+    expect(rebanadaUsers).toBeDefined();
+    const perfilU1 = (rebanadaUsers!.content as { users: User[] }).users.find(u => u.id === 'u1');
+    expect(perfilU1).toBeDefined();
+    expect(perfilU1!.avatar).toBeFalsy();
+    expect(perfilU1!.avatarDigest).toBeTruthy();
+
+    // (b) existe un sobre APARTE (otro topic, no el del grupo) cuyo contenido
+    // descifrado ES la foto real, byte a byte.
+    const sobreDeFoto = decrypted.find(d => d.raw === fotoOriginal);
+    expect(sobreDeFoto).toBeDefined();
+    expect(sobreDeFoto!.topic).not.toBe(rebanadaUsers!.topic);
   });
 });

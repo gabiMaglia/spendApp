@@ -30,11 +30,18 @@ export function recordSlicePublished(ckey: string, at: number): void {
  * dispositivo (sin registro — p.ej. después de una reinstalación, el mismo
  * camino de "publicar todo" que describe ADR-007 §3.4), o su última
  * publicación registrada es anterior a la ventana de renovación.
+ *
+ * `windowMs` es opcional (default `RENEWAL_WINDOW_MS`, 20 días) para permitir
+ * reusar el mismo mecanismo marcador-más-timestamp con una ventana corta —
+ * p.ej. la caché negativa de intentos fallidos de `avatarTopic.ts`
+ * (`fetchAvatarIfMissing`), que necesita "¿lo intenté hace poco?" en minutos,
+ * no en días. Es el mismo problema ("¿ya lo hice recientemente?") con otra
+ * escala de tiempo, no un mecanismo nuevo.
  */
-export function staleSliceCkeys(ckeys: string[], now: number): string[] {
+export function staleSliceCkeys(ckeys: string[], now: number, windowMs: number = RENEWAL_WINDOW_MS): string[] {
   return ckeys.filter(ckey => {
     const last = storage.getNumber(ckey);
     if (last === undefined) return true;
-    return now - last > RENEWAL_WINDOW_MS;
+    return now - last > windowMs;
   });
 }

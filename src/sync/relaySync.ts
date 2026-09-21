@@ -155,6 +155,16 @@ async function buildSlicedEnvelopes(
   // cambio es exactamente la rama que esa función ya sabía resolver: "no
   // traigo info, conservá lo que tenías" — que es lo que se quiere acá,
   // porque la foto sigue siendo la misma, sólo que no viaja en este sobre.
+  //
+  // Precondición de flota (hallazgo #5 de la revisión de Task 9): esta
+  // elisión sólo es segura porque `preservarAvatar` ("fase A", T-056) ya
+  // resuelve `undefined` como "conservar" en vez de "borrar" — ver el
+  // docblock de `src/store/userAvatar.ts`, que documenta esto explícitamente
+  // como precondición de la fase B (no reenviar avatares ajenos). Un
+  // dispositivo que TODAVÍA corriera la lógica de merge anterior a esa fase
+  // vería el `avatar` ausente y se borraría su copia cacheada. Se asume que
+  // fase A ya está desplegada en toda la flota; si se descubre que no lo
+  // está, hay que revertir esta elisión hasta confirmarlo.
   const usuariosConDigest = await Promise.all(
     (delta.users ?? []).map(async (u) => {
       if (!u.avatar) return u; // sin foto (o tombstone real): nada que referenciar
@@ -455,7 +465,8 @@ export async function drainGroup(
       // venir adentro. Se arma un delta nuevo, campo por campo, con sólo lo que
       // pertenece a `groupId` antes de tocar cualquier store (ver
       // `acotarDeltaAlGrupo.ts`).
-      applyDelta(acotarDeltaAlGrupo(delta, groupId), currentUserId);
+      const acotado = acotarDeltaAlGrupo(delta, groupId);
+      applyDelta(acotado, currentUserId);
       applied++;
 
       // Fotos por referencia (Task 9): si esta rebanada trajo perfiles con
@@ -466,11 +477,25 @@ export async function drainGroup(
       // el perfil recién aplicado por `mergeUsers` es lo que la UI muestra ya
       // mismo, y un miembro nuevo que recién ve a los demás por primera vez
       // necesita la foto en el mismo drenaje, no en el próximo ciclo de sync.
-      for (const u of delta.users ?? []) {
-        if (u.avatarDigest && u.id !== currentUserId) {
-          await fetchAvatarIfMissing(groupId, u.id, u.avatarDigest);
-        }
-      }
+      //
+      // **Hallazgo #2 de la revisión (Critical, clase T-132/S3-A1):** este
+      // loop tiene que iterar `acotado.users` (la salida YA filtrada por
+      // `acotarDeltaAlGrupo`), NUNCA `delta.users` crudo. `acotarDeltaAlGrupo`
+      // existe justamente para descartar entradas de `users` de gente que no
+      // es miembro local de `groupId` — iterar el delta sin acotar reabre esa
+      // misma clase de ataque sólo para las fotos: un miembro de OTRO grupo
+      // podría declarar un `avatarDigest` para un contacto ajeno a `groupId`
+      // y este código lo buscaría y adoptaría igual, aunque el merge de datos
+      // ya lo hubiera descartado.
+      //
+      // Los fetches van en paralelo (hallazgo #4): son independientes entre
+      // sí, y esperarlos uno por uno serializa N round-trips de red por cada
+      // drenaje para un grupo con muchos miembros sin foto cacheada todavía.
+      await Promise.all(
+        (acotado.users ?? [])
+          .filter(u => u.avatarDigest && u.id !== currentUserId)
+          .map(u => fetchAvatarIfMissing(groupId, u.id, u.avatarDigest!)),
+      );
     } catch {
       skipped++;
     }
