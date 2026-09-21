@@ -10,6 +10,7 @@ import { refreshPendingAuthors } from './authorKeys';
 import { sliceEntities, deriveCkey } from './slices';
 import { buildManifest, isManifest, type SliceManifest } from './manifest';
 import { recordManifestCheck } from './manifestHealth';
+import { recordSlicePublished } from './sliceRenewal';
 
 /**
  * Sync por el relay: arma el sobre cifrado, lo publica y aplica lo que llega.
@@ -154,12 +155,17 @@ async function buildSlicedEnvelopes(
         [campo]: rebanada,
       } as SyncDelta;
       piezas.push({ ckey, json: JSON.stringify(parcial) });
+      // Cada publicación es una publicación FRESCA de esa rebanada — resetea
+      // el reloj de renovación de 20 días (sliceRenewal.ts), aunque el
+      // contenido no haya cambiado desde la última vez.
+      recordSlicePublished(ckey, Date.now());
     }
   }
 
   const manifiesto = await buildManifest(piezas);
   const manifiestoCkey = await deriveCkey(key, 'manifest', 'unica');
   piezas.push({ ckey: manifiestoCkey, json: JSON.stringify(manifiesto) });
+  recordSlicePublished(manifiestoCkey, Date.now());
 
   return piezas;
 }
