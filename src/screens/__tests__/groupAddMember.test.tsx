@@ -1,6 +1,7 @@
 import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
 import { Alert } from 'react-native';
+import { router } from 'expo-router';
 import GroupDetailScreen from '@/app/groups/[id]';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
@@ -117,5 +118,17 @@ describe('agregar miembros', () => {
       'group_detail.member_added_title',
       'group_detail.without_app_warning',
     );
+  });
+});
+
+// T-101: reconectar a un miembro que reinstaló y perdió su clave de grupo — el
+// mismo menú de opciones abre la pantalla de escanear contacto, directo en cámara.
+describe('validar miembro (T-101)', () => {
+  it('el botón "Validar miembro" abre el escaneo de contacto directo en modo cámara', () => {
+    const r = render(<GroupDetailScreen />);
+    fireEvent.press(r.getByTestId('group-options'));
+    fireEvent.press(r.getByText('group_detail.validate_member'));
+
+    expect(router.push).toHaveBeenCalledWith('/contact/add?mode=scan');
   });
 });

@@ -51,7 +51,10 @@ export default function AddContactScreen() {
   const { currentUser } = useAuthStore();
   const { addOrUpdateUser, getUserById } = useUserStore();
 
-  const [mode, setMode]           = useState<Mode>('my_qr');
+  // `?mode=scan` abre directo en la cámara — usado por «Validar miembro» desde un grupo
+  // (T-101): no hay razón para hacer pasar a alguien por «Mi QR» primero.
+  const params = useLocalSearchParams();
+  const [mode, setMode] = useState<Mode>(params.mode === 'scan' ? 'scan' : 'my_qr');
   const [scanned, setScanned]     = useState(false);
   const [permission, requestPerm] = useCameraPermissions();
   // Contacto que llegó por LINK y espera confirmación explícita (T-093 / SEC H-1):
@@ -104,14 +107,12 @@ export default function AddContactScreen() {
       return;
     }
 
-    if (getUserById(contact.id) && !getUserById(contact.id)?.isDeleted) {
-      hapticLight();
-      Alert.alert(t('contact.already_title'), t('contact.already_body', { name: contact.name }), [
-        { text: 'OK', onPress: volverAContactos },
-      ]);
-      return;
-    }
-
+    // Orden: conflicto de clave ANTES de "ya existe" (T-101, mismo criterio que
+    // `procesarContacto`) — un miembro activo con clave nueva no puede quedar
+    // enmascarado por "ya lo tenés". Este re-chequeo (además del de `procesarContacto`)
+    // es el que cierra la carrera de T-093 ronda 2 / R-1 descripta arriba: acá nunca se
+    // ofrece reemplazo (eso vive en `procesarContacto`/`confirmarReemplazoDeClave`),
+    // sólo se corta antes de escribir si algo cambió en el medio.
     if (contact.secret && hasConflictingPinnedKeys(contact.id, {
       secret: contact.secret,
       wrapPublicKey: contact.wrapPublicKey,
@@ -123,6 +124,14 @@ export default function AddContactScreen() {
         t('contact.keys_changed_body', { name: contact.name }),
         [{ text: 'OK', onPress: cerrar }],
       );
+      return;
+    }
+
+    if (getUserById(contact.id) && !getUserById(contact.id)?.isDeleted) {
+      hapticLight();
+      Alert.alert(t('contact.already_title'), t('contact.already_body', { name: contact.name }), [
+        { text: 'OK', onPress: volverAContactos },
+      ]);
       return;
     }
 
@@ -185,6 +194,53 @@ export default function AddContactScreen() {
   }, [addOrUpdateUser, getUserById, t, currentUser]);
 
   /**
+   * **T-101**: reemplaza la clave pinneada de un contacto que ya conocíamos —
+   * típicamente porque reinstaló la app. Sólo se llega acá desde el camino QR
+   * (el escaneo presencial es la verificación, T-093 criterio 4), y sólo tras
+   * la doble confirmación explícita del `Alert` de conflicto.
+   *
+   * No hace falta reenviar la clave de ningún grupo a mano: `reenviarClavesDeGrupo`
+   * (`relayEngine.ts`) ya corre sola en cada arranque/sync y le reintenta la entrega
+   * a cualquier contacto conocido — apenas el peer quede pinneado de nuevo, el
+   * reparto (y con ADR-007, el estado completo del grupo) le llega solo.
+   */
+  const reemplazarClaveDeContacto = useCallback((contact: ContactPayload) => {
+    if (!contact.secret) return;
+
+    savePeer(contact.id, {
+      secret: contact.secret,
+      wrapPublicKey: contact.wrapPublicKey,
+      identityPublicKey: contact.identityPublicKey,
+    });
+    addOrUpdateUser({
+      id:           contact.id,
+      name:         contact.name,
+      email:        getUserById(contact.id)?.email ?? '',
+      authProvider: 'google',
+      createdAt:    getUserById(contact.id)?.createdAt ?? Date.now(),
+      updatedAt:    syncedNow(),
+      isDeleted:    false,
+    });
+    void announceContact(contact.secret, deviceId());
+
+    hapticSuccess();
+    setScanned(false);
+    Alert.alert(t('contact.replaced_title'), t('contact.replaced_body', { name: contact.name }), [{ text: 'OK' }]);
+  }, [addOrUpdateUser, getUserById, t]);
+
+  /** Segunda confirmación explícita antes de pisar una clave pinneada (T-101). */
+  const confirmarReemplazoDeClave = useCallback((contact: ContactPayload) => {
+    Alert.alert(
+      t('contact.keys_changed_confirm_title'),
+      t('contact.keys_changed_confirm_body', { name: contact.name }),
+      [
+        { text: t('common.cancel'), style: 'cancel', onPress: () => setScanned(false) },
+        { text: t('contact.keys_changed_replace'), style: 'destructive', onPress: () => reemplazarClaveDeContacto(contact) },
+      ],
+    );
+  }, [t, reemplazarClaveDeContacto]);
+
+  /**
    * Evalúa un contacto que llegó por QR o por link. **Los dos caminos pasan por acá**:
    * antes el link se procesaba aparte, en `_layout.tsx`, agregaba en silencio y dejaba
    * al usuario mirando SU PROPIO QR, sin ningún aviso de que el contacto había entrado.
@@ -193,6 +249,10 @@ export default function AddContactScreen() {
    * hacer" (ya es mío / ya existe / las claves no coinciden), "persistir ya" (QR — el
    * escaneo presencial YA es el consentimiento, T-093 criterio 4) o "pedir confirmación"
    * (link — nadie estuvo delante, T-093 / SEC H-1 criterio 1).
+   *
+   * **El chequeo de clave-en-conflicto va ANTES del de "ya existe"** (T-101): un
+   * contacto que ya es miembro ACTIVO de un grupo (no borrado) con una clave nueva
+   * tiene que llegar al aviso de conflicto, no quedarse trabado en "ya lo tenés".
    */
   const procesarContacto = useCallback((contact: ContactPayload, origen: 'qr' | 'link') => {
     if (esYo(contact.id)) {
@@ -205,27 +265,40 @@ export default function AddContactScreen() {
       return;
     }
 
-    if (getUserById(contact.id) && !getUserById(contact.id)?.isDeleted) {
-      hapticLight();
-      Alert.alert(t('contact.already_title'), t('contact.already_body', { name: contact.name }), [
-        { text: 'OK', onPress: volverAContactos },
-      ]);
-      return;
-    }
-
-    // Ni por link ni por QR se pisa una clave ya pinneada que no coincide — ni la de un
-    // contacto borrado (tombstone): el peer sobrevive al borrado. T-093 / SEC H-1 criterio 2.
+    // Ni por link ni por QR se pisa una clave ya pinneada que no coincide sin pedir
+    // confirmación — ni la de un contacto borrado (tombstone): el peer sobrevive al
+    // borrado (T-093 / SEC H-1 criterio 2). Por QR, T-101 agrega una salida explícita
+    // ("Reemplazar clave" + segunda confirmación); por link se mantiene sin salida.
     if (contact.secret && hasConflictingPinnedKeys(contact.id, {
       secret: contact.secret,
       wrapPublicKey: contact.wrapPublicKey,
       identityPublicKey: contact.identityPublicKey,
     })) {
       hapticWarning();
+      if (origen === 'link') {
+        Alert.alert(
+          t('contact.keys_changed_title'),
+          t('contact.keys_changed_body', { name: contact.name }),
+          [{ text: 'OK', onPress: volverAContactos }],
+        );
+        return;
+      }
       Alert.alert(
         t('contact.keys_changed_title'),
-        t('contact.keys_changed_body', { name: contact.name }),
-        [{ text: 'OK', onPress: origen === 'link' ? volverAContactos : () => setScanned(false) }],
+        t('contact.keys_changed_body_qr', { name: contact.name }),
+        [
+          { text: t('common.cancel'), style: 'cancel', onPress: () => setScanned(false) },
+          { text: t('contact.keys_changed_replace'), style: 'destructive', onPress: () => confirmarReemplazoDeClave(contact) },
+        ],
       );
+      return;
+    }
+
+    if (getUserById(contact.id) && !getUserById(contact.id)?.isDeleted) {
+      hapticLight();
+      Alert.alert(t('contact.already_title'), t('contact.already_body', { name: contact.name }), [
+        { text: 'OK', onPress: volverAContactos },
+      ]);
       return;
     }
 
@@ -239,7 +312,7 @@ export default function AddContactScreen() {
     // `currentUser` no aparece en el cuerpo pero la dependencia es REAL: `esYo` lee la
     // sesión activa, así que cambiar de cuenta tiene que recalcular esto.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser, getUserById, t, persistirContacto]);
+  }, [currentUser, getUserById, t, persistirContacto, confirmarReemplazoDeClave]);
 
   const cerrarConfirmacionLink = useCallback(() => {
     if (!confirmedRef.current) volverAContactos();
@@ -276,7 +349,6 @@ export default function AddContactScreen() {
    * escaneo. Una sola vez por pantalla — un re-render no puede volver a agregar — y
    * recién con sesión: sin ella, `_layout` guarda el link y lo reabre después del login.
    */
-  const params = useLocalSearchParams();
   const linkProcesado = useRef(false);
   useEffect(() => {
     if (linkProcesado.current || !currentUser) return;

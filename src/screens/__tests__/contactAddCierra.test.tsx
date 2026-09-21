@@ -40,6 +40,13 @@ jest.mock('@/src/sync/contactChannel', () => ({
   savePeer: jest.fn(),
   hasConflictingPinnedKeys: jest.fn(() => false),
 }));
+
+/** Extrae y dispara el botón de un Alert por su texto (case-insensitive de `text`). */
+function tocarBoton(botones: { text?: string; onPress?: () => void }[], texto: string) {
+  const b = botones.find(x => x.text === texto);
+  expect(b).toBeDefined();
+  b!.onPress?.();
+}
 jest.mock('@/src/store/identityStore', () => ({
   ensureIdentity: () => ({ publicKey: 'aa'.repeat(32), privateKey: 'aa'.repeat(32) }),
   ensureWrapKeypair: () => ({ publicKey: 'bb'.repeat(32), privateKey: 'bb'.repeat(32) }),
@@ -134,8 +141,9 @@ describe('agregar contacto por QR', () => {
   });
 
   // T-093 / SEC H-1: el criterio 2 es "por link NI por QR" — el escaneo presencial sigue
-  // siendo de un paso, pero si las claves no coinciden con lo pinneado, tampoco se pisa acá.
-  it('claves distintas a las pinneadas: el QR tampoco pisa, avisa y no persiste', () => {
+  // siendo de un paso, pero si las claves no coinciden con lo pinneado, tampoco se pisa
+  // SOLO — T-101 agrega la salida de "Reemplazar clave" (ver tests de abajo).
+  it('claves distintas a las pinneadas: el QR avisa y no persiste hasta que se confirme', () => {
     const { hasConflictingPinnedKeys, savePeer, announceContact } = jest.requireMock('@/src/sync/contactChannel');
     (hasConflictingPinnedKeys as jest.Mock).mockReturnValueOnce(true);
 
@@ -144,7 +152,82 @@ describe('agregar contacto por QR', () => {
     expect(useUserStore.getState().users.map(u => u.id)).not.toContain('beto1');
     expect(savePeer).not.toHaveBeenCalled();
     expect(announceContact).not.toHaveBeenCalled();
-    expect(Alert.alert).toHaveBeenCalledWith('contact.keys_changed_title', expect.stringContaining('contact.keys_changed_body'), expect.any(Array));
+    expect(Alert.alert).toHaveBeenCalledWith('contact.keys_changed_title', expect.stringContaining('contact.keys_changed_body_qr'), expect.any(Array));
+  });
+
+  // T-101: reconectar a alguien que reinstaló y ya era miembro de un grupo (su User
+  // local sigue activo, no borrado) — antes esto ni llegaba a ver el conflicto, porque
+  // el chequeo de "ya existe" se evaluaba primero y cortaba ahí.
+  describe('T-101 · reemplazar clave de un contacto reinstalado (sólo por QR)', () => {
+    it('un miembro YA activo (no borrado) con clave nueva llega al aviso de conflicto, no a "ya existe"', () => {
+      useUserStore.setState({ users: [ANA, BETO] }); // Beto ya es un contacto/miembro activo
+      const { hasConflictingPinnedKeys } = jest.requireMock('@/src/sync/contactChannel');
+      (hasConflictingPinnedKeys as jest.Mock).mockReturnValueOnce(true);
+
+      escanearCodigo(CON_SECRETO);
+
+      expect(Alert.alert).toHaveBeenCalledWith('contact.keys_changed_title', expect.stringContaining('contact.keys_changed_body_qr'), expect.any(Array));
+    });
+
+    it('tocar "Reemplazar clave" pide una SEGUNDA confirmación antes de tocar nada', () => {
+      const { hasConflictingPinnedKeys, savePeer, announceContact } = jest.requireMock('@/src/sync/contactChannel');
+      (hasConflictingPinnedKeys as jest.Mock).mockReturnValueOnce(true);
+
+      escanearCodigo(CON_SECRETO);
+      const primerCartel = (Alert.alert as jest.Mock).mock.calls[0][2] as { text: string; onPress?: () => void }[];
+      tocarBoton(primerCartel, 'contact.keys_changed_replace');
+
+      // Todavía no escribió nada: la segunda confirmación está pendiente.
+      expect(savePeer).not.toHaveBeenCalled();
+      expect(announceContact).not.toHaveBeenCalled();
+      expect(Alert.alert).toHaveBeenCalledWith(
+        'contact.keys_changed_confirm_title',
+        expect.stringContaining('contact.keys_changed_confirm_body'),
+        expect.any(Array),
+      );
+    });
+
+    it('confirmar dos veces reemplaza la clave pinneada y anuncia mi tarjeta', () => {
+      const { hasConflictingPinnedKeys, savePeer, announceContact } = jest.requireMock('@/src/sync/contactChannel');
+      (hasConflictingPinnedKeys as jest.Mock).mockReturnValueOnce(true);
+
+      escanearCodigo(CON_SECRETO);
+      const primerCartel = (Alert.alert as jest.Mock).mock.calls[0][2] as { text: string; onPress?: () => void }[];
+      tocarBoton(primerCartel, 'contact.keys_changed_replace');
+      const segundoCartel = (Alert.alert as jest.Mock).mock.calls[1][2] as { text: string; onPress?: () => void }[];
+      tocarBoton(segundoCartel, 'contact.keys_changed_replace');
+
+      expect(savePeer).toHaveBeenCalledWith('beto1', { secret: 's', wrapPublicKey: 'w', identityPublicKey: 'i' });
+      expect(announceContact).toHaveBeenCalledWith('s', 'dev-1');
+      expect(useUserStore.getState().users.map(u => u.id)).toContain('beto1');
+      expect(Alert.alert).toHaveBeenCalledWith('contact.replaced_title', expect.stringContaining('contact.replaced_body'), expect.any(Array));
+    });
+
+    it('cancelar la primera confirmación no persiste nada', () => {
+      const { hasConflictingPinnedKeys, savePeer, announceContact } = jest.requireMock('@/src/sync/contactChannel');
+      (hasConflictingPinnedKeys as jest.Mock).mockReturnValueOnce(true);
+
+      escanearCodigo(CON_SECRETO);
+      const primerCartel = (Alert.alert as jest.Mock).mock.calls[0][2] as { text: string; onPress?: () => void }[];
+      tocarBoton(primerCartel, 'common.cancel');
+
+      expect(savePeer).not.toHaveBeenCalled();
+      expect(announceContact).not.toHaveBeenCalled();
+      expect(Alert.alert).toHaveBeenCalledTimes(1);
+    });
+
+    it('por LINK, un conflicto de claves sigue sin ofrecer reemplazo (T-093/SEC H-1 se mantiene)', () => {
+      const { hasConflictingPinnedKeys, savePeer, announceContact } = jest.requireMock('@/src/sync/contactChannel');
+      (hasConflictingPinnedKeys as jest.Mock).mockReturnValueOnce(true);
+      mockParams = { id: 'beto1', name: 'Beto', s: SEC, w: WRAP, k: IDK_NUEVA };
+
+      render(<AddContactScreen />);
+
+      expect(savePeer).not.toHaveBeenCalled();
+      expect(announceContact).not.toHaveBeenCalled();
+      const cartel = (Alert.alert as jest.Mock).mock.calls[0][2] as { text: string }[];
+      expect(cartel.map(b => b.text)).toEqual(['OK']);
+    });
   });
 });
 

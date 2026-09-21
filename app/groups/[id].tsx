@@ -485,6 +485,14 @@ export default function GroupDetailScreen() {
               selected={false}
               onPress={() => { setMenuVisible(false); void handleShareInvite(); }}
             />
+            {/* T-101: reconectar a un miembro que reinstaló y perdió su clave de grupo.
+                Abre la misma pantalla de escanear contacto, directo en modo cámara. */}
+            <SheetOption
+              icon="qr-code-outline"
+              label={t('group_detail.validate_member')}
+              selected={false}
+              onPress={() => { setMenuVisible(false); router.push('/contact/add?mode=scan' as any); }}
+            />
           </>
         )}
         {group && currentUser && (

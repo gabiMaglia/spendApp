@@ -180,7 +180,8 @@
     "leave_needs_settle": "Tenés cuentas abiertas en este grupo ({{currencies}}). Saldalas primero: si te fueras ahora, los números dejarían de cerrar para los que quedan.",
     "leave_last_member": "Sos el único que queda y hay saldo abierto. No hay a quién pasarle esa deuda, así que no se puede salir sin saldarla.",
     "options": "Opciones del grupo",
-    "add_person": "Agregar persona"
+    "add_person": "Agregar persona",
+    "validate_member": "Validar miembro"
   },
   "invite": {
     "groups_in_common": "{{count}} grupo en común",
@@ -532,6 +533,12 @@
     "confirm_add": "Agregar",
     "keys_changed_title": "Las claves de este contacto cambiaron",
     "keys_changed_body": "El código de {{name}} no coincide con lo que ya teníamos guardado. Por seguridad, no se reemplaza: si {{name}} reinstaló la app, hay que volver a verificarlo en persona.",
+    "keys_changed_body_qr": "El código de {{name}} no coincide con lo que ya teníamos guardado. Si estás viéndolo/a ahora en persona y sabés que reinstaló la app, podés reemplazar su clave.",
+    "keys_changed_replace": "Reemplazar clave",
+    "keys_changed_confirm_title": "¿Confirmás el reemplazo?",
+    "keys_changed_confirm_body": "Esto reemplaza la clave guardada de {{name}} por la nueva. Hacelo sólo si estás segurísimo/a de que es {{name}} y no otra persona.",
+    "replaced_title": "Clave reemplazada",
+    "replaced_body": "{{name}} quedó reconectado/a. Los grupos que compartían se sincronizan solos.",
     "already_title": "Contacto ya guardado",
     "already_body": "{{name}} ya está en tus contactos.",
     "added_title": "¡Contacto agregado!",

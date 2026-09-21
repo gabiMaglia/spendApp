@@ -180,7 +180,8 @@
     "leave_needs_settle": "You have open balances in this group ({{currencies}}). Settle them first: if you left now, the numbers would stop adding up for everyone else.",
     "leave_last_member": "You're the only one left and there's an open balance. There's nobody to hand it to, so you can't leave without settling it.",
     "options": "Group options",
-    "add_person": "Add person"
+    "add_person": "Add person",
+    "validate_member": "Validate member"
   },
   "invite": {
     "groups_in_common": "{{count}} group in common",
@@ -532,6 +533,12 @@
     "confirm_add": "Add",
     "keys_changed_title": "This contact's keys changed",
     "keys_changed_body": "{{name}}'s code doesn't match what we already had saved. For safety, it won't be replaced: if {{name}} reinstalled the app, you'll need to verify them in person again.",
+    "keys_changed_body_qr": "{{name}}'s code doesn't match what we already had saved. If you're with them in person right now and know they reinstalled the app, you can replace their key.",
+    "keys_changed_replace": "Replace key",
+    "keys_changed_confirm_title": "Confirm the replacement?",
+    "keys_changed_confirm_body": "This replaces {{name}}'s saved key with the new one. Only do this if you're absolutely sure it's {{name}} and not someone else.",
+    "replaced_title": "Key replaced",
+    "replaced_body": "{{name}} is reconnected. Groups you shared will sync on their own.",
     "already_title": "Contact already saved",
     "already_body": "{{name}} is already in your contacts.",
     "added_title": "Contact added!",
