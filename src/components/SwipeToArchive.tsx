@@ -23,11 +23,14 @@ import { useTranslation } from 'react-i18next';
  * gastos y sus saldos, sólo deja la lista principal.
  */
 export function SwipeToArchive({
-  onAction, archived = false, children,
+  onAction, archived = false, disabled = false, children,
 }: {
   onAction: () => void;
   /** `true` cuando ya está archivado: el gesto pasa a desarchivar. */
   archived?: boolean;
+  /** Cuando es `true`, el gesto no hace nada — usado para un grupo archivado
+      por límite (T-058), que no se puede desarchivar (PO 2026-09-20). */
+  disabled?: boolean;
   children: React.ReactNode;
 }) {
   const scheme = useColorScheme() ?? 'light';
@@ -43,6 +46,7 @@ export function SwipeToArchive({
       friction={2}
       rightThreshold={40}
       overshootRight={false}
+      enabled={!disabled}
       onSwipeableOpen={() => {
         hapticLight();
         onAction();

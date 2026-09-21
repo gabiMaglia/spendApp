@@ -40,6 +40,7 @@ export default function GroupsScreen() {
   const allGroups   = useGroupStore(s => s.groups);
   const archivedIds = useArchiveStore(s => s.archivedIds);
   const setArchived = useArchiveStore(s => s.setArchived);
+  const canUnarchive = useArchiveStore(s => s.canUnarchive);
   const groupTotals = useGroupsTotalBalance(currentUser?.id ?? '');
 
   const { scrollHandler, progress, contenidoMinimo, alMedirScroll } = useHeaderColapsable();
@@ -144,6 +145,7 @@ export default function GroupsScreen() {
                 <SwipeToArchive
                   key={g.id}
                   archived={tabActual === 'archivados'}
+                  disabled={tabActual === 'archivados' && !canUnarchive(g.id)}
                   onAction={() => setArchived(g.id, tabActual === 'activos')}
                 >
                   <GroupRow
