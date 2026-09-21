@@ -1,18 +1,35 @@
 /**
- * Acceptance test del plan completo (ADR-007, T-056/T-058): el escenario real
- * que motivó todo esto — un grupo de 5 miembros con 200 gastos, ~319 KB de
- * delta sin partir — antes rebotaba con `too_large` al publicar. Con las
+ * Acceptance test del plan completo (ADR-007, T-056/T-058): el escenario que
+ * de verdad sigue rompiendo la publicación sin partir HOY, contra el tope
+ * real (`MAX_PAYLOAD_BYTES = 1_048_576`, 1 MB) documentado en
+ * `relay.ts:29-64`.
+ *
+ * El número viejo (5 miembros, 200 gastos, de ADR-007 el 2026-08-31) quedó
+ * desactualizado: `relay.ts` lo mide hoy en 313 KB, sólo **31 %** del tope de
+ * 1 MB — ya es seguro SIN rebanar, así que no prueba nada sobre la feature de
+ * este plan. La tabla medida con arné real que trae `relay.ts` es:
+ *
+ * | Grupo                          | En el cable | % del tope |
+ * |--------------------------------|-------------|------------|
+ * | 5 personas, 30 gastos          |    86 KB    |      8 %   |
+ * | 5 personas, 200 gastos (6 m)   |   313 KB    |     31 %   |
+ * | 5 personas, 700 gastos         |   982 KB    |     96 %   |
+ * | 8 personas, 700 gastos         |  1190 KB    |    116 %   |
+ *
+ * Este test usa **8 miembros, 700 gastos** — el caso que `relay.ts` mide en
+ * 116 % del tope, genuinamente por encima de 1 MB sin partir. Con las
  * rebanadas (Task 2/5), el manifiesto (Task 3/6) y el resto de las piezas de
  * este plan (Tasks 1-9) ya integradas en `relaySync.ts`, tiene que:
  *
- *  1. Publicar sin `too_large`.
+ *  1. Publicar sin `too_large` (a pesar de que el JSON sin partir excede el
+ *     tope, según la medición de `relay.ts`).
  *  2. Dejar que un miembro que entra tarde (store vacío, cursor 0) reconstruya
  *     el historial completo, sin gaps de manifiesto (P-2, ADR-007 §4 fila 4).
  *
  * A diferencia de los fixtures de Tasks 5/6 (`gasto()` con un solo `split`),
- * acá cada gasto lleva `splits` real de los 5 miembros — es lo que reproduce
- * el peso por gasto (~1000-1200 bytes/gasto a 5 miembros) que rompía la
- * publicación sin partir en el escenario original.
+ * acá cada gasto lleva `splits` real de los 8 miembros — es lo que reproduce
+ * el peso por gasto representativo del escenario de 8 personas / 700 gastos
+ * que `relay.ts` documenta como genuinamente sobre el tope sin rebanar.
  */
 
 jest.mock('../relay', () => {
@@ -56,7 +73,7 @@ const relayMock = jest.requireMock('../relay') as {
   __reset: () => void;
 };
 
-const MIEMBROS = ['u1', 'u2', 'u3', 'u4', 'u5'];
+const MIEMBROS = ['u1', 'u2', 'u3', 'u4', 'u5', 'u6', 'u7', 'u8'];
 
 function grupo(): Group {
   return {
@@ -67,11 +84,12 @@ function grupo(): Group {
 }
 
 /**
- * Gasto con `splits` real de los 5 miembros del grupo (no 1, como en los
+ * Gasto con `splits` real de los 8 miembros del grupo (no 1, como en los
  * fixtures de Tasks 5/6) — es lo que reproduce el peso por gasto del
- * escenario original que rompía la publicación sin partir.
+ * escenario de 8 personas / 700 gastos que `relay.ts` mide en 116 % del
+ * tope sin partir.
  */
-function gastoDeCincoMiembros(id: string, miembros: string[]): Expense {
+function gastoDeOchoMiembros(id: string, miembros: string[]): Expense {
   const monto = 100;
   const porCabeza = monto / miembros.length;
   return {
@@ -93,7 +111,7 @@ function gastoDeCincoMiembros(id: string, miembros: string[]): Expense {
   } as Expense;
 }
 
-describe('escenario T-056/T-058: 5 miembros, 200 gastos', () => {
+describe('escenario T-056/T-058: 8 miembros, 700 gastos (116% del tope sin partir, per relay.ts)', () => {
   beforeEach(() => {
     relayMock.__reset();
     clearManifestGaps();
@@ -104,7 +122,7 @@ describe('escenario T-056/T-058: 5 miembros, 200 gastos', () => {
 
   it('publica sin too_large donde antes fallaba', async () => {
     useGroupStore.setState({ groups: [grupo()] } as never);
-    const gastos = Array.from({ length: 200 }, (_, i) => gastoDeCincoMiembros(`e${i}`, MIEMBROS));
+    const gastos = Array.from({ length: 700 }, (_, i) => gastoDeOchoMiembros(`e${i}`, MIEMBROS));
     useExpenseStore.setState({ expenses: gastos } as never);
 
     const result = await publishToGroup('G', 'u1', 'device1');
@@ -113,16 +131,16 @@ describe('escenario T-056/T-058: 5 miembros, 200 gastos', () => {
 
   it('el que entra tarde reconstruye el historial completo (P-2)', async () => {
     useGroupStore.setState({ groups: [grupo()] } as never);
-    const gastos = Array.from({ length: 200 }, (_, i) => gastoDeCincoMiembros(`e${i}`, MIEMBROS));
+    const gastos = Array.from({ length: 700 }, (_, i) => gastoDeOchoMiembros(`e${i}`, MIEMBROS));
     useExpenseStore.setState({ expenses: gastos } as never);
     await publishToGroup('G', 'u1', 'device1');
 
-    // "u2" entra tarde: store vacío, drena desde 0.
+    // "u9" entra tarde: store vacío, drena desde 0.
     useExpenseStore.setState({ expenses: [] } as never);
-    const drenaje = await drainGroup('G', 'u2', 'device2', 0);
+    const drenaje = await drainGroup('G', 'u9', 'device2', 0);
 
     expect(drenaje.ok).toBe(true);
-    expect(useExpenseStore.getState().expenses).toHaveLength(200);
+    expect(useExpenseStore.getState().expenses).toHaveLength(700);
     expect(manifestGapFor('G')).toBeNull();
   });
 });
