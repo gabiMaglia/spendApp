@@ -2,7 +2,10 @@ import { useGroupKeyStore, groupKeyBytes } from '@/src/store/groupKeyStore';
 import { deriveTopic } from '@/src/sync/envelopeCrypto';
 import { deriveContactTopic, listPeers } from '@/src/sync/contactChannel';
 import { deriveInviteTopic } from '@/src/sync/groupInvite';
+import { deriveAvatarTopic } from '@/src/sync/avatarTopic';
 import { listInvites, listPendingJoins } from '@/src/store/identityStore';
+import { useAuthStore } from '@/src/store/authStore';
+import { useUserStore } from '@/src/store/userStore';
 
 /**
  * Los topics del buzón donde este aparato dejó sobres (T-074 §3.4).
@@ -18,6 +21,12 @@ import { listInvites, listPendingJoins } from '@/src/store/identityStore';
  *    coincide y no se borra. Correcto — no son míos.*
  * 3. **Invitaciones** — el topic sale del token, tanto para el reclamo como
  *    para la entrega de clave.
+ * 4. **Foto propia por referencia (ADR-007)** — un topic por cada grupo donde
+ *    esta cuenta la publicó, derivado de (clave del grupo, mi id, mi
+ *    `avatarDigest` ACTUAL). Sólo cubre la foto vigente, no las versiones
+ *    viejas que ya se reemplazaron: esas no se pueden re-derivar sin conocer
+ *    su digest, y el TTL de 30 días las levanta solas — daño acotado, no una
+ *    fuga permanente.
  *
  * ⚠️ Las invitaciones y los ingresos pendientes son del **aparato**, no de la
  * cuenta (`identityStore`, docblock): con dos cuentas enlazadas se purgan igual
@@ -32,6 +41,8 @@ import { listInvites, listPendingJoins } from '@/src/store/identityStore';
  */
 export async function topicsDeLaCuenta(): Promise<string[]> {
   const topics = new Set<string>();
+  const yo = useAuthStore.getState().currentUser;
+  const avatarDigest = yo ? useUserStore.getState().getUserById(yo.id)?.avatarDigest : undefined;
 
   for (const record of useGroupKeyStore.getState().keys) {
     const key = groupKeyBytes(record.groupId);
@@ -42,6 +53,12 @@ export async function topicsDeLaCuenta(): Promise<string[]> {
     try {
       topics.add(await deriveTopic(key, record.epoch));
     } catch { /* un grupo que no deriva no puede frenar el borrado */ }
+
+    if (yo && avatarDigest) {
+      try {
+        topics.add(await deriveAvatarTopic(key, yo.id, avatarDigest));
+      } catch { /* idem */ }
+    }
   }
 
   for (const peer of Object.values(listPeers())) {

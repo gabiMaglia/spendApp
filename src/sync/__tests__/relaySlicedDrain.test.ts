@@ -349,6 +349,46 @@ describe('drainGroup aplica rebanadas y detecta manifiestos incompletos', () => 
   });
 
   /**
+   * Residual de Fix 2, hallado en la revisión final y parqueado como ticket:
+   * el fetch de fotos leía `acotado.users` (el delta entrante) en vez del
+   * store YA MERGEADO. Si `uB` republica con una copia de `uA` más VIEJA
+   * (`updatedAt` menor) que la que `uC` ya tiene, el merge por LWW descarta
+   * correctamente el registro de `uB` — pero el loop de fotos, al leer el
+   * digest del delta descartado en vez del store, igual pedía y adoptaba la
+   * foto vieja. Arreglo: leer el digest del store post-merge.
+   */
+  it('un remitente con una copia MÁS VIEJA (LWW) no hace bajar de versión la foto ya correcta', async () => {
+    const fetchSpy = jest.spyOn(avatarTopic, 'fetchAvatarIfMissing').mockResolvedValue(undefined);
+
+    useGroupStore.setState({ groups: [{ ...grupo(), memberIds: ['u1', 'uA', 'uB'] }] } as never);
+    useExpenseStore.setState({ expenses: [] } as never);
+
+    // uC (el que drena, 'u1' en este arnés) ya tiene la foto NUEVA de uA.
+    useUserStore.setState({ users: [
+      { id: 'uA', name: 'A', email: '', authProvider: 'google', createdAt: 1, avatar: 'foto-nueva', avatarDigest: 'digest-nuevo', updatedAt: 2_000, isDeleted: false } as unknown as User,
+    ] });
+
+    // uB republica con su copia VIEJA de uA (updatedAt menor).
+    useUserStore.setState({ users: [
+      { id: 'uA', name: 'A', email: '', authProvider: 'google', createdAt: 1, avatarDigest: 'digest-viejo', updatedAt: 1_000, isDeleted: false } as unknown as User,
+      { id: 'uB', name: 'B', email: '', authProvider: 'google', createdAt: 1, updatedAt: 1, isDeleted: false } as unknown as User,
+    ] });
+    await publishToGroup('G', 'uB', 'deviceB');
+
+    // uC vuelve a tener su copia correcta (nueva) antes de drenar.
+    useUserStore.setState({ users: [
+      { id: 'uA', name: 'A', email: '', authProvider: 'google', createdAt: 1, avatar: 'foto-nueva', avatarDigest: 'digest-nuevo', updatedAt: 2_000, isDeleted: false } as unknown as User,
+    ] });
+    const result = await drainGroup('G', 'u1', 'deviceC', 0);
+    expect(result.ok).toBe(true);
+
+    expect(fetchSpy).not.toHaveBeenCalledWith('G', 'uA', 'digest-viejo');
+    expect(useUserStore.getState().getUserById('uA')?.avatarDigest).toBe('digest-nuevo');
+
+    fetchSpy.mockRestore();
+  });
+
+  /**
    * Revisión final, Fix 4 (importante): el manifiesto declara `{ckey, digest}`
    * pero antes el chequeo de gaps sólo miraba si la `ckey` había LLEGADO,
    * nunca si su contenido coincidía con el digest declarado. Este test

@@ -12,6 +12,7 @@ import { buildManifest, digestOfJson, isManifest, type SliceManifest } from './m
 import { recordManifestCheck } from './manifestHealth';
 import { recordSlicePublished } from './sliceRenewal';
 import { publishAvatarIfOwn, fetchAvatarIfMissing } from './avatarTopic';
+import { useUserStore } from '@/src/store/userStore';
 
 /**
  * Sync por el relay: arma el sobre cifrado, lo publica y aplica lo que llega.
@@ -548,10 +549,20 @@ export async function drainGroup(
       // Los fetches van en paralelo (hallazgo #4): son independientes entre
       // sí, y esperarlos uno por uno serializa N round-trips de red por cada
       // drenaje para un grupo con muchos miembros sin foto cacheada todavía.
+      //
+      // **Residual de Fix 2 (revisión final, parqueado y cerrado acá):** el
+      // digest a pedir se lee del STORE YA MERGEADO (`applyDelta` recién
+      // corrió arriba), nunca del delta entrante crudo. Si el registro que
+      // trajo esta rebanada perdió el LWW contra uno más nuevo que ya
+      // teníamos, `acotado.users` todavía tiene el digest VIEJO — pedirlo
+      // igual bajaría de versión una foto que el merge ya dejó bien.
       await Promise.all(
         (acotado.users ?? [])
           .filter(u => u.avatarDigest && u.id !== currentUserId)
-          .map(u => fetchAvatarIfMissing(groupId, u.id, u.avatarDigest!)),
+          .map((u) => {
+            const digest = useUserStore.getState().getUserById(u.id)?.avatarDigest;
+            return digest ? fetchAvatarIfMissing(groupId, u.id, digest) : Promise.resolve();
+          }),
       );
     } catch {
       skipped++;

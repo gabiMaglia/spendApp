@@ -5,6 +5,8 @@ import { deriveContactTopic, savePeer } from '@/src/sync/contactChannel';
 import { deriveInviteTopic, createInvite } from '@/src/sync/groupInvite';
 import { saveInvite } from '@/src/store/identityStore';
 import { useAuthStore } from '@/src/store/authStore';
+import { useUserStore } from '@/src/store/userStore';
+import { deriveAvatarTopic } from '@/src/sync/avatarTopic';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import type { User } from '@/src/types/models';
 
@@ -80,5 +82,21 @@ describe('los topics de una cuenta', () => {
     const vieja = createInvite('g1', 'Viaje', 'cc'.repeat(32), Date.now() - 90 * 24 * 3600_000);
     saveInvite(vieja);
     expect(await topicsDeLaCuenta()).toHaveLength(0);
+  });
+
+  it('la foto propia actual (ADR-007) aporta un cuarto tipo de topic, por cada grupo', async () => {
+    const record = useGroupKeyStore.getState().ensureKey('g1');
+    useUserStore.setState({ users: [{ ...YO, avatar: 'foto', avatarDigest: 'digest1' }] });
+
+    const topics = await topicsDeLaCuenta();
+
+    expect(topics).toContain(await deriveAvatarTopic(groupKeyBytes('g1')!, 'u1', 'digest1'));
+    expect(topics).toHaveLength(2); // el del grupo + el de la foto en ese grupo
+  });
+
+  it('sin avatarDigest propio no aporta topic de foto', async () => {
+    useGroupKeyStore.getState().ensureKey('g1');
+    useUserStore.setState({ users: [YO] }); // sin avatar/avatarDigest
+    expect(await topicsDeLaCuenta()).toHaveLength(1); // sólo el del grupo
   });
 });
