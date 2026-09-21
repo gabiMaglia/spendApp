@@ -6,8 +6,28 @@ import { useGroupStore } from '@/src/store/groupStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { usePaymentStore } from '@/src/store/paymentStore';
 import { useArchiveStore } from '@/src/store/archiveStore';
+import { useGroupKeyStore } from '@/src/store/groupKeyStore';
+import { announceGroupToContacts } from '@/src/sync/relayEngine';
 import { syncedNow } from '@/src/utils/syncedClock';
 import { pagosQueCuentan } from '@/src/algorithms/settlementStatus';
+
+/**
+ * Siguiente nombre disponible para un traspaso repetido (Important #5a,
+ * revisión final). `traspasarGrupo` nombraba siempre `"${nombre} (2)"`, así
+ * que traspasar un grupo YA traspasado una vez (p.ej. "Viaje (2)") chocaba
+ * con el nombre existente en vez de avanzar a "(3)".
+ *
+ * Se despoja un sufijo `" (N)"` final del nombre base ANTES de buscar, para
+ * no componer sufijos ("Viaje (2) (2)"), y se busca el N más chico (≥ 2) que
+ * no choque con ningún nombre ya existente.
+ */
+export function siguienteNombreDisponible(nombreBase: string, nombresExistentes: string[]): string {
+  const base = nombreBase.replace(/ \(\d+\)$/, '');
+  const existentes = new Set(nombresExistentes);
+  let n = 2;
+  while (existentes.has(`${base} (${n})`)) n += 1;
+  return `${base} (${n})`;
+}
 
 /**
  * Traspasa un grupo a uno nuevo (T-058, PO 2026-09-20): no copia los gastos
@@ -28,10 +48,15 @@ export function traspasarGrupo(grupoViejo: Group, description: string, createdBy
   const balances = calculateBalancesByCurrency(gastosDelGrupo, pagosDelGrupo, grupoViejo.memberIds);
 
   const ahora = syncedNow();
+  const nombresExistentes = useGroupStore.getState().groups
+    .filter(g => !g.isDeleted)
+    .map(g => g.name);
   const grupoNuevo: Group = {
     id: uuidv4(),
-    name: `${grupoViejo.name} (2)`,
-    memberIds: grupoViejo.memberIds,
+    name: siguienteNombreDisponible(grupoViejo.name, nombresExistentes),
+    // Copia, no referencia: el array del grupo viejo no puede seguir mutando
+    // por debajo del nuevo (o viceversa) sólo porque comparten `memberIds`.
+    memberIds: [...grupoViejo.memberIds],
     currency: grupoViejo.currency,
     createdAt: ahora,
     updatedAt: ahora,
@@ -39,6 +64,7 @@ export function traspasarGrupo(grupoViejo: Group, description: string, createdBy
     createdById,
     deletionVotes: [],
     deletionMode: grupoViejo.deletionMode,
+    defaultSplitMode: grupoViejo.defaultSplitMode,
   };
 
   const carryOvers = buildCarryOverExpenses(balances, grupoNuevo.id, description, createdById);
@@ -47,6 +73,12 @@ export function traspasarGrupo(grupoViejo: Group, description: string, createdBy
   for (const gasto of carryOvers) {
     useExpenseStore.getState().addExpense(gasto);
   }
+
+  // Sin esto el grupo nuevo es invisible para todos menos quien traspasó: sin
+  // clave no entra en `syncableGroupIds()` (no sincroniza) y sin anuncio nadie
+  // más recibe esa clave ni se entera de que el grupo existe.
+  useGroupKeyStore.getState().ensureKey(grupoNuevo.id);
+  void announceGroupToContacts(grupoNuevo.id);
 
   useGroupStore.getState().updateGroup(grupoViejo.id, { supersededByGroupId: grupoNuevo.id });
   useArchiveStore.getState().setArchived(grupoViejo.id, true, 'limit');
