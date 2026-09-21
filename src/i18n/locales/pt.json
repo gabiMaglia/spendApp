@@ -133,7 +133,7 @@
     "deletion_open_hint": "Qualquer pessoa do grupo apaga na hora, e qualquer uma pode restaurar em Atividade.",
     "deletion_fixed": "Escolhido agora e não muda depois.",
     "swipe_hint": "Deslize um grupo para a esquerda para arquivá-lo.",
-    "archived_hint": "Grupos arquivados não somam aos saldos nem aparecem em Atividade.",
+    "archived_hint": "Grupos arquivados não somam aos saldos.",
     "archived_readonly_title": "Grupo arquivado",
     "archived_readonly_hint": "Este grupo está arquivado — não é possível adicionar despesas",
     "limit_warning_body": "Este grupo tem {{count}} despesas — recomendamos transferi-lo para um novo antes de chegar a 450",

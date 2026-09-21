@@ -133,7 +133,7 @@
     "deletion_open_hint": "Cualquiera del grupo borra al instante, y cualquiera puede restaurarlo desde Actividad.",
     "deletion_fixed": "Se elige ahora y no cambia después.",
     "swipe_hint": "Deslizá un grupo a la izquierda para archivarlo.",
-    "archived_hint": "Los grupos archivados no suman a los balances ni aparecen en Actividad.",
+    "archived_hint": "Los grupos archivados no suman a los balances.",
     "archived_readonly_title": "Grupo archivado",
     "archived_readonly_hint": "Este grupo está archivado — no se pueden cargar gastos",
     "limit_warning_body": "Este grupo tiene {{count}} gastos — se recomienda traspasarlo a uno nuevo antes de llegar a 450",
