@@ -656,7 +656,9 @@
     "settlement_pending": "Someone says they paid you {{amount}}. Confirm whether you received it.",
     "sync_down_title": "«{{group}}» stopped syncing",
     "clock_off_title": "Your phone's clock is wrong",
-    "clock_off_body": "Your expense dates may look shifted. Check the phone's date and time; your data is fine."
+    "clock_off_body": "Your expense dates may look shifted. Check the phone's date and time; your data is fine.",
+    "group_replaced_title": "«{{group}}» was transferred",
+    "group_replaced_body": "It moved to a new group: «{{newGroup}}». The old one is now archived, read-only."
   },
   "fx": {
     "partial_title": "There's money we're not showing you",

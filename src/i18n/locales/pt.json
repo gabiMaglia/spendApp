@@ -656,7 +656,9 @@
     "settlement_pending": "Alguém diz que te pagou {{amount}}. Confirme se você recebeu.",
     "sync_down_title": "«{{group}}» parou de sincronizar",
     "clock_off_title": "A hora do seu telefone está errada",
-    "clock_off_body": "As datas das suas despesas podem aparecer trocadas. Confira a data e a hora do telefone; seus dados estão bem."
+    "clock_off_body": "As datas das suas despesas podem aparecer trocadas. Confira a data e a hora do telefone; seus dados estão bem.",
+    "group_replaced_title": "«{{group}}» foi transferido",
+    "group_replaced_body": "Passou para um grupo novo: «{{newGroup}}». O anterior fica arquivado, somente leitura."
   },
   "fx": {
     "partial_title": "Há saldo que não estamos mostrando",

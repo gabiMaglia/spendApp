@@ -144,6 +144,8 @@ describe('el texto de los avisos nuevos, en es/en/pt', () => {
     ['notifications.restored', '{{description}}'],
     ['notifications.sync_down_title', '{{group}}'],
     ['notifications.settlement_pending', '{{amount}}'],
+    ['notifications.group_replaced_title', '{{group}}'],
+    ['notifications.group_replaced_body', '{{newGroup}}'],
   ])('%s lleva su interpolado en los tres idiomas', (clave, marca) => {
     const [seccion, k] = clave.split('.');
     for (const [lang, dict] of Object.entries(dicts)) {
@@ -155,6 +157,8 @@ describe('el texto de los avisos nuevos, en es/en/pt', () => {
     ['notifications', 'restored'],
     ['notifications', 'sync_down_title'],
     ['notifications', 'settlement_pending'],
+    ['notifications', 'group_replaced_title'],
+    ['notifications', 'group_replaced_body'],
     ['sync', 'failure_too_large'],
     ['sync', 'failure_no_key'],
   ])('%s.%s está traducido, no copiado del español', (seccion, k) => {

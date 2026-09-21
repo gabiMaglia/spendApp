@@ -158,6 +158,9 @@ export function isEnabled(notice: Notice): boolean {
     case 'clock_off': return true;
     // T-136: es sobre a qué grupo entrás; mismo dominio que `joined`.
     case 'group_key_conflict': return s.notifInvites;
+    // T-058: es sobre a qué grupo pertenecés de ahora en más — mismo dominio
+    // que `joined`/`group_key_conflict`, no el de gastos ni el de saldos.
+    case 'group_replaced': return s.notifInvites;
   }
 }
 
@@ -230,6 +233,11 @@ export function textFor(notice: Notice): { title: string; body: string } {
         body: t('sync.key_conflict.body'),
       };
     }
+    case 'group_replaced':
+      return {
+        title: t('notifications.group_replaced_title', { group: notice.groupName }),
+        body: t('notifications.group_replaced_body', { newGroup: notice.newGroupName }),
+      };
   }
 }
 
