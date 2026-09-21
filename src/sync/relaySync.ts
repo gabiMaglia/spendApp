@@ -8,7 +8,8 @@ import { signEnvelope, verifyEnvelope } from './envelopeSign';
 import { observeAuthor } from './authorHealth';
 import { refreshPendingAuthors } from './authorKeys';
 import { sliceEntities, deriveCkey } from './slices';
-import { buildManifest } from './manifest';
+import { buildManifest, isManifest, type SliceManifest } from './manifest';
+import { recordManifestCheck } from './manifestHealth';
 
 /**
  * Sync por el relay: arma el sobre cifrado, lo publica y aplica lo que llega.
@@ -297,6 +298,26 @@ export async function drainGroup(
   let applied = 0;
   let skipped = 0;
 
+  // Con ADR-007 lo que llega ya no es "un delta por sobre": son rebanadas de
+  // datos MÁS, en cualquier posición del lote, uno o más sobres de manifiesto
+  // (Task 5/`buildSlicedEnvelopes`). Por eso el drenaje pasa a ser DOS pasadas:
+  //
+  //  1. Colección: abrir y descifrar cada sobre, y separar manifiestos de
+  //     rebanadas de datos — sin aplicar nada todavía. El manifiesto puede
+  //     llegar en cualquier posición dentro de ESTE MISMO drenaje (aunque
+  //     `publishToGroup` siempre lo manda al final, `fetchSince` puede haber
+  //     recortado el lote, o el manifiesto puede venir de una publicación
+  //     distinta a las rebanadas), así que hay que ver TODO el lote antes de
+  //     poder decidir qué falta.
+  //  2. Aplicación: recorrer las rebanadas de datos EN EL MISMO ORDEN en que
+  //     se recibieron (`seq` ascendente, tal cual las entrega `fetchSince`).
+  //     Este orden es load-bearing — ver el comentario sobre `SLICED_FIELDS`
+  //     más arriba: `users` y `comments` dependen de que `groups`/`expenses`
+  //     de la MISMA publicación ya se hayan aplicado. Reordenar acá (por
+  //     ejemplo, aplicar primero por tipo de campo) rompería esa garantía.
+  const rebanadasRecibidas: { ckey?: string; delta: SyncDelta; senderKey: string }[] = [];
+  const manifiestos: SliceManifest[] = [];
+
   for (const envelope of r.envelopes) {
     // 1. Firma. Descarta lo ajeno ANTES de gastar una operación de cifrado.
     const firmado = verifyEnvelope(envelope.payload);
@@ -306,21 +327,53 @@ export async function drainGroup(
     const plain = openEnvelope(key, firmado.sealed);
     if (plain === null) { skipped++; continue; }
 
-    let delta: SyncDelta;
+    let parsed: unknown;
     try {
-      delta = JSON.parse(plain) as SyncDelta;
+      parsed = JSON.parse(plain);
     } catch {
-      // Descifró pero el JSON no era un delta válido: se saltea igual.
+      // Descifró pero el JSON no era válido: se saltea igual.
       skipped++;
       continue;
     }
 
+    if (isManifest(parsed)) {
+      manifiestos.push(parsed);
+      continue;
+    }
+
+    // `senderKey` viaja por sobre, no por delta: hay que guardarlo acá, en la
+    // colección, para no perderlo de vista para cuando se aplique este delta
+    // en la segunda pasada (ver nota de revisión de Task 6).
+    rebanadasRecibidas.push({
+      ckey: (envelope as { ckey?: string }).ckey,
+      delta: parsed as SyncDelta,
+      senderKey: firmado.senderKey,
+    });
+  }
+
+  // Manifiesto: chequear completitud ANTES de aplicar, para no depender de en
+  // qué posición del lote cayó el sobre de manifiesto. Un gap acá sólo se
+  // REGISTRA para avisar en la UI más tarde (Task 7) — nunca es motivo para
+  // descartar o dejar de aplicar rebanadas que sí llegaron bien: un publish no
+  // es atómico (revisión de Task 5), así que un manifiesto desactualizado o
+  // incompleto en el buzón es un caso esperado, y LWW + `applyDelta` ya
+  // manejan con seguridad un estado parcial.
+  if (manifiestos.length > 0) {
+    const ckeysDeclaradas = new Set(manifiestos.flatMap(m => m.entries.map(e => e.ckey)));
+    const ckeysRecibidas = new Set(
+      rebanadasRecibidas.map(reb => reb.ckey).filter((ck): ck is string => Boolean(ck)),
+    );
+    const faltantes = [...ckeysDeclaradas].filter(ck => !ckeysRecibidas.has(ck));
+    recordManifestCheck(groupId, faltantes);
+  }
+
+  for (const { delta, senderKey } of rebanadasRecibidas) {
     // 3. Autoría (ADR-004 fase B) — en modo AVISO. La firma prueba que quien
     // mandó tiene la privada de SU dispositivo; esto mira si ese dispositivo
     // está registrado bajo la cuenta que el delta dice ser. Va sin `await` a
     // propósito: es observación, y no puede meterse en el camino del sync ni
     // agregarle la latencia de una consulta por sobre.
-    void observeAuthor(groupId, delta.fromUserId, firmado.senderKey);
+    void observeAuthor(groupId, delta.fromUserId, senderKey);
 
     try {
       // S3-A1: acá pasaba el delta crudo. La firma y el cifrado sólo prueban
