@@ -102,11 +102,17 @@ export function envelopeRow(
   sender: string,
   compactable = false,
   ownerProof?: string | null,
-): { topic: string; payload: string; sender: string; compactable: boolean; owner_proof?: string } {
-  const fila = { topic, payload, sender, compactable };
+  ckey?: string,
+): { topic: string; payload: string; sender: string; compactable: boolean; owner_proof?: string; ckey?: string } {
+  const fila: { topic: string; payload: string; sender: string; compactable: boolean; owner_proof?: string; ckey?: string } =
+    { topic, payload, sender, compactable };
   // Sin prenda la clave NO aparece: la fila queda idéntica a la de antes de
   // T-088, y por eso un servidor sin la migración 008 la acepta igual.
-  return ownerProof ? { ...fila, owner_proof: ownerProof } : fila;
+  if (ownerProof) fila.owner_proof = ownerProof;
+  // Sin ckey la fila queda igual que antes de la compactación por ckey
+  // (ADR-007): un servidor sin la migración correspondiente la acepta igual.
+  if (ckey) fila.ckey = ckey;
+  return fila;
 }
 
 /**
@@ -145,6 +151,7 @@ export async function sendEnvelope(
   payload: string,
   sender: string,
   compactable = false,
+  ckey?: string,
 ): Promise<SendResult> {
   const supabase = getRelayClient();
   if (!supabase) return { ok: false, reason: 'not_configured' };
@@ -166,7 +173,7 @@ export async function sendEnvelope(
 
   const { data, error } = await supabase
     .from('envelopes')
-    .insert(envelopeRow(topic, payload, sender, compactable, proof))
+    .insert(envelopeRow(topic, payload, sender, compactable, proof, ckey))
     .select('seq,created_at')
     .single();
 
@@ -176,7 +183,7 @@ export async function sendEnvelope(
     // grupo sin sincronizar.
     if (proof && esRechazoDeLaPrenda(error.message)) {
       servidorSinPrenda = true;
-      return sendEnvelope(topic, payload, sender, compactable);
+      return sendEnvelope(topic, payload, sender, compactable, ckey);
     }
     return { ok: false, reason: 'network', detail: error.message };
   }

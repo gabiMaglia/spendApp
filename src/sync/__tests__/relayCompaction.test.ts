@@ -27,3 +27,15 @@ describe('marca de compactación', () => {
     });
   });
 });
+
+describe('ckey opcional', () => {
+  it('envelopeRow sin ckey no incluye la clave en la fila', () => {
+    const fila = envelopeRow('t', 'x', 'dev1');
+    expect(fila).not.toHaveProperty('ckey');
+  });
+
+  it('envelopeRow con ckey la incluye tal cual', () => {
+    const fila = envelopeRow('t', 'x', 'dev1', true, null, 'abc123');
+    expect(fila).toMatchObject({ ckey: 'abc123' });
+  });
+});
