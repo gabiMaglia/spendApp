@@ -109,6 +109,21 @@ export function TabHeader({
       return;
     }
 
+    /**
+     * `group_replaced` navega al grupo NUEVO, no al viejo: el viejo quedó
+     * archivado de solo lectura y `aviso.groupId` apunta justo a él. Tiene
+     * que ir antes de la navegación genérica por `groupId` de más abajo, que
+     * si no lo intercepta manda al lector adentro del grupo que ya no sirve.
+     */
+    if (aviso.kind === 'group_replaced') {
+      markRead(item.id);
+      setBandeja(false);
+      const grupoNuevo = groups.find(g => g.id === aviso.newGroupId && !g.isDeleted);
+      if (!grupoNuevo) { alert(t('notifications.inbox_gone')); return; }
+      router.push(`/groups/${grupoNuevo.id}` as never);
+      return;
+    }
+
     markRead(item.id);
     setBandeja(false);
 

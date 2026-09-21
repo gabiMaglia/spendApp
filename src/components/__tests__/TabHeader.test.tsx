@@ -4,6 +4,7 @@ import { useSharedValue } from 'react-native-reanimated';
 import { readdirSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { fireEvent, render, renderHook } from '@testing-library/react-native';
+import { router } from 'expo-router';
 import { TabHeader } from '../TabHeader';
 import { useAuthStore } from '@/src/store/authStore';
 import { useUserStore } from '@/src/store/userStore';
@@ -235,5 +236,64 @@ describe('T-136 · el aviso de claves en disputa abre la elección', () => {
 
     expect(r.queryByTestId('key-conflict-card')).toBeNull();
     expect(leido()).not.toBeNull();
+  });
+});
+
+/**
+ * Important #2 de la revisión final del traspaso (T-058): un aviso
+ * `group_replaced` tiene que llevar al grupo NUEVO, no al viejo. `abrirAviso`
+ * era genérico y navegaba siempre por `aviso.groupId`, que en este `kind`
+ * apunta justo al grupo archivado que ya no sirve.
+ */
+describe('group_replaced navega al grupo NUEVO, no al archivado (revisión final)', () => {
+  const traspaso = {
+    kind: 'group_replaced' as const, groupId: 'g-viejo', groupName: 'Viaje',
+    newGroupId: 'g-nuevo', newGroupName: 'Viaje (2)',
+  };
+
+  beforeEach(() => {
+    useNoticeInboxStore.setState({ items: [{ id: 'n1', readAt: null, createdAt: 0, notice: traspaso }] });
+  });
+
+  it('con el grupo nuevo vivo, navega a /groups/<newGroupId>', () => {
+    useGroupStore.setState({ groups: [
+      { id: 'g-viejo', name: 'Viaje', memberIds: ['ana'], currency: 'ARS', createdAt: 0, updatedAt: 0, isDeleted: false, createdById: 'ana', deletionVotes: [] },
+      { id: 'g-nuevo', name: 'Viaje (2)', memberIds: ['ana'], currency: 'ARS', createdAt: 0, updatedAt: 0, isDeleted: false, createdById: 'ana', deletionVotes: [] },
+    ] });
+
+    const r = montar();
+    fireEvent.press(r.getByTestId('notice-bell'));
+    fireEvent.press(r.getByTestId('notice-n1'));
+
+    expect(router.push).toHaveBeenCalledWith(expect.stringContaining('g-nuevo'));
+    expect(router.push).not.toHaveBeenCalledWith(expect.stringContaining('g-viejo'));
+  });
+
+  it('marca el aviso leído al tocarlo', () => {
+    useGroupStore.setState({ groups: [
+      { id: 'g-nuevo', name: 'Viaje (2)', memberIds: ['ana'], currency: 'ARS', createdAt: 0, updatedAt: 0, isDeleted: false, createdById: 'ana', deletionVotes: [] },
+    ] });
+
+    const r = montar();
+    fireEvent.press(r.getByTestId('notice-bell'));
+    fireEvent.press(r.getByTestId('notice-n1'));
+
+    expect(useNoticeInboxStore.getState().items[0]!.readAt).not.toBeNull();
+  });
+
+  it('si el grupo nuevo todavía no llegó por sync, avisa y no navega', () => {
+    useGroupStore.setState({ groups: [] });
+    // `alert` no existe en el entorno de test (no es un browser ni RN real) —
+    // igual que el `alert` gemelo de la rama genérica un poco más abajo en
+    // `abrirAviso`, que tampoco tiene test propio hoy.
+    (global as any).alert = jest.fn();
+
+    const r = montar();
+    (router.push as jest.Mock).mockClear();
+    fireEvent.press(r.getByTestId('notice-bell'));
+    fireEvent.press(r.getByTestId('notice-n1'));
+
+    expect((global as any).alert).toHaveBeenCalledWith('notifications.inbox_gone');
+    expect(router.push).not.toHaveBeenCalled();
   });
 });
