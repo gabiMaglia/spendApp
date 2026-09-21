@@ -90,6 +90,21 @@ export function buildGroupPayload(groupId: string, currentUserId: string): SyncD
  * Campos de `SyncDelta` que se parten en rebanadas. `personal` y `groupKeys`
  * nunca aparecen en un payload de grupo (`buildGroupPayload` ya los excluye,
  * ver comentario ahí) así que no hace falta clasificarlos acá.
+ *
+ * **EL ORDEN DE ESTE ARRAY ES INVARIANTE, NO UN DETALLE ESTÉTICO.** Los
+ * sobres se mandan y se drenan en este mismo orden (`buildSlicedEnvelopes` /
+ * `drainGroup` procesan en `seq`), y `acotarDeltaAlGrupo` filtra `users` y
+ * `comments` contra estado que se asume YA LOCAL:
+ *  - `users` se filtra contra `local.groupMemberIds(groupId)` — necesita que
+ *    el sobre de `groups` ya se haya aplicado.
+ *  - `comments` sólo sobrevive si su `expenseId` está en el sobre de
+ *    `expenses` **o ya es local** — necesita que `expenses` haya sido
+ *    aplicado antes.
+ * `groups` y `expenses` van primero a propósito. Si alguien reordena este
+ * array (o cambia el drenaje para no respetar `seq`), un miembro nuevo puede
+ * perder comentarios y perfiles en su primer sync **en silencio** — no hay
+ * error, sólo datos que nunca llegan. Ver el JSDoc de `buildSlicedEnvelopes`
+ * para el detalle de qué garantiza y qué no cada sobre.
  */
 const SLICED_FIELDS = ['groups', 'expenses', 'payments', 'users', 'recurring', 'comments'] as const;
 
@@ -100,10 +115,18 @@ const SLICED_FIELDS = ['groups', 'expenses', 'payments', 'users', 'recurring', '
  * (`buildManifest`, Task 3).
  *
  * Cada rebanada es un `SyncDelta` válido por derecho propio: sólo trae la
- * porción de UN campo, todos los demás campos sliceables van vacíos. Esto
- * importa para el lado que recibe (`drainGroup`/`acotarDeltaAlGrupo`): cada
- * sobre se puede abrir y mergear de forma independiente, sin esperar a que
- * lleguen los demás.
+ * porción de UN campo, todos los demás campos sliceables van vacíos. Cada
+ * sobre se puede ABRIR y DESCIFRAR de forma independiente, sin esperar a que
+ * lleguen los demás — pero **aplicarlo correctamente es otra cosa**: no es
+ * cierto para todos los campos que mergearlo no dependa de qué otros sobres ya
+ * se aplicaron. `acotarDeltaAlGrupo` filtra `users` contra la membresía local
+ * del grupo y `comments` contra el conjunto de `expenses` ya conocidos —
+ * ambos asumen que los sobres de `groups`/`expenses` de ESTA MISMA
+ * publicación ya se procesaron. Por eso `SLICED_FIELDS` tiene a `groups` y
+ * `expenses` antes de `users` y `comments`, y por eso ese orden es
+ * load-bearing (ver el comentario sobre `SLICED_FIELDS` más abajo) — el
+ * drenaje (`drainGroup`) tiene que respetar el orden de envío (`seq`) para
+ * que esta garantía se sostenga.
  *
  * El manifiesto se manda AL FINAL a propósito: es el sobre que un lector
  * necesita ver para saber "esto es todo lo que hay", y por eso su `seq` es el
