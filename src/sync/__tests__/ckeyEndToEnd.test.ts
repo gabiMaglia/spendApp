@@ -33,14 +33,29 @@
  */
 
 jest.mock('../relay', () => {
+  // Revisión final, Fix 5: el mock original aceptaba CUALQUIER payload sin
+  // mirar su tamaño, así que `expect(result.ok).toBe(true)` pasaba igual de
+  // "bien" con el slicing roto o directamente sacado — no probaba nada sobre
+  // el tope real. Acá se reusa el `byteLength`/`MAX_PAYLOAD_BYTES` REALES de
+  // `relay.ts` (vía `jest.requireActual`, no una copia local que se puede
+  // desalinear) para que `sendEnvelope` rechace de verdad cualquier sobre que
+  // exceda el tope — igual que el servidor real.
+  const real = jest.requireActual('../relay') as {
+    byteLength: (s: string) => number;
+    MAX_PAYLOAD_BYTES: number;
+  };
   const buzones = new Map<string, { seq: number; topic: string; payload: string; sender: string; compactable?: boolean; ckey?: string }[]>();
   let seq = 0;
   return {
+    ...real,
     __buzones: buzones,
     __reset: () => { buzones.clear(); seq = 0; },
     isRelayConfigured: () => true,
     subscribeTopic: () => () => {},
     sendEnvelope: async (topic: string, payload: string, sender: string, compactable = false, ckey?: string) => {
+      if (real.byteLength(payload) > real.MAX_PAYLOAD_BYTES) {
+        return { ok: false, reason: 'too_large' as const };
+      }
       const lista = buzones.get(topic) ?? [];
       lista.push({ seq: ++seq, topic, payload, sender, compactable, ckey });
       buzones.set(topic, lista);
@@ -66,6 +81,7 @@ import { useExpenseStore } from '@/src/store/expenseStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { publishToGroup, drainGroup } from '../relaySync';
 import { manifestGapFor, clearManifestGaps } from '../manifestHealth';
+import { byteLength, MAX_PAYLOAD_BYTES } from '../relay';
 import type { Group, Expense } from '@/src/types/models';
 
 const relayMock = jest.requireMock('../relay') as {
@@ -127,6 +143,17 @@ describe('escenario T-056/T-058: 8 miembros, 700 gastos (116% del tope sin parti
 
     const result = await publishToGroup('G', 'u1', 'device1');
     expect(result.ok).toBe(true);
+
+    // Fix 5: no basta con que el publish haya vuelto `ok: true` — con el mock
+    // ahora rechazando de verdad cualquier sobre sobre el tope real, esta
+    // aserción es una prueba genuina de que CADA sobre individual quedó bajo
+    // `MAX_PAYLOAD_BYTES`, no sólo que el resultado agregado "pasó".
+    const [topic] = [...relayMock.__buzones.keys()];
+    const sobres = relayMock.__buzones.get(topic)!;
+    expect(sobres.length).toBeGreaterThan(0);
+    for (const sobre of sobres) {
+      expect(byteLength(sobre.payload)).toBeLessThanOrEqual(MAX_PAYLOAD_BYTES);
+    }
   });
 
   it('el que entra tarde reconstruye el historial completo (P-2)', async () => {

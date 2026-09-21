@@ -28,6 +28,7 @@ import { publishToGroup } from '../relaySync';
 import { isManifest } from '../manifest';
 import { openEnvelope } from '../envelopeCrypto';
 import { verifyEnvelope } from '../envelopeSign';
+import * as sliceRenewal from '../sliceRenewal';
 import type { Group, Expense, User } from '@/src/types/models';
 
 const relayMock = jest.requireMock('../relay') as {
@@ -138,5 +139,143 @@ describe('publishToGroup publica rebanadas + manifiesto', () => {
     const sobreDeFoto = decrypted.find(d => d.raw === fotoOriginal);
     expect(sobreDeFoto).toBeDefined();
     expect(sobreDeFoto!.topic).not.toBe(rebanadaUsers!.topic);
+  });
+
+  /**
+   * Revisión final, Fix 2 (crítico): antes, `avatarDigest` se recalculaba
+   * para CUALQUIER usuario con `avatar` cacheado localmente — no sólo para el
+   * propio (`fromUserId`). Si este dispositivo tiene una copia STALE de la
+   * foto de OTRO miembro (nunca la actualizó, o la cacheó hace tiempo), y
+   * republica el grupo por cualquier motivo no relacionado a fotos, declararía
+   * esa versión vieja como "la" versión — un tercero que confía en el digest
+   * la adoptaría vía `fetchAvatarIfMissing` → `addOrUpdateUser`, que escribe
+   * DIRECTO al store sin LWW, potencialmente pisando una foto más nueva.
+   *
+   * El fix: sólo se recalcula el digest para el registro cuyo `id` coincide
+   * con `fromUserId` (el propio). Para cualquier otro, el `avatar` se elide
+   * (nunca se reenvían fotos ajenas completas) pero `avatarDigest` se deja
+   * TAL CUAL venía en la fila local — nunca se recalcula a partir de bytes
+   * cacheados de otro usuario.
+   */
+  it('no recalcula avatarDigest para un usuario que no es el remitente — no reafirma frescura de una foto ajena', async () => {
+    useAuthStore.setState({ user: { id: 'u1' } } as never);
+    const fotoStaleDeOtro = 'foto-stale-cacheada-de-u2'.repeat(50);
+    const propio = { id: 'u1', name: 'Uno', email: '', authProvider: 'google', createdAt: 1, updatedAt: 1, isDeleted: false } as never;
+    // u2: copia local STALE de su foto, SIN un avatarDigest propio guardado
+    // (nunca se recibió por referencia, o es un registro viejo).
+    const otroConFotoStale = { id: 'u2', name: 'Dos', email: '', authProvider: 'google', createdAt: 1, avatar: fotoStaleDeOtro, updatedAt: 1, isDeleted: false } as never;
+    useUserStore.setState({ users: [propio, otroConFotoStale] });
+    useGroupStore.setState({ groups: [{ ...grupo(), memberIds: ['u1', 'u2'] }] } as never);
+    useExpenseStore.setState({ expenses: [gasto('e1')] } as never);
+
+    await publishToGroup('G', 'u1', 'device1');
+
+    const key = groupKeyBytes('G')!;
+    let rebanadaUsersContenido: { users: User[] } | undefined;
+    for (const sobres of relayMock.__buzones.values()) {
+      for (const sobre of sobres) {
+        const firmado = verifyEnvelope(sobre.payload);
+        if (!firmado) continue;
+        const plain = openEnvelope(key, firmado.sealed);
+        if (!plain) continue;
+        let content: unknown;
+        try { content = JSON.parse(plain); } catch { continue; }
+        if (
+          typeof content === 'object' && content !== null && !isManifest(content) &&
+          Array.isArray((content as { users?: unknown }).users) &&
+          ((content as { users: User[] }).users.length > 0)
+        ) {
+          rebanadaUsersContenido = content as { users: User[] };
+        }
+      }
+    }
+
+    expect(rebanadaUsersContenido).toBeDefined();
+    const perfilU2 = rebanadaUsersContenido!.users.find(u => u.id === 'u2');
+    expect(perfilU2).toBeDefined();
+    // El blob de la foto ajena nunca se reenvía completo...
+    expect(perfilU2!.avatar).toBeFalsy();
+    // ...pero tampoco se le asigna un avatarDigest "fresco" calculado acá:
+    // como u2 no tenía uno propio guardado, no se declara ninguno.
+    expect(perfilU2!.avatarDigest).toBeUndefined();
+  });
+
+  it('para un usuario ajeno, un avatarDigest YA existente en la fila local se deja tal cual — nunca se recalcula', async () => {
+    useAuthStore.setState({ user: { id: 'u1' } } as never);
+    const propio = { id: 'u1', name: 'Uno', email: '', authProvider: 'google', createdAt: 1, updatedAt: 1, isDeleted: false } as never;
+    // u2 ya trae un avatarDigest conocido de un merge anterior — distinto del
+    // digest real de los bytes que este dispositivo tiene cacheados, a
+    // propósito: si el código lo recalculara, este valor cambiaría.
+    const digestConocidoAnterior = 'digest-conocido-de-un-merge-anterior';
+    const otro = {
+      id: 'u2', name: 'Dos', email: '', authProvider: 'google', createdAt: 1,
+      avatar: 'bytes-cacheados-que-no-coinciden-con-el-digest'.repeat(20),
+      avatarDigest: digestConocidoAnterior,
+      updatedAt: 1, isDeleted: false,
+    } as never;
+    useUserStore.setState({ users: [propio, otro] });
+    useGroupStore.setState({ groups: [{ ...grupo(), memberIds: ['u1', 'u2'] }] } as never);
+    useExpenseStore.setState({ expenses: [gasto('e1')] } as never);
+
+    await publishToGroup('G', 'u1', 'device1');
+
+    const key = groupKeyBytes('G')!;
+    let rebanadaUsersContenido: { users: User[] } | undefined;
+    for (const sobres of relayMock.__buzones.values()) {
+      for (const sobre of sobres) {
+        const firmado = verifyEnvelope(sobre.payload);
+        if (!firmado) continue;
+        const plain = openEnvelope(key, firmado.sealed);
+        if (!plain) continue;
+        let content: unknown;
+        try { content = JSON.parse(plain); } catch { continue; }
+        if (
+          typeof content === 'object' && content !== null && !isManifest(content) &&
+          Array.isArray((content as { users?: unknown }).users) &&
+          ((content as { users: User[] }).users.length > 0)
+        ) {
+          rebanadaUsersContenido = content as { users: User[] };
+        }
+      }
+    }
+
+    const perfilU2 = rebanadaUsersContenido!.users.find(u => u.id === 'u2');
+    expect(perfilU2!.avatar).toBeFalsy();
+    expect(perfilU2!.avatarDigest).toBe(digestConocidoAnterior);
+  });
+
+  /**
+   * Revisión final, Fix 3: antes, `recordSlicePublished` se llamaba al ARMAR
+   * cada pieza (`buildSlicedEnvelopes`), antes de que `sendEnvelope` la
+   * mandara de verdad. Si el envío fallaba a mitad de camino, piezas que
+   * NUNCA llegaron al buzón quedaban igual marcadas como "recién publicadas"
+   * en el registro de renovación de 20 días — así que la renovación nunca las
+   * reintentaría.
+   */
+  it('recordSlicePublished sólo se registra para las piezas cuyo envío se confirmó', async () => {
+    const renewalSpy = jest.spyOn(sliceRenewal, 'recordSlicePublished');
+
+    // Se fuerza que el SEGUNDO envío de esta publicación falle — simula una
+    // red que se cae a mitad de una publicación con varias piezas.
+    let llamados = 0;
+    const relayModule = jest.requireMock('../relay') as {
+      sendEnvelope: (topic: string, payload: string, sender: string, compactable?: boolean, ckey?: string) => Promise<{ ok: boolean; seq?: number; reason?: string }>;
+    };
+    const sendEnvelopeOriginal = relayModule.sendEnvelope;
+    relayModule.sendEnvelope = jest.fn(async (topic, payload, sender, compactable, ckey) => {
+      llamados++;
+      if (llamados === 2) return { ok: false, reason: 'network' };
+      return sendEnvelopeOriginal(topic, payload, sender, compactable, ckey);
+    });
+
+    const result = await publishToGroup('G', 'u1', 'device1');
+    expect(result.ok).toBe(false);
+
+    // Sólo la primera pieza (la única cuyo envío se confirmó) quedó
+    // registrada como "recién publicada".
+    expect(renewalSpy).toHaveBeenCalledTimes(1);
+
+    relayModule.sendEnvelope = sendEnvelopeOriginal;
+    renewalSpy.mockRestore();
   });
 });

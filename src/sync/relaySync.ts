@@ -165,17 +165,37 @@ async function buildSlicedEnvelopes(
   // vería el `avatar` ausente y se borraría su copia cacheada. Se asume que
   // fase A ya está desplegada en toda la flota; si se descubre que no lo
   // está, hay que revertir esta elisión hasta confirmarlo.
+  // Revisión final, hallazgo crítico (Fix 2): el digest sólo se RECALCULA para
+  // el propio registro (`u.id === delta.fromUserId`). Antes se recalculaba
+  // para CUALQUIER usuario con `avatar` cacheado localmente — incluidos otros
+  // miembros. Ese cálculo usa la copia local de ESTE dispositivo, que puede
+  // estar vieja: si este aparato tiene una foto stale de otro miembro y
+  // republica el grupo por cualquier motivo, declararía esa versión vieja
+  // como "la" versión, y un tercero que confía en el digest declarado
+  // adoptaría esos bytes viejos vía `fetchAvatarIfMissing` → `addOrUpdateUser`
+  // — que escribe DIRECTO al store, sin LWW ni chequeo de timestamp — pisando
+  // una foto más nueva que ya tenía. Un dispositivo sólo puede asegurar
+  // frescura sobre SU PROPIA foto; para cualquier otro registro, el
+  // `avatarDigest` que ya trae la fila local (puesto por un merge anterior)
+  // se deja tal cual, nunca se toca.
   const usuariosConDigest = await Promise.all(
     (delta.users ?? []).map(async (u) => {
-      if (!u.avatar) return u; // sin foto (o tombstone real): nada que referenciar
-      const digest = await digestOfJson(u.avatar);
-      if (u.id === delta.fromUserId) {
-        // Es mi propia foto: la publico (si cambió) en su topic aparte.
-        // Se espera acá, no fire-and-forget: si no se espera, nada garantiza
-        // que el sobre de la foto exista en el buzón para cuando otro
-        // miembro drene esta misma publicación y pida esta rebanada.
-        await publishAvatarIfOwn(groupId, delta.fromUserId, deviceId);
+      if (u.id !== delta.fromUserId) {
+        if (!u.avatar) return u; // sin foto cacheada: nada que elidir
+        // No es mi registro: se elide el blob (nunca se reenvían fotos ajenas
+        // completas) pero `avatarDigest` queda EXACTAMENTE como ya estaba en
+        // la fila local — nunca se recalcula a partir de bytes cacheados de
+        // otro usuario.
+        const { avatar: _avatarAjeno, ...sinFotoAjena } = u;
+        return sinFotoAjena;
       }
+      if (!u.avatar) return u; // propio, sin foto (o tombstone real): nada que referenciar
+      const digest = await digestOfJson(u.avatar);
+      // Es mi propia foto: la publico (si cambió) en su topic aparte.
+      // Se espera acá, no fire-and-forget: si no se espera, nada garantiza
+      // que el sobre de la foto exista en el buzón para cuando otro
+      // miembro drene esta misma publicación y pida esta rebanada.
+      await publishAvatarIfOwn(groupId, delta.fromUserId, deviceId);
       const { avatar: _avatar, ...sinFoto } = u;
       return { ...sinFoto, avatarDigest: digest };
     }),
@@ -197,17 +217,23 @@ async function buildSlicedEnvelopes(
         [campo]: rebanada,
       } as SyncDelta;
       piezas.push({ ckey, json: JSON.stringify(parcial) });
-      // Cada publicación es una publicación FRESCA de esa rebanada — resetea
-      // el reloj de renovación de 20 días (sliceRenewal.ts), aunque el
-      // contenido no haya cambiado desde la última vez.
-      recordSlicePublished(ckey, Date.now());
+      // Revisión final (Fix 3): `recordSlicePublished` YA NO se llama acá.
+      // Acá sólo se ARMA la lista de piezas — todavía no se mandó nada por la
+      // red. Registrar "publicada" en este punto marcaba una rebanada como
+      // fresca aunque `publishToGroup` fallara a mitad de camino (p. ej. la
+      // red se cae en la rebanada 3 de 5): esa rebanada nunca llegó al buzón,
+      // pero el reloj de renovación de 20 días (`sliceRenewal.ts`) ya la daba
+      // por publicada, así que el mecanismo de renovación nunca la
+      // reintentaría. El registro se movió a `publishToGroup`, después de que
+      // `sendEnvelope` confirma `{ok: true}` para esa pieza puntual — mismo
+      // patrón que `avatarTopic.ts`'s `publishAvatarIfOwn` ya usa
+      // correctamente.
     }
   }
 
   const manifiesto = await buildManifest(piezas);
   const manifiestoCkey = await deriveCkey(key, 'manifest', 'unica');
   piezas.push({ ckey: manifiestoCkey, json: JSON.stringify(manifiesto) });
-  recordSlicePublished(manifiestoCkey, Date.now());
 
   return piezas;
 }
@@ -263,6 +289,14 @@ export async function publishToGroup(
     // la misma `ckey` de este mismo dispositivo (T-032 + ADR-007).
     const r = await sendEnvelope(topic, firmado, deviceId, true, pieza.ckey);
     if (!r.ok) return { ok: false, reason: r.reason, detail: r.detail };
+
+    // Fix 3: recién ACÁ, con el envío confirmado, se resetea el reloj de
+    // renovación de 20 días para esta rebanada puntual. Si `publishToGroup`
+    // corta antes (una pieza posterior falla), las piezas que sí salieron
+    // quedan correctamente marcadas como frescas, y las que no salieron
+    // nunca se marcaron — quedan elegibles para que la renovación las
+    // reintente, en vez de creer falsamente que ya están al día.
+    recordSlicePublished(pieza.ckey, Date.now());
     ultimoSeq = r.seq;
   }
 
@@ -371,7 +405,7 @@ export async function drainGroup(
   //     más arriba: `users` y `comments` dependen de que `groups`/`expenses`
   //     de la MISMA publicación ya se hayan aplicado. Reordenar acá (por
   //     ejemplo, aplicar primero por tipo de campo) rompería esa garantía.
-  const rebanadasRecibidas: { ckey?: string; sender: string; delta: SyncDelta; senderKey: string }[] = [];
+  const rebanadasRecibidas: { ckey?: string; sender: string; delta: SyncDelta; senderKey: string; json: string }[] = [];
   const manifiestos: { sender: string; manifest: SliceManifest }[] = [];
 
   for (const envelope of r.envelopes) {
@@ -405,6 +439,10 @@ export async function drainGroup(
       sender: envelope.sender,
       delta: parsed as SyncDelta,
       senderKey: firmado.senderKey,
+      // Fix 4: se guarda el JSON plano (post-descifrado, pre-parse) de esta
+      // rebanada — hace falta para recalcular su digest y compararlo contra
+      // lo que el manifiesto declaró, más abajo.
+      json: plain,
     });
   }
 
@@ -430,22 +468,41 @@ export async function drainGroup(
   // un falso positivo sin mitigación. Se prefiere no decir nada a mentir.
   const paginaCompleta = r.envelopes.length < DRAIN_FETCH_LIMIT;
   if (manifiestos.length > 0 && paginaCompleta) {
-    const ckeysRecibidasPorRemitente = new Map<string, Set<string>>();
+    // ckey -> json recibido, por remitente. Se guarda el JSON (no sólo un
+    // Set de presencia) porque el chequeo de completitud (Fix 4, revisión
+    // final) ya no es sólo "¿llegó esta ckey?" — también hace falta poder
+    // recalcular su digest para compararlo contra lo que el manifiesto
+    // declaró.
+    const recibidasPorRemitente = new Map<string, Map<string, string>>();
     for (const reb of rebanadasRecibidas) {
       if (!reb.ckey) continue;
-      let set = ckeysRecibidasPorRemitente.get(reb.sender);
-      if (!set) {
-        set = new Set();
-        ckeysRecibidasPorRemitente.set(reb.sender, set);
+      let mapa = recibidasPorRemitente.get(reb.sender);
+      if (!mapa) {
+        mapa = new Map();
+        recibidasPorRemitente.set(reb.sender, mapa);
       }
-      set.add(reb.ckey);
+      mapa.set(reb.ckey, reb.json);
     }
 
     const faltantes: string[] = [];
     for (const { sender, manifest } of manifiestos) {
-      const recibidas = ckeysRecibidasPorRemitente.get(sender) ?? new Set<string>();
+      const recibidas = recibidasPorRemitente.get(sender) ?? new Map<string, string>();
       for (const entry of manifest.entries) {
-        if (!recibidas.has(entry.ckey)) faltantes.push(entry.ckey);
+        const json = recibidas.get(entry.ckey);
+        if (json === undefined) {
+          faltantes.push(entry.ckey);
+          continue;
+        }
+        // Fix 4: la ckey llegó, pero eso no alcanza — su CONTENIDO tiene que
+        // coincidir con el digest que el manifiesto declaró para ella. Un
+        // sobre corrupto, o una versión vieja/equivocada que terminó
+        // aterrizando bajo esa ckey, se trata igual que si nunca hubiera
+        // llegado, a los fines del aviso de gap. Esto NUNCA bloquea que la
+        // rebanada se aplique — sólo afecta qué se reporta como faltante; el
+        // merge de abajo (LWW + `applyDelta`) sigue procesando exactamente
+        // las mismas `rebanadasRecibidas`, sin filtrar por este chequeo.
+        const digest = await digestOfJson(json);
+        if (digest !== entry.digest) faltantes.push(entry.ckey);
       }
     }
     recordManifestCheck(groupId, faltantes);

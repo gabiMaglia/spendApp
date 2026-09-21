@@ -1,5 +1,7 @@
 # Compactación por rebanada (ckey) + manifiesto + fotos por referencia — Implementation Plan
 
+> ⚠️ **DEPLOYMENT ORDER:** `supabase/010_ckey_compaction.sql` must be applied to production Supabase **BEFORE** any client build from this branch ships. Skipping this causes silent group data loss (slice N deletes slice N-1 server-side).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Eliminate the structural sync ceiling by splitting each group's full-state envelope into size-bounded "slices" (rebanadas) plus a manifest declaring completeness, and stop resending unchanged user avatars in every publish.
@@ -1122,6 +1124,8 @@ git commit -m "feat(groups): aviso visible cuando el manifiesto de rebanadas est
 ---
 
 ### Task 8: Renewal — republish slices older than 20 days
+
+> **Post-implementation clarification (final review):** this task, as delivered, only wires the RECORDING half (`recordSlicePublished`, called on every real publish) into the live publish path. The staleness CHECK (`staleSliceCkeys`) exists as a tested, correct pure primitive, but nothing invokes it on a schedule — there is no timer or poll-cycle check that finds stale slices and forces a renewal republish. Do not read this task's title as "stale slices self-heal today": only the bookkeeping is live. Wiring a scheduler is deferred pending a PO decision on check cadence (see step 5 below, and the Global Constraints/Scope summary at the end of this plan).
 
 **Files:**
 - Create: `src/sync/sliceRenewal.ts`

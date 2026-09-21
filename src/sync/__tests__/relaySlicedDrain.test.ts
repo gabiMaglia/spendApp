@@ -34,8 +34,8 @@ import { useUserStore } from '@/src/store/userStore';
 import { publishToGroup, drainGroup } from '../relaySync';
 import { manifestGapFor, clearManifestGaps } from '../manifestHealth';
 import * as avatarTopic from '../avatarTopic';
-import { sealEnvelope, deriveTopic } from '../envelopeCrypto';
-import { signEnvelope } from '../envelopeSign';
+import { sealEnvelope, deriveTopic, openEnvelope } from '../envelopeCrypto';
+import { signEnvelope, verifyEnvelope } from '../envelopeSign';
 import { ensureIdentity } from '@/src/store/identityStore';
 import { sendEnvelope } from '../relay';
 import type { Group, Expense, User } from '@/src/types/models';
@@ -311,6 +311,90 @@ describe('drainGroup aplica rebanadas y detecta manifiestos incompletos', () => 
     expect(useUserStore.getState().getUserById('u3')?.avatarDigest).toBeUndefined();
 
     fetchSpy.mockRestore();
+  });
+
+  /**
+   * Revisión final, Fix 2 (crítico), verificado del lado del DRENAJE: un
+   * dispositivo que republica el grupo sin ser el dueño de una foto no debe
+   * reafirmar frescura sobre ella. Este test confirma el efecto observable
+   * desde `drainGroup`: si `uB` (no dueño) tiene localmente una copia STALE
+   * de la foto de `uA` sin `avatarDigest` propio guardado, y republica el
+   * grupo, un tercero que drena esa publicación NO debe pedir ni adoptar
+   * nada para `uA` — con el bug viejo, `uB` declaraba un digest "fresco"
+   * calculado de sus bytes stale, y el tercero lo tomaba como una foto nueva.
+   */
+  it('Fix 2: un remitente que no es dueño de una foto no dispara su re-fetch en quien drena', async () => {
+    const fetchSpy = jest.spyOn(avatarTopic, 'fetchAvatarIfMissing').mockResolvedValue(undefined);
+
+    useGroupStore.setState({ groups: [{ ...grupo(), memberIds: ['u1', 'uA', 'uB'] }] } as never);
+    useExpenseStore.setState({ expenses: [] } as never);
+
+    const fotoStaleDeA = 'foto-stale-de-A-cacheada-por-B'.repeat(30);
+    useUserStore.setState({ users: [
+      { id: 'uA', name: 'A', email: '', authProvider: 'google', createdAt: 1, avatar: fotoStaleDeA, updatedAt: 1, isDeleted: false } as unknown as User,
+      { id: 'uB', name: 'B', email: '', authProvider: 'google', createdAt: 1, updatedAt: 1, isDeleted: false } as unknown as User,
+    ] });
+
+    // uB republica el grupo (motivo cualquiera, no relacionado a fotos).
+    await publishToGroup('G', 'uB', 'deviceB');
+
+    useUserStore.setState({ users: [] });
+    const result = await drainGroup('G', 'u1', 'deviceC', 0);
+    expect(result.ok).toBe(true);
+
+    expect(fetchSpy).not.toHaveBeenCalledWith('G', 'uA', expect.anything());
+    expect(useUserStore.getState().getUserById('uA')?.avatarDigest).toBeUndefined();
+
+    fetchSpy.mockRestore();
+  });
+
+  /**
+   * Revisión final, Fix 4 (importante): el manifiesto declara `{ckey, digest}`
+   * pero antes el chequeo de gaps sólo miraba si la `ckey` había LLEGADO,
+   * nunca si su contenido coincidía con el digest declarado. Este test
+   * reemplaza una rebanada legítima por otra con la MISMA ckey pero
+   * contenido DISTINTO (simula corrupción, o una versión vieja/equivocada
+   * que terminó bajo esa ckey) y confirma que el chequeo la trata como
+   * faltante — sin por eso dejar de aplicar el resto del drenaje.
+   */
+  it('Fix 4: una rebanada cuyo contenido no coincide con el digest declarado se reporta como faltante', async () => {
+    useGroupStore.setState({ groups: [grupo()] } as never);
+    useExpenseStore.setState({ expenses: [gasto('e1'), gasto('e2')] } as never);
+    await publishToGroup('G', 'u1', 'device1');
+
+    const [topic] = [...relayMock.__buzones.keys()];
+    const sobres = relayMock.__buzones.get(topic)! as unknown as
+      { seq: number; topic: string; payload: string; sender: string; ckey?: string; compactable?: boolean }[];
+
+    const idxData = sobres.findIndex(s => s.ckey && !esManifiesto(sobres, s));
+    expect(idxData).toBeGreaterThanOrEqual(0);
+    const original = sobres[idxData]!;
+
+    const key = groupKeyBytes('G')!;
+    // Confirma que el sobre original en efecto abre y trae contenido válido,
+    // para no reemplazar por error algo que ya estaba roto.
+    const abiertoOriginal = verifyEnvelope(original.payload);
+    expect(abiertoOriginal).not.toBeNull();
+    expect(openEnvelope(key, abiertoOriginal!.sealed)).not.toBeNull();
+
+    // Mismo `ckey`, mismo remitente, contenido DISTINTO al que el manifiesto
+    // declaró (digest no va a coincidir).
+    const contenidoDistinto = JSON.stringify({
+      version: 1, featureVersion: 2, fromUserId: 'u1', timestamp: Date.now(),
+      groups: [], expenses: [{ ...gasto('e1'), description: 'CONTENIDO CORROMPIDO/DISTINTO' }],
+      payments: [], users: [],
+    });
+    const sealed = sealEnvelope(key, contenidoDistinto);
+    const firmado = signEnvelope(sealed, ensureIdentity().privateKey);
+    sobres[idxData] = { ...original, payload: firmado };
+
+    useExpenseStore.setState({ expenses: [] } as never);
+    const result = await drainGroup('G', 'u1', 'deviceC', 0);
+    expect(result.ok).toBe(true); // el drenaje en sí no falla ni se bloquea
+
+    const gap = manifestGapFor('G');
+    expect(gap).not.toBeNull();
+    expect(gap!.missingCkeys).toContain(original.ckey);
   });
 });
 
