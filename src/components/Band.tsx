@@ -282,17 +282,20 @@ export function StatGrid({
  * como el encabezado de los otros dos.
  */
 export function StatLead({
-  lead, items, sunken,
+  lead, leadRight, items, sunken,
 }: {
   lead: StatItem;
+  /** Indicador chico al lado del lead (PO 2026-09-20: cantidad de grupos junto a Ingreso). */
+  leadRight?: StatItem;
   items: [StatItem, StatItem];
   sunken?: boolean;
 }) {
   const c = useC();
 
-  const cuerpo = (it: StatItem, extra?: ViewStyle) => (
+  const cuerpo = (it: StatItem, extra?: ViewStyle, testID?: string) => (
     <View
       key={it.label}
+      testID={testID}
       style={[
         { flex: 1, paddingVertical: Spacing[4], paddingHorizontal: Spacing.screenPad },
         extra,
@@ -314,7 +317,10 @@ export function StatLead({
 
   return (
     <Band sunken={sunken}>
-      {cuerpo(lead)}
+      <View style={{ flexDirection: 'row' }}>
+        {cuerpo(lead, leadRight && { borderRightWidth: 1, borderRightColor: c.hair })}
+        {leadRight && cuerpo(leadRight, undefined, 'stat-lead-right')}
+      </View>
       <View style={{ flexDirection: 'row' }}>
         {cuerpo(items[0], { borderTopWidth: 1, borderTopColor: c.hair, borderRightWidth: 1, borderRightColor: c.hair })}
         {cuerpo(items[1], { borderTopWidth: 1, borderTopColor: c.hair })}
@@ -376,9 +382,11 @@ export function Segmented<T extends string>({
    * al primer elemento de su lista — ahí el borde tiene que ir ARRIBA, si no
    * quedan dos líneas donde tiene que haber una (mismo criterio que
    * `Band noTop`). Actividad (T-108, agregado del PO) quiere las DOS
-   * (`'ambos'`). El resto de la app no pasa esta prop y no cambia.
+   * (`'ambos'`). Grupos (PO 2026-09-20, revierte el 'arriba' de T-108) no
+   * quiere ninguna, ahora que el selector queda pegado a los casilleros de
+   * arriba (`'ninguno'`). El resto de la app no pasa esta prop y no cambia.
    */
-  borde?: 'abajo' | 'arriba' | 'ambos';
+  borde?: 'abajo' | 'arriba' | 'ambos' | 'ninguno';
 }) {
   const c = useC();
 
@@ -421,6 +429,8 @@ export function Segmented<T extends string>({
       ? { borderTopWidth: 1, borderTopColor: c.hair, borderBottomColor: c.hair }
       : borde === 'arriba'
       ? { borderBottomWidth: 0, borderTopWidth: 1, borderTopColor: c.hair }
+      : borde === 'ninguno'
+      ? { borderTopWidth: 0, borderBottomWidth: 0 }
       : { borderTopWidth: 0, borderBottomColor: c.hair };
 
     if (scroll) {

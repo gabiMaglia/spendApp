@@ -19,8 +19,9 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAmountInput } from '@/src/hooks/useAmountInput';
 import { Fab, FabRow } from '@/src/components/Fab';
 import {
-  Band, BandRow, Meter, SectionLabel, SplitStat, StatLead,
+  Band, BandRow, Meter, SplitStat, StatLead,
 } from '@/src/components/Band';
+import { FondoMarmol } from '@/src/components/FondoMarmol';
 import { useHeaderPadding, useLimiteContenido } from '@/src/components/CollapsibleHeader';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
@@ -242,7 +243,13 @@ export default function PersonalScreen() {
         scrollEventThrottle={16}
         onScroll={scrollHandler}
         contentContainerStyle={[{ paddingTop: headerPad, paddingBottom: 140 }, contenidoMinimo]}
+        // PO 2026-09-20: el encabezado de "Movimientos" queda pegado arriba
+        // del scroll mientras la lista pasa por debajo — 3 hijos directos
+        // fijos (todo lo de arriba / el encabezado sticky / la lista), así
+        // el índice no se rompe si algo cambia adentro del bloque de arriba.
+        stickyHeaderIndices={[1]}
       >
+        <View>
         {/* T-114: el título pasó al header (fijo, ya no scrollea); esta fila
             ahora sólo aloja el botón de ajustes, pegado a la derecha como
             antes. */}
@@ -259,18 +266,8 @@ export default function PersonalScreen() {
           ]}
         />
 
-        <View style={styles.titleRow}>
-          <Pressable
-            testID="personal-settings-btn"
-            onPress={() => { hapticLight(); setShowBudgetSheet(true); }}
-            style={[styles.iconBtn, { backgroundColor: c.bgGrouped }]}
-          >
-            <Ionicons name="settings-outline" size={17} color={c.textSecondary} />
-          </Pressable>
-        </View>
-
         {/* Navegador de mes */}
-        <View style={styles.monthNav}>
+        <View testID="month-nav" style={styles.monthNav}>
           <Pressable onPress={() => { hapticSelection(); setActiveMonth(prevMonth(activeMonth)); }} hitSlop={12}>
             <Ionicons name="chevron-back" size={19} color={c.textSecondary} />
           </Pressable>
@@ -351,7 +348,9 @@ export default function PersonalScreen() {
 
         {/* El ingreso a lo ancho y los dos gastos abajo (PO 2026-09-02). En una
             sola fila de tres, un ingreso y dos gastos se leen como comparables
-            entre sí, y no lo son: los de abajo salen del de arriba. */}
+            entre sí, y no lo son: los de abajo salen del de arriba. Al lado
+            del ingreso, cantidad de grupos (PO 2026-09-20, reemplaza la fila
+            "Grupos · Balance" — mismo `misGrupos` ya derivado más abajo). */}
         <StatLead
           sunken
           lead={{
@@ -359,39 +358,15 @@ export default function PersonalScreen() {
             value: `+${formatMoney(totalIncome, cur)}`,
             color: c.semantic.positive,
           }}
+          leadRight={{
+            label: t('tabs.groups'),
+            value: String(misGrupos.length),
+          }}
           items={[
             { label: t('personal.summary_personal'), value: formatMoney(totalExpense, cur) },
             { label: t('personal.summary_groups'),   value: formatMoney(totalGroup, cur) },
           ]}
         />
-
-        {/* T-121: migrado de Inicio — mismo owedToMe/youOwe del bloque de
-            arriba, sin recalcular con otro selector. */}
-        <Band sunken>
-          <Pressable
-            accessibilityRole="button"
-            testID="groups-balance-row"
-            onPress={() => { hapticLight(); router.push('/(tabs)/groups' as any); }}
-            style={styles.groupsBalanceRow}
-          >
-            <Text style={[Typography.caption, { color: c.textSecondary, flex: 1 }]}>
-              {t('dashboard.groups_balance')} ·{' '}
-              {misGrupos.length === 1
-                ? t('dashboard.groups_count_one')
-                : t('dashboard.groups_count', { count: misGrupos.length })}
-            </Text>
-            <MoneyText
-              minor={owedToMe - youOwe}
-              code={cur}
-              prefix={owedToMe - youOwe > 0 ? '+' : ''}
-              rollId="personal.groupsNet"
-              style={[Typography.amountS, {
-                color: owedToMe - youOwe > 0 ? c.semantic.positive
-                  : owedToMe - youOwe < 0 ? c.semantic.negative : c.text,
-              }]}
-            />
-          </Pressable>
-        </Band>
 
         {/* Deuda direccional: banda propia, nunca mezclada con lo gastado
             (ADR-006). Era un párrafo con los montos embebidos en la frase; el
@@ -449,10 +424,9 @@ export default function PersonalScreen() {
             onClose={() => setAvisoVisto(true)}
           />
         )}
+        </View>
 
-        {/* T-108: aire antes de la lista de movimientos, doblado (22 → 44,
-            redondeado a Spacing[8]=40, ver handoff). */}
-        <SectionLabel label={t('personal.movements_count', { count: monthEntries.length })} topOverride={Spacing[8]} />
+        <MovimientosHeader count={monthEntries.length} />
 
         {monthEntries.length === 0 ? (
           <Band>
@@ -481,6 +455,7 @@ export default function PersonalScreen() {
         title={t('dashboard.title')}
         subtitle={t('dashboard.greeting', { name: firstName })}
         progress={progress}
+        settingsAction={() => setShowBudgetSheet(true)}
       />
 
       <FabRow>
@@ -546,6 +521,31 @@ export default function PersonalScreen() {
   );
 }
 
+/**
+ * **Encabezado pegajoso de "Movimientos"** (PO 2026-09-20): mismo mármol que
+ * el header (`FondoMarmol`), para que la lista que pasa por debajo nunca se
+ * transparente. Sube a `stickyHeaderIndices` del `ScrollView` de arriba — el
+ * frame del scroll ya arranca justo debajo de la barra colapsada del header
+ * (`useLimiteContenido`), así que "pegarse arriba del todo" nunca lo tapa ni
+ * lo pisa, sólo llega hasta ese borde y se queda ahí.
+ */
+function MovimientosHeader({ count }: { count: number }) {
+  const scheme = useColorScheme() ?? 'light';
+  const c = Colors[scheme];
+  const { t } = useTranslation();
+  return (
+    <View testID="movimientos-header" style={[styles.movimientosHeader, { borderBottomColor: c.hair }]}>
+      <FondoMarmol />
+      <Text style={[Typography.label, styles.movimientosBold, { color: c.textTertiary }]}>
+        {t('personal.movements_title')}
+      </Text>
+      <Text style={[Typography.amountS, styles.movimientosBold, { color: c.text }]}>
+        {count}
+      </Text>
+    </View>
+  );
+}
+
 function EntryRow({
   entry, onRemove, last,
 }: { entry: PersonalEntry; onRemove: () => void; last?: boolean }) {
@@ -598,18 +598,19 @@ const styles = StyleSheet.create({
   safe: { flex: 1 },
   debtsNote: { paddingHorizontal: Spacing.screenPad, marginTop: 6 },
   upper: { textTransform: 'uppercase' },
-  titleRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end',
-    paddingHorizontal: Spacing.screenPad, paddingBottom: 14,
+  movimientosHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    overflow: 'hidden',
+    paddingHorizontal: Spacing.screenPad, paddingTop: Spacing[8], paddingBottom: 9,
+    borderBottomWidth: 1,
   },
-  iconBtn: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  movimientosBold: { fontWeight: '800' },
   monthNav: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: Spacing.screenPad, paddingBottom: 16,
-  },
-  groupsBalanceRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingHorizontal: Spacing.screenPad, paddingVertical: 11,
+    // T-121+: paddingTop repone el aire que daba la fila de ajustes (movida
+    // al header, PO 2026-09-20) — sin esto el navegador de mes queda pegado
+    // al bloque de deuda de arriba.
+    paddingHorizontal: Spacing.screenPad, paddingTop: 14, paddingBottom: 16,
   },
   meterPad:  { paddingHorizontal: Spacing.screenPad, paddingTop: 15, paddingBottom: 16 },
   meterTop:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },

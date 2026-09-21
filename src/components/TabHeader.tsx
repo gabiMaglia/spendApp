@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Pressable } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import type { SharedValue } from 'react-native-reanimated';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -47,13 +48,15 @@ import { syncedNow } from '@/src/utils/syncedClock';
  * alguien no le llegue un aviso.
  */
 export function TabHeader({
-  title, subtitle, progress,
+  title, subtitle, progress, settingsAction,
 }: {
   title: string;
   /** Sólo Inicio lo pasa hoy: "Hola, {nombre}" arriba del título (T-114). */
   subtitle?: string;
   /** Progreso de colapso en [0,1] — de `useHeaderColapsable` (T-128). */
   progress: SharedValue<number>;
+  /** Engranaje de ajustes junto a la campana — sólo Personal lo pasa hoy (PO 2026-09-20). */
+  settingsAction?: () => void;
 }) {
   const { t } = useTranslation();
   const scheme = useColorScheme() ?? 'light';
@@ -148,6 +151,16 @@ export function TabHeader({
         right={
           <>
             <NoticeBell unread={sinLeer} onPress={abrirCampana} />
+            {settingsAction && (
+              <Pressable
+                testID="header-settings-btn"
+                onPress={() => { hapticLight(); settingsAction(); }}
+                accessibilityRole="button"
+                hitSlop={8}
+              >
+                <Ionicons name="settings-outline" size={20} color={c.textSecondary} />
+              </Pressable>
+            )}
             <HeaderCurrency code={cur} onPress={() => setMonedas(true)} />
           </>
         }

@@ -114,17 +114,14 @@ export default function GroupsScreen() {
           ]}
         />
 
-        {/* T-108: aire ANTES del selector doblado (16 → 32 = Spacing[7], token
-            exacto, sin redondear) y aire DESPUÉS eliminado — pedido del PO de
-            que el selector quede pegado al primer grupo, sin gap. El borde de
-            la "T invertida" pasa de abajo a arriba (`borde="arriba"`) para que
-            la única línea entre selector y lista sea la del propio `Band` de
-            la lista — si el selector conservara su borde de abajo, se verían
-            las dos donde tiene que haber una (mismo criterio que `Band noTop`). */}
+        {/* PO 2026-09-20: sin aire arriba (pegado a los casilleros) ni abajo
+            (pegado al primer grupo), y sin borde propio (`borde="ninguno"`)
+            — la única línea entre selector y lista es la del propio `Band`
+            de la lista (mismo criterio que `Band noTop`). */}
         <View style={styles.segPad}>
           <Segmented
             variant="tabs"
-            borde="arriba"
+            borde="ninguno"
             value={tabActual}
             onChange={v => { hapticLight(); setTab(v); }}
             options={[
@@ -206,8 +203,8 @@ function GroupRow({
 const styles = StyleSheet.create({
   safe:     { flex: 1 },
   // Sin padding lateral: las pestañas («T invertida») van de borde a borde.
-  // T-108: paddingTop doblado (16 → 32 = Spacing[7]); paddingBottom a 0 para
-  // pegar el selector al primer grupo (antes 14).
-  segPad:   { paddingTop: Spacing[7], paddingBottom: 0 },
+  // Pegado a los 4 casilleros de arriba (PO 2026-09-20, revierte el aire de
+  // T-108) y pegado al primer grupo abajo.
+  segPad:   { paddingTop: 0, paddingBottom: 0 },
   footnote: { paddingHorizontal: Spacing.screenPad, paddingTop: 14, lineHeight: 17 },
 });

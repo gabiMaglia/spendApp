@@ -1,5 +1,5 @@
 import React from 'react';
-import { render } from '@testing-library/react-native';
+import { render, within } from '@testing-library/react-native';
 import PersonalScreen from '@/app/(tabs)/index';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
@@ -7,7 +7,7 @@ import { useExpenseStore } from '@/src/store/expenseStore';
 import { usePaymentStore } from '@/src/store/paymentStore';
 import { usePersonalStore } from '@/src/store/personalStore';
 import { useUserStore } from '@/src/store/userStore';
-import type { User } from '@/src/types/models';
+import type { User, Group } from '@/src/types/models';
 
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
 jest.mock('@/src/sync/relayEngine', () => ({
@@ -42,6 +42,42 @@ describe('el resumen del mes', () => {
     expect(r.getByText('personal.summary_personal')).toBeTruthy();
     expect(r.getByText('personal.summary_groups')).toBeTruthy();
     expect(r.getByText('personal.summary_income')).toBeTruthy();
+  });
+});
+
+/**
+ * **Cantidad de grupos al lado de Ingreso** (PO 2026-09-20, reemplaza la
+ * fila "Grupos · Balance" que vivía debajo de este resumen).
+ */
+describe('indicador de cantidad de grupos junto al ingreso', () => {
+  function grupo(id: string, memberIds: string[]): Group {
+    return {
+      id, name: id, memberIds, currency: 'ARS',
+      createdAt: 1_000, updatedAt: 1_000, isDeleted: false,
+      createdById: memberIds[0], deletionVotes: [],
+    };
+  }
+
+  it('sin grupos propios, muestra 0', () => {
+    const r = render(<PersonalScreen />);
+    const celda = within(r.getByTestId('stat-lead-right'));
+    expect(celda.getByText('tabs.groups')).toBeTruthy();
+    expect(celda.getByText('0')).toBeTruthy();
+  });
+
+  it('cuenta sólo los grupos donde el usuario es miembro', () => {
+    useGroupStore.setState({
+      groups: [grupo('asado', ['ana', 'beto']), grupo('viaje', ['beto', 'carla'])],
+    });
+
+    const r = render(<PersonalScreen />);
+
+    expect(within(r.getByTestId('stat-lead-right')).getByText('1')).toBeTruthy();
+  });
+
+  it('la fila "Grupos · Balance" ya no existe', () => {
+    const r = render(<PersonalScreen />);
+    expect(r.queryByTestId('groups-balance-row')).toBeNull();
   });
 });
 

@@ -54,18 +54,20 @@ describe('fusión Inicio→Personal: header y bloque de deuda arriba de todo', (
     expect(r.getByText('dashboard.greeting({"name":"vos"})')).toBeTruthy();
   });
 
-  it('el bloque "Te deben" (friends.owed_to_you) aparece antes que la fila de ajustes', () => {
+  it('el bloque "Te deben" (friends.owed_to_you) es lo primero, antes del navegador de mes', () => {
     const r = render(<PersonalScreen />);
 
+    // El botón de ajustes se movió al header (PO 2026-09-20); "month-nav" es
+    // ahora lo primero que sigue al bloque de deuda dentro del scroll.
     // getByTestId/getByText no dan posición, pero el árbol serializado sí
     // conserva el orden real de renderizado: comparar índices de strings
     // únicas en ese JSON es una forma simple y determinística de verificar
     // orden sin depender de una API de traversal más frágil.
     const arbol = JSON.stringify(r.toJSON());
     const indiceDeuda    = arbol.indexOf('friends.owed_to_you');
-    const indiceAjustes  = arbol.indexOf('personal-settings-btn');
+    const indiceMonthNav = arbol.indexOf('month-nav');
 
     expect(indiceDeuda).toBeGreaterThanOrEqual(0);
-    expect(indiceAjustes).toBeGreaterThan(indiceDeuda);
+    expect(indiceMonthNav).toBeGreaterThan(indiceDeuda);
   });
 });

@@ -100,10 +100,7 @@
     "greeting": "Olá, {{name}}",
     "owes_you": "Te deve",
     "you_owe_person": "Você deve",
-    "go_to_profile": "Seu perfil",
-    "groups_balance": "Grupos · Saldo",
-    "groups_count": "{{count}} GRUPOS",
-    "groups_count_one": "1 GRUPO"
+    "go_to_profile": "Seu perfil"
   },
   "groups": {
     "title": "Grupos",
@@ -478,7 +475,6 @@
     "summary_personal": "Gasto pessoal",
     "summary_groups": "Gasto em grupos",
     "available_after_debts": "Sobra após pagar",
-    "movements_count": "MOVIMENTOS ({{count}})",
     "no_movements": "Sem movimentos em {{month}}",
     "fab_income": "Receita",
     "fab_expense": "Despesa",
@@ -499,7 +495,8 @@
     "locked_title": "Não pode ser editado",
     "owed_to_me": "Me devem",
     "i_owe": "Devo",
-    "debts_note": "Não afeta o gasto até ser acertado"
+    "debts_note": "Não afeta o gasto até ser acertado",
+    "movements_title": "MOVIMENTOS"
   },
   "contact": {
     "title": "Adicionar contato",
