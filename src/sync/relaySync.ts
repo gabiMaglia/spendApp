@@ -275,6 +275,14 @@ export function sigueSiendoLaClave(groupId: string, foto: { key: string; epoch: 
  * Se saltean y se sigue — frenar la cola por un sobre ajeno sería un DoS
  * trivial contra el grupo.
  */
+/**
+ * Límite de `fetchSince` para este drenaje, explícito acá (en vez de confiar
+ * en el default de la función) para poder compararlo después contra
+ * `r.envelopes.length` — ver el chequeo de página recortada más abajo
+ * (revisión de Task 6, hallazgo #3).
+ */
+const DRAIN_FETCH_LIMIT = 200;
+
 export async function drainGroup(
   groupId: string,
   currentUserId: string,
@@ -287,7 +295,7 @@ export async function drainGroup(
   const record = useGroupKeyStore.getState().getKey(groupId)!;
   const topic = await deriveTopic(key, record.epoch);
 
-  const r = await fetchSince(topic, sinceSeq, deviceId);
+  const r = await fetchSince(topic, sinceSeq, deviceId, DRAIN_FETCH_LIMIT);
   if (!r.ok) return { ok: false, reason: r.reason, detail: r.detail };
 
   // T-136 · D-1: la clave cambió mientras se esperaba la red. El lote entero
@@ -315,8 +323,8 @@ export async function drainGroup(
   //     más arriba: `users` y `comments` dependen de que `groups`/`expenses`
   //     de la MISMA publicación ya se hayan aplicado. Reordenar acá (por
   //     ejemplo, aplicar primero por tipo de campo) rompería esa garantía.
-  const rebanadasRecibidas: { ckey?: string; delta: SyncDelta; senderKey: string }[] = [];
-  const manifiestos: SliceManifest[] = [];
+  const rebanadasRecibidas: { ckey?: string; sender: string; delta: SyncDelta; senderKey: string }[] = [];
+  const manifiestos: { sender: string; manifest: SliceManifest }[] = [];
 
   for (const envelope of r.envelopes) {
     // 1. Firma. Descarta lo ajeno ANTES de gastar una operación de cifrado.
@@ -337,7 +345,7 @@ export async function drainGroup(
     }
 
     if (isManifest(parsed)) {
-      manifiestos.push(parsed);
+      manifiestos.push({ sender: envelope.sender, manifest: parsed });
       continue;
     }
 
@@ -345,7 +353,8 @@ export async function drainGroup(
     // colección, para no perderlo de vista para cuando se aplique este delta
     // en la segunda pasada (ver nota de revisión de Task 6).
     rebanadasRecibidas.push({
-      ckey: (envelope as { ckey?: string }).ckey,
+      ckey: envelope.ckey,
+      sender: envelope.sender,
       delta: parsed as SyncDelta,
       senderKey: firmado.senderKey,
     });
@@ -358,12 +367,39 @@ export async function drainGroup(
   // es atómico (revisión de Task 5), así que un manifiesto desactualizado o
   // incompleto en el buzón es un caso esperado, y LWW + `applyDelta` ya
   // manejan con seguridad un estado parcial.
-  if (manifiestos.length > 0) {
-    const ckeysDeclaradas = new Set(manifiestos.flatMap(m => m.entries.map(e => e.ckey)));
-    const ckeysRecibidas = new Set(
-      rebanadasRecibidas.map(reb => reb.ckey).filter((ck): ck is string => Boolean(ck)),
-    );
-    const faltantes = [...ckeysDeclaradas].filter(ck => !ckeysRecibidas.has(ck));
+  //
+  // El chequeo es POR REMITENTE (revisión de Task 6, hallazgo #2): el servidor
+  // compacta por topic + prenda de escritura + ckey — es decir, por
+  // dispositivo — así que el manifiesto de un remitente sólo puede completarse con las
+  // rebanadas DE ESE MISMO remitente. Pooler todo junto dejaría que las
+  // ckeys de un dispositivo B taparan (o generaran) falsos gaps del
+  // manifiesto de un dispositivo A, aunque A y B nunca compartan ckeys.
+  //
+  // Y sólo corre si esta página de `fetchSince` no vino recortada (revisión de
+  // Task 6, hallazgo #3): si `fetchSince` devolvió justo `DRAIN_FETCH_LIMIT`
+  // sobres, puede haber más esperando en el servidor —el manifiesto o sus
+  // rebanadas podrían estar en la próxima página— y calcular un gap acá sería
+  // un falso positivo sin mitigación. Se prefiere no decir nada a mentir.
+  const paginaCompleta = r.envelopes.length < DRAIN_FETCH_LIMIT;
+  if (manifiestos.length > 0 && paginaCompleta) {
+    const ckeysRecibidasPorRemitente = new Map<string, Set<string>>();
+    for (const reb of rebanadasRecibidas) {
+      if (!reb.ckey) continue;
+      let set = ckeysRecibidasPorRemitente.get(reb.sender);
+      if (!set) {
+        set = new Set();
+        ckeysRecibidasPorRemitente.set(reb.sender, set);
+      }
+      set.add(reb.ckey);
+    }
+
+    const faltantes: string[] = [];
+    for (const { sender, manifest } of manifiestos) {
+      const recibidas = ckeysRecibidasPorRemitente.get(sender) ?? new Set<string>();
+      for (const entry of manifest.entries) {
+        if (!recibidas.has(entry.ckey)) faltantes.push(entry.ckey);
+      }
+    }
     recordManifestCheck(groupId, faltantes);
   }
 

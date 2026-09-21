@@ -1,6 +1,22 @@
-import { byteLength, MAX_PAYLOAD_BYTES, isRelayConfigured, sendEnvelope, fetchSince, subscribeTopic } from '../relay';
+import {
+  byteLength, MAX_PAYLOAD_BYTES, isRelayConfigured, sendEnvelope, fetchSince, subscribeTopic,
+  ENVELOPES_SELECT,
+} from '../relay';
 
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
+
+/**
+ * Revisión de Task 6, hallazgo CRÍTICO: `fetchSince` escribía `ckey` (Task 4)
+ * pero nunca lo releía — el chequeo de manifiesto (Task 6) quedaba roto en
+ * producción sin que ningún test lo notara, porque los mocks de `../relay` le
+ * pegan `ckey` a mano a las filas que devuelven. Este test NO mockea el
+ * módulo: mira la columna que `fetchSince` realmente pide.
+ */
+describe('fetchSince pide la columna ckey', () => {
+  it('el select incluye ckey', () => {
+    expect(ENVELOPES_SELECT.split(',')).toContain('ckey');
+  });
+});
 
 describe('byteLength — bytes reales, no unidades UTF-16', () => {
   it('cuenta 1 byte por carácter ASCII', () => {

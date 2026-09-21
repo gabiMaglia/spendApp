@@ -70,6 +70,10 @@ export type Envelope = {
   payload: string;
   sender: string;
   created_at: string;
+  // Ausente en un servidor sin la migración 010 (ADR-007): esas filas llegan
+  // sin la columna, y el degradado es "no ckey" — igual que antes de que
+  // existiera la compactación por ckey.
+  ckey?: string;
 };
 
 let client: SupabaseClient | null = null;
@@ -243,6 +247,15 @@ export type FetchResult =
  * haber aplicado los sobres — si se guarda antes y la app muere en el medio,
  * esos sobres no se vuelven a pedir nunca.
  */
+/**
+ * Columnas que trae `fetchSince`. Exportada para poder testear sin mockear
+ * Supabase (T-088 §revisión Task 6): antes `ckey` se escribía pero nunca se
+ * releía, y el chequeo de manifiesto quedaba permanentemente roto en
+ * producción sin que ningún test lo notara — los mocks de los tests le
+ * pegaban `ckey` a mano a las filas.
+ */
+export const ENVELOPES_SELECT = 'seq,topic,payload,sender,created_at,ckey';
+
 export async function fetchSince(
   topic: string,
   sinceSeq: number,
@@ -254,7 +267,7 @@ export async function fetchSince(
 
   let query = supabase
     .from('envelopes')
-    .select('seq,topic,payload,sender,created_at')
+    .select(ENVELOPES_SELECT)
     .eq('topic', topic)
     .gt('seq', sinceSeq)
     .order('seq', { ascending: true })
