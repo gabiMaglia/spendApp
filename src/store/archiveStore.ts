@@ -76,8 +76,16 @@ export const useArchiveStore = create<ArchiveState>((set, get) => ({
     // Archivar: idempotente si ya estaba archivado con la MISMA razón.
     if (yaArchivado && reasons[groupId] === reason) return;
 
+    // `'limit'` es pegajosa también en el sentido de ARCHIVAR, no sólo al
+    // desarchivar: un `setArchived(id, true)` sin razón (default 'manual')
+    // sobre un grupo que YA es 'limit' no puede degradarlo a reversible — sólo
+    // un `setArchived(id, true, 'limit')` explícito (que hoy sólo hace
+    // `traspasarGrupo`) puede volver a ponerla.
+    const reasonFinal = reasons[groupId] === 'limit' ? 'limit' : reason;
+    if (yaArchivado && reasons[groupId] === reasonFinal) return;
+
     const ids = yaArchivado ? archivedIds : [...archivedIds, groupId];
-    const nuevasReasons = { ...reasons, [groupId]: reason };
+    const nuevasReasons = { ...reasons, [groupId]: reasonFinal };
     persistIds(ids);
     persistReasons(nuevasReasons);
     set({ archivedIds: ids, reasons: nuevasReasons });

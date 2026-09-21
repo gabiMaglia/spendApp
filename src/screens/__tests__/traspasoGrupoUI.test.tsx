@@ -6,6 +6,7 @@ import { useGroupStore } from '@/src/store/groupStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { usePaymentStore } from '@/src/store/paymentStore';
+import { useArchiveStore } from '@/src/store/archiveStore';
 import type { User, Group, Expense } from '@/src/types/models';
 
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
@@ -42,6 +43,7 @@ beforeEach(() => {
   useUserStore.setState({ users: [ANA, { id: 'beto', name: 'Beto' } as User] });
   useGroupStore.setState({ groups: [grupo()] });
   usePaymentStore.setState({ payments: [] });
+  useArchiveStore.setState({ archivedIds: [], reasons: {} });
 });
 
 describe('aviso y botón de traspaso en el detalle del grupo', () => {
@@ -73,5 +75,17 @@ describe('aviso y botón de traspaso en el detalle del grupo', () => {
     const grupos = useGroupStore.getState().groups;
     expect(grupos).toHaveLength(2);
     expect(grupos.find(g => g.id === 'g1')?.supersededByGroupId).toBeDefined();
+  });
+
+  // Minor de la revisión final: un grupo YA archivado no puede ofrecer un
+  // traspaso nuevo — re-traspasarlo pisaría su `supersededByGroupId` y
+  // produciría un duplicado.
+  it('con el grupo ya archivado, ni el aviso ni el botón manual aparecen', () => {
+    useExpenseStore.setState({ expenses: gastos(400) });
+    useArchiveStore.getState().setArchived('g1', true, 'limit');
+
+    const r = render(<GroupDetailScreen />);
+    expect(r.queryByTestId('traspaso-banner')).toBeNull();
+    expect(r.queryByTestId('traspaso-manual-btn')).toBeNull();
   });
 });

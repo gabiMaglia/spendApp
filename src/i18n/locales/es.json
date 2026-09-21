@@ -143,7 +143,8 @@
     "traspaso_confirm_title": "¿Traspasar este grupo?",
     "traspaso_confirm_body": "Se crea un grupo nuevo con los mismos miembros. Este grupo ({{count}} gastos) queda archivado y de solo lectura para siempre.",
     "traspaso_confirm_action": "Sí, traspasar",
-    "carryover_description": "Saldo trasladado de {{name}}"
+    "carryover_description": "Saldo trasladado de {{name}}",
+    "unnamed_group": "un grupo"
   },
   "group_detail": {
     "settle_debts": "Saldar deudas",

@@ -41,6 +41,25 @@ describe('archiveStore — por qué se archivó cada grupo', () => {
     expect(useArchiveStore.getState().archiveReason('g1')).toBeNull();
   });
 
+  // Revisión final: `setArchived(id, true)` con el default 'manual' sobre un
+  // grupo ya 'limit' no puede degradarlo a reversible — sólo un
+  // `setArchived(id, true, 'limit')` explícito puede volver a ponerla.
+  it('re-archivar un "limit" con razón default (manual) no lo degrada', () => {
+    useArchiveStore.getState().setArchived('g1', true, 'limit');
+    useArchiveStore.getState().setArchived('g1', true);
+
+    expect(useArchiveStore.getState().archiveReason('g1')).toBe('limit');
+    expect(useArchiveStore.getState().canUnarchive('g1')).toBe(false);
+  });
+
+  it('re-archivar un "limit" con razón "manual" explícita tampoco lo degrada', () => {
+    useArchiveStore.getState().setArchived('g1', true, 'limit');
+    useArchiveStore.getState().setArchived('g1', true, 'manual');
+
+    expect(useArchiveStore.getState().archiveReason('g1')).toBe('limit');
+    expect(useArchiveStore.getState().canUnarchive('g1')).toBe(false);
+  });
+
   it('un grupo nunca archivado no tiene razón', () => {
     expect(useArchiveStore.getState().archiveReason('nunca')).toBeNull();
     expect(useArchiveStore.getState().canUnarchive('nunca')).toBe(true);

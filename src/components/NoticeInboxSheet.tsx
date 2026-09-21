@@ -10,6 +10,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { textFor } from '@/src/services/notifications';
 import { esAccionable, msRestanteDeBorrado, type Notice } from '@/src/services/syncNotices';
 import type { StoredNotice } from '@/src/store/noticeInboxStore';
+import { useGroupStore } from '@/src/store/groupStore';
 import type { Expense } from '@/src/types/models';
 import { BottomSheet } from './Sheet';
 import { Segmented } from './Band';
@@ -48,6 +49,27 @@ function cuerpoDeBorrado(
 }
 
 /**
+ * El cuerpo de una fila de `group_replaced`, resuelto AHORA y no con el
+ * `newGroupName` congelado del aviso (Minor de la revisión final, upgraded a
+ * fix-now).
+ *
+ * `newGroupName` se resuelve al MOMENTO de crear el aviso (`syncNotices.ts`),
+ * pero clave y grupo llegan por canales independientes — no hay garantía de
+ * que el grupo nuevo ya esté sincronizado localmente en ese instante. Como
+ * los avisos de la bandeja son snapshots congelados que nunca se releen, un
+ * nombre en blanco ahí no se autocorregía nunca. Acá sí: se relee
+ * `useGroupStore` en cada render, así que en cuanto el grupo nuevo llega por
+ * sync el nombre aparece solo, sin que el aviso se vuelva a generar.
+ */
+function nombreGrupoNuevo(
+  notice: Extract<Notice, { kind: 'group_replaced' }>, groups: { id: string; name: string }[], t: Trad,
+): string {
+  return groups.find(g => g.id === notice.newGroupId)?.name
+    || notice.newGroupName
+    || t('groups.unnamed_group');
+}
+
+/**
  * La bandeja: qué pasó mientras no mirabas.
  *
  * Tocar un aviso lo marca leído y lleva a su grupo. Marcar como leído NO borra:
@@ -70,6 +92,7 @@ export function NoticeInboxSheet({
   const scheme = useColorScheme() ?? 'light';
   const c = Colors[scheme];
   const { t } = useTranslation();
+  const groups = useGroupStore(s => s.groups);
   const haySinLeer = items.some(i => i.readAt === null);
 
   const [tab, setTab] = useState<Tab>('todo');
@@ -162,6 +185,13 @@ export function NoticeInboxSheet({
               {listaVisible.map(item => {
                 const { title, body } = item.notice.kind === 'deletion'
                   ? { title: item.notice.groupName, body: cuerpoDeBorrado(item.notice, expenses, now, t) }
+                  : item.notice.kind === 'group_replaced'
+                  ? {
+                      title: t('notifications.group_replaced_title', { group: item.notice.groupName }),
+                      body: t('notifications.group_replaced_body', {
+                        newGroup: nombreGrupoNuevo(item.notice, groups, t),
+                      }),
+                    }
                   : textFor(item.notice);
                 const sinLeer = item.readAt === null;
                 return (

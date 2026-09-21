@@ -22,6 +22,7 @@ import { useUserStore } from '@/src/store/userStore';
 import { useGroupBalance, useGroupExpenseCount } from '@/src/store/selectors';
 import { debeAvisar } from '@/src/algorithms/groupExpenseLimit';
 import { traspasarGrupo } from '@/src/services/groupTraspaso';
+import { useArchiveStore } from '@/src/store/archiveStore';
 import { UserAvatar } from '@/src/components/UserAvatar';
 import { SyncWarningBanner } from '@/src/components/SyncWarningBanner';
 import { useGroupSyncFailure, claveDeFalloDeSync } from '@/src/sync/useSyncFailure';
@@ -70,6 +71,13 @@ export default function GroupDetailScreen() {
   const leaveGroup   = useGroupStore(st => st.leaveGroup);
   const group        = useGroupStore(s => s.groups.find(g => g.id === id));
   const updateGroup  = useGroupStore(s => s.updateGroup);
+  const isArchivedFn  = useArchiveStore(s => s.isArchived);
+  // Un grupo ya archivado (incluido el irrevocable por límite, T-058) no
+  // puede seguir traspasándose: re-traspasarlo reescribiría
+  // `supersededByGroupId` sobre un grupo que ya lo tiene y produciría un
+  // segundo grupo nuevo duplicado. Tampoco tiene sentido el aviso del límite
+  // acá dentro: no se puede cargar ni un gasto más (guard de `expense/new.tsx`).
+  const grupoArchivado = group ? isArchivedFn(group.id) : false;
   const allExpenses  = useExpenseStore(s => s.expenses);
 
   const allPayments = usePaymentStore(s => s.payments);
@@ -278,7 +286,7 @@ export default function GroupDetailScreen() {
           />
         )}
 
-        {debeAvisar(cantidadGastos) && (
+        {debeAvisar(cantidadGastos) && !grupoArchivado && (
           <View testID="traspaso-banner" style={[styles.avisoTraspaso, { backgroundColor: c.semantic.warningSoft }]}>
             <Text style={[Typography.bodyS, { color: c.semantic.warning }]}>
               {t('groups.limit_warning_body', { count: cantidadGastos })}
@@ -411,8 +419,10 @@ export default function GroupDetailScreen() {
           </>
         )}
 
-        {/* Traspaso manual — siempre disponible, no sólo cuando se llega al aviso (T-058). */}
-        {group && currentUser && group.memberIds.some(esYo) && (
+        {/* Traspaso manual — siempre disponible, no sólo cuando se llega al aviso
+            (T-058), salvo que el grupo YA esté archivado: re-traspasar uno ya
+            traspasado pisaría su `supersededByGroupId` y crearía un duplicado. */}
+        {group && currentUser && group.memberIds.some(esYo) && !grupoArchivado && (
           <Band>
             <BandRow testID="traspaso-manual-btn" onPress={() => setMostrarTraspaso(true)} last>
               <Text style={[Typography.bodyL, { color: c.brand.primary, flex: 1, textAlign: 'center' }]}>

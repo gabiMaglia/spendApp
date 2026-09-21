@@ -4,7 +4,8 @@ import { NoticeBell } from '../NoticeBell';
 import { NoticeInboxSheet } from '../NoticeInboxSheet';
 import type { StoredNotice } from '@/src/store/noticeInboxStore';
 import type { Notice } from '@/src/services/syncNotices';
-import type { Expense } from '@/src/types/models';
+import type { Expense, Group } from '@/src/types/models';
+import { useGroupStore } from '@/src/store/groupStore';
 import { DELETION_TIMEOUT_MS } from '@/src/sync/SyncEngine';
 
 const AHORA = 10_000_000;
@@ -281,6 +282,48 @@ describe('NoticeInboxSheet', () => {
       );
       expect(getByText('notifications.tab_action')).toBeTruthy();
       expect(queryByText(/tab_action_count/)).toBeNull();
+    });
+  });
+
+  // Minor de la revisión final, upgraded a fix-now: el nombre del grupo nuevo
+  // se resuelve AHORA, contra el store en vivo — no el `newGroupName` congelado
+  // del aviso, que puede llegar en blanco si el grupo nuevo todavía no
+  // sincronizó localmente cuando se generó el aviso.
+  describe('group_replaced: el nombre del grupo nuevo se resuelve en vivo', () => {
+    const grupo = (over: Partial<Group> = {}): Group => ({
+      id: 'g-nuevo', name: 'Viaje (2)', memberIds: ['ana', 'beto'], currency: 'ARS',
+      createdAt: 0, updatedAt: 0, isDeleted: false, createdById: 'ana', deletionVotes: [],
+      ...over,
+    });
+
+    const traspaso: Notice = {
+      kind: 'group_replaced', groupId: 'g-viejo', groupName: 'Viaje',
+      newGroupId: 'g-nuevo', newGroupName: '',
+    };
+
+    beforeEach(() => { useGroupStore.setState({ groups: [] }); });
+
+    it('con el newGroupName congelado en blanco, usa el nombre ACTUAL del grupo en el store', () => {
+      useGroupStore.setState({ groups: [grupo()] });
+      const { getByText } = render(
+        <NoticeInboxSheet {...props} items={[item('a', null, traspaso)]} />,
+      );
+      expect(getByText('notifications.group_replaced_body({"newGroup":"Viaje (2)"})')).toBeTruthy();
+    });
+
+    it('si el grupo nuevo todavía no llegó por sync, cae al newGroupName congelado', () => {
+      const conNombre: Notice = { ...traspaso, newGroupName: 'Viaje (2)' };
+      const { getByText } = render(
+        <NoticeInboxSheet {...props} items={[item('a', null, conNombre)]} />,
+      );
+      expect(getByText('notifications.group_replaced_body({"newGroup":"Viaje (2)"})')).toBeTruthy();
+    });
+
+    it('sin grupo en el store Y sin newGroupName congelado, cae a un genérico — nunca en blanco', () => {
+      const { getByText } = render(
+        <NoticeInboxSheet {...props} items={[item('a', null, traspaso)]} />,
+      );
+      expect(getByText('notifications.group_replaced_body({"newGroup":"groups.unnamed_group"})')).toBeTruthy();
     });
   });
 });

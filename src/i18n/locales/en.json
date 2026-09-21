@@ -143,7 +143,8 @@
     "traspaso_confirm_title": "Transfer this group?",
     "traspaso_confirm_body": "A new group is created with the same members. This group ({{count}} expenses) becomes permanently read-only.",
     "traspaso_confirm_action": "Yes, transfer",
-    "carryover_description": "Balance transferred from {{name}}"
+    "carryover_description": "Balance transferred from {{name}}",
+    "unnamed_group": "a group"
   },
   "group_detail": {
     "settle_debts": "Settle up",
