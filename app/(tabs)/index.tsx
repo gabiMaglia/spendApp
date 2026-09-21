@@ -23,6 +23,8 @@ import {
 } from '@/src/components/Band';
 import { useHeaderPadding, useLimiteContenido } from '@/src/components/CollapsibleHeader';
 import { useAuthStore } from '@/src/store/authStore';
+import { useGroupStore } from '@/src/store/groupStore';
+import { esYo } from '@/src/store/identityAlias';
 import { usePersonalStore, toMonthKey, currentMonthKey } from '@/src/store/personalStore';
 import { reasonKey } from '@/src/algorithms/entryOrigin';
 import { useDirectedDebts, useGlobalPersonBalances } from '@/src/store/selectors';
@@ -100,6 +102,12 @@ export default function PersonalScreen() {
   const deudas = useDirectedDebts(currentUser?.id ?? '');
   const owedToMe = useMemo(() => totalOwedToMe(deudas, cur), [deudas, cur]);
   const youOwe   = useMemo(() => totalIOwe(deudas, cur), [deudas, cur]);
+
+  const groups = useGroupStore(st => st.groups);
+  const misGrupos = useMemo(
+    () => groups.filter(g => !g.isDeleted && !!currentUser && g.memberIds.some(esYo)),
+    [groups, currentUser],
+  );
 
   const owedToMeRef = useRef(owedToMe);
   useEffect(() => { owedToMeRef.current = owedToMe; }, [owedToMe]);
@@ -357,6 +365,34 @@ export default function PersonalScreen() {
           ]}
         />
 
+        {/* T-121: migrado de Inicio — mismo owedToMe/youOwe del bloque de
+            arriba, sin recalcular con otro selector. */}
+        <Band sunken>
+          <Pressable
+            accessibilityRole="button"
+            testID="groups-balance-row"
+            onPress={() => { hapticLight(); router.push('/(tabs)/groups' as any); }}
+            style={styles.groupsBalanceRow}
+          >
+            <Text style={[Typography.caption, { color: c.textSecondary, flex: 1 }]}>
+              {t('dashboard.groups_balance')} ·{' '}
+              {misGrupos.length === 1
+                ? t('dashboard.groups_count_one')
+                : t('dashboard.groups_count', { count: misGrupos.length })}
+            </Text>
+            <MoneyText
+              minor={owedToMe - youOwe}
+              code={cur}
+              prefix={owedToMe - youOwe > 0 ? '+' : ''}
+              rollId="personal.groupsNet"
+              style={[Typography.amountS, {
+                color: owedToMe - youOwe > 0 ? c.semantic.positive
+                  : owedToMe - youOwe < 0 ? c.semantic.negative : c.text,
+              }]}
+            />
+          </Pressable>
+        </Band>
+
         {/* Deuda direccional: banda propia, nunca mezclada con lo gastado
             (ADR-006). Era un párrafo con los montos embebidos en la frase; el
             PO pidió una caja con los números afuera, y agregó el que faltaba:
@@ -570,6 +606,10 @@ const styles = StyleSheet.create({
   monthNav: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: Spacing.screenPad, paddingBottom: 16,
+  },
+  groupsBalanceRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingHorizontal: Spacing.screenPad, paddingVertical: 11,
   },
   meterPad:  { paddingHorizontal: Spacing.screenPad, paddingTop: 15, paddingBottom: 16 },
   meterTop:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
