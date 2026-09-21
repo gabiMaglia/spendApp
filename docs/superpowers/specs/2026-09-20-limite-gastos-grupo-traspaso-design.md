@@ -54,6 +54,16 @@ Dado un grupo origen `G`:
 
 5. **Aviso a los demás miembros:** un nuevo `Notice.kind: 'group_replaced'` (agregado a `src/services/syncNotices.ts`, siguiendo el mismo patrón que `'joined'` — comparación antes/después de una bajada de sync, pura, testeada) con `{ groupId: G.id, groupName: G.name, newGroupId: G'.id, newGroupName: G'.name }`. Se dispara cuando el sync trae un `Group` con un campo nuevo `supersededByGroupId` que antes no tenía (mismo mecanismo de detección que usa `'joined'` para "antes no estaba en mis grupos, ahora sí"). Ese campo (`Group.supersededByGroupId?: string`) se agrega a `G` como parte del paso 4 y viaja por el sync normal (es un campo más del registro, LWW). Tocar la notificación navega a `G'`.
 
+## Grupos archivados: de solo lectura (y el traspaso por límite es irrevocable)
+
+**Cambio de alcance sobre el archivado ya existente**, pedido explícitamente por el PO: hoy `archiveStore.ts` es "una preferencia de vista, no un cambio en el grupo" — el grupo archivado sigue aceptando gastos nuevos como cualquier otro, sólo se saca de la lista principal. Eso deja de ser cierto para TODO grupo archivado, sea cual sea el motivo:
+
+- **Mientras un grupo está archivado, es de solo lectura:** no se puede crear, editar ni borrar ningún `Expense`, `Payment` ni `ExpenseComment` de ese grupo. Se sigue pudiendo VER su historial y sus balances — archivar nunca borra nada, sigue siendo sólo una restricción de escritura. Puntos de guardia necesarios (todos ya existen, se les agrega el chequeo): `app/expense/new.tsx` (crear/editar gasto), `app/expense/[id].tsx` (editar/borrar gasto, agregar comentario), `app/settle/new.tsx` (registrar pago), `app/groups/[id].tsx` (donde viva el botón de agregar pago/gasto directo del grupo).
+- **Desarchivar un grupo archivado A MANO** (el flujo que ya existe, ej. un viaje que se termina y después se retoma) sigue siendo reversible como hoy: al desarchivarlo, vuelve a aceptar escritura normalmente.
+- **Un grupo archivado POR EL TRASPASO DE LÍMITE nunca se puede desarchivar.** Queda de solo lectura para siempre — es justamente lo que garantiza que no vuelva a crecer y a acercarse otra vez al techo de sync.
+
+**Consecuencia en el modelo:** `archiveStore` pasa de guardar sólo IDs (`archivedIds: string[]`) a guardar también el motivo por el que cada grupo se archivó — algo como `{ groupId: string; reason: 'manual' | 'limit' }[]`. La UI de "Archivados" (`app/(tabs)/groups.tsx`) oculta el control de desarchivar cuando `reason === 'limit'`; lo muestra igual que hoy cuando `reason === 'manual'`. El comentario de cabecera de `archiveStore.ts` ("es una preferencia de vista, no un cambio en el grupo") deja de ser exacto y hay que corregirlo como parte de este trabajo — pasa a ser una preferencia de vista **que además bloquea escritura**, todavía local a la cuenta (no se sincroniza a otros miembros, eso no cambia).
+
 ## Botón manual (siempre disponible)
 
 En `app/groups/[id].tsx`, una acción más (junto a "Salir del grupo" o donde viva el resto de acciones secundarias del grupo) — "Traspasar a grupo nuevo" — dispara el mismo flujo del punto anterior completo, sin importar cuántos gastos tenga el grupo. Con confirmación previa (es una acción con consecuencias: crea un grupo, archiva el actual localmente), mostrando cuántos gastos tiene hoy y el balance que se va a trasladar.
@@ -65,6 +75,8 @@ En `app/groups/[id].tsx`, una acción más (junto a "Salir del grupo" o donde vi
 - Test del límite: exactamente 449 gastos permite cargar el 450; exactamente 450 bloquea el 451; 349 no muestra aviso, 350 sí.
 - Test de `syncNotices.ts`: `'group_replaced'` se dispara sólo cuando `supersededByGroupId` aparece en ESTA bajada (mismo criterio "regla 3" que ya rige `'joined'`/`'expenses'`), nunca para el propio traspaso hecho por el usuario (regla 1, "lo propio no se avisa").
 - Test de integración del flujo completo de traspaso: grupo con gastos en 2 monedas, algunos miembros en positivo/negativo en cada una → el grupo nuevo tiene exactamente 2 Expenses (uno por moneda), los balances de `G'` recién creado coinciden con los balances finales de `G`.
+- Test de `archiveStore`: un grupo archivado con `reason: 'manual'` se puede desarchivar (vuelve `isArchived` a `false`); uno con `reason: 'limit'` no expone forma de desarchivarse (el store no ofrece ese camino, no es sólo la UI la que lo esconde).
+- Test de cada guardia de escritura (`expense/new.tsx`, `expense/[id].tsx`, `settle/new.tsx`): con el grupo archivado (cualquier `reason`), crear/editar/borrar gasto, pago o comentario falla con el mensaje correspondiente; con el grupo NO archivado, todo sigue funcionando igual que hoy (regresión).
 
 ## Global Constraints
 
@@ -72,5 +84,7 @@ En `app/groups/[id].tsx`, una acción más (junto a "Salir del grupo" o donde vi
 - Nunca mezclar monedas en un mismo `Expense` (regla de negocio #7).
 - Los números de límite/aviso viven en una constante exportada, no hardcodeados.
 - El archivado sigue siendo local (no se cambia esa semántica) — la sincronización del traspaso pasa exclusivamente por el aviso `group_replaced` y el campo `supersededByGroupId`.
+- Un grupo archivado (cualquier `reason`) nunca acepta escritura de `Expense`/`Payment`/`ExpenseComment` nuevos — ni edición ni borrado de los existentes. Ver historial y balances sigue intacto.
+- Sólo `reason: 'limit'` es irreversible; `reason: 'manual'` mantiene el comportamiento reversible de hoy.
 - Lint baseline, `tsc --noEmit` limpio y la suite de Jest completa en verde se mantienen.
 - i18n: todo texto nuevo (banner, botón, notice, confirmación) pasa por `t()`, es/en/pt.
