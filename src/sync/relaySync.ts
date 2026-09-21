@@ -5,7 +5,7 @@ import { sendEnvelope, fetchSince, deleteMyEnvelopes, type DeleteResult } from '
 import { groupKeyBytes, useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { ensureIdentity } from '@/src/store/identityStore';
 import { signEnvelope, verifyEnvelope } from './envelopeSign';
-import { observeAuthor } from './authorHealth';
+import { observeAuthor, RECHAZAR_AUTORES_NO_VERIFICADOS } from './authorHealth';
 import { refreshPendingAuthors } from './authorKeys';
 import { sliceEntities, deriveCkey } from './slices';
 import { buildManifest, digestOfJson, isManifest, type SliceManifest } from './manifest';
@@ -510,12 +510,19 @@ export async function drainGroup(
   }
 
   for (const { delta, senderKey } of rebanadasRecibidas) {
-    // 3. Autoría (ADR-004 fase B) — en modo AVISO. La firma prueba que quien
-    // mandó tiene la privada de SU dispositivo; esto mira si ese dispositivo
-    // está registrado bajo la cuenta que el delta dice ser. Va sin `await` a
-    // propósito: es observación, y no puede meterse en el camino del sync ni
-    // agregarle la latencia de una consulta por sobre.
-    void observeAuthor(groupId, delta.fromUserId, senderKey);
+    // 3. Autoría (ADR-004 fase B/T-033). Con `RECHAZAR_AUTORES_NO_VERIFICADOS`
+    // apagado (default), esto sigue siendo modo AVISO: se mide, nunca se
+    // descarta. Prendido, sólo un veredicto `clave_desconocida` (SÉ que esa
+    // clave no está en el directorio de la cuenta) descarta el registro —
+    // nunca `sin_directorio` (no se pudo preguntar; rechazar ahí sería tratar
+    // "no sé" como "es malo", el mismo modo de falla silenciosa que ya pasó
+    // tres veces en este proyecto). Por eso ahora SÍ se espera el veredicto
+    // antes de aplicar, en vez de dispararlo al aire.
+    const veredicto = await observeAuthor(groupId, delta.fromUserId, senderKey);
+    if (RECHAZAR_AUTORES_NO_VERIFICADOS && veredicto === 'clave_desconocida') {
+      skipped++;
+      continue;
+    }
 
     try {
       // S3-A1: acá pasaba el delta crudo. La firma y el cifrado sólo prueban

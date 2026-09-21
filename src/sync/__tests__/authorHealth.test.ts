@@ -142,11 +142,15 @@ describe('está enchufado', () => {
     expect(src).toContain('observeAuthor(');
   });
 
-  // Si se descartara, un borde no medido dejaría gente legítima sin sincronizar.
-  it('drainGroup NO descarta por el veredicto', () => {
+  // T-033: dejó de ser "nunca descarta" a secas — ahora puede descartar, pero
+  // sólo detrás de la constante apagada por default, y NUNCA por
+  // 'sin_directorio' (no se pudo consultar no es lo mismo que "se sabe que es
+  // malo"; tratarlos igual dejaría gente legítima sin sincronizar en cuanto el
+  // directorio tuviera un corte).
+  it('drainGroup sólo descarta detrás de RECHAZAR_AUTORES_NO_VERIFICADOS, y nunca por sin_directorio', () => {
     const src = leer('../relaySync.ts');
-    const linea = src.split('\n').find(l => l.includes('observeAuthor('))!;
-    expect(linea).toContain('void ');
+    expect(src).toContain('RECHAZAR_AUTORES_NO_VERIFICADOS && veredicto');
+    expect(src).not.toMatch(/veredicto === 'sin_directorio'/);
   });
 
   it('la pantalla de diagnóstico lo muestra, y EN VIVO', () => {

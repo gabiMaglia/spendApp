@@ -23,7 +23,10 @@ jest.mock('../relay', () => {
 // Sin esto, drainGroup dispara consultas de red reales al directorio de
 // autores (authorHealth/authorKeys) — diagnóstico fuera de banda, no
 // relevante para lo que este test verifica.
-jest.mock('../authorHealth', () => ({ observeAuthor: jest.fn() }));
+jest.mock('../authorHealth', () => ({
+  observeAuthor: jest.fn(async () => 'ok'),
+  RECHAZAR_AUTORES_NO_VERIFICADOS: false,
+}));
 jest.mock('../authorKeys', () => ({ refreshPendingAuthors: jest.fn(async () => {}) }));
 
 import { useAuthStore } from '@/src/store/authStore';
@@ -34,6 +37,13 @@ import { useUserStore } from '@/src/store/userStore';
 import { publishToGroup, drainGroup } from '../relaySync';
 import { manifestGapFor, clearManifestGaps } from '../manifestHealth';
 import * as avatarTopic from '../avatarTopic';
+// `jest.requireMock`, no `import * as`: un import de namespace por ESM/Babel
+// copia el objeto mockeado (interop de CJS), y mutar esa copia no se vería
+// desde `relaySync.ts`, que resuelve el `require()` original.
+const authorHealth = jest.requireMock('../authorHealth') as {
+  observeAuthor: jest.Mock;
+  RECHAZAR_AUTORES_NO_VERIFICADOS: boolean;
+};
 import { sealEnvelope, deriveTopic, openEnvelope } from '../envelopeCrypto';
 import { signEnvelope, verifyEnvelope } from '../envelopeSign';
 import { ensureIdentity } from '@/src/store/identityStore';
@@ -69,6 +79,9 @@ describe('drainGroup aplica rebanadas y detecta manifiestos incompletos', () => 
     useAuthStore.setState({ user: { id: 'u1' } } as never);
     useGroupKeyStore.setState({ keys: [] });
     useGroupKeyStore.getState().ensureKey('G');
+    authorHealth.observeAuthor.mockReset();
+    authorHealth.observeAuthor.mockResolvedValue('ok');
+    authorHealth.RECHAZAR_AUTORES_NO_VERIFICADOS = false;
   });
 
   it('reconstruye el estado completo leyendo todas las rebanadas', async () => {
@@ -83,6 +96,52 @@ describe('drainGroup aplica rebanadas y detecta manifiestos incompletos', () => 
     expect(result.ok).toBe(true);
     expect(useExpenseStore.getState().expenses.length).toBe(200);
     expect(manifestGapFor('G')).toBeNull();
+  });
+
+  it('T-033: con el rechazo APAGADO (default), un autor no verificado se aplica igual', async () => {
+    authorHealth.observeAuthor.mockResolvedValue('clave_desconocida');
+    authorHealth.RECHAZAR_AUTORES_NO_VERIFICADOS = false;
+
+    useGroupStore.setState({ groups: [grupo()] } as never);
+    useExpenseStore.setState({ expenses: [gasto('e1')] } as never);
+    await publishToGroup('G', 'u1', 'device1');
+
+    useExpenseStore.setState({ expenses: [] } as never);
+    const result = await drainGroup('G', 'u1', 'device2', 0);
+    expect(result.ok).toBe(true);
+    expect(useExpenseStore.getState().expenses).toHaveLength(1);
+  });
+
+  it('T-033: con el rechazo PRENDIDO, una clave_desconocida se descarta sin romper el drenaje', async () => {
+    authorHealth.observeAuthor.mockResolvedValue('clave_desconocida');
+    authorHealth.RECHAZAR_AUTORES_NO_VERIFICADOS = true;
+
+    useGroupStore.setState({ groups: [grupo()] } as never);
+    useExpenseStore.setState({ expenses: [gasto('e1')] } as never);
+    await publishToGroup('G', 'u1', 'device1');
+
+    useExpenseStore.setState({ expenses: [] } as never);
+    const result = await drainGroup('G', 'u1', 'device2', 0);
+    expect(result.ok).toBe(true);
+    expect(useExpenseStore.getState().expenses).toHaveLength(0);
+
+    authorHealth.RECHAZAR_AUTORES_NO_VERIFICADOS = false;
+  });
+
+  it('T-033: con el rechazo PRENDIDO, "sin_directorio" (no se pudo consultar) NUNCA se descarta', async () => {
+    authorHealth.observeAuthor.mockResolvedValue('sin_directorio');
+    authorHealth.RECHAZAR_AUTORES_NO_VERIFICADOS = true;
+
+    useGroupStore.setState({ groups: [grupo()] } as never);
+    useExpenseStore.setState({ expenses: [gasto('e1')] } as never);
+    await publishToGroup('G', 'u1', 'device1');
+
+    useExpenseStore.setState({ expenses: [] } as never);
+    const result = await drainGroup('G', 'u1', 'device2', 0);
+    expect(result.ok).toBe(true);
+    expect(useExpenseStore.getState().expenses).toHaveLength(1);
+
+    authorHealth.RECHAZAR_AUTORES_NO_VERIFICADOS = false;
   });
 
   it('si falta una rebanada declarada por el manifiesto, marca el gap y NO rompe el resto', async () => {

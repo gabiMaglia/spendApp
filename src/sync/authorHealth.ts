@@ -27,6 +27,15 @@ import { readScoped, writeScoped } from '@/src/store/userScope';
  * dato del usuario.
  */
 
+/**
+ * Apagado por default a propósito (T-033/T-040). Prenderlo exige haber
+ * medido primero con `authorStats()`/`unverifiedAuthors()` en tráfico real y
+ * confirmar `clave_desconocida` en cero sostenido — encenderlo sobre un
+ * número que no se midió es exactamente cómo este proyecto perdió mensajes
+ * en silencio antes. Es el PO quien decide cuándo, no un valor por defecto.
+ */
+export const RECHAZAR_AUTORES_NO_VERIFICADOS = false;
+
 export type AuthorVerdict =
   /** La pública que firmó está registrada bajo esa cuenta. */
   | 'ok'
