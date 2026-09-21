@@ -419,7 +419,9 @@
     "peer_outdated": "The other device is running an older version. Expenses paid by several people will look different there until it updates.",
     "failure_title": "This group stopped syncing",
     "failure_too_large": "The group built up more data than fits in one send. Your expenses are saved on this phone, but the others aren't receiving them.",
-    "failure_no_key": "This device is missing the group's key. Ask someone in the group to share access with you again."
+    "failure_no_key": "This device is missing the group's key. Ask someone in the group to share access with you again.",
+    "manifest_gap_title": "Missing data from a member",
+    "manifest_gap_body": "This group's balances may be incomplete until it syncs."
   },
   "categories": {
     "food": "Food",

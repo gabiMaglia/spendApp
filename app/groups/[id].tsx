@@ -26,6 +26,7 @@ import { useArchiveStore } from '@/src/store/archiveStore';
 import { UserAvatar } from '@/src/components/UserAvatar';
 import { SyncWarningBanner } from '@/src/components/SyncWarningBanner';
 import { useGroupSyncFailure, claveDeFalloDeSync } from '@/src/sync/useSyncFailure';
+import { useManifestGap } from '@/src/sync/useManifestGap';
 import { createInvite, inviteToLink } from '@/src/sync/groupInvite';
 import { ensureIdentity, saveInvite } from '@/src/store/identityStore';
 import { startRelay, announceGroupToContacts } from '@/src/sync/relayEngine';
@@ -61,6 +62,7 @@ export default function GroupDetailScreen() {
   const scheme = useColorScheme() ?? 'light';
   const { t } = useTranslation();
   const falloDeSync = useGroupSyncFailure(id as string);
+  const manifiestoIncompleto = useManifestGap(id as string);
   const c = Colors[scheme];
 
   const { currentUser } = useAuthStore();
@@ -283,6 +285,13 @@ export default function GroupDetailScreen() {
           <SyncWarningBanner
             title={t('sync.failure_title')}
             body={t(claveDeFalloDeSync(falloDeSync.reason))}
+          />
+        )}
+
+        {manifiestoIncompleto && !falloDeSync && (
+          <SyncWarningBanner
+            title={t('sync.manifest_gap_title')}
+            body={t('sync.manifest_gap_body')}
           />
         )}
 
