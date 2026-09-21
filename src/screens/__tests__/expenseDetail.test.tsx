@@ -6,8 +6,10 @@ import { useAuthStore } from '@/src/store/authStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { useCommentStore } from '@/src/store/commentStore';
 import { useUserStore } from '@/src/store/userStore';
+import { useGroupStore } from '@/src/store/groupStore';
+import { useArchiveStore } from '@/src/store/archiveStore';
 import { hasRequested } from '@/src/algorithms/deletionRound';
-import type { Expense, ExpenseComment, User } from '@/src/types/models';
+import type { Expense, ExpenseComment, Group, User } from '@/src/types/models';
 
 /**
  * La pantalla tiene que ABRIR. Suena obvio y sin embargo estuvo rota: un
@@ -38,6 +40,8 @@ const comentario = (over: Partial<ExpenseComment> = {}): ExpenseComment => ({
 beforeEach(() => {
   useAuthStore.setState({ currentUser: { id: 'ua', name: 'Ana' } as User });
   useCommentStore.setState({ comments: [] });
+  useGroupStore.setState({ groups: [] });
+  useArchiveStore.setState({ archivedIds: [], reasons: {} });
 });
 
 describe('detalle del gasto', () => {
@@ -194,5 +198,48 @@ describe('borrado consensuado', () => {
     const votos = useExpenseStore.getState().expenses[0]!.deletionVotes;
     expect(votos.every(v => v.action === 'delete')).toBe(true);
     expect(votos).toHaveLength(1);
+  });
+});
+
+describe('grupo archivado: solo lectura (revisión final, Important #5b)', () => {
+  function grupo(over: Partial<Group> = {}): Group {
+    return {
+      id: 'g1', name: 'Viaje', memberIds: ['ua', 'ub'], currency: 'ARS',
+      createdAt: 1_000, updatedAt: 1_000, isDeleted: false,
+      createdById: 'ua', deletionVotes: [],
+      ...over,
+    };
+  }
+
+  beforeEach(() => {
+    useGroupStore.setState({ groups: [grupo()] });
+    useArchiveStore.getState().setArchived('g1', true);
+    useExpenseStore.setState({ expenses: [gasto({ createdById: 'ua' })] });
+    jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+  });
+
+  afterEach(() => { jest.restoreAllMocks(); });
+
+  it('pedir el borrado en un grupo archivado no abre el diálogo de borrado: avisa que está archivado', () => {
+    const { getByText } = render(<ExpenseDetailScreen />);
+    fireEvent.press(getByText('expense.delete_expense'));
+
+    expect(Alert.alert).toHaveBeenCalledWith(
+      'groups.archived_readonly_title', 'groups.archived_readonly_hint',
+    );
+    // No se abrió ninguna ronda: el voto de borrado no se emitió.
+    expect(useExpenseStore.getState().expenses[0]!.deletionVotes).toHaveLength(0);
+  });
+
+  it('comentar en un grupo archivado no agrega el comentario: avisa que está archivado', () => {
+    const { getByPlaceholderText, getByLabelText } = render(<ExpenseDetailScreen />);
+
+    fireEvent.changeText(getByPlaceholderText('comments.placeholder'), 'Che, esto ya cerró');
+    fireEvent.press(getByLabelText('comments.send'));
+
+    expect(Alert.alert).toHaveBeenCalledWith(
+      'groups.archived_readonly_title', 'groups.archived_readonly_hint',
+    );
+    expect(useCommentStore.getState().comments).toHaveLength(0);
   });
 });

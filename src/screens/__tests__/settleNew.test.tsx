@@ -6,6 +6,7 @@ import { useGroupStore } from '@/src/store/groupStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { usePaymentStore } from '@/src/store/paymentStore';
+import { useArchiveStore } from '@/src/store/archiveStore';
 import type { Expense, Group, Payment, User } from '@/src/types/models';
 
 /**
@@ -46,6 +47,7 @@ beforeEach(() => {
   useGroupStore.setState({ groups: [grupo()] });
   useExpenseStore.setState({ expenses: [gasto()] });
   usePaymentStore.setState({ payments: [] });
+  useArchiveStore.setState({ archivedIds: [], reasons: {} });
 });
 
 describe('el monto llega puesto', () => {
@@ -145,5 +147,23 @@ describe('el monto llega puesto', () => {
 
     const { getByText } = render(<SettleNewScreen />);
     expect(getByText('settle.all_settled')).toBeTruthy();
+  });
+});
+
+// Revisión final, Important #5b: la matriz de guards del spec pide un test acá
+// también, igual que en `expense/new.tsx` y `expense/[id].tsx`.
+describe('un grupo archivado no acepta saldados nuevos', () => {
+  it('con el grupo archivado, el botón de guardar queda deshabilitado', () => {
+    useArchiveStore.getState().setArchived('g1', true);
+
+    const r = render(<SettleNewScreen />);
+    const guardar = r.getByTestId('settle-save');
+    expect(guardar.props.accessibilityState?.disabled ?? guardar.props.disabled).toBe(true);
+  });
+
+  it('sin archivar, el botón de guardar se habilita normalmente con datos válidos', () => {
+    const r = render(<SettleNewScreen />);
+    const guardar = r.getByTestId('settle-save');
+    expect(guardar.props.accessibilityState?.disabled ?? guardar.props.disabled).toBeFalsy();
   });
 });

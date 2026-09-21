@@ -144,7 +144,10 @@ export default function ExpenseDetailScreen() {
     : isCreator;
 
   function handleAddComment(text: string) {
-    if (grupoArchivado) return;
+    if (grupoArchivado) {
+      Alert.alert(t('groups.archived_readonly_title'), t('groups.archived_readonly_hint'));
+      return;
+    }
     if (!currentUser || !id) return;
     const now = syncedNow();
     addComment({
