@@ -25,9 +25,11 @@ Se suma una segunda mejora, aprobada en la misma sesión: las fotos de usuario (
 
 ## 3 · Resoluciones de esta sesión
 
-### 3.1 · P-11 — TTL del buzón: estado desconocido, tratar como apagado
+### 3.1 · P-11 — TTL del buzón: confirmado activo
 
-El PO no pudo confirmar si `purge_expired_envelopes()` corre en Supabase (no hay cron versionado en el repo). **Mientras no se confirme, la implementación asume que el TTL puede no estar corriendo** — no cambia el diseño (la renovación de §3.4 de ADR-007 sigue siendo obligatoria igual), pero sí la prioridad: no depender del TTL para acotar el crecimiento de filas del buzón como aliviador de emergencia. Acción fuera de este spec: el PO verifica el cron en el panel de Supabase antes o durante el rollout.
+**Verificado por el PO en el panel de Supabase (2026-09-21):** existe un `cron.job` (`jobid 2`, `active = true`) agendado `15 3 * * *` (todos los días, 3:15am) que llama a `purge_expired_envelopes()`. El TTL de 30 días está corriendo en producción — no es sólo la migración con la función definida, el cron efectivamente la dispara.
+
+Esto no cambia nada del diseño (la renovación de §3.4 de ADR-007 sigue siendo obligatoria igual, es la que mantiene una rebanada viva independientemente del TTL), pero cierra la incertidumbre que tenía este spec al aprobarse: no hace falta tratar el TTL como "puede no estar corriendo" para efectos de estimar cuánto se acumula en el buzón entre corridas.
 
 ### 3.2 · P-12 — Manifiesto incompleto: aviso visible, no bloqueo
 
