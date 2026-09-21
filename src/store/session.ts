@@ -131,7 +131,16 @@ export function applyDueRecurring(now: number = Date.now()): void {
   const templates = useRecurringStore.getState().recurring;
   if (templates.length === 0) return;
 
-  const { expenses, personalEntries, updatedTemplates } = materializeRecurring(templates, now);
+  // Una plantilla que apunta a un grupo archivado (incluido el archivado
+  // irrevocable por límite, T-058) no puede seguir generando gastos: no hay
+  // pantalla que la deje escribir ahí, y sin este filtro esta vía —que no pasa
+  // por ninguna pantalla— la esquivaba sola, en cada apertura de la app.
+  // `groupId === ''` es un recurrente PERSONAL (T-116): no depende de ningún
+  // grupo, así que el archivado de grupos no lo afecta.
+  const isArchived = useArchiveStore.getState().isArchived;
+  const templatesActivas = templates.filter(t => t.groupId === '' || !isArchived(t.groupId));
+
+  const { expenses, personalEntries, updatedTemplates } = materializeRecurring(templatesActivas, now);
 
   // mergeXxx en vez de addXxx: los ids son deterministas, así que si el gasto
   // ya llegó por sync P2P desde el otro device, se colapsa en vez de duplicar.
