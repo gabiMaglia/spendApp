@@ -78,7 +78,14 @@ describe('publicar y drenar con firma', () => {
     useExpenseStore.setState({ expenses: [] });
     const r = await drainGroup('G', 'beto', 'dev-beto', 0);
 
-    expect(r.ok && r.applied).toBe(1);
+    // `publishToGroup` ahora parte el estado del grupo en rebanadas + un
+    // manifiesto (ADR-007): acá una rebanada de `groups` y una de `expenses`
+    // (2 aplicados), más el sobre de manifiesto, que `drainGroup` todavía no
+    // sabe interpretar como delta y por eso se saltea (1 saltado). Que ese
+    // conteo cambie es esperable: lo que importa, y sigue probado abajo, es
+    // que el gasto propio llega igual al otro lado.
+    expect(r.ok && r.applied).toBe(2);
+    expect(r.ok && r.skipped).toBe(1);
     expect(useExpenseStore.getState().expenses.map(e => e.id)).toEqual(['e1']);
   });
 
@@ -178,8 +185,11 @@ describe('lo que el buzón no deja pasar', () => {
     useExpenseStore.setState({ expenses: [] });
     const r = await drainGroup('G', 'beto', 'dev-beto', -1);
 
-    expect(r.ok && r.applied).toBe(1);
-    expect(r.ok && r.skipped).toBe(1);
+    // Igual que arriba: 2 rebanadas de datos aplicadas + el manifiesto y la
+    // basura inyectada, ambos salteados (ADR-007 — ver comentario del primer
+    // test de este describe).
+    expect(r.ok && r.applied).toBe(2);
+    expect(r.ok && r.skipped).toBe(2);
   });
 });
 

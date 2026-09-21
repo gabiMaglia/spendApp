@@ -1,12 +1,14 @@
 import { buildDelta, applyDelta, type SyncDelta } from './useSyncQR';
 import { acotarDeltaAlGrupo } from './acotarDeltaAlGrupo';
-import { sealEnvelope, openEnvelope, deriveTopic } from './envelopeCrypto';
+import { sealEnvelope, openEnvelope, deriveTopic, type GroupKey } from './envelopeCrypto';
 import { sendEnvelope, fetchSince, deleteMyEnvelopes, type DeleteResult } from './relay';
 import { groupKeyBytes, useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { ensureIdentity } from '@/src/store/identityStore';
 import { signEnvelope, verifyEnvelope } from './envelopeSign';
 import { observeAuthor } from './authorHealth';
 import { refreshPendingAuthors } from './authorKeys';
+import { sliceEntities, deriveCkey } from './slices';
+import { buildManifest } from './manifest';
 
 /**
  * Sync por el relay: arma el sobre cifrado, lo publica y aplica lo que llega.
@@ -84,6 +86,60 @@ export function buildGroupPayload(groupId: string, currentUserId: string): SyncD
   };
 }
 
+/**
+ * Campos de `SyncDelta` que se parten en rebanadas. `personal` y `groupKeys`
+ * nunca aparecen en un payload de grupo (`buildGroupPayload` ya los excluye,
+ * ver comentario ahí) así que no hace falta clasificarlos acá.
+ */
+const SLICED_FIELDS = ['groups', 'expenses', 'payments', 'users', 'recurring', 'comments'] as const;
+
+/**
+ * Parte el `SyncDelta` completo de un grupo en rebanadas —una por sub-lote de
+ * cada tipo de entidad, vía `sliceEntities` (ADR-007)— más UN sobre de
+ * manifiesto al final, que declara la `ckey` y el digest de cada rebanada
+ * (`buildManifest`, Task 3).
+ *
+ * Cada rebanada es un `SyncDelta` válido por derecho propio: sólo trae la
+ * porción de UN campo, todos los demás campos sliceables van vacíos. Esto
+ * importa para el lado que recibe (`drainGroup`/`acotarDeltaAlGrupo`): cada
+ * sobre se puede abrir y mergear de forma independiente, sin esperar a que
+ * lleguen los demás.
+ *
+ * El manifiesto se manda AL FINAL a propósito: es el sobre que un lector
+ * necesita ver para saber "esto es todo lo que hay", y por eso su `seq` es el
+ * que identifica la publicación completa (ver `publishToGroup`).
+ */
+async function buildSlicedEnvelopes(
+  delta: SyncDelta,
+  key: GroupKey,
+): Promise<{ ckey: string; json: string }[]> {
+  const piezas: { ckey: string; json: string }[] = [];
+
+  for (const campo of SLICED_FIELDS) {
+    const lista = (delta[campo] ?? []) as { id: string }[];
+    const rebanadas = sliceEntities(lista);
+    for (const rebanada of rebanadas) {
+      const seedId = rebanada[0]!.id;
+      const ckey = await deriveCkey(key, campo, seedId);
+      const parcial: SyncDelta = {
+        version: delta.version,
+        featureVersion: delta.featureVersion,
+        fromUserId: delta.fromUserId,
+        timestamp: delta.timestamp,
+        groups: [], expenses: [], payments: [], users: [],
+        [campo]: rebanada,
+      } as SyncDelta;
+      piezas.push({ ckey, json: JSON.stringify(parcial) });
+    }
+  }
+
+  const manifiesto = await buildManifest(piezas);
+  const manifiestoCkey = await deriveCkey(key, 'manifest', 'unica');
+  piezas.push({ ckey: manifiestoCkey, json: JSON.stringify(manifiesto) });
+
+  return piezas;
+}
+
 export type PublishResult =
   | { ok: true; seq: number }
   /**
@@ -109,17 +165,38 @@ export async function publishToGroup(
 
   const record = useGroupKeyStore.getState().getKey(groupId)!;
   const topic = await deriveTopic(key, record.epoch);
-  const sealed = sealEnvelope(key, JSON.stringify(buildGroupPayload(groupId, currentUserId)));
 
-  // La firma va POR FUERA del cifrado: autentica quién lo mandó sin exponer
-  // nada de lo que va adentro (T-033).
-  const firmado = signEnvelope(sealed, ensureIdentity().privateKey);
+  const delta = buildGroupPayload(groupId, currentUserId);
+  const piezas = await buildSlicedEnvelopes(delta, key);
 
-  // Compactable: este sobre lleva el estado COMPLETO del grupo, así que
-  // reemplaza a los anteriores de este mismo dispositivo (T-032).
-  const r = await sendEnvelope(topic, firmado, deviceId, true);
-  if (!r.ok) return { ok: false, reason: r.reason, detail: r.detail };
-  return { ok: true, seq: r.seq };
+  // Se manda cada rebanada (y al final el manifiesto) como su propio sobre,
+  // sellado y firmado individualmente — nunca se junta el JSON entero para
+  // sellarlo de una vez, porque eso sería volver a mandar el estado completo
+  // en un solo sobre (el problema que ADR-007 vino a resolver).
+  //
+  // El `seq` que se devuelve es el del ÚLTIMO sobre mandado (el manifiesto):
+  // con K+1 sobres por publicación, ningún `seq` individual representa "la"
+  // publicación, pero el manifiesto es el que un lector necesita ver para
+  // saber que ya llegó todo, y es el último en el orden de envío — por eso su
+  // `seq` es el que tiene sentido devolver en `PublishResult`.
+  let ultimoSeq: number | undefined;
+  for (const pieza of piezas) {
+    const sealed = sealEnvelope(key, pieza.json);
+
+    // La firma va POR FUERA del cifrado: autentica quién lo mandó sin exponer
+    // nada de lo que va adentro (T-033).
+    const firmado = signEnvelope(sealed, ensureIdentity().privateKey);
+
+    // Compactable: cada rebanada (y el manifiesto) reemplaza a la anterior con
+    // la misma `ckey` de este mismo dispositivo (T-032 + ADR-007).
+    const r = await sendEnvelope(topic, firmado, deviceId, true, pieza.ckey);
+    if (!r.ok) return { ok: false, reason: r.reason, detail: r.detail };
+    ultimoSeq = r.seq;
+  }
+
+  // `piezas` siempre tiene al menos el sobre de manifiesto, así que si se
+  // llegó hasta acá sin devolver antes, `ultimoSeq` está seteado.
+  return { ok: true, seq: ultimoSeq! };
 }
 
 /**
