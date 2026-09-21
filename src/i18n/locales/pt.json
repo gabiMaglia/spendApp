@@ -100,16 +100,10 @@
     "greeting": "Olá, {{name}}",
     "owes_you": "Te deve",
     "you_owe_person": "Você deve",
-    "add_expense": "Adicionar gasto",
     "go_to_profile": "Seu perfil",
-    "personal_label": "Pessoal",
-    "spent": "Gasto",
-    "available": "Disponível",
-    "set_budget": "Definir orçamento →",
     "groups_balance": "Grupos · Saldo",
     "groups_count": "{{count}} GRUPOS",
-    "groups_count_one": "1 GRUPO",
-    "see_month": "Ver mês"
+    "groups_count_one": "1 GRUPO"
   },
   "groups": {
     "title": "Grupos",
@@ -467,7 +461,6 @@
     "error_unsupported_version": "Versão de backup não suportada."
   },
   "tabs": {
-    "home": "Início",
     "personal": "Pessoal",
     "friends": "Amigos",
     "groups": "Grupos",

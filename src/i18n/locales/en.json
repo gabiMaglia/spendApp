@@ -100,16 +100,10 @@
     "greeting": "Hi, {{name}}",
     "owes_you": "Owes you",
     "you_owe_person": "You owe",
-    "add_expense": "Add expense",
     "go_to_profile": "Your profile",
-    "personal_label": "Personal",
-    "spent": "Spent",
-    "available": "Available",
-    "set_budget": "Set budget →",
     "groups_balance": "Groups · Balance",
     "groups_count": "{{count}} GROUPS",
-    "groups_count_one": "1 GROUP",
-    "see_month": "See month"
+    "groups_count_one": "1 GROUP"
   },
   "groups": {
     "title": "Groups",
@@ -467,7 +461,6 @@
     "error_unsupported_version": "Unsupported backup version."
   },
   "tabs": {
-    "home": "Home",
     "personal": "Personal",
     "friends": "Friends",
     "groups": "Groups",
