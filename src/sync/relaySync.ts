@@ -8,9 +8,10 @@ import { signEnvelope, verifyEnvelope } from './envelopeSign';
 import { observeAuthor } from './authorHealth';
 import { refreshPendingAuthors } from './authorKeys';
 import { sliceEntities, deriveCkey } from './slices';
-import { buildManifest, isManifest, type SliceManifest } from './manifest';
+import { buildManifest, digestOfJson, isManifest, type SliceManifest } from './manifest';
 import { recordManifestCheck } from './manifestHealth';
 import { recordSlicePublished } from './sliceRenewal';
+import { publishAvatarIfOwn, fetchAvatarIfMissing } from './avatarTopic';
 
 /**
  * Sync por el relay: arma el sobre cifrado, lo publica y aplica lo que llega.
@@ -137,11 +138,42 @@ const SLICED_FIELDS = ['groups', 'expenses', 'payments', 'users', 'recurring', '
 async function buildSlicedEnvelopes(
   delta: SyncDelta,
   key: GroupKey,
+  groupId: string,
+  deviceId: string,
 ): Promise<{ ckey: string; json: string }[]> {
   const piezas: { ckey: string; json: string }[] = [];
 
+  // Fotos por referencia (Task 9): `users` se trata aparte, ANTES del loop de
+  // `SLICED_FIELDS`, para reemplazar los bytes de `avatar` por un
+  // `avatarDigest` — la foto real viaja en su propio topic (`avatarTopic.ts`),
+  // no en cada publicación de la rebanada `users`.
+  //
+  // El campo se elide con `undefined` (ausencia), NUNCA con `null`:
+  // `preservarAvatar` (`userAvatar.ts`) trata `avatar: null` como tombstone
+  // real («esta persona se sacó la foto») y adopta el registro entrante tal
+  // cual, borrando lo que el receptor ya tenía cacheado. `undefined` en
+  // cambio es exactamente la rama que esa función ya sabía resolver: "no
+  // traigo info, conservá lo que tenías" — que es lo que se quiere acá,
+  // porque la foto sigue siendo la misma, sólo que no viaja en este sobre.
+  const usuariosConDigest = await Promise.all(
+    (delta.users ?? []).map(async (u) => {
+      if (!u.avatar) return u; // sin foto (o tombstone real): nada que referenciar
+      const digest = await digestOfJson(u.avatar);
+      if (u.id === delta.fromUserId) {
+        // Es mi propia foto: la publico (si cambió) en su topic aparte.
+        // Se espera acá, no fire-and-forget: si no se espera, nada garantiza
+        // que el sobre de la foto exista en el buzón para cuando otro
+        // miembro drene esta misma publicación y pida esta rebanada.
+        await publishAvatarIfOwn(groupId, delta.fromUserId, deviceId);
+      }
+      const { avatar: _avatar, ...sinFoto } = u;
+      return { ...sinFoto, avatarDigest: digest };
+    }),
+  );
+  const deltaConUsuarios: SyncDelta = { ...delta, users: usuariosConDigest };
+
   for (const campo of SLICED_FIELDS) {
-    const lista = (delta[campo] ?? []) as { id: string }[];
+    const lista = (deltaConUsuarios[campo] ?? []) as { id: string }[];
     const rebanadas = sliceEntities(lista);
     for (const rebanada of rebanadas) {
       const seedId = rebanada[0]!.id;
@@ -197,7 +229,7 @@ export async function publishToGroup(
   const topic = await deriveTopic(key, record.epoch);
 
   const delta = buildGroupPayload(groupId, currentUserId);
-  const piezas = await buildSlicedEnvelopes(delta, key);
+  const piezas = await buildSlicedEnvelopes(delta, key, groupId, deviceId);
 
   // Se manda cada rebanada (y al final el manifiesto) como su propio sobre,
   // sellado y firmado individualmente — nunca se junta el JSON entero para
@@ -425,6 +457,20 @@ export async function drainGroup(
       // `acotarDeltaAlGrupo.ts`).
       applyDelta(acotarDeltaAlGrupo(delta, groupId), currentUserId);
       applied++;
+
+      // Fotos por referencia (Task 9): si esta rebanada trajo perfiles con
+      // `avatarDigest`, y el digest no es el que ya tenemos cacheado, se pide
+      // la foto aparte. Se espera acá (no fire-and-forget, a diferencia de
+      // `observeAuthor`/`refreshPendingAuthors` de abajo): esos son
+      // diagnóstico fuera de banda que puede esperar a la próxima vuelta, pero
+      // el perfil recién aplicado por `mergeUsers` es lo que la UI muestra ya
+      // mismo, y un miembro nuevo que recién ve a los demás por primera vez
+      // necesita la foto en el mismo drenaje, no en el próximo ciclo de sync.
+      for (const u of delta.users ?? []) {
+        if (u.avatarDigest && u.id !== currentUserId) {
+          await fetchAvatarIfMissing(groupId, u.id, u.avatarDigest);
+        }
+      }
     } catch {
       skipped++;
     }

@@ -23,6 +23,7 @@ import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
+import { useUserStore } from '@/src/store/userStore';
 import { publishToGroup } from '../relaySync';
 import { isManifest } from '../manifest';
 import type { Group, Expense } from '@/src/types/models';
@@ -85,5 +86,20 @@ describe('publishToGroup publica rebanadas + manifiesto', () => {
     // verifica indirectamente contando: K rebanadas de datos + 1 manifiesto.
     const ckeys = new Set(sobres.map(s => s.ckey));
     expect(ckeys.size).toBe(sobres.length); // cada rebanada (y el manifiesto) tiene su propia ckey única
+  });
+
+  it('no reenvía los bytes de la foto de un usuario que no cambió', async () => {
+    useAuthStore.setState({ user: { id: 'u1' } } as never);
+    const conFoto = { id: 'u1', name: 'Uno', email: '', authProvider: 'google', createdAt: 1, avatar: 'foto-base64-larga'.repeat(500), updatedAt: 1, isDeleted: false } as never;
+    useUserStore.setState({ users: [conFoto] });
+    useGroupStore.setState({ groups: [{ ...grupo(), memberIds: ['u1'] }] } as never);
+    useExpenseStore.setState({ expenses: [gasto('e1')] } as never);
+
+    await publishToGroup('G', 'u1', 'device1');
+
+    for (const sobres of relayMock.__buzones.values()) {
+      const contieneFotoLarga = sobres.some(s => s.payload.includes('foto-base64-larga'));
+      expect(contieneFotoLarga).toBe(false); // la foto viaja en su propio topic, no en la rebanada de users
+    }
   });
 });

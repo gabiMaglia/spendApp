@@ -58,6 +58,23 @@ export interface User extends SyncMeta {
    * y que el borrado de cuenta (T-074) es el primero en usar.
    */
   avatar?: string | null;
+  /**
+   * Hash del contenido de `avatar` (Task 9) — permite que la rebanada `users`
+   * (`relaySync.ts`) referencie la foto sin reenviar sus bytes en cada
+   * publicación. La foto real viaja aparte, en su propio topic derivado del
+   * digest (`avatarTopic.ts`), y se pide bajo demanda cuando este digest no
+   * coincide con lo que ya está guardado localmente.
+   *
+   * Deliberadamente AJENO a la semántica de tres vías de `avatar`
+   * (ausente = conservar, `null` = tombstone, string = adoptar) — ver
+   * `userAvatar.ts#preservarAvatar`, que sólo mira `avatar` y nunca este
+   * campo. Cuando `relaySync.ts` elide `avatar` para mandar sólo el digest,
+   * lo hace con `undefined` (ausente), no con `null`: `null` sigue
+   * reservado al tombstone real de T-074. Usar `null` acá haría que
+   * cualquier rebanada con foto se leyera como si el dueño se la hubiera
+   * sacado, borrando la copia que cada peer ya tenía cacheada.
+   */
+  avatarDigest?: string;
   authProvider: 'google' | 'apple';
   createdAt: number;
   /**
