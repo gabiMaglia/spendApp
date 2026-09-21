@@ -24,6 +24,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAmountInput } from '@/src/hooks/useAmountInput';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
+import { useArchiveStore } from '@/src/store/archiveStore';
 import { useUserStore } from '@/src/store/userStore';
 import { usePaymentStore } from '@/src/store/paymentStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
@@ -127,6 +128,8 @@ export default function SettleNewScreen() {
   const [showDate,  setShowDate]  = useState(false);
 
   const group    = groups.find(g => g.id === groupId);
+  const isArchivedFn  = useArchiveStore(s => s.isArchived);
+  const grupoArchivado = group ? isArchivedFn(group.id) : false;
   const members  = group?.memberIds ?? [];
   const currency = currencyForAmount;
   const toOptions = members.filter(uid => uid !== fromId);
@@ -206,7 +209,7 @@ export default function SettleNewScreen() {
 
   const tope       = modoTodo ? deudaEnGrupo : topeDelSaldo(deudaTotal, maxAmount);
   const exceedsMax = excedeElTope(amount, tope);
-  const canSave     = amount > 0 && !exceedsMax && fromId.length > 0 && toId.length > 0 && fromId !== toId && groupId.length > 0;
+  const canSave     = amount > 0 && !exceedsMax && fromId.length > 0 && toId.length > 0 && fromId !== toId && groupId.length > 0 && !grupoArchivado;
 
   function handleGroupChange(id: string) {
     hapticSelection();

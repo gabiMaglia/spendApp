@@ -29,6 +29,7 @@ import { ADS_DISPONIBLES, useTierStore } from '@/src/store/tierStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
+import { useArchiveStore } from '@/src/store/archiveStore';
 import { usePersonalStore, toMonthKey } from '@/src/store/personalStore';
 import { UserAvatar } from '@/src/components/UserAvatar';
 import { BottomSheet, SheetButton, SheetInput, SheetOption, SheetOptionAvatar } from '@/src/components/Sheet';
@@ -216,10 +217,14 @@ export default function NewExpenseScreen() {
   const percentError = splitMode === 'percentage' && amount > 0 && lastPercent < 0;
   // hasGroup=false ⇒ gasto PERSONAL (sin repartos, sin pagador). (F-G)
   const hasGroup     = groupId !== '';
+  // PO 2026-09-20: un grupo archivado (cualquier razón) es de solo lectura —
+  // no acepta gastos nuevos ni ediciones.
+  const isArchivedFn  = useArchiveStore(s => s.isArchived);
+  const grupoArchivado = hasGroup && isArchivedFn(groupId);
   // Con varios pagadores la suma tiene que dar EXACTA contra el total: son
   // enteros en menor unidad (ADR-002), no hay redondeo que perdonar.
   const payersOk     = !multiPayer || validatePayers(payers.filter(p => p.amount > 0), amount).ok;
-  const canSave      = description.trim().length > 0 && amount > 0 && !percentError && (!hasGroup || members.length > 0) && payersOk;
+  const canSave      = description.trim().length > 0 && amount > 0 && !percentError && (!hasGroup || members.length > 0) && payersOk && !grupoArchivado;
 
   // ── Handlers ───────────────────────────────────────────────────────────────
 
@@ -767,10 +772,17 @@ export default function NewExpenseScreen() {
               aclaración vive DENTRO de `RecurrencePicker`, no en este wrapper. */}
           {!isEditMode && <RecurrencePicker value={recurrence} onChange={setRecurrence} />}
 
+          {grupoArchivado && (
+            <Text style={[Typography.caption, { color: c.semantic.negative, textAlign: 'center', marginBottom: 8 }]}>
+              {t('groups.archived_readonly_hint')}
+            </Text>
+          )}
+
           {/* Save button */}
           <Pressable
             onPress={handleSave}
             disabled={!canSave}
+            testID="expense-save-btn"
             style={[styles.saveBtn, styles.savePad, { backgroundColor: canSave ? c.brand.primary : c.bgGrouped }]}
           >
             <Text style={[Typography.bodyL, { color: canSave ? '#fff' : c.textDisabled, fontWeight: '700' }]}>

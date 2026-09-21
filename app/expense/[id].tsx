@@ -18,6 +18,7 @@ import { formatMoney } from '@/src/constants/currencies';
 import { MoneyText } from '@/src/components/MoneyText';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useGroupStore } from '@/src/store/groupStore';
+import { useArchiveStore } from '@/src/store/archiveStore';
 import { borraAlInstante, deletionModeOf } from '@/src/algorithms/deletionPolicy';
 import { useAuthStore } from '@/src/store/authStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
@@ -107,6 +108,7 @@ export default function ExpenseDetailScreen() {
   const marcaDeVoto = useVoteTrust(
     expense && votoDeLaRonda ? [{ expenseId: expense.id, vote: votoDeLaRonda }] : [],
   );
+  const isArchivedFn = useArchiveStore(s => s.isArchived);
 
   if (!expense) {
     return (
@@ -132,6 +134,7 @@ export default function ExpenseDetailScreen() {
   // visible en Actividad y se pueda restaurar de un toque. En un grupo con
   // acuerdo sigue mandando la regla #2 y sólo el creador del gasto fuerza.
   const grupoDelGasto = groups.find(g => g.id === expense.groupId);
+  const grupoArchivado = grupoDelGasto ? isArchivedFn(grupoDelGasto.id) : false;
   // Si el grupo no se puede resolver (todavía no sincronizó, dato a medias) se
   // cae al comportamiento de siempre —el creador manda— y NO al más
   // restrictivo: quitarle el override al creador por no encontrar el grupo
@@ -141,6 +144,7 @@ export default function ExpenseDetailScreen() {
     : isCreator;
 
   function handleAddComment(text: string) {
+    if (grupoArchivado) return;
     if (!currentUser || !id) return;
     const now = syncedNow();
     addComment({
@@ -190,6 +194,10 @@ export default function ExpenseDetailScreen() {
   }
 
   function handleRequestDelete() {
+    if (grupoArchivado) {
+      Alert.alert(t('groups.archived_readonly_title'), t('groups.archived_readonly_hint'));
+      return;
+    }
     if (!currentUser || !expense) return;
     hapticWarning();
 

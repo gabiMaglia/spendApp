@@ -133,7 +133,9 @@
     "deletion_open_hint": "Anyone in the group deletes instantly, and anyone can restore it from Activity.",
     "deletion_fixed": "Chosen now and cannot be changed later.",
     "swipe_hint": "Swipe a group left to archive it.",
-    "archived_hint": "Archived groups don't count toward balances or show up in Activity."
+    "archived_hint": "Archived groups don't count toward balances or show up in Activity.",
+    "archived_readonly_title": "Archived group",
+    "archived_readonly_hint": "This group is archived — you can't add expenses"
   },
   "group_detail": {
     "settle_debts": "Settle up",
