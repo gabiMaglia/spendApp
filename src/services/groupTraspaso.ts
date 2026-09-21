@@ -7,6 +7,7 @@ import { useExpenseStore } from '@/src/store/expenseStore';
 import { usePaymentStore } from '@/src/store/paymentStore';
 import { useArchiveStore } from '@/src/store/archiveStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
+import { useRecurringStore } from '@/src/store/recurringStore';
 import { announceGroupToContacts } from '@/src/sync/relayEngine';
 import { syncedNow } from '@/src/utils/syncedClock';
 import { pagosQueCuentan } from '@/src/algorithms/settlementStatus';
@@ -82,6 +83,16 @@ export function traspasarGrupo(grupoViejo: Group, description: string, createdBy
 
   useGroupStore.getState().updateGroup(grupoViejo.id, { supersededByGroupId: grupoNuevo.id });
   useArchiveStore.getState().setArchived(grupoViejo.id, true, 'limit');
+
+  // El grupo viejo queda archivado por límite (irrevocable) y sus recurrentes
+  // dejan de materializar ahí (guard de `session.ts`). Sin esto, "alquiler",
+  // "internet", etc. se congelarían para siempre en vez de seguir generando
+  // gastos en el grupo nuevo — que es adonde el usuario se mudó.
+  for (const r of useRecurringStore.getState().recurring) {
+    if (r.groupId === grupoViejo.id) {
+      useRecurringStore.getState().updateRecurring(r.id, { groupId: grupoNuevo.id });
+    }
+  }
 
   return grupoNuevo;
 }

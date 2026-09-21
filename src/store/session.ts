@@ -12,6 +12,7 @@ import { purgeMergedScopes } from './accountLink';
 import { migrarReplicadosUnaVez } from '@/src/services/runMigrateReplicated';
 import { startRelay } from '@/src/sync/relayEngine';
 import { materializeRecurring } from '@/src/services/materializeRecurring';
+import { estaBloqueado } from '@/src/algorithms/groupExpenseLimit';
 import { resolvePendingDeletions } from '@/src/services/resolveDeletions';
 import { applyApprovedLeaves } from '@/src/services/applyLeave';
 import { useSettingsStore } from './settingsStore';
@@ -149,5 +150,24 @@ export function applyDueRecurring(now: number = Date.now()): void {
 
   for (const t of updatedTemplates) {
     useRecurringStore.getState().updateRecurring(t.id, { lastMaterializedAt: t.lastMaterializedAt });
+  }
+
+  // Los recurrentes no pasan por la pantalla de crear gasto, así que el
+  // guard de `estaBloqueado` de esa pantalla no los frena: sin esto, un
+  // grupo podía pasarse de 450 en silencio vía recurrentes y quedarse ahí,
+  // sin aviso ni traspaso. No importa por cuánto se pase (450, 452, 461 —
+  // una carrera de varios recurrentes venciendo juntos) ni el número exacto:
+  // en cuanto lo cruza, se archiva con 'limit' en el momento, igual que si
+  // lo hubiera cruzado un traspaso manual. Los recurrentes de ese grupo
+  // dejan de materializar solos a partir de acá (filtro de arriba).
+  if (expenses.length > 0) {
+    const gruposTocados = new Set(expenses.map(e => e.groupId));
+    const { isArchived, setArchived } = useArchiveStore.getState();
+    const todosLosGastos = useExpenseStore.getState().expenses;
+    for (const groupId of gruposTocados) {
+      if (isArchived(groupId)) continue;
+      const cantidad = todosLosGastos.filter(e => e.groupId === groupId && !e.isDeleted).length;
+      if (estaBloqueado(cantidad)) setArchived(groupId, true, 'limit');
+    }
   }
 }

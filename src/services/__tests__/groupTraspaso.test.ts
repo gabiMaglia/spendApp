@@ -4,9 +4,10 @@ import { useExpenseStore } from '@/src/store/expenseStore';
 import { usePaymentStore } from '@/src/store/paymentStore';
 import { useArchiveStore } from '@/src/store/archiveStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
+import { useRecurringStore } from '@/src/store/recurringStore';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { announceGroupToContacts } from '@/src/sync/relayEngine';
-import type { Group, Expense, Payment, SettlementConfirmation } from '@/src/types/models';
+import type { Group, Expense, Payment, RecurringExpense, SettlementConfirmation } from '@/src/types/models';
 
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
 jest.mock('@/src/sync/relayEngine', () => ({
@@ -46,6 +47,17 @@ const acuse = (o: Partial<SettlementConfirmation> = {}): SettlementConfirmation 
   userId: 'ana', confirmedAt: 2_000, action: 'confirm', ...o,
 });
 
+function recurrente(over: Partial<RecurringExpense> = {}): RecurringExpense {
+  return {
+    id: `r-${Math.random()}`, groupId: 'g-viejo', description: 'Alquiler', amount: 50_000,
+    currency: 'ARS', paidById: 'ana', splitMode: 'equal', memberIds: ['ana', 'beto'],
+    category: 'other', rule: { frequency: 'monthly', startDate: 1_000 },
+    lastMaterializedAt: null, isActive: true,
+    createdAt: 1_000, updatedAt: 1_000, isDeleted: false,
+    ...over,
+  } as RecurringExpense;
+}
+
 beforeEach(() => {
   (['groups', 'expenses', 'payments'] as const).forEach(b => createSecureStorage(b).clearAll());
   useGroupStore.setState({ groups: [grupo()] });
@@ -56,6 +68,7 @@ beforeEach(() => {
   usePaymentStore.setState({ payments: [] });
   useArchiveStore.setState({ archivedIds: [], reasons: {} });
   useGroupKeyStore.setState({ keys: [] });
+  useRecurringStore.setState({ recurring: [] });
   jest.clearAllMocks();
 });
 
@@ -112,6 +125,31 @@ describe('traspasarGrupo', () => {
 
     expect(useGroupKeyStore.getState().getKey(nuevo.id)).toBeDefined();
     expect(announceGroupToContacts).toHaveBeenCalledWith(nuevo.id);
+  });
+
+  it('re-apunta los recurrentes del grupo viejo al grupo nuevo, para que sigan generando gastos ahí', () => {
+    useRecurringStore.setState({ recurring: [recurrente(), recurrente({ id: 'r-otro', description: 'Internet' })] });
+    const viejo = useGroupStore.getState().groups[0];
+    const nuevo = traspasarGrupo(viejo, 'Saldo trasladado de Viaje', 'ana');
+
+    const recurrentes = useRecurringStore.getState().recurring;
+    expect(recurrentes.every(r => r.groupId === nuevo.id)).toBe(true);
+    expect(recurrentes).toHaveLength(2);
+  });
+
+  it('no toca recurrentes personales ni los de otro grupo', () => {
+    useRecurringStore.setState({
+      recurring: [
+        recurrente({ id: 'r-personal', groupId: '' }),
+        recurrente({ id: 'r-otro-grupo', groupId: 'g-ajeno' }),
+      ],
+    });
+    const viejo = useGroupStore.getState().groups[0];
+    traspasarGrupo(viejo, 'Saldo trasladado de Viaje', 'ana');
+
+    const recurrentes = useRecurringStore.getState().recurring;
+    expect(recurrentes.find(r => r.id === 'r-personal')?.groupId).toBe('');
+    expect(recurrentes.find(r => r.id === 'r-otro-grupo')?.groupId).toBe('g-ajeno');
   });
 
   it('copia memberIds en un array nuevo (no comparte referencia con el viejo)', () => {
