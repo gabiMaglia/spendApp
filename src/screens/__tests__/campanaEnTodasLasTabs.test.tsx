@@ -40,10 +40,10 @@ beforeEach(() => {
 });
 
 /**
- * **El contador de la campana, en las SEIS tabs.**
+ * **El contador de la campana, en las CINCO tabs.**
  *
  * El PO: «la campana tiene 8 nuevas, en todas las tabs se muestra sobre la
- * campana menos en Cuenta». Las seis usan el mismo `TabHeader`, así que o hay
+ * campana menos en Cuenta». Las cinco usan el mismo `TabHeader`, así que o hay
  * una diferencia que no se ve leyendo el código, o el aparato tenía un bundle
  * viejo en esa pantalla. Este test decide cuál de las dos.
  */

@@ -90,10 +90,13 @@ export function extractStringLiterals(source: string, isTsx: boolean): string[] 
  * Alias de `t` que este ARCHIVO liga a `useTranslation()` (T-072/D1).
  *
  * QA encontró que `esLlamadaAT` sólo reconocía el identificador literal `t`: renombrar al
- * desestructurar (`const { t: tr } = useTranslation()`) — patrón que el proyecto ya usa en
- * otros hooks, ver `app/(tabs)/personal.tsx:106` — apagaba el guard entero con un cambio de
- * una palabra. Se resuelve por archivo (un `Set` nuevo por cada `parse`), nunca global: un
- * alias de un archivo no debe filtrar a otro.
+ * desestructurar (`const { t: tr } = useTranslation()`) apagaba el guard entero con un cambio
+ * de una palabra. Ninguna pantalla real usa hoy ese alias — `app/(tabs)/personal.tsx` se
+ * renombró a `app/(tabs)/index.tsx` (fusión Inicio→Personal) y ese archivo tampoco lo usa
+ * (siempre `const { t } = useTranslation()`, ver línea 76). El patrón queda cubierto por los
+ * casos de `src/i18n/__tests__/deadKeysScanner.test.ts` (líneas 88 y 224). Se resuelve por
+ * archivo (un `Set` nuevo por cada `parse`), nunca global: un alias de un archivo no debe
+ * filtrar a otro.
  *
  * Formas cubiertas, ambas atadas a una llamada real a `useTranslation(...)`:
  *   - `const { t: tr } = useTranslation()` (o sin alias, `{ t }`, que ya cae en el Set).

@@ -59,16 +59,6 @@ export function SectionLabel({
   );
 }
 
-/** Link de texto a la derecha de una etiqueta de sección. */
-export function BandLink({ label, onPress }: { label: string; onPress: () => void }) {
-  const c = useC();
-  return (
-    <Pressable onPress={onPress} hitSlop={8}>
-      <Text style={{ fontSize: 11.5, fontWeight: '600', color: c.brand.primary }}>{label}</Text>
-    </Pressable>
-  );
-}
-
 /** Banda de ancho completo. `sunken` para el tono hundido (fila de neto, chips). */
 export function Band({
   children, sunken, style, noBottom, noTop,
