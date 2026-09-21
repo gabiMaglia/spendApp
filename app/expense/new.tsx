@@ -30,6 +30,8 @@ import { useGroupStore } from '@/src/store/groupStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { useArchiveStore } from '@/src/store/archiveStore';
+import { useGroupExpenseCount } from '@/src/store/selectors';
+import { estaBloqueado } from '@/src/algorithms/groupExpenseLimit';
 import { usePersonalStore, toMonthKey } from '@/src/store/personalStore';
 import { UserAvatar } from '@/src/components/UserAvatar';
 import { BottomSheet, SheetButton, SheetInput, SheetOption, SheetOptionAvatar } from '@/src/components/Sheet';
@@ -221,10 +223,15 @@ export default function NewExpenseScreen() {
   // no acepta gastos nuevos ni ediciones.
   const isArchivedFn  = useArchiveStore(s => s.isArchived);
   const grupoArchivado = hasGroup && isArchivedFn(groupId);
+  // T-058 (PO 2026-09-20): grupo que llegó a 450 gastos no acepta uno más.
+  // `!isEditMode` importa: editar uno de los 450 existentes no hace crecer
+  // el conteo, sólo cargar el #451 está bloqueado.
+  const cantidadGastosDelGrupo = useGroupExpenseCount(hasGroup ? groupId : '');
+  const grupoBloqueadoPorLimite = hasGroup && !isEditMode && estaBloqueado(cantidadGastosDelGrupo);
   // Con varios pagadores la suma tiene que dar EXACTA contra el total: son
   // enteros en menor unidad (ADR-002), no hay redondeo que perdonar.
   const payersOk     = !multiPayer || validatePayers(payers.filter(p => p.amount > 0), amount).ok;
-  const canSave      = description.trim().length > 0 && amount > 0 && !percentError && (!hasGroup || members.length > 0) && payersOk && !grupoArchivado;
+  const canSave      = description.trim().length > 0 && amount > 0 && !percentError && (!hasGroup || members.length > 0) && payersOk && !grupoArchivado && !grupoBloqueadoPorLimite;
 
   // ── Handlers ───────────────────────────────────────────────────────────────
 
@@ -775,6 +782,12 @@ export default function NewExpenseScreen() {
           {grupoArchivado && (
             <Text style={[Typography.caption, { color: c.semantic.negative, textAlign: 'center', marginBottom: 8 }]}>
               {t('groups.archived_readonly_hint')}
+            </Text>
+          )}
+
+          {grupoBloqueadoPorLimite && (
+            <Text style={[Typography.caption, { color: c.semantic.negative, textAlign: 'center', marginBottom: 8 }]}>
+              {t('groups.limit_blocked_hint')}
             </Text>
           )}
 

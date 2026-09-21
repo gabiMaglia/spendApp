@@ -135,7 +135,15 @@
     "swipe_hint": "Deslizá un grupo a la izquierda para archivarlo.",
     "archived_hint": "Los grupos archivados no suman a los balances ni aparecen en Actividad.",
     "archived_readonly_title": "Grupo archivado",
-    "archived_readonly_hint": "Este grupo está archivado — no se pueden cargar gastos"
+    "archived_readonly_hint": "Este grupo está archivado — no se pueden cargar gastos",
+    "limit_warning_body": "Este grupo tiene {{count}} gastos — se recomienda traspasarlo a uno nuevo antes de llegar a 450",
+    "limit_warning_action": "Crear grupo nuevo",
+    "limit_blocked_hint": "Este grupo llegó al límite de 450 gastos — traspasalo a uno nuevo desde su pantalla de detalle",
+    "traspaso_manual_action": "Traspasar a grupo nuevo",
+    "traspaso_confirm_title": "¿Traspasar este grupo?",
+    "traspaso_confirm_body": "Se crea un grupo nuevo con los mismos miembros. Este grupo ({{count}} gastos) queda archivado y de solo lectura para siempre.",
+    "traspaso_confirm_action": "Sí, traspasar",
+    "carryover_description": "Saldo trasladado de {{name}}"
   },
   "group_detail": {
     "settle_debts": "Saldar deudas",

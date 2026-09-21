@@ -19,7 +19,9 @@ import { useGroupStore } from '@/src/store/groupStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { usePaymentStore } from '@/src/store/paymentStore';
 import { useUserStore } from '@/src/store/userStore';
-import { useGroupBalance } from '@/src/store/selectors';
+import { useGroupBalance, useGroupExpenseCount } from '@/src/store/selectors';
+import { debeAvisar } from '@/src/algorithms/groupExpenseLimit';
+import { traspasarGrupo } from '@/src/services/groupTraspaso';
 import { UserAvatar } from '@/src/components/UserAvatar';
 import { SyncWarningBanner } from '@/src/components/SyncWarningBanner';
 import { useGroupSyncFailure, claveDeFalloDeSync } from '@/src/sync/useSyncFailure';
@@ -115,6 +117,9 @@ export default function GroupDetailScreen() {
   const marcaDePago  = useRecordTrust('payment', pagosDelTimeline);
 
   const balances    = useGroupBalance(id ?? '', currentUser?.id ?? '');
+  // T-058 (PO 2026-09-20): aviso de traspaso entre 350 y 450 gastos.
+  const cantidadGastos = useGroupExpenseCount(id ?? '');
+  const [mostrarTraspaso, setMostrarTraspaso] = useState(false);
 
   // T-104: el botón «Saldar deuda» necesita DEUDA VIVA, no solo gastos
   // cargados. `useGroupBalance` ya corre `calculateBalancesByCurrency` +
@@ -273,6 +278,20 @@ export default function GroupDetailScreen() {
           />
         )}
 
+        {debeAvisar(cantidadGastos) && (
+          <View testID="traspaso-banner" style={[styles.avisoTraspaso, { backgroundColor: c.semantic.warningSoft }]}>
+            <Text style={[Typography.bodyS, { color: c.semantic.warning }]}>
+              {t('groups.limit_warning_body', { count: cantidadGastos })}
+            </Text>
+            <Pressable
+              onPress={() => setMostrarTraspaso(true)}
+              style={[styles.avisoBtn, { backgroundColor: c.brand.primary }]}
+            >
+              <Text style={{ color: '#fff', fontWeight: '700' }}>{t('groups.limit_warning_action')}</Text>
+            </Pressable>
+          </View>
+        )}
+
         {/* Balance: banda, no tarjeta. La cifra es lo primero que se lee. */}
         <Band>
           <View style={styles.balancePad}>
@@ -391,6 +410,17 @@ export default function GroupDetailScreen() {
             </Band>
           </>
         )}
+
+        {/* Traspaso manual — siempre disponible, no sólo cuando se llega al aviso (T-058). */}
+        {group && currentUser && group.memberIds.some(esYo) && (
+          <Band>
+            <BandRow testID="traspaso-manual-btn" onPress={() => setMostrarTraspaso(true)} last>
+              <Text style={[Typography.bodyL, { color: c.brand.primary, flex: 1, textAlign: 'center' }]}>
+                {t('groups.traspaso_manual_action')}
+              </Text>
+            </BandRow>
+          </Band>
+        )}
       </ScrollView>
 
       {group && currentUser && group.memberIds.some(esYo) && (
@@ -469,6 +499,31 @@ export default function GroupDetailScreen() {
             />
           )
         )}
+      </BottomSheet>
+
+      <BottomSheet visible={mostrarTraspaso} onClose={() => setMostrarTraspaso(false)}>
+        <Text style={[Typography.h3, { color: c.text, marginBottom: 8 }]}>
+          {t('groups.traspaso_confirm_title')}
+        </Text>
+        <Text style={[Typography.bodyM, { color: c.textSecondary, marginBottom: 20 }]}>
+          {t('groups.traspaso_confirm_body', { count: cantidadGastos })}
+        </Text>
+        <Pressable
+          testID="traspaso-confirmar-btn"
+          onPress={() => {
+            if (!group || !currentUser) return;
+            const nuevo = traspasarGrupo(
+              group,
+              t('groups.carryover_description', { name: group.name }),
+              currentUser.id,
+            );
+            setMostrarTraspaso(false);
+            router.replace(`/groups/${nuevo.id}` as any);
+          }}
+          style={[styles.confirmBtn, { backgroundColor: c.brand.primary }]}
+        >
+          <Text style={{ color: '#fff', fontWeight: '700' }}>{t('groups.traspaso_confirm_action')}</Text>
+        </Pressable>
       </BottomSheet>
 
       <Modal
@@ -663,6 +718,14 @@ const styles = StyleSheet.create({
   balancePad:  { paddingHorizontal: Spacing.screenPad, paddingTop: 18, paddingBottom: 18 },
   members:     { paddingHorizontal: Spacing.screenPad, paddingVertical: 14, gap: 14 },
   emptyBox:    { alignItems: 'center', justifyContent: 'center', padding: Spacing[6] },
+  avisoTraspaso: {
+    marginHorizontal: Spacing.screenPad, marginTop: Spacing[3],
+    padding: Spacing[4], borderRadius: Radius.md, gap: Spacing[2],
+  },
+  avisoBtn:    {
+    alignSelf: 'flex-start', paddingHorizontal: Spacing[4], paddingVertical: Spacing[2],
+    borderRadius: Radius.sm,
+  },
   rowIcon:     { width: 36, height: 36, borderRadius: Radius.sm, alignItems: 'center', justifyContent: 'center' },
   leaveNote:   {
     flexDirection: 'row', alignItems: 'flex-start', gap: 9,

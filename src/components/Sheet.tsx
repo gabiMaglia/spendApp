@@ -181,7 +181,7 @@ export function BottomSheet({
  * sin cambiar de forma, así la lista no salta al elegir.
  */
 export function SheetOption({
-  icon, label, sublabel, selected, onPress, destructive, last,
+  icon, label, sublabel, selected, onPress, destructive, last, testID,
 }: {
   icon?: React.ComponentProps<typeof Ionicons>['name'];
   label: string;
@@ -191,6 +191,7 @@ export function SheetOption({
   /** Rojo para borrar / salir del grupo. */
   destructive?: boolean;
   last?: boolean;
+  testID?: string;
 }) {
   const scheme = useColorScheme() ?? 'light';
   const c = Colors[scheme];
@@ -200,6 +201,7 @@ export function SheetOption({
 
   return (
     <Pressable
+      testID={testID}
       onPress={onPress}
       style={({ pressed }) => [
         styles.option,
