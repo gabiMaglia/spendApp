@@ -99,7 +99,14 @@ export type Notice =
    * **las fechas que el usuario ve salen del reloj del aparato** y ésas no se
    * corrigen solas. Quién decide que avise UNA vez vive en `sync/clockNotice.ts`.
    */
-  | { kind: 'clock_off'; offsetMs: number };
+  | { kind: 'clock_off'; offsetMs: number }
+  /**
+   * Un grupo del que soy miembro se traspasó a uno nuevo por el límite de
+   * gastos (T-058, PO 2026-09-20) — el viejo queda archivado, de solo
+   * lectura. Informativo: el traspaso ya se aplicó, no hay nada que
+   * aprobar u objetar.
+   */
+  | { kind: 'group_replaced'; groupId: string; groupName: string; newGroupId: string; newGroupName: string };
 
 /**
  * ¿Este aviso pide que el usuario HAGA algo, o sólo informa? (T-062)
@@ -130,6 +137,7 @@ export function esAccionable(kind: Notice['kind']): boolean {
     case 'settled':
     case 'restored':
     case 'joined':
+    case 'group_replaced':
       return false;
   }
 }
@@ -166,6 +174,12 @@ export type Snapshot = {
    * restauraciones de hace meses como si acabaran de pasar.
    */
   borrados: string[];
+  /**
+   * Ids de grupo → id del grupo que lo reemplaza, tal como estaban en la
+   * FOTO DE ANTES (T-058, PO 2026-09-20). Es lo que distingue "esto se
+   * traspasó recién" de "ya lo sabía" para el aviso `group_replaced`.
+   */
+  traspasosConocidos: Record<string, string>;
 };
 
 /** Una ronda abierta es la que existe, todavía no venció y nadie objetó. */
@@ -174,13 +188,23 @@ function borradoPendiente(e: Expense, now: number): boolean {
   return ronda !== null && ronda.status === 'open' && ronda.expiresAt > now;
 }
 
-export function snapshot(expenses: Expense[], now: number, payments: Payment[] = []): Snapshot {
+export function snapshot(
+  expenses: Expense[],
+  now: number,
+  groups: Group[],
+  payments: Payment[] = [],
+): Snapshot {
   const vivos = expenses.filter(e => !e.isDeleted);
+  const traspasosConocidos: Record<string, string> = {};
+  for (const g of groups) {
+    if (g.supersededByGroupId) traspasosConocidos[g.id] = g.supersededByGroupId;
+  }
   return {
     expenseIds: vivos.map(e => e.id),
     conBorradoAbierto: vivos.filter(e => borradoPendiente(e, now)).map(e => e.id),
     paymentIds: payments.filter(p => !p.isDeleted).map(p => p.id),
     borrados: expenses.filter(e => e.isDeleted).map(e => e.id),
+    traspasosConocidos,
   };
 }
 
@@ -332,7 +356,23 @@ export function noticesFor(
       };
     });
 
-  return [...porGastos, ...pedidosDeBorrado, ...restauraciones, ...saldos];
+  const traspasos: Notice[] = [];
+  for (const g of groups) {
+    if (g.isDeleted || !g.supersededByGroupId) continue;
+    const yaLoSabia = before.traspasosConocidos[g.id] === g.supersededByGroupId;
+    if (yaLoSabia) continue;
+
+    const nuevo = groups.find(x => x.id === g.supersededByGroupId);
+    traspasos.push({
+      kind: 'group_replaced',
+      groupId: g.id,
+      groupName: g.name,
+      newGroupId: g.supersededByGroupId,
+      newGroupName: nuevo?.name ?? '',
+    });
+  }
+
+  return [...porGastos, ...pedidosDeBorrado, ...restauraciones, ...saldos, ...traspasos];
 }
 
 /**

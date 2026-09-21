@@ -117,6 +117,7 @@ export const GROUP: Required<Group> = {
     requestedAt: 4_500,
     approvedBy: ['ana'],
   },
+  supersededByGroupId: 'g-2',
   rev: 2_000,
   k: '',
   s: '',

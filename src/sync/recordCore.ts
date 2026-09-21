@@ -173,6 +173,7 @@ const GROUP_SLOTS: Record<keyof Group, CoreSlot> = {
   leaveRequest: 'fuera',
   updatedAt: 'fuera',
   isDeleted: 'fuera',
+  supersededByGroupId: 'fuera',
   k: 'fuera',
   s: 'fuera',
 };

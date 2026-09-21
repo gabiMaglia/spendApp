@@ -22,7 +22,7 @@ const grupo = (over: Partial<Group> = {}): Group => ({
   ...over,
 } as unknown as Group);
 
-const vacio = { expenseIds: [], conBorradoAbierto: [], paymentIds: [], borrados: [] };
+const vacio = { expenseIds: [], conBorradoAbierto: [], paymentIds: [], borrados: [], traspasosConocidos: {} };
 const kinds = (n: Notice[]) => n.map(x => x.kind).sort();
 
 describe('gastos nuevos', () => {
@@ -41,7 +41,7 @@ describe('gastos nuevos', () => {
   });
 
   it('lo que ya estaba antes no se vuelve a avisar', () => {
-    const antes = { expenseIds: ['e1'], conBorradoAbierto: [], paymentIds: [], borrados: [] };
+    const antes = { expenseIds: ['e1'], conBorradoAbierto: [], paymentIds: [], borrados: [], traspasosConocidos: {} };
     expect(noticesFor(antes, [gasto()], [grupo()], YO, AHORA)).toEqual([]);
   });
 
@@ -91,7 +91,7 @@ describe('pedidos de borrado', () => {
     conOver({ deletionVotes: [{ userId, votedAt: at, action: 'delete' }] });
 
   it('avisa cuando otro pide borrar', () => {
-    const antes = { expenseIds: ['e1'], conBorradoAbierto: [], paymentIds: [], borrados: [] };
+    const antes = { expenseIds: ['e1'], conBorradoAbierto: [], paymentIds: [], borrados: [], traspasosConocidos: {} };
     const n = noticesFor(antes, [pedido(OTRO)], [grupo()], YO, AHORA);
     expect(n).toEqual([{
       kind: 'deletion', groupId: 'g1', groupName: 'Viaje', description: 'Pizza', expenseId: 'e1',
@@ -99,24 +99,24 @@ describe('pedidos de borrado', () => {
   });
 
   it('al que lo pidió no se le avisa su propio pedido', () => {
-    const antes = { expenseIds: ['e1'], conBorradoAbierto: [], paymentIds: [], borrados: [] };
+    const antes = { expenseIds: ['e1'], conBorradoAbierto: [], paymentIds: [], borrados: [], traspasosConocidos: {} };
     expect(noticesFor(antes, [pedido(YO)], [grupo()], YO, AHORA)).toEqual([]);
   });
 
   it('una ronda que ya estaba abierta no se vuelve a avisar', () => {
-    const antes = { expenseIds: ['e1'], conBorradoAbierto: ['e1'], paymentIds: [], borrados: [] };
+    const antes = { expenseIds: ['e1'], conBorradoAbierto: ['e1'], paymentIds: [], borrados: [], traspasosConocidos: {} };
     expect(noticesFor(antes, [pedido(OTRO)], [grupo()], YO, AHORA)).toEqual([]);
   });
 
   // Ya no hay nada que objetar: avisar sería mandar a una acción imposible.
   it('una ronda vencida no avisa', () => {
-    const antes = { expenseIds: ['e1'], conBorradoAbierto: [], paymentIds: [], borrados: [] };
+    const antes = { expenseIds: ['e1'], conBorradoAbierto: [], paymentIds: [], borrados: [], traspasosConocidos: {} };
     const viejo = pedido(OTRO, AHORA - DELETION_TIMEOUT_MS - 1);
     expect(noticesFor(antes, [viejo], [grupo()], YO, AHORA)).toEqual([]);
   });
 
   it('una ronda objetada tampoco', () => {
-    const antes = { expenseIds: ['e1'], conBorradoAbierto: [], paymentIds: [], borrados: [] };
+    const antes = { expenseIds: ['e1'], conBorradoAbierto: [], paymentIds: [], borrados: [], traspasosConocidos: {} };
     const objetado = conOver({ deletionVotes: [
       { userId: OTRO, votedAt: AHORA, action: 'delete' },
       { userId: YO, votedAt: AHORA, action: 'cancel' },
@@ -155,7 +155,7 @@ describe('restauraciones', () => {
 
   /** Lo tenía borrado en el device: es la única forma de que «volvió» sea un evento. */
   const loTeniaBorrado = {
-    expenseIds: [], conBorradoAbierto: [], paymentIds: [], borrados: ['e1'],
+    expenseIds: [], conBorradoAbierto: [], paymentIds: [], borrados: ['e1'], traspasosConocidos: {},
   };
 
   it('avisa cuando otro restaura un gasto que yo tenía borrado', () => {
@@ -177,7 +177,7 @@ describe('restauraciones', () => {
    */
   it('recalcular la ronda NO vuelve a avisar', () => {
     const gastoVivo = restaurado(YO, OTRO);
-    const despues = snapshot([gastoVivo], AHORA);
+    const despues = snapshot([gastoVivo], AHORA, [grupo()]);
     expect(noticesFor(despues, [gastoVivo], [grupo()], YO, AHORA)).toEqual([]);
   });
 
@@ -211,7 +211,7 @@ describe('restauraciones', () => {
       { userId: OTRO2, votedAt: AHORA, action: 'cancel' },
     ] });
     const nuncaLoTuveBorrado = {
-      expenseIds: ['e1'], conBorradoAbierto: ['e1'], paymentIds: [], borrados: [],
+      expenseIds: ['e1'], conBorradoAbierto: ['e1'], paymentIds: [], borrados: [], traspasosConocidos: {},
     };
     expect(noticesFor(nuncaLoTuveBorrado, [objetado], [grupo()], YO, AHORA)).toEqual([]);
   });
@@ -249,14 +249,14 @@ describe('restauraciones', () => {
   });
 
   it('la foto previa marca los gastos que estaban borrados', () => {
-    const s = snapshot([gasto(), conOver({ id: 'e2', isDeleted: true })], AHORA);
+    const s = snapshot([gasto(), conOver({ id: 'e2', isDeleted: true })], AHORA, []);
     expect(s.borrados).toEqual(['e2']);
   });
 });
 
 describe('snapshot', () => {
   it('sólo cuenta los vivos', () => {
-    const s = snapshot([gasto(), conOver({ id: 'e2', isDeleted: true })], AHORA);
+    const s = snapshot([gasto(), conOver({ id: 'e2', isDeleted: true })], AHORA, []);
     expect(s.expenseIds).toEqual(['e1']);
   });
 
@@ -264,18 +264,18 @@ describe('snapshot', () => {
     const abierto = conOver({
       deletionVotes: [{ userId: OTRO, votedAt: AHORA, action: 'delete' }],
     });
-    expect(snapshot([abierto], AHORA).conBorradoAbierto).toEqual(['e1']);
+    expect(snapshot([abierto], AHORA, []).conBorradoAbierto).toEqual(['e1']);
   });
 
   it('una ronda vencida no cuenta como abierta', () => {
     const viejo = conOver({
       deletionVotes: [{ userId: OTRO, votedAt: AHORA - DELETION_TIMEOUT_MS - 1, action: 'delete' }],
     });
-    expect(snapshot([viejo], AHORA).conBorradoAbierto).toEqual([]);
+    expect(snapshot([viejo], AHORA, []).conBorradoAbierto).toEqual([]);
   });
 
   it('sin votos no hay nada abierto', () => {
-    expect(snapshot([gasto()], AHORA).conBorradoAbierto).toEqual([]);
+    expect(snapshot([gasto()], AHORA, []).conBorradoAbierto).toEqual([]);
   });
 });
 
@@ -350,7 +350,7 @@ describe('avisos de saldo', () => {
   });
 
   it('un pago que YA conocía no vuelve a avisar', () => {
-    const antes = snapshot([], 0, [pago()]);
+    const antes = snapshot([], 0, [], [pago()]);
     const avisos = noticesFor(antes, [], grupos, 'yo', 0, [pago()]);
     expect(avisos.some(a => a.kind === 'settled')).toBe(false);
   });
@@ -384,6 +384,7 @@ describe('esAccionable (T-062)', () => {
       settled: esAccionable('settled'),
       restored: esAccionable('restored'),
       joined: esAccionable('joined'),
+      group_replaced: esAccionable('group_replaced'),
     };
     expect(clasificacion).toEqual({
       // `clock_off` es accionable aunque lo que hay que hacer esté FUERA de la
@@ -392,7 +393,8 @@ describe('esAccionable (T-062)', () => {
       deletion: true, settlement_pending: true, sync_down: true, clock_off: true,
       // T-136: leerlo no lo resuelve — hay que elegir una clave.
       group_key_conflict: true,
-      expenses: false, settled: false, restored: false, joined: false,
+      // T-058: el traspaso ya se aplicó, no hay nada que aprobar u objetar.
+      expenses: false, settled: false, restored: false, joined: false, group_replaced: false,
     });
   });
 });

@@ -68,6 +68,12 @@ const INVENTARIO: Record<string, string> = {
    * remitentes delante. Un modal en el arranque sería lo que el PO no quiere.
    */
   group_key_conflict: 'dos o más contactos entregaron claves distintas para un grupo y hay que elegir una',
+  /**
+   * **Informativo, T-058.** El traspaso ya se aplicó — el grupo viejo queda
+   * archivado, de solo lectura — así que no hay nada que aprobar u objetar,
+   * sólo enterarse de que el grupo activo ahora es otro.
+   */
+  group_replaced: 'un grupo del que soy miembro se traspasó a uno nuevo por el límite de gastos',
 };
 
 /** Los `kind` declarados en la unión `Notice`, leídos del fuente. */

@@ -264,6 +264,14 @@ export interface Group extends SyncMeta, CoreSigned {
   defaultSplitMode?: SplitMode;
   /** Pedido de salida pendiente. Ver `LeaveRequest`. */
   leaveRequest?: LeaveRequest;
+  /**
+   * Este grupo se traspasó a otro por el límite de gastos (T-058, PO
+   * 2026-09-20) — apunta al id del grupo nuevo. Optativo y aditivo: un
+   * grupo sin este campo simplemente no fue traspasado. Dispara el aviso
+   * `group_replaced` (`src/services/syncNotices.ts`) para los demás
+   * miembros cuando aparece en una bajada de sync.
+   */
+  supersededByGroupId?: string;
 }
 
 export type ExpenseCategory =
