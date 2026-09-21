@@ -13,6 +13,7 @@ import { useGroupStore } from './groupStore';
 import { useExpenseStore } from './expenseStore';
 import { usePaymentStore } from './paymentStore';
 import { useUserStore } from './userStore';
+import { useArchiveStore } from './archiveStore';
 
 // ── Balance de un grupo específico para un usuario ───────────────────────────
 
@@ -57,12 +58,18 @@ export function useGroupsTotalBalance(userId: string): GroupsTotalBalance[] {
   const groups   = useGroupStore(s => s.groups);
   const expenses = useExpenseStore(s => s.expenses);
   const payments = usePaymentStore(s => s.payments);
+  const archivedIds = useArchiveStore(s => s.archivedIds);
 
   return useMemo(() => {
     const totals = new Map<CurrencyCode, { owedToYou: number; youOwe: number }>();
 
     for (const group of groups) {
       if (group.isDeleted) continue;
+      // Un grupo archivado no suma al total global (promesa de
+      // `groups.archived_hint`): su saldo ya vive trasladado en el grupo que
+      // lo sucedió (T-058) o el usuario lo sacó a mano de la vista activa, y
+      // en los dos casos sumarlo de nuevo acá lo contaría dos veces.
+      if (archivedIds.includes(group.id)) continue;
       const gExpenses = expenses.filter(e => e.groupId === group.id);
       const gPayments = pagosQueCuentan(payments, group);
       const balances  = calculateBalancesByCurrency(gExpenses, gPayments, group.memberIds);
@@ -77,7 +84,7 @@ export function useGroupsTotalBalance(userId: string): GroupsTotalBalance[] {
     }
 
     return Array.from(totals.entries()).map(([currency, vals]) => ({ currency, ...vals }));
-  }, [groups, expenses, payments, userId]);
+  }, [groups, expenses, payments, userId, archivedIds]);
 }
 
 // ── Balances globales entre el usuario actual y cada otro usuario ────────────
@@ -103,12 +110,17 @@ export function useDirectedDebts(currentUserId: string): DirectedDebt[] {
   const groups   = useGroupStore(s => s.groups);
   const expenses = useExpenseStore(s => s.expenses);
   const payments = usePaymentStore(s => s.payments);
+  const archivedIds = useArchiveStore(s => s.archivedIds);
 
   return useMemo(() => {
     const transferencias: Transferencia[] = [];
 
     for (const group of groups) {
       if (group.isDeleted) continue;
+      // Un grupo archivado no suma a la deuda direccional global — mismo
+      // motivo que en `useGroupsTotalBalance`: su saldo ya está trasladado o
+      // el usuario lo sacó a mano de la vista activa.
+      if (archivedIds.includes(group.id)) continue;
       // `mismaPersona` y no `===`: un grupo heredado de una cuenta absorbida
       // nombra a su dueño con la identidad VIEJA en `memberIds`, y ese roster no
       // se reescribe nunca (T-048 · D-6). Sin esto el grupo entero desaparecía
@@ -138,13 +150,14 @@ export function useDirectedDebts(currentUserId: string): DirectedDebt[] {
     }
 
     return directedDebts(transferencias, idCanonico(currentUserId));
-  }, [groups, expenses, payments, currentUserId]);
+  }, [groups, expenses, payments, currentUserId, archivedIds]);
 }
 
 export function useGlobalPersonBalances(currentUserId: string): PersonBalance[] {
   const groups   = useGroupStore(s => s.groups);
   const expenses = useExpenseStore(s => s.expenses);
   const payments = usePaymentStore(s => s.payments);
+  const archivedIds = useArchiveStore(s => s.archivedIds);
 
   return useMemo(() => {
     // Las transferencias salen con ids canónicos: hay que compararlas contra el
@@ -165,6 +178,10 @@ export function useGlobalPersonBalances(currentUserId: string): PersonBalance[] 
       // puede saldar (no hay pantalla donde hacerlo) y quedaba figurando para
       // siempre en Amigos y en el resumen.
       if (group.isDeleted) continue;
+      // Un grupo archivado, mismo motivo: su saldo ya está trasladado (T-058)
+      // o el usuario lo sacó a mano de la vista activa — sumarlo acá lo
+      // cuenta dos veces junto con el grupo que lo sucedió.
+      if (archivedIds.includes(group.id)) continue;
       // Y un grupo del que no soy parte tampoco: sus saldos entrarían al pozo
       // global y cambiarían con QUIÉN me empareja la simplificación.
       // "Ser parte" incluye estar en el roster con la identidad vieja (T-048).
@@ -219,7 +236,7 @@ export function useGlobalPersonBalances(currentUserId: string): PersonBalance[] 
     }
 
     return Array.from(merged.values()).sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount));
-  }, [groups, expenses, payments, currentUserId]);
+  }, [groups, expenses, payments, currentUserId, archivedIds]);
 }
 
 /**
