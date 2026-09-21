@@ -1,6 +1,6 @@
 # ADR-007 · El estado completo vive en el BUZÓN, no en cada sobre
 
-**Estado:** PROPUESTO — pendiente de decisión del PO
+**Estado:** ACEPTADO — 2026-09-21, con P-11/P-12/P-13 resueltas (ver `docs/superpowers/specs/2026-09-21-compactacion-ckey-design.md`)
 **Enmienda a:** ADR-003 (`engram/02_architecture.md`), decisión 1 (buzón store-and-forward) y su invariante §3
 **Origen:** T-058 · medición de T-056 (`engram/plans/T-056.md`) · fallo reproducido en producción
 **Exige migración de Supabase aplicada a mano por el PO — ver §6**
@@ -323,4 +323,11 @@ consecuencias de seguridad que merece su propia entrada en este ADR.
 
 ---
 
-aprobado por · Arquitecto (NERV) · 2026-08-31 · **pendiente de P-11/P-12/P-13 del PO**
+aprobado por · Arquitecto (NERV) · 2026-08-31
+
+**Resolución del PO — 2026-09-21:**
+- **P-11 (¿TTL corriendo?):** sin confirmar — el PO no está seguro si `purge_expired_envelopes()` está agendada a mano en Supabase. Verificar en el panel antes de depender de la renovación de §3.4 para el presupuesto de filas; hasta entonces, tratar el TTL como "puede no estar corriendo".
+- **P-12 (manifiesto incompleto):** opción (a) — cartel de aviso sobre el balance ("faltan datos de un miembro, los balances pueden estar incompletos"), mismo patrón que `too_large` en T-058.
+- **P-13 (borrado por tercero con el topic):** ni (a) ni (b) tal como estaban planteadas — se extiende la prenda de escritura de `008_owner_tag.sql`/ADR-009 (hoy solo por `sender`) para que el compromiso cubra también `ckey`. Cierra el vector de raíz sin tocar ADR-003 (sigue sin ser verificación de firma del lado del servidor, es un hash de compromiso). Ver spec de implementación para el detalle.
+
+**Extensión aprobada junto con esto:** fotos de usuario por referencia (hash + fetch bajo demanda en topic separado), en vez de viajar el blob en la rebanada de `users`. Detalle en el spec.
