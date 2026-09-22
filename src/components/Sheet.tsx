@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  Animated, Easing, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView,
+  Animated, Easing, Keyboard, Modal, Platform, Pressable, ScrollView,
   StyleSheet, Text, TextInput, View, type TextInputProps,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -44,21 +44,51 @@ const SALIDA_MS = 140;
 const ALZADA = 28;
 
 /**
- * **Sólo si el teclado está arriba.** No hace falta la altura exacta: la
- * pide `KeyboardAvoidingView`, que la mide de la ventana nativa. Acá alcanza
- * con saber cuándo, porque lo único que cambia con esto es de dónde sale el
- * respiro del fondo de la hoja (ver `paddingBottom` en `sheet`, abajo).
+ * **El alto del teclado, animado a mano — no `KeyboardAvoidingView`.**
+ *
+ * `KeyboardAvoidingView` calcula cuánto empujar MIDIENDO su propia posición
+ * contra la ventana (`measureInWindow`). Adentro de un `Modal` esa medición
+ * sale mal: en iOS el resultado era un salto brusco de golpe (nada de
+ * animación propia — la hoja "caía" sobre el teclado en vez de deslizarse) y
+ * en Android, sin ventana propia que resolver, no hacía NADA — el teclado
+ * tapaba la hoja entera. Los dos síntomas son la misma causa: la medición
+ * relativa no sirve adentro de la ventana nativa separada del `Modal`.
+ *
+ * Acá no se mide nada: `Keyboard` manda el alto directo (`endCoordinates.height`)
+ * y la duración real de la animación del sistema (iOS la manda; Android no, se
+ * usa un valor prolijo). Se anima como `paddingBottom` del contenedor — la hoja
+ * se ve crecer/deslizarse, no saltar.
  */
-function useTecladoVisible(): boolean {
-  const [visible, setVisible] = useState(false);
+function useAlturaTeclado(): Animated.Value {
+  const altura = useRef(new Animated.Value(0)).current;
+
   useEffect(() => {
     const mostrar = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const ocultar = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-    const subMostrar = Keyboard.addListener(mostrar, () => setVisible(true));
-    const subOcultar = Keyboard.addListener(ocultar, () => setVisible(false));
+
+    const alMostrar = (e: { endCoordinates?: { height?: number }; duration?: number }) => {
+      Animated.timing(altura, {
+        toValue: e.endCoordinates?.height ?? 0,
+        duration: e.duration && e.duration > 0 ? e.duration : 250,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: false,
+      }).start();
+    };
+    const alOcultar = (e: { duration?: number }) => {
+      Animated.timing(altura, {
+        toValue: 0,
+        duration: e.duration && e.duration > 0 ? e.duration : 200,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: false,
+      }).start();
+    };
+
+    const subMostrar = Keyboard.addListener(mostrar, alMostrar);
+    const subOcultar = Keyboard.addListener(ocultar, alOcultar);
     return () => { subMostrar.remove(); subOcultar.remove(); };
-  }, []);
-  return visible;
+  }, [altura]);
+
+  return altura;
 }
 
 export function BottomSheet({
@@ -77,7 +107,7 @@ export function BottomSheet({
   const scheme = useColorScheme() ?? 'light';
   const c = Colors[scheme];
   const insets = useSafeAreaInsets();
-  const tecladoVisible = useTecladoVisible();
+  const alturaTeclado = useAlturaTeclado();
 
   // El modal sigue montado durante la salida: si se desmontara al soltar
   // `visible`, la hoja desaparecería de golpe y el fade de salida no se vería.
@@ -148,17 +178,13 @@ export function BottomSheet({
           <Pressable style={StyleSheet.absoluteFillObject} onPress={onClose} />
         </Animated.View>
 
-        <KeyboardAvoidingView
-          style={styles.kav}
-          // iOS: `padding` empuja la hoja entera el alto exacto del teclado.
-          // Android: `undefined` no hacía NADA — el `Modal` es una ventana
-          // nativa aparte y no hereda el `adjustResize` de la Activity, así
-          // que el teclado tapaba la hoja entera sin que se moviera un
-          // píxel. `height` la achica en vez de desplazarla — mismo efecto
-          // "la hoja crece hacia arriba, el contenido se desliza adentro"
-          // que pedía el PO, y sin el salto brusco de `padding` en Android.
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        >
+        {/*
+          Reemplaza a `KeyboardAvoidingView` (ver `useAlturaTeclado`): acá el
+          alto lo manda `Keyboard` directo, animado a mano, sin medir nada
+          contra la ventana — es lo que arregla el salto en iOS y que Android
+          no hiciera nada.
+        */}
+        <Animated.View style={[styles.kav, { paddingBottom: alturaTeclado }]}>
           <Animated.View style={[styles.sheet, {
             opacity: anim,
             transform: [{
@@ -170,12 +196,18 @@ export function BottomSheet({
             // de la última fila encima quedaban 60 de hueco. Se usa el mayor.
             //
             // **Con el teclado arriba, este padding se cae** (PO 2026-09-22): el
-            // `KeyboardAvoidingView` YA sumó el alto del teclado empujando toda la
+            // contenedor de arriba YA sumó el alto del teclado empujando toda la
             // hoja — sumarle ADEMÁS el inset de home indicator duplicaba el hueco,
             // y esa tira extra (antes invisible, recortada por el borde de la
             // pantalla) quedaba flotando arriba del teclado con las esquinas
             // cuadradas a la vista: el "final del bottom" que se veía raro.
-            paddingBottom: tecladoVisible ? Spacing[4] : Math.max(insets.bottom, Spacing[4]),
+            // `interpolate` en vez de un booleano: así el achique acompaña la
+            // MISMA animación del teclado en vez de saltar en un solo frame.
+            paddingBottom: alturaTeclado.interpolate({
+              inputRange: [0, 1],
+              outputRange: [Math.max(insets.bottom, Spacing[4]), Spacing[4]],
+              extrapolate: 'clamp',
+            }),
           }]}>
             <View style={[styles.grabber, { backgroundColor: c.hair }]} />
 
@@ -202,7 +234,7 @@ export function BottomSheet({
               <View style={[styles.footer, { borderTopColor: c.hair }]}>{footer}</View>
             ) : null}
           </Animated.View>
-        </KeyboardAvoidingView>
+        </Animated.View>
       </GestureHandlerRootView>
     </Modal>
   );
