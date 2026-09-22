@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import {
   KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
@@ -137,6 +137,8 @@ export default function NewExpenseScreen() {
   const [payerId,        setPayerId]        = useState(
     existingExpense?.paidById ?? currentUser?.id ?? '',
   );
+  // Área táctil de todo el bloque del monto, no sólo los dígitos (PO 2026-09-22).
+  const montoRef = useRef<TextInput>(null);
   const [date,           setDate]           = useState(
     existingExpense ? new Date(existingExpense.date) : new Date(),
   );
@@ -555,6 +557,7 @@ export default function NewExpenseScreen() {
             </Text>
             <View style={styles.amountRow}>
               <MontoEditable
+                ref={montoRef}
                 testID="expense-amount"
                 currency={currency}
                 value={amountStr}

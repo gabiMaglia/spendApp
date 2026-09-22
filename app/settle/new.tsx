@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View,
+  KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -110,6 +110,8 @@ export default function SettleNewScreen() {
     onBlur: onAmountBlur,
     setMinor: setAmountMinor,
   } = useAmountInput(currencyForAmount, maxAmount ?? 0);
+  // Área táctil de todo el bloque del monto, no sólo los dígitos (PO 2026-09-22).
+  const montoRef = useRef<TextInput>(null);
   // El que paga soy yo salvo que esté editando el pago de otro: entrar y tener
   // que corregir "de quién sale la plata" es un paso que nadie quiere dar.
   const [fromId,    setFromId]    = useState(
@@ -325,6 +327,7 @@ export default function SettleNewScreen() {
             <View style={styles.amountRow}>
               <View style={styles.amountGroup}>
                 <MontoEditable
+                  ref={montoRef}
                   testID="settle-amount"
                   currency={currency}
                   value={amountStr}
