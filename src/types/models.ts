@@ -75,7 +75,15 @@ export interface User extends SyncMeta {
    * sacado, borrando la copia que cada peer ya tenía cacheada.
    */
   avatarDigest?: string;
-  authProvider: 'google' | 'apple';
+  /**
+   * `'guest'` (T-101-bis): sesión sin Google/Apple, para usar la app sin cuenta
+   * externa. Sync y todo lo demás funcionan igual — el buzón acepta clave `anon`
+   * (`supabase/001_mailbox.sql`) y no depende de ningún proveedor. Sólo se queda
+   * afuera del directorio de claves de ADR-004 (`deviceKeys.ts`), que exige un
+   * `id_token` real; eso resuelve en `sin_directorio`, un veredicto que
+   * `authorHealth.ts` nunca usa para rechazar (ver `RECHAZAR_AUTORES_NO_VERIFICADOS`).
+   */
+  authProvider: 'google' | 'apple' | 'guest';
   createdAt: number;
   /**
    * Cuándo esta persona borró su cuenta (T-074).

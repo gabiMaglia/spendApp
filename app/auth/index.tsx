@@ -4,7 +4,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { AppLogoMark } from '@/src/components/AppLogoMark';
 import { LEGAL_DISPONIBLE, urlDePrivacidad, urlDeTerminos } from '@/src/constants/legal';
-import { marcarProveedorProbado } from '@/src/store/authStore';
+import { v4 as uuidv4 } from 'uuid';
+import { marcarProveedorProbado, recordGuestAccount, pendingGuestAccountId, clearGuestAccount } from '@/src/store/authStore';
 import { signIntoDirectory } from '@/src/sync/directoryAuth';
 import { registerDeviceKey } from '@/src/sync/deviceKeys';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
@@ -16,8 +17,10 @@ import { Typography } from '@/src/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { adoptarAvatarDelProveedor } from '@/src/services/avatar';
 import { useAuthStore } from '@/src/store/authStore';
+import { mergeAccounts } from '@/src/store/accountLink';
 import { actualizarMiPerfil } from '@/src/store/miPerfil';
 import { mergeProviderUser } from '@/src/utils/mergeProviderUser';
+import { syncedNow } from '@/src/utils/syncedClock';
 import { Button } from '@/src/components/Button';
 
 type GoogleUser = {
@@ -85,7 +88,12 @@ export default function AuthScreen() {
 
       if (!r2.ok) {
         const proveedorDestino = getStoredProfile(candidate.accountId)?.authProvider;
-        const probado = proveedorDestino ? await probarOtroProveedor(proveedorDestino) : false;
+        // Un invitado (T-101-bis) nunca entra a este índice de candidatos
+        // (`setUser` no lo registra), así que esto es sólo para que el tipo
+        // cierre: `probarOtroProveedor` solo sabe entrar con Google o Apple.
+        const probado = (proveedorDestino === 'google' || proveedorDestino === 'apple')
+          ? await probarOtroProveedor(proveedorDestino)
+          : false;
         r2 = probado
           ? confirmAccountLink(providerId, candidate.accountId)
           : { ok: false, reason: 'sin_prueba' };
@@ -118,6 +126,54 @@ export default function AuthScreen() {
         {
           text: t('auth.link_confirm'),
           onPress: () => { void unir(); },
+        },
+      ],
+    );
+  }
+
+  /**
+   * **T-101-bis: modo invitado.** Entra sin Google ni Apple — un `User` local,
+   * sin proveedor real. El sync funciona igual (el buzón acepta clave `anon`,
+   * ver `supabase/001_mailbox.sql`); sólo se queda afuera del directorio de
+   * claves de ADR-004, que exige un `id_token` real y resuelve, para cualquiera
+   * que lo consulte, en el veredicto `sin_directorio` — el único que
+   * `authorHealth.ts` nunca usa para rechazar un sobre.
+   *
+   * Se anota como pendiente de fusión (`recordGuestAccount`): si esta persona
+   * entra después con una cuenta real, se le ofrece sumar estos datos.
+   */
+  function entrarComoInvitado() {
+    const id = uuidv4();
+    recordGuestAccount(id);
+    setUser({
+      id,
+      name:         t('auth.guest_name'),
+      email:        '',
+      authProvider: 'guest',
+      createdAt:    syncedNow(),
+      updatedAt:    syncedNow(),
+      isDeleted:    false,
+    });
+  }
+
+  /**
+   * Si este dispositivo tiene una cuenta invitada pendiente (T-101-bis), ofrece
+   * fusionarla con la cuenta real recién resuelta — mismo mecanismo que T-042
+   * (`mergeAccounts`), pero sin necesitar "probar" nada: pasar de invitado a una
+   * cuenta real en el mismo aparato ya es la prueba.
+   */
+  function ofrecerFusionDeInvitado(accountId: string, label: string) {
+    const guestId = pendingGuestAccountId();
+    if (!guestId || guestId === accountId) return;
+
+    Alert.alert(
+      t('auth.guest_merge_title'),
+      t('auth.guest_merge_body', { account: label }),
+      [
+        { text: t('auth.guest_merge_no'), style: 'cancel', onPress: clearGuestAccount },
+        {
+          text: t('auth.guest_merge_yes'),
+          onPress: () => { mergeAccounts(guestId, accountId); clearGuestAccount(); },
         },
       ],
     );
@@ -187,6 +243,7 @@ export default function AuthScreen() {
 
       // Mismo mail ⇒ misma cuenta, entre con Google o con Apple.
       accountIdFor(u.id, u.email, (accountId) => {
+        ofrecerFusionDeInvitado(accountId, u.email);
         setUser(mergeProviderUser(getStoredProfile(accountId), {
           id:           accountId,
           authProvider: 'google',
@@ -241,6 +298,7 @@ export default function AuthScreen() {
       ].filter(Boolean).join(' ');
 
       accountIdFor(credential.user, credential.email, (accountId) => {
+        ofrecerFusionDeInvitado(accountId, credential.email ?? name);
         setUser(mergeProviderUser(getStoredProfile(accountId), {
           id:           accountId,
           authProvider: 'apple',
@@ -296,6 +354,11 @@ export default function AuthScreen() {
           {/* Google */}
           <Button variant={appleAvailable ? 'secondary' : 'primary'} size="lg" block onPress={handleGoogleLogin}>
             {t('auth.continue_google')}
+          </Button>
+
+          {/* T-101-bis: modo invitado — ver `entrarComoInvitado`. */}
+          <Button variant="ghost" size="lg" block onPress={entrarComoInvitado}>
+            {t('auth.continue_guest')}
           </Button>
 
           {/*

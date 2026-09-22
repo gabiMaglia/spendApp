@@ -93,7 +93,13 @@
     "link_separate": "Use a separate account",
     "link_need_proof_title": "Couldn't link them",
     "link_need_proof_body": "To link both accounts you also need to sign in with the other one. You are signed in with this one and can try again next time.",
-    "link_irreversible": "Linking them can't be undone."
+    "link_irreversible": "Linking them can't be undone.",
+    "continue_guest": "Continue without an account",
+    "guest_name": "Guest",
+    "guest_merge_title": "You have data saved as a guest",
+    "guest_merge_body": "Add those groups and expenses to your {{account}} account?",
+    "guest_merge_yes": "Yes, add them",
+    "guest_merge_no": "No, start fresh"
   },
   "dashboard": {
     "title": "Your balances",

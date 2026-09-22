@@ -93,7 +93,13 @@
     "link_separate": "Usar cuenta aparte",
     "link_need_proof_title": "No se pudieron unir",
     "link_need_proof_body": "Para unir las dos cuentas hay que entrar también con la otra. Entraste con ésta y podés intentarlo de nuevo la próxima vez.",
-    "link_irreversible": "Unirlas no se puede deshacer."
+    "link_irreversible": "Unirlas no se puede deshacer.",
+    "continue_guest": "Continuar sin cuenta",
+    "guest_name": "Invitado",
+    "guest_merge_title": "Tenés datos guardados como invitado",
+    "guest_merge_body": "¿Sumamos esos grupos y gastos a tu cuenta de {{account}}?",
+    "guest_merge_yes": "Sí, sumarlos",
+    "guest_merge_no": "No, empezar de cero"
   },
   "dashboard": {
     "title": "Tus cuentas",

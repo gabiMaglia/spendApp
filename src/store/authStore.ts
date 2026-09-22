@@ -94,6 +94,28 @@ export function olvidarPruebasDeProveedor(): void {
 }
 
 /**
+ * Cuenta invitada (T-101-bis) pendiente de ofrecer fusión con una cuenta real.
+ *
+ * Vive en una clave aparte de `KNOWN`/`profile`: no es "una cuenta más vista en
+ * este device", es específicamente "todavía no le ofrecí a este device sumar
+ * los datos del invitado a la próxima cuenta real que entre". Sobrevive al
+ * `signOut` a propósito — el invitado cierra sesión (o simplemente entra con
+ * Google después) y ahí es cuando hay que preguntar, no antes.
+ */
+export function recordGuestAccount(accountId: string): void {
+  storage.set(KEYS.GUEST_PENDING, accountId);
+}
+
+export function pendingGuestAccountId(): string | null {
+  return storage.getString(KEYS.GUEST_PENDING) ?? null;
+}
+
+/** Se llama una sola vez que ya se preguntó (se haya fusionado o no). */
+export function clearGuestAccount(): void {
+  storage.delete(KEYS.GUEST_PENDING);
+}
+
+/**
  * Los `providerId` del índice que apuntan a esta cuenta.
  *
  * Exportado para `identityAlias`, que lo usa para sembrar los alias de quien
@@ -184,7 +206,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Snapshot durable del perfil. Como editar el nombre en "Yo" también pasa
       // por acá, el cambio queda persistido para el próximo login.
       storage.set(profileKey(user.id), JSON.stringify(user));
-      rememberAccount(user.id, user.name || user.email, user.email || undefined);
+      // El invitado (T-101-bis) NO entra al índice de "cuentas conocidas": sin
+      // email, `resolveAccount` la trataría como candidata a fusionar con
+      // CUALQUIER login futuro (es la regla pensada para Apple sin mail, 1er
+      // login) — abriría el cartel viejo de "¿es tu cuenta?" antes de que
+      // `ofrecerFusionDeInvitado` llegue a preguntar nada. La fusión de un
+      // invitado tiene su propio camino, explícito (`recordGuestAccount`).
+      if (user.authProvider !== 'guest') {
+        rememberAccount(user.id, user.name || user.email, user.email || undefined);
+      }
     } else {
       storage.delete(KEYS.USER);
     }

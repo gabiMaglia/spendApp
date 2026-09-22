@@ -3,9 +3,11 @@
  * `authStore` como `accountLink`, y si una importara a la otra habría ciclo.
  */
 export const AUTH_KEYS = {
-  USER:    'current_user',
-  IS_PRO:  'is_pro',
-  PROFILE: 'profile',
+  USER:          'current_user',
+  IS_PRO:        'is_pro',
+  PROFILE:       'profile',
+  /** Cuenta invitada de este device pendiente de fusionar (ver `authStore.ts`). */
+  GUEST_PENDING: 'guest_pending',
 } as const;
 
 /** Perfil persistido de una cuenta. NO se borra en el signOut. */

@@ -93,7 +93,13 @@
     "link_separate": "Usar conta separada",
     "link_need_proof_title": "Não foi possível unir",
     "link_need_proof_body": "Para unir as duas contas também é preciso entrar com a outra. Você entrou com esta e pode tentar de novo na próxima vez.",
-    "link_irreversible": "Unir as contas não pode ser desfeito."
+    "link_irreversible": "Unir as contas não pode ser desfeito.",
+    "continue_guest": "Continuar sem conta",
+    "guest_name": "Convidado",
+    "guest_merge_title": "Você tem dados salvos como convidado",
+    "guest_merge_body": "Somar esses grupos e despesas à sua conta {{account}}?",
+    "guest_merge_yes": "Sim, somar",
+    "guest_merge_no": "Não, começar do zero"
   },
   "dashboard": {
     "title": "Suas contas",
