@@ -27,6 +27,7 @@ import { SUPPORTED_LANGUAGES } from '@/src/i18n';
 import { useSettingsStore } from '@/src/store/settingsStore';
 import { hueForUser } from '@/src/utils/hueForUser';
 import { sanitizeUserName } from '@/src/utils/sanitizeUserName';
+import { sanitizeEmail } from '@/src/utils/sanitizeEmail';
 import { Avatar } from '@/src/components/Avatar';
 import { BottomSheet } from '@/src/components/Sheet';
 import { CurrencyPicker } from '@/src/components/CurrencyPicker';
@@ -58,8 +59,15 @@ export default function UserScreen() {
   const { currentUser, isPro, signOut } = useAuthStore();
   const { scrollHandler, progress, contenidoMinimo, alMedirScroll } = useHeaderColapsable();
 
-  const [editingName, setEditingName] = useState(false);
+  // Un solo botón/hoja para nombre y email (PO 2026-09-22): antes de esto había
+  // dos hojas separadas. Apple sólo manda el email en el primer login de cada
+  // Apple ID (y nunca si el usuario elige "Ocultar mi correo") — a diferencia
+  // de Google, que siempre lo trae. Editarlo a mano es la única forma de que
+  // quien entra con Apple pueda verlo/completarlo, igual que ya pasa con el
+  // nombre (`mergeProviderUser`: lo guardado localmente gana sobre el proveedor).
+  const [editingProfile, setEditingProfile] = useState(false);
   const [draftName, setDraftName] = useState('');
+  const [draftEmail, setDraftEmail] = useState('');
 
   /** La imagen elegida, esperando que la persona ajuste el encuadre. */
   const [aRecortar, setARecortar] = useState<{ uri: string; width: number; height: number } | null>(null);
@@ -90,16 +98,37 @@ export default function UserScreen() {
     actualizarMiPerfil({ avatar: r.dataUri });
   }
 
-  function openEditName() {
+  function openEditProfile() {
     setDraftName(currentUser?.name ?? '');
-    setEditingName(true);
+    setDraftEmail(currentUser?.email ?? '');
+    setEditingProfile(true);
   }
 
-  function handleSaveName() {
-    const clean = sanitizeUserName(draftName);
-    if (!clean) return;
-    if (!actualizarMiPerfil({ name: clean })) return;
-    setEditingName(false);
+  // Google SIEMPRE manda el email y es el dato de la cuenta con la que se
+  // entra — editarlo acá lo desincroniza de la cuenta real sin arreglar nada
+  // (PO 2026-09-22). Apple es el caso contrario: sólo lo manda una vez y a
+  // veces nunca, así que ahí sí hace falta poder completarlo/corregirlo.
+  const emailEditable = currentUser?.authProvider !== 'google';
+
+  /** El email es opcional (puede quedar vacío); si se escribe algo, tiene que
+   *  tener forma de email. El nombre siempre es obligatorio. */
+  function perfilDraftValido(): boolean {
+    if (!sanitizeUserName(draftName)) return false;
+    if (!emailEditable) return true;
+    return draftEmail.trim() === '' || !!sanitizeEmail(draftEmail);
+  }
+
+  function handleSaveProfile() {
+    const cleanName = sanitizeUserName(draftName);
+    if (!cleanName) return;
+    const cambios: { name: string; email?: string } = { name: cleanName };
+    if (emailEditable) {
+      const cleanEmail = draftEmail.trim() === '' ? '' : sanitizeEmail(draftEmail);
+      if (cleanEmail === null) return;
+      cambios.email = cleanEmail;
+    }
+    if (!actualizarMiPerfil(cambios)) return;
+    setEditingProfile(false);
   }
 
   const {
@@ -246,18 +275,22 @@ export default function UserScreen() {
                 {currentUser?.name ?? t('profile.no_name')}
               </Text>
               <Text style={[Typography.caption, { color: c.textTertiary }]} numberOfLines={1}>
-                {currentUser?.email ?? ''}
+                {currentUser?.email || t('profile.no_email')}
               </Text>
             </View>
-            <Pressable hitSlop={10} onPress={openEditName}>
+            <Pressable testID="edit-profile-btn" hitSlop={10} onPress={openEditProfile}>
               <Ionicons name="pencil-outline" size={17} color={c.textTertiary} />
             </Pressable>
           </BandRow>
         </Band>
 
-        <BottomSheet visible={editingName} onClose={() => setEditingName(false)}>
+        <BottomSheet visible={editingProfile} onClose={() => setEditingProfile(false)}>
           <Text style={[Typography.h3, { color: c.text, marginBottom: Spacing[3] }]}>
-            {t('profile.edit_name_title')}
+            {t('profile.edit_profile_title')}
+          </Text>
+
+          <Text style={[Typography.label, styles.upper, { color: c.textTertiary, marginBottom: 6 }]}>
+            {t('profile.name_label')}
           </Text>
           <TextInput
             value={draftName}
@@ -267,20 +300,52 @@ export default function UserScreen() {
             style={[styles.nameInput, { color: c.text, borderColor: c.hair, backgroundColor: c.bgGrouped }]}
             autoFocus
             maxLength={60}
-            returnKeyType="done"
-            onSubmitEditing={handleSaveName}
+            returnKeyType="next"
           />
+
+          <Text style={[Typography.label, styles.upper, { color: c.textTertiary, marginTop: Spacing[3], marginBottom: 6 }]}>
+            {t('profile.edit_email_title')}
+          </Text>
+          {emailEditable ? (
+            // PO 2026-09-22: Apple sólo manda el email la 1ª vez por Apple ID
+            // (y nunca con "Ocultar mi correo"). Editarlo a mano es la única
+            // forma de completarlo o corregirlo acá; queda opcional, no como
+            // el nombre.
+            <TextInput
+              value={draftEmail}
+              onChangeText={setDraftEmail}
+              placeholder={t('profile.edit_email_placeholder')}
+              placeholderTextColor={c.textTertiary}
+              style={[styles.nameInput, { color: c.text, borderColor: c.hair, backgroundColor: c.bgGrouped }]}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="email-address"
+              maxLength={120}
+              returnKeyType="done"
+              onSubmitEditing={handleSaveProfile}
+            />
+          ) : (
+            // Google: el email es el de la cuenta con la que se entra — se
+            // muestra pero no se edita, para no desincronizarlo sin arreglar
+            // nada (PO 2026-09-22).
+            <View style={[styles.nameInput, { borderColor: c.hair, backgroundColor: c.bgGrouped, justifyContent: 'center' }]}>
+              <Text testID="email-readonly" style={{ fontSize: 16, color: c.textSecondary }} numberOfLines={1}>
+                {draftEmail || t('profile.no_email')}
+              </Text>
+            </View>
+          )}
+
           <View style={styles.sheetActions}>
-            <Pressable style={[styles.sheetBtn, { backgroundColor: c.bgGrouped }]} onPress={() => setEditingName(false)}>
+            <Pressable style={[styles.sheetBtn, { backgroundColor: c.bgGrouped }]} onPress={() => setEditingProfile(false)}>
               <Text style={{ fontSize: 15, fontWeight: '600', color: c.text }}>{t('common.cancel')}</Text>
             </Pressable>
             <Pressable
               style={[styles.sheetBtn, {
                 backgroundColor: c.brand.primary,
-                opacity: sanitizeUserName(draftName) ? 1 : 0.5,
+                opacity: perfilDraftValido() ? 1 : 0.5,
               }]}
-              onPress={handleSaveName}
-              disabled={!sanitizeUserName(draftName)}
+              onPress={handleSaveProfile}
+              disabled={!perfilDraftValido()}
             >
               <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff' }}>{t('common.save')}</Text>
             </Pressable>
@@ -536,9 +601,11 @@ function LinkRow({
 const styles = StyleSheet.create({
   safe:      { flex: 1 },
   pill:      { paddingHorizontal: 14, paddingVertical: 7, borderRadius: Radius.full },
+  upper:     { textTransform: 'uppercase' },
   nameInput: {
     borderWidth: 1, borderRadius: Radius.md,
     paddingHorizontal: Spacing[4], paddingVertical: 12, fontSize: 16,
+    minHeight: 48,
   },
   sheetActions: { flexDirection: 'row', gap: Spacing[2], marginTop: Spacing[4] },
   sheetBtn:     { flex: 1, alignItems: 'center', paddingVertical: 12, borderRadius: Radius.md },

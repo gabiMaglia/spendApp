@@ -17,8 +17,12 @@
     "go_back": "Voltar"
   },
   "profile": {
-    "edit_name_title": "Editar nome",
     "edit_name_placeholder": "Seu nome",
+    "edit_profile_title": "Editar perfil",
+    "name_label": "Nome",
+    "edit_email_title": "Email",
+    "edit_email_placeholder": "voce@email.com",
+    "no_email": "Adicionar email",
     "title": "Eu",
     "no_name": "Sem nome",
     "section_plan": "PLANO",
