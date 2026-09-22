@@ -3,13 +3,20 @@
 # con otra semilla de dominio (T distinto) y otra escala: para una franja
 # angosta (el navegador de mes en Personal, el total de Grupos), donde repetir
 # el patrón "header" o "distendida" se leería como la misma foto de nuevo.
+#
+# H_OUT chico a propósito (PO 2026-09-22, rendimiento en gama baja): esto se
+# pinta en filas de ~60dp, nunca en un header de pantalla completa — a 720 de
+# alto se decodificaba/subía a la GPU 3.6x más píxel del que se iba a ver,
+# medido como "Slow bitmap uploads" en el Moto E40. `contentFit="fill"` igual
+# estira al tamaño real del contenedor, así que el aspecto de origen no tiene
+# que calzar.
 # Uso: python3 scripts/generar-marmol-franja.py (requiere numpy y Pillow)
 import os
 import numpy as np
 from PIL import Image
 
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-W_OUT, H_OUT = 1290, 720
+W_OUT, H_OUT = 1290, 200
 SS = 2
 W, H = W_OUT*SS, H_OUT*SS
 T, INTEN = 97.0, 1.30  # T distinto: dominio de vetas totalmente distinto

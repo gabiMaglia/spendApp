@@ -205,7 +205,7 @@ export default function GroupsScreen() {
             <Band noTop>
               <View testID="groups-net-total" style={styles.netTotalRow}>
                 <FondoMarmol patron="franja" />
-                <Text style={[Typography.label, styles.upper, { color: c.textTertiary }]}>
+                <Text style={[Typography.label, styles.upper, styles.netTotalLabel, { color: c.text }]}>
                   {t('groups.stat_net_total')}
                 </Text>
                 <MontoRodante
@@ -279,6 +279,13 @@ const styles = StyleSheet.create({
   netTotalRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     overflow: 'hidden',
-    paddingHorizontal: Spacing.screenPad, paddingVertical: Spacing[4],
+    // El label arranca alineado con el NOMBRE de cada grupo de arriba, no con
+    // el borde de la pantalla (PO 2026-09-22): mismo offset que `GroupCard`
+    // (tile 38 + gap 13), para que "Total" se lea como el pie de la lista, no
+    // como una fila suelta.
+    paddingLeft: Spacing.screenPad + 38 + 13,
+    paddingRight: Spacing.screenPad,
+    paddingVertical: Spacing[4],
   },
+  netTotalLabel: { fontWeight: '800' },
 });

@@ -4,13 +4,17 @@
 # (menos intensidad, sin la capa "pelo"), para el header de Contactos. No
 # reemplaza a marmol-claro/oscuro.jpg (los sigue usando CollapsibleHeader y
 # Movimientos) — genera un segundo par de archivos.
+# H_OUT chico a propósito (PO 2026-09-22, rendimiento en gama baja): se pinta
+# en la fila "Amigos (N)", ~60dp — igual que "franja", decodificar/subir a la
+# GPU un alto de pantalla completa para una fila angosta era puro desperdicio
+# ("Slow bitmap uploads" en el Moto E40). `contentFit="fill"` estira igual.
 # Uso: python3 scripts/generar-marmol-distendido.py (requiere numpy y Pillow)
 import os
 import numpy as np
 from PIL import Image
 
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-W_OUT, H_OUT = 1290, 720
+W_OUT, H_OUT = 1290, 200
 SS = 2
 W, H = W_OUT*SS, H_OUT*SS
 T, INTEN = 40.0, 1.05  # INTEN 1.60→1.05: vetas más tenues (minimalista)
