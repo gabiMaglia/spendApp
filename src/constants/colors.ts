@@ -4,15 +4,21 @@
 
 export const Colors = {
   light: {
+    // T-137: brand ya NO comparte valor con semantic.positive — hasta acá
+    // eran el mismo verde, así que un botón "Guardar" y un saldo a favor
+    // mandaban la misma señal sin ser lo mismo. Azul noche apagado: es el
+    // color dominante en fintech 2026 (calma/confianza, no personalidad) y
+    // no choca con ninguna categoría (el lila de Alojamiento #8B7CC4 y el
+    // celeste de Transporte #4D9FD6 son ambos más claros/saturados).
     brand: {
-      primary:      '#186B4B',
-      primaryStrong:'#11543A',
-      primarySoft:  '#E9F1EC',
-      primaryOnSoft:'#11543A',
-      accent:       '#8FBC94',
-      accentStrong: '#6FA075',
-      accentSoft:   '#E8F0E5',
-      accentOnSoft: '#3D6644',
+      primary:      '#3A4A5E',
+      primaryStrong:'#2A3747',
+      primarySoft:  '#E7ECF0',
+      primaryOnSoft:'#2A3747',
+      accent:       '#7C93AC',
+      accentStrong: '#64798F',
+      accentSoft:   '#EDF1F4',
+      accentOnSoft: '#3A4A5E',
     },
     semantic: {
       positive:        '#186B4B',
@@ -70,15 +76,17 @@ export const Colors = {
   },
 
   dark: {
+    // Mismo criterio que en claro (T-137): más luminoso/desaturado que el
+    // verde de `semantic.positive`, nunca el mismo valor.
     brand: {
-      primary:      '#57C193',
-      primaryStrong:'#6FCEA3',
-      primarySoft:  'rgba(87, 193, 147, 0.14)',
-      primaryOnSoft:'#8FD8B4',
-      accent:       '#A7CFAB',
-      accentStrong: '#B8DCB9',
-      accentSoft:   'rgba(167, 207, 171, 0.16)',
-      accentOnSoft: '#C4DEC6',
+      primary:      '#8BA3BD',
+      primaryStrong:'#A3B8CE',
+      primarySoft:  'rgba(139, 163, 189, 0.14)',
+      primaryOnSoft:'#B7C6D6',
+      accent:       '#A9B9C9',
+      accentStrong: '#BAC7D4',
+      accentSoft:   'rgba(169, 185, 201, 0.16)',
+      accentOnSoft: '#C7D2DC',
     },
     semantic: {
       positive:        '#57C193',
@@ -108,7 +116,10 @@ export const Colors = {
     textSecondary: '#A2AAB1',
     textTertiary:  '#767E85',
     textDisabled:  '#4E5559',
-    textOnBrand:   '#0B231A',
+    // T-137: `brand.primary` en oscuro pasó de verde brillante a azul noche
+    // claro — el texto que va ENCIMA tiene que ser oscuro igual, pero de la
+    // misma familia (azul, no verde) para no desentonar.
+    textOnBrand:   '#132430',
     textOnAccent:  '#14171A',
     gray: {
       50:  '#0F1112',
