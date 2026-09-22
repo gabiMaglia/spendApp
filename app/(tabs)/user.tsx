@@ -48,7 +48,7 @@ import {
 
 export default function UserScreen() {
   const scheme = useColorScheme() ?? 'light';
-  const headerPad = useHeaderPadding();
+  const headerPad = useHeaderPadding(0);
   const limiteContenido = useLimiteContenido();
   const c = Colors[scheme];
   const { t, i18n } = useTranslation();
@@ -219,7 +219,7 @@ export default function UserScreen() {
       >
 
         {/* Mi cuenta */}
-        <Band>
+        <Band noTop>
           <BandRow last>
             <Pressable
               testID="change-photo"
