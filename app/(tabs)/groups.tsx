@@ -21,6 +21,7 @@ import { useFx } from '@/src/store/useFx';
 import { sumConverted } from '@/src/services/fxTotals';
 import { GroupCard } from '@/src/components/GroupCard';
 import { MontoRodante } from '@/src/components/MontoRodante';
+import { FondoMarmol } from '@/src/components/FondoMarmol';
 import { SwipeToArchive } from '@/src/components/SwipeToArchive';
 import { EmptyState } from '@/src/components/EmptyState';
 import { Band, Segmented, StatGrid } from '@/src/components/Band';
@@ -194,13 +195,16 @@ export default function GroupsScreen() {
               </Text>
             )}
 
-            {/* "Total total" (PO 2026-09-22): la sumatoria neta de los grupos
-                QUE SE VEN AHORA — cuenta separada para activos y archivados,
-                cambia con la pestaña. Distinto de los 4 casilleros de arriba,
-                que son fijos. `noTop`: pegada a la banda de arriba, un solo
-                borde entre las dos — no dos hairlines rozándose. */}
+            {/* "Total" (PO 2026-09-22): la sumatoria neta de los grupos QUE SE
+                VEN AHORA — cuenta separada para activos y archivados, cambia
+                con la pestaña. Distinto de los 4 casilleros de arriba, que
+                son fijos. `noTop`: pegada a la banda de arriba, un solo
+                borde entre las dos — no dos hairlines rozándose. Mármol
+                patrón "franja" (tercera variante, no repite la del total de
+                Grupos con la del header). */}
             <Band noTop>
               <View testID="groups-net-total" style={styles.netTotalRow}>
+                <FondoMarmol patron="franja" />
                 <Text style={[Typography.label, styles.upper, { color: c.textTertiary }]}>
                   {t('groups.stat_net_total')}
                 </Text>
@@ -274,6 +278,7 @@ const styles = StyleSheet.create({
   upper:    { textTransform: 'uppercase' },
   netTotalRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    overflow: 'hidden',
     paddingHorizontal: Spacing.screenPad, paddingVertical: Spacing[4],
   },
 });

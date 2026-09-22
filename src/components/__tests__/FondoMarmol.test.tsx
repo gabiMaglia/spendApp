@@ -22,6 +22,8 @@ jest.mock('../../../assets/images/marmol-claro.jpg', () => 'ASSET_MARMOL_CLARO',
 jest.mock('../../../assets/images/marmol-oscuro.jpg', () => 'ASSET_MARMOL_OSCURO', { virtual: true });
 jest.mock('../../../assets/images/marmol-claro-distendido.jpg', () => 'ASSET_MARMOL_CLARO_DISTENDIDO', { virtual: true });
 jest.mock('../../../assets/images/marmol-oscuro-distendido.jpg', () => 'ASSET_MARMOL_OSCURO_DISTENDIDO', { virtual: true });
+jest.mock('../../../assets/images/marmol-claro-franja.jpg', () => 'ASSET_MARMOL_CLARO_FRANJA', { virtual: true });
+jest.mock('../../../assets/images/marmol-oscuro-franja.jpg', () => 'ASSET_MARMOL_OSCURO_FRANJA', { virtual: true });
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { FondoMarmol } = require('../FondoMarmol');
@@ -108,6 +110,29 @@ describe('FondoMarmol', () => {
       const raiz = join(__dirname, '..', '..', '..');
       expect(existsSync(join(raiz, 'assets/images/marmol-claro-distendido.jpg'))).toBe(true);
       expect(existsSync(join(raiz, 'assets/images/marmol-oscuro-distendido.jpg'))).toBe(true);
+    });
+  });
+
+  // T-137-sexies: tercer patrón (navegador de mes en Personal, total de
+  // Grupos) — otra semilla de dominio, para franjas angostas que conviven en
+  // la misma pantalla con una de las otras dos texturas.
+  describe('patron="franja"', () => {
+    it('en tema claro usa la textura clara de franja', () => {
+      useThemeStore.setState({ themeChoice: 'light' });
+      const r = render(<FondoMarmol patron="franja" />);
+      expect(r.UNSAFE_getByType(Image).props.source).toBe('ASSET_MARMOL_CLARO_FRANJA');
+    });
+
+    it('en tema oscuro usa la textura oscura de franja', () => {
+      useThemeStore.setState({ themeChoice: 'dark' });
+      const r = render(<FondoMarmol patron="franja" />);
+      expect(r.UNSAFE_getByType(Image).props.source).toBe('ASSET_MARMOL_OSCURO_FRANJA');
+    });
+
+    it('las texturas de franja viven en assets/images', () => {
+      const raiz = join(__dirname, '..', '..', '..');
+      expect(existsSync(join(raiz, 'assets/images/marmol-claro-franja.jpg'))).toBe(true);
+      expect(existsSync(join(raiz, 'assets/images/marmol-oscuro-franja.jpg'))).toBe(true);
     });
   });
 });

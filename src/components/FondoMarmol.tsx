@@ -14,6 +14,13 @@ const MARMOL_OSCURO = require('../../assets/images/marmol-oscuro.jpg');
 // repetir la misma textura (Contactos, T-137).
 const MARMOL_CLARO_DISTENDIDO = require('../../assets/images/marmol-claro-distendido.jpg');
 const MARMOL_OSCURO_DISTENDIDO = require('../../assets/images/marmol-oscuro-distendido.jpg');
+// T-137-sexies: tercera variante (ver `scripts/generar-marmol-franja.py`) —
+// mismo shader, otra semilla de dominio (vetas distintas de las dos de
+// arriba) y una escala intermedia entre "header" y "distendida". Para
+// franjas angostas (el navegador de mes en Personal, el total de Grupos)
+// donde ya se usó una de las otras dos texturas en la misma pantalla.
+const MARMOL_CLARO_FRANJA = require('../../assets/images/marmol-claro-franja.jpg');
+const MARMOL_OSCURO_FRANJA = require('../../assets/images/marmol-oscuro-franja.jpg');
 
 /**
  * **Fondo de mármol de los headers** (T-105, pedido del PO).
@@ -47,18 +54,23 @@ function FondoMarmolInterno({
    */
   variante?: boolean;
   /**
-   * Qué textura usar (T-137-quater). `'header'` (default) es la de siempre.
-   * `'distendida'` es un segundo patrón —misma forma de veta, generado con el
-   * mismo shader— pero más espaciado y tenue: para una superficie que no es
-   * el header ni Movimientos y necesita distinguirse sin repetir la misma
-   * foto (Contactos).
+   * Qué textura usar (T-137-quater/sexies). `'header'` (default) es la de
+   * siempre. `'distendida'` es un segundo patrón —misma forma de veta,
+   * generado con el mismo shader— pero más espaciado y tenue: para una
+   * superficie que no es el header ni Movimientos y necesita distinguirse
+   * sin repetir la misma foto (Contactos). `'franja'` es un tercero, con otra
+   * semilla de dominio, para franjas angostas que conviven en la misma
+   * pantalla con una de las otras dos (navegador de mes en Personal, total
+   * de Grupos).
    */
-  patron?: 'header' | 'distendida';
+  patron?: 'header' | 'distendida' | 'franja';
 }) {
   const scheme = useColorScheme() ?? 'light';
   const oscuro = scheme === 'dark';
   const fuente = patron === 'distendida'
     ? (oscuro ? MARMOL_OSCURO_DISTENDIDO : MARMOL_CLARO_DISTENDIDO)
+    : patron === 'franja'
+    ? (oscuro ? MARMOL_OSCURO_FRANJA : MARMOL_CLARO_FRANJA)
     : (oscuro ? MARMOL_OSCURO : MARMOL_CLARO);
 
   return (

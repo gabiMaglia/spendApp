@@ -274,8 +274,11 @@ export default function PersonalScreen() {
           ]}
         />
 
-        {/* Navegador de mes */}
+        {/* Navegador de mes — mármol de fondo, patrón "franja" (PO 2026-09-22):
+            tercera variante, para no repetir la del header ni la de
+            Movimientos en la misma pantalla. */}
         <View testID="month-nav" style={styles.monthNav}>
+          <FondoMarmol patron="franja" />
           <Pressable onPress={() => { hapticSelection(); setActiveMonth(prevMonth(activeMonth)); }} hitSlop={12}>
             <Ionicons name="chevron-back" size={19} color={c.textSecondary} />
           </Pressable>
@@ -561,6 +564,7 @@ const styles = StyleSheet.create({
   movimientosBold: { fontWeight: '800' },
   monthNav: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    overflow: 'hidden',
     // T-121+: paddingTop repone el aire que daba la fila de ajustes (movida
     // al header, PO 2026-09-20) — sin esto el navegador de mes queda pegado
     // al bloque de deuda de arriba.
