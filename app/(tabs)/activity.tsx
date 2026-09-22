@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -58,14 +58,18 @@ export default function ActivityScreen() {
   const updateExpense = useExpenseStore(st => st.updateExpense);
   const { scrollHandler, progress, contenidoMinimo, alMedirScroll } = useHeaderColapsable();
 
-  function restaurar(expenseId: string) {
+  // Callback ESTABLE (PO 2026-09-22, rendimiento en gama baja — mismo patrón
+  // que `GroupRow`/`ContactRow`/`EntryRow`): antes era una función inline
+  // pasada directo por prop, así que envolver `EventRow` en `React.memo` no
+  // servía de nada.
+  const restaurar = useCallback((expenseId: string) => {
     const gasto = useExpenseStore.getState().expenses.find(e => e.id === expenseId);
     if (!gasto || !currentUser) return;
     updateExpense(expenseId, {
       isDeleted: false,
       deletionVotes: emitirVoto(gasto, currentUser.id, 'restore', syncedNow()),
     });
-  }
+  }, [currentUser, updateExpense]);
 
   const groups = useGroupStore(s => s.groups);
   const feed   = useActivityFeed(currentUser?.id ?? '');
@@ -272,7 +276,16 @@ function miParteDelGasto(expense: Expense, currentUserId: string): number | null
  * (fila de banda con hairline): lo que cambia es el ícono teñido, el color del
  * monto y, en el pedido de borrado, el fondo de advertencia.
  */
-function EventRow({
+/**
+ * Memoizada (PO 2026-09-22, rendimiento en gama baja): sólo sirve porque
+ * `onRestore`/`getUserName` llegan como referencias ESTABLES desde
+ * `ActivityScreen`, no inline — mismo patrón que `GroupRow`/`ContactRow`/
+ * `EntryRow`. `trust` y `event` son valores nuevos por render de todos modos
+ * (recalculados a partir del feed), así que esto no elimina el trabajo del
+ * padre — sólo evita reconstruir el árbol de ESTA fila cuando nada de lo
+ * suyo cambió.
+ */
+const EventRow = React.memo(function EventRow({
   event, trust, getUserName, currentUserId, onRestore, last,
 }: {
   event: ActivityKind;
@@ -500,7 +513,7 @@ function EventRow({
       </Text>
     ),
   });
-}
+});
 
 const styles = StyleSheet.create({
   safe:        { flex: 1 },

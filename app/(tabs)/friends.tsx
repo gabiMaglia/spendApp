@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   Alert, Pressable,
   StyleSheet, Text, TextInput, View,
@@ -94,7 +94,11 @@ export default function FriendsScreen() {
     setShowAdd(false);
   }
 
-  function handleRemove(id: string, name: string) {
+  // Callbacks ESTABLES (PO 2026-09-22, rendimiento en gama baja — mismo
+  // patrón que `GroupRow` en Grupos): antes eran arrow functions inline
+  // dentro del `.map()`, así que envolver `ContactRow` en `React.memo`
+  // servía de poco — esas props "cambiaban" en cada render igual.
+  const handleRemove = useCallback((id: string, name: string) => {
     hapticWarning();
     Alert.alert(
       t('friends.remove_title'),
@@ -104,7 +108,14 @@ export default function FriendsScreen() {
         { text: t('common.delete'), style: 'destructive', onPress: () => removeUser(id) },
       ],
     );
-  }
+  }, [t, removeUser]);
+
+  const handleSettle = useCallback((id: string, amount: number, currency: string) => {
+    router.push({
+      pathname: '/settle/new',
+      params: { toId: id, maxAmount: String(Math.abs(amount)), currency },
+    } as any);
+  }, []);
 
   return (
     <SafeAreaView edges={['bottom']} style={[styles.safe, { backgroundColor: c.bg }]}>
@@ -159,15 +170,8 @@ export default function FriendsScreen() {
                     conHistorial={conHistorial.has(idCanonico(contact.id))}
                     currency={balance?.currency ?? 'ARS'}
                     last={i === contacts.length - 1}
-                    onRemove={() => handleRemove(contact.id, contact.name)}
-                    onSettle={() => router.push({
-                      pathname: '/settle/new',
-                      params: {
-                        toId:      contact.id,
-                        maxAmount: String(Math.abs(balance?.amount ?? 0)),
-                        currency:  balance?.currency ?? 'ARS',
-                      },
-                    } as any)}
+                    onRemove={handleRemove}
+                    onSettle={handleSettle}
                   />
                 );
               })}
@@ -233,14 +237,21 @@ export default function FriendsScreen() {
   );
 }
 
-function ContactRow({
+/**
+ * Memoizada (PO 2026-09-22, rendimiento en gama baja): mismo patrón que
+ * `GroupRow` en Grupos — sólo sirve porque `onRemove`/`onSettle` llegan como
+ * referencias ESTABLES desde `FriendsScreen` (`useCallback`), no inline.
+ */
+const ContactRow = React.memo(function ContactRow({
   userId, name, amount, currency, conHistorial, onRemove, onSettle, last,
 }: {
   userId: string; name: string;
   amount?: number; currency: string;
   /** Si hubo gastos o saldados entre los dos. Sin historial, un saldo en cero no es «Saldado». */
   conHistorial: boolean;
-  onRemove: () => void; onSettle: () => void; last?: boolean;
+  onRemove: (id: string, name: string) => void;
+  onSettle: (id: string, amount: number, currency: string) => void;
+  last?: boolean;
 }) {
   const { t } = useTranslation();
   const scheme = useColorScheme() ?? 'light';
@@ -272,18 +283,21 @@ function ContactRow({
         ) : null}
       </View>
       {canSettle && (
-        <Pressable onPress={onSettle} style={[styles.actionChip, { backgroundColor: c.brand.primarySoft }]}>
+        <Pressable
+          onPress={() => onSettle(userId, amount!, currency)}
+          style={[styles.actionChip, { backgroundColor: c.brand.primarySoft }]}
+        >
           <Text style={{ fontSize: 11, fontWeight: '700', color: c.brand.primary }}>
             {t('friends.settle')}
           </Text>
         </Pressable>
       )}
-      <Pressable onPress={onRemove} hitSlop={8}>
+      <Pressable onPress={() => onRemove(userId, name)} hitSlop={8}>
         <Ionicons name="trash-outline" size={16} color={c.textTertiary} />
       </Pressable>
     </BandRow>
   );
-}
+});
 
 /**
  * **La fila "Contactos (N)" — chip con mármol** (PO 2026-09-22, corrige el

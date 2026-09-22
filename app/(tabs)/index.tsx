@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { TabHeader } from '@/src/components/TabHeader';
 import {
   Alert, Pressable, StyleSheet, Text, View,
@@ -157,6 +157,14 @@ export default function PersonalScreen() {
     [entries, activeMonth],
   );
 
+  // Memoizado (PO 2026-09-22, rendimiento en gama baja): antes se ordenaba
+  // en el JSX, en CADA render de la pantalla (cambiar de tema, abrir el
+  // BudgetSheet, etc.), aunque `monthEntries` no hubiera cambiado un pelo.
+  const entriesOrdenadas = useMemo(
+    () => [...monthEntries].sort((a, b) => b.date - a.date),
+    [monthEntries],
+  );
+
   const sumar = (pred: (e: PersonalEntry) => boolean) =>
     sumConverted(
       monthEntries.filter(pred).map(e => ({ currency: e.currency, minor: e.amount })),
@@ -212,7 +220,10 @@ export default function PersonalScreen() {
 
   const atCurrentMonth = activeMonth >= today;
 
-  function handleRemove(entry: PersonalEntry) {
+  // Callback ESTABLE (PO 2026-09-22, rendimiento en gama baja — mismo patrón
+  // que `GroupRow`/`ContactRow`): antes era una arrow function inline en el
+  // `.map()`, así que envolver `EntryRow` en `React.memo` no servía de nada.
+  const handleRemove = useCallback((entry: PersonalEntry) => {
     const motivo = reasonKey(entry);
     if (motivo) {
       hapticWarning();
@@ -228,7 +239,7 @@ export default function PersonalScreen() {
         { text: t('common.delete'), style: 'destructive', onPress: () => removeEntry(entry.id) },
       ],
     );
-  }
+  }, [t, removeEntry]);
 
   return (
     <SafeAreaView edges={['bottom']} style={[styles.safe, { backgroundColor: c.bg }]}>
@@ -413,12 +424,12 @@ export default function PersonalScreen() {
           </Band>
         ) : (
           <Band noTop>
-            {[...monthEntries].sort((a, b) => b.date - a.date).map((entry, i, arr) => (
+            {entriesOrdenadas.map((entry, i) => (
               <EntryRow
                 key={entry.id}
                 entry={entry}
-                last={i === arr.length - 1}
-                onRemove={() => handleRemove(entry)}
+                last={i === entriesOrdenadas.length - 1}
+                onRemove={handleRemove}
               />
             ))}
           </Band>
@@ -483,9 +494,13 @@ function MovimientosHeader({ count }: { count: number }) {
   );
 }
 
-function EntryRow({
+/**
+ * Memoizada (PO 2026-09-22, rendimiento en gama baja): sólo sirve porque
+ * `onRemove` llega estable desde `PersonalScreen` (`useCallback`), no inline.
+ */
+const EntryRow = React.memo(function EntryRow({
   entry, onRemove, last,
-}: { entry: PersonalEntry; onRemove: () => void; last?: boolean }) {
+}: { entry: PersonalEntry; onRemove: (entry: PersonalEntry) => void; last?: boolean }) {
   const scheme = useColorScheme() ?? 'light';
   const { t } = useTranslation();
   const c = Colors[scheme];
@@ -525,14 +540,14 @@ function EntryRow({
         {isReadOnly
           ? <Ionicons name="lock-closed-outline" size={12} color={c.textTertiary} />
           : (
-            <Pressable onPress={onRemove} hitSlop={8}>
+            <Pressable onPress={() => onRemove(entry)} hitSlop={8}>
               <Ionicons name="trash-outline" size={14} color={c.textTertiary} />
             </Pressable>
           )}
       </View>
     </BandRow>
   );
-}
+});
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
