@@ -494,7 +494,7 @@
     "summary_income": "Receitas",
     "summary_personal": "Gasto pessoal",
     "summary_groups": "Gasto em grupos",
-    "available_after_debts": "Sobra após pagar",
+    "available_after_debts": "Sobra após acertar",
     "no_movements": "Sem movimentos em {{month}}",
     "fab_income": "Receita",
     "fab_expense": "Despesa",

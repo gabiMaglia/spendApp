@@ -494,7 +494,7 @@
     "summary_income": "Ingresos",
     "summary_personal": "Gasto personal",
     "summary_groups": "Gasto en grupos",
-    "available_after_debts": "Disponible tras pagar",
+    "available_after_debts": "Disponible tras saldar",
     "no_movements": "Sin movimientos en {{month}}",
     "fab_income": "Ingreso",
     "fab_expense": "Gasto",

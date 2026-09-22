@@ -494,7 +494,7 @@
     "summary_income": "Income",
     "summary_personal": "Personal spending",
     "summary_groups": "Group spending",
-    "available_after_debts": "Left after paying",
+    "available_after_debts": "Left after settling",
     "no_movements": "No movements in {{month}}",
     "fab_income": "Income",
     "fab_expense": "Expense",
