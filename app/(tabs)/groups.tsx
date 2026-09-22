@@ -115,14 +115,14 @@ export default function GroupsScreen() {
           ]}
         />
 
-        {/* PO 2026-09-20: sin aire arriba (pegado a los casilleros) ni abajo
-            (pegado al primer grupo), y sin borde propio (`borde="ninguno"`)
-            — la única línea entre selector y lista es la del propio `Band`
-            de la lista (mismo criterio que `Band noTop`). */}
+        {/* PO 2026-09-21: sin aire arriba (pegado a los casilleros) ni abajo
+            (pegado al primer grupo). El selector ahora SÍ lleva su propia
+            línea de abajo (`borde="abajo"`) — para que no se vea doble donde
+            toca al primer grupo, el `Band` de la lista va con `noTop`. */}
         <View style={styles.segPad}>
           <Segmented
             variant="tabs"
-            borde="ninguno"
+            borde="abajo"
             value={tabActual}
             onChange={v => { hapticLight(); setTab(v); }}
             options={[
@@ -140,7 +140,7 @@ export default function GroupsScreen() {
           />
         ) : (
           <>
-            <Band>
+            <Band noTop>
               {visibles.map((g, i) => (
                 <SwipeToArchive
                   key={g.id}
