@@ -634,5 +634,8 @@ const styles = StyleSheet.create({
   toggle:      { width: 42, height: 25, borderRadius: 13, padding: 3 },
   toggleKnob:  { width: 19, height: 19, borderRadius: 10, backgroundColor: '#fff' },
   toggleKnobOn:{ transform: [{ translateX: 17 }] },
-  saveBtn:     { borderRadius: Radius.md, paddingVertical: 14, alignItems: 'center', marginTop: 16 },
+  // marginBottom (PO 2026-09-21): sin esto el botón quedaba pegado al borde
+  // inferior de la hoja — el paddingBottom genérico de BottomSheet alcanza
+  // para el resto del contenido, pero no para separar el último elemento.
+  saveBtn:     { borderRadius: Radius.md, paddingVertical: 14, alignItems: 'center', marginTop: 16, marginBottom: 12 },
 });
