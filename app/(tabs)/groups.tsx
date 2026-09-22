@@ -168,17 +168,23 @@ export default function GroupsScreen() {
                 </SwipeToArchive>
               ))}
             </Band>
-            <Text style={[Typography.caption, styles.footnote, { color: c.textTertiary }]}>
-              {tabActual === 'activos'
-                ? t('groups.swipe_hint')
-                : t('groups.archived_hint')}
-            </Text>
+            {/* La leyenda "deslizá para archivar" se sacó (PO 2026-09-22): con
+                el "total total" pegado abajo, la banda de grupos y la del
+                total tienen que leerse como UNA sola pieza, sin una leyenda
+                de por medio separándolas. La de archivados sigue — informa
+                algo real (no suman al balance), no es un tutorial de gesto. */}
+            {tabActual === 'archivados' && (
+              <Text style={[Typography.caption, styles.footnote, { color: c.textTertiary }]}>
+                {t('groups.archived_hint')}
+              </Text>
+            )}
 
             {/* "Total total" (PO 2026-09-22): la sumatoria neta de los grupos
                 QUE SE VEN AHORA — cuenta separada para activos y archivados,
                 cambia con la pestaña. Distinto de los 4 casilleros de arriba,
-                que son fijos. */}
-            <Band>
+                que son fijos. `noTop`: pegada a la banda de arriba, un solo
+                borde entre las dos — no dos hairlines rozándose. */}
+            <Band noTop>
               <View testID="groups-net-total" style={styles.netTotalRow}>
                 <Text style={[Typography.label, styles.upper, { color: c.textTertiary }]}>
                   {t('groups.stat_net_total')}

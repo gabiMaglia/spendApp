@@ -144,7 +144,6 @@
     "deletion_open": "Libre",
     "deletion_open_hint": "Cualquiera del grupo borra al instante, y cualquiera puede restaurarlo desde Actividad.",
     "deletion_fixed": "Se elige ahora y no cambia después.",
-    "swipe_hint": "Deslizá un grupo a la izquierda para archivarlo.",
     "archived_hint": "Los grupos archivados no suman a los balances.",
     "archived_readonly_title": "Grupo archivado",
     "archived_readonly_hint": "Este grupo está archivado — no se pueden cargar gastos",
@@ -519,7 +518,6 @@
     "locked_from_group": "Viene de un gasto de grupo: se edita allá",
     "locked_derived": "Se generó solo, no se edita",
     "locked_title": "No se puede editar",
-    "debts_note": "No afecta lo gastado hasta que se salde",
     "movements_title": "MOVIMIENTOS"
   },
   "contact": {

@@ -95,15 +95,14 @@ describe('la caja de deudas', () => {
   it('sin deudas no se dibuja', () => {
     const r = render(<PersonalScreen />);
     expect(r.queryByText('personal.available_after_debts')).toBeNull();
-    expect(r.queryByText('personal.debts_note')).toBeNull();
   });
 
   /**
-   * La aclaración de ADR-006 sobrevive al párrafo que la contenía: sin ella,
-   * los números de arriba parecen no cerrar. "te deben"/"debés" NO se repiten
-   * acá — ya están en el bloque de arriba del todo.
+   * La leyenda de ADR-006 ("no afecta lo gastado hasta que se salde") se sacó
+   * (PO 2026-09-22): el PO la consideró ruido, no aclaración — "te deben"/
+   * "debés" NO se repiten acá — ya están en el bloque de arriba del todo.
    */
-  it('cuando hay deuda propia, muestra el disponible tras saldar y la aclaración — sin repetir "debés"', () => {
+  it('cuando hay deuda propia, muestra el disponible tras saldar — sin repetir "debés"', () => {
     useGroupStore.setState({ groups: [{
       id: 'g1', name: 'Asado', memberIds: ['ana', 'beto'], currency: 'ARS',
       createdAt: 0, createdById: 'beto', deletionVotes: [], updatedAt: 0, isDeleted: false,
@@ -122,7 +121,6 @@ describe('la caja de deudas', () => {
 
     const r = render(<PersonalScreen />);
     expect(r.getByText('personal.available_after_debts')).toBeTruthy();
-    expect(r.getByText('personal.debts_note')).toBeTruthy();
     expect(r.queryByText('personal.i_owe')).toBeNull();
   });
 

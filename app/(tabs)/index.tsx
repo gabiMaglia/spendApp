@@ -376,6 +376,7 @@ export default function PersonalScreen() {
             por lo tanto nada nuevo que agregar acá. */}
         {youOwe > 0 && (
           <SplitStat
+            noTop
             items={[{
               label: t('personal.available_after_debts'),
               // formatMoney() siempre devuelve el valor absoluto (T-137): el
@@ -387,15 +388,6 @@ export default function PersonalScreen() {
               color: disponibleTrasSaldar >= 0 ? c.semantic.positive : c.semantic.negative,
             }]}
           />
-        )}
-
-        {/* La aclaración sobrevive al párrafo que la contenía: la deuda NO
-            afecta lo gastado hasta que se salda (ADR-006), y sin decirlo los
-            números de arriba parecerían no cerrar. */}
-        {(youOwe > 0 || owedToMe > 0) && (
-          <Text style={[Typography.caption, styles.debtsNote, { color: c.textTertiary }]}>
-            {t('personal.debts_note')}
-          </Text>
         )}
 
         {pendientes.length > 0 && (
@@ -544,7 +536,6 @@ function EntryRow({
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  debtsNote: { paddingHorizontal: Spacing.screenPad, marginTop: 6 },
   upper: { textTransform: 'uppercase' },
   movimientosHeader: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
