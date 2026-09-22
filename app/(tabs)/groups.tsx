@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -62,6 +62,20 @@ export default function GroupsScreen() {
   );
 
   const [tabActual, setTab] = useState<'activos' | 'archivados'>('activos');
+
+  // Callbacks ESTABLES (PO 2026-09-22, rendimiento en gama baja): antes eran
+  // arrow functions inline dentro del `.map()`, así que cada fila recibía una
+  // referencia NUEVA en cada render de la pantalla — con `GroupRow`
+  // memoizado, una prop que "cambia" siempre anula el memo por completo. Acá
+  // dependen sólo de lo que de verdad les hace falta (nunca del array de
+  // grupos), así que sobreviven a los re-renders que dispara cualquier
+  // mutación de gasto/pago en la app.
+  const handleOpenGroup = useCallback((id: string) => {
+    router.push(`/groups/${id}` as any);
+  }, []);
+  const handleArchiveAction = useCallback((id: string) => {
+    setArchived(id, tabActual === 'activos');
+  }, [setArchived, tabActual]);
 
   const visibles = useMemo(
     () => myGroups.filter(g => archivedIds.includes(g.id) === (tabActual === 'archivados')),
@@ -158,13 +172,13 @@ export default function GroupsScreen() {
                   key={g.id}
                   archived={tabActual === 'archivados'}
                   disabled={tabActual === 'archivados' && !canUnarchive(g.id)}
-                  onAction={() => setArchived(g.id, tabActual === 'activos')}
+                  onAction={() => handleArchiveAction(g.id)}
                 >
                   <GroupRow
                     group={g}
                     currentUserId={currentUser?.id ?? ''}
                     last={i === visibles.length - 1}
-                    onPress={() => router.push(`/groups/${g.id}` as any)}
+                    onPress={handleOpenGroup}
                   />
                 </SwipeToArchive>
               ))}
@@ -221,9 +235,17 @@ export default function GroupsScreen() {
   );
 }
 
-function GroupRow({
+/**
+ * Memoizada (PO 2026-09-22, rendimiento en gama baja): esta fila llama
+ * `useGroupBalance`, que corre `calculateBalancesByCurrency` — no es gratis.
+ * El memo sólo ahorra algo real si `onPress` es una referencia ESTABLE (ver
+ * `handleOpenGroup` en `GroupsScreen`, `useCallback` sin depender del array
+ * de grupos) — con un `() => …` inline en el `.map()`, el memo no servía de
+ * nada porque esa prop "cambiaba" en cada render igual.
+ */
+const GroupRow = React.memo(function GroupRow({
   group, currentUserId, onPress, last,
-}: { group: Group; currentUserId: string; onPress: () => void; last?: boolean }) {
+}: { group: Group; currentUserId: string; onPress: (id: string) => void; last?: boolean }) {
   const balances     = useGroupBalance(group.id, currentUserId);
   const expenseCount = useGroupExpenseCount(group.id);
   const mainBalance  = balances.find(b => b.currency === group.currency)?.amount ?? 0;
@@ -235,12 +257,12 @@ function GroupRow({
       balance={mainBalance}
       currency={group.currency}
       subtitle={`${expenseCount} gastos`}
-      onPress={onPress}
+      onPress={() => onPress(group.id)}
       last={last}
       chevron
     />
   );
-}
+});
 
 const styles = StyleSheet.create({
   safe:     { flex: 1 },

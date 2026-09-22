@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion, type SharedValue } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
@@ -94,6 +94,16 @@ export function CollapsibleHeader({
   const expandido = insets.top + HEADER_BAR_H + TITLE_BLOCK_H;
   const colapsado = insets.top + HEADER_BAR_H;
 
+  // Memoizado (PO 2026-09-22, rendimiento en gama baja): sin esto era un
+  // literal nuevo en cada render de este header, así que el `React.memo` de
+  // `FondoMarmol` nunca frenaba nada acá — su prop `style` "cambiaba"
+  // siempre, aunque el valor fuera idéntico. `expandido` casi no cambia
+  // (depende del inset del sistema), así que esta referencia queda estable.
+  const marmolStyle = useMemo(
+    () => ({ top: 0, bottom: undefined, height: expandido + MARMOL_BLEED }),
+    [expandido],
+  );
+
   // «Reducir movimiento»: sin fades en los títulos (T-128).
   const reducirMovimiento = useReducedMotion();
 
@@ -132,7 +142,7 @@ export function CollapsibleHeader({
         (con `overflow: hidden`) muestra cada vez menos textura, nunca menos
         opaca: no hay overlay ni tinte encima, la propia foto es opaca.
       */}
-      <FondoMarmol style={{ top: 0, bottom: undefined, height: expandido + MARMOL_BLEED }} />
+      <FondoMarmol style={marmolStyle} />
       <View style={[styles.hair, { backgroundColor: c.hair }]} pointerEvents="none" />
       <View style={[styles.content, { height: expandido, paddingTop: insets.top }]}>
         <View style={styles.buttonsRow}>

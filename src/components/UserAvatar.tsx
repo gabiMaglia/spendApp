@@ -24,10 +24,16 @@ export function UserAvatar({
   ring?: string;
 }) {
   const yo       = useAuthStore(s => s.currentUser);
-  const usuarios = useUserStore(s => s.users);
+  // Selector FINO (PO 2026-09-22, rendimiento en gama baja): antes traía el
+  // array `users` entero, así que editar CUALQUIER usuario re-renderizaba
+  // TODOS los `UserAvatar` montados, no sólo el afectado. `addOrUpdateUser`
+  // (`userStore.ts`) arma el array nuevo con `.map()` y conserva la
+  // REFERENCIA de los usuarios no tocados — por eso este selector, que
+  // devuelve sólo el usuario de este id, sólo dispara re-render cuando ESE
+  // usuario puntual cambia.
+  const guardado = useUserStore(s => s.users.find(u => u.id === userId));
 
   const esMio    = yo?.id === userId;
-  const guardado = usuarios.find(u => u.id === userId);
   const photo    = esMio ? (yo?.avatar ?? guardado?.avatar) : guardado?.avatar;
 
   return (

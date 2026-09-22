@@ -33,7 +33,7 @@ const MARMOL_OSCURO_DISTENDIDO = require('../../assets/images/marmol-oscuro-dist
  * alto al colapsar — `StyleSheet.absoluteFill` ya la sigue en cada re-render.
  * `contentPosition` no aplica con `fill` (no hay recorte que posicionar).
  */
-export function FondoMarmol({
+function FondoMarmolInterno({
   style, variante, patron = 'header',
 }: {
   style?: StyleProp<ImageStyle>;
@@ -73,3 +73,14 @@ export function FondoMarmol({
     />
   );
 }
+
+/**
+ * Memoizado (PO 2026-09-22, rendimiento en gama baja): vive dentro de headers
+ * que se re-renderizan seguido por cambios de store ajenos (notificaciones,
+ * usuario actual, moneda) — sin memo, cada uno de esos renders volvía a
+ * correr `useColorScheme()` acá adentro y a armar el árbol de `Image` de
+ * nuevo, aunque el mármol en sí nunca cambia. Mismo patrón que
+ * `MontoRodante`. Sólo es efectivo si quien llama no arma `style` con un
+ * literal nuevo en cada render (ver `CollapsibleHeader`, que lo memoiza).
+ */
+export const FondoMarmol = React.memo(FondoMarmolInterno);

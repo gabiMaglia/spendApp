@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import type { CurrencyCode } from '@/src/constants/currencies';
 import type { Expense, Payment, PersonalEntry } from '@/src/types/models';
 import { calculateBalancesByCurrency } from '@/src/algorithms/calculateBalances';
@@ -24,20 +25,36 @@ export interface GroupBalanceEntry {
 }
 
 export function useGroupBalance(groupId: string, userId: string): GroupBalanceEntry[] {
-  const group       = useGroupStore(s => s.groups.find(g => g.id === groupId));
-  const allExpenses = useExpenseStore(s => s.expenses);
+  const group = useGroupStore(s => s.groups.find(g => g.id === groupId));
+  // `useShallow` (PO 2026-09-22, rendimiento en gama baja): esto se llama UNA
+  // VEZ POR FILA en una lista de grupos. Antes traía `s.expenses` ENTERO, así
+  // que agregar un gasto en CUALQUIER grupo recalculaba
+  // `calculateBalancesByCurrency` en TODAS las filas visibles, no sólo la
+  // tocada — el costo escalaba con el store entero, no con lo que se ve en
+  // pantalla. Filtrando DENTRO del selector y comparando por contenido (no
+  // por referencia), Zustand sólo re-notifica si el subconjunto de ESTE
+  // grupo cambió de verdad — `addExpense`/`updateExpense` conservan la
+  // referencia de los gastos ajenos (`.map()`/spread), así que el filtrado
+  // de un grupo no tocado sale con las MISMAS referencias y `useShallow` no
+  // dispara nada.
+  //
+  // Los PAGOS siguen viniendo enteros a propósito: filtrar por `groupId` a
+  // mano acá duplicaría la lógica de `pagosQueCuentan` (única fuente
+  // permitida — guard en `settlementStatus.test.ts`, "el filtro por groupId
+  // sobre pagos vive en un solo archivo"), que además excluye los
+  // rechazados — un filtro liviano acá los dejaría adentro por error.
+  const expenses = useExpenseStore(useShallow(s => s.expenses.filter(e => e.groupId === groupId)));
   const allPayments = usePaymentStore(s => s.payments);
 
   return useMemo(() => {
     if (!group) return [];
-    const expenses = allExpenses.filter(e => e.groupId === groupId);
-    const payments = pagosQueCuentan(allPayments, group);
-    const balances = calculateBalancesByCurrency(expenses, payments, group.memberIds);
+    const pagos = pagosQueCuentan(allPayments, group);
+    const balances = calculateBalancesByCurrency(expenses, pagos, group.memberIds);
     // Los balances salen con el id canónico (T-048 · D-3), así que la búsqueda
     // también pregunta por el canónico: si no, quien enlazó cuentas no se
     // encontraría a sí mismo en el grupo que heredó.
     return balances.find(b => b.userId === idCanonico(userId))?.balances ?? [];
-  }, [group, allExpenses, allPayments, groupId, userId]);
+  }, [group, expenses, allPayments, userId]);
 }
 
 // ── Conteo de gastos activos de un grupo (para subtítulo) ────────────────────
