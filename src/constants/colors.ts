@@ -21,9 +21,13 @@ export const Colors = {
       accentOnSoft: '#3A4A5E',
     },
     semantic: {
-      positive:        '#186B4B',
-      positiveSoft:    '#E9F1EC',
-      positiveOnSoft:  '#11543A',
+      // T-137: mismo rol (dinero a favor), tono más apagado — el verde
+      // saturado de antes ("verde matrix") quedaba muy crudo al lado del
+      // azul noche apagado de la marca. Sigue siendo indudablemente verde,
+      // sólo con menos saturación, para que las dos familias convivan.
+      positive:        '#3D7864',
+      positiveSoft:    '#E8F1EC',
+      positiveOnSoft:  '#28503F',
       negative:        '#B8500F',
       negativeSoft:    '#FBEDE2',
       negativeOnSoft:  '#8A3B0B',
@@ -89,9 +93,11 @@ export const Colors = {
       accentOnSoft: '#C7D2DC',
     },
     semantic: {
-      positive:        '#57C193',
-      positiveSoft:    'rgba(87, 193, 147, 0.14)',
-      positiveOnSoft:  '#8FD8B4',
+      // Mismo criterio que en claro (T-137): menos saturado, compatible con
+      // el azul noche apagado de la marca.
+      positive:        '#6FAF95',
+      positiveSoft:    'rgba(111, 175, 149, 0.14)',
+      positiveOnSoft:  '#9BCDB6',
       negative:        '#E28B4F',
       negativeSoft:    'rgba(226, 139, 79, 0.16)',
       negativeOnSoft:  '#F0AE7E',

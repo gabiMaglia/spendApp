@@ -563,8 +563,11 @@ function EntryRow({
   const isReadOnly  = entry.kind === 'group_replicated' || isCarryover;
   const dateLabel   = new Date(entry.date).toLocaleDateString(i18n.language, { day: 'numeric', month: 'short' });
 
-  const iconBg    = isPositive ? c.semantic.positiveSoft : c.hair2;
-  const iconColor = isPositive ? c.semantic.positive : c.textTertiary;
+  // T-137: el ÍCONO es acción/categoría, no un monto — va en azul de marca
+  // (mismo criterio que el FAB secundario de Ingreso). El monto en sí
+  // (`amountColor`, abajo) sigue en verde/naranja: eso sí es dinero.
+  const iconBg    = isPositive ? c.brand.primarySoft : c.hair2;
+  const iconColor = isPositive ? c.brand.primary : c.textTertiary;
   const amountColor = isPositive ? c.semantic.positive
     : isCarryover ? c.semantic.negative : c.text;
 
