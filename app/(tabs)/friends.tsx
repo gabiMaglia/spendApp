@@ -14,7 +14,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { Colors } from '@/src/constants/colors';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { formatMoney, type CurrencyCode } from '@/src/constants/currencies';
+import { formatMoney } from '@/src/constants/currencies';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useFx } from '@/src/store/useFx';
 import { sumConverted } from '@/src/services/fxTotals';
@@ -26,8 +26,7 @@ import { UserAvatar } from '@/src/components/UserAvatar';
 import { Fab, FabRow } from '@/src/components/Fab';
 import { EmptyState } from '@/src/components/EmptyState';
 import { BottomSheet } from '@/src/components/Sheet';
-import { Band, BandRow, SectionLabel } from '@/src/components/Band';
-import { MontoRodante } from '@/src/components/MontoRodante';
+import { Band, BandRow, SplitStat } from '@/src/components/Band';
 import { FondoMarmol } from '@/src/components/FondoMarmol';
 import { TabHeader } from '@/src/components/TabHeader';
 import { useHeaderPadding, useLimiteContenido } from '@/src/components/CollapsibleHeader';
@@ -36,7 +35,8 @@ import { esYo, idCanonico } from '@/src/store/identityAlias';
 
 export default function FriendsScreen() {
   const { t } = useTranslation();
-  const headerPad = useHeaderPadding();
+  // 0 (PO 2026-09-22): sin gap entre el header y el bloque "te deben/debés".
+  const headerPad = useHeaderPadding(0);
   const limiteContenido = useLimiteContenido();
   const scheme = useColorScheme() ?? 'light';
   const c = Colors[scheme];
@@ -118,10 +118,19 @@ export default function FriendsScreen() {
       >
 
         {(owedToYou > 0 || youOwe > 0) && (
-          <ContactosResumen
-            owedToYou={owedToYou} youOwe={youOwe} cur={cur}
-            owedToYouPending={owedToYouPending} youOwePending={youOwePending}
-            pendingLabel={pendingCalculando}
+          <SplitStat
+            items={[
+              {
+                label: t('friends.owed_to_you'), value: formatMoney(owedToYou, cur), color: c.semantic.positive,
+                id: 'friends.owedToYou', minor: owedToYou, code: cur,
+                pending: owedToYouPending, pendingLabel: pendingCalculando,
+              },
+              {
+                label: t('friends.you_owe'), value: formatMoney(youOwe, cur), color: c.textSecondary,
+                id: 'friends.youOwe', minor: youOwe, code: cur,
+                pending: youOwePending, pendingLabel: pendingCalculando,
+              },
+            ]}
           />
         )}
 
@@ -133,10 +142,11 @@ export default function FriendsScreen() {
           />
         ) : (
           <>
-            {/* T-108: aire antes de la lista de contactos, doblado (22 → 44,
-                redondeado a Spacing[8]=40, ver handoff). */}
-            <SectionLabel label={t('friends.contacts_count', { count: contacts.length })} topOverride={Spacing[8]} />
-            <Band>
+            {/* El mármol va acá (PO 2026-09-22): la fila "Contactos (N)", no el
+                bloque de saldos de arriba, que vuelve a su estilo de banda de
+                siempre. */}
+            <ContactosCountHeader count={contacts.length} />
+            <Band noTop>
               {contacts.map((contact, i) => {
                 const balance = personBalances.find(b => b.userId === contact.id);
                 return (
@@ -275,60 +285,26 @@ function ContactRow({
 }
 
 /**
- * **Resumen "te deben/debés" — chip con mármol** (PO 2026-09-22).
- *
- * Antes era un `SplitStat`: una banda con hairline ARRIBA Y ABAJO, más un
- * divisor vertical entre los dos montos con su propio aire de banda alrededor
- * (`Spacing.screenPad` de cada lado del divisor) — dos bordes por un solo
- * bloque, y un hueco entre los montos que no era ninguna medida a propósito.
+ * **La fila "Contactos (N)" — chip con mármol** (PO 2026-09-22, corrige el
+ * primer intento: el mármol NO iba en "te deben/debés", que vuelve a su
+ * `SplitStat` de banda de siempre).
  *
  * Mismo lenguaje que `MovimientosHeader` (`app/(tabs)/index.tsx`): mármol de
  * fondo, UN solo borde —el de abajo—, sin borde arriba. Usa el patrón
- * "distendido" (`FondoMarmol patron="distendida"`) en vez del de siempre: es
- * mismo shader y misma forma de veta, pero más espaciado y tenue —así no
- * repite la foto exacta que ya usan el header y Movimientos.
- *
- * Sin `gap` entre los dos montos: la separación sale pura y exclusivamente de
- * `justifyContent:'space-between'` en una fila de ancho completo, igual que
- * "Movimientos" separa su etiqueta del contador — no hay aire de más
- * declarado a mano.
+ * "distendido" (`FondoMarmol patron="distendida"`): mismo shader y misma
+ * forma de veta que el de siempre, pero más espaciado y tenue —así no repite
+ * la foto exacta que ya usan el header y Movimientos.
  */
-function ContactosResumen({
-  owedToYou, youOwe, cur, owedToYouPending, youOwePending, pendingLabel,
-}: {
-  owedToYou: number;
-  youOwe: number;
-  cur: CurrencyCode;
-  owedToYouPending: boolean;
-  youOwePending: boolean;
-  pendingLabel: string;
-}) {
+function ContactosCountHeader({ count }: { count: number }) {
   const scheme = useColorScheme() ?? 'light';
   const c = Colors[scheme];
   const { t } = useTranslation();
   return (
-    <View testID="contactos-resumen" style={[styles.resumenChip, { borderBottomColor: c.hair }]}>
+    <View testID="contactos-count-header" style={[styles.countHeader, { borderBottomColor: c.hair }]}>
       <FondoMarmol patron="distendida" />
-      <View style={styles.resumenItem}>
-        <Text style={[Typography.label, styles.resumenBold, { color: c.textTertiary }]}>
-          {t('friends.owed_to_you')}
-        </Text>
-        <MontoRodante
-          id="friends.owedToYou" minor={owedToYou} code={cur}
-          style={[Typography.amountS, styles.resumenBold, { color: c.semantic.positive }]}
-          pending={owedToYouPending} pendingAccessibilityLabel={pendingLabel}
-        />
-      </View>
-      <View style={[styles.resumenItem, { alignItems: 'flex-end' }]}>
-        <Text style={[Typography.label, styles.resumenBold, { color: c.textTertiary }]}>
-          {t('friends.you_owe')}
-        </Text>
-        <MontoRodante
-          id="friends.youOwe" minor={youOwe} code={cur}
-          style={[Typography.amountS, styles.resumenBold, { color: c.textSecondary }]}
-          pending={youOwePending} pendingAccessibilityLabel={pendingLabel}
-        />
-      </View>
+      <Text style={[Typography.label, styles.countBold, { color: c.textTertiary }]}>
+        {t('friends.contacts_count', { count })}
+      </Text>
     </View>
   );
 }
@@ -343,12 +319,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 13, marginBottom: 4,
   },
   confirmBtn: { borderRadius: Radius.md, paddingVertical: 14, alignItems: 'center' },
-  resumenChip: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+  countHeader: {
     overflow: 'hidden',
     paddingHorizontal: Spacing.screenPad, paddingTop: Spacing[8], paddingBottom: 9,
     borderBottomWidth: 1,
   },
-  resumenItem: { gap: 2 },
-  resumenBold: { fontWeight: '800' },
+  countBold: { fontWeight: '800' },
 });
