@@ -575,7 +575,7 @@
   },
   "friends": {
     "add_by_qr": "Adicionar por QR",
-    "title": "Contatos",
+    "title": "Amigos",
     "owed_to_you": "Te devem",
     "you_owe": "Você deve",
     "empty_title": "Sem contatos ainda",
@@ -588,7 +588,7 @@
     "owes_you": "Te deve ",
     "you_owe_them": "Você deve ",
     "settle": "Acertar",
-    "contacts_count": "Contatos ({{count}})",
+    "contacts_count": "Amigos ({{count}})",
     "qr_note": "Os contatos são adicionados escaneando um QR: a identidade viaja entre dispositivos, não há servidor de usuários."
   },
   "recurrence": {

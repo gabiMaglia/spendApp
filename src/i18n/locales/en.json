@@ -575,7 +575,7 @@
   },
   "friends": {
     "add_by_qr": "Add by QR",
-    "title": "Contacts",
+    "title": "Friends",
     "owed_to_you": "Owed to you",
     "you_owe": "You owe",
     "empty_title": "No contacts yet",
@@ -588,7 +588,7 @@
     "owes_you": "Owes you ",
     "you_owe_them": "You owe ",
     "settle": "Settle",
-    "contacts_count": "Contacts ({{count}})",
+    "contacts_count": "Friends ({{count}})",
     "qr_note": "Contacts are added by scanning a QR code: identity travels between devices, there's no user server."
   },
   "recurrence": {

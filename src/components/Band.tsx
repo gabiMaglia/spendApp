@@ -216,12 +216,14 @@ export function SplitStat({
  * un error. Si algún día hacen falta seis, es otro componente.
  */
 export function StatGrid({
-  items, sunken, registry,
+  items, sunken, registry, noTop,
 }: {
   items: [StatItem, StatItem, StatItem, StatItem];
   sunken?: boolean;
   /** Sólo para tests: registro inyectable de `MontoRodante`. */
   registry?: MontoRegistry;
+  /** Ver `Band`: pegado al bloque de encima, sin duplicar su línea divisoria. */
+  noTop?: boolean;
 }) {
   const c = useC();
 
@@ -270,7 +272,7 @@ export function StatGrid({
   );
 
   return (
-    <Band sunken={sunken}>
+    <Band sunken={sunken} noTop={noTop}>
       <View style={{ flexDirection: 'row' }}>{items.slice(0, 2).map(celda)}</View>
       <View style={{ flexDirection: 'row' }}>{items.slice(2, 4).map((it, i) => celda(it, i + 2))}</View>
     </Band>

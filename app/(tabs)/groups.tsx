@@ -118,6 +118,7 @@ export default function GroupsScreen() {
             Activos a Archivados tiene que mover SOLO lo que está debajo del
             selector. */}
         <StatGrid
+          noTop
           items={[
             { label: t('groups.stat_groups'),  value: String(idsActivos.size), id: 'groups.count', minor: idsActivos.size },
             { label: t('groups.stat_expenses'), value: String(gastos), id: 'groups.expenseCount', minor: gastos },

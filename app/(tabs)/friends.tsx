@@ -119,6 +119,7 @@ export default function FriendsScreen() {
 
         {(owedToYou > 0 || youOwe > 0) && (
           <SplitStat
+            noTop
             items={[
               {
                 label: t('friends.owed_to_you'), value: formatMoney(owedToYou, cur), color: c.semantic.positive,
