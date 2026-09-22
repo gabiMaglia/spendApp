@@ -39,6 +39,9 @@ import { exportarDiagnostico } from '@/src/services/exportDiagnostico';
 import { useLiveValue } from '@/src/hooks/useLiveValue';
 import { TabHeader } from '@/src/components/TabHeader';
 import { useHeaderPadding, useLimiteContenido } from '@/src/components/CollapsibleHeader';
+import { BudgetSheet } from '@/src/components/BudgetSheet';
+import { usePersonalStore } from '@/src/store/personalStore';
+import { formatMoney } from '@/src/constants/currencies';
 import * as DocumentPicker from 'expo-document-picker';
 import { File } from 'expo-file-system';
 import { compartirArchivoTemporal } from '@/src/services/compartirArchivoTemporal';
@@ -110,6 +113,9 @@ export default function UserScreen() {
 
   const monedasEnUso = useCurrenciesInUse();
   const fxCache      = readCache();
+
+  const { budget } = usePersonalStore();
+  const [showBudgetSheet, setShowBudgetSheet] = useState(false);
 
   const { themeChoice, setThemeChoice } = useThemeStore();
 
@@ -307,6 +313,20 @@ export default function UserScreen() {
         </Band>
         </>)}
 
+        {/* Presupuesto — editar el ya armado (PO 2026-09-22). La configuración
+            INICIAL sigue siendo el estado vacío de Personal; esta fila monta
+            el mismo BudgetSheet para ajustarlo una vez que ya existe. */}
+        <SectionLabel label={t('profile.section_budget')} />
+        <Band>
+          <LinkRow
+            label={t('personal.budget_sheet_title')}
+            icon="wallet-outline"
+            sub={budget.monthlyAmount > 0 ? formatMoney(budget.monthlyAmount, budget.currency) : undefined}
+            onPress={() => setShowBudgetSheet(true)}
+            last
+          />
+        </Band>
+
         {/* Notificaciones */}
         <SectionLabel label={t('profile.section_notifications')} />
         <Band>
@@ -465,6 +485,8 @@ export default function UserScreen() {
         onCancel={() => setARecortar(null)}
         onConfirm={confirmarRecorte}
       />
+
+      <BudgetSheet visible={showBudgetSheet} onClose={() => setShowBudgetSheet(false)} />
     </SafeAreaView>
   );
 }

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Pressable } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { SharedValue } from 'react-native-reanimated';
 import { router } from 'expo-router';
@@ -35,12 +35,20 @@ import { syncedNow } from '@/src/utils/syncedClock';
  * campana. La bandeja de avisos existía en UNA pantalla — o sea que enterarse
  * de algo dependía de en qué tab estabas parado.
  *
- * Los tres elementos y su orden son decisión del PO (2026-09-02): **avatar con
- * la foto de perfil, campana de notificaciones y selector de moneda maestra.**
+ * Los elementos y su orden son decisión del PO (2026-09-02, ajustado 2026-09-22):
+ * **avatar con la foto de perfil, campana de notificaciones, engranaje de
+ * ajustes y selector de moneda maestra.**
  *
  * El avatar es `UserAvatar` y no `HeaderAvatar`: aquél resuelve la FOTO y cae a
  * las iniciales solo si no hay. `HeaderAvatar` dibujaba iniciales siempre, que
  * es lo que el PO vino a corregir.
+ *
+ * **El engranaje es ahora el único camino a «Yo»** (PO 2026-09-22): antes era
+ * la foto (T-115), y el engranaje —sólo en Personal— abría el presupuesto
+ * directo. La foto deja de navegar (por ahora) pero conserva el anillo de
+ * marca; el engranaje está en las cuatro tabs y siempre lleva a «Yo». Editar
+ * el presupuesto ya armado vive ahora en «Yo» (`BudgetSheet`); acá sólo queda
+ * la navegación.
  *
  * Las dos hojas —bandeja y monedas— viven acá adentro. Es lo que hace que esto
  * sea un componente y no un objeto de props: si cada tab tuviera que montarlas,
@@ -48,15 +56,13 @@ import { syncedNow } from '@/src/utils/syncedClock';
  * alguien no le llegue un aviso.
  */
 export function TabHeader({
-  title, subtitle, progress, settingsAction,
+  title, subtitle, progress,
 }: {
   title: string;
   /** Sólo Inicio lo pasa hoy: "Hola, {nombre}" arriba del título (T-114). */
   subtitle?: string;
   /** Progreso de colapso en [0,1] — de `useHeaderColapsable` (T-128). */
   progress: SharedValue<number>;
-  /** Engranaje de ajustes junto a la campana — sólo Personal lo pasa hoy (PO 2026-09-20). */
-  settingsAction?: () => void;
 }) {
   const { t } = useTranslation();
   const scheme = useColorScheme() ?? 'light';
@@ -146,36 +152,30 @@ export function TabHeader({
         subtitle={subtitle}
         progress={progress}
         left={
-          <Pressable
-            testID="header-profile"
-            onPress={() => { hapticLight(); router.push('/(tabs)/user' as never); }}
-            accessibilityRole="button"
-            accessibilityLabel={t('dashboard.go_to_profile')}
-            hitSlop={8}
-          >
-            {/* T-115: anillo de marca — sugiere que la foto es un botón (a "Yo"
-                se llega tocándola, ya no hay pestaña propia). */}
+          // T-115/PO 2026-09-22: la foto deja de navegar (ese rol pasó al
+          // engranaje) — se conserva sólo el anillo de marca como identidad,
+          // ya no es un botón.
+          <View testID="header-profile">
             <UserAvatar
               userId={currentUser?.id ?? ''}
               name={currentUser?.name}
               size={32}
               ring={c.brand.primary}
             />
-          </Pressable>
+          </View>
         }
         right={
           <>
             <NoticeBell unread={sinLeer} onPress={abrirCampana} />
-            {settingsAction && (
-              <Pressable
-                testID="header-settings-btn"
-                onPress={() => { hapticLight(); settingsAction(); }}
-                accessibilityRole="button"
-                hitSlop={8}
-              >
-                <Ionicons name="settings-outline" size={20} color={c.textSecondary} />
-              </Pressable>
-            )}
+            <Pressable
+              testID="header-settings-btn"
+              onPress={() => { hapticLight(); router.push('/(tabs)/user' as never); }}
+              accessibilityRole="button"
+              accessibilityLabel={t('dashboard.go_to_profile')}
+              hitSlop={8}
+            >
+              <Ionicons name="settings-outline" size={20} color={c.textSecondary} />
+            </Pressable>
             <HeaderCurrency code={cur} onPress={() => setMonedas(true)} />
           </>
         }

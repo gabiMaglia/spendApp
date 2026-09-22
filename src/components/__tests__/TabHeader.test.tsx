@@ -61,9 +61,9 @@ describe('el header trae siempre lo mismo', () => {
     expect(r.getByTestId('header-profile')).toBeTruthy();
   });
 
-  it('el avatar lleva al perfil', () => {
+  it('el engranaje lleva al perfil (PO 2026-09-22: la foto ya no navega)', () => {
     const { router } = require('expo-router');
-    fireEvent.press(montar().getByTestId('header-profile'));
+    fireEvent.press(montar().getByTestId('header-settings-btn'));
     expect(router.push).toHaveBeenCalledWith(expect.stringContaining('user'));
   });
 
@@ -117,11 +117,11 @@ describe('abrir la campana marca leídas las que no piden acción (T-119)', () =
 });
 
 /**
- * **T-114/T-115 (PO 2026-09-13): la foto de perfil es un botón, y se nota.**
- * El anillo de marca alrededor del avatar es lo que sugiere que es tocable —
- * ahora que "Yo" ya no está en el tab bar, es el ÚNICO camino a esa pantalla.
+ * **T-114/T-115/PO 2026-09-22: la foto conserva el anillo de marca, pero deja
+ * de ser un botón** — el engranaje pasa a ser el ÚNICO camino a "Yo", en las
+ * cuatro tabs.
  */
-describe('el avatar del header sugiere que es un botón (T-115)', () => {
+describe('el avatar del header conserva el anillo de marca (T-115)', () => {
   it('el avatar lleva un borde (anillo) de color de marca', () => {
     const r = montar();
     const boton = r.getByTestId('header-profile');
@@ -132,11 +132,11 @@ describe('el avatar del header sugiere que es un botón (T-115)', () => {
     expect(conAnillo.length).toBeGreaterThan(0);
   });
 
-  it('mantiene el accessibilityLabel "Tu perfil" (i18n, clave sin cambios)', () => {
+  it('el engranaje mantiene el accessibilityLabel "Tu perfil" (i18n, clave sin cambios)', () => {
     const r = montar();
     // El mock de i18n en este proyecto devuelve la CLAVE, nunca el string
     // traducido — así que lo que se prueba es que sigue siendo esta clave.
-    expect(r.getByTestId('header-profile').props.accessibilityLabel).toBe('dashboard.go_to_profile');
+    expect(r.getByTestId('header-settings-btn').props.accessibilityLabel).toBe('dashboard.go_to_profile');
   });
 });
 

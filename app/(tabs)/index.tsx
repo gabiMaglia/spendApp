@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { TabHeader } from '@/src/components/TabHeader';
 import {
-  Alert, Pressable, StyleSheet, Text, TextInput, View,
+  Alert, Pressable, StyleSheet, Text, View,
 } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -14,14 +14,13 @@ import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { formatMoney } from '@/src/constants/currencies';
 import { MoneyText } from '@/src/components/MoneyText';
-import type { CurrencyCode } from '@/src/constants/currencies';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useAmountInput } from '@/src/hooks/useAmountInput';
 import { Fab, FabRow } from '@/src/components/Fab';
 import {
   Band, BandRow, Meter, SplitStat, StatLead,
 } from '@/src/components/Band';
 import { FondoMarmol } from '@/src/components/FondoMarmol';
+import { BudgetSheet } from '@/src/components/BudgetSheet';
 import { useHeaderPadding, useLimiteContenido } from '@/src/components/CollapsibleHeader';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
@@ -31,7 +30,6 @@ import { reasonKey } from '@/src/algorithms/entryOrigin';
 import { useDirectedDebts, useGlobalPersonBalances } from '@/src/store/selectors';
 import { hapticLight, hapticSelection, hapticWarning } from '@/src/utils/haptics';
 import { v4 as uuidv4 } from 'uuid';
-import { BottomSheet } from '@/src/components/Sheet';
 import type { PersonalEntry } from '@/src/types/models';
 import { useTranslation } from 'react-i18next';
 import i18n from '@/src/i18n';
@@ -79,20 +77,12 @@ export default function PersonalScreen() {
 
   const { currentUser } = useAuthStore();
   const firstName = currentUser?.name?.split(' ')[0] ?? 'vos';
-  const { entries, budget, removeEntry, setBudget, lastSeenMonth } = usePersonalStore();
+  const { entries, budget, removeEntry, lastSeenMonth } = usePersonalStore();
   useGlobalPersonBalances(currentUser?.id ?? '');
 
   const today = toMonthKey(Date.now());
   const [activeMonth, setActiveMonth] = useState(today);
   const [showBudgetSheet, setShowBudgetSheet] = useState(false);
-  const [includeOwedToMe, setIncludeOwedToMe] = useState(budget.includeOwedToMe);
-  const [budgetCurrency] = useState<CurrencyCode>(budget.currency);
-  const {
-    text: budgetInput,
-    minor: budgetAmount,
-    onChangeText: setBudgetInput,
-    onBlur: onBudgetInputBlur,
-  } = useAmountInput(budgetCurrency, budget.monthlyAmount);
 
   /** Scroll del header colapsable. */
   const { scrollHandler, progress, contenidoMinimo, alMedirScroll } = useHeaderColapsable();
@@ -221,12 +211,6 @@ export default function PersonalScreen() {
     : c.brand.primary;
 
   const atCurrentMonth = activeMonth >= today;
-
-  function handleSaveBudget() {
-    setBudget({ currency: budgetCurrency, monthlyAmount: budgetAmount, includeOwedToMe });
-    hapticLight();
-    setShowBudgetSheet(false);
-  }
 
   function handleRemove(entry: PersonalEntry) {
     const motivo = reasonKey(entry);
@@ -453,7 +437,6 @@ export default function PersonalScreen() {
         title={t('dashboard.title')}
         subtitle={t('dashboard.greeting', { name: firstName })}
         progress={progress}
-        settingsAction={() => setShowBudgetSheet(true)}
       />
 
       <FabRow>
@@ -478,46 +461,7 @@ export default function PersonalScreen() {
         />
       </FabRow>
 
-      <BottomSheet visible={showBudgetSheet} onClose={() => setShowBudgetSheet(false)}>
-        <Text style={[Typography.h3, { color: c.text, marginBottom: 6 }]}>{t('personal.budget_sheet_title')}</Text>
-        <Text style={[Typography.bodyS, { color: c.textSecondary, marginBottom: 20 }]}>
-          {t('personal.budget_reset_note')}
-        </Text>
-
-        <Text style={[Typography.label, styles.upper, { color: c.textTertiary, marginBottom: 8 }]}>
-          {t('personal.amount')}
-        </Text>
-        <View style={[styles.budgetInput, { backgroundColor: c.bgGrouped, borderColor: c.hair }]}>
-          <Text style={[Typography.bodyM, { color: c.textTertiary }]}>$</Text>
-          <TextInput
-            value={budgetInput}
-            onChangeText={setBudgetInput}
-            onBlur={onBudgetInputBlur}
-            keyboardType="decimal-pad"
-            placeholder="0"
-            placeholderTextColor={c.textTertiary}
-            style={[Typography.bodyM, { flex: 1, color: c.text, padding: 0 }]}
-            returnKeyType="done"
-          />
-        </View>
-
-        <Pressable
-          onPress={() => { hapticSelection(); setIncludeOwedToMe(v => !v); }}
-          style={[styles.toggleRow, { backgroundColor: c.bgGrouped, borderColor: c.hair }]}
-        >
-          <View style={{ flex: 1, gap: 2 }}>
-            <Text style={[Typography.bodyL, { color: c.text }]}>{t('personal.include_owed')}</Text>
-            <Text style={[Typography.bodyS, { color: c.textSecondary }]}>{t('personal.include_owed_sub')}</Text>
-          </View>
-          <View style={[styles.toggle, { backgroundColor: includeOwedToMe ? c.brand.primary : c.hair }]}>
-            <View style={[styles.toggleKnob, includeOwedToMe && styles.toggleKnobOn]} />
-          </View>
-        </Pressable>
-
-        <Pressable onPress={handleSaveBudget} style={[styles.saveBtn, { backgroundColor: c.brand.primary }]}>
-          <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff' }}>{t('personal.save_budget')}</Text>
-        </Pressable>
-      </BottomSheet>
+      <BudgetSheet visible={showBudgetSheet} onClose={() => setShowBudgetSheet(false)} />
     </SafeAreaView>
   );
 }
@@ -621,20 +565,4 @@ const styles = StyleSheet.create({
   meterEmpty:{ alignItems: 'center', gap: 10, paddingVertical: Spacing[6], paddingHorizontal: Spacing[6] },
   emptyBox:  { alignItems: 'center', justifyContent: 'center', padding: Spacing[6] },
   entryIcon: { width: 36, height: 36, borderRadius: Radius.sm, alignItems: 'center', justifyContent: 'center' },
-  budgetInput: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    borderRadius: Radius.md, borderWidth: 1,
-    paddingHorizontal: 16, paddingVertical: 14, marginBottom: 16,
-  },
-  toggleRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    borderRadius: Radius.md, borderWidth: 1, padding: 14,
-  },
-  toggle:      { width: 42, height: 25, borderRadius: 13, padding: 3 },
-  toggleKnob:  { width: 19, height: 19, borderRadius: 10, backgroundColor: '#fff' },
-  toggleKnobOn:{ transform: [{ translateX: 17 }] },
-  // marginBottom (PO 2026-09-21): sin esto el botón quedaba pegado al borde
-  // inferior de la hoja — el paddingBottom genérico de BottomSheet alcanza
-  // para el resto del contenido, pero no para separar el último elemento.
-  saveBtn:     { borderRadius: Radius.md, paddingVertical: 14, alignItems: 'center', marginTop: 16, marginBottom: 12 },
 });
