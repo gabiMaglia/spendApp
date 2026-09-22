@@ -204,6 +204,18 @@ export default function PersonalScreen() {
   const pct             = effectiveBudget > 0 ? Math.min(totalSpent / effectiveBudget, 1) : 0;
   const hasBudget       = baseBudget > 0;
 
+  /**
+   * "Disponible tras saldar" (T-137): tiene que descontar lo que debés Y
+   * sumar lo que te deben — las DOS direcciones, siempre, una sola vez cada
+   * una. `remaining` no sirve de base directa: si "Incluir lo que me deben"
+   * está prendido en el presupuesto, `owedToMe` ya está adentro (se sumaría
+   * dos veces); si está apagado, no está (nunca se sumaría). Se arranca de
+   * `remaining` SIN ese agregado condicional y se suman las dos deudas acá,
+   * ajenas al toggle de presupuesto — son cosas distintas.
+   */
+  const remainingSinDeudas = remaining - (budget.includeOwedToMe ? owedToMe : 0);
+  const disponibleTrasSaldar = remainingSinDeudas + owedToMe - youOwe;
+
   const barColor = pct >= 1 ? c.semantic.negative
     : pct >= 0.8 ? c.semantic.warning
     : c.brand.primary;
@@ -371,43 +383,27 @@ export default function PersonalScreen() {
         />
 
         {/* Deuda direccional: banda propia, nunca mezclada con lo gastado
-            (ADR-006). Era un párrafo con los montos embebidos en la frase; el
-            PO pidió una caja con los números afuera, y agregó el que faltaba:
-            cuánto queda disponible DESPUÉS de pagar lo que se debe. Ese número
-            es el que decide si podés gastar, y antes había que restarlo a mano. */}
-        {youOwe > 0 ? (
-          <SplitStat
-            items={[
-              ...(owedToMe > 0
-                ? [{
-                    label: t('personal.owed_to_me'),
-                    value: formatMoney(owedToMe, cur),
-                    color: c.semantic.positive,
-                  }]
-                : []),
-              {
-                label: t('personal.i_owe'),
-                value: formatMoney(youOwe, cur),
-                color: c.semantic.negative,
-              },
-              {
-                label: t('personal.available_after_debts'),
-                value: formatMoney(Math.abs(remaining - youOwe), cur),
-                // En rojo cuando pagar lo que debés te deja en negativo: es
-                // justamente el caso en el que el número importa.
-                color: remaining - youOwe >= 0 ? c.semantic.positive : c.semantic.negative,
-              },
-            ]}
-          />
-        ) : owedToMe > 0 ? (
+            (ADR-006). "Te deben"/"Debés" ya se muestran arriba del todo (el
+            primer bloque, pegado al header) — acá NO se repiten, sólo el
+            número que ese bloque no tiene: cuánto queda disponible DESPUÉS de
+            saldar TODO (cobrar lo que te deben Y pagar lo que debés). Ese
+            número es el que decide si podés gastar, y antes había que
+            calcularlo a mano. Sin `youOwe` no hay nada propio que saldar y
+            por lo tanto nada nuevo que agregar acá. */}
+        {youOwe > 0 && (
           <SplitStat
             items={[{
-              label: t('personal.owed_to_me'),
-              value: formatMoney(owedToMe, cur),
-              color: c.semantic.positive,
+              label: t('personal.available_after_debts'),
+              // formatMoney() siempre devuelve el valor absoluto (T-137): el
+              // signo hay que ponerlo a mano, si no un negativo se mostraba
+              // en rojo pero SIN el "-" — se leía positivo a simple vista.
+              value: `${disponibleTrasSaldar < 0 ? '-' : ''}${formatMoney(disponibleTrasSaldar, cur)}`,
+              // Rojo cuando saldar todo te deja en negativo: es justamente
+              // el caso en el que el número importa.
+              color: disponibleTrasSaldar >= 0 ? c.semantic.positive : c.semantic.negative,
             }]}
           />
-        ) : null}
+        )}
 
         {/* La aclaración sobrevive al párrafo que la contenía: la deuda NO
             afecta lo gastado hasta que se salda (ADR-006), y sin decirlo los

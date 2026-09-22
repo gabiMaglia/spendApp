@@ -84,23 +84,26 @@ describe('indicador de cantidad de grupos junto al ingreso', () => {
 /**
  * **La caja de deuda, con el número que antes había que calcular a mano.**
  *
- * Era un párrafo con los montos embebidos en la frase. El PO pidió una caja, y
- * agregó el dato que faltaba: cuánto queda disponible DESPUÉS de pagar lo que
- * se debe. Ese es el número que decide si podés gastar.
+ * Era un párrafo con los montos embebidos en la frase. El PO pidió una caja
+ * con el dato que faltaba: cuánto queda disponible DESPUÉS de pagar lo que se
+ * debe. Ese es el único número nuevo acá — "te deben"/"debés" YA se muestran
+ * en el primer bloque, pegado al header, y repetirlos acá era la misma info
+ * dos veces (T-137, pedido del PO). Sin deuda propia no hay nada que saldar,
+ * así que esta caja directamente no se dibuja.
  */
 describe('la caja de deudas', () => {
   it('sin deudas no se dibuja', () => {
     const r = render(<PersonalScreen />);
-    expect(r.queryByText('personal.i_owe')).toBeNull();
     expect(r.queryByText('personal.available_after_debts')).toBeNull();
     expect(r.queryByText('personal.debts_note')).toBeNull();
   });
 
   /**
    * La aclaración de ADR-006 sobrevive al párrafo que la contenía: sin ella,
-   * los números de arriba parecen no cerrar.
+   * los números de arriba parecen no cerrar. "te deben"/"debés" NO se repiten
+   * acá — ya están en el bloque de arriba del todo.
    */
-  it('cuando hay deuda, la aclaración sigue estando', () => {
+  it('cuando hay deuda propia, muestra el disponible tras saldar y la aclaración — sin repetir "debés"', () => {
     useGroupStore.setState({ groups: [{
       id: 'g1', name: 'Asado', memberIds: ['ana', 'beto'], currency: 'ARS',
       createdAt: 0, createdById: 'beto', deletionVotes: [], updatedAt: 0, isDeleted: false,
@@ -118,8 +121,88 @@ describe('la caja de deudas', () => {
     } as never] });
 
     const r = render(<PersonalScreen />);
-    expect(r.getByText('personal.i_owe')).toBeTruthy();
     expect(r.getByText('personal.available_after_debts')).toBeTruthy();
     expect(r.getByText('personal.debts_note')).toBeTruthy();
+    expect(r.queryByText('personal.i_owe')).toBeNull();
+  });
+
+  /**
+   * El número tiene que quedar NEGATIVO (con el "-") cuando pagar lo que
+   * debés te deja en rojo — antes `Math.abs()` se comía el signo y un monto
+   * en rojo se leía como si fuera positivo.
+   */
+  it('si pagar la deuda te deja en negativo, el monto lleva el signo "-"', () => {
+    useGroupStore.setState({ groups: [{
+      id: 'g1', name: 'Asado', memberIds: ['ana', 'beto'], currency: 'ARS',
+      createdAt: 0, createdById: 'beto', deletionVotes: [], updatedAt: 0, isDeleted: false,
+    } as never] });
+    useUserStore.setState({ users: [ANA, { id: 'beto', name: 'Beto' } as User] });
+    // Ana debe $1.000 (100_000 en unidad menor) y no tiene presupuesto ni
+    // ingresos: "disponible" parte de $0, así que tras saldar queda en -$1.000.
+    useExpenseStore.setState({ expenses: [{
+      id: 'e1', groupId: 'g1', description: 'Viaje', amount: 200_000, currency: 'ARS',
+      paidById: 'beto', splitMode: 'equal',
+      splits: [
+        { userId: 'ana', amount: 100_000, isPaid: false },
+        { userId: 'beto', amount: 100_000, isPaid: false },
+      ],
+      memberIds: ['ana', 'beto'], category: 'food', date: Date.now(), createdAt: Date.now(),
+      createdById: 'beto', deletionVotes: [], updatedAt: 0, isDeleted: false,
+    } as never] });
+
+    const r = render(<PersonalScreen />);
+    expect(r.getByText('-$1.000')).toBeTruthy();
+  });
+
+  /**
+   * Con deuda en las DOS direcciones a la vez: "disponible tras saldar" tiene
+   * que cobrar lo que te deben Y pagar lo que debés, no sólo restar `youOwe`
+   * — antes ignoraba por completo lo que te debían a vos.
+   */
+  it('con deuda en las dos direcciones, neta las dos (te deben $5.000, debés $10.000 → -$5.000)', () => {
+    useGroupStore.setState({
+      groups: [
+        {
+          id: 'g1', name: 'Asado', memberIds: ['ana', 'beto'], currency: 'ARS',
+          createdAt: 0, createdById: 'beto', deletionVotes: [], updatedAt: 0, isDeleted: false,
+        },
+        {
+          id: 'g2', name: 'Viaje', memberIds: ['ana', 'carla'], currency: 'ARS',
+          createdAt: 0, createdById: 'ana', deletionVotes: [], updatedAt: 0, isDeleted: false,
+        },
+      ] as never,
+    });
+    useUserStore.setState({
+      users: [ANA, { id: 'beto', name: 'Beto' } as User, { id: 'carla', name: 'Carla' } as User],
+    });
+    useExpenseStore.setState({
+      expenses: [
+        // Ana debe $10.000 (beto pagó, split parejo de 2, cada mitad $10.000).
+        {
+          id: 'e1', groupId: 'g1', description: 'Asado', amount: 2_000_000, currency: 'ARS',
+          paidById: 'beto', splitMode: 'equal',
+          splits: [
+            { userId: 'ana', amount: 1_000_000, isPaid: false },
+            { userId: 'beto', amount: 1_000_000, isPaid: false },
+          ],
+          memberIds: ['ana', 'beto'], category: 'food', date: Date.now(), createdAt: Date.now(),
+          createdById: 'beto', deletionVotes: [], updatedAt: 0, isDeleted: false,
+        },
+        // A Ana le deben $5.000 (ana pagó, split parejo de 2, cada mitad $5.000).
+        {
+          id: 'e2', groupId: 'g2', description: 'Viaje', amount: 1_000_000, currency: 'ARS',
+          paidById: 'ana', splitMode: 'equal',
+          splits: [
+            { userId: 'ana', amount: 500_000, isPaid: false },
+            { userId: 'carla', amount: 500_000, isPaid: false },
+          ],
+          memberIds: ['ana', 'carla'], category: 'food', date: Date.now(), createdAt: Date.now(),
+          createdById: 'ana', deletionVotes: [], updatedAt: 0, isDeleted: false,
+        },
+      ] as never,
+    });
+
+    const r = render(<PersonalScreen />);
+    expect(r.getByText('-$5.000')).toBeTruthy();
   });
 });
