@@ -154,17 +154,19 @@ export type StatItem = {
 };
 
 export function SplitStat({
-  items, sunken, registry,
+  items, sunken, registry, noTop,
 }: {
   items: StatItem[];
   sunken?: boolean;
   /** Sólo para tests: registro inyectable de `MontoRodante`. */
   registry?: MontoRegistry;
+  /** Ver `Band`: pegado al bloque de encima, sin duplicar su línea divisoria. */
+  noTop?: boolean;
 }) {
   const c = useC();
   const centered = items.length > 2;
   return (
-    <Band sunken={sunken}>
+    <Band sunken={sunken} noTop={noTop}>
       <View style={{ flexDirection: 'row' }}>
         {items.map((it, i) => (
           <React.Fragment key={it.label}>
@@ -284,13 +286,15 @@ export function StatGrid({
  * como el encabezado de los otros dos.
  */
 export function StatLead({
-  lead, leadRight, items, sunken,
+  lead, leadRight, items, sunken, noTop,
 }: {
   lead: StatItem;
   /** Indicador chico al lado del lead (PO 2026-09-20: cantidad de grupos junto a Ingreso). */
   leadRight?: StatItem;
   items: [StatItem, StatItem];
   sunken?: boolean;
+  /** Ver `Band`: pegado al bloque de encima, sin duplicar su línea divisoria. */
+  noTop?: boolean;
 }) {
   const c = useC();
 
@@ -318,7 +322,7 @@ export function StatLead({
   );
 
   return (
-    <Band sunken={sunken}>
+    <Band sunken={sunken} noTop={noTop}>
       <View style={{ flexDirection: 'row' }}>
         {cuerpo(lead, leadRight && { borderRightWidth: 1, borderRightColor: c.hair })}
         {leadRight && cuerpo(leadRight, undefined, 'stat-lead-right')}

@@ -25,7 +25,20 @@ const MARMOL_OSCURO = require('../../assets/images/marmol-oscuro.jpg');
  * alto al colapsar — `StyleSheet.absoluteFill` ya la sigue en cada re-render.
  * `contentPosition` no aplica con `fill` (no hay recorte que posicionar).
  */
-export function FondoMarmol({ style }: { style?: StyleProp<ImageStyle> }) {
+export function FondoMarmol({
+  style, variante,
+}: {
+  style?: StyleProp<ImageStyle>;
+  /**
+   * Espeja la textura en horizontal (T-137, pedido del PO): dos superficies
+   * que usan el mismo `FondoMarmol` pegadas entre sí —el header y el
+   * encabezado pegajoso de "Movimientos"— se leían como la MISMA foto
+   * repetida, no como una veta continua. Es el mismo archivo, mismo grosor
+   * de veta, sólo invertido en X — no hace falta un segundo asset y el borde
+   * donde se juntan sigue leyendo parejo.
+   */
+  variante?: boolean;
+}) {
   const scheme = useColorScheme() ?? 'light';
   const fuente = scheme === 'dark' ? MARMOL_OSCURO : MARMOL_CLARO;
 
@@ -33,7 +46,7 @@ export function FondoMarmol({ style }: { style?: StyleProp<ImageStyle> }) {
     <Image
       testID="fondo-marmol"
       source={fuente}
-      style={[StyleSheet.absoluteFill, style]}
+      style={[StyleSheet.absoluteFill, variante && { transform: [{ scaleX: -1 }] }, style]}
       contentFit="fill"
       pointerEvents="none"
       accessibilityElementsHidden

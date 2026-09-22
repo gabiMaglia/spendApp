@@ -391,7 +391,7 @@ export default function AddContactScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: c.bg }]}>
+    <SafeAreaView edges={['bottom']} style={[styles.safe, { backgroundColor: c.bg }]}>
 
       <DetailHeader icon="close" title={t('contact.title')} onBack={() => router.back()} />
 

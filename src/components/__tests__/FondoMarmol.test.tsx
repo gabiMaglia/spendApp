@@ -54,6 +54,25 @@ describe('FondoMarmol', () => {
     expect(img.props.accessibilityElementsHidden).toBe(true);
   });
 
+  // T-137: dos superficies pegadas con el mismo `FondoMarmol` se leían como la
+  // misma foto repetida — `variante` espeja en X la MISMA textura, sin asset
+  // nuevo, para que la de "Movimientos" no calque literal a la del header.
+  it('con `variante`, espeja la textura en X (mismo asset, mismo grosor de veta)', () => {
+    useThemeStore.setState({ themeChoice: 'light' });
+    const r = render(<FondoMarmol variante />);
+    const img = r.UNSAFE_getByType(Image);
+    const flat = [img.props.style].flat(Infinity);
+    expect(flat).toContainEqual({ transform: [{ scaleX: -1 }] });
+  });
+
+  it('sin `variante`, no aplica ninguna transformación', () => {
+    useThemeStore.setState({ themeChoice: 'light' });
+    const r = render(<FondoMarmol />);
+    const img = r.UNSAFE_getByType(Image);
+    const flat = [img.props.style].flat(Infinity);
+    expect(flat.some((s: unknown) => s && typeof s === 'object' && 'transform' in s)).toBe(false);
+  });
+
   // Guard de assets: si algún día alguien mueve o renombra las texturas del
   // Orquestador, este test avisa ANTES de que el header quede en blanco.
   it('las texturas viven en assets/images', () => {

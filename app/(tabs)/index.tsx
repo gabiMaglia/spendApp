@@ -260,6 +260,7 @@ export default function PersonalScreen() {
             noción de "conversión en vuelo" — igual que el SplitStat de
             deuda de Personal que ya convive en este archivo, más abajo. */}
         <SplitStat
+          noTop
           items={[
             { label: t('friends.owed_to_you'), value: formatMoney(owedToMe, cur), color: c.semantic.positive },
             { label: t('friends.you_owe'),     value: formatMoney(youOwe, cur),   color: c.textSecondary },
@@ -353,6 +354,7 @@ export default function PersonalScreen() {
             "Grupos · Balance" — mismo `misGrupos` ya derivado más abajo). */}
         <StatLead
           sunken
+          noTop
           lead={{
             label: t('personal.summary_income'),
             value: `+${formatMoney(totalIncome, cur)}`,
@@ -429,7 +431,7 @@ export default function PersonalScreen() {
         <MovimientosHeader count={monthEntries.length} />
 
         {monthEntries.length === 0 ? (
-          <Band>
+          <Band noTop>
             <View style={styles.emptyBox}>
               <Ionicons name="receipt-outline" size={26} color={c.textTertiary} />
               <Text style={[Typography.bodyM, { color: c.textTertiary, marginTop: 8, textAlign: 'center' }]}>
@@ -438,7 +440,7 @@ export default function PersonalScreen() {
             </View>
           </Band>
         ) : (
-          <Band>
+          <Band noTop>
             {[...monthEntries].sort((a, b) => b.date - a.date).map((entry, i, arr) => (
               <EntryRow
                 key={entry.id}
@@ -535,7 +537,7 @@ function MovimientosHeader({ count }: { count: number }) {
   const { t } = useTranslation();
   return (
     <View testID="movimientos-header" style={[styles.movimientosHeader, { borderBottomColor: c.hair }]}>
-      <FondoMarmol />
+      <FondoMarmol variante />
       <Text style={[Typography.label, styles.movimientosBold, { color: c.textTertiary }]}>
         {t('personal.movements_title')}
       </Text>
