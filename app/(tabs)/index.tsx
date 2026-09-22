@@ -461,15 +461,18 @@ export default function PersonalScreen() {
       />
 
       <FabRow>
+        {/* T-137: es un BOTÓN (acción), no un monto — va con el color de marca,
+            no con `semantic.positive`, aunque lo que agregue sea dinero a
+            favor. El verde queda reservado a mostrar montos ya calculados. */}
         <Fab
           variant="secondary"
           onPress={() => router.push({ pathname: '/expense/new', params: { allowIncome: '1', kind: 'income' } } as any)}
           icon="trending-up-outline"
           label={t('personal.fab_income')}
-          backgroundColor={c.semantic.positiveSoft}
+          backgroundColor={c.brand.primarySoft}
           borderColor={c.hair}
-          iconColor={c.semantic.positive}
-          textColor={c.semantic.positive}
+          iconColor={c.brand.primary}
+          textColor={c.brand.primary}
         />
         <Fab
           onPress={() => router.push({ pathname: '/expense/new', params: { allowIncome: '1' } } as any)}
