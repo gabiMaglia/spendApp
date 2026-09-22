@@ -46,12 +46,23 @@ describe('fusión Inicio→Personal: header y bloque de deuda arriba de todo', (
     expect(r.getByText('dashboard.greeting({"name":"Gabriel"})')).toBeTruthy();
   });
 
-  it('sin nombre de usuario, el saludo cae a "vos"', () => {
+  // capitalizar (PO 2026-09-22): el nombre se guarda tal como se tipeó — el
+  // saludo lo prolija, sin pisar el dato guardado en el store.
+  it('con el nombre guardado en minúscula, el saludo lo capitaliza', () => {
+    useAuthStore.setState({ currentUser: { id: 'gabriel', name: 'gabriel maglia' } as User });
+
+    const r = render(<PersonalScreen />);
+
+    expect(r.getByText('dashboard.greeting({"name":"Gabriel"})')).toBeTruthy();
+  });
+
+  it('sin nombre de usuario, el saludo cae a "Vos"', () => {
     useAuthStore.setState({ currentUser: { id: 'gabriel', name: undefined } as unknown as User });
 
     const r = render(<PersonalScreen />);
 
-    expect(r.getByText('dashboard.greeting({"name":"vos"})')).toBeTruthy();
+    // capitalizar (PO 2026-09-22) también prolija el fallback: "Vos", no "vos".
+    expect(r.getByText('dashboard.greeting({"name":"Vos"})')).toBeTruthy();
   });
 
   it('el bloque "Te deben" (friends.owed_to_you) es lo primero, antes del navegador de mes', () => {

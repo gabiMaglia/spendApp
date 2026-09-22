@@ -39,6 +39,7 @@ import { useFx } from '@/src/store/useFx';
 import { UnconvertedNotice } from '@/src/components/UnconvertedNotice';
 import { sumConverted } from '@/src/services/fxTotals';
 import { syncedNow } from '@/src/utils/syncedClock';
+import { capitalizar } from '@/src/utils/capitalizar';
 
 function monthLabel(key: string): string {
   const [year, month] = key.split('-').map(Number);
@@ -76,7 +77,10 @@ export default function PersonalScreen() {
   const c = Colors[scheme];
 
   const { currentUser } = useAuthStore();
-  const firstName = currentUser?.name?.split(' ')[0] ?? 'vos';
+  // capitalizar (PO 2026-09-22): el nombre se guarda tal como se tipeó — si
+  // alguien lo escribió en minúscula, el saludo lo mostraba así. La UI es
+  // quien prolija la primera letra, sin tocar el dato guardado.
+  const firstName = capitalizar(currentUser?.name?.split(' ')[0] ?? 'vos');
   const { entries, budget, removeEntry, lastSeenMonth } = usePersonalStore();
   useGlobalPersonBalances(currentUser?.id ?? '');
 
