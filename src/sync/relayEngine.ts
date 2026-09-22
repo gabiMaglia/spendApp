@@ -23,6 +23,10 @@ import { activeInvites, processInvite, processAllInvites } from './inviteEngine'
 import { processAllContactInvites } from './contactInviteEngine';
 import { avisarConflictosDelDrenaje } from './keyConflictNotice';
 import { verifyMyKeyRegistered } from './deviceKeys';
+import { withTimeout } from '@/src/utils/withTimeout';
+
+/** T-138-bis: ver `anunciarMiTarjeta`. */
+const ANUNCIO_TIMEOUT_MS = 8_000;
 import {
   ensureContactSecret, deriveContactTopic, drainContacts, sendGroupKey,
   announceContact, listPeers, myContactCard, cardFingerprint,
@@ -405,10 +409,31 @@ export function startRelay(): Promise<void> {
   return arrancando;
 }
 
+/**
+ * T-138-bis: la cadena entera, de punta a punta, con UN límite de tiempo
+ * total — no uno por cada `await` suelto.
+ *
+ * El timeout puntual en `processAllInvites`/`processAllContactInvites`
+ * (arriba) arregló UN cuelgue real, pero no el único: la cadena sigue
+ * teniendo media docena de `await`s de red sin protección (`subscribeContacts`,
+ * `anunciarMiTarjeta`, `drainContactsNow`, `drainAll`, `drainNow`,
+ * `reenviarClavesDeGrupo`), y cualquiera de ellos que se cuelgue deja
+ * `startPolling()` sin arrancar NUNCA — que es lo único que reintentaría
+ * solo. Parchear uno por uno es whack-a-mole; la garantía real tiene que
+ * estar en el borde de afuera: pase lo que pase adentro, `startPolling()`
+ * se llama sí o sí antes de `STARTUP_TIMEOUT_MS`.
+ */
+const STARTUP_TIMEOUT_MS = 20_000;
+
 async function doStartRelay(): Promise<void> {
   stopRelay();
   if (!isRelayConfigured()) return;
 
+  await withTimeout(arrancarCadenaDeSync(), STARTUP_TIMEOUT_MS, undefined);
+  startPolling();
+}
+
+async function arrancarCadenaDeSync(): Promise<void> {
   // Las invitaciones se resuelven PRIMERO: una que se complete acá adopta la
   // clave del grupo, y recién con esa clave el grupo entra en `syncableGroupIds`
   // y se puede suscribir abajo. Al revés habría que esperar al próximo arranque.
@@ -444,7 +469,6 @@ async function doStartRelay(): Promise<void> {
   for (const groupId of adoptados) await drainNow(groupId);
 
   await reenviarClavesDeGrupo();
-  startPolling();
 }
 
 // --- relectura periódica ------------------------------------------------------
@@ -475,11 +499,16 @@ function stopPolling(): void {
 }
 
 async function releerTodo(): Promise<void> {
-  try {
-    await drainContactsNow();
-    await drainAll();
-    await processAllContactInvites(deviceId());
-  } catch { /* offline: se reintenta en la próxima vuelta */ }
+  // T-138-bis: mismo límite de tiempo total que `doStartRelay` — un poll
+  // colgado no debe bloquear el siguiente (el `setInterval` ya dispara el
+  // próximo solo, pero sin esto la promesa colgada queda viva para siempre).
+  await withTimeout((async () => {
+    try {
+      await drainContactsNow();
+      await drainAll();
+      await processAllContactInvites(deviceId());
+    } catch { /* offline: se reintenta en la próxima vuelta */ }
+  })(), STARTUP_TIMEOUT_MS, undefined);
 }
 
 /**
@@ -517,9 +546,12 @@ export async function anunciarMiTarjeta(): Promise<void> {
     if (cardYaEnviada(userId, huella)) continue;
 
     // Se marca sólo si salió bien, así un fallo de red se reintenta solo.
-    // Un contacto que falla no puede frenar a los demás.
+    // Un contacto que falla no puede frenar a los demás — y con timeout
+    // (T-138-bis), tampoco uno que se cuelga sin resolver ni rechazar.
     try {
-      if (await announceContact(peer.secret, deviceId())) marcarCardEnviada(userId, huella);
+      if (await withTimeout(announceContact(peer.secret, deviceId()), ANUNCIO_TIMEOUT_MS, false)) {
+        marcarCardEnviada(userId, huella);
+      }
     } catch { /* sigue con el resto */ }
   }
 }
@@ -536,13 +568,19 @@ async function reenviarClavesDeGrupo(): Promise<void> {
   const me = useAuthStore.getState().currentUser;
   if (!me) return;
 
-  for (const groupId of syncableGroupIds()) {
+  const ids = syncableGroupIds();
+  console.log('[DIAG reenviarClavesDeGrupo] syncableGroupIds=', JSON.stringify(ids));
+  for (const groupId of ids) {
     const group = useGroupStore.getState().getById(groupId);
+    console.log('[DIAG reenviarClavesDeGrupo] group=', groupId, 'existe=', !!group, 'members=', JSON.stringify(group?.memberIds));
     if (!group) continue;
 
     for (const memberId of group.memberIds) {
       if (memberId === me.id) continue;
-      try { await sendGroupKey(memberId, group, deviceId()); } catch { /* sigue */ }
+      try {
+        const ok = await sendGroupKey(memberId, group, deviceId());
+        console.log('[DIAG reenviarClavesDeGrupo] sendGroupKey a', memberId, '=', ok);
+      } catch (e) { console.log('[DIAG reenviarClavesDeGrupo] THREW', String(e)); }
     }
   }
 }

@@ -12,12 +12,16 @@ import {
 } from './contactInvite';
 import { unwrapGroupKey } from './groupInvite';
 import { myContactCard, savePeerFromCard } from './contactChannel';
+import { withTimeout } from '@/src/utils/withTimeout';
 
 /**
  * El encuentro entre quien comparte un link de contacto y quien lo abre
  * (T-096 · ADR-015). Mismo patrón que `inviteEngine.ts` para la invitación a
  * grupo, pero intercambiando `ContactCard` en vez de una clave de grupo.
  */
+
+/** T-138-bis: ver `processAllContactInvites` (mismo criterio que `inviteEngine.ts`). */
+const CONTACT_INVITE_TIMEOUT_MS = 8_000;
 
 const MAX_ENVELOPES = 50;
 
@@ -171,7 +175,7 @@ export function activeContactInvites(): ContactInvite[] {
 export async function processAllContactInvites(deviceId: string): Promise<boolean> {
   let algo = false;
   for (const invite of activeContactInvites()) {
-    if (await processContactInvite(invite, deviceId)) algo = true;
+    if (await withTimeout(processContactInvite(invite, deviceId), CONTACT_INVITE_TIMEOUT_MS, false)) algo = true;
   }
   return algo;
 }

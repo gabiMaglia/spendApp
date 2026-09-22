@@ -15,10 +15,14 @@ import {
   type GroupInvite, type InviteClaim, type InviteGrant,
 } from './groupInvite';
 import { syncedNow } from '@/src/utils/syncedClock';
+import { withTimeout } from '@/src/utils/withTimeout';
 import {
   claveLocalVinoDeContacto, idDeOfertaDeInvitacion, olvidarOfertas, registrarOferta,
 } from './groupKeyOffers';
 import { avisarConflictoDeClave } from './keyConflictNotice';
+
+/** T-138-bis: ver `processAllInvites`. */
+const INVITE_TIMEOUT_MS = 8_000;
 
 /**
  * El encuentro entre quien invita y quien entra.
@@ -271,11 +275,21 @@ export function activeInvites(): GroupInvite[] {
   return [...porToken.values()];
 }
 
-/** Procesa todos los buzones de invitación. Devuelve los grupos adoptados. */
+/**
+ * Procesa todos los buzones de invitación. Devuelve los grupos adoptados.
+ *
+ * **T-138-bis**: cada invitación tiene `INVITE_TIMEOUT_MS` para responder. Sin
+ * esto, una sola invitación cuyo pedido de red se cuelga (ni resuelve ni
+ * rechaza — un `try/catch` no lo detecta) frena TODO `doStartRelay` para
+ * siempre: nunca se llega a `subscribeContacts`, `anunciarMiTarjeta` ni
+ * `startPolling`, y como el polling es lo único que reintentaría solo, la
+ * sync completa queda muerta hasta reinstalar. Medido en producción: pasó de
+ * verdad con una invitación de contacto vieja.
+ */
 export async function processAllInvites(deviceId: string): Promise<string[]> {
   const adoptados: string[] = [];
   for (const invite of activeInvites()) {
-    adoptados.push(...await processInvite(invite, deviceId));
+    adoptados.push(...await withTimeout(processInvite(invite, deviceId), INVITE_TIMEOUT_MS, []));
   }
   return adoptados;
 }

@@ -214,6 +214,7 @@ export async function sendGroupKey(
   const me = useAuthStore.getState().currentUser;
   const peer = getPeer(peerUserId);
   const record = useGroupKeyStore.getState().getKey(group.id);
+  console.log('[DIAG sendGroupKey]', peerUserId, 'me=', !!me, 'peer.secret=', !!peer?.secret, 'peer.wrap=', !!peer?.wrapPublicKey, 'record=', !!record);
   if (!me || !peer?.secret || !peer.wrapPublicKey || !record) return false;
 
   const wrap = ensureWrapKeypair();
