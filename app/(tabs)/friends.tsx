@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import {
-  Alert, KeyboardAvoidingView, Platform, Pressable,
+  Alert, Pressable,
   StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import Animated from 'react-native-reanimated';
@@ -14,7 +14,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { Colors } from '@/src/constants/colors';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { formatMoney } from '@/src/constants/currencies';
+import { formatMoney, type CurrencyCode } from '@/src/constants/currencies';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useFx } from '@/src/store/useFx';
 import { sumConverted } from '@/src/services/fxTotals';
@@ -26,7 +26,9 @@ import { UserAvatar } from '@/src/components/UserAvatar';
 import { Fab, FabRow } from '@/src/components/Fab';
 import { EmptyState } from '@/src/components/EmptyState';
 import { BottomSheet } from '@/src/components/Sheet';
-import { Band, BandRow, SectionLabel, SplitStat } from '@/src/components/Band';
+import { Band, BandRow, SectionLabel } from '@/src/components/Band';
+import { MontoRodante } from '@/src/components/MontoRodante';
+import { FondoMarmol } from '@/src/components/FondoMarmol';
 import { TabHeader } from '@/src/components/TabHeader';
 import { useHeaderPadding, useLimiteContenido } from '@/src/components/CollapsibleHeader';
 import { syncedNow } from '@/src/utils/syncedClock';
@@ -116,19 +118,10 @@ export default function FriendsScreen() {
       >
 
         {(owedToYou > 0 || youOwe > 0) && (
-          <SplitStat
-            items={[
-              {
-                label: t('friends.owed_to_you'), value: formatMoney(owedToYou, cur), color: c.semantic.positive,
-                id: 'friends.owedToYou', minor: owedToYou, code: cur,
-                pending: owedToYouPending, pendingLabel: pendingCalculando,
-              },
-              {
-                label: t('friends.you_owe'), value: formatMoney(youOwe, cur), color: c.textSecondary,
-                id: 'friends.youOwe', minor: youOwe, code: cur,
-                pending: youOwePending, pendingLabel: pendingCalculando,
-              },
-            ]}
+          <ContactosResumen
+            owedToYou={owedToYou} youOwe={youOwe} cur={cur}
+            owedToYouPending={owedToYouPending} youOwePending={youOwePending}
+            pendingLabel={pendingCalculando}
           />
         )}
 
@@ -187,41 +180,43 @@ export default function FriendsScreen() {
       </FabRow>
 
       <BottomSheet visible={showAdd} onClose={() => { setShowAdd(false); setNewName(''); }}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <Text style={[Typography.h3, { color: c.text, marginBottom: 6 }]}>{t('friends.new_contact')}</Text>
-          <Text style={[Typography.bodyS, { color: c.textSecondary, marginBottom: 20 }]}>
-            {t('friends.new_contact_hint')}
+        {/* Sin `KeyboardAvoidingView` propio (PO 2026-09-22): el `BottomSheet`
+            compartido ya lo resuelve — uno acá adentro sumaba SU empuje al
+            del `BottomSheet`, empujando la hoja el doble de lo que hacía
+            falta. */}
+        <Text style={[Typography.h3, { color: c.text, marginBottom: 6 }]}>{t('friends.new_contact')}</Text>
+        <Text style={[Typography.bodyS, { color: c.textSecondary, marginBottom: 20 }]}>
+          {t('friends.new_contact_hint')}
+        </Text>
+        <View style={[styles.inputRow, { backgroundColor: c.bgGrouped, borderColor: c.hair }]}>
+          <Ionicons name="person-outline" size={18} color={c.textTertiary} />
+          <TextInput
+            ref={inputRef}
+            value={newName}
+            onChangeText={setNewName}
+            placeholder={t('friends.name_placeholder')}
+            placeholderTextColor={c.textTertiary}
+            style={[Typography.bodyM, { flex: 1, color: c.text, padding: 0 }]}
+            returnKeyType="done"
+            onSubmitEditing={handleAddContact}
+            autoFocus
+          />
+        </View>
+        <Pressable
+          onPress={handleAddContact}
+          disabled={!newName.trim()}
+          style={[styles.confirmBtn, {
+            backgroundColor: newName.trim() ? c.brand.primary : c.bgGrouped,
+            marginTop: 14,
+          }]}
+        >
+          <Text style={{
+            fontSize: 15, fontWeight: '700',
+            color: newName.trim() ? '#fff' : c.textTertiary,
+          }}>
+            {t('common.add')}
           </Text>
-          <View style={[styles.inputRow, { backgroundColor: c.bgGrouped, borderColor: c.hair }]}>
-            <Ionicons name="person-outline" size={18} color={c.textTertiary} />
-            <TextInput
-              ref={inputRef}
-              value={newName}
-              onChangeText={setNewName}
-              placeholder={t('friends.name_placeholder')}
-              placeholderTextColor={c.textTertiary}
-              style={[Typography.bodyM, { flex: 1, color: c.text, padding: 0 }]}
-              returnKeyType="done"
-              onSubmitEditing={handleAddContact}
-              autoFocus
-            />
-          </View>
-          <Pressable
-            onPress={handleAddContact}
-            disabled={!newName.trim()}
-            style={[styles.confirmBtn, {
-              backgroundColor: newName.trim() ? c.brand.primary : c.bgGrouped,
-              marginTop: 14,
-            }]}
-          >
-            <Text style={{
-              fontSize: 15, fontWeight: '700',
-              color: newName.trim() ? '#fff' : c.textTertiary,
-            }}>
-              {t('common.add')}
-            </Text>
-          </Pressable>
-        </KeyboardAvoidingView>
+        </Pressable>
       </BottomSheet>
     </SafeAreaView>
   );
@@ -279,6 +274,65 @@ function ContactRow({
   );
 }
 
+/**
+ * **Resumen "te deben/debés" — chip con mármol** (PO 2026-09-22).
+ *
+ * Antes era un `SplitStat`: una banda con hairline ARRIBA Y ABAJO, más un
+ * divisor vertical entre los dos montos con su propio aire de banda alrededor
+ * (`Spacing.screenPad` de cada lado del divisor) — dos bordes por un solo
+ * bloque, y un hueco entre los montos que no era ninguna medida a propósito.
+ *
+ * Mismo lenguaje que `MovimientosHeader` (`app/(tabs)/index.tsx`): mármol de
+ * fondo, UN solo borde —el de abajo—, sin borde arriba. Usa el patrón
+ * "distendido" (`FondoMarmol patron="distendida"`) en vez del de siempre: es
+ * mismo shader y misma forma de veta, pero más espaciado y tenue —así no
+ * repite la foto exacta que ya usan el header y Movimientos.
+ *
+ * Sin `gap` entre los dos montos: la separación sale pura y exclusivamente de
+ * `justifyContent:'space-between'` en una fila de ancho completo, igual que
+ * "Movimientos" separa su etiqueta del contador — no hay aire de más
+ * declarado a mano.
+ */
+function ContactosResumen({
+  owedToYou, youOwe, cur, owedToYouPending, youOwePending, pendingLabel,
+}: {
+  owedToYou: number;
+  youOwe: number;
+  cur: CurrencyCode;
+  owedToYouPending: boolean;
+  youOwePending: boolean;
+  pendingLabel: string;
+}) {
+  const scheme = useColorScheme() ?? 'light';
+  const c = Colors[scheme];
+  const { t } = useTranslation();
+  return (
+    <View testID="contactos-resumen" style={[styles.resumenChip, { borderBottomColor: c.hair }]}>
+      <FondoMarmol patron="distendida" />
+      <View style={styles.resumenItem}>
+        <Text style={[Typography.label, styles.resumenBold, { color: c.textTertiary }]}>
+          {t('friends.owed_to_you')}
+        </Text>
+        <MontoRodante
+          id="friends.owedToYou" minor={owedToYou} code={cur}
+          style={[Typography.amountS, styles.resumenBold, { color: c.semantic.positive }]}
+          pending={owedToYouPending} pendingAccessibilityLabel={pendingLabel}
+        />
+      </View>
+      <View style={[styles.resumenItem, { alignItems: 'flex-end' }]}>
+        <Text style={[Typography.label, styles.resumenBold, { color: c.textTertiary }]}>
+          {t('friends.you_owe')}
+        </Text>
+        <MontoRodante
+          id="friends.youOwe" minor={youOwe} code={cur}
+          style={[Typography.amountS, styles.resumenBold, { color: c.textSecondary }]}
+          pending={youOwePending} pendingAccessibilityLabel={pendingLabel}
+        />
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   safe:       { flex: 1 },
   footnote:   { paddingHorizontal: Spacing.screenPad, paddingTop: 14, lineHeight: 17 },
@@ -289,4 +343,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 13, marginBottom: 4,
   },
   confirmBtn: { borderRadius: Radius.md, paddingVertical: 14, alignItems: 'center' },
+  resumenChip: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    overflow: 'hidden',
+    paddingHorizontal: Spacing.screenPad, paddingTop: Spacing[8], paddingBottom: 9,
+    borderBottomWidth: 1,
+  },
+  resumenItem: { gap: 2 },
+  resumenBold: { fontWeight: '800' },
 });

@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
-  Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View,
+  Alert, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -553,83 +553,76 @@ export default function GroupDetailScreen() {
         </Pressable>
       </BottomSheet>
 
-      <Modal
+      {/*
+        Antes era un `Modal` + `KeyboardAvoidingView` de mano, con el mismo
+        defecto que tenía `BottomSheet` (PO 2026-09-22): en Android el
+        teclado tapaba la hoja entera, en iOS la empujaba de un salto. Migrar
+        al `BottomSheet` compartido lo hereda arreglado, sin duplicar la
+        lógica de teclado acá.
+      */}
+      <BottomSheet
         visible={inviteVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setInviteVisible(false)}
+        onClose={() => setInviteVisible(false)}
+        title={t('group_detail.add_member_title')}
       >
-        <View style={styles.modalRoot}>
-          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setInviteVisible(false)} />
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-            <View style={[styles.sheet, { backgroundColor: c.surface }]}>
-              <View style={[styles.handle, { backgroundColor: c.hair }]} />
+        {contactosDisponibles.length > 0 && (
+          <>
+            <Text style={[Typography.bodyS, { color: c.textSecondary, marginBottom: 12 }]}>
+              {t('group_detail.add_from_contacts')}
+            </Text>
+            {contactosDisponibles.map(u => (
+              <SheetOptionAvatar
+                key={u.id}
+                userId={u.id}
+                name={u.name}
+                selected={false}
+                onPress={() => handleAddContact(u.id)}
+              />
+            ))}
+          </>
+        )}
 
-              <Text style={[Typography.h3, { color: c.text, marginBottom: 6 }]}>
-                {t('group_detail.add_member_title')}
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => setSinApp(v => !v)}
+          style={{ marginTop: contactosDisponibles.length > 0 ? Spacing[5] : 0, marginBottom: Spacing[2] }}
+        >
+          <Text style={{ fontSize: 12.5, fontWeight: '700', color: c.brand.primary }}>
+            {t('group_detail.add_without_app')}
+          </Text>
+        </Pressable>
+
+        {sinApp && (
+          <>
+            <Text style={[Typography.caption, { color: c.textSecondary, marginBottom: 12 }]}>
+              {t('group_detail.without_app_warning')}
+            </Text>
+            <TextInput
+              value={inviteName}
+              onChangeText={setInviteName}
+              placeholder={t('group_detail.name_placeholder')}
+              placeholderTextColor={c.textTertiary}
+              style={[styles.input, { backgroundColor: c.bgGrouped, color: c.text, borderColor: c.hair }]}
+              returnKeyType="done"
+              onSubmitEditing={handleAddMember}
+            />
+            <Pressable
+              accessibilityRole="button"
+              onPress={handleAddMember}
+              style={[styles.confirmBtn, {
+                backgroundColor: inviteName.trim() ? c.brand.primary : c.bgGrouped,
+              }]}
+            >
+              <Text style={{
+                fontSize: 15, fontWeight: '700',
+                color: inviteName.trim() ? '#fff' : c.textTertiary,
+              }}>
+                {t('group_detail.add_to_group')}
               </Text>
-
-              {contactosDisponibles.length > 0 && (
-                <>
-                  <Text style={[Typography.bodyS, { color: c.textSecondary, marginBottom: 12 }]}>
-                    {t('group_detail.add_from_contacts')}
-                  </Text>
-                  {contactosDisponibles.map(u => (
-                    <SheetOptionAvatar
-                      key={u.id}
-                      userId={u.id}
-                      name={u.name}
-                      selected={false}
-                      onPress={() => handleAddContact(u.id)}
-                    />
-                  ))}
-                </>
-              )}
-
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => setSinApp(v => !v)}
-                style={{ marginTop: contactosDisponibles.length > 0 ? Spacing[5] : 0, marginBottom: Spacing[2] }}
-              >
-                <Text style={{ fontSize: 12.5, fontWeight: '700', color: c.brand.primary }}>
-                  {t('group_detail.add_without_app')}
-                </Text>
-              </Pressable>
-
-              {sinApp && (
-                <>
-                  <Text style={[Typography.caption, { color: c.textSecondary, marginBottom: 12 }]}>
-                    {t('group_detail.without_app_warning')}
-                  </Text>
-                  <TextInput
-                    value={inviteName}
-                    onChangeText={setInviteName}
-                    placeholder={t('group_detail.name_placeholder')}
-                    placeholderTextColor={c.textTertiary}
-                    style={[styles.input, { backgroundColor: c.bgGrouped, color: c.text, borderColor: c.hair }]}
-                    returnKeyType="done"
-                    onSubmitEditing={handleAddMember}
-                  />
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={handleAddMember}
-                    style={[styles.confirmBtn, {
-                      backgroundColor: inviteName.trim() ? c.brand.primary : c.bgGrouped,
-                    }]}
-                  >
-                    <Text style={{
-                      fontSize: 15, fontWeight: '700',
-                      color: inviteName.trim() ? '#fff' : c.textTertiary,
-                    }}>
-                      {t('group_detail.add_to_group')}
-                    </Text>
-                  </Pressable>
-                </>
-              )}
-            </View>
-          </KeyboardAvoidingView>
-        </View>
-      </Modal>
+            </Pressable>
+          </>
+        )}
+      </BottomSheet>
     </SafeAreaView>
   );
 }
@@ -759,9 +752,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.screenPad, paddingVertical: 13,
   },
   approveRow:  { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  modalRoot:   { flex: 1, justifyContent: 'flex-end' },
-  sheet:       { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 40 },
-  handle:      { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
   input:       {
     height: 50, borderRadius: Radius.md, borderWidth: 1,
     paddingHorizontal: 14, fontSize: 16, marginBottom: 14,

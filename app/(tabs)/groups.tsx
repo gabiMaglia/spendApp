@@ -15,11 +15,12 @@ import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useArchiveStore } from '@/src/store/archiveStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
-import { useGroupBalance, useGroupExpenseCount, useGroupsTotalBalance } from '@/src/store/selectors';
+import { useGroupBalance, useGroupExpenseCount, useGroupsNetBalanceFor, useGroupsTotalBalance } from '@/src/store/selectors';
 import { Fab, FabRow } from '@/src/components/Fab';
 import { useFx } from '@/src/store/useFx';
 import { sumConverted } from '@/src/services/fxTotals';
 import { GroupCard } from '@/src/components/GroupCard';
+import { MontoRodante } from '@/src/components/MontoRodante';
 import { SwipeToArchive } from '@/src/components/SwipeToArchive';
 import { EmptyState } from '@/src/components/EmptyState';
 import { Band, Segmented, StatGrid } from '@/src/components/Band';
@@ -66,6 +67,16 @@ export default function GroupsScreen() {
     () => myGroups.filter(g => archivedIds.includes(g.id) === (tabActual === 'archivados')),
     [myGroups, archivedIds, tabActual],
   );
+
+  // "Total total" al pie de la lista (PO 2026-09-22): a diferencia de los
+  // cuatro casilleros de arriba —que describen "tu situación" y no se mueven
+  // con la pestaña—, esto SÍ cambia: es la cuenta separada de lo que se ve
+  // ahora mismo, activos o archivados según la pestaña.
+  const idsVisibles = useMemo(() => new Set(visibles.map(g => g.id)), [visibles]);
+  const netVisibles = useGroupsNetBalanceFor(currentUser?.id ?? '', idsVisibles);
+  const netTotal = sumConverted(
+    netVisibles.map(b => ({ currency: b.currency, minor: b.net })), cur, fx,
+  ).totalMinor;
 
   /** Los grupos activos. No depende de la pestaña, y eso es a propósito. */
   const idsActivos = useMemo(
@@ -162,6 +173,28 @@ export default function GroupsScreen() {
                 ? t('groups.swipe_hint')
                 : t('groups.archived_hint')}
             </Text>
+
+            {/* "Total total" (PO 2026-09-22): la sumatoria neta de los grupos
+                QUE SE VEN AHORA — cuenta separada para activos y archivados,
+                cambia con la pestaña. Distinto de los 4 casilleros de arriba,
+                que son fijos. */}
+            <Band>
+              <View testID="groups-net-total" style={styles.netTotalRow}>
+                <Text style={[Typography.label, styles.upper, { color: c.textTertiary }]}>
+                  {t('groups.stat_net_total')}
+                </Text>
+                <MontoRodante
+                  id="groups.netTotal"
+                  minor={netTotal}
+                  code={cur}
+                  prefix={netTotal < 0 ? '-' : ''}
+                  style={[
+                    Typography.amountM,
+                    { color: netTotal === 0 ? c.text : netTotal > 0 ? c.semantic.positive : c.semantic.negative },
+                  ]}
+                />
+              </View>
+            </Band>
           </>
         )}
       </Animated.ScrollView>
@@ -209,4 +242,9 @@ const styles = StyleSheet.create({
   // T-108) y pegado al primer grupo abajo.
   segPad:   { paddingTop: 0, paddingBottom: 0 },
   footnote: { paddingHorizontal: Spacing.screenPad, paddingTop: 14, lineHeight: 17 },
+  upper:    { textTransform: 'uppercase' },
+  netTotalRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: Spacing.screenPad, paddingVertical: Spacing[4],
+  },
 });

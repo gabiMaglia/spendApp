@@ -87,6 +87,44 @@ export function useGroupsTotalBalance(userId: string): GroupsTotalBalance[] {
   }, [groups, expenses, payments, userId, archivedIds]);
 }
 
+// ── Neto (te deben − debés) de un conjunto explícito de grupos ───────────────
+// Para el "total total" al pie de la lista de Grupos (PO 2026-09-22): a
+// diferencia de `useGroupsTotalBalance` —que SIEMPRE excluye archivados,
+// porque los casilleros de arriba describen "tu situación" y no se mueven con
+// la pestaña— acá el conjunto de grupos lo elige quien llama, así sirve tanto
+// para "activos" como para "archivados" según cuál pestaña esté mirando.
+
+export interface GroupsNetBalance {
+  currency: CurrencyCode;
+  /** positivo = te deben en neto; negativo = debés en neto. */
+  net: number;
+}
+
+export function useGroupsNetBalanceFor(userId: string, groupIds: ReadonlySet<string>): GroupsNetBalance[] {
+  const groups   = useGroupStore(s => s.groups);
+  const expenses = useExpenseStore(s => s.expenses);
+  const payments = usePaymentStore(s => s.payments);
+
+  return useMemo(() => {
+    const totals = new Map<CurrencyCode, number>();
+
+    for (const group of groups) {
+      if (group.isDeleted || !groupIds.has(group.id)) continue;
+      const gExpenses = expenses.filter(e => e.groupId === group.id);
+      const gPayments = pagosQueCuentan(payments, group);
+      const balances  = calculateBalancesByCurrency(gExpenses, gPayments, group.memberIds);
+      const entry     = balances.find(b => b.userId === idCanonico(userId));
+      if (!entry) continue;
+
+      for (const { currency, amount } of entry.balances) {
+        totals.set(currency, (totals.get(currency) ?? 0) + amount);
+      }
+    }
+
+    return Array.from(totals.entries()).map(([currency, net]) => ({ currency, net }));
+  }, [groups, expenses, payments, userId, groupIds]);
+}
+
 // ── Balances globales entre el usuario actual y cada otro usuario ────────────
 // Aplica simplifyDebts a todos los grupos consolidados y filtra las
 // transacciones donde aparece currentUserId.

@@ -7,7 +7,7 @@ import { useArchiveStore } from '@/src/store/archiveStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { usePaymentStore } from '@/src/store/paymentStore';
 import { createSecureStorage } from '@/src/utils/secureStorage';
-import type { Group, User } from '@/src/types/models';
+import type { Expense, Group, User } from '@/src/types/models';
 
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
 jest.mock('expo-router', () => ({ router: { push: jest.fn() } }));
@@ -126,5 +126,63 @@ describe('el encabezado no se mueve al cambiar de pestaña', () => {
     expect(r.getByText('2')).toBeTruthy();   // dos activos
     fireEvent.press(r.getByText('groups.tab_archived'));
     expect(r.getByText('2')).toBeTruthy();   // sigue diciendo dos, no uno
+  });
+});
+
+/**
+ * **"Total total" al pie de la lista (PO 2026-09-22)**: a diferencia de los
+ * cuatro casilleros de arriba (fijos), esto SÍ cambia con la pestaña — es la
+ * cuenta separada de lo que se ve ahora: activos o archivados.
+ */
+describe('"total total" al pie — cambia con la pestaña', () => {
+  const conDosMiembros = (id: string): Group => ({
+    id, name: id, memberIds: ['ana', 'beto'], currency: 'ARS',
+    createdAt: 0, createdById: 'ana', deletionVotes: [], updatedAt: 0, isDeleted: false,
+  } as Group);
+
+  /** Ana pagó 10.000 a medias ⇒ Beto le debe 5.000 (Ana en positivo). */
+  const gastoAnaPaga = (id: string, groupId: string): Expense => ({
+    id, groupId, description: 'x', amount: 1_000_000, currency: 'ARS',
+    paidById: 'ana', splitMode: 'equal',
+    splits: [
+      { userId: 'ana', amount: 500_000, isPaid: true },
+      { userId: 'beto', amount: 500_000, isPaid: false },
+    ],
+    memberIds: ['ana', 'beto'], category: 'other', date: 0, createdAt: 0,
+    createdById: 'ana', deletionVotes: [], updatedAt: 0, isDeleted: false,
+  } as Expense);
+
+  /** Beto pagó 20.000 a medias ⇒ Ana le debe 10.000 (Ana en negativo). */
+  const gastoBetoPaga = (id: string, groupId: string): Expense => ({
+    id, groupId, description: 'y', amount: 2_000_000, currency: 'ARS',
+    paidById: 'beto', splitMode: 'equal',
+    splits: [
+      { userId: 'ana', amount: 1_000_000, isPaid: false },
+      { userId: 'beto', amount: 1_000_000, isPaid: true },
+    ],
+    memberIds: ['ana', 'beto'], category: 'other', date: 0, createdAt: 0,
+    createdById: 'ana', deletionVotes: [], updatedAt: 0, isDeleted: false,
+  } as Expense);
+
+  it('neta los grupos activos visibles, y cambia al pasar a archivados', () => {
+    useGroupStore.setState({ groups: [conDosMiembros('g1'), conDosMiembros('g2')] });
+    useArchiveStore.setState({ archivedIds: ['g2'] });
+    useExpenseStore.setState({ expenses: [
+      gastoAnaPaga('e1', 'g1'),   // activo: +5.000
+      gastoBetoPaga('e2', 'g2'),  // archivado: -10.000
+    ] });
+
+    // Se lee vía props de `MontoRodante`, no el texto ya animado (T-106/T-109:
+    // la primera aparición gira desde una semilla y revela el valor real
+    // recién después de un `setTimeout` de escalonado — no es lo que hay que
+    // probar acá, que es el CÁLCULO, no la animación).
+    const netTotalProps = (r: ReturnType<typeof render>) =>
+      r.UNSAFE_getByProps({ id: 'groups.netTotal' }).props;
+
+    const r = render(<GroupsScreen />);
+    expect(netTotalProps(r)).toMatchObject({ minor: 500_000, prefix: '' });
+
+    fireEvent.press(r.getByText('groups.tab_archived'));
+    expect(netTotalProps(r)).toMatchObject({ minor: -1_000_000, prefix: '-' });
   });
 });

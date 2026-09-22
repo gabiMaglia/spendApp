@@ -6,6 +6,14 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 
 const MARMOL_CLARO = require('../../assets/images/marmol-claro.jpg');
 const MARMOL_OSCURO = require('../../assets/images/marmol-oscuro.jpg');
+// T-137-quater: mismo shader, mismo grosor y forma de veta que el mármol de
+// arriba (ver `scripts/generar-marmol-distendido.py`) — la mitad de vetas por
+// ancho y sin la capa "pelo", para una lectura más distendida y minimalista.
+// No reemplaza al de arriba: es un segundo patrón, para donde el header de
+// arriba ya puso el otro y hace falta distinguir las dos superficies sin
+// repetir la misma textura (Contactos, T-137).
+const MARMOL_CLARO_DISTENDIDO = require('../../assets/images/marmol-claro-distendido.jpg');
+const MARMOL_OSCURO_DISTENDIDO = require('../../assets/images/marmol-oscuro-distendido.jpg');
 
 /**
  * **Fondo de mármol de los headers** (T-105, pedido del PO).
@@ -26,7 +34,7 @@ const MARMOL_OSCURO = require('../../assets/images/marmol-oscuro.jpg');
  * `contentPosition` no aplica con `fill` (no hay recorte que posicionar).
  */
 export function FondoMarmol({
-  style, variante,
+  style, variante, patron = 'header',
 }: {
   style?: StyleProp<ImageStyle>;
   /**
@@ -38,9 +46,20 @@ export function FondoMarmol({
    * donde se juntan sigue leyendo parejo.
    */
   variante?: boolean;
+  /**
+   * Qué textura usar (T-137-quater). `'header'` (default) es la de siempre.
+   * `'distendida'` es un segundo patrón —misma forma de veta, generado con el
+   * mismo shader— pero más espaciado y tenue: para una superficie que no es
+   * el header ni Movimientos y necesita distinguirse sin repetir la misma
+   * foto (Contactos).
+   */
+  patron?: 'header' | 'distendida';
 }) {
   const scheme = useColorScheme() ?? 'light';
-  const fuente = scheme === 'dark' ? MARMOL_OSCURO : MARMOL_CLARO;
+  const oscuro = scheme === 'dark';
+  const fuente = patron === 'distendida'
+    ? (oscuro ? MARMOL_OSCURO_DISTENDIDO : MARMOL_CLARO_DISTENDIDO)
+    : (oscuro ? MARMOL_OSCURO : MARMOL_CLARO);
 
   return (
     <Image

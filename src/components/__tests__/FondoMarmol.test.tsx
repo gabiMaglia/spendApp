@@ -20,6 +20,8 @@ import { useThemeStore } from '@/src/store/themeStore';
  */
 jest.mock('../../../assets/images/marmol-claro.jpg', () => 'ASSET_MARMOL_CLARO', { virtual: true });
 jest.mock('../../../assets/images/marmol-oscuro.jpg', () => 'ASSET_MARMOL_OSCURO', { virtual: true });
+jest.mock('../../../assets/images/marmol-claro-distendido.jpg', () => 'ASSET_MARMOL_CLARO_DISTENDIDO', { virtual: true });
+jest.mock('../../../assets/images/marmol-oscuro-distendido.jpg', () => 'ASSET_MARMOL_OSCURO_DISTENDIDO', { virtual: true });
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { FondoMarmol } = require('../FondoMarmol');
@@ -79,5 +81,33 @@ describe('FondoMarmol', () => {
     const raiz = join(__dirname, '..', '..', '..');
     expect(existsSync(join(raiz, 'assets/images/marmol-claro.jpg'))).toBe(true);
     expect(existsSync(join(raiz, 'assets/images/marmol-oscuro.jpg'))).toBe(true);
+  });
+
+  // T-137-quater: segundo patrón (Contactos) — mismo shader, más espaciado y
+  // tenue, para no repetir la textura del header/Movimientos.
+  describe('patron="distendida"', () => {
+    it('en tema claro usa la textura clara distendida', () => {
+      useThemeStore.setState({ themeChoice: 'light' });
+      const r = render(<FondoMarmol patron="distendida" />);
+      expect(r.UNSAFE_getByType(Image).props.source).toBe('ASSET_MARMOL_CLARO_DISTENDIDO');
+    });
+
+    it('en tema oscuro usa la textura oscura distendida', () => {
+      useThemeStore.setState({ themeChoice: 'dark' });
+      const r = render(<FondoMarmol patron="distendida" />);
+      expect(r.UNSAFE_getByType(Image).props.source).toBe('ASSET_MARMOL_OSCURO_DISTENDIDO');
+    });
+
+    it('sin `patron`, sigue usando la textura de siempre (default "header")', () => {
+      useThemeStore.setState({ themeChoice: 'light' });
+      const r = render(<FondoMarmol />);
+      expect(r.UNSAFE_getByType(Image).props.source).toBe('ASSET_MARMOL_CLARO');
+    });
+
+    it('las texturas distendidas viven en assets/images', () => {
+      const raiz = join(__dirname, '..', '..', '..');
+      expect(existsSync(join(raiz, 'assets/images/marmol-claro-distendido.jpg'))).toBe(true);
+      expect(existsSync(join(raiz, 'assets/images/marmol-oscuro-distendido.jpg'))).toBe(true);
+    });
   });
 });
