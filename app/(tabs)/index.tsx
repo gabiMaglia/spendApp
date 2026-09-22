@@ -562,7 +562,12 @@ const styles = StyleSheet.create({
   movimientosHeader: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     overflow: 'hidden',
-    paddingHorizontal: Spacing.screenPad, paddingTop: Spacing[8], paddingBottom: 9,
+    // paddingTop Spacing[8]→Spacing[5] (PO 2026-09-22): con poco contenido en
+    // el mes, el corte de reposo del scroll (sin scrollear) caía justo acá —
+    // se veía el mármol pero no el texto, porque el texto quedaba centrado
+    // más abajo del punto de corte. Menos aire arriba corre el bloque hacia
+    // arriba lo suficiente para que quede completo antes del corte.
+    paddingHorizontal: Spacing.screenPad, paddingTop: Spacing[5], paddingBottom: 9,
     borderBottomWidth: 1,
   },
   movimientosBold: { fontWeight: '800' },
