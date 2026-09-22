@@ -12,6 +12,8 @@ import 'react-native-get-random-values';
 import '@/src/i18n'; // inicializar i18next antes de cualquier render
 import { bootstrapSecureStorage } from '@/src/utils/secureStorage';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Colors } from '@/src/constants/colors';
+import { syncAndroidNavigationBar } from '@/src/services/androidNavigationBar';
 import { AnimatedSplash } from '@/src/components/AnimatedSplash';
 import { useAuthStore } from '@/src/store/authStore';
 import { useThemeStore } from '@/src/store/themeStore';
@@ -117,6 +119,13 @@ export default function RootLayout() {
   useEffect(() => {
     SplashScreen.hideAsync().catch(() => {});
   }, []);
+
+  // T-137: la barra de tres botones de Android, si no, no hereda el tema
+  // (ver `androidNavigationBar.ts`). No-op en iOS.
+  useEffect(() => {
+    const scheme = colorScheme === 'dark' ? 'dark' : 'light';
+    void syncAndroidNavigationBar(Colors[scheme].bg, scheme);
+  }, [colorScheme]);
 
   // GestureHandlerRootView: los gestos (deslizar para archivar) NO funcionan
   // sin esta raíz, y fallan EN SILENCIO — el swipe simplemente no responde.
