@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import type { CurrencyCode } from '@/src/constants/currencies';
-import type { Expense, Payment } from '@/src/types/models';
+import type { Expense, Payment, PersonalEntry } from '@/src/types/models';
 import { calculateBalancesByCurrency } from '@/src/algorithms/calculateBalances';
 import { directedDebts, type DirectedDebt, type Transferencia } from '@/src/algorithms/directedDebts';
 import { simplifyDebts } from '@/src/algorithms/simplifyDebts';
@@ -14,6 +14,7 @@ import { useExpenseStore } from './expenseStore';
 import { usePaymentStore } from './paymentStore';
 import { useUserStore } from './userStore';
 import { useArchiveStore } from './archiveStore';
+import { usePersonalStore } from './personalStore';
 
 // ── Balance de un grupo específico para un usuario ───────────────────────────
 
@@ -311,7 +312,18 @@ export type ActivityKind =
    * justamente la mitad «ver» del principio que gobierna T-041 — «prevenir no
    * es la defensa; ver y poder deshacer, sí».
    */
-  | { kind: 'expense_restored';       expense: Expense; groupName: string; restoredByName: string };
+  | { kind: 'expense_restored';       expense: Expense; groupName: string; restoredByName: string }
+  /**
+   * Un gasto o ingreso PERSONAL cargado desde la tab Personal (PO 2026-09-22).
+   * No es lo mismo que un `Expense` con `groupId === ''`: son dos modelos
+   * distintos (`usePersonalStore`/`PersonalEntry` vs `useExpenseStore`), y
+   * ESTE feed sólo leía el segundo — un gasto cargado desde Personal nunca
+   * aparecía acá. Sólo `'expense'`/`'income'`: `'group_replicated'` es la
+   * réplica de un gasto de grupo que YA tiene su propio `expense_added`
+   * (mostrarlo de nuevo sería el mismo hecho dos veces), y `'carryover'` es
+   * un total mensual derivado, no algo que haya "pasado" en una fecha.
+   */
+  | { kind: 'personal_entry';         entry: PersonalEntry; groupName: string };
 
 /**
  * `groupName` sintético para los movimientos sin grupo (T-116, PO 2026-09-13:
@@ -323,9 +335,10 @@ export type ActivityKind =
 export const PERSONAL_ACTIVITY_KEY = '__personal__';
 
 export function useActivityFeed(currentUserId: string): ActivityKind[] {
-  const groups   = useGroupStore(s => s.groups);
-  const expenses = useExpenseStore(s => s.expenses);
-  const payments = usePaymentStore(s => s.payments);
+  const groups        = useGroupStore(s => s.groups);
+  const expenses      = useExpenseStore(s => s.expenses);
+  const payments      = usePaymentStore(s => s.payments);
+  const personalEntries = usePersonalStore(s => s.entries);
   const { getUserName } = useUserStore();
 
   return useMemo(() => {
@@ -418,8 +431,14 @@ export function useActivityFeed(currentUserId: string): ActivityKind[] {
       });
     }
 
+    for (const entry of personalEntries) {
+      if (entry.isDeleted) continue;
+      if (entry.kind !== 'expense' && entry.kind !== 'income') continue;
+      events.push({ kind: 'personal_entry', entry, groupName: PERSONAL_ACTIVITY_KEY, _ts: entry.date });
+    }
+
     return events
       .sort((a, b) => b._ts - a._ts)
       .map(({ _ts: _ignored, ...rest }) => rest as ActivityKind);
-  }, [groups, expenses, payments, currentUserId]);
+  }, [groups, expenses, payments, personalEntries, currentUserId]);
 }

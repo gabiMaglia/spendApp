@@ -6,7 +6,8 @@ import { useGroupStore } from '../groupStore';
 import { useExpenseStore } from '../expenseStore';
 import { usePaymentStore } from '../paymentStore';
 import { useUserStore } from '../userStore';
-import type { Expense, Group } from '@/src/types/models';
+import { usePersonalStore } from '../personalStore';
+import type { Expense, Group, PersonalEntry } from '@/src/types/models';
 
 /**
  * T-116 (PO 2026-09-13): la pestaña "Personal" de Actividad necesita que el
@@ -50,10 +51,17 @@ function feed(): ReturnType<typeof useActivityFeed> {
   return out;
 }
 
+const entryPersonal = (over: Partial<PersonalEntry> = {}): PersonalEntry => ({
+  id: 'pe1', kind: 'expense', description: 'Supermercado', amount: 12_000, currency: 'ARS',
+  category: 'other', date: 5_000, createdAt: 0, updatedAt: 0, isDeleted: false, ...over,
+} as PersonalEntry);
+
 beforeEach(() => {
   useGroupStore.setState({ groups: [grupo()] });
+  useExpenseStore.setState({ expenses: [] });
   usePaymentStore.setState({ payments: [] });
   useUserStore.setState({ users: [] });
+  usePersonalStore.setState({ entries: [] });
 });
 
 describe('los movimientos personales entran al feed de Actividad', () => {
@@ -84,5 +92,47 @@ describe('los movimientos personales entran al feed de Actividad', () => {
     useExpenseStore.setState({ expenses: [gastoDeGrupo()] });
     const evs = feed();
     expect(evs.some(e => 'groupName' in e && e.groupName === PERSONAL_ACTIVITY_KEY)).toBe(false);
+  });
+});
+
+/**
+ * **PO 2026-09-22: un `PersonalEntry` (tab Personal) es OTRO modelo, no un
+ * `Expense` con `groupId === ''`.** Antes de esto, `useActivityFeed` sólo
+ * leía `useExpenseStore` — cargar un gasto o ingreso desde la tab Personal
+ * (que crea un `PersonalEntry`, nunca un `Expense`: ver
+ * `app/expense/new.tsx`, rama `!hasGroup`) no tenía forma de aparecer en
+ * Actividad.
+ */
+describe('los PersonalEntry (tab Personal) entran al feed de Actividad', () => {
+  it('un gasto personal cargado desde la tab Personal aparece como personal_entry', () => {
+    usePersonalStore.setState({ entries: [entryPersonal()] });
+    const evs = feed();
+    expect(evs).toMatchObject([{ kind: 'personal_entry', groupName: PERSONAL_ACTIVITY_KEY }]);
+  });
+
+  it('un PersonalEntry borrado no aparece', () => {
+    usePersonalStore.setState({ entries: [entryPersonal({ isDeleted: true })] });
+    expect(feed()).toHaveLength(0);
+  });
+
+  it('un PersonalEntry "group_replicated" no se duplica: ya tiene su expense_added propio', () => {
+    usePersonalStore.setState({ entries: [entryPersonal({ kind: 'group_replicated', sourceGroupExpenseId: 'e1' })] });
+    useExpenseStore.setState({ expenses: [gastoDeGrupo()] });
+
+    const evs = feed();
+    expect(evs.filter(e => e.kind === 'expense_added' || e.kind === 'personal_entry')).toHaveLength(1);
+  });
+
+  it('un PersonalEntry "carryover" no aparece: es un total derivado, no un hecho puntual', () => {
+    usePersonalStore.setState({ entries: [entryPersonal({ kind: 'carryover' })] });
+    expect(feed()).toHaveLength(0);
+  });
+
+  it('convive en el mismo feed con gastos de grupo, ordenado por fecha', () => {
+    useExpenseStore.setState({ expenses: [gastoDeGrupo({ date: 1_000 })] });
+    usePersonalStore.setState({ entries: [entryPersonal({ date: 9_000 })] });
+
+    const evs = feed();
+    expect(evs.map(e => e.kind)).toEqual(['personal_entry', 'expense_added']);
   });
 });

@@ -22,6 +22,9 @@ function camposDe(ev: ActivityKind, nombreDe: (id: string) => string): string[] 
   if (ev.kind === 'payment_made') {
     return [ev.groupName, nombreDe(ev.payment.fromUserId), nombreDe(ev.payment.toUserId)];
   }
+  if (ev.kind === 'personal_entry') {
+    return [ev.groupName, ev.entry.description];
+  }
   const campos = [ev.groupName, ev.expense.description, nombreDe(ev.expense.paidById)];
   if (ev.kind === 'expense_delete_request') campos.push(ev.requestedByName);
   return campos;

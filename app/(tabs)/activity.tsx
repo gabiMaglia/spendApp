@@ -25,6 +25,7 @@ import { useRecordTrust, useVoteTrust, voteRefKey } from '@/src/hooks/useRecordT
 import { emitirVoto } from '@/src/services/deletionVotes';
 import { ActivityLine } from '@/src/components/ActivityLine';
 import type { ActivityKind } from '@/src/store/selectors';
+import type { Expense } from '@/src/types/models';
 import { EmptyState } from '@/src/components/EmptyState';
 import { Band, SectionLabel, Segmented } from '@/src/components/Band';
 import { TabHeader } from '@/src/components/TabHeader';
@@ -107,6 +108,9 @@ export default function ActivityScreen() {
     if (ev.kind === 'expense_added' || ev.kind === 'expense_deleted') {
       return marcaDeGasto[ev.expense.id] ?? 'pendiente';
     }
+    // Un `PersonalEntry` es dato puramente local — no viaja firmado por el
+    // relay (ADR-003), así que no hay nada que verificar: sin insignia.
+    if (ev.kind === 'personal_entry') return 'pendiente';
     const vote = attributedVote(deletionRound(ev.expense, ahora), ev.expense.deletionVotes ?? []);
     return vote ? marcaDeVoto[voteRefKey(ev.expense.id, vote)] ?? 'pendiente' : 'pendiente';
   }
@@ -240,7 +244,27 @@ function getTs(ev: ActivityKind): number {
   if (ev.kind === 'expense_deleted' || ev.kind === 'expense_restored') {
     return ev.expense.updatedAt || ev.expense.date;
   }
+  if (ev.kind === 'personal_entry') return ev.entry.date;
   return ev.payment.date;
+}
+
+/**
+ * **Tu parte de ESE gasto puntual** (PO 2026-09-22): el monto grande de la
+ * fila es el TOTAL del gasto, no lo que te toca a vos — dos personas que
+ * miran la misma fila de "Asado $20.000" no saben, sin abrir el detalle, si
+ * eso las beneficia o las perjudica. Devuelve `null` si no participaste de
+ * este gasto puntual (no hay nada que mostrar), y el signo ya resuelto:
+ * positivo = te deben tu parte, negativo = debés la tuya.
+ */
+function miParteDelGasto(expense: Expense, currentUserId: string): number | null {
+  const miSplit = expense.splits.find(s => mismaPersona(s.userId, currentUserId));
+  if (!miSplit) return null;
+
+  if (mismaPersona(expense.paidById, currentUserId)) {
+    const teDeben = expense.amount - miSplit.amount;
+    return teDeben > 0 ? teDeben : null;
+  }
+  return miSplit.amount > 0 ? -miSplit.amount : null;
 }
 
 /**
@@ -338,14 +362,33 @@ function EventRow({
     const isMe   = mismaPersona(expense.paidById, currentUserId);
     const who    = isMe ? t('common.you') : getUserName(expense.paidById);
     const action = isMe ? t('activity.action_registered_own') : t('activity.action_registered_other');
+    // Sólo tiene sentido en gastos DE GRUPO: un gasto personal no tiene a
+    // nadie más de quien depender, así que no hay "te deben"/"debés" que
+    // mostrar (T-137).
+    const miParte = groupName !== PERSONAL_ACTIVITY_KEY
+      ? miParteDelGasto(expense, currentUserId)
+      : null;
     return row({
       icon: 'add-outline', tint: c.brand.primary, bg: c.brand.primarySoft,
       onPress: () => router.push(`/expense/${expense.id}` as any),
       body: <ActivityLine who={who} action={action} subject={`${expense.description} · ${nombreDeGrupo(groupName)}`} ts={relativeTime(expense.date)} />,
       right: (
-        <Text style={[Typography.amountS, { color: c.text }]}>
-          {formatMoney(expense.amount, expense.currency)}
-        </Text>
+        <View style={{ alignItems: 'flex-end', gap: 2 }}>
+          <Text style={[Typography.amountS, { color: c.text }]}>
+            {formatMoney(expense.amount, expense.currency)}
+          </Text>
+          {miParte !== null && (
+            <Text
+              testID="activity-mi-parte"
+              style={[
+                Typography.caption,
+                { fontWeight: '700', color: miParte > 0 ? c.semantic.positive : c.semantic.negative },
+              ]}
+            >
+              {miParte > 0 ? '+' : '-'}{formatMoney(miParte, expense.currency)}
+            </Text>
+          )}
+        </View>
       ),
     });
   }
@@ -408,6 +451,26 @@ function EventRow({
           subject={`“${expense.description}” · ${nombreDeGrupo(groupName)}`}
           ts={relativeTime(expense.updatedAt || expense.date)}
         />
+      ),
+    });
+  }
+
+  if (event.kind === 'personal_entry') {
+    const { entry } = event;
+    const isIncome = entry.kind === 'income';
+    // Mismo verbo que un gasto de grupo propio ("registraste"): el ícono y el
+    // color ya distinguen ingreso de gasto, no hace falta un verbo aparte.
+    return row({
+      icon: isIncome ? 'trending-up-outline' : 'trending-down-outline',
+      tint: isIncome ? c.brand.primary : c.textSecondary,
+      bg: isIncome ? c.brand.primarySoft : c.hair2,
+      // Sin `onPress`: a diferencia de un gasto de grupo, un `PersonalEntry`
+      // no tiene pantalla de detalle propia — se edita desde la tab Personal.
+      body: <ActivityLine who={t('common.you')} action={t('activity.action_registered_own')} subject={entry.description} ts={relativeTime(entry.date)} />,
+      right: (
+        <Text style={[Typography.amountS, { color: isIncome ? c.semantic.positive : c.text }]}>
+          {formatMoney(entry.amount, entry.currency)}
+        </Text>
       ),
     });
   }
