@@ -14,12 +14,18 @@ jest.mock('expo-navigation-bar', () => ({
   setButtonStyleAsync: (style: string) => mockSetButtonStyleAsync(style),
 }));
 
+const mockModuloNativo = jest.fn((_name: string): object | null => ({}));
+jest.mock('expo-modules-core', () => ({
+  requireOptionalNativeModule: (name: string) => mockModuloNativo(name),
+}));
+
 const platformOriginal = Platform.OS;
 function setPlatformOS(os: string) {
   Object.defineProperty(Platform, 'OS', { value: os, configurable: true, writable: true });
 }
 afterEach(() => {
   jest.clearAllMocks();
+  mockModuloNativo.mockImplementation(() => ({}));
   setPlatformOS(platformOriginal);
 });
 
@@ -56,5 +62,15 @@ describe('syncAndroidNavigationBar', () => {
     mockSetBackgroundColorAsync.mockImplementationOnce(() => Promise.reject(new Error('no')));
 
     await expect(syncAndroidNavigationBar('#FBFAF8', 'light')).resolves.toBeUndefined();
+  });
+
+  it('sin el módulo nativo en el binario (dev client viejo), no intenta importarlo ni hace nada', async () => {
+    setPlatformOS('android');
+    mockModuloNativo.mockImplementation(() => null);
+
+    await syncAndroidNavigationBar('#FBFAF8', 'light');
+
+    expect(mockSetBackgroundColorAsync).not.toHaveBeenCalled();
+    expect(mockSetButtonStyleAsync).not.toHaveBeenCalled();
   });
 });

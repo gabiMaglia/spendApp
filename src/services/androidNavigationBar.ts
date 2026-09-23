@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import { requireOptionalNativeModule } from 'expo-modules-core';
 
 /**
  * Único importador de `expo-navigation-bar` (T-137).
@@ -16,6 +17,10 @@ import { Platform } from 'react-native';
  */
 export async function syncAndroidNavigationBar(bg: string, scheme: 'light' | 'dark'): Promise<void> {
   if (Platform.OS !== 'android') return;
+  // Sin el módulo nativo en el binario instalado (dev client viejo, sin
+  // rebuild), `require('expo-navigation-bar')` tira y el overlay rojo de
+  // desarrollo tapa la app aunque el try/catch lo agarre. Se chequea ANTES.
+  if (!requireOptionalNativeModule('ExpoNavigationBar')) return;
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const NavigationBar = require('expo-navigation-bar');
