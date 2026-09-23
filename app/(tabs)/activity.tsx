@@ -27,7 +27,8 @@ import { ActivityLine } from '@/src/components/ActivityLine';
 import type { ActivityKind } from '@/src/store/selectors';
 import type { Expense } from '@/src/types/models';
 import { EmptyState } from '@/src/components/EmptyState';
-import { Band, SectionLabel, Segmented } from '@/src/components/Band';
+import { Band, Segmented } from '@/src/components/Band';
+import { FondoMarmol } from '@/src/components/FondoMarmol';
 import { TabHeader } from '@/src/components/TabHeader';
 import { useHeaderPadding, useLimiteContenido } from '@/src/components/CollapsibleHeader';
 import { hapticSelection } from '@/src/utils/haptics';
@@ -203,7 +204,7 @@ export default function ActivityScreen() {
         ) : (
           sections.map(({ label, events }, seccionIdx) => (
             <View key={label}>
-              <SectionLabel
+              <ActivitySectionHeader
                 label={label}
                 // T-108: SOLO la primera agrupación (la que sigue al selector
                 // de filtro) dobla su aire de arriba (22 → 44, redondeado a
@@ -220,7 +221,7 @@ export default function ActivityScreen() {
                   ) : undefined
                 }
               />
-              <Band>
+              <Band noTop>
                 {events.map((ev, i) => (
                   <EventRow
                     key={i}
@@ -240,6 +241,35 @@ export default function ActivityScreen() {
 
       <TabHeader title={t('activity.title')} progress={progress} />
     </SafeAreaView>
+  );
+}
+
+/**
+ * **Separador de temporalidad ("Hoy"/"Ayer"/"Antes") con mármol** (PO
+ * 2026-09-22). Antes era un `SectionLabel` plano — mismo lenguaje que
+ * `MovimientosHeader`/`ContactosCountHeader`: mármol de fondo, UN solo
+ * borde —el de abajo—, sin borde arriba. Patrón "franja" (misma textura
+ * angosta que ya usan el navegador de mes y el total de Grupos).
+ */
+/** Aire de arriba por defecto (no-primera sección) — igual al viejo `SectionLabel`. */
+const SECTION_HEADER_TOP = 22;
+
+function ActivitySectionHeader({
+  label, topOverride, right,
+}: { label: string; topOverride?: number; right?: React.ReactNode }) {
+  const scheme = useColorScheme() ?? 'light';
+  const c = Colors[scheme];
+  return (
+    <View style={[
+      styles.sectionHeader,
+      { borderBottomColor: c.hair, paddingTop: topOverride ?? SECTION_HEADER_TOP },
+    ]}>
+      <FondoMarmol patron="franja" />
+      <Text style={[Typography.label, styles.sectionHeaderBold, { color: c.textTertiary }]}>
+        {label}
+      </Text>
+      {right}
+    </View>
   );
 }
 
@@ -524,6 +554,13 @@ const styles = StyleSheet.create({
     borderRadius: Radius.md, borderWidth: 1,
   },
   unseenBadge: { paddingHorizontal: 9, paddingVertical: 3, borderRadius: Radius.full },
+  sectionHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    overflow: 'hidden',
+    paddingHorizontal: Spacing.screenPad, paddingTop: SECTION_HEADER_TOP, paddingBottom: 9,
+    borderBottomWidth: 1,
+  },
+  sectionHeaderBold: { fontWeight: '800' },
   row:         {
     flexDirection: 'row', gap: 13, alignItems: 'flex-start',
     paddingHorizontal: Spacing.screenPad, paddingVertical: 13,
