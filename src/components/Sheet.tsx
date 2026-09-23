@@ -11,6 +11,7 @@ import { Colors } from '@/src/constants/colors';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useAnimacionesReducidas } from '@/src/hooks/useAnimacionesReducidas';
 import { UserAvatar } from './UserAvatar';
 
 /**
@@ -109,6 +110,14 @@ export function BottomSheet({
   const insets = useSafeAreaInsets();
   const alturaTeclado = useAlturaTeclado();
 
+  // Reducir animaciones (PO 2026-09-22): `null` (todavía no sabemos) se trata
+  // como "sí animar" — un sheet puede abrirse antes de que la consulta de
+  // accesibilidad resuelva, y ese primer fade de 180ms no vale la pena
+  // bloquear. `duration: 0` en vez de saltear `Animated.timing` entero: así
+  // el valor final (`toValue`) y el callback de salida (`setMontado(false)`)
+  // siguen el mismo camino, sin duplicar la lógica de montado/desmontado.
+  const sinAnimacion = useAnimacionesReducidas() === true;
+
   // El modal sigue montado durante la salida: si se desmontara al soltar
   // `visible`, la hoja desaparecería de golpe y el fade de salida no se vería.
   const [montado, setMontado] = useState(visible);
@@ -118,16 +127,16 @@ export function BottomSheet({
     if (visible) {
       setMontado(true);
       Animated.timing(anim, {
-        toValue: 1, duration: ENTRADA_MS,
+        toValue: 1, duration: sinAnimacion ? 0 : ENTRADA_MS,
         easing: Easing.out(Easing.quad), useNativeDriver: true,
       }).start();
       return;
     }
     Animated.timing(anim, {
-      toValue: 0, duration: SALIDA_MS,
+      toValue: 0, duration: sinAnimacion ? 0 : SALIDA_MS,
       easing: Easing.in(Easing.quad), useNativeDriver: true,
     }).start(({ finished }) => { if (finished) setMontado(false); });
-  }, [visible, anim]);
+  }, [visible, anim, sinAnimacion]);
 
   const Body: any = scroll ? ScrollView : View;
   const bodyProps = scroll
@@ -185,54 +194,69 @@ export function BottomSheet({
           no hiciera nada.
         */}
         <Animated.View style={[styles.kav, { paddingBottom: alturaTeclado }]}>
-          <Animated.View style={[styles.sheet, {
+          {/*
+            **Dos `Animated.View` separados, no uno** (PO 2026-09-22): `opacity`/
+            `transform` van con `useNativeDriver:true` (el mount/unmount de arriba)
+            y el `paddingBottom` de acá abajo va con `useNativeDriver:false` (el
+            teclado). Mezclados en el MISMO nodo, React Native arma una sola config
+            nativa para todo el estilo apenas detecta que algo ahí quiere driver
+            nativo — y `paddingBottom` no es un estilo soportado por ese módulo:
+            tira el warning rojo "Style property 'paddingBottom' is not supported
+            by native animated module" y el achique por teclado no llegaba a
+            aplicarse bien (la hoja quedaba tapada). Separados en dos nodos, cada
+            uno pide sólo el driver que le corresponde.
+          */}
+          <Animated.View style={{
             opacity: anim,
             transform: [{
               translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [ALZADA, 0] }),
             }],
-            backgroundColor: c.surface,
-            // El inset despeja la barra de gestos; NO es espacio de diseño. Sumarlos
-            // daba 46px abajo (34 de inset + 12) contra 24 arriba, y con el padding
-            // de la última fila encima quedaban 60 de hueco. Se usa el mayor.
-            //
-            // **Con el teclado arriba, este padding se cae** (PO 2026-09-22): el
-            // contenedor de arriba YA sumó el alto del teclado empujando toda la
-            // hoja — sumarle ADEMÁS el inset de home indicator duplicaba el hueco,
-            // y esa tira extra (antes invisible, recortada por el borde de la
-            // pantalla) quedaba flotando arriba del teclado con las esquinas
-            // cuadradas a la vista: el "final del bottom" que se veía raro.
-            // `interpolate` en vez de un booleano: así el achique acompaña la
-            // MISMA animación del teclado en vez de saltar en un solo frame.
-            paddingBottom: alturaTeclado.interpolate({
-              inputRange: [0, 1],
-              outputRange: [Math.max(insets.bottom, Spacing[4]), Spacing[4]],
-              extrapolate: 'clamp',
-            }),
-          }]}>
-            <View style={[styles.grabber, { backgroundColor: c.hair }]} />
+          }}>
+            <Animated.View style={[styles.sheet, {
+              backgroundColor: c.surface,
+              // El inset despeja la barra de gestos; NO es espacio de diseño. Sumarlos
+              // daba 46px abajo (34 de inset + 12) contra 24 arriba, y con el padding
+              // de la última fila encima quedaban 60 de hueco. Se usa el mayor.
+              //
+              // **Con el teclado arriba, este padding se cae** (PO 2026-09-22): el
+              // contenedor de arriba YA sumó el alto del teclado empujando toda la
+              // hoja — sumarle ADEMÁS el inset de home indicator duplicaba el hueco,
+              // y esa tira extra (antes invisible, recortada por el borde de la
+              // pantalla) quedaba flotando arriba del teclado con las esquinas
+              // cuadradas a la vista: el "final del bottom" que se veía raro.
+              // `interpolate` en vez de un booleano: así el achique acompaña la
+              // MISMA animación del teclado en vez de saltar en un solo frame.
+              paddingBottom: alturaTeclado.interpolate({
+                inputRange: [0, 1],
+                outputRange: [Math.max(insets.bottom, Spacing[4]), Spacing[4]],
+                extrapolate: 'clamp',
+              }),
+            }]}>
+              <View style={[styles.grabber, { backgroundColor: c.hair }]} />
 
-            {title ? (
-              <View style={[styles.titleRow, { borderBottomColor: c.hair }]}>
-                <Text style={[styles.title, { color: c.text }]} numberOfLines={1}>{title}</Text>
-                <Pressable onPress={onClose} hitSlop={12} style={styles.closeBtn}>
-                  <Ionicons name="close" size={20} color={c.textTertiary} />
-                </Pressable>
-              </View>
-            ) : null}
+              {title ? (
+                <View style={[styles.titleRow, { borderBottomColor: c.hair }]}>
+                  <Text style={[styles.title, { color: c.text }]} numberOfLines={1}>{title}</Text>
+                  <Pressable onPress={onClose} hitSlop={12} style={styles.closeBtn}>
+                    <Ionicons name="close" size={20} color={c.textTertiary} />
+                  </Pressable>
+                </View>
+              ) : null}
 
-            <Body
-              style={styles.body}
-              {...(scroll
-                ? { contentContainerStyle: styles.bodyPad }
-                : { }) as object}
-              {...bodyProps}
-            >
-              {scroll ? children : <View style={styles.bodyPad}>{children}</View>}
-            </Body>
+              <Body
+                style={styles.body}
+                {...(scroll
+                  ? { contentContainerStyle: styles.bodyPad }
+                  : { }) as object}
+                {...bodyProps}
+              >
+                {scroll ? children : <View style={styles.bodyPad}>{children}</View>}
+              </Body>
 
-            {footer ? (
-              <View style={[styles.footer, { borderTopColor: c.hair }]}>{footer}</View>
-            ) : null}
+              {footer ? (
+                <View style={[styles.footer, { borderTopColor: c.hair }]}>{footer}</View>
+              ) : null}
+            </Animated.View>
           </Animated.View>
         </Animated.View>
       </GestureHandlerRootView>

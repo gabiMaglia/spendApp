@@ -136,6 +136,7 @@ export default function UserScreen() {
     notifDeletions, setNotifDeletions,
     notifInvites, setNotifInvites,
     notifSettlements, setNotifSettlements,
+    reduceAnimations, setReduceAnimations,
   } = useSettingsStore();
   const displayCurrency    = useSettingsStore(s => s.displayCurrency);
   const setDisplayCurrency = useSettingsStore(s => s.setDisplayCurrency);
@@ -401,6 +402,20 @@ export default function UserScreen() {
           <ToggleRow label={t('profile.notif_settlements')} value={notifSettlements} onChange={setNotifSettlements} last />
         </Band>
 
+        {/* Rendimiento (PO 2026-09-22): apaga el odómetro de números y la
+            animación de entrada/salida de los sheets — pensado para equipos
+            de gama baja, pero visible y disponible para cualquiera. */}
+        <SectionLabel label={t('profile.section_performance')} />
+        <Band>
+          <ToggleRow
+            label={t('profile.reduce_animations')}
+            sub={t('profile.reduce_animations_sub')}
+            value={reduceAnimations}
+            onChange={setReduceAnimations}
+            last
+          />
+        </Band>
+
         {/* Apariencia */}
         <SectionLabel label={t('profile.section_appearance')} />
         <Band>
@@ -557,13 +572,20 @@ export default function UserScreen() {
 }
 
 function ToggleRow({
-  label, value, onChange, last,
-}: { label: string; value: boolean; onChange: (v: boolean) => void; last?: boolean }) {
+  label, value, onChange, last, sub,
+}: {
+  label: string; value: boolean; onChange: (v: boolean) => void; last?: boolean;
+  /** Segunda línea, para las filas que necesitan aclarar qué hacen. */
+  sub?: string;
+}) {
   const scheme = useColorScheme() ?? 'light';
   const c = Colors[scheme];
   return (
     <BandRow last={last}>
-      <Text style={[Typography.bodyL, { color: c.text, flex: 1 }]}>{label}</Text>
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text style={[Typography.bodyL, { color: c.text }]}>{label}</Text>
+        {sub ? <Text style={[Typography.caption, { color: c.textTertiary }]}>{sub}</Text> : null}
+      </View>
       <Switch
         value={value}
         onValueChange={onChange}

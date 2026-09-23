@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { createStorage } from '@/src/utils/createStorage';
 import { readScoped, readScopedBool, writeScoped, writeScopedBool } from './userScope';
 import { SUPPORTED_CURRENCIES, type CurrencyCode } from '@/src/constants/currencies';
+import { esDispositivoDeGamaBaja } from '@/src/utils/deviceTier';
 
 const storage = createStorage('settings');
 
@@ -11,6 +12,7 @@ const KEYS = {
   NOTIF_INVITES:   'notif_invites',
   NOTIF_SETTLEMENTS:'notif_settlements',
   DISPLAY_CURRENCY:'display_currency',
+  REDUCE_ANIMATIONS:'reduce_animations',
 } as const;
 
 /**
@@ -30,12 +32,21 @@ interface SettingsState {
   notifInvites: boolean;
   notifSettlements: boolean;
   displayCurrency: CurrencyCode;
+  /**
+   * "Reducir animaciones" (PO 2026-09-22): apaga el odómetro de `MontoRodante`
+   * y la entrada/salida animada de los sheets. Default = heurístico de
+   * `esDispositivoDeGamaBaja()` — sólo hasta que el usuario toque el toggle
+   * en "Yo": a partir de ahí gana siempre su elección guardada, sin importar
+   * lo que diga el heurístico.
+   */
+  reduceAnimations: boolean;
 
   setDisplayCurrency: (code: CurrencyCode) => void;
   setNotifExpenses: (value: boolean) => void;
   setNotifDeletions: (value: boolean) => void;
   setNotifInvites: (value: boolean) => void;
   setNotifSettlements: (value: boolean) => void;
+  setReduceAnimations: (value: boolean) => void;
   hydrate: () => void;
 }
 
@@ -50,6 +61,7 @@ export function createSettingsStore() {
     notifInvites:   true,
     notifSettlements: true,
     displayCurrency: DEFAULT_DISPLAY_CURRENCY,
+    reduceAnimations: esDispositivoDeGamaBaja(),
 
     setDisplayCurrency: (code) => {
       writeScoped(storage, KEYS.DISPLAY_CURRENCY, code);
@@ -72,6 +84,10 @@ export function createSettingsStore() {
       writeScopedBool(storage, KEYS.NOTIF_SETTLEMENTS, value);
       set({ notifSettlements: value });
     },
+    setReduceAnimations: (value) => {
+      writeScopedBool(storage, KEYS.REDUCE_ANIMATIONS, value);
+      set({ reduceAnimations: value });
+    },
 
     hydrate: () => {
       set({
@@ -79,6 +95,10 @@ export function createSettingsStore() {
         notifDeletions: readScopedBool(storage, KEYS.NOTIF_DELETIONS, true),
         notifInvites:   readScopedBool(storage, KEYS.NOTIF_INVITES, true),
         notifSettlements: readScopedBool(storage, KEYS.NOTIF_SETTLEMENTS, true),
+        // Default = heurístico de gama baja, no `false`: así un equipo viejo
+        // arranca con las animaciones ya apagadas sin que nadie tenga que
+        // encontrar el toggle primero.
+        reduceAnimations: readScopedBool(storage, KEYS.REDUCE_ANIMATIONS, esDispositivoDeGamaBaja()),
         // Un código guardado que ya no exista (data vieja, moneda retirada de
         // la lista) cae al default en vez de dejar la app pidiendo una tasa
         // para una moneda que no existe.

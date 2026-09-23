@@ -1,7 +1,15 @@
+import { Platform } from 'react-native';
 import { createSettingsStore, useSettingsStore } from '../settingsStore';
 import { createStorage } from '@/src/utils/createStorage';
 import { useAuthStore } from '../authStore';
 import type { User } from '@/src/types/models';
+
+// Mismo truco que `deviceTier.test.ts`: `Platform.OS`/`Version` son getters
+// (sin setter) en el mock de jest-expo — hay que pisarlos con `defineProperty`.
+function setPlatform(os: 'android' | 'ios', version: number | string): void {
+  Object.defineProperty(Platform, 'OS', { value: os, configurable: true });
+  Object.defineProperty(Platform, 'Version', { value: version, configurable: true });
+}
 
 const USER_A = { id: 'userA' } as User;
 const USER_B = { id: 'userB' } as User;
@@ -15,6 +23,7 @@ describe('settingsStore (preferencias por cuenta)', () => {
     createStorage('settings').clearAll();
     setActive(USER_A);
     useSettingsStore.setState({ notifExpenses: true, notifDeletions: true, notifInvites: true });
+    setPlatform('ios', '17.0'); // default: heurístico de gama baja da `false`.
   });
 
   it('los 3 flags arrancan en true', () => {
@@ -64,5 +73,44 @@ describe('settingsStore (preferencias por cuenta)', () => {
     useSettingsStore.getState().setNotifExpenses(false); // no-op sin cuenta
     useSettingsStore.getState().hydrate();
     expect(useSettingsStore.getState().notifExpenses).toBe(true);
+  });
+
+  describe('reduceAnimations', () => {
+    it('default sale del heurístico de gama baja: encendido en Android viejo', () => {
+      setPlatform('android', 26);
+      const fresh = createSettingsStore();
+      fresh.getState().hydrate();
+      expect(fresh.getState().reduceAnimations).toBe(true);
+    });
+
+    it('default sale del heurístico de gama baja: apagado en un equipo moderno', () => {
+      setPlatform('android', 34);
+      const fresh = createSettingsStore();
+      fresh.getState().hydrate();
+      expect(fresh.getState().reduceAnimations).toBe(false);
+    });
+
+    it('una vez que el usuario lo toca, su elección persiste y pisa al heurístico', () => {
+      setPlatform('ios', '17.0'); // heurístico daría `false`
+      useSettingsStore.getState().setReduceAnimations(true);
+
+      const fresh = createSettingsStore();
+      fresh.getState().hydrate();
+      expect(fresh.getState().reduceAnimations).toBe(true);
+    });
+
+    it('aísla por cuenta, igual que los demás flags', () => {
+      setPlatform('android', 26); // heurístico: gama baja
+      setActive(USER_A);
+      useSettingsStore.getState().setReduceAnimations(false); // A lo apaga a mano
+
+      setActive(USER_B);
+      useSettingsStore.getState().hydrate();
+      expect(useSettingsStore.getState().reduceAnimations).toBe(true); // B ve el heurístico, no lo de A
+
+      setActive(USER_A);
+      useSettingsStore.getState().hydrate();
+      expect(useSettingsStore.getState().reduceAnimations).toBe(false);
+    });
   });
 });

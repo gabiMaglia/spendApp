@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  AccessibilityInfo, StyleSheet, Text, View, type StyleProp, type TextStyle,
+  StyleSheet, Text, View, type StyleProp, type TextStyle,
 } from 'react-native';
 import { NumberFlow } from 'number-flow-react-native';
 import { Easing } from 'react-native-reanimated';
@@ -12,6 +12,7 @@ import {
   debeRodar, numeroSemilla, proximoRetrasoDeEntrada, registroDeMontosDeLaApp,
   type MontoRegistry,
 } from '@/src/utils/montoRodanteRegistry';
+import { useAnimacionesReducidas } from '@/src/hooks/useAnimacionesReducidas';
 
 /**
  * Timing más corto que el default de la librería (~900ms — ver
@@ -136,19 +137,15 @@ function MontoRodanteInterno({
   id, minor, code, prefix = '', style, testID, registry = registroDeMontosDeLaApp,
   pending = false, pendingAccessibilityLabel,
 }: MontoRodanteProps) {
-  // `null` = todavía no sabemos (la consulta es async). Arrancar en `false`
-  // por default causaba que la primera aparición SIEMPRE aplicara una semilla
-  // antes de que la consulta real resolviera, incluso con "reducir
-  // movimiento" activado — se detectó con el propio test.
-  const [reducido, setReducido] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    let vivo = true;
-    AccessibilityInfo.isReduceMotionEnabled()
-      .then(v => { if (vivo) setReducido(v); })
-      .catch(() => { if (vivo) setReducido(false); });
-    return () => { vivo = false; };
-  }, []);
+  // `null` = todavía no sabemos (la consulta de accesibilidad es async).
+  // Arrancar en `false` por default causaba que la primera aparición SIEMPRE
+  // aplicara una semilla antes de que la consulta real resolviera, incluso
+  // con "reducir movimiento" activado — se detectó con el propio test.
+  //
+  // Fuente única (PO 2026-09-22): antes esta consulta vivía sólo acá; ahora
+  // `useAnimacionesReducidas` también suma el toggle manual "Reducir
+  // animaciones" de Yo (ver `settingsStore`), sin cambiar en nada esta lógica.
+  const reducido = useAnimacionesReducidas();
 
   const absMinor = Math.abs(minor);
   const valorReal = code ? absMinor / minorFactor(code) : minor;
