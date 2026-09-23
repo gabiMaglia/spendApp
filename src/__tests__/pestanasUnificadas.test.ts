@@ -17,8 +17,11 @@ const leer = (rel: string) => readFileSync(join(RAIZ, rel), 'utf8');
 const CON_PESTANAS = [
   'app/expense/new.tsx',
   'app/contact/add.tsx',
-  'app/(tabs)/groups.tsx',
-  'app/(tabs)/activity.tsx',
+  // Refactor 2026-09-23: los selectores de Grupos y Actividad viven en su
+  // propio componente, no en la screen — ver `src/screens/groups/` y
+  // `src/screens/activity/`.
+  'src/screens/groups/components/GroupsTabSelector.tsx',
+  'src/screens/activity/components/ActivityFilterTabs.tsx',
   'src/components/NoticeInboxSheet.tsx',
   // T-118 (PO 2026-09-13): el selector de repetición del alta de gasto pasa
   // al mismo estilo "T invertida" en fila deslizable.
@@ -34,7 +37,10 @@ describe('pestañas unificadas', () => {
   it.each(CON_PESTANAS)('%s usa Segmented variant="tabs" con íconos', archivo => {
     const src = leer(archivo);
     expect(src).toMatch(/<Segmented[\s\S]*?variant="tabs"/);
-    expect(src).toMatch(/icon:\s*'[a-z-]+-outline'/);
+    // Tolera un ternario entre `icon:` y el string (ActivityFilterTabs.tsx
+    // arma el ícono con `icon: cond ? 'x-outline' : ...`, no un literal
+    // pegado a la clave).
+    expect(src).toMatch(/icon:[\s\S]{0,80}?'[a-z-]+-outline'/);
   });
 
   /**

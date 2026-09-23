@@ -1,71 +1,34 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { TabHeader } from '@/src/components/TabHeader';
-import {
-  Alert, Pressable, StyleSheet, Text, View,
-} from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useHeaderColapsable } from '@/src/hooks/useHeaderColapsable';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 
 import { Colors } from '@/src/constants/colors';
-import { Radius, Spacing } from '@/src/constants/spacing';
-import { Typography } from '@/src/constants/typography';
+import { Spacing } from '@/src/constants/spacing';
 import { formatMoney } from '@/src/constants/currencies';
-import { MoneyText } from '@/src/components/MoneyText';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { Fab, FabRow } from '@/src/components/Fab';
-import {
-  Band, BandRow, Meter, SplitStat, StatLead,
-} from '@/src/components/Band';
-import { FondoMarmol } from '@/src/components/FondoMarmol';
+import { Fab, FabRow, FAB_BOTTOM_GAP, FAB_HEIGHT } from '@/src/components/Fab';
+import { SplitStat, StatLead } from '@/src/components/Band';
 import { BudgetSheet } from '@/src/components/BudgetSheet';
 import { useHeaderPadding, useLimiteContenido } from '@/src/components/CollapsibleHeader';
-import { useAuthStore } from '@/src/store/authStore';
-import { useGroupStore } from '@/src/store/groupStore';
-import { esYo } from '@/src/store/identityAlias';
-import { usePersonalStore, toMonthKey, currentMonthKey } from '@/src/store/personalStore';
-import { reasonKey } from '@/src/algorithms/entryOrigin';
-import { useDirectedDebts, useGlobalPersonBalances } from '@/src/store/selectors';
-import { hapticLight, hapticSelection, hapticWarning } from '@/src/utils/haptics';
-import { v4 as uuidv4 } from 'uuid';
-import type { PersonalEntry } from '@/src/types/models';
+import { usePersonalStore, toMonthKey } from '@/src/store/personalStore';
 import { useTranslation } from 'react-i18next';
-import i18n from '@/src/i18n';
-import { totalIOwe, totalOwedToMe } from '@/src/algorithms/directedDebts';
-import { repartirDelMes, type BucketPersonal } from '@/src/algorithms/personalMonth';
-import { useFx } from '@/src/store/useFx';
 import { UnconvertedNotice } from '@/src/components/UnconvertedNotice';
-import { sumConverted } from '@/src/services/fxTotals';
-import { syncedNow } from '@/src/utils/syncedClock';
 import { capitalizar } from '@/src/utils/capitalizar';
 
-function monthLabel(key: string): string {
-  const [year, month] = key.split('-').map(Number);
-  const d = new Date(year, month - 1, 1);
-  const s = d.toLocaleDateString(i18n.language, { month: 'long', year: 'numeric' });
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}
-
-function prevMonth(key: string): string {
-  const [year, month] = key.split('-').map(Number);
-  const d = new Date(year, month - 2, 1);
-  return toMonthKey(d.getTime());
-}
-
-function nextMonth(key: string): string {
-  const [year, month] = key.split('-').map(Number);
-  const d = new Date(year, month, 1);
-  return toMonthKey(d.getTime());
-}
-
-const ENTRY_KIND_META = {
-  expense:         { icon: 'trending-down-outline' as const, labelKey: 'personal.kind_expense' },
-  income:          { icon: 'trending-up-outline'   as const, labelKey: 'personal.kind_income' },
-  group_replicated:{ icon: 'people-outline'        as const, labelKey: 'personal.kind_group' },
-  carryover:       { icon: 'refresh-outline'       as const, labelKey: 'personal.kind_carryover' },
-};
+import { monthLabel } from '@/src/screens/personal/utils/monthLabel';
+import { usePersonalDebtsAndGroups } from '@/src/screens/personal/hooks/usePersonalDebtsAndGroups';
+import { usePersonalMonthTotals } from '@/src/screens/personal/hooks/usePersonalMonthTotals';
+import { useMonthRollover } from '@/src/screens/personal/hooks/useMonthRollover';
+import { useBudgetSummary } from '@/src/screens/personal/hooks/useBudgetSummary';
+import { useRemoveEntry } from '@/src/screens/personal/hooks/useRemoveEntry';
+import { PersonalMonthNav } from '@/src/screens/personal/components/PersonalMonthNav';
+import { PersonalBudgetMeter } from '@/src/screens/personal/components/PersonalBudgetMeter';
+import { MovimientosHeader } from '@/src/screens/personal/components/MovimientosHeader';
+import { MovimientosList } from '@/src/screens/personal/components/MovimientosList';
 
 export default function PersonalScreen() {
   const scheme = useColorScheme() ?? 'light';
@@ -76,174 +39,28 @@ export default function PersonalScreen() {
   const { t } = useTranslation();
   const c = Colors[scheme];
 
-  const { currentUser } = useAuthStore();
-  // capitalizar (PO 2026-09-22): el nombre se guarda tal como se tipeó — si
-  // alguien lo escribió en minúscula, el saludo lo mostraba así. La UI es
-  // quien prolija la primera letra, sin tocar el dato guardado.
-  const firstName = capitalizar(currentUser?.name?.split(' ')[0] ?? 'vos');
-  const { entries, budget, removeEntry, lastSeenMonth } = usePersonalStore();
-  useGlobalPersonBalances(currentUser?.id ?? '');
-
   const today = toMonthKey(Date.now());
   const [activeMonth, setActiveMonth] = useState(today);
   const [showBudgetSheet, setShowBudgetSheet] = useState(false);
+  const [avisoVisto, setAvisoVisto] = useState(false);
+  const atCurrentMonth = activeMonth >= today;
 
   /** Scroll del header colapsable. */
   const { scrollHandler, progress, contenidoMinimo, alMedirScroll } = useHeaderColapsable();
 
-  const { fx, display: cur, loading: fxLoading } = useFx();
-  const [avisoVisto, setAvisoVisto] = useState(false);
+  const { cur, monthEntries, entriesOrdenadas, totalIncome, totalExpense, totalGroup,
+    totalSpent, positiveCarryover, pendientes, personalPending } = usePersonalMonthTotals(activeMonth);
+  const { currentUser, owedToMe, youOwe, misGrupos } = usePersonalDebtsAndGroups(cur);
+  useMonthRollover(usePersonalStore(s => s.lastSeenMonth), owedToMe);
+  const { budget, effectiveBudget, remaining, pct, hasBudget, disponibleTrasSaldar } = useBudgetSummary({
+    totalIncome, positiveCarryover, totalSpent, owedToMe, youOwe,
+  });
+  const handleRemove = useRemoveEntry();
 
-  const deudas = useDirectedDebts(currentUser?.id ?? '');
-  const owedToMe = useMemo(() => totalOwedToMe(deudas, cur), [deudas, cur]);
-  const youOwe   = useMemo(() => totalIOwe(deudas, cur), [deudas, cur]);
-
-  const groups = useGroupStore(st => st.groups);
-  const misGrupos = useMemo(
-    () => groups.filter(g => !g.isDeleted && !!currentUser && g.memberIds.some(esYo)),
-    [groups, currentUser],
-  );
-
-  const owedToMeRef = useRef(owedToMe);
-  useEffect(() => { owedToMeRef.current = owedToMe; }, [owedToMe]);
-
-  // Month-rollover: sin cambios respecto del original (ADR-005/006).
-  useEffect(() => {
-    const thisMonth = currentMonthKey();
-    if (!lastSeenMonth || lastSeenMonth >= thisMonth) return;
-
-    const { entries: allEntries, budget: curBudget, addEntry: add, setLastSeenMonth: setSeen } =
-      usePersonalStore.getState();
-    const cy = curBudget.currency;
-
-    const alreadyCarried = allEntries.some(
-      e => !e.isDeleted && e.kind === 'carryover' && toMonthKey(e.date) === thisMonth,
-    );
-    if (alreadyCarried) { setSeen(thisMonth); return; }
-
-    const prevEntries = allEntries.filter(
-      e => !e.isDeleted && e.currency === cy && toMonthKey(e.date) === lastSeenMonth,
-    );
-
-    const prevIncome   = prevEntries.filter(e => e.kind === 'income').reduce((s, e) => s + e.amount, 0);
-    const prevExpense  = prevEntries.filter(e => e.kind === 'expense').reduce((s, e) => s + e.amount, 0);
-    const prevGroup    = prevEntries.filter(e => e.kind === 'group_replicated').reduce((s, e) => s + e.amount, 0);
-    const prevPosCarry = prevEntries.filter(e => e.kind === 'carryover' && e.isPositiveCarryover).reduce((s, e) => s + e.amount, 0);
-    const prevNegCarry = prevEntries.filter(e => e.kind === 'carryover' && !e.isPositiveCarryover).reduce((s, e) => s + e.amount, 0);
-
-    const prevEffective = curBudget.monthlyAmount + prevIncome + prevPosCarry +
-      (curBudget.includeOwedToMe ? owedToMeRef.current : 0);
-    const prevSpent     = prevExpense + prevGroup + prevNegCarry;
-    const prevRemaining = prevEffective - prevSpent;
-
-    if (Math.abs(prevRemaining) >= 0.01) {
-      const firstOfMonth = new Date(`${thisMonth}-01T12:00:00`).getTime();
-      add({
-        id:                  uuidv4(),
-        kind:                'carryover',
-        isPositiveCarryover: prevRemaining > 0,
-        description:         `Saldo de ${monthLabel(lastSeenMonth)}`,
-        amount:              Math.abs(prevRemaining),
-        currency:            cy,
-        category:            'other',
-        date:                firstOfMonth,
-        createdAt:           Date.now(),
-        updatedAt:           syncedNow(),
-        isDeleted:           false,
-      });
-    }
-
-    setSeen(thisMonth);
-  }, [lastSeenMonth]);
-
-  const monthEntries = useMemo(
-    () => entries.filter(e => !e.isDeleted && toMonthKey(e.date) === activeMonth),
-    [entries, activeMonth],
-  );
-
-  // Memoizado (PO 2026-09-22, rendimiento en gama baja): antes se ordenaba
-  // en el JSX, en CADA render de la pantalla (cambiar de tema, abrir el
-  // BudgetSheet, etc.), aunque `monthEntries` no hubiera cambiado un pelo.
-  const entriesOrdenadas = useMemo(
-    () => [...monthEntries].sort((a, b) => b.date - a.date),
-    [monthEntries],
-  );
-
-  const sumar = (pred: (e: PersonalEntry) => boolean) =>
-    sumConverted(
-      monthEntries.filter(pred).map(e => ({ currency: e.currency, minor: e.amount })),
-      cur, fx,
-    );
-
-  const baldes   = repartirDelMes(monthEntries);
-  const porBalde = (b: BucketPersonal) => sumar(e => baldes[b].includes(e));
-  const income   = porBalde('income');
-  const expense  = porBalde('expense');
-  const group    = porBalde('group');
-  const carryPos = porBalde('carryPos');
-  const carryNeg = porBalde('carryNeg');
-
-  const totalIncome       = income.totalMinor;
-  const totalExpense      = expense.totalMinor;
-  const totalGroup        = group.totalMinor;
-  const positiveCarryover = carryPos.totalMinor;
-  const negativeCarryover = carryNeg.totalMinor;
-  const totalSpent        = totalExpense + totalGroup + negativeCarryover;
-
-  const pendientes = [...expense.unconverted, ...group.unconverted];
-
-  // T-109: cualquiera de los baldes que compone "Gastado"/"Disponible" puede
-  // haber quedado afuera por falta de cache (no por tasa ausente) — mientras
-  // el fetch siga en vuelo, los dos montos muestran `--` en vez de un total
-  // parcial que después salta al real.
-  const personalPending = fxLoading
-    && (income.pending || expense.pending || group.pending || carryPos.pending || carryNeg.pending);
-  const pendingCalculando = t('fx.calculating');
-
-  const baseBudget      = budget.monthlyAmount;
-  const effectiveBudget = baseBudget + totalIncome + positiveCarryover + (budget.includeOwedToMe ? owedToMe : 0);
-  const remaining       = effectiveBudget - totalSpent;
-  const pct             = effectiveBudget > 0 ? Math.min(totalSpent / effectiveBudget, 1) : 0;
-  const hasBudget       = baseBudget > 0;
-
-  /**
-   * "Disponible tras saldar" (T-137): tiene que descontar lo que debés Y
-   * sumar lo que te deben — las DOS direcciones, siempre, una sola vez cada
-   * una. `remaining` no sirve de base directa: si "Incluir lo que me deben"
-   * está prendido en el presupuesto, `owedToMe` ya está adentro (se sumaría
-   * dos veces); si está apagado, no está (nunca se sumaría). Se arranca de
-   * `remaining` SIN ese agregado condicional y se suman las dos deudas acá,
-   * ajenas al toggle de presupuesto — son cosas distintas.
-   */
-  const remainingSinDeudas = remaining - (budget.includeOwedToMe ? owedToMe : 0);
-  const disponibleTrasSaldar = remainingSinDeudas + owedToMe - youOwe;
-
-  const barColor = pct >= 1 ? c.semantic.negative
-    : pct >= 0.8 ? c.semantic.warning
-    : c.brand.primary;
-
-  const atCurrentMonth = activeMonth >= today;
-
-  // Callback ESTABLE (PO 2026-09-22, rendimiento en gama baja — mismo patrón
-  // que `GroupRow`/`ContactRow`): antes era una arrow function inline en el
-  // `.map()`, así que envolver `EntryRow` en `React.memo` no servía de nada.
-  const handleRemove = useCallback((entry: PersonalEntry) => {
-    const motivo = reasonKey(entry);
-    if (motivo) {
-      hapticWarning();
-      Alert.alert(t('personal.locked_title'), t(motivo));
-      return;
-    }
-    hapticWarning();
-    Alert.alert(
-      t('personal.remove_title'),
-      t('personal.remove_body', { desc: entry.description }),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        { text: t('common.delete'), style: 'destructive', onPress: () => removeEntry(entry.id) },
-      ],
-    );
-  }, [t, removeEntry]);
+  // capitalizar (PO 2026-09-22): el nombre se guarda tal como se tipeó — si
+  // alguien lo escribió en minúscula, el saludo lo mostraba así. La UI es
+  // quien prolija la primera letra, sin tocar el dato guardado.
+  const firstName = capitalizar(currentUser?.name?.split(' ')[0] ?? 'vos');
 
   return (
     <SafeAreaView edges={['bottom']} style={[styles.safe, { backgroundColor: c.bg }]}>
@@ -253,13 +70,22 @@ export default function PersonalScreen() {
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
         onScroll={scrollHandler}
-        // paddingBottom 140→24 (PO 2026-09-22): al scrollear hasta el final
-        // quedaba un hueco vacío de rigor arriba de la tab bar — el FAB
-        // ("Ingreso"/"Gasto") está fuera del flujo (`position:absolute`) y no
-        // necesita que el contenido le reserve un lugar; puede solaparlo. El
-        // pedido es que el contenido llegue hasta la tab bar, no que se corte
-        // antes por una reserva de más.
-        contentContainerStyle={[{ paddingTop: headerPad, paddingBottom: Spacing[6] }, contenidoMinimo]}
+        // paddingBottom 140→24 (PO 2026-09-22) se pasó de largo: con pocos
+        // movimientos en el mes el FAB ("Ingreso"/"Gasto") queda flotando
+        // FIJO sobre la última fila real (no sobre aire de sobra) y la tapa
+        // sin forma de scrollear para destaparla — se vio en el emulador con
+        // sólo 4 movimientos. El mínimo tiene que cubrir lo que el FAB ocupa
+        // (separación + alto) más un respiro; sigue siendo bastante menos que
+        // el 140 original para que, con listas largas, el final del scroll
+        // llegue cerca de la tab bar en vez de dejar un hueco de sobra.
+        // flexGrow (PO 2026-09-22): a diferencia de Grupos/Amigos/Actividad, a
+        // Personal le faltaba esto — sin él, con pocos movimientos, el
+        // contenido no se estira hasta el borde inferior y queda un hueco de
+        // fondo desnudo antes de la tab bar (confirmado en el Motorola físico).
+        contentContainerStyle={[
+          { paddingTop: headerPad, paddingBottom: FAB_BOTTOM_GAP + FAB_HEIGHT + Spacing[3], flexGrow: 1 },
+          contenidoMinimo,
+        ]}
         // PO 2026-09-20: el encabezado de "Movimientos" queda pegado arriba
         // del scroll mientras la lista pasa por debajo — 3 hijos directos
         // fijos (todo lo de arriba / el encabezado sticky / la lista), así
@@ -267,186 +93,99 @@ export default function PersonalScreen() {
         stickyHeaderIndices={[1]}
       >
         <View>
-        {/* T-114: el título pasó al header (fijo, ya no scrollea); esta fila
-            ahora sólo aloja el botón de ajustes, pegado a la derecha como
-            antes. */}
-        {/* T-121: migrado de Inicio — reusa owedToMe/youOwe, ya derivados
-            más abajo de useDirectedDebts (no se duplica el cálculo). Sin
-            pending: a diferencia de la vieja Inicio (que salía de
-            useGlobalPersonBalances + sumConverted), esta fuente no tiene
-            noción de "conversión en vuelo" — igual que el SplitStat de
-            deuda de Personal que ya convive en este archivo, más abajo. */}
-        <SplitStat
-          noTop
-          items={[
-            { label: t('friends.owed_to_you'), value: formatMoney(owedToMe, cur), color: c.semantic.positive },
-            { label: t('friends.you_owe'),     value: formatMoney(youOwe, cur),   color: c.textSecondary },
-          ]}
-        />
-
-        {/* Navegador de mes — mármol de fondo, patrón "franja" (PO 2026-09-22):
-            tercera variante, para no repetir la del header ni la de
-            Movimientos en la misma pantalla. */}
-        <View testID="month-nav" style={styles.monthNav}>
-          <FondoMarmol patron="franja" />
-          <Pressable onPress={() => { hapticSelection(); setActiveMonth(prevMonth(activeMonth)); }} hitSlop={12}>
-            <Ionicons name="chevron-back" size={19} color={c.textSecondary} />
-          </Pressable>
-          <Text style={{ fontSize: 15, fontWeight: '700', color: c.text }}>
-            {monthLabel(activeMonth)}
-          </Text>
-          <Pressable
-            onPress={() => { hapticSelection(); setActiveMonth(nextMonth(activeMonth)); }}
-            disabled={atCurrentMonth}
-            hitSlop={12}
-            style={{ opacity: atCurrentMonth ? 0.3 : 1 }}
-          >
-            <Ionicons name="chevron-forward" size={19} color={c.textSecondary} />
-          </Pressable>
-        </View>
-
-        {/* Banda medidor */}
-        {hasBudget ? (
-          <Band>
-            <View style={styles.meterPad}>
-              <View style={styles.meterTop}>
-                <View>
-                  <Text style={[Typography.label, styles.upper, { color: c.textTertiary }]}>
-                    {t('personal.spent')}
-                  </Text>
-                  <MoneyText
-                    minor={totalSpent}
-                    code={cur}
-                    rollId="personal.gastado"
-                    pending={personalPending}
-                    pendingAccessibilityLabel={pendingCalculando}
-                    style={[Typography.amountM, { color: c.text }]}
-                  />
-                </View>
-                <View style={{ alignItems: 'flex-end', flexShrink: 0, marginLeft: 16 }}>
-                  <Text style={[Typography.label, styles.upper, { color: c.textTertiary }]}>
-                    {remaining >= 0 ? t('personal.available') : t('personal.exceeded')}
-                  </Text>
-                  <MoneyText
-                    minor={Math.abs(remaining)}
-                    code={cur}
-                    rollId="personal.disponible"
-                    pending={personalPending}
-                    pendingAccessibilityLabel={pendingCalculando}
-                    style={[Typography.amountM, { color: remaining >= 0 ? c.semantic.positive : c.semantic.negative }]}
-                  />
-                </View>
-              </View>
-
-              <View style={{ marginTop: 14, marginBottom: 10 }}>
-                <Meter pct={pct} color={barColor} />
-              </View>
-
-              <Text style={[Typography.caption, { color: c.textTertiary, textAlign: 'center' }]}>
-                {t('personal.budget_progress', { pct: Math.round(pct * 100), amount: formatMoney(effectiveBudget, cur) })}
-                {budget.includeOwedToMe && owedToMe > 0
-                  ? t('personal.budget_includes_owed', { amount: formatMoney(owedToMe, cur) })
-                  : ''}
-              </Text>
-            </View>
-          </Band>
-        ) : (
-          <Band>
-            <Pressable
-              onPress={() => { hapticLight(); setShowBudgetSheet(true); }}
-              style={styles.meterEmpty}
-            >
-              <Ionicons name="bar-chart-outline" size={26} color={c.textTertiary} />
-              <Text style={[Typography.bodyM, { color: c.textSecondary, textAlign: 'center' }]}>
-                {t('personal.budget_empty')}
-              </Text>
-              <Text style={{ fontSize: 13, fontWeight: '700', color: c.brand.primary }}>
-                {t('personal.budget_configure')}
-              </Text>
-            </Pressable>
-          </Band>
-        )}
-
-        {/* El ingreso a lo ancho y los dos gastos abajo (PO 2026-09-02). En una
-            sola fila de tres, un ingreso y dos gastos se leen como comparables
-            entre sí, y no lo son: los de abajo salen del de arriba. Al lado
-            del ingreso, cantidad de grupos (PO 2026-09-20, reemplaza la fila
-            "Grupos · Balance" — mismo `misGrupos` ya derivado más abajo). */}
-        <StatLead
-          sunken
-          noTop
-          lead={{
-            label: t('personal.summary_income'),
-            value: `+${formatMoney(totalIncome, cur)}`,
-            color: c.semantic.positive,
-          }}
-          leadRight={{
-            label: t('tabs.groups'),
-            value: String(misGrupos.length),
-          }}
-          items={[
-            { label: t('personal.summary_personal'), value: formatMoney(totalExpense, cur) },
-            { label: t('personal.summary_groups'),   value: formatMoney(totalGroup, cur) },
-          ]}
-        />
-
-        {/* Deuda direccional: banda propia, nunca mezclada con lo gastado
-            (ADR-006). "Te deben"/"Debés" ya se muestran arriba del todo (el
-            primer bloque, pegado al header) — acá NO se repiten, sólo el
-            número que ese bloque no tiene: cuánto queda disponible DESPUÉS de
-            saldar TODO (cobrar lo que te deben Y pagar lo que debés). Ese
-            número es el que decide si podés gastar, y antes había que
-            calcularlo a mano. Sin `youOwe` no hay nada propio que saldar y
-            por lo tanto nada nuevo que agregar acá. */}
-        {youOwe > 0 && (
+          {/* T-121: migrado de Inicio — reusa owedToMe/youOwe, ya derivados
+              de useDirectedDebts (no se duplica el cálculo). Sin pending: a
+              diferencia de la vieja Inicio, esta fuente no tiene noción de
+              "conversión en vuelo" — igual que el SplitStat de deuda de más
+              abajo, que también convive en esta pantalla. */}
           <SplitStat
             noTop
-            items={[{
-              label: t('personal.available_after_debts'),
-              // formatMoney() siempre devuelve el valor absoluto (T-137): el
-              // signo hay que ponerlo a mano, si no un negativo se mostraba
-              // en rojo pero SIN el "-" — se leía positivo a simple vista.
-              value: `${disponibleTrasSaldar < 0 ? '-' : ''}${formatMoney(disponibleTrasSaldar, cur)}`,
-              // Rojo cuando saldar todo te deja en negativo: es justamente
-              // el caso en el que el número importa.
-              color: disponibleTrasSaldar >= 0 ? c.semantic.positive : c.semantic.negative,
-            }]}
+            items={[
+              { label: t('friends.owed_to_you'), value: formatMoney(owedToMe, cur), color: c.semantic.positive },
+              { label: t('friends.you_owe'),     value: formatMoney(youOwe, cur),   color: c.textSecondary },
+            ]}
           />
-        )}
 
-        {pendientes.length > 0 && (
-          <UnconvertedNotice
-            visible={!avisoVisto}
-            display={cur}
-            unconverted={pendientes}
-            onClose={() => setAvisoVisto(true)}
+          <PersonalMonthNav
+            activeMonth={activeMonth}
+            atCurrentMonth={atCurrentMonth}
+            onChangeMonth={setActiveMonth}
           />
-        )}
+
+          <PersonalBudgetMeter
+            hasBudget={hasBudget}
+            totalSpent={totalSpent}
+            remaining={remaining}
+            pct={pct}
+            effectiveBudget={effectiveBudget}
+            cur={cur}
+            personalPending={!!personalPending}
+            includeOwedToMe={budget.includeOwedToMe}
+            owedToMe={owedToMe}
+            onOpenBudgetSheet={() => setShowBudgetSheet(true)}
+          />
+
+          {/* El ingreso a lo ancho y los dos gastos abajo (PO 2026-09-02). En una
+              sola fila de tres, un ingreso y dos gastos se leen como comparables
+              entre sí, y no lo son: los de abajo salen del de arriba. Al lado
+              del ingreso, cantidad de grupos (PO 2026-09-20, reemplaza la fila
+              "Grupos · Balance" — mismo `misGrupos` ya derivado arriba). */}
+          <StatLead
+            sunken
+            noTop
+            lead={{
+              label: t('personal.summary_income'),
+              value: `+${formatMoney(totalIncome, cur)}`,
+              color: c.semantic.positive,
+            }}
+            leadRight={{
+              label: t('tabs.groups'),
+              value: String(misGrupos.length),
+            }}
+            items={[
+              { label: t('personal.summary_personal'), value: formatMoney(totalExpense, cur) },
+              { label: t('personal.summary_groups'),   value: formatMoney(totalGroup, cur) },
+            ]}
+          />
+
+          {/* Deuda direccional: banda propia, nunca mezclada con lo gastado
+              (ADR-006). "Te deben"/"Debés" ya se muestran arriba del todo —
+              acá NO se repiten, sólo el número que ese bloque no tiene: cuánto
+              queda disponible DESPUÉS de saldar TODO. Sin `youOwe` no hay nada
+              propio que saldar y por lo tanto nada nuevo que agregar acá. */}
+          {youOwe > 0 && (
+            <SplitStat
+              noTop
+              items={[{
+                label: t('personal.available_after_debts'),
+                // formatMoney() siempre devuelve el valor absoluto (T-137): el
+                // signo hay que ponerlo a mano, si no un negativo se mostraba
+                // en rojo pero SIN el "-" — se leía positivo a simple vista.
+                value: `${disponibleTrasSaldar < 0 ? '-' : ''}${formatMoney(disponibleTrasSaldar, cur)}`,
+                // Rojo cuando saldar todo te deja en negativo: es justamente
+                // el caso en el que el número importa.
+                color: disponibleTrasSaldar >= 0 ? c.semantic.positive : c.semantic.negative,
+              }]}
+            />
+          )}
+
+          {pendientes.length > 0 && (
+            <UnconvertedNotice
+              visible={!avisoVisto}
+              display={cur}
+              unconverted={pendientes}
+              onClose={() => setAvisoVisto(true)}
+            />
+          )}
         </View>
 
         <MovimientosHeader count={monthEntries.length} />
 
-        {monthEntries.length === 0 ? (
-          <Band noTop>
-            <View style={styles.emptyBox}>
-              <Ionicons name="receipt-outline" size={26} color={c.textTertiary} />
-              <Text style={[Typography.bodyM, { color: c.textTertiary, marginTop: 8, textAlign: 'center' }]}>
-                {t('personal.no_movements', { month: monthLabel(activeMonth) })}
-              </Text>
-            </View>
-          </Band>
-        ) : (
-          <Band noTop>
-            {entriesOrdenadas.map((entry, i) => (
-              <EntryRow
-                key={entry.id}
-                entry={entry}
-                last={i === entriesOrdenadas.length - 1}
-                onRemove={handleRemove}
-              />
-            ))}
-          </Band>
-        )}
+        <MovimientosList
+          entries={entriesOrdenadas}
+          monthLabelText={monthLabel(activeMonth)}
+          onRemove={handleRemove}
+        />
       </Animated.ScrollView>
 
       <TabHeader
@@ -482,112 +221,6 @@ export default function PersonalScreen() {
   );
 }
 
-/**
- * **Encabezado pegajoso de "Movimientos"** (PO 2026-09-20): mismo mármol que
- * el header (`FondoMarmol`), para que la lista que pasa por debajo nunca se
- * transparente. Sube a `stickyHeaderIndices` del `ScrollView` de arriba — el
- * frame del scroll ya arranca justo debajo de la barra colapsada del header
- * (`useLimiteContenido`), así que "pegarse arriba del todo" nunca lo tapa ni
- * lo pisa, sólo llega hasta ese borde y se queda ahí.
- */
-function MovimientosHeader({ count }: { count: number }) {
-  const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
-  const { t } = useTranslation();
-  return (
-    <View testID="movimientos-header" style={[styles.movimientosHeader, { borderBottomColor: c.hair }]}>
-      <FondoMarmol variante />
-      <Text style={[Typography.label, styles.movimientosBold, { color: c.textTertiary }]}>
-        {t('personal.movements_title')}
-      </Text>
-      <Text style={[Typography.amountS, styles.movimientosBold, { color: c.text }]}>
-        {count}
-      </Text>
-    </View>
-  );
-}
-
-/**
- * Memoizada (PO 2026-09-22, rendimiento en gama baja): sólo sirve porque
- * `onRemove` llega estable desde `PersonalScreen` (`useCallback`), no inline.
- */
-const EntryRow = React.memo(function EntryRow({
-  entry, onRemove, last,
-}: { entry: PersonalEntry; onRemove: (entry: PersonalEntry) => void; last?: boolean }) {
-  const scheme = useColorScheme() ?? 'light';
-  const { t } = useTranslation();
-  const c = Colors[scheme];
-  const meta = ENTRY_KIND_META[entry.kind];
-  const isCarryover = entry.kind === 'carryover';
-  const isPositive  = entry.kind === 'income' || (isCarryover && entry.isPositiveCarryover === true);
-  const isReadOnly  = entry.kind === 'group_replicated' || isCarryover;
-  const dateLabel   = new Date(entry.date).toLocaleDateString(i18n.language, { day: 'numeric', month: 'short' });
-
-  // T-137: el ÍCONO es acción/categoría, no un monto — va en azul de marca
-  // (mismo criterio que el FAB secundario de Ingreso). El monto en sí
-  // (`amountColor`, abajo) sigue en verde/naranja: eso sí es dinero.
-  const iconBg    = isPositive ? c.brand.primarySoft : c.hair2;
-  const iconColor = isPositive ? c.brand.primary : c.textTertiary;
-  const amountColor = isPositive ? c.semantic.positive
-    : isCarryover ? c.semantic.negative : c.text;
-
-  return (
-    <BandRow last={last}>
-      <View style={[styles.entryIcon, { backgroundColor: iconBg }]}>
-        <Ionicons name={meta.icon} size={17} color={iconColor} />
-      </View>
-      <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-        <Text style={[Typography.bodyL, { color: c.text }]} numberOfLines={1}>
-          {entry.description}
-        </Text>
-        <Text style={[Typography.caption, { color: c.textTertiary }]} numberOfLines={1}>
-          {t(meta.labelKey)}
-          {entry.sourceGroupName ? ` · ${entry.sourceGroupName}` : ''}
-          {' · '}{dateLabel}
-        </Text>
-      </View>
-      <View style={{ alignItems: 'flex-end', gap: 5 }}>
-        <Text style={[Typography.amountS, { color: amountColor }]}>
-          {isPositive ? '+' : '-'}{formatMoney(entry.amount, entry.currency)}
-        </Text>
-        {isReadOnly
-          ? <Ionicons name="lock-closed-outline" size={12} color={c.textTertiary} />
-          : (
-            <Pressable onPress={() => onRemove(entry)} hitSlop={8}>
-              <Ionicons name="trash-outline" size={14} color={c.textTertiary} />
-            </Pressable>
-          )}
-      </View>
-    </BandRow>
-  );
-});
-
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  upper: { textTransform: 'uppercase' },
-  movimientosHeader: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    overflow: 'hidden',
-    // paddingTop Spacing[8]→Spacing[5] (PO 2026-09-22): con poco contenido en
-    // el mes, el corte de reposo del scroll (sin scrollear) caía justo acá —
-    // se veía el mármol pero no el texto, porque el texto quedaba centrado
-    // más abajo del punto de corte. Menos aire arriba corre el bloque hacia
-    // arriba lo suficiente para que quede completo antes del corte.
-    paddingHorizontal: Spacing.screenPad, paddingTop: Spacing[5], paddingBottom: 9,
-    borderBottomWidth: 1,
-  },
-  movimientosBold: { fontWeight: '800' },
-  monthNav: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    overflow: 'hidden',
-    // T-121+: paddingTop repone el aire que daba la fila de ajustes (movida
-    // al header, PO 2026-09-20) — sin esto el navegador de mes queda pegado
-    // al bloque de deuda de arriba.
-    paddingHorizontal: Spacing.screenPad, paddingTop: 14, paddingBottom: 16,
-  },
-  meterPad:  { paddingHorizontal: Spacing.screenPad, paddingTop: 15, paddingBottom: 16 },
-  meterTop:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  meterEmpty:{ alignItems: 'center', gap: 10, paddingVertical: Spacing[6], paddingHorizontal: Spacing[6] },
-  emptyBox:  { alignItems: 'center', justifyContent: 'center', padding: Spacing[6] },
-  entryIcon: { width: 36, height: 36, borderRadius: Radius.sm, alignItems: 'center', justifyContent: 'center' },
 });

@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import type { LayoutChangeEvent } from 'react-native';
+import { useWindowDimensions, type LayoutChangeEvent } from 'react-native';
 import {
   useAnimatedScrollHandler, useSharedValue, type SharedValue,
 } from 'react-native-reanimated';
@@ -167,7 +167,11 @@ export function useHeaderColapsable(
     },
   });
 
-  const [altoVisible, setAltoVisible] = useState(0);
+  // DIAG (PO 2026-09-23): semilla inicial desde useWindowDimensions en vez de
+  // 0 — hipótesis: el salto de minHeight 0→real tras el primer onLayout no
+  // reflowa bien el ScrollView con stickyHeaderIndices en el primer render.
+  const { height: altoVentana } = useWindowDimensions();
+  const [altoVisible, setAltoVisible] = useState(altoVentana);
   const alMedirScroll = useCallback((e: LayoutChangeEvent) => {
     const h = e.nativeEvent.layout.height;
     setAltoVisible((prev) => (prev === h ? prev : h));

@@ -12,7 +12,12 @@ import { hapticLight } from '@/src/utils/haptics';
  * tocar. Igual que antes NO se suma `useBottomTabBarHeight()`: la tab bar no
  * es absolute, así que `bottom: 0` ya es su borde superior.
  */
-const FAB_BOTTOM_GAP = Spacing[4];
+/** Separación del FAB al borde inferior dentro de las pestañas, y alto de cada
+ * botón (`styles.fab.height`) — expuestos para que una pantalla con lista corta
+ * pueda reservar ese espacio en su `paddingBottom` y no dejar que el FAB tape
+ * la última fila (PO 2026-09-22: pasaba en Personal con pocos movimientos). */
+export const FAB_BOTTOM_GAP = Spacing[4];
+export const FAB_HEIGHT = 48;
 
 /**
  * Cuánto separar el FAB del borde inferior de la pantalla.

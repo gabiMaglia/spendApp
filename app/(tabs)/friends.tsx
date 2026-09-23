@@ -1,37 +1,25 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
-import {
-  Alert, Pressable,
-  StyleSheet, Text, TextInput, View,
-} from 'react-native';
+import React from 'react';
+import { StyleSheet } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useHeaderColapsable } from '@/src/hooks/useHeaderColapsable';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { Ionicons } from '@expo/vector-icons';
-import { v4 as uuidv4 } from 'uuid';
 
 import { Colors } from '@/src/constants/colors';
-import { Radius, Spacing } from '@/src/constants/spacing';
-import { Typography } from '@/src/constants/typography';
 import { formatMoney } from '@/src/constants/currencies';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useFx } from '@/src/store/useFx';
-import { sumConverted } from '@/src/services/fxTotals';
 import { useAuthStore } from '@/src/store/authStore';
-import { useUserStore } from '@/src/store/userStore';
-import { useContactosConHistorial, useGlobalPersonBalances } from '@/src/store/selectors';
-import { hapticSuccess, hapticWarning } from '@/src/utils/haptics';
-import { UserAvatar } from '@/src/components/UserAvatar';
 import { Fab, FabRow } from '@/src/components/Fab';
-import { EmptyState } from '@/src/components/EmptyState';
-import { BottomSheet } from '@/src/components/Sheet';
-import { Band, BandRow, SplitStat } from '@/src/components/Band';
-import { FondoMarmol } from '@/src/components/FondoMarmol';
+import { SplitStat } from '@/src/components/Band';
 import { TabHeader } from '@/src/components/TabHeader';
 import { useHeaderPadding, useLimiteContenido } from '@/src/components/CollapsibleHeader';
-import { syncedNow } from '@/src/utils/syncedClock';
-import { esYo, idCanonico } from '@/src/store/identityAlias';
+
+import { useFriendsBalances } from '@/src/screens/friends/hooks/useFriendsBalances';
+import { useFriendsContacts } from '@/src/screens/friends/hooks/useFriendsContacts';
+import { useAddContactSheet } from '@/src/screens/friends/hooks/useAddContactSheet';
+import { ContactsList } from '@/src/screens/friends/components/ContactsList';
+import { AddContactSheet } from '@/src/screens/friends/components/AddContactSheet';
 
 export default function FriendsScreen() {
   const { t } = useTranslation();
@@ -41,81 +29,15 @@ export default function FriendsScreen() {
   const scheme = useColorScheme() ?? 'light';
   const c = Colors[scheme];
   const { currentUser } = useAuthStore();
-  const { users, addOrUpdateUser, removeUser } = useUserStore();
 
-  const personBalances = useGlobalPersonBalances(currentUser?.id ?? '');
-  const conHistorial   = useContactosConHistorial(currentUser?.id ?? '');
   const { scrollHandler, progress, contenidoMinimo, alMedirScroll } = useHeaderColapsable();
 
-  const [showAdd, setShowAdd] = useState(false);
-  const [newName, setNewName] = useState('');
-  const inputRef = useRef<TextInput>(null);
-
-  const contacts = useMemo(
-    () => users.filter(u => !u.isDeleted && !esYo(u.id)),
-    // `currentUser` no aparece en el cuerpo pero la dependencia es REAL: `esYo`
-    // lee la sesión activa, así que cambiar de cuenta tiene que recalcular esto.
-    // El linter no puede ver esa dependencia.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [users, currentUser],
-  );
-
-  const { fx, display: cur, loading: fxLoading } = useFx();
-  const deben = sumConverted(
-    personBalances.filter(p => p.amount > 0).map(p => ({ currency: p.currency, minor: p.amount })),
-    cur, fx,
-  );
-  const debo = sumConverted(
-    personBalances.filter(p => p.amount < 0).map(p => ({ currency: p.currency, minor: -p.amount })),
-    cur, fx,
-  );
-  const owedToYou = deben.totalMinor;
-  const youOwe    = debo.totalMinor;
-  // T-109: ver `app/(tabs)/index.tsx` — mismo criterio de "pending" (placeholder
-  // `--` mientras el fetch de cotizaciones sigue en vuelo, nunca para siempre).
-  const owedToYouPending = deben.pending && fxLoading;
-  const youOwePending    = debo.pending && fxLoading;
+  const {
+    cur, personBalances, owedToYou, youOwe, owedToYouPending, youOwePending,
+  } = useFriendsBalances(currentUser?.id ?? '');
+  const { contacts, conHistorial, handleRemove, handleSettle } = useFriendsContacts();
+  const addSheet = useAddContactSheet();
   const pendingCalculando = t('fx.calculating');
-
-  function handleAddContact() {
-    const name = newName.trim();
-    if (!name) return;
-    hapticSuccess();
-    addOrUpdateUser({
-      id:           uuidv4(),
-      name,
-      email:        '',
-      authProvider: 'google',
-      updatedAt:    syncedNow(),
-      isDeleted:    false,
-      createdAt:    Date.now(),
-    });
-    setNewName('');
-    setShowAdd(false);
-  }
-
-  // Callbacks ESTABLES (PO 2026-09-22, rendimiento en gama baja — mismo
-  // patrón que `GroupRow` en Grupos): antes eran arrow functions inline
-  // dentro del `.map()`, así que envolver `ContactRow` en `React.memo`
-  // servía de poco — esas props "cambiaban" en cada render igual.
-  const handleRemove = useCallback((id: string, name: string) => {
-    hapticWarning();
-    Alert.alert(
-      t('friends.remove_title'),
-      t('friends.remove_body', { name }),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        { text: t('common.delete'), style: 'destructive', onPress: () => removeUser(id) },
-      ],
-    );
-  }, [t, removeUser]);
-
-  const handleSettle = useCallback((id: string, amount: number, currency: string) => {
-    router.push({
-      pathname: '/settle/new',
-      params: { toId: id, maxAmount: String(Math.abs(amount)), currency },
-    } as any);
-  }, []);
 
   return (
     <SafeAreaView edges={['bottom']} style={[styles.safe, { backgroundColor: c.bg }]}>
@@ -127,7 +49,6 @@ export default function FriendsScreen() {
         onScroll={scrollHandler}
         contentContainerStyle={[{ paddingTop: headerPad, paddingBottom: 150, flexGrow: 1 }, contenidoMinimo]}
       >
-
         {(owedToYou > 0 || youOwe > 0) && (
           <SplitStat
             noTop
@@ -146,41 +67,13 @@ export default function FriendsScreen() {
           />
         )}
 
-        {contacts.length === 0 ? (
-          <EmptyState
-            iconName="people-outline"
-            title={t('friends.empty_title')}
-            body={t('friends.empty_body')}
-          />
-        ) : (
-          <>
-            {/* El mármol va acá (PO 2026-09-22): la fila "Contactos (N)", no el
-                bloque de saldos de arriba, que vuelve a su estilo de banda de
-                siempre. */}
-            <ContactosCountHeader count={contacts.length} />
-            <Band noTop>
-              {contacts.map((contact, i) => {
-                const balance = personBalances.find(b => b.userId === contact.id);
-                return (
-                  <ContactRow
-                    key={contact.id}
-                    userId={contact.id}
-                    name={contact.name}
-                    amount={balance?.amount}
-                    conHistorial={conHistorial.has(idCanonico(contact.id))}
-                    currency={balance?.currency ?? 'ARS'}
-                    last={i === contacts.length - 1}
-                    onRemove={handleRemove}
-                    onSettle={handleSettle}
-                  />
-                );
-              })}
-            </Band>
-            <Text style={[Typography.caption, styles.footnote, { color: c.textTertiary }]}>
-              {t('friends.qr_note')}
-            </Text>
-          </>
-        )}
+        <ContactsList
+          contacts={contacts}
+          personBalances={personBalances}
+          conHistorial={conHistorial}
+          onRemove={handleRemove}
+          onSettle={handleSettle}
+        />
       </Animated.ScrollView>
 
       <TabHeader title={t('friends.title')} progress={progress} />
@@ -194,150 +87,18 @@ export default function FriendsScreen() {
         />
       </FabRow>
 
-      <BottomSheet visible={showAdd} onClose={() => { setShowAdd(false); setNewName(''); }}>
-        {/* Sin `KeyboardAvoidingView` propio (PO 2026-09-22): el `BottomSheet`
-            compartido ya lo resuelve — uno acá adentro sumaba SU empuje al
-            del `BottomSheet`, empujando la hoja el doble de lo que hacía
-            falta. */}
-        <Text style={[Typography.h3, { color: c.text, marginBottom: 6 }]}>{t('friends.new_contact')}</Text>
-        <Text style={[Typography.bodyS, { color: c.textSecondary, marginBottom: 20 }]}>
-          {t('friends.new_contact_hint')}
-        </Text>
-        <View style={[styles.inputRow, { backgroundColor: c.bgGrouped, borderColor: c.hair }]}>
-          <Ionicons name="person-outline" size={18} color={c.textTertiary} />
-          <TextInput
-            ref={inputRef}
-            value={newName}
-            onChangeText={setNewName}
-            placeholder={t('friends.name_placeholder')}
-            placeholderTextColor={c.textTertiary}
-            style={[Typography.bodyM, { flex: 1, color: c.text, padding: 0 }]}
-            returnKeyType="done"
-            onSubmitEditing={handleAddContact}
-            autoFocus
-          />
-        </View>
-        <Pressable
-          onPress={handleAddContact}
-          disabled={!newName.trim()}
-          style={[styles.confirmBtn, {
-            backgroundColor: newName.trim() ? c.brand.primary : c.bgGrouped,
-            marginTop: 14,
-          }]}
-        >
-          <Text style={{
-            fontSize: 15, fontWeight: '700',
-            color: newName.trim() ? '#fff' : c.textTertiary,
-          }}>
-            {t('common.add')}
-          </Text>
-        </Pressable>
-      </BottomSheet>
+      <AddContactSheet
+        visible={addSheet.visible}
+        onClose={addSheet.close}
+        name={addSheet.name}
+        onChangeName={addSheet.setName}
+        inputRef={addSheet.inputRef}
+        onConfirm={addSheet.confirm}
+      />
     </SafeAreaView>
   );
 }
 
-/**
- * Memoizada (PO 2026-09-22, rendimiento en gama baja): mismo patrón que
- * `GroupRow` en Grupos — sólo sirve porque `onRemove`/`onSettle` llegan como
- * referencias ESTABLES desde `FriendsScreen` (`useCallback`), no inline.
- */
-const ContactRow = React.memo(function ContactRow({
-  userId, name, amount, currency, conHistorial, onRemove, onSettle, last,
-}: {
-  userId: string; name: string;
-  amount?: number; currency: string;
-  /** Si hubo gastos o saldados entre los dos. Sin historial, un saldo en cero no es «Saldado». */
-  conHistorial: boolean;
-  onRemove: (id: string, name: string) => void;
-  onSettle: (id: string, amount: number, currency: string) => void;
-  last?: boolean;
-}) {
-  const { t } = useTranslation();
-  const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
-  const hasBalance = amount !== undefined && amount !== 0;
-  const positive   = (amount ?? 0) > 0;
-  const canSettle  = amount !== undefined && amount < 0;
-
-  return (
-    <BandRow last={last}>
-      <UserAvatar userId={userId} name={name} size={42} />
-      <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-        <Text style={[Typography.bodyL, { color: c.text }]} numberOfLines={1}>{name}</Text>
-        {hasBalance ? (
-          <Text
-            style={{
-              fontSize: 11.5, fontWeight: '600',
-              color: positive ? c.semantic.positive : c.semantic.negative,
-            }}
-            numberOfLines={1}
-          >
-            {positive ? t('friends.owes_you') : t('friends.you_owe_them')}
-            {formatMoney(Math.abs(amount!), currency as any)}
-          </Text>
-        ) : conHistorial ? (
-          <Text style={{ fontSize: 11.5, fontWeight: '600', color: c.textTertiary }}>
-            {t('common.settled')}
-          </Text>
-        ) : null}
-      </View>
-      {canSettle && (
-        <Pressable
-          onPress={() => onSettle(userId, amount!, currency)}
-          style={[styles.actionChip, { backgroundColor: c.brand.primarySoft }]}
-        >
-          <Text style={{ fontSize: 11, fontWeight: '700', color: c.brand.primary }}>
-            {t('friends.settle')}
-          </Text>
-        </Pressable>
-      )}
-      <Pressable onPress={() => onRemove(userId, name)} hitSlop={8}>
-        <Ionicons name="trash-outline" size={16} color={c.textTertiary} />
-      </Pressable>
-    </BandRow>
-  );
-});
-
-/**
- * **La fila "Contactos (N)" — chip con mármol** (PO 2026-09-22, corrige el
- * primer intento: el mármol NO iba en "te deben/debés", que vuelve a su
- * `SplitStat` de banda de siempre).
- *
- * Mismo lenguaje que `MovimientosHeader` (`app/(tabs)/index.tsx`): mármol de
- * fondo, UN solo borde —el de abajo—, sin borde arriba. Usa el patrón
- * "distendido" (`FondoMarmol patron="distendida"`): mismo shader y misma
- * forma de veta que el de siempre, pero más espaciado y tenue —así no repite
- * la foto exacta que ya usan el header y Movimientos.
- */
-function ContactosCountHeader({ count }: { count: number }) {
-  const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
-  const { t } = useTranslation();
-  return (
-    <View testID="contactos-count-header" style={[styles.countHeader, { borderBottomColor: c.hair }]}>
-      <FondoMarmol patron="distendida" />
-      <Text style={[Typography.label, styles.countBold, { color: c.textTertiary }]}>
-        {t('friends.contacts_count', { count })}
-      </Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
-  safe:       { flex: 1 },
-  footnote:   { paddingHorizontal: Spacing.screenPad, paddingTop: 14, lineHeight: 17 },
-  actionChip: { paddingHorizontal: 11, paddingVertical: 6, borderRadius: Radius.full },
-  inputRow:   {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    borderRadius: Radius.md, borderWidth: 1,
-    paddingHorizontal: 14, paddingVertical: 13, marginBottom: 4,
-  },
-  confirmBtn: { borderRadius: Radius.md, paddingVertical: 14, alignItems: 'center' },
-  countHeader: {
-    overflow: 'hidden',
-    paddingHorizontal: Spacing.screenPad, paddingTop: Spacing[8], paddingBottom: 9,
-    borderBottomWidth: 1,
-  },
-  countBold: { fontWeight: '800' },
+  safe: { flex: 1 },
 });
