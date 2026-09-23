@@ -37,6 +37,7 @@ import { UserAvatar } from '@/src/components/UserAvatar';
 import { BottomSheet, SheetButton, SheetInput, SheetOption, SheetOptionAvatar } from '@/src/components/Sheet';
 import { Band, SectionLabel, Segmented } from '@/src/components/Band';
 import { DetailHeader } from '@/src/components/CollapsibleHeader';
+import { FondoMarmol } from '@/src/components/FondoMarmol';
 import { buildSplits } from '@/src/algorithms/buildSplits';
 import type { ExpenseCategory, PersonalCategory } from '@/src/types/models';
 import { syncedNow } from '@/src/utils/syncedClock';
@@ -472,28 +473,59 @@ export default function NewExpenseScreen() {
             * eso los dos van en un mismo bloque —el `gap` del scroll recién empieza después— y
             * la banda va `noTop`.
             */}
-          <View>
-          {/* Gasto/Ingreso — solo en modo Personal (F-G2). `borde="ambos"` (PO
-              2026-09-13, T-117): es el primer elemento del scroll y necesita su
-              propia línea de arriba, pero sin perder la de abajo — la banda de
-              descripción de más abajo va `noTop` apoyada en esa línea. */}
-          {incomeAllowed && (
-            <Segmented
-              variant="tabs"
-              value={isIncome ? 'income' : 'expense'}
-              onChange={switchEntryKind}
-              borde="ambos"
-              options={[
-                { key: 'expense', label: t('expense.kind_expense'), icon: 'trending-down-outline' },
-                { key: 'income',  label: t('expense.kind_income'),  icon: 'trending-up-outline' },
-              ]}
+          {/* Tarjeta héroe del monto (PO 2026-09-22, rediseño): el monto pasa a
+              ser lo primero que se ve, grande y con mármol de fondo — antes
+              vivía enterrado en una banda chica a mitad de pantalla. El
+              toggle Gasto/Ingreso es una píldora propia (no `Segmented`, a
+              propósito: es una decisión de "qué tipo de movimiento es",
+              distinta de un tab de contenido — `pestanasUnificadas.test.ts`
+              sólo exige que los `Segmented` que SÍ existan en el archivo
+              sean `variant="tabs"`, no que todo selector lo sea). */}
+          <View style={[styles.heroCard, { borderColor: c.hair, backgroundColor: c.surface }]}>
+            <FondoMarmol patron="header" style={styles.heroMarmol} />
+            <Text style={[Typography.label, styles.heroCurrency, { color: c.textTertiary }]}>
+              {currency}
+            </Text>
+            <MontoEditable
+              ref={montoRef}
+              testID="expense-amount"
+              currency={currency}
+              value={amountStr}
+              onChangeText={setAmountStr}
+              onBlur={onAmountBlur}
             />
-          )}
+            {incomeAllowed && (
+              <View style={[styles.heroToggle, { backgroundColor: c.bgGrouped }]}>
+                {(['expense', 'income'] as const).map(k => {
+                  const active = k === 'income' ? isIncome : !isIncome;
+                  const tint = k === 'income' ? c.semantic.positive : c.semantic.negative;
+                  const tintSoft = k === 'income' ? c.semantic.positiveSoft : c.semantic.negativeSoft;
+                  return (
+                    <Pressable
+                      key={k}
+                      onPress={() => switchEntryKind(k)}
+                      style={[styles.heroToggleBtn, active && { backgroundColor: tintSoft }]}
+                    >
+                      <Ionicons
+                        name={k === 'income' ? 'trending-up-outline' : 'trending-down-outline'}
+                        size={15}
+                        color={active ? tint : c.textTertiary}
+                      />
+                      <Text style={[Typography.bodyS, { fontWeight: '700', color: active ? tint : c.textTertiary }]}>
+                        {k === 'income' ? t('expense.kind_income') : t('expense.kind_expense')}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
+          </View>
 
-          {/* Description input */}
-          <Band noTop>
-            <View style={styles.inputRow}>
-            <Ionicons name="create-outline" size={18} color={c.textTertiary} style={{ marginTop: 1 }} />
+          {/* Descripción: tarjeta propia, mismo lenguaje redondeado que el
+              héroe — ya no comparte línea con nada de arriba (T-117 quedó
+              obsoleto con este rediseño). */}
+          <View style={[styles.descCard, { borderColor: c.hair, backgroundColor: c.surface }]}>
+            <Ionicons name="create-outline" size={18} color={c.textTertiary} />
             <TextInput
               placeholder={isIncome ? t('expense.income_desc_placeholder') : t('expense.description_placeholder')}
               placeholderTextColor={c.textTertiary}
@@ -502,8 +534,6 @@ export default function NewExpenseScreen() {
               style={[Typography.bodyL, styles.descInput, { color: c.text }]}
               returnKeyType="next"
             />
-            </View>
-          </Band>
           </View>
 
           {/* Category chips — el ingreso no tiene selector (PO 2026-09-13):
@@ -514,8 +544,7 @@ export default function NewExpenseScreen() {
               showsHorizontalScrollIndicator={false}
               // `flexGrow: 0` no es decorativo: el contenedor de la pantalla crece
               // para poder empujar Guardar al fondo, y un ScrollView horizontal sin
-              // alto propio se come todo ese sobrante. Las pastillas quedaban
-              // gigantes.
+              // alto propio se come todo ese sobrante. Los tiles quedaban gigantes.
               style={styles.categoryScrollBox}
               contentContainerStyle={styles.categoryScroll}
             >
@@ -525,19 +554,21 @@ export default function NewExpenseScreen() {
                   <Pressable
                     key={cat.id}
                     onPress={() => { hapticSelection(); setCategory(cat.id); }}
-                    style={[
-                      styles.categoryChip,
-                      {
-                        backgroundColor: active ? c.brand.primary : c.surface,
-                        borderColor:     active ? c.brand.primary : c.hair,
-                      },
-                    ]}
+                    style={styles.categoryTile}
                   >
-                    <Ionicons name={cat.icon} size={16} color={active ? '#fff' : c.textSecondary} />
-                    <Text style={[Typography.bodyS, {
-                      color:      active ? '#fff' : c.textSecondary,
-                      fontWeight: active ? '700' : '500',
-                    }]}>
+                    <View style={[
+                      styles.categoryTileIcon,
+                      { backgroundColor: active ? c.brand.primary : c.bgGrouped },
+                    ]}>
+                      <Ionicons name={cat.icon} size={22} color={active ? '#fff' : c.textSecondary} />
+                    </View>
+                    <Text
+                      numberOfLines={1}
+                      style={[Typography.caption, {
+                        color:      active ? c.text : c.textTertiary,
+                        fontWeight: active ? '700' : '500',
+                      }]}
+                    >
                       {t(`categories.${cat.id}`)}
                     </Text>
                   </Pressable>
@@ -546,31 +577,11 @@ export default function NewExpenseScreen() {
             </ScrollView>
           )}
 
-          {/* Amount input + Payer: pegados, comparten línea divisoria — mismo
-              criterio que descripción arriba (PO 2026-09-13, T-117). La `View`
-              los saca del `gap` de `styles.scroll`, y el payer va `noTop`. */}
-          <View>
-          <Band>
-            <View style={styles.amountPad}>
-            <Text style={[Typography.label, { color: c.textTertiary, textTransform: 'uppercase' }]}>
-              {currency}
-            </Text>
-            <View style={styles.amountRow}>
-              <MontoEditable
-                ref={montoRef}
-                testID="expense-amount"
-                currency={currency}
-                value={amountStr}
-                onChangeText={setAmountStr}
-                onBlur={onAmountBlur}
-              />
-            </View>
-            </View>
-          </Band>
-
-          {/* Payer: SOLO con grupo. Sin grupo = gasto personal. (F-G) */}
+          {/* Payer: SOLO con grupo. Sin grupo = gasto personal. (F-G). El monto
+              ya se movió a la tarjeta héroe de arriba (rediseño 2026-09-22) —
+              esta banda queda independiente, ya no comparte línea con nada. */}
           {hasGroup && (multiPayer ? (
-            <Band noTop>
+            <Band>
             <View style={[styles.row, { flexDirection: 'column', alignItems: 'stretch', gap: Spacing[2] }]}>
               <PayerSplitter
                 members={members.map(uid => ({ id: uid, name: getUserName(uid) }))}
@@ -585,7 +596,7 @@ export default function NewExpenseScreen() {
             </View>
             </Band>
           ) : (
-            <Band noTop>
+            <Band>
             <Pressable
               onPress={() => setShowPayer(true)}
               style={styles.row}
@@ -599,7 +610,6 @@ export default function NewExpenseScreen() {
             </Pressable>
             </Band>
           ))}
-          </View>
 
           {/* Repartos: SOLO con grupo. Sin grupo = gasto personal. (F-G) */}
           {hasGroup && (<>
@@ -794,13 +804,19 @@ export default function NewExpenseScreen() {
             </Text>
           )}
 
-          {/* Save button */}
+          {/* Save button — píldora con ícono (rediseño 2026-09-22), mismo testID
+              y misma lógica de habilitado/deshabilitado. */}
           <Pressable
             onPress={handleSave}
             disabled={!canSave}
             testID="expense-save-btn"
             style={[styles.saveBtn, styles.savePad, { backgroundColor: canSave ? c.brand.primary : c.bgGrouped }]}
           >
+            <Ionicons
+              name="checkmark-circle"
+              size={19}
+              color={canSave ? '#fff' : c.textDisabled}
+            />
             <Text style={[Typography.bodyL, { color: canSave ? '#fff' : c.textDisabled, fontWeight: '700' }]}>
               {/* El botón NO promete un anuncio que no existe. */}
               {!isEditMode && needsAd ? t('expense.save_with_ad') : t('expense.save')}
@@ -809,58 +825,64 @@ export default function NewExpenseScreen() {
 
         </ScrollView>
 
-        {/* Bottom bar */}
-        <View style={[styles.bottomBar, { backgroundColor: c.surface, borderTopColor: c.hair }]}>
-          {/* Left: attachments */}
-          <View style={styles.bottomLeft}>
-            <Pressable onPress={handleCamera} hitSlop={10}>
+        {/* Barra de utilidades — píldora flotante despegada del borde (rediseño
+            2026-09-22), mismos Pressables/handlers que antes, sólo cambia el
+            contenedor: de barra plana pegada al fondo a chips redondeados con
+            aire alrededor. */}
+        <View style={styles.utilityBarWrap}>
+          <View style={[styles.utilityBar, { backgroundColor: c.surface, borderColor: c.hair }]}>
+            <Pressable onPress={handleCamera} hitSlop={8} style={styles.utilityIconBtn}>
               <Ionicons
                 name={receiptUri ? 'camera' : 'camera-outline'}
-                size={22}
+                size={20}
                 color={receiptUri ? c.brand.primary : c.textSecondary}
               />
             </Pressable>
-            <Pressable onPress={handleFilePick} hitSlop={10}>
-              <Ionicons name="attach-outline" size={22} color={c.textSecondary} />
+            <Pressable onPress={handleFilePick} hitSlop={8} style={styles.utilityIconBtn}>
+              <Ionicons name="attach-outline" size={20} color={c.textSecondary} />
             </Pressable>
-            <Pressable onPress={() => setShowNote(true)} hitSlop={10}>
+            <Pressable
+              onPress={() => setShowNote(true)}
+              hitSlop={8}
+              style={[styles.utilityChip, { backgroundColor: note ? c.brand.primarySoft : c.bgGrouped }]}
+            >
               <Ionicons
                 name={note ? 'document-text' : 'document-text-outline'}
-                size={22}
+                size={16}
                 color={note ? c.brand.primary : c.textSecondary}
               />
+              <Text style={[Typography.bodyS, { fontWeight: '600', color: note ? c.brand.primary : c.textSecondary }]}>
+                {t('expense.note')}
+              </Text>
+            </Pressable>
+
+            {/* Selector de grupo — oculto en modo Ingreso (F-G2) */}
+            {!isIncome && (
+              <Pressable
+                onPress={isEditMode ? undefined : () => setShowGroup(true)}
+                style={[styles.utilityChip, { backgroundColor: c.bgGrouped, flex: 1 }]}
+              >
+                <Ionicons name="people-outline" size={14} color={c.textSecondary} />
+                <Text
+                  style={[Typography.bodyS, { color: c.text, fontWeight: '600', flex: 1 }]}
+                  numberOfLines={1}
+                >
+                  {groupName}
+                </Text>
+                {!isEditMode && <Ionicons name="chevron-up" size={14} color={c.textTertiary} />}
+              </Pressable>
+            )}
+
+            <Pressable
+              onPress={() => setShowDate(true)}
+              style={[styles.utilityChip, { backgroundColor: c.bgGrouped }]}
+            >
+              <Ionicons name="calendar-outline" size={16} color={c.textSecondary} />
+              <Text style={[Typography.bodyS, { color: c.text, fontWeight: '600' }]}>
+                {formatDate(date)}
+              </Text>
             </Pressable>
           </View>
-
-          <View style={[styles.vDivider, { backgroundColor: c.hair2 }]} />
-
-          {/* Selector de grupo — oculto en modo Ingreso (F-G2) */}
-          {!isIncome && (<>
-          {/* Center: group — locked in edit mode */}
-          <Pressable
-            onPress={isEditMode ? undefined : () => setShowGroup(true)}
-            style={styles.bottomGroup}
-          >
-            <Ionicons name="people-outline" size={14} color={c.textSecondary} />
-            <Text
-              style={[Typography.bodyS, { color: c.text, fontWeight: '600', flex: 1 }]}
-              numberOfLines={1}
-            >
-              {groupName}
-            </Text>
-            {!isEditMode && <Ionicons name="chevron-up" size={14} color={c.textTertiary} />}
-          </Pressable>
-
-          <View style={[styles.vDivider, { backgroundColor: c.hair2 }]} />
-          </>)}
-
-          {/* Right: date */}
-          <Pressable onPress={() => setShowDate(true)} style={styles.bottomDate}>
-            <Ionicons name="calendar-outline" size={16} color={c.textSecondary} />
-            <Text style={[Typography.bodyS, { color: c.text, fontWeight: '600' }]}>
-              {formatDate(date)}
-            </Text>
-          </Pressable>
         </View>
 
       </KeyboardAvoidingView>
@@ -976,8 +998,35 @@ const styles = StyleSheet.create({
    * aparecen o no según haya grupo, según sea edición y según el plan—, que es
    * justo lo que una suma de márgenes por bloque no puede garantizar.
    */
-  // Sin `paddingTop`: el primer bloque (pestañas + descripción) va pegado al encabezado.
-  scroll:       { paddingBottom: Spacing[4], gap: Spacing[3], flexGrow: 1 },
+  // Sin padding lateral propio (a propósito, sin cambios): las bandas de
+  // grupo/reparto siguen yendo borde a borde con su aire adentro de cada fila
+  // — sólo mis tarjetas nuevas (héroe, descripción) piden su propio
+  // `marginHorizontal: screenPad`, así no le duplican el margen a esas bandas.
+  scroll:       { paddingTop: Spacing[3], paddingBottom: Spacing[4], gap: Spacing[3], flexGrow: 1 },
+  // Tarjeta héroe del monto (rediseño 2026-09-22): redondeada, con el mármol
+  // de fondo recortado por `overflow:hidden` y el toggle Gasto/Ingreso abajo.
+  heroCard: {
+    marginHorizontal: Spacing.screenPad,
+    borderRadius: Radius['2xl'], borderCurve: 'continuous', borderWidth: 1,
+    alignItems: 'center', overflow: 'hidden',
+    paddingTop: Spacing[6], paddingBottom: Spacing[4], gap: Spacing[3],
+  },
+  heroMarmol: { top: 0, height: 140 },
+  heroCurrency: { textTransform: 'uppercase' },
+  heroToggle: {
+    flexDirection: 'row', borderRadius: Radius.full, padding: 3, gap: 3,
+  },
+  heroToggleBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 16, paddingVertical: 8, borderRadius: Radius.full,
+  },
+  // Descripción: tarjeta propia, mismo radio que el héroe (rediseño 2026-09-22).
+  descCard: {
+    marginHorizontal: Spacing.screenPad,
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    borderRadius: Radius.xl, borderCurve: 'continuous', borderWidth: 1,
+    paddingHorizontal: Spacing[4], paddingVertical: 14,
+  },
   // Aire claro entre los selectores de modo de reparto y lo que eligen —
   // el campo de "mismo %" o la lista de miembros (PO 2026-09-13). Mismo
   // token para los dos casos, así "iguales" y "porcentaje" quedan iguales.
@@ -1015,19 +1064,15 @@ const styles = StyleSheet.create({
     gap: Spacing[2], paddingHorizontal: Spacing.screenPad, paddingVertical: 2,
     alignItems: 'center',
   },
-  categoryChip:   {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 14, paddingVertical: 8,
-    borderRadius: Radius.full, borderWidth: 1,
+  // Tiles de categoría, más grandes y táctiles que las pastillas viejas
+  // (rediseño 2026-09-22): ícono en círculo arriba, label abajo.
+  categoryTile: { alignItems: 'center', gap: 6, width: 64 },
+  categoryTileIcon: {
+    width: 52, height: 52, borderRadius: Radius.xl, borderCurve: 'continuous',
+    alignItems: 'center', justifyContent: 'center',
   },
 
-  inputRow:     {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    paddingHorizontal: Spacing.screenPad, paddingVertical: 15,
-  },
   descInput:    { flex: 1, padding: 0, fontWeight: '500' },
-  amountPad:    { paddingVertical: 22, alignItems: 'center', gap: 4 },
-  amountRow:    { flexDirection: 'row', alignItems: 'center', gap: 6 },
 
   row:          {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
@@ -1063,15 +1108,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.screenPad, paddingVertical: Spacing.rowPadV,
   },
 
-  saveBtn:      { borderRadius: Radius.lg, height: 52, alignItems: 'center', justifyContent: 'center' },
-
-  bottomBar:    {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 12, height: 56,
-    borderTopWidth: 1,
+  saveBtn:      {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    borderRadius: Radius.full, borderCurve: 'continuous', height: 52,
   },
-  bottomLeft:   { flexDirection: 'row', alignItems: 'center', gap: 18, paddingHorizontal: 6 },
-  vDivider:     { width: 1, height: 22, marginHorizontal: 10 },
-  bottomGroup:  { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 6 },
-  bottomDate:   { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 6 },
+
+  // Barra de utilidades flotante (rediseño 2026-09-22): despegada del borde
+  // inferior, con aire alrededor, en vez de la barra plana pegada al fondo.
+  utilityBarWrap: { paddingHorizontal: Spacing.screenPad, paddingBottom: Spacing[3], paddingTop: Spacing[2] },
+  utilityBar:   {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    borderRadius: Radius.full, borderCurve: 'continuous', borderWidth: 1,
+    paddingHorizontal: 10, height: 52,
+  },
+  utilityIconBtn: { padding: 4 },
+  utilityChip:  {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 12, paddingVertical: 8, borderRadius: Radius.full,
+  },
 });
