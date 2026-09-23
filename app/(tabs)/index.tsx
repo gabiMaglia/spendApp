@@ -253,7 +253,13 @@ export default function PersonalScreen() {
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
         onScroll={scrollHandler}
-        contentContainerStyle={[{ paddingTop: headerPad, paddingBottom: 140 }, contenidoMinimo]}
+        // paddingBottom 140→24 (PO 2026-09-22): al scrollear hasta el final
+        // quedaba un hueco vacío de rigor arriba de la tab bar — el FAB
+        // ("Ingreso"/"Gasto") está fuera del flujo (`position:absolute`) y no
+        // necesita que el contenido le reserve un lugar; puede solaparlo. El
+        // pedido es que el contenido llegue hasta la tab bar, no que se corte
+        // antes por una reserva de más.
+        contentContainerStyle={[{ paddingTop: headerPad, paddingBottom: Spacing[6] }, contenidoMinimo]}
         // PO 2026-09-20: el encabezado de "Movimientos" queda pegado arriba
         // del scroll mientras la lista pasa por debajo — 3 hijos directos
         // fijos (todo lo de arriba / el encabezado sticky / la lista), así
