@@ -9,6 +9,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 import { Colors } from '@/src/constants/colors';
 import { DetailHeader } from '@/src/components/CollapsibleHeader';
+import { FondoMarmol } from '@/src/components/FondoMarmol';
 
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { ActionButton } from '@/src/components/ActionButton';
@@ -279,7 +280,7 @@ export default function SettleNewScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: c.bg }]}>
+    <SafeAreaView edges={['bottom']} style={[styles.safe, { backgroundColor: c.bg }]}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
 
         <DetailHeader icon="close" title={t('settle.title')} onBack={() => router.back()} />
@@ -319,9 +320,15 @@ export default function SettleNewScreen() {
           )}
 
           {/* Amount */}
-          <Band style={exceedsMax ? { borderColor: c.semantic.negative } : undefined}>
-          <View style={styles.amountCard}>
-            <Text style={[Typography.label, { color: c.textTertiary, textTransform: 'uppercase' }]}>
+          <View style={[
+            styles.heroCard,
+            { backgroundColor: c.surface, borderColor: exceedsMax ? c.semantic.negative : c.hair },
+          ]}>
+            <FondoMarmol patron="distendida" style={styles.heroMarmol} />
+            <Text style={[Typography.label, styles.heroCurrency, {
+              color: c.textSecondary,
+              textShadowColor: scheme === 'dark' ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.95)',
+            }]}>
               {currency}
             </Text>
             <View style={styles.amountRow}>
@@ -329,6 +336,7 @@ export default function SettleNewScreen() {
                 <MontoEditable
                   ref={montoRef}
                   testID="settle-amount"
+                  sobreMarmol
                   currency={currency}
                   value={amountStr}
                   onChangeText={setAmountStr}
@@ -395,10 +403,9 @@ export default function SettleNewScreen() {
               </View>
             )}
           </View>
-          </Band>
 
           {/* Quién le paga a quién */}
-          <Band>
+          <Band style={styles.card}>
           <View style={styles.transferCard}>
             <Pressable
               onPress={isPrefilled ? undefined : () => setShowFrom(true)}
@@ -445,7 +452,7 @@ export default function SettleNewScreen() {
           </Band>
 
           {/* Grupo y fecha: filas de banda, no chips sueltos */}
-          <Band>
+          <Band style={styles.card}>
             <BandRow onPress={() => { hapticSelection(); setShowGroup(true); }}>
               <Ionicons name="people-outline" size={17} color={c.textSecondary} />
               <Text style={[Typography.bodyM, { color: c.textSecondary, flex: 1 }]}>
@@ -568,8 +575,18 @@ const styles = StyleSheet.create({
   },
   safe:           { flex: 1 },
   scroll:         { paddingHorizontal: Spacing.screenPad, paddingTop: Spacing[4], gap: Spacing[3] },
-  // Sin borde ni fondo: los pone `Band`. Acá queda sólo el ritmo interno.
-  amountCard:     { paddingVertical: 20, alignItems: 'center', gap: 4 },
+  // Mismo lenguaje que la tarjeta héroe de «Nuevo gasto» (PO 2026-09-23):
+  // redondeada, mármol de fondo a todo el alto, monto grande arriba.
+  heroCard: {
+    borderRadius: Radius['2xl'], borderCurve: 'continuous', borderWidth: 1,
+    overflow: 'hidden', paddingVertical: Spacing[6], alignItems: 'center', gap: 4,
+  },
+  heroMarmol:     { top: 0, bottom: 0 },
+  heroCurrency:   {
+    textTransform: 'uppercase', fontWeight: '800',
+    textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 6,
+  },
+  card: { borderRadius: Radius.xl, borderCurve: 'continuous', borderWidth: 1, overflow: 'hidden' },
   // `stretch` + `center`: la fila ocupa todo el ancho de la tarjeta y centra su
   // contenido, en vez de encogerse a él. Es lo que impide que MAX se salga por
   // el borde cuando el monto es largo — antes la fila crecía con el número.

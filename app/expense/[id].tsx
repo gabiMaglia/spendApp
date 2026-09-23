@@ -11,7 +11,9 @@ import i18n from '@/src/i18n';
 import { Ionicons } from '@expo/vector-icons';
 
 import { Colors } from '@/src/constants/colors';
-import { Spacing } from '@/src/constants/spacing';
+import { Radius, Spacing } from '@/src/constants/spacing';
+import { DetailHeader } from '@/src/components/CollapsibleHeader';
+import { FondoMarmol } from '@/src/components/FondoMarmol';
 import { Band, BandRow } from '@/src/components/Band';
 import { Typography } from '@/src/constants/typography';
 import { formatMoney } from '@/src/constants/currencies';
@@ -283,16 +285,13 @@ export default function ExpenseDetailScreen() {
   const netForMe = isPayer ? expense.amount - myShare : -myShare;
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: c.bg }]}>
-      {/* Header */}
-      <View style={[styles.header, { borderBottomColor: c.hair }]}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={24} color={c.brand.primary} />
-        </Pressable>
-        <Text style={[Typography.h3, { color: c.text }]} numberOfLines={1}>
-          {t('expense.detail_title')}
-        </Text>
-        {isCreator && !expense.isDeleted ? (
+    <SafeAreaView edges={['bottom']} style={[styles.safe, { backgroundColor: c.bg }]}>
+      {/* Header con mármol (PO 2026-09-23): mismo `DetailHeader` que Nuevo gasto,
+          así el mármol cubre también la barra de estado. */}
+      <DetailHeader
+        title={t('expense.detail_title')}
+        onBack={() => router.back()}
+        right={isCreator && !expense.isDeleted ? (
           <View style={styles.headerRight}>
             <Pressable
               onPress={() => router.push(`/expense/new?expenseId=${expense.id}` as any)}
@@ -304,15 +303,14 @@ export default function ExpenseDetailScreen() {
               <Ionicons name="trash-outline" size={20} color={c.semantic.negative} />
             </Pressable>
           </View>
-        ) : (
-          <View style={{ width: 40 }} />
-        )}
-      </View>
+        ) : undefined}
+      />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
 
         {/* Hero */}
-        <View style={styles.hero}>
+        <View style={[styles.hero, { borderColor: c.hair, backgroundColor: c.surface }]}>
+          <FondoMarmol patron="distendida" style={styles.heroMarmol} />
           <CategoryIcon kind={expense.category as CategoryKind} size={64} />
           <Text style={[Typography.h1, { color: c.text, textAlign: 'center', marginTop: 12 }]}>
             {expense.description}
@@ -514,7 +512,13 @@ const styles = StyleSheet.create({
   headerRight:{ flexDirection: 'row', alignItems: 'center' },
   iconBtn:    { width: 36, height: 40, alignItems: 'center', justifyContent: 'center' },
   scroll:   { paddingTop: Spacing[4] },
-  hero:     { alignItems: 'center', paddingHorizontal: Spacing.screenPad, marginBottom: Spacing[5] },
+  hero: {
+    alignItems: 'center', overflow: 'hidden',
+    marginHorizontal: Spacing.screenPad, marginBottom: Spacing[5],
+    paddingHorizontal: Spacing.screenPad, paddingVertical: Spacing[6],
+    borderRadius: Radius['2xl'], borderCurve: 'continuous', borderWidth: 1,
+  },
+  heroMarmol: { top: 0, bottom: 0 },
   // Banda, no tarjeta: borde a borde, hairline arriba y abajo, sin radio.
   section:  {
     marginBottom: Spacing[4],

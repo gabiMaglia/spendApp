@@ -32,8 +32,21 @@ export const MontoEditable = forwardRef<TextInput, {
   /** Pinta la cifra en rojo (p. ej. monto por encima del tope). */
   error?: boolean;
   testID?: string;
-}>(function MontoEditable({ currency, value, onChangeText, onBlur, error, testID }, ref) {
-  const c = Colors[useColorScheme() ?? 'light'];
+  /**
+   * Va sobre una tarjeta con mármol: símbolo y placeholder pasan a un tono
+   * más fuerte y llevan una sombra de texto, si no la veta se los come
+   * (PO 2026-09-23).
+   */
+  sobreMarmol?: boolean;
+}>(function MontoEditable({ currency, value, onChangeText, onBlur, error, testID, sobreMarmol }, ref) {
+  const scheme = useColorScheme() ?? 'light';
+  const c = Colors[scheme];
+  const tenue = sobreMarmol ? c.textSecondary : c.textTertiary;
+  const sombra = sobreMarmol ? {
+    textShadowColor: scheme === 'dark' ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.95)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 6,
+  } : null;
   return (
     <Pressable
       testID={testID ? `${testID}-tap-area` : undefined}
@@ -41,7 +54,7 @@ export const MontoEditable = forwardRef<TextInput, {
       onPress={() => (ref as React.RefObject<TextInput>)?.current?.focus()}
     >
       <View style={styles.fila} pointerEvents="none">
-        <Text testID={testID ? `${testID}-simbolo` : undefined} style={[Typography.amountXL, styles.simbolo, { color: c.textTertiary }]}>
+        <Text testID={testID ? `${testID}-simbolo` : undefined} style={[Typography.amountXL, styles.simbolo, sombra, { color: tenue }]}>
           {getCurrency(currency).symbol}
         </Text>
         <TextInput
@@ -52,8 +65,8 @@ export const MontoEditable = forwardRef<TextInput, {
           onBlur={onBlur}
           keyboardType="decimal-pad"
           placeholder="0"
-          placeholderTextColor={c.textTertiary}
-          style={[Typography.amountXL, styles.input, { color: error ? c.semantic.negative : c.text }]}
+          placeholderTextColor={tenue}
+          style={[Typography.amountXL, styles.input, sombra, { color: error ? c.semantic.negative : c.text }]}
           returnKeyType="done"
         />
       </View>

@@ -482,13 +482,17 @@ export default function NewExpenseScreen() {
               sólo exige que los `Segmented` que SÍ existan en el archivo
               sean `variant="tabs"`, no que todo selector lo sea). */}
           <View style={[styles.heroCard, { borderColor: c.hair, backgroundColor: c.surface }]}>
-            <FondoMarmol patron="header" style={styles.heroMarmol} />
-            <Text style={[Typography.label, styles.heroCurrency, { color: c.textTertiary }]}>
+            <FondoMarmol patron="distendida" style={styles.heroMarmol} />
+            <Text style={[Typography.label, styles.heroCurrency, {
+              color: c.textSecondary,
+              textShadowColor: scheme === 'dark' ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.95)',
+            }]}>
               {currency}
             </Text>
             <MontoEditable
               ref={montoRef}
               testID="expense-amount"
+              sobreMarmol
               currency={currency}
               value={amountStr}
               onChangeText={setAmountStr}
@@ -1011,8 +1015,11 @@ const styles = StyleSheet.create({
     alignItems: 'center', overflow: 'hidden',
     paddingTop: Spacing[6], paddingBottom: Spacing[4], gap: Spacing[3],
   },
-  heroMarmol: { top: 0, height: 140 },
-  heroCurrency: { textTransform: 'uppercase' },
+  heroMarmol: { top: 0, bottom: 0 },
+  heroCurrency: {
+    textTransform: 'uppercase', fontWeight: '800',
+    textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 6,
+  },
   heroToggle: {
     flexDirection: 'row', borderRadius: Radius.full, padding: 3, gap: 3,
   },
