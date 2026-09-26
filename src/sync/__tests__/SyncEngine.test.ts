@@ -110,12 +110,12 @@ describe('resolveDeletionVotes', () => {
     expect(resolveDeletionVotes(expense, ['u1', 'u2'])).toBe(false);
   });
 
-  it('returns true immediately when creator forces deletion', () => {
+  it('returns true immediately when creator forces deletion and the caller trusts the signature (T-143)', () => {
     const expense = makeExpense({
       createdById: 'creator',
       deletionVotes: [{ userId: 'creator', votedAt: Date.now(), action: 'delete', forced: true }],
     });
-    expect(resolveDeletionVotes(expense, ['creator', 'u2'])).toBe(true);
+    expect(resolveDeletionVotes(expense, ['creator', 'u2'], Date.now(), () => true)).toBe(true);
   });
 
   it('returns false when any member cancels', () => {

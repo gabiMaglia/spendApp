@@ -3,6 +3,10 @@ import { useExpenseStore } from '@/src/store/expenseStore';
 import { useCommentStore } from '@/src/store/commentStore';
 import { DELETION_TIMEOUT_MS } from '@/src/sync/SyncEngine';
 import { recordServerTime, clearClockOffset } from '@/src/utils/syncedClock';
+import { emitirVoto } from '@/src/services/deletionVotes';
+import { ensureIdentity } from '@/src/store/identityStore';
+import { rememberAuthorKey, forgetAuthorKeys } from '@/src/sync/authorKeys';
+import { signVote } from '@/src/sync/voteSign';
 import type { DeletionVote, Expense, ExpenseComment } from '@/src/types/models';
 
 jest.mock('@/src/sync/relayEngine', () => ({ schedulePublish: jest.fn(), deviceId: () => 'dev' }));
@@ -54,12 +58,18 @@ describe('vencimiento de las solicitudes de borrado', () => {
     expect(useExpenseStore.getState().expenses[0]!.isDeleted).toBe(false);
   });
 
-  it('el creador que fuerza borra al instante', () => {
+  /**
+   * T-143 (SEC-01): un `forced` a nombre del creador SIN firma que cierre ya
+   * no borra al instante — es la misma protección que `forcedSinFirma.test.ts`
+   * ejerce sobre `resolveDeletionVotes`, vista desde el camino de producción.
+   */
+  it('un forced sin firma NO borra al instante: abre ronda de 72 h', () => {
     useExpenseStore.setState({ expenses: [gasto('e1', [
       { userId: 'ana', votedAt: AHORA, action: 'delete', forced: true },
     ])] });
 
-    expect(resolvePendingDeletions(AHORA)).toBe(1);
+    expect(resolvePendingDeletions(AHORA)).toBe(0);
+    expect(resolvePendingDeletions(VENCIDO)).toBe(1);
   });
 
   it('los gastos sin solicitud no se tocan', () => {
@@ -130,5 +140,45 @@ describe('el plazo se cuenta contra el reloj corregido', () => {
     ])] });
 
     expect(resolvePendingDeletions()).toBe(0);
+  });
+});
+
+/**
+ * T-143 (SEC-01), de punta a punta: el servicio que corre solo al arrancar y
+ * tras cada drenaje tiene que distinguir el override REAL del creador (firmado
+ * con una clave que sabemos suya) de uno que un tercero escribió a su nombre.
+ */
+describe('T-143 · el override del creador exige firma que cierre', () => {
+  afterEach(() => forgetAuthorKeys());
+
+  it('un forced firmado por una clave conocida del creador borra ya', () => {
+    const { publicKey } = ensureIdentity();
+    rememberAuthorKey('ana', publicKey);          // sabemos que esta clave es de Ana
+    const e = gasto('e1', []);
+    const votos = emitirVoto(e, 'ana', 'force', AHORA); // firma con la privada del aparato
+    useExpenseStore.setState({ expenses: [{ ...e, deletionVotes: votos }] });
+
+    expect(resolvePendingDeletions(AHORA + 1)).toBe(1);
+    expect(useExpenseStore.getState().expenses[0]!.isDeleted).toBe(true);
+  });
+
+  it('un forced SIN firma a nombre del creador no borra hasta las 72 h', () => {
+    const forjado: DeletionVote = { userId: 'ana', votedAt: AHORA, action: 'delete', forced: true };
+    useExpenseStore.setState({ expenses: [gasto('e1', [forjado])] });
+
+    expect(resolvePendingDeletions(AHORA + 1)).toBe(0);
+    expect(useExpenseStore.getState().expenses[0]!.isDeleted).toBe(false);
+    expect(resolvePendingDeletions(VENCIDO)).toBe(1);
+  });
+
+  it('un forced con firma de OTRA clave (no del creador) tampoco es inmediato', () => {
+    const { publicKey } = ensureIdentity();
+    rememberAuthorKey('ana', 'cc'.repeat(32));     // la clave de Ana es otra
+    const voto: DeletionVote = { userId: 'ana', votedAt: AHORA, action: 'delete', forced: true };
+    const firmadoPorMallory = { ...voto, ...signVote('e1', voto, ensureIdentity().privateKey) };
+    expect(firmadoPorMallory.k).toBe(publicKey);
+    useExpenseStore.setState({ expenses: [gasto('e1', [firmadoPorMallory])] });
+
+    expect(resolvePendingDeletions(AHORA + 1)).toBe(0);
   });
 });
