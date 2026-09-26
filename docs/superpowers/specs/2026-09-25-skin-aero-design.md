@@ -27,8 +27,7 @@ src/skins/
   aero.ts          SkinOverride: solo lo que cambia
   registry.ts      SKINS = { default, aero }, FALLBACK_SKIN = 'default'
   resolveSkin.ts   función pura: fallback + override, campo a campo
-  SkinProvider.tsx contexto; lee settingsStore.skin + esquema claro/oscuro
-  useSkin.ts       devuelve el Skin resuelto (+ `degradado`)
+  useSkin.ts       lee settingsStore.skin + esquema; devuelve el Skin resuelto (+ `degradado`)
 src/components/skin/   superficies reutilizables que leen useSkin()
 ```
 
@@ -78,6 +77,15 @@ Los montos van siempre sobre superficie sólida (nunca sobre mármol).
 ## Qué no se toca
 
 Texturas de mármol, azul noche de marca, tipografía, semánticos (T-137), orden y jerarquía de Personal, encabezado sticky, `Segmented variant="tabs"`, tab bar.
+
+## Ajustes al escribir el plan (2026-09-25)
+
+Salieron de leer el código; no cambian ninguna decisión del PO:
+
+- **Sin `SkinProvider`.** El skin elegido vive en `settingsStore` (Zustand ya es estado global), así que `useSkin()` lo lee directo. Un contexto extra no agrega nada.
+- **Sin `react-native-svg`.** El dev client instalado ya falló con svg (`topSvgLayout`, T-138 / 2026-09-23). Gradientes con `experimental_backgroundImage` (RN 0.81 New Arch) y halos con `boxShadow` de color. `SkinHalo` desaparece: el halo es una segunda sombra del `Panel`.
+- **El header compartido (`TabHeader`) no se toca.** Lo usan las cinco pestañas; el halo va en el medidor. El FAB lleva sombra y glow de marca, sin gradiente.
+- `Band` lee un contexto de `Panel`: dentro de un panel del Aero pierde sus hairlines y su fondo, así `SplitStat` y `StatLead` quedan como contenido del panel sin modificarse.
 
 ## Selector en Yo
 
