@@ -21,8 +21,14 @@ export function MovimientosHeader({ count }: { count: number }) {
   // En un skin soft la píldora ya separa el encabezado de la lista: sin hairline.
   // Y el aire vertical es simétrico: el Spacing[5]/9 de abajo está afinado
   // para la banda plana (corte de reposo del scroll), no para una píldora.
+  // Borde (PO 2026-09-26): la píldora sticky no lleva sombra —ensuciaría el
+  // scroll—, así que el contorno es lo que la recorta contra la lista.
+  // `borderTopColor` explícito: si no, gana el filo de luz de `MarmolPill`.
   const extra = skin.flags.soft
-    ? { paddingTop: skin.space.gapPanel, paddingBottom: skin.space.gapPanel }
+    ? {
+        paddingTop: skin.space.gapPanel, paddingBottom: skin.space.gapPanel,
+        borderWidth: 1, borderColor: c.hair, borderTopColor: c.hair,
+      }
     : { borderBottomWidth: 1, borderBottomColor: c.hair };
   const { t } = useTranslation();
   return (
