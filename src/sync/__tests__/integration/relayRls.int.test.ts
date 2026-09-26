@@ -356,6 +356,34 @@ soloEn('011a', '011b')('011a · piezas nuevas', () => {
 });
 
 soloEn('011a')('011a · compatibilidad: el camino viejo sigue andando', () => {
+  // Las cuatro formas de fila que publicó `relay.ts` en su historia (git log):
+  // 1dfcaf8 {topic,payload,sender} · fbf5bfc +compactable · e26fd6a +owner_proof · 228132e +ckey.
+  const formas = (t: string): Record<string, unknown>[] => [
+    { topic: t, payload: 'x', sender: 'v1' },
+    { topic: t, payload: 'x', sender: 'v2', compactable: false },
+    { topic: t, payload: 'x', sender: 'v3', compactable: true, owner_proof: 'f'.repeat(64) },
+    { topic: t, payload: 'x', sender: 'v4', compactable: true, owner_proof: 'a'.repeat(64), ckey: 'k' },
+  ];
+  it('cada cliente publicado (viejo y actual) sigue insertando directo, como anon y como authenticated', async () => {
+    for (const cli of [nuevo(), await anonimo()]) {
+      for (const f of formas(topic())) {
+        const r = await cli.from('envelopes').insert(f).select('seq,created_at').single();
+        expect(r.error).toBeNull();
+      }
+    }
+  });
+  it('el insert directo no puede fijar seq, created_at ni expires_at (cursor envenenado cerrado ya en 011a)', async () => {
+    for (const cli of [nuevo(), await anonimo()]) {
+      const t = topic();
+      for (const extra of [{ seq: 9223372036854775000 }, { expires_at: '2099-01-01' }, { created_at: '2099-01-01' }, { owner_tag: 'b'.repeat(64) }]) {
+        expect((await cli.from('envelopes').insert({ ...fila(t, 'mal'), ...extra })).error).not.toBeNull();
+      }
+      expect((await rpcPub(cli, t, 'bien')).error).toBeNull();
+      const { data } = await cli.rpc('fetch_since', { p_topic: t, p_since: 0 });
+      expect((data as Fila[]).map((r) => r.sender)).toEqual(['bien']);
+    }
+  });
+
   it('anon inserta y lee directo como hoy', async () => {
     const t = topic();
     expect((await nuevo().from('envelopes').insert(fila(t)).select('seq').single()).error).toBeNull();

@@ -116,6 +116,13 @@ describe('011a · aditiva', () => {
       );
     }
   });
+  it('insert directo limitado a las columnas del cliente: seq/created_at/expires_at los pone el servidor', () => {
+    expect(sql).toMatch(/revoke insert on public\.envelopes from anon, authenticated/i);
+    expect(sql).toMatch(
+      /grant insert \(topic, payload, sender, compactable, owner_proof, ckey\) on public\.envelopes to anon, authenticated/i,
+    );
+    expect(sql).not.toMatch(/grant insert on public\.envelopes/i);
+  });
   it('agenda la purga de la cuota de forma idempotente', () => {
     expect(sql).toMatch(/cron\.unschedule\('purge_relay_quota'\)/);
     expect(sql).toMatch(/cron\.schedule\(\s*'purge_relay_quota'/);
@@ -178,7 +185,12 @@ describe('011b · rollback', () => {
     expect(sql).toMatch(/alter publication supabase_realtime add table public\.envelopes/i);
   });
   it('devuelve los grants de anon', () => {
-    expect(sql).toMatch(/grant select, insert on public\.envelopes to anon, authenticated/i);
+    expect(sql).toMatch(/grant select on public\.envelopes to anon, authenticated/i);
+    // Vuelve al estado de 011a, no al de antes: el insert sigue limitado a las columnas del cliente.
+    expect(sql).toMatch(
+      /grant insert \(topic, payload, sender, compactable, owner_proof, ckey\) on public\.envelopes to anon, authenticated/i,
+    );
+    expect(sql).not.toMatch(/grant (select, )?insert on public\.envelopes/i);
     expect(sql).toMatch(/grant select on public\.device_keys to anon/i);
     for (const fn of ['fetch_since', 'publish_envelope', 'account_keys', 'delete_my_envelopes']) {
       expect(sql).toMatch(new RegExp(`grant execute on function[\\s\\S]*public\\.${fn}\\([\\s\\S]*to anon`, 'i'));
