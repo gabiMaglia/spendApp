@@ -80,6 +80,7 @@ const EXPENSE_SLOTS: Record<keyof Expense, CoreSlot> = {
   isDeleted: 'fuera',       // tombstone: lo escriben terceros
   deletionVotes: 'fuera',   // unión de aportes de gente distinta
   receiptImageUri: 'fuera', // URI local del aparato, no un dato compartido
+  autoriaDisputada: 'fuera', // T-170: unión de disputas, la escribe el merge
   k: 'fuera',
   s: 'fuera',
 };

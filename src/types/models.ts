@@ -351,6 +351,13 @@ export interface Expense extends SyncMeta, CoreSigned {
   note?: string;
   receiptImageUri?: string;
   deletionVotes: DeletionVote[];
+  /**
+   * Autores en disputa (T-170 · D-2). La escribe el merge, no el usuario: es
+   * una unión colaborativa de `createdById` que difieren entre versiones del
+   * mismo gasto. Con dos o más ids, `enDisputa()` es `true` y ningún `forced`
+   * es inmediato para nadie, tampoco para el autor genuino (I-10).
+   */
+  autoriaDisputada?: string[];
 }
 
 // Payment = liquidación de deuda. No necesita consenso.

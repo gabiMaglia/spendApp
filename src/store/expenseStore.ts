@@ -9,6 +9,7 @@ import { migrateExpenseAmounts } from './moneyMigration';
 import type { Expense } from '@/src/types/models';
 import { syncedNow } from '@/src/utils/syncedClock';
 import { recordError } from '@/src/services/errorLog';
+import { enDisputa } from '@/src/algorithms/autoria';
 
 const storage = createSecureStorage('expenses');
 const KEY = 'data_v1';
@@ -87,7 +88,25 @@ export const useExpenseStore = create<ExpenseStoreState>((set, get) => ({
    * este default.
    */
   mergeExpenses: (incoming, now = syncedNow()) => {
-    const merged = mergeExpensesPure(get().expenses, incoming, now);
+    const previos = get().expenses;
+    const merged = mergeExpensesPure(previos, incoming, now);
+
+    // Rastro P-1 (T-170 · D-2): sólo cuando el merge ABRE una disputa que no
+    // estaba antes — no en cada re-merge del mismo par en disputa, ni al
+    // recibir un tercer autor que ya estaba disputado.
+    const porId = new Map(previos.map(e => [e.id, e]));
+    for (const m of merged) {
+      const previo = porId.get(m.id);
+      if (m.autoriaDisputada !== previo?.autoriaDisputada
+          && enDisputa(m) && !enDisputa(previo ?? {})) {
+        recordError({
+          message: `sync.autoria_disputada id=${m.id.slice(0, 8)}`,
+          fatal: false,
+          screen: 'sync.merge',
+        });
+      }
+    }
+
     persist(merged);
     set({ expenses: merged });
   },

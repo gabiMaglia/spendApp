@@ -3,6 +3,7 @@ import { canonicalCore, coreFieldsOf, type CoreKind, type CoreRecord } from '@/s
 import { mergeDeletionVoteSets } from '@/src/sync/SyncEngine';
 import { mergeApprovals } from '@/src/algorithms/leaveRequest';
 import { envenenado } from './relojDelMerge';
+import { unirDisputa } from '@/src/algorithms/autoria';
 import type { DeletionVote, LeaveRequest, SettlementConfirmation } from '@/src/types/models';
 
 /**
@@ -52,8 +53,14 @@ type Registro = Record<string, unknown>;
  */
 const CAMPOS_DE_FIRMA = ['k', 's'] as const;
 
-/** Une dos versiones de un campo colaborativo. `undefined` = el campo no está. */
-type Union = (local: unknown, remoto: unknown) => unknown;
+/**
+ * Une dos versiones de un campo colaborativo. `undefined` = el campo no está.
+ *
+ * `cur`/`inc` (el registro completo de cada lado) sólo los necesita
+ * `unirAutoria`, para comparar `createdById` — el resto de las uniones los
+ * ignora.
+ */
+type Union = (local: unknown, remoto: unknown, cur: Registro, inc: Registro) => unknown;
 
 const unirVotos: Union = (local, remoto) => {
   const a = local as DeletionVote[] | undefined;
@@ -112,6 +119,19 @@ const unirAprobaciones: Union = (local, remoto) => {
 };
 
 /**
+ * `autoriaDisputada` (T-170 · D-2): unión de `createdById` en disputa.
+ *
+ * Es colaborativo sólo en `expense`: en `payment` los registros derivados de
+ * `applyLeave.ts` pueden dar falsos positivos, y el único poder de creador
+ * sobre pagos es el atajo D3, que se cierra por otro lado (`settlementStatus`,
+ * Task 3). No hay ninguna razón de negocio para disputar autoría de
+ * comentarios, recurrentes o grupos hoy.
+ */
+const unirAutoria: Union = (local, remoto, cur, inc) =>
+  unirDisputa(local as string[] | undefined, remoto as string[] | undefined,
+    cur.createdById, inc.createdById);
+
+/**
  * Qué campos de cada entidad son colaborativos.
  *
  * Está escrito por entidad y no derivado de la clasificación de `recordCore`
@@ -121,7 +141,7 @@ const unirAprobaciones: Union = (local, remoto) => {
  * lo tanto no se puede elegir sin perder el aporte de alguien.
  */
 const COLABORATIVOS: Record<CoreKind, readonly (readonly [string, Union])[]> = {
-  expense: [['deletionVotes', unirVotos]],
+  expense: [['deletionVotes', unirVotos], ['autoriaDisputada', unirAutoria]],
   payment: [['confirmations', unirAcuses]],
   comment: [],
   recurring: [],
@@ -253,7 +273,7 @@ export function mergeRecord<K extends CoreKind>(
   const cur = current as unknown as Registro;
   const inc = incoming as unknown as Registro;
   const colaborativos = COLABORATIVOS[kind]
-    .map(([campo, unir]) => [campo, unir(cur[campo], inc[campo])] as const);
+    .map(([campo, unir]) => [campo, unir(cur[campo], inc[campo], cur, inc)] as const);
 
   // Nada del entrante ganó nada: se devuelve el registro que ya estaba, con su
   // identidad intacta. Es el caso ABRUMADORAMENTE mayoritario —el sobre lleva

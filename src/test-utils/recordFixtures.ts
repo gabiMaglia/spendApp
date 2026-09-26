@@ -36,6 +36,7 @@ export const EXPENSE: Required<Expense> = {
   note: 'con propina',
   receiptImageUri: 'file:///local/recibo.jpg',
   deletionVotes: [{ userId: 'beto', votedAt: 4_000, action: 'delete' }],
+  autoriaDisputada: ['ana', 'beto'],
   rev: 2_000,
   k: '',
   s: '',
