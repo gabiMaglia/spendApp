@@ -1,6 +1,7 @@
 import { rehydrateForActiveUser } from '../session';
 import { observeAuthor, authorStats, unverifiedAuthors, clearAuthorObservations } from '@/src/sync/authorHealth';
 import { useAuthStore } from '../authStore';
+import { __resetSecureStorage } from '@/src/utils/secureStorage';
 import type { User } from '@/src/types/models';
 
 /**
@@ -30,7 +31,15 @@ jest.mock('@/src/sync/deviceKeys', () => ({
 
 const sesion = (id: string) => useAuthStore.setState({ currentUser: { id } as User });
 
+// T-173: `clearAuthorObservations()` sólo vacía el scope de la cuenta ACTIVA
+// (a propósito, ver `reloadAuthorHealth` en `authorHealth.ts`: soltar no puede
+// borrar la medición de la cuenta que entra). Un test que de paso escribe bajo
+// 'cuenta-b' (como "soltar no puede BORRAR...") deja ese residuo en el storage
+// del archivo entero — `createSecureStorage('users')` es un singleton de
+// módulo — y el siguiente test que vuelve a activar 'cuenta-b' lo hereda. Sin
+// `--randomize` "soltar no puede BORRAR" corre último y nunca se nota.
 beforeEach(() => {
+  __resetSecureStorage();
   sesion('cuenta-a');
   clearAuthorObservations();
 });
