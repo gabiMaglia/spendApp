@@ -28,13 +28,34 @@ import { truncar, MAX_TEXTO_CORTO } from '@/src/sync/topes';
  * enmienda), pero un nombre de grupo sigue siendo un texto que la app misma
  * genera — sin este truncado, traspasos repetidos con un nombre base ya
  * cerca del tope podían crecer sin límite con cada sufijo " (N)".
+ *
+ * T-150 ronda 2/5 — defecto 2 del handoff (regresión de la ronda anterior):
+ * truncar el string YA ARMADO (`base + sufijo`) cortaba el sufijo, no la
+ * base — con una base de 200 el sufijo entero desaparecía (el nombre nuevo
+ * quedaba igual al viejo) y con una base un poco más corta el corte caía a
+ * mitad del sufijo ("... (2" sin cerrar), que el regex de la línea 33 ya no
+ * reconoce, así que el siguiente traspaso repetía el mismo nombre. Ahora se
+ * trunca la BASE, reservando el lugar exacto que ocupa el sufijo elegido —
+ * el sufijo nunca se corta, y la búsqueda de colisión corre sobre el
+ * candidato YA truncado (que es el que de verdad se va a guardar).
  */
 export function siguienteNombreDisponible(nombreBase: string, nombresExistentes: string[]): string {
   const base = nombreBase.replace(/ \(\d+\)$/, '');
   const existentes = new Set(nombresExistentes);
   let n = 2;
-  while (existentes.has(`${base} (${n})`)) n += 1;
-  return truncar(`${base} (${n})`, MAX_TEXTO_CORTO);
+  let candidato = candidatoTruncado(base, n);
+  while (existentes.has(candidato)) {
+    n += 1;
+    candidato = candidatoTruncado(base, n);
+  }
+  return candidato;
+}
+
+/** `base` truncada para que `base + " (n)"` quepa entero en `MAX_TEXTO_CORTO`. */
+function candidatoTruncado(base: string, n: number): string {
+  const sufijo = ` (${n})`;
+  const baseAcotada = truncar(base, MAX_TEXTO_CORTO - sufijo.length);
+  return `${baseAcotada}${sufijo}`;
 }
 
 /**

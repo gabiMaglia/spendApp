@@ -106,7 +106,15 @@ export type Notice =
    * lectura. Informativo: el traspaso ya se aplicó, no hay nada que
    * aprobar u objetar.
    */
-  | { kind: 'group_replaced'; groupId: string; groupName: string; newGroupId: string; newGroupName: string };
+  | { kind: 'group_replaced'; groupId: string; groupName: string; newGroupId: string; newGroupName: string }
+  /**
+   * Alguien intentó entrar por un link a un grupo que ya está en
+   * `MAX_MIEMBROS` (T-150 ronda 2/5, ruling del orquestador). `admit()`
+   * rechaza el reclamo sin sumar a nadie — antes eso sólo dejaba rastro en el
+   * diagnóstico (`inviteEngine.ts`), invisible para quien invita. Informativo:
+   * no hay nada que aprobar acá, el reclamo ya fue rechazado.
+   */
+  | { kind: 'group_invite_full'; groupId: string; groupName: string; inviteToken: string };
 
 /**
  * ¿Este aviso pide que el usuario HAGA algo, o sólo informa? (T-062)
@@ -138,6 +146,8 @@ export function esAccionable(kind: Notice['kind']): boolean {
     case 'restored':
     case 'joined':
     case 'group_replaced':
+    // T-150 ronda 2/5: el reclamo ya fue rechazado, no hay nada que resolver.
+    case 'group_invite_full':
       return false;
   }
 }

@@ -694,7 +694,9 @@
     "clock_off_title": "La hora de tu teléfono está mal",
     "clock_off_body": "Las fechas de tus gastos pueden verse cambiadas. Revisá la fecha y hora del teléfono; tus datos están bien.",
     "group_replaced_title": "«{{group}}» se traspasó",
-    "group_replaced_body": "Se pasó a un grupo nuevo: «{{newGroup}}». El anterior queda archivado, de solo lectura."
+    "group_replaced_body": "Se pasó a un grupo nuevo: «{{newGroup}}». El anterior queda archivado, de solo lectura.",
+    "invite_full_title": "Tu link de «{{group}}» tuvo un intento de más",
+    "invite_full_body": "Alguien quiso entrar con tu link, pero el grupo ya llegó al máximo de {{max}} miembros. No se sumó a nadie."
   },
   "fx": {
     "partial_title": "Hay saldo que no te estamos mostrando",

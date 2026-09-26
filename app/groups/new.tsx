@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
-  KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
+  Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -27,7 +27,7 @@ import { UserAvatar } from '@/src/components/UserAvatar';
 import { useTranslation } from 'react-i18next';
 import { syncedNow } from '@/src/utils/syncedClock';
 import { esYo } from '@/src/store/identityAlias';
-import { MAX_TEXTO_CORTO } from '@/src/sync/topes';
+import { admiteUnMiembroMas, MAX_MIEMBROS, MAX_TEXTO_CORTO } from '@/src/sync/topes';
 
 const PRIMARY_CURRENCIES: CurrencyCode[] = ['ARS', 'USD', 'EUR', 'BRL'];
 
@@ -63,6 +63,14 @@ export default function NewGroupScreen() {
   const canSave    = name.trim().length > 0 && hasContact;
 
   function toggleContact(id: string) {
+    // T-150 ronda 2/5 (defecto 1, handoff): un grupo nunca puede nacer con más
+    // de MAX_MIEMBROS — con ≥100 contactos, crearlo sin este tope daba un
+    // grupo de 101 que `excesoDe` excluye de toda publicación en silencio.
+    // Mismo aviso que ya usa "agregar miembro" en `[id].tsx`.
+    if (!selectedIds.includes(id) && !admiteUnMiembroMas(selectedIds)) {
+      Alert.alert(t('group_detail.member_limit_title'), t('group_detail.member_limit_body', { max: MAX_MIEMBROS }));
+      return;
+    }
     hapticSelection();
     setSelectedIds(prev =>
       prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id],

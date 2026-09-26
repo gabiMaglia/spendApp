@@ -18,6 +18,7 @@ import {
 import { syncedNow } from '@/src/utils/syncedClock';
 import { withTimeout } from '@/src/utils/withTimeout';
 import { recordError } from '@/src/services/errorLog';
+import { announceInviteFull } from '@/src/services/notifications';
 import { admiteUnMiembroMas } from './topes';
 import {
   claveLocalVinoDeContacto, idDeOfertaDeInvitacion, olvidarOfertas, registrarOferta,
@@ -229,10 +230,13 @@ async function admit(
   // quien invita — un grupo nunca debe superar MAX_MIEMBROS tampoco por acá.
   // Sólo aplica si `claim.userId` sería NUEVO: un reintento de alguien que ya
   // es miembro no se bloquea (no suma a nadie). Rechazo total (no se marca
-  // canjeado, no se entrega nada) con rastro en el diagnóstico, porque no hay
-  // pantalla de este lado que pueda avisarle a quien admite.
+  // canjeado, no se entrega nada), con rastro en el diagnóstico Y un aviso
+  // visible en la bandeja de quien invita (T-150 ronda 2/5, ruling del
+  // orquestador): el diagnóstico solo no lo ve nadie, y `announceInviteFull`
+  // ya dedupe por invitación así que no apila un aviso por reintento.
   if (!group.memberIds.includes(claim.userId) && !admiteUnMiembroMas(group.memberIds)) {
     recordError({ message: 'admit_rechazado: tope_de_miembros', fatal: false, screen: 'sync.invite' });
+    void announceInviteFull(group.id, group.name, invite.token);
     return false;
   }
 
