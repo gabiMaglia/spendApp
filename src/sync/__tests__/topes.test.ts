@@ -88,6 +88,30 @@ describe('truncar — topes de caracteres en textos que genera la app (T-150 ron
     expect(resultado).toHaveLength(MAX_TEXTO_CORTO);
     expect(resultado).toBe('x'.repeat(MAX_TEXTO_CORTO));
   });
+
+  /**
+   * T-172 (ítem 5, deuda de T-150 ronda 3): `truncar` cortaba por unidad
+   * UTF-16 (`String#slice`). Un emoji fuera del BMP (😀) son DOS unidades — un
+   * surrogate alto + uno bajo — y si el corte cae justo en el medio, el
+   * resultado queda con un surrogate alto SUELTO al final: no es texto UTF-16
+   * válido (se ve como un glifo de reemplazo en cualquier UI, y algunos
+   * serializadores lo rechazan).
+   */
+  it('no parte un par surrogate (emoji) por la mitad', () => {
+    const base = 'x'.repeat(4);
+    const conEmoji = `${base}\u{1F600}`; // 4 + 2 unidades UTF-16 = largo 6
+    const resultado = truncar(conEmoji, 5); // el corte cae justo en el surrogate alto
+
+    // Nunca puede quedar un surrogate alto (0xD800–0xDBFF) sin su par bajo al final.
+    const ultimo = resultado.charCodeAt(resultado.length - 1);
+    expect(ultimo >= 0xD800 && ultimo <= 0xDBFF).toBe(false);
+    expect(resultado).toBe(base); // se descarta el emoji entero, no queda basura
+  });
+
+  it('con lugar de sobra para el emoji entero, lo conserva intacto', () => {
+    const conEmoji = 'x'.repeat(4) + '\u{1F600}';
+    expect(truncar(conEmoji, 10)).toBe(conEmoji);
+  });
 });
 
 describe('admiteUnMiembroMas — tope de miembros al AGREGAR (T-150 ronda 2, D4)', () => {
