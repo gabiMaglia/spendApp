@@ -503,18 +503,28 @@ export async function drainGroup(
     }
 
     for (const { seq, delta, senderKey } of rebanadas) {
-      // 3. Autoría (ADR-004 fase B/T-033). Con `RECHAZAR_AUTORES_NO_VERIFICADOS`
-      // apagado (default), esto sigue siendo modo AVISO: se mide, nunca se
-      // descarta. Prendido, sólo un veredicto `clave_desconocida` descarta el
-      // registro — nunca `sin_directorio` (rechazar ahí sería tratar "no sé"
-      // como "es malo"). Por eso se espera el veredicto antes de aplicar.
-      const veredicto = await observeAuthor(groupId, delta.fromUserId, senderKey);
-      if (RECHAZAR_AUTORES_NO_VERIFICADOS && veredicto === 'clave_desconocida') {
-        skipped++;
-        continue;
-      }
-
+      // Ronda 1 del verifier (D1): TODO lo que puede tirar por esta rebanada —
+      // incluida la observación de autoría, que lee `delta.fromUserId` sin
+      // haber comprobado que `delta` sea un objeto— tiene que pasar por el
+      // MISMO camino de `drainFailures` (reintentos + rastro + skip). Antes
+      // `observeAuthor` estaba FUERA de este `try`: un sobre firmado y
+      // cifrado con la clave del grupo cuyo texto plano fuera `null` (u otro
+      // no-objeto) hacía que `delta.fromUserId` tirara un TypeError que
+      // `drainGroup` nunca atajaba — `drainNow` lo veía como un throw crudo,
+      // caía en su propio `catch` sin tocar cursor ni marca de T-089, y el
+      // presupuesto de 3 reintentos jamás llegaba a consumirse.
       try {
+        // 3. Autoría (ADR-004 fase B/T-033). Con `RECHAZAR_AUTORES_NO_VERIFICADOS`
+        // apagado (default), esto sigue siendo modo AVISO: se mide, nunca se
+        // descarta. Prendido, sólo un veredicto `clave_desconocida` descarta el
+        // registro — nunca `sin_directorio` (rechazar ahí sería tratar "no sé"
+        // como "es malo"). Por eso se espera el veredicto antes de aplicar.
+        const veredicto = await observeAuthor(groupId, delta.fromUserId, senderKey);
+        if (RECHAZAR_AUTORES_NO_VERIFICADOS && veredicto === 'clave_desconocida') {
+          skipped++;
+          continue;
+        }
+
         // S3-A1: la firma y el cifrado sólo prueban quién lo mandó y que tiene
         // la clave del TOPIC — nunca acotan qué puede venir adentro. Se arma un
         // delta nuevo, campo por campo, con sólo lo que pertenece a `groupId`
