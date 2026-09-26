@@ -240,13 +240,20 @@ describe('drainGroup aplica rebanadas y detecta manifiestos incompletos', () => 
   });
 
   /**
-   * Revisión de Task 6, hallazgo #3: si `fetchSince` devuelve exactamente el
-   * límite del drenaje, puede haber más sobres esperando en el servidor —el
-   * manifiesto o sus rebanadas podrían estar en la página siguiente— y
-   * calcular un gap acá sería un falso positivo sin mitigación posible. El
-   * chequeo debe saltearse entero para esta vuelta.
+   * Revisión de Task 6, hallazgo #3 (histórico) + **T-146**: cuando `fetchSince`
+   * devolvía exactamente el límite del drenaje, el drenaje de UNA sola página no
+   * podía saber si había más sobres esperando —el manifiesto o sus rebanadas
+   * podrían estar en la página siguiente—, así que el chequeo de gap se
+   * salteaba entero para esa vuelta.
+   *
+   * Con la paginación de T-146 (TEC-02) esa ambigüedad se resuelve pidiendo la
+   * página siguiente en vez de rendirse: si no queda nada más, `drainGroup`
+   * termina con `completo: true` y RECIÉN AHÍ corre el chequeo de manifiesto
+   * (`if (completo && manifiestos.length > 0)`), así que ahora SÍ detecta la
+   * rebanada faltante — ya no hay "sin mitigación posible", la mitigación es
+   * pedir la próxima página.
    */
-  it('con la página llena al límite del drenaje, NO se registra ningún gap aunque falte una rebanada', async () => {
+  it('con la primera página llena al límite pero sin más por delante, sí se detecta el gap tras paginar', async () => {
     useGroupStore.setState({ groups: [grupo()] } as never);
     useExpenseStore.setState({ expenses: [gasto('e1'), gasto('e2')] } as never);
     await publishToGroup('G', 'u1', 'device1');
@@ -254,13 +261,14 @@ describe('drainGroup aplica rebanadas y detecta manifiestos incompletos', () => 
     const [topic] = [...relayMock.__buzones.keys()];
     const sobres = relayMock.__buzones.get(topic)! as unknown as { seq: number; topic: string; payload: string; sender: string; ckey?: string }[];
 
-    // Se pierde una rebanada de datos: sin el chequeo #3, esto generaría un gap.
+    // Se pierde una rebanada de datos: esto genera un gap real.
     const idxData = sobres.findIndex(s => s.ckey && !esManifiesto(sobres, s));
+    const ckeyPerdida = sobres[idxData]!.ckey!;
     sobres.splice(idxData, 1);
 
     // Se rellena el buzón con sobres basura hasta llegar EXACTO al límite de
-    // `fetchSince` (200) que usa `drainGroup` — simula que hay más allá de lo
-    // que esta página trajo.
+    // `fetchSince` (200) que usa `drainGroup` en su primera página — simula que
+    // la primera página vino llena, sin decir todavía si hay más detrás.
     let seq = Math.max(...sobres.map(s => s.seq), 0);
     while (sobres.length < 200) {
       sobres.push({ seq: ++seq, topic, payload: 'basura-no-descifra', sender: 'ajeno' });
@@ -270,7 +278,11 @@ describe('drainGroup aplica rebanadas y detecta manifiestos incompletos', () => 
     useExpenseStore.setState({ expenses: [] } as never);
     const result = await drainGroup('G', 'u1', 'device2', 0);
     expect(result.ok).toBe(true);
-    expect(manifestGapFor('G')).toBeNull();
+    if (!result.ok) return;
+    // La segunda página (vacía, porque no hay más allá del sobre 200) confirma
+    // `completo: true`, y sólo entonces se corre el chequeo de manifiesto.
+    expect(result.completo).toBe(true);
+    expect(manifestGapFor('G')?.missingCkeys).toEqual([ckeyPerdida]);
   });
 
   /**

@@ -159,12 +159,17 @@ describe('TEC-01 · una rebanada que falla al aplicarse', () => {
       return real(delta, uid);
     });
 
+    // El intento N (DRAIN_MAX_REINTENTOS) agota el presupuesto DENTRO de esa
+    // misma llamada — no hace falta una vuelta extra después de agotar, la
+    // llamada que agota ya sigue de largo con el resto (drainFailures.ts).
+    // Por eso el loop hace sólo DRAIN_MAX_REINTENTOS - 1 llamadas incompletas
+    // antes de la llamada final, que es la que agota.
     let r = await drainGroup('G', 'u1', 'device2', 0);
-    for (let i = 1; i < DRAIN_MAX_REINTENTOS; i++) {
+    for (let i = 1; i < DRAIN_MAX_REINTENTOS - 1; i++) {
       expect(r.ok && !r.completo).toBe(true);
       r = await drainGroup('G', 'u1', 'device2', r.ok ? r.cursor : 0);
     }
-    // Tercer intento: agotó → se deja atrás y el drenaje completa.
+    // Último intento: agota el presupuesto → se deja atrás con rastro y el drenaje completa.
     r = await drainGroup('G', 'u1', 'device2', r.ok ? r.cursor : 0);
     expect(r.ok && r.completo).toBe(true);
     if (!r.ok) return;
