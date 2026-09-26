@@ -1,6 +1,7 @@
 import { createSecureStorage, type SecureId } from '@/src/utils/secureStorage';
 import { bucketsAbiertos, createStorage, type SimpleStorage } from '@/src/utils/createStorage';
-import { mergeAccountData, type MergeReport } from './mergeAccountData';
+import { mergeAccountData, type MergeReport, type ReglaDeFusion, type StoreAFusionar } from './mergeAccountData';
+import { syncedNow } from '@/src/utils/syncedClock';
 import { AUTH_KEYS } from './authKeys';
 import { mergeProviderUser } from '@/src/utils/mergeProviderUser';
 import { K_INVITES, K_PENDING, K_CONTACT_INVITES, K_CONTACT_PENDING } from './identityStore';
@@ -25,7 +26,11 @@ import type { ContactInvite } from '@/src/sync/contactInvite';
  * registros, así que los movimientos personales y el presupuesto de la cuenta
  * absorbida desaparecían en silencio. Se fusiona aparte, en `mergePersonal()`.
  */
-const MERGEABLE_STORES = ['groups', 'expenses', 'payments', 'users', 'recurring', 'comments'] as const;
+/** Qué stores fusiona `mergeAccounts` y con qué regla (T-149): la misma que usa su store en el sync. */
+const MERGEABLE_STORES = [
+  ['groups', 'group'], ['expenses', 'expense'], ['payments', 'payment'],
+  ['users', 'lww'], ['recurring', 'recurring'], ['comments', 'comment'],
+] as const satisfies readonly (readonly [string, ReglaDeFusion])[];
 
 const DATA_KEY = 'data_v1';
 const INBOX_MAX = 200;
@@ -91,7 +96,7 @@ const SUFIJO = '::u:';
 
 
 // Las ranuras, en el mismo orden en que la fusión las toca.
-for (const name of MERGEABLE_STORES) ranura(name, DATA_KEY);
+for (const [name] of MERGEABLE_STORES) ranura(name, DATA_KEY);
 const kPersonalEntries = ranura('personal', 'entries_v1');
 const kPersonalBudget  = ranura('personal', 'budget_v1');
 const kGroupKeys       = ranura('groupkeys', DATA_KEY);
@@ -134,11 +139,12 @@ const kContactPending = ranura('groupkeys', K_CONTACT_PENDING);
  * Unión con LWW por `updatedAt`; no borra el origen.
  */
 export function mergeAccounts(fromAccountId: string, toAccountId: string): MergeReport {
-  const stores = MERGEABLE_STORES.map(
-    name => [createSecureStorage(name), DATA_KEY] as [ReturnType<typeof createSecureStorage>, string],
+  const now = syncedNow();
+  const stores: StoreAFusionar[] = MERGEABLE_STORES.map(
+    ([name, regla]) => [createSecureStorage(name), DATA_KEY, regla],
   );
-  const report = mergeAccountData(stores, fromAccountId, toAccountId);
-  mergePersonal(fromAccountId, toAccountId, report);
+  const report = mergeAccountData(stores, fromAccountId, toAccountId, now);
+  mergePersonal(fromAccountId, toAccountId, report, now);
   mergeGroupKeys(fromAccountId, toAccountId);
   mergeArchived(fromAccountId, toAccountId);
   mergeNotices(fromAccountId, toAccountId);
@@ -643,11 +649,11 @@ function mergeContactPeers(fromAccountId: string, toAccountId: string): void {
  * Movimientos personales y presupuesto. Van aparte porque `personalStore` no usa
  * la clave `data_v1` de los demás.
  */
-function mergePersonal(fromAccountId: string, toAccountId: string, report: MergeReport): void {
+function mergePersonal(fromAccountId: string, toAccountId: string, report: MergeReport, now: number): void {
   if (fromAccountId === toAccountId) return;
   const storage = createSecureStorage('personal');
 
-  const sub = mergeAccountData([[storage, 'entries_v1']], fromAccountId, toAccountId);
+  const sub = mergeAccountData([[storage, 'entries_v1', 'lww']], fromAccountId, toAccountId, now);
   report.counts.personal = sub.counts['entries_v1'] ?? 0;
   if (!sub.sourceWasEmpty) report.sourceWasEmpty = false;
 
@@ -710,12 +716,12 @@ function mergeProfiles(fromAccountId: string, toAccountId: string): void {
  * mismo basename en carpetas distintas compartirían declaración sin que se note.
  */
 export const COBERTURA_FUSION: Record<string, string> = {
-  'store/groupStore':     'fusionado (MERGEABLE_STORES · groups/data_v1)',
-  'store/expenseStore':   'fusionado (MERGEABLE_STORES · expenses/data_v1)',
-  'store/paymentStore':   'fusionado (MERGEABLE_STORES · payments/data_v1)',
-  'store/userStore':      'fusionado (MERGEABLE_STORES · users/data_v1)',
-  'store/recurringStore': 'fusionado (MERGEABLE_STORES · recurring/data_v1)',
-  'store/commentStore':   'fusionado (MERGEABLE_STORES · comments/data_v1)',
+  'store/groupStore':     'fusionado (MERGEABLE_STORES · groups/data_v1 · regla: por niveles)',
+  'store/expenseStore':   'fusionado (MERGEABLE_STORES · expenses/data_v1 · regla: por niveles)',
+  'store/paymentStore':   'fusionado (MERGEABLE_STORES · payments/data_v1 · regla: por niveles)',
+  'store/userStore':      'fusionado (MERGEABLE_STORES · users/data_v1 · regla: LWW con tope)',
+  'store/recurringStore': 'fusionado (MERGEABLE_STORES · recurring/data_v1 · regla: por niveles)',
+  'store/commentStore':   'fusionado (MERGEABLE_STORES · comments/data_v1 · regla: por niveles)',
   'store/personalStore':  'aparte · mergePersonal (usa entries_v1 + budget_v1, no data_v1)',
   'store/groupKeyStore':  'aparte · mergeGroupKeys (es {groupId,key,epoch}, sin id/updatedAt; gana la época mayor)',
   'store/archiveStore':   'aparte · mergeArchived (string[] bajo archived_v1, en el bucket groups; unión)',
