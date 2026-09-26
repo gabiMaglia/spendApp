@@ -306,3 +306,71 @@ describe('grupo archivado: solo lectura (revisión final, Important #5b)', () =>
     expect(useCommentStore.getState().comments).toHaveLength(0);
   });
 });
+
+/**
+ * T-170 · D-3 (decisión del PO): la UI tiene que decir QUIÉN abrió la
+ * disputa, no sólo ocultar "Forzar" en silencio. Muestra los autores
+ * ATRIBUIBLES (`autoresVerificados`, firma que verifica) distintos del
+ * creador vigente — nunca una entrada sin verificar ni un id inyectado.
+ */
+describe('T-170 · D-3: la UI muestra quién abrió la disputa', () => {
+  const PRIV_UA = toHex(new Uint8Array(32).fill(1));
+  const PUB_UA = toHex(ed25519.getPublicKey(new Uint8Array(32).fill(1)));
+  const PRIV_MALLORY = toHex(new Uint8Array(32).fill(2));
+  const PUB_MALLORY = toHex(ed25519.getPublicKey(new Uint8Array(32).fill(2)));
+
+  const nucleoBase = {
+    id: 'e1', groupId: 'g1', description: 'Carne', amount: 20000, currency: 'ARS', paidById: 'ua',
+    splits: [{ userId: 'ua', amount: 10000 }, { userId: 'ub', amount: 10000 }],
+    splitMode: 'equal', category: 'food', date: 0, createdAt: 0, createdById: 'ua', rev: 1,
+  };
+
+  beforeEach(() => {
+    useUserStore.setState({ users: [
+      { id: 'ua', name: 'Ana' } as User, { id: 'mallory', name: 'Mallory' } as User,
+    ]});
+  });
+
+  afterEach(() => forgetAuthorKeys());
+
+  it('se muestra con disputa verificada, con el nombre del OTRO autor (no el creador vigente)', () => {
+    rememberAuthorKey('ua', PUB_UA);
+    rememberAuthorKey('mallory', PUB_MALLORY);
+
+    const nucleoUa = { ...nucleoBase, ...signCore('expense', nucleoBase as never, PRIV_UA) };
+    const nucleoMallory = { ...nucleoBase, createdById: 'mallory', rev: 2 };
+    const firmadoPorMallory = { ...nucleoMallory, ...signCore('expense', nucleoMallory as never, PRIV_MALLORY) };
+
+    useExpenseStore.setState({ expenses: [gasto({
+      ...nucleoUa, createdById: 'ua', autoriaDisputada: [firmadoPorMallory as never],
+    } as unknown as Partial<Expense>)] });
+
+    const { getByText } = render(<ExpenseDetailScreen />);
+    expect(getByText(/authorship_disputed_title/)).toBeTruthy();
+    const cuerpo = getByText(/authorship_disputed_body/);
+    expect(cuerpo.props.children).toContain('Mallory');
+    expect(cuerpo.props.children).not.toContain('Ana');
+  });
+
+  it('NO se muestra sin ninguna disputa registrada', () => {
+    rememberAuthorKey('ua', PUB_UA);
+    const nucleoUa = { ...nucleoBase, ...signCore('expense', nucleoBase as never, PRIV_UA) };
+    useExpenseStore.setState({ expenses: [gasto(
+      { ...nucleoUa, createdById: 'ua' } as unknown as Partial<Expense>,
+    )] });
+
+    const { queryByText } = render(<ExpenseDetailScreen />);
+    expect(queryByText(/authorship_disputed_title/)).toBeNull();
+  });
+
+  it('NO se muestra con una entrada inválida (sin forma de núcleo firmado)', () => {
+    rememberAuthorKey('ua', PUB_UA);
+    const nucleoUa = { ...nucleoBase, ...signCore('expense', nucleoBase as never, PRIV_UA) };
+    useExpenseStore.setState({ expenses: [gasto({
+      ...nucleoUa, createdById: 'ua', autoriaDisputada: [{ createdById: 'mallory' } as never],
+    } as unknown as Partial<Expense>)] });
+
+    const { queryByText } = render(<ExpenseDetailScreen />);
+    expect(queryByText(/authorship_disputed_title/)).toBeNull();
+  });
+});

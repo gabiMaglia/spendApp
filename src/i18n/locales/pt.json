@@ -226,6 +226,8 @@
     "delete_body_member": "Todos têm 72 h para contestar. Se ninguém contestar, é excluída sozinha.",
     "delete_pending_title": "Exclusão pendente",
     "delete_pending_body": "{{name}} pediu para excluir esta despesa. Se ninguém contestar, some em {{time}}.",
+    "authorship_disputed_title": "Autoria em disputa",
+    "authorship_disputed_body": "Há mais de uma versão assinada de quem criou esta despesa: {{names}}.",
     "request_delete": "Solicitar exclusão",
     "new_income_title": "Nova receita",
     "income_desc_placeholder": "De onde?",

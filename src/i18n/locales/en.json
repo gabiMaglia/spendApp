@@ -226,6 +226,8 @@
     "delete_body_member": "Everyone gets 72 h to object. If nobody does, it deletes itself.",
     "delete_pending_title": "Deletion pending",
     "delete_pending_body": "{{name}} asked to delete this expense. If nobody objects, it goes in {{time}}.",
+    "authorship_disputed_title": "Disputed authorship",
+    "authorship_disputed_body": "There's more than one signed version of who created this expense: {{names}}.",
     "request_delete": "Request deletion",
     "new_income_title": "New income",
     "income_desc_placeholder": "Where from?",
