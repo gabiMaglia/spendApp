@@ -1,5 +1,5 @@
 import { verifyCore, type CoreVerdict } from './recordSign';
-import { authorKeysFor } from './authorKeys';
+import { conPropiaSoloParaValida } from './authorKeys';
 import type { Expense, NucleoDisputado } from '@/src/types/models';
 
 /**
@@ -28,8 +28,14 @@ import type { Expense, NucleoDisputado } from '@/src/types/models';
 /** Verificador inyectable — por defecto, el veredicto real contra la caché de claves conocidas. */
 export type VerificadorDeNucleo = (autorId: string, nucleo: NucleoDisputado) => CoreVerdict;
 
+// T-170 · D-2: la propia sólo puede MEJORAR este veredicto hacia `valida`
+// (residual de la ronda de retorno 2, `authorKeys.ts`, `conPropiaSoloParaValida`).
 const verificadorReal: VerificadorDeNucleo = (autorId, nucleo) =>
-  verifyCore('expense', nucleo as unknown as Expense, authorKeysFor(autorId, nucleo.k));
+  conPropiaSoloParaValida(
+    autorId, nucleo.k,
+    keys => verifyCore('expense', nucleo as unknown as Expense, keys),
+    v => v === 'valida',
+  );
 
 /**
  * Memoizado por REFERENCIA del gasto: `mergeRecord` garantiza la misma

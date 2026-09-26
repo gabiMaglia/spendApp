@@ -1,4 +1,3 @@
-import { ed25519 } from '@noble/curves/ed25519.js';
 import { toHex } from '../hexBytes';
 import { signCore } from '../recordSign';
 import { forgetAuthorKeys, resolveAuthorKeys } from '../authorKeys';

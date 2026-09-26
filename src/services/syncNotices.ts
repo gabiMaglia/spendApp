@@ -368,13 +368,22 @@ export function noticesFor(
    *
    * **Esto no mira "quién firmó" en abstracto — mira el VEREDICTO contra las
    * claves conocidas de `yo`** (`requiereConfirmacion` → `nucleoDe` →
-   * `checkRecord` → `authorKeysFor`), y desde T-170 · D-2 esas claves SIEMPRE
-   * incluyen la pública de este aparato/cuenta para autoría propia
-   * (`src/sync/authorKeys.ts`, `clavePropia`), sin depender del directorio.
-   * Antes de ese fix, un pago MÍO de verdad —que YO firmé— también daba
-   * `no_verificable` en mi propio aparato mientras el directorio no
-   * resolviera esa clave (o nunca la resolviera: borde ADR-004), y me
-   * mandaba `settlement_pending` por un pago que acababa de cargar yo mismo.
+   * `checkRecord` → `conPropiaSoloParaValida`). Desde T-170 · D-2,
+   * `checkRecord` SUMA un segundo intento con la pública de ESTE aparato
+   * cuando el registro dice ser mío, y ese intento sólo puede MEJORAR el
+   * veredicto hacia `valida` (`src/sync/authorKeys.ts`, `clavePropia`) — así
+   * que un pago que YO firmé EN ESTE MISMO APARATO ya no depende del
+   * directorio para verse `valida` (antes daba `no_verificable` y me mandaba
+   * `settlement_pending` por un pago que acababa de cargar yo mismo).
+   *
+   * **Lo que SIGUE dependiendo del directorio, y el dictamen D-2 lo nombraba
+   * así** (residual, ronda de retorno 3): un pago mío firmado desde OTRO
+   * aparato de la misma cuenta, o de antes de una reinstalación. Ahí la
+   * pública propia de ESTE aparato no es la que firmó, así que el segundo
+   * intento no mejora nada y el veredicto sigue siendo el de siempre —
+   * `no_verificable` hasta que el directorio resuelva esa otra clave (nunca
+   * un `invalida` nuevo: `conPropiaSoloParaValida` sólo puede sumar, nunca
+   * degradar).
    */
   const conocidos_pagos = new Set(before.paymentIds);
   const saldos: Notice[] = paymentsAfter
