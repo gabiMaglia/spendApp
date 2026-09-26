@@ -74,6 +74,7 @@ function sembrarUnGrupoConClave(): void {
 beforeEach(() => {
   jest.useFakeTimers();
   createSecureStorage('groupkeys').clearAll();
+  useAuthStore.setState({ currentUser: null });
   useGroupStore.setState({ groups: [], isLoading: false });
   useGroupKeyStore.setState({ keys: [] });
   mockEnsureRelaySession.mockReset().mockResolvedValue('anonymous');
@@ -140,6 +141,26 @@ it('sin sesión avisa; al recuperarla, se retira', async () => {
   await jest.advanceTimersByTimeAsync(0);
 
   expect(sinSesionDeSync()).toBe(false);
+});
+
+/**
+ * Verifier D5: `startRelay` corre AUNQUE no haya usuario activo (pantalla de
+ * login, antes de elegir Google/Apple/invitado) — ahí no hay nada que
+ * sincronizar todavía (`syncableGroupIds` ya exige `currentUser`), así que no
+ * hay motivo para abrir sesión (ni mostrar su captcha) encima del login.
+ */
+it('D5: sin usuario activo, no intenta abrir ninguna sesión', async () => {
+  await startRelay();
+  expect(mockEnsureRelaySession).not.toHaveBeenCalled();
+});
+
+it('D5: en el poll tampoco, mientras siga sin usuario', async () => {
+  await startRelay();
+  mockEnsureRelaySession.mockClear();
+
+  await jest.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
+
+  expect(mockEnsureRelaySession).not.toHaveBeenCalled();
 });
 
 it('ata el refresco al ciclo de vida y lo suelta al parar', async () => {
