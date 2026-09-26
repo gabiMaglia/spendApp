@@ -8,8 +8,9 @@ import { Colors } from '@/src/constants/colors';
 import { Spacing } from '@/src/constants/spacing';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { FondoMarmol } from '@/src/components/FondoMarmol';
-import { useSkin } from '@/src/skins/useSkin';
-import { VidrioMarmol } from '@/src/components/skin/VidrioMarmol';
+import { useSkinTokens } from '@/src/skins/useSkin';
+import { HeaderAero, fondoBarraAero } from '@/src/components/skin/HeaderAero';
+import { AERO_AIRE } from '@/src/components/skin/headerAeroGeometria';
 import { HEADER_BAR_H, TITLE_BOTTOM_GAP, TITLE_BLOCK_H } from '@/src/constants/header';
 import {
   alturaHeaderColapsable, alturaBloqueTituloVisible, opacidadTituloCompacto, opacidadTituloCompactoSinMovimiento,
@@ -71,7 +72,11 @@ export function useHeaderPadding(aire: number = Spacing[4]): number {
  */
 export function useLimiteContenido(): { marginTop: number } {
   const insets = useSafeAreaInsets();
-  return { marginTop: insets.top + HEADER_BAR_H };
+  // Skin Aero (PO 2026-09-26): la barra es una tarjeta separada de la status
+  // bar, así que el límite queda debajo de ella más el aire que la separa del
+  // título. Con el skin default, el límite de siempre.
+  const soft = useSkinTokens().flags.soft;
+  return { marginTop: soft ? fondoBarraAero(insets.top) + AERO_AIRE : insets.top + HEADER_BAR_H };
 }
 
 /** Margen extra, en pt, del mármol más allá del alto expandido — colchón de seguridad para que nunca se vea un hueco. */
@@ -92,20 +97,7 @@ export function CollapsibleHeader({
   const scheme = useColorScheme() ?? 'light';
   const c = Colors[scheme];
   const insets = useSafeAreaInsets();
-  // Skin soft (Aero, PO 2026-09-26): el header flota como los paneles —
-  // esquinas de abajo redondeadas, sombra suave y sin la hairline. Con el
-  // default queda `null` y el header es el de siempre.
-  const { skin, degradado } = useSkin();
-  // El fondo `surface` es lo que queda detrás del mármol atenuado del vidrio
-  // (ver `VidrioMarmol`): sin él, lo de abajo se transparentaría.
-  const flotante = useMemo(() => skin.flags.soft ? {
-    backgroundColor: skin.colors.surface,
-    borderBottomLeftRadius: skin.radius.panel,
-    borderBottomRightRadius: skin.radius.panel,
-    ...(degradado
-      ? { elevation: skin.elevation.e2.elevationFallback }
-      : { boxShadow: `${skin.elevation.e2.boxShadow}, 0 0 28px ${skin.colors.glow}` }),
-  } : null, [skin, degradado]);
+  const soft = useSkinTokens().flags.soft;
 
   const expandido = insets.top + HEADER_BAR_H + TITLE_BLOCK_H;
   const colapsado = insets.top + HEADER_BAR_H;
@@ -116,12 +108,8 @@ export function CollapsibleHeader({
   // siempre, aunque el valor fuera idéntico. `expandido` casi no cambia
   // (depende del inset del sistema), así que esta referencia queda estable.
   const marmolStyle = useMemo(
-    () => ({
-      top: 0, bottom: undefined, height: expandido + MARMOL_BLEED,
-      // Aero: mármol atenuado detrás del vidrio. Default: 1 (opaco, como siempre).
-      opacity: skin.colors.vidrioMarmolOpacity,
-    }),
-    [expandido, skin.colors.vidrioMarmolOpacity],
+    () => ({ top: 0, bottom: undefined, height: expandido + MARMOL_BLEED }),
+    [expandido],
   );
 
   // «Reducir movimiento»: sin fades en los títulos (T-128).
@@ -149,10 +137,17 @@ export function CollapsibleHeader({
       : opacidadTituloCompacto(progress.value),
   }));
 
+  // Skin Aero: header propio (dos tarjetas que se funden). Va después de
+  // todos los hooks de arriba; con el skin default este return no ocurre y el
+  // header es exactamente el de siempre.
+  if (soft) {
+    return <HeaderAero title={title} subtitle={subtitle} progress={progress} right={right} left={left} />;
+  }
+
   return (
     <Animated.View
       testID="header-wrap"
-      style={[styles.wrap, flotante, wrapStyle]}
+      style={[styles.wrap, wrapStyle]}
       pointerEvents="box-none"
     >
       {/*
@@ -163,8 +158,7 @@ export function CollapsibleHeader({
         opaca: no hay overlay ni tinte encima, la propia foto es opaca.
       */}
       <FondoMarmol style={marmolStyle} />
-      <VidrioMarmol />
-      {!flotante && <View style={[styles.hair, { backgroundColor: c.hair }]} pointerEvents="none" />}
+      <View style={[styles.hair, { backgroundColor: c.hair }]} pointerEvents="none" />
       <View style={[styles.content, { height: expandido, paddingTop: insets.top }]}>
         <View style={styles.buttonsRow}>
           <View style={styles.buttonsLeft}>
