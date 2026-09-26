@@ -183,8 +183,10 @@ function traeFirma(r: Registro): boolean {
  * cualquier lado. No enciende la fase B: entre dos sin firma (peers
  * anteriores a T-041, registros derivados) y entre dos con firma manda el
  * `rev` como siempre. Se mira PRESENCIA de firma, no validez — una firma
- * falsa con `rev` alto sigue ganando y sigue marcándose `invalida`: ése es
- * el residual que R1 acepta.
+ * falsa con `rev` alto sigue ganando; el veredicto queda `invalida` sólo si
+ * se conoce la clave del autor, y `no_verificable` si no (`verifyCore` en
+ * `recordSign.ts` corta antes de mirar la firma cuando `authorKeys` no la
+ * tiene). Ese residual es el que R1 acepta.
  *
  * Consecuencia declarada: si al autor le falla firmar una edición (sin
  * privada, o `signCore` tira), esa edición no viaja por encima de su versión
