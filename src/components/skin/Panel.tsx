@@ -23,7 +23,7 @@ export function Panel({
   testID?: string;
 }) {
   const { skin, degradado } = useSkin();
-  const contexto = useMemo(() => ({ sunkenBg: skin.colors.bgGrouped }), [skin]);
+  const contexto = useMemo(() => ({ sunkenBg: skin.colors.surfaceSunken, colors: skin.colors }), [skin]);
 
   if (!skin.flags.soft) return <>{children}</>;
 
@@ -50,7 +50,9 @@ export function Panel({
       <View
         style={{
           flexGrow: 1,
-          borderRadius: skin.radius.panel,
+          // Degradado, la de afuera lleva un borde de 1px: el recorte va 1px
+          // más cerrado para que las esquinas del contenido no lo pisen.
+          borderRadius: degradado ? Math.max(0, skin.radius.panel - 1) : skin.radius.panel,
           overflow: 'hidden',
           borderTopWidth: degradado ? 0 : 1,
           borderTopColor: c.edgeLight,

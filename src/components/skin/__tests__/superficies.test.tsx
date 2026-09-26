@@ -6,6 +6,15 @@ import { MarmolPill } from '@/src/components/skin/MarmolPill';
 import { GlowMeter } from '@/src/components/skin/GlowMeter';
 import { useFabSkinStyle } from '@/src/components/skin/useFabSkinStyle';
 import { useSettingsStore } from '@/src/store/settingsStore';
+import { useC } from '@/src/components/Band';
+import { Colors } from '@/src/constants/colors';
+import { resolveSkin } from '@/src/skins/resolveSkin';
+
+/** Captura la paleta que ve `useC()` donde se monta. */
+function Sonda({ out }: { out: { c?: unknown } }) {
+  out.c = useC();
+  return null;
+}
 
 /** Estructura y comportamiento, nunca estilos (regla del proyecto). */
 describe('superficies de skin', () => {
@@ -75,6 +84,29 @@ describe('superficies de skin', () => {
     it('useFabSkinStyle devuelve un estilo para los dos FAB', () => {
       expect(renderHook(() => useFabSkinStyle('primary')).result.current).toBeDefined();
       expect(renderHook(() => useFabSkinStyle('secondary')).result.current).toBeDefined();
+    });
+  });
+
+  describe('useC: paleta de las primitivas de Band', () => {
+    it('fuera de un Panel es Colors[scheme], con cualquier skin', () => {
+      useSettingsStore.setState({ skin: 'aero' });
+      const out: { c?: unknown } = {};
+      render(<Sonda out={out} />);
+      expect(out.c).toBe(Colors.light);
+    });
+
+    it('con el default, dentro de un Panel sigue siendo Colors[scheme] (no hay panel)', () => {
+      const out: { c?: unknown } = {};
+      render(<Panel><Sonda out={out} /></Panel>);
+      expect(out.c).toBe(Colors.light);
+    });
+
+    it('dentro de un Panel de aero es la paleta resuelta del skin', () => {
+      useSettingsStore.setState({ skin: 'aero' });
+      const out: { c?: unknown } = {};
+      render(<Panel><Sonda out={out} /></Panel>);
+      expect(out.c).toBe(resolveSkin('aero', 'light').colors);
+      expect(out.c).not.toBe(Colors.light);
     });
   });
 });
