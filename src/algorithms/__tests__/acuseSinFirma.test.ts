@@ -38,6 +38,9 @@ const acuse = (o: Partial<SettlementConfirmation> = {}): SettlementConfirmation 
 const ctx = (veredictoFirmado: 'valida' | 'invalida' = 'valida'): ContextoDeAcuse => ({
   now: NOW,
   veredicto: (_id, c) => (c.k && c.s ? veredictoFirmado : 'no_verificable'),
+  // D-3 (T-170) no es lo que este archivo prueba (createdById !== toUserId en
+  // todos los `pago()` de acá): confía siempre para no interferir.
+  nucleoDe: () => 'valida',
 });
 const firmado = (c: SettlementConfirmation) => ({ ...c, k: 'aa'.repeat(32), s: 'bb'.repeat(64) });
 

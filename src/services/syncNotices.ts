@@ -358,6 +358,12 @@ export function noticesFor(
    * conoce, y avisarlo sería contarle al usuario algo que acaba de hacer. Se
    * avisa en las DOS direcciones —me pagaron, o registraron que yo pagué—
    * porque en ambas alguien tocó mi saldo sin que yo estuviera mirando.
+   *
+   * **G5 / T-170 · D-3.** Un pago «mío» (`createdById === yo`) que YO no
+   * firmé es exactamente el forjado de H3: el deudor lo declaró con
+   * `createdById = toUserId`. Sin la excepción de la segunda cláusula, el
+   * filtro lo descartaba ANTES de mirar `requiereConfirmacion`, y el
+   * acreedor nunca veía el `settlement_pending` que le toca (T-170.4).
    */
   const conocidos_pagos = new Set(before.paymentIds);
   const saldos: Notice[] = paymentsAfter
@@ -365,7 +371,7 @@ export function noticesFor(
       !p.isDeleted &&
       !conocidos_pagos.has(p.id) &&
       mios.has(p.groupId) &&
-      !esMio(p.createdById) &&
+      (!esMio(p.createdById) || (esMio(p.toUserId) && requiereConfirmacion(p, groups.find(g => g.id === p.groupId)))) &&
       (esMio(p.fromUserId) || esMio(p.toUserId)))
     .map((p): Notice => {
       // En un grupo consensuado, quien COBRA no recibe un aviso informativo:
