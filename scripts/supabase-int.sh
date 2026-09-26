@@ -38,6 +38,19 @@ done
 if [[ "$STAGE" == "011a" || "$STAGE" == "011b" ]]; then aplicar "$RAIZ/supabase/011a_relay_rls_aditiva.sql"; fi
 if [[ "$STAGE" == "011b" ]]; then aplicar "$RAIZ/supabase/011b_relay_rls_corte.sql"; fi
 
+# `db reset` reinicia Realtime y Auth: hasta que estén sanos, el primer canal
+# privado sale «Unauthorized» (visto con stack recién reseteado).
+esperar_sano() {
+  local c="$1" i
+  for i in $(seq 1 90); do
+    [[ "$(docker inspect -f '{{.State.Health.Status}}' "$c" 2>/dev/null)" == "healthy" ]] && return 0
+    sleep 2
+  done
+  echo "timeout esperando $c" >&2; return 1
+}
+esperar_sano supabase_realtime_splitp2p-int
+esperar_sano supabase_auth_splitp2p-int
+
 "${SUPA[@]}" status -o env | awk -F= -v st="$STAGE" '
   $1=="API_URL"{print "SUPA_INT_URL="$2}
   $1=="ANON_KEY"{print "SUPA_INT_ANON="$2}

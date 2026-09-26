@@ -6,10 +6,15 @@
  * misma suite documenta el agujero (010), las piezas nuevas (011a) y el corte
  * (011b).
  */
+import { createHash } from 'crypto';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import WebSocket from 'ws';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+
+// Node 20 no trae WebSocket global; Realtime usa `ws` (ya en node_modules, sin
+// tipos instalados — y en este repo no se agregan dependencias por un test).
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const WebSocket = require('ws');
 
 const env = Object.fromEntries(
   readFileSync(join(__dirname, '../../../../tools/supabase-int/int.env'), 'utf8')
@@ -270,9 +275,11 @@ soloEn('011a', '011b')('011a · piezas nuevas', () => {
           else if (s === 'CHANNEL_ERROR' || s === 'TIMED_OUT') mal(err ?? new Error(s));
         }),
     );
+    // Con Realtime recién levantado, el SUBSCRIBED llega antes de que el
+    // servidor escuche `realtime.messages`: sin este respiro el primer aviso de
+    // la suite se pierde (visto en stack recién reseteado).
+    await new Promise((r) => setTimeout(r, 4_000));
     expect((await rpcPub(intruso, t)).error).toBeNull();
-    // Realtime recién levantado tarda en entregar el primero: se espera hasta
-    // 15 s a que llegue, en vez de una pausa fija.
     for (let i = 0; i < 150 && avisos === 0; i++) await new Promise((r) => setTimeout(r, 100));
     expect(avisos).toBe(1);
     await intruso.realtime.setAuth((await intruso.auth.getSession()).data.session!.access_token);
@@ -379,8 +386,7 @@ soloEn('011b')('011b · el buzón cerrado', () => {
     const c = await anonimo();
     const t = topic();
     const secreto = 'd'.repeat(64);
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const proof = require('crypto').createHash('sha256').update(secreto).digest('hex');
+    const proof = createHash('sha256').update(secreto).digest('hex');
     await c.rpc('publish_envelope', { p_topic: t, p_payload: 'x', p_sender: 'a', p_compactable: true, p_owner_proof: proof });
     const { data } = await c.rpc('delete_my_envelopes', { p_topic: t, p_secret: secreto });
     expect(data).toBe(1);
@@ -397,20 +403,37 @@ soloEn('011b')('011b · el buzón cerrado', () => {
     expect((data as Fila[]).map((r) => r.payload)).toEqual(['v1']);
   });
   it('postgres_changes ya no entrega filas de envelopes (P4)', async () => {
+    // Testigo: el mismo oyente SÍ recibe por Broadcast, así el 0 de abajo no es
+    // un oyente que no llegó a conectarse.
     const oyente = await anonimo();
+    const t = topic();
+    await oyente.realtime.setAuth((await oyente.auth.getSession()).data.session!.access_token);
     let filas = 0;
-    await new Promise<void>((ok) =>
+    let avisos = 0;
+    const suscribir = (ch: ReturnType<SupabaseClient['channel']>) =>
+      new Promise<void>((ok, mal) =>
+        ch.subscribe((s, err) => {
+          if (s === 'SUBSCRIBED') ok();
+          else if (s === 'CHANNEL_ERROR' || s === 'TIMED_OUT') mal(err ?? new Error(s));
+        }),
+      );
+    await suscribir(
       oyente
-        .channel(`pgc-${topic()}`)
+        .channel(`pgc-${t}`)
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'envelopes' }, () => {
           filas++;
-        })
-        .subscribe((s) => {
-          if (s !== 'CLOSED') ok();
         }),
     );
-    await rpcPub(await anonimo(), topic());
-    await new Promise((r) => setTimeout(r, 3_000));
-    expect(filas).toBe(0);
+    await suscribir(
+      oyente.channel(`envelopes:${t}`, { config: { private: true } }).on('broadcast', { event: 'news' }, () => {
+        avisos++;
+      }),
+    );
+    await new Promise((r) => setTimeout(r, 4_000)); // postgres_changes arma su suscripción después del SUBSCRIBED
+    await rpcPub(await anonimo(), t);
+    for (let i = 0; i < 50 && (avisos === 0 || filas === 0); i++) await new Promise((r) => setTimeout(r, 100));
+    expect(avisos).toBe(1);
+    expect(filas).toBe(STAGE === '011b' ? 0 : 1);
   });
+
 });
