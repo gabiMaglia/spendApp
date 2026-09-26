@@ -254,7 +254,19 @@ export async function openClaim(token: string, sealed: string): Promise<InviteCl
     recordError({ message: 'openClaim_rechazado: id_forma_invalida', fatal: false, screen: 'sync.invite' });
     return null;
   }
-  return msg;
+  // O3 (T-151, ronda 2): normalizar UNA sola vez acá, y usar siempre este
+  // valor — para comparar contra lo pinneado, para envolver (`wrapGroupKey`)
+  // y para persistir (`claimedWrapKey`). Antes, `admit` sólo normalizaba para
+  // COMPARAR (`toLowerCase` ad hoc) pero envolvía con el hex crudo del claim:
+  // un wrap en mayúsculas pasaba la comparación pero quedaba envuelto hacia
+  // un `info` HKDF (`deriveWrapKey`) distinto del que deriva `unwrapGroupKey`
+  // desde la clave privada real (que siempre sale en minúsculas de `toHex`)
+  // — ni el dueño legítimo podía abrir el grant, y el link quedaba gastado.
+  return {
+    ...msg,
+    wrapPublicKey: msg.wrapPublicKey.toLowerCase(),
+    identityPublicKey: msg.identityPublicKey.toLowerCase(),
+  };
 }
 
 /**
