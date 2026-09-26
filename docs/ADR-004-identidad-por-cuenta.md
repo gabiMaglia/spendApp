@@ -96,6 +96,19 @@ rechazaría a todo el mundo.
 **Fase B no se activa hasta que el PO confirme** que sus dispositivos aparecen
 registrados en la pantalla de diagnóstico.
 
+### Enmienda 2026-09-26 (T-152 · DEC-05 · SEC-08) — regla intermedia y criterio de fase B
+
+- **Regla intermedia, vigente sin encender la fase B:** en el merge, un núcleo
+  SIN firma nunca le gana a uno CON firma (`coreWins`, `src/store/mergeLevels.ts`).
+  Se mira **presencia** de `k`/`s`, no validez: el merge no verifica curvas (D9).
+  Residual aceptado por R1: una firma basura con `rev` alto sigue ganando y queda
+  marcada (`invalida`, o `no_verificable` si no se conocen las claves del autor),
+  no oculta.
+- **Criterio para encender la fase B** (`RECHAZAR_AUTORES_NO_VERIFICADOS = true`):
+  `authorStats()` muestra `clave_desconocida` en **cero sostenido durante 30 días
+  de tráfico real** en producción, y el PO lo confirma. No hay fecha fija: la
+  fecha la da el criterio, no el calendario.
+
 ## Lo que esto habilita
 
 **T-041 — firmar cada registro con la clave de su autor**, que es lo único que

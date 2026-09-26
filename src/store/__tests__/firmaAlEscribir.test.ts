@@ -333,32 +333,55 @@ describe('sin identidad disponible', () => {
     expect(rec.s).toBeUndefined();
   });
 
-  it('una privada corrupta al editar tampoco deja la firma vieja pegada', () => {
+  /**
+   * T-152 · D2 (decisión del PO 2026-09-26): con la regla de T-152 —un núcleo
+   * sin firma nunca pisa uno firmado— dejar la firma vieja pegada NO es la
+   * alternativa segura: es peor. Un gasto ya firmado que se edita sin poder
+   * re-firmar quedaría con `rev` nuevo y SIN firma, y la próxima republicación
+   * de la versión vieja firmada lo pisaría en silencio (el usuario ve volver
+   * el monto anterior sin ningún aviso — es el bug que reprodujo el
+   * verificador: 20000 vuelve a 10000). Por eso ahora se BLOQUEA: la edición
+   * no se guarda y el store queda como estaba, firmado y sin `rev` de más.
+   */
+  it('una privada corrupta al editar bloquea la edición: no se guarda sin firma', () => {
     useExpenseStore.getState().addExpense(gasto());
+    const antes = elGasto();
     mockClaveCorrupta = true;
 
-    useExpenseStore.getState().updateExpense('e1', { amount: 555 });
+    const guardo = useExpenseStore.getState().updateExpense('e1', { amount: 555 });
     const rec = elGasto();
 
-    expect(rec.amount).toBe(555);
-    expect(rec.k).toBeUndefined();
-    expect(rec.s).toBeUndefined();
-    expect(verifyCore('expense', rec, [MI_CLAVE])).toBe('no_verificable');
+    expect(guardo).toBe(false);
+    expect(rec).toEqual(antes);
+    expect(rec.amount).toBe(12_345);
+    expect(verifyCore('expense', rec, [MI_CLAVE])).toBe('valida');
   });
 
-  it('una edición que no se puede firmar NO deja la firma vieja pegada', () => {
+  it('una edición que no se puede firmar bloquea igual, sin dejar la firma vieja pegada a un núcleo nuevo', () => {
     useExpenseStore.getState().addExpense(gasto());
+    const antes = elGasto();
     mockSinIdentidad = true;
 
-    useExpenseStore.getState().updateExpense('e1', { amount: 777 });
+    const guardo = useExpenseStore.getState().updateExpense('e1', { amount: 777 });
     const rec = elGasto();
 
-    // Dejar la firma del núcleo viejo sobre un núcleo nuevo acusaría al AUTOR
-    // —yo mismo— de suplantarse. Sin firma es `no_verificable`, que es la
-    // verdad: no se pudo saber.
-    expect(rec.amount).toBe(777);
+    expect(guardo).toBe(false);
+    expect(rec).toEqual(antes);
+    expect(rec.amount).toBe(12_345);
+    expect(verifyCore('expense', rec, [MI_CLAVE])).toBe('valida');
+  });
+
+  it('si el gasto NUNCA estuvo firmado (peer pre-T-041), la edición sin firma se guarda igual, como siempre', () => {
+    mockSinIdentidad = true;
+    useExpenseStore.getState().addExpense(gasto()); // nace sin firma
+    expect(elGasto().k).toBeUndefined();
+
+    const guardo = useExpenseStore.getState().updateExpense('e1', { amount: 999 });
+    const rec = elGasto();
+
+    expect(guardo).toBe(true);
+    expect(rec.amount).toBe(999);
     expect(rec.k).toBeUndefined();
-    expect(rec.s).toBeUndefined();
     expect(verifyCore('expense', rec, [MI_CLAVE])).toBe('no_verificable');
   });
 });
