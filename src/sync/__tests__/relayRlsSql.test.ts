@@ -40,7 +40,7 @@ describe('011a · aditiva', () => {
     expect(sql).toMatch(/retention\s+interval\s+not null\s+default\s+'8 days'/i);
   });
   it('ninguna tabla de cuota tiene topic (I3) y envelopes no gana uid', () => {
-    for (const t of ['relay_quota', 'relay_quota_would_reject', 'relay_write_stats', 'relay_quota_config']) {
+    for (const t of ['relay_quota', 'relay_quota_daily', 'relay_write_stats', 'relay_quota_config']) {
       const desde = sql.indexOf(`create table if not exists public.${t} (`);
       expect(desde).toBeGreaterThan(-1);
       const def = sql.slice(desde);
@@ -49,6 +49,24 @@ describe('011a · aditiva', () => {
       expect(sql).toMatch(new RegExp(`alter table public\\.${t} enable row level security`, 'i'));
     }
     expect(sql).not.toMatch(/alter table public\.envelopes add column[^;]*(uid|writer|user)/i);
+  });
+  it('D1: ningún dato de cuota se puede unir con envelopes (sin hora exacta, sin bytes por minuto)', () => {
+    for (const t of ['relay_quota', 'relay_quota_daily', 'relay_write_stats', 'relay_quota_config']) {
+      const def = sql.slice(sql.indexOf(`create table if not exists public.${t} (`));
+      const cuerpo = def.slice(0, def.indexOf(');'));
+      expect(cuerpo).not.toMatch(/default\s+now\(\)/i); // now() del insert == envelopes.created_at
+    }
+    expect(sql).not.toMatch(/create table if not exists public\.relay_quota_would_reject/i);
+    const q = cuerpoDe(sql, 'relay_enforce_quota');
+    expect(q).toMatch(/values \(v_uid, 'm', date_trunc\('minute', now\(\)\), 1, 0\)/); // minuto: sólo cuenta
+    expect(q).toMatch(/random\(\)/); // bytes por hora con relleno: no calza con la suma de un topic
+    expect(q).not.toMatch(/relay_quota_would_reject/);
+  });
+  it('D1: la purga deja sólo las ventanas vivas y corre seguido', () => {
+    const p = cuerpoDe(sql, 'purge_relay_quota');
+    expect(p).toMatch(/granularity = 'm' and bucket < date_trunc\('minute', now\(\)\)/);
+    expect(p).toMatch(/granularity = 'h' and bucket < date_trunc\('hour', now\(\)\)/);
+    expect(sql).toMatch(/cron\.schedule\(\s*'purge_relay_quota',\s*'\*\/5 \* \* \* \*'/);
   });
   it('la cuota lee rol y uid del JWT, rechaza con PT429 y es atómica', () => {
     const q = cuerpoDe(sql, 'relay_enforce_quota');
@@ -122,14 +140,12 @@ describe('011b · corte', () => {
     expect(sql).not.toMatch(/create policy envelopes_read/i);
     expect(sql).not.toMatch(/create policy device_keys_read/i);
   });
-  it('INSERT sólo authenticated, con el tope de 1 MB', () => {
-    const pol = sql.match(/create policy envelopes_write[\s\S]*?;/i)![0];
-    expect(pol).toMatch(/to authenticated\b/i);
-    expect(pol).not.toMatch(/\banon\b/i);
-    expect(pol).toMatch(/1048576/);
+  it('D2: nadie inserta directo — la escritura es sólo por publish_envelope', () => {
+    expect(sql).toMatch(/drop policy if exists envelopes_write on public\.envelopes/i);
+    expect(sql).not.toMatch(/create policy envelopes_write/i);
+    expect(sql).toMatch(/revoke all on public\.envelopes from anon, authenticated/i);
   });
   it('anon pierde los grants directos de tabla', () => {
-    expect(sql).toMatch(/revoke select, insert on public\.envelopes from anon/i);
     expect(sql).toMatch(/revoke select on public\.device_keys from anon/i);
   });
   it('las RPC del buzón pierden anon (H3: nombra anon, no sólo public)', () => {
@@ -162,7 +178,7 @@ describe('011b · rollback', () => {
     expect(sql).toMatch(/alter publication supabase_realtime add table public\.envelopes/i);
   });
   it('devuelve los grants de anon', () => {
-    expect(sql).toMatch(/grant select, insert on public\.envelopes to anon/i);
+    expect(sql).toMatch(/grant select, insert on public\.envelopes to anon, authenticated/i);
     expect(sql).toMatch(/grant select on public\.device_keys to anon/i);
     for (const fn of ['fetch_since', 'publish_envelope', 'account_keys', 'delete_my_envelopes']) {
       expect(sql).toMatch(new RegExp(`grant execute on function[\\s\\S]*public\\.${fn}\\([\\s\\S]*to anon`, 'i'));

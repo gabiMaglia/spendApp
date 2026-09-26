@@ -6,6 +6,7 @@
  * misma suite documenta el agujero (010), las piezas nuevas (011a) y el corte
  * (011b).
  */
+import { execFileSync } from 'child_process';
 import { createHash } from 'crypto';
 import { readFileSync } from 'fs';
 import { join } from 'path';
@@ -71,6 +72,11 @@ async function conCuenta(): Promise<SupabaseClient> {
   if (error) throw error;
   return c;
 }
+/** SQL como dueño, dentro del contenedor del arnés (el operador con el SQL editor). */
+const psql = (sql: string): string =>
+  execFileSync('docker', ['exec', 'supabase_db_splitp2p-int', 'psql', '-U', 'postgres', '-d', 'postgres', '-Atc', sql], {
+    encoding: 'utf8',
+  }).trim();
 const topic = () => `t-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 const fila = (t: string, sender = 'devA') => ({ topic: t, payload: 'x', sender, compactable: false });
 
@@ -196,18 +202,54 @@ soloEn('011a', '011b')('011a · piezas nuevas', () => {
     expect(Object.keys((data as Fila[])[0])).not.toContain('topic');
   });
 
-  it('cuota en modo observar: no rechaza y anota', async () => {
+  it('cuota en modo observar: no rechaza y anota el día, sin hora', async () => {
     await conCuota({ enforce: false, per_minute: 3 }, async () => {
       const c = await anonimo();
       const uid = (await c.auth.getUser()).data.user!.id;
       const t = topic();
       for (let i = 0; i < 4; i++) expect((await rpcPub(c, t)).error).toBeNull();
-      const { count } = await admin
-        .from('relay_quota_would_reject')
-        .select('*', { count: 'exact', head: true })
-        .eq('uid', uid);
-      expect(count).toBeGreaterThan(0);
+      const { data } = await admin.from('relay_quota_daily').select('*').eq('uid', uid).single();
+      expect(data!.rejects_per_minute).toBeGreaterThan(0);
+      expect(data!.peak_per_minute).toBe(4);
     });
+  });
+
+  it('D1: el operador no puede unir la cuota con envelopes (PoC del verificador)', async () => {
+    await conCuota({ enforce: false, per_minute: 1 }, async () => {
+      const c = await anonimo();
+      const uid = (await c.auth.getUser()).data.user!.id;
+      const t = topic();
+      for (const n of [1234, 567, 89]) expect((await rpcPub(c, t, 'devA', 'q'.repeat(n))).error).toBeNull();
+      const cruces = psql(`
+        with e as (select created_at, octet_length(payload) b from public.envelopes where topic = '${t}')
+        select (select count(*) from public.relay_quota q join e on q.bucket = e.created_at)
+             + (select count(*) from public.relay_quota_daily d join e on d.day::timestamptz = e.created_at)
+             + (select count(*) from public.relay_quota q
+                 where q.uid = '${uid}' and q.bytes > 0
+                   and q.bytes in (select sum(b) from e group by date_trunc('minute', created_at)
+                                   union all select sum(b) from e group by date_trunc('hour', created_at)))
+             + (select count(*) from public.relay_quota_daily d
+                 where d.uid = '${uid}'
+                   and d.peak_mib_per_hour::bigint in (select sum(b) from e group by date_trunc('hour', created_at)))`);
+      expect(cruces).toBe('0');
+      // La única columna de tiempo en las tablas de cuota es la ventana truncada.
+      expect(
+        psql(`select string_agg(table_name || '.' || column_name, ',' order by 1) from information_schema.columns
+               where table_schema = 'public' and table_name like 'relay_%' and data_type like 'timestamp%'`),
+      ).toBe('relay_quota.bucket');
+      // Y el minuto sólo cuenta sobres, no bytes.
+      expect(psql(`select coalesce(sum(bytes), 0) from public.relay_quota where uid = '${uid}' and granularity = 'm'`)).toBe('0');
+    });
+  });
+
+  it('D1: la purga deja sólo las ventanas vivas', async () => {
+    const u = '00000000-0000-4000-8000-00000000d1d1';
+    psql(`insert into public.relay_quota (uid, granularity, bucket, n, bytes) values
+            ('${u}', 'm', date_trunc('minute', now()) - interval '1 minute', 1, 0),
+            ('${u}', 'h', date_trunc('hour', now()) - interval '1 hour', 1, 10)
+          on conflict do nothing`);
+    psql('select public.purge_relay_quota()');
+    expect(psql(`select count(*) from public.relay_quota where uid = '${u}'`)).toBe('0');
   });
 
   it('cuota activada: rechaza con PT429 al uid que se pasa, no al vecino', async () => {
@@ -222,7 +264,8 @@ soloEn('011a', '011b')('011a · piezas nuevas', () => {
     });
   });
 
-  it('cuota activada: también frena el insert directo de un authenticated', async () => {
+  it('cuota activada: también frena el insert directo de un authenticated (hasta 011b)', async () => {
+    if (STAGE === '011b') return; // tras 011b no hay insert directo (D2)
     await conCuota({ enforce: true, per_minute: 1 }, async () => {
       const a = await anonimo();
       const t = topic();
@@ -242,7 +285,7 @@ soloEn('011a', '011b')('011a · piezas nuevas', () => {
 
   it('las tablas de cuota no se leen ni se escriben desde la app', async () => {
     const c = await anonimo();
-    for (const t of ['relay_quota', 'relay_quota_would_reject', 'relay_write_stats', 'relay_quota_config']) {
+    for (const t of ['relay_quota', 'relay_quota_daily', 'relay_write_stats', 'relay_quota_config']) {
       for (const cli of [c, nuevo()]) {
         const { data, error } = await cli.from(t).select('*');
         expect(error !== null || (data ?? []).length === 0).toBe(true);
@@ -376,6 +419,30 @@ soloEn('011b')('011b · el buzón cerrado', () => {
       const { data } = await c.rpc('fetch_since', { p_topic: t, p_since: 0 });
       expect(data).toHaveLength(1);
     }
+  });
+  it('D2: un authenticated no inserta directo (ni con seq/expires_at elegidos)', async () => {
+    const c = await anonimo();
+    const t = topic();
+    expect((await c.from('envelopes').insert(fila(t))).error).not.toBeNull();
+    const veneno = { ...fila(t), seq: 9223372036854775000, expires_at: '2099-01-01T00:00:00Z' };
+    expect((await c.from('envelopes').insert(veneno)).error).not.toBeNull();
+    expect((await c.from('envelopes').update({ expires_at: '2099-01-01' }).eq('topic', t).select()).data ?? []).toHaveLength(0);
+  });
+  it('D2: el cursor del grupo no se puede envenenar; seq/created_at/expires_at los pone el servidor', async () => {
+    const atacante = await anonimo();
+    const victima = await anonimo();
+    const t = topic();
+    await atacante.from('envelopes').insert({ ...fila(t, 'mal'), seq: 9223372036854775000, expires_at: '2099-01-01' });
+    const pub = await rpcPub(victima, t, 'bien');
+    expect(pub.error).toBeNull();
+    const { data } = await victima.rpc('fetch_since', { p_topic: t, p_since: 0 });
+    expect((data as Fila[]).map((r) => r.sender)).toEqual(['bien']);
+    expect((data as Fila[])[0].seq).toBeLessThan(9e15);
+    const fila0 = psql(
+      `select (expires_at - created_at) = interval '30 days' and abs(extract(epoch from now() - created_at)) < 60
+         from public.envelopes where topic = '${t}'`,
+    );
+    expect(fila0).toBe('t');
   });
   it('la cuota rechaza por defecto (enforce = true, retención 2 h)', async () => {
     const { data } = await admin.from('relay_quota_config').select('enforce,retention').single();
