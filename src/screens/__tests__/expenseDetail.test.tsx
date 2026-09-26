@@ -13,6 +13,7 @@ import { hasRequested } from '@/src/algorithms/deletionRound';
 import { toHex } from '@/src/sync/hexBytes';
 import { signCore } from '@/src/sync/recordSign';
 import { rememberAuthorKey, forgetAuthorKeys } from '@/src/sync/authorKeys';
+import { mergeRecord } from '@/src/store/mergeLevels';
 import type { Expense, ExpenseComment, Group, User } from '@/src/types/models';
 
 /**
@@ -333,7 +334,7 @@ describe('T-170 · D-3: la UI muestra quién abrió la disputa', () => {
 
   afterEach(() => forgetAuthorKeys());
 
-  it('se muestra con disputa verificada, con el nombre del OTRO autor (no el creador vigente)', () => {
+  it('se muestra con disputa verificada, con el nombre del otro autor', () => {
     rememberAuthorKey('ua', PUB_UA);
     rememberAuthorKey('mallory', PUB_MALLORY);
 
@@ -349,7 +350,37 @@ describe('T-170 · D-3: la UI muestra quién abrió la disputa', () => {
     expect(getByText(/authorship_disputed_title/)).toBeTruthy();
     const cuerpo = getByText(/authorship_disputed_body/);
     expect(cuerpo.props.children).toContain('Mallory');
-    expect(cuerpo.props.children).not.toContain('Ana');
+  });
+
+  /**
+   * T-170 · D-3, ronda 3 del verificador (defecto único): el banner filtraba
+   * por `expense.createdById` VIGENTE. Como el núcleo sigue ganando por `rev`
+   * (R4, aceptado por el PO), Mallory puede re-estampar con un `rev` mayor y
+   * CONVERTIRSE en el creador vigente — y ahí el filtro la escondía a ELLA,
+   * la atacante, dejando sólo a Ana (el autor genuino) en la lista. El test
+   * anterior lo tapaba fijando `createdById:'ua'` A MANO en vez de mergear de
+   * verdad. Acá se mergea de verdad: Mallory gana el núcleo por `rev`.
+   */
+  it('PoC ronda 3: tras un merge real donde Mallory gana el núcleo por `rev`, sigue apareciendo (no la esconde el filtro por creador vigente)', () => {
+    rememberAuthorKey('ua', PUB_UA);
+    rememberAuthorKey('mallory', PUB_MALLORY);
+
+    const nucleoUa = { ...nucleoBase, ...signCore('expense', nucleoBase as never, PRIV_UA) };
+    const nucleoMallory = { ...nucleoBase, createdById: 'mallory', rev: 2 };
+    const firmadoPorMallory = { ...nucleoMallory, ...signCore('expense', nucleoMallory as never, PRIV_MALLORY) };
+
+    // Merge DE VERDAD (no un `createdById` fijado a mano): Mallory gana por
+    // `rev` y queda como creador VIGENTE del registro guardado.
+    const NOW = 1_800_000_000_000;
+    const merged = mergeRecord('expense', nucleoUa as unknown as Expense, firmadoPorMallory as unknown as Expense, NOW);
+    expect(merged.createdById).toBe('mallory'); // confirma la premisa del PoC
+
+    useExpenseStore.setState({ expenses: [gasto(merged as unknown as Partial<Expense>)] });
+
+    const { getByText } = render(<ExpenseDetailScreen />);
+    expect(getByText(/authorship_disputed_title/)).toBeTruthy();
+    const cuerpo = getByText(/authorship_disputed_body/);
+    expect(cuerpo.props.children).toContain('Mallory');
   });
 
   it('NO se muestra sin ninguna disputa registrada', () => {
