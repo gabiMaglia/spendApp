@@ -198,7 +198,9 @@
     "leave_last_member": "You're the only one left and there's an open balance. There's nobody to hand it to, so you can't leave without settling it.",
     "options": "Group options",
     "add_person": "Add person",
-    "validate_member": "Validate member"
+    "validate_member": "Validate member",
+    "member_limit_title": "Group is full",
+    "member_limit_body": "This group already has the maximum of {{max}} members. To add someone, remove another one first."
   },
   "invite": {
     "groups_in_common": "{{count}} group in common",
@@ -692,7 +694,9 @@
     "clock_off_title": "Your phone's clock is wrong",
     "clock_off_body": "Your expense dates may look shifted. Check the phone's date and time; your data is fine.",
     "group_replaced_title": "«{{group}}» was transferred",
-    "group_replaced_body": "It moved to a new group: «{{newGroup}}». The old one is now archived, read-only."
+    "group_replaced_body": "It moved to a new group: «{{newGroup}}». The old one is now archived, read-only.",
+    "invite_full_title": "Your «{{group}}» link had an extra attempt",
+    "invite_full_body": "Someone tried to join with your link, but the group already has the maximum of {{max}} members. No one was added."
   },
   "fx": {
     "partial_title": "There's money we're not showing you",

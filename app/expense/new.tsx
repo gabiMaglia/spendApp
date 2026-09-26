@@ -42,6 +42,7 @@ import { buildSplits } from '@/src/algorithms/buildSplits';
 import type { ExpenseCategory, PersonalCategory } from '@/src/types/models';
 import { syncedNow } from '@/src/utils/syncedClock';
 import { esYo } from '@/src/store/identityAlias';
+import { MAX_TEXTO_CORTO, MAX_NOTA } from '@/src/sync/topes';
 
 type CatMeta = { id: PersonalCategory; icon: React.ComponentProps<typeof Ionicons>['name']; label: string };
 
@@ -544,6 +545,7 @@ export default function NewExpenseScreen() {
               placeholderTextColor={c.textTertiary}
               value={description}
               onChangeText={setDescription}
+              maxLength={MAX_TEXTO_CORTO}
               style={[Typography.bodyL, styles.descInput, { color: c.text }]}
               returnKeyType="next"
             />
@@ -985,6 +987,7 @@ export default function NewExpenseScreen() {
         <SheetInput
           value={note}
           onChangeText={setNote}
+          maxLength={MAX_NOTA}
           placeholder={t('expense.note_placeholder')}
           multiline
           numberOfLines={4}

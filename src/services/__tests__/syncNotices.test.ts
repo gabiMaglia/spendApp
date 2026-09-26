@@ -385,6 +385,7 @@ describe('esAccionable (T-062)', () => {
       restored: esAccionable('restored'),
       joined: esAccionable('joined'),
       group_replaced: esAccionable('group_replaced'),
+      group_invite_full: esAccionable('group_invite_full'),
     };
     expect(clasificacion).toEqual({
       // `clock_off` es accionable aunque lo que hay que hacer esté FUERA de la
@@ -395,6 +396,8 @@ describe('esAccionable (T-062)', () => {
       group_key_conflict: true,
       // T-058: el traspaso ya se aplicó, no hay nada que aprobar u objetar.
       expenses: false, settled: false, restored: false, joined: false, group_replaced: false,
+      // T-150 ronda 2/5: el reclamo ya fue rechazado, no hay nada que resolver.
+      group_invite_full: false,
     });
   });
 });

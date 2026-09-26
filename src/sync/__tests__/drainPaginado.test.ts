@@ -56,8 +56,10 @@ const grupo = (): Group => ({
   deletionVotes: [], updatedAt: 1_000, isDeleted: false,
 } as Group);
 
+// `relleno` (no `description`) infla el JSON para forzar paginación: T-150
+// (SEC-07 + TEC-14) capea `description` a MAX_TEXTO_CORTO.
 const gasto = (id: string): Expense => ({
-  id, groupId: 'G', description: 'x'.repeat(2_000), amount: 10, currency: 'USD', paidById: 'u1',
+  id, groupId: 'G', description: 'Cena', relleno: 'x'.repeat(2_000), amount: 10, currency: 'USD', paidById: 'u1',
   splits: [{ userId: 'u1', amount: 10, isPaid: false }], splitMode: 'equal', category: 'other',
   date: 1, createdAt: 1, createdById: 'u1', deletionVotes: [], updatedAt: 1_000, isDeleted: false,
 } as Expense);

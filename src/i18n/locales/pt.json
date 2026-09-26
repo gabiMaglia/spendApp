@@ -198,7 +198,9 @@
     "leave_last_member": "Você é o único que resta e há saldo em aberto. Não há para quem passar essa dívida, então não dá para sair sem acertar.",
     "options": "Opções do grupo",
     "add_person": "Adicionar pessoa",
-    "validate_member": "Validar membro"
+    "validate_member": "Validar membro",
+    "member_limit_title": "Grupo cheio",
+    "member_limit_body": "Este grupo já chegou ao máximo de {{max}} membros. Para adicionar alguém, remova outro primeiro."
   },
   "invite": {
     "groups_in_common": "{{count}} grupo em comum",
@@ -692,7 +694,9 @@
     "clock_off_title": "A hora do seu telefone está errada",
     "clock_off_body": "As datas das suas despesas podem aparecer trocadas. Confira a data e a hora do telefone; seus dados estão bem.",
     "group_replaced_title": "«{{group}}» foi transferido",
-    "group_replaced_body": "Passou para um grupo novo: «{{newGroup}}». O anterior fica arquivado, somente leitura."
+    "group_replaced_body": "Passou para um grupo novo: «{{newGroup}}». O anterior fica arquivado, somente leitura.",
+    "invite_full_title": "Seu link de «{{group}}» teve uma tentativa a mais",
+    "invite_full_body": "Alguém tentou entrar com seu link, mas o grupo já chegou ao máximo de {{max}} membros. Ninguém foi adicionado."
   },
   "fx": {
     "partial_title": "Há saldo que não estamos mostrando",

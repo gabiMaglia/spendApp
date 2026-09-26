@@ -74,6 +74,12 @@ const INVENTARIO: Record<string, string> = {
    * sólo enterarse de que el grupo activo ahora es otro.
    */
   group_replaced: 'un grupo del que soy miembro se traspasó a uno nuevo por el límite de gastos',
+  /**
+   * **Informativo, T-150 ronda 2/5 (ruling del orquestador).** El reclamo ya
+   * fue rechazado — no hay nada que aprobar; sólo enterarse de que alguien
+   * intentó entrar con el link a un grupo que ya está en el tope de miembros.
+   */
+  group_invite_full: 'alguien intentó entrar con mi link de invitación a un grupo que ya está en el tope de miembros',
 };
 
 /** Los `kind` declarados en la unión `Notice`, leídos del fuente. */

@@ -1,4 +1,5 @@
 import type { SyncDelta } from './useSyncQR';
+import { excesoDe } from './topes';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { usePaymentStore } from '@/src/store/paymentStore';
@@ -101,23 +102,48 @@ function snapshotFromStores(): LocalSnapshot {
  *    núcleo firmado, `src/sync/recordCore.ts`), y un id que la víctima no
  *    conocía todavía entra sin ninguna atadura real al grupo. Residual
  *    declarado y aceptado fuera de este ticket — va a **T-137 / ADR-012**.
+ *
+ * **T-150 (SEC-07 + TEC-14):** antes de la pertenencia se aplican los topes
+ * de tamaño de `topes.ts` — un registro gigante no merece ni que se mire de
+ * qué grupo dice ser. Lo que los pasa se descarta y se cuenta en
+ * `descartados` para que `drainGroup` deje rastro en el diagnóstico.
  */
+
+/** Acumulador opcional para que el llamador se entere de qué se descartó por tope (T-150). */
+export type Descartados = { count: number; motivos: string[] };
+
+/**
+ * Filtra por topes de tamaño (T-150, SEC-07). Va ANTES de los filtros de
+ * pertenencia: un registro que pasa los topes no merece ni que se mire de
+ * qué grupo dice ser. Se anota `tipo:campo` para el diagnóstico.
+ */
+function dentroDeTopes<T>(tipo: string, lista: readonly T[], desc?: Descartados): T[] {
+  return lista.filter(r => {
+    const exceso = excesoDe(r);
+    if (exceso === null) return true;
+    if (desc) { desc.count++; desc.motivos.push(`${tipo}:${exceso}`); }
+    return false;
+  });
+}
+
 export function acotarDeltaAlGrupo(
   delta: SyncDelta,
   groupId: string,
   local: LocalSnapshot = snapshotFromStores(),
+  descartados?: Descartados,
 ): SyncDelta {
-  const gruposDelGrupo = delta.groups.filter(g => g.id === groupId);
+  const gruposDelGrupo = dentroDeTopes('group', delta.groups, descartados)
+    .filter(g => g.id === groupId);
 
   /** El `id` es nuevo (no lo teníamos) o ya era local de este mismo grupo. */
   const noRoba = (idLocal: string | undefined): boolean =>
     idLocal === undefined || idLocal === groupId;
 
-  const expenses = delta.expenses.filter(e =>
+  const expenses = dentroDeTopes('expense', delta.expenses, descartados).filter(e =>
     e.groupId === groupId && noRoba(local.expenseGroupId(e.id)));
-  const payments = delta.payments.filter(p =>
+  const payments = dentroDeTopes('payment', delta.payments, descartados).filter(p =>
     p.groupId === groupId && noRoba(local.paymentGroupId(p.id)));
-  const recurring = (delta.recurring ?? []).filter(r =>
+  const recurring = dentroDeTopes('recurring', delta.recurring ?? [], descartados).filter(r =>
     r.groupId === groupId && noRoba(local.recurringGroupId(r.id)));
 
   const idsDeGastos = new Set(expenses.map(e => e.id));
@@ -125,7 +151,7 @@ export function acotarDeltaAlGrupo(
   const esGastoDelGrupo = (expenseId: string): boolean =>
     idsDeGastos.has(expenseId) || local.expenseGroupId(expenseId) === groupId;
 
-  const comments = (delta.comments ?? []).filter(c => {
+  const comments = dentroDeTopes('comment', delta.comments ?? [], descartados).filter(c => {
     if (!esGastoDelGrupo(c.expenseId)) return false;
     const expenseLocalDelComentario = local.commentExpenseId(c.id);
     // El comentario ya existe colgado de un gasto que NO es de este grupo:
@@ -134,7 +160,7 @@ export function acotarDeltaAlGrupo(
   });
 
   const miembrosLocales = new Set(local.groupMemberIds(groupId) ?? []);
-  const users = delta.users.filter(u =>
+  const users = dentroDeTopes('user', delta.users, descartados).filter(u =>
     !local.knownUser(u.id) || miembrosLocales.has(u.id));
 
   return {

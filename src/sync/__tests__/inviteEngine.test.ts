@@ -20,6 +20,7 @@ import {
 } from '../groupKeyOffers';
 import { savePeer } from '../contactChannel';
 import { listErrors, clearErrors } from '@/src/services/errorLog';
+import { MAX_MIEMBROS } from '../topes';
 
 jest.mock('expo-notifications', () => ({
   setNotificationHandler: () => {},
@@ -459,6 +460,87 @@ describe('lo que el buzón de invitación NO permite', () => {
     const topic = await deriveInviteTopic(invite.token);
     const sobres = relayMock.__buzones.get(topic) ?? [];
     expect(sobres.filter(e => e.sender === 'dev-carla')).toHaveLength(0);
+  });
+});
+
+// T-150 ronda 2 (D4, verifier): `admit()` es un camino sin UI (lo corre quien
+// invita, del lado del que ya está en el grupo) — un grupo nunca debe superar
+// MAX_MIEMBROS por acá tampoco, y el rechazo deja rastro en el diagnóstico
+// porque no hay ninguna pantalla del lado de quien admite para avisarle.
+describe('T-150 ronda 2 (D4): tope de miembros al admitir un reclamo', () => {
+  it('un grupo ya en el tope rechaza al nuevo reclamante, con rastro en el diagnóstico', async () => {
+    usar('ana', ANA);
+    const llenoConAna = [ANA.id, ...Array.from({ length: MAX_MIEMBROS - 1 }, (_, i) => `relleno-${i}`)];
+    useGroupStore.setState({ groups: [grupo(llenoConAna)] });
+    useUserStore.setState({ users: [ANA] });
+    const record = useGroupKeyStore.getState().ensureKey('g1');
+    const identidadDeAna = ensureIdentity().publicKey;
+    const invite = createInvite('g1', 'Viaje', identidadDeAna);
+    saveInvite(invite);
+
+    usar('beto', BETO);
+    await publishClaim(invite, 'dev-beto');
+
+    usar('ana', ANA);
+    await processInvite(invite, 'dev-ana');
+
+    expect(useGroupStore.getState().getById('g1')!.memberIds).not.toContain(BETO.id);
+    expect(useGroupKeyStore.getState().getKey('g1')).toEqual(record);
+    expect(listErrors().some(e => e.message.includes('tope_de_miembros'))).toBe(true);
+  });
+
+  /**
+   * Ruling del orquestador (handoff ronda 2/5, punto 3): el rastro de
+   * diagnóstico no lo ve nadie — quien invita necesita un aviso VISIBLE. Se
+   * anota en la bandeja de avisos de quien admite (ANA, dueña de la
+   * invitación), una sola vez por invitación aunque `processInvite` reintente
+   * el mismo reclamo en cada sync (T-096: sin cursor, el buzón se relee
+   * entero mientras siga vivo).
+   */
+  it('avisa a quien invita, en la bandeja de avisos, que alguien intentó entrar a un grupo lleno', async () => {
+    usar('ana', ANA);
+    const llenoConAna = [ANA.id, ...Array.from({ length: MAX_MIEMBROS - 1 }, (_, i) => `relleno-${i}`)];
+    useGroupStore.setState({ groups: [grupo(llenoConAna)] });
+    useUserStore.setState({ users: [ANA] });
+    useGroupKeyStore.getState().ensureKey('g1');
+    const identidadDeAna = ensureIdentity().publicKey;
+    const invite = createInvite('g1', 'Viaje', identidadDeAna);
+    saveInvite(invite);
+    createSecureStorage('notices').clearAll();
+    useNoticeInboxStore.setState({ items: [] });
+
+    usar('beto', BETO);
+    await publishClaim(invite, 'dev-beto');
+
+    usar('ana', ANA);
+    await processInvite(invite, 'dev-ana');
+
+    const avisos = useNoticeInboxStore.getState().items.filter(i => i.notice.kind === 'group_invite_full');
+    expect(avisos).toHaveLength(1);
+    expect(avisos[0]!.notice).toMatchObject({ kind: 'group_invite_full', groupId: 'g1' });
+  });
+
+  it('no apila un aviso por cada reintento del mismo reclamo', async () => {
+    usar('ana', ANA);
+    const llenoConAna = [ANA.id, ...Array.from({ length: MAX_MIEMBROS - 1 }, (_, i) => `relleno-${i}`)];
+    useGroupStore.setState({ groups: [grupo(llenoConAna)] });
+    useUserStore.setState({ users: [ANA] });
+    useGroupKeyStore.getState().ensureKey('g1');
+    const identidadDeAna = ensureIdentity().publicKey;
+    const invite = createInvite('g1', 'Viaje', identidadDeAna);
+    saveInvite(invite);
+    createSecureStorage('notices').clearAll();
+    useNoticeInboxStore.setState({ items: [] });
+
+    usar('beto', BETO);
+    await publishClaim(invite, 'dev-beto');
+
+    usar('ana', ANA);
+    await processInvite(invite, 'dev-ana');
+    await processInvite(invite, 'dev-ana'); // reintento del mismo reclamo, mismo sync
+
+    const avisos = useNoticeInboxStore.getState().items.filter(i => i.notice.kind === 'group_invite_full');
+    expect(avisos).toHaveLength(1);
   });
 });
 

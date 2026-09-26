@@ -207,7 +207,17 @@ async function buildSlicedEnvelopes(
 
   for (const campo of SLICED_FIELDS) {
     const lista = (deltaConUsuarios[campo] ?? []) as { id: string }[];
-    const rebanadas = sliceEntities(lista);
+    const { rebanadas, excluidos } = sliceEntities(lista);
+    if (excluidos.length > 0) {
+      // Rastro para el diagnóstico (T-150, SEC-07): el registro sigue local,
+      // pero no viaja — mandarlo entero rompía la publicación de todos los
+      // peers honestos que lo recibieran (`sendEnvelope` rechaza sobres por
+      // encima de `MAX_PAYLOAD_BYTES`).
+      recordError({
+        message: `sync.registro_excluido campo=${campo} ids=${excluidos.slice(0, 5).map(e => e.id).join(',')}`,
+        fatal: false, screen: 'sync',
+      });
+    }
     for (let i = 0; i < rebanadas.length; i++) {
       const rebanada = rebanadas[i]!;
       // La ckey va por ÍNDICE de rebanada, no por el primer id (T-146). Con el
@@ -544,7 +554,18 @@ export async function drainGroup(
         // la clave del TOPIC — nunca acotan qué puede venir adentro. Se arma un
         // delta nuevo, campo por campo, con sólo lo que pertenece a `groupId`
         // antes de tocar cualquier store (`acotarDeltaAlGrupo.ts`).
-        const acotado = acotarDeltaAlGrupo(delta, groupId);
+        const descartados = { count: 0, motivos: [] as string[] };
+        const acotado = acotarDeltaAlGrupo(delta, groupId, undefined, descartados);
+        if (descartados.count > 0) {
+          // Rastro, no aviso al usuario (T-150, SEC-07): no hay nada que la
+          // víctima pueda hacer con «un miembro mandó un registro demasiado
+          // grande», y sí sirve en el diagnóstico exportado cuando alguien
+          // pregunta «¿y mi gasto?».
+          recordError({
+            message: `sync.registro_descartado topic=${topic.slice(0, 8)} n=${descartados.count} ${descartados.motivos.slice(0, 5).join(',')}`,
+            fatal: false, screen: 'sync',
+          });
+        }
         applyDelta(acotado, currentUserId);
         applied++;
 

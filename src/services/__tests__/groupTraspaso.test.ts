@@ -1,4 +1,5 @@
 import { traspasarGrupo, siguienteNombreDisponible } from '../groupTraspaso';
+import { MAX_TEXTO_CORTO } from '@/src/sync/topes';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { usePaymentStore } from '@/src/store/paymentStore';
@@ -189,6 +190,117 @@ describe('traspasarGrupo', () => {
       const nuevo = traspasarGrupo(viejo, 'Saldo trasladado de Viaje', 'ana');
 
       expect(nuevo.name).toBe('Viaje (3)');
+    });
+  });
+
+  // T-150 ronda 2 (D3, verifier): un grupo con nombre en el tope, traspasado,
+  // no debe producir un nombre ni una descripción de arrastre que superen
+  // MAX_TEXTO_CORTO — aunque el predicado de recibir/publicar ya no los mida
+  // por caracteres, la app sigue acotando lo que ella misma genera.
+  describe('T-150 ronda 2 (D3): textos generados por el traspaso se truncan al tope', () => {
+    it('siguienteNombreDisponible nunca devuelve más de MAX_TEXTO_CORTO caracteres', () => {
+      const base = 'x'.repeat(MAX_TEXTO_CORTO);
+      const resultado = siguienteNombreDisponible(base, []);
+      expect(resultado.length).toBeLessThanOrEqual(MAX_TEXTO_CORTO);
+    });
+
+    it('traspasarGrupo con un nombre de 200 caracteres produce un grupo nuevo cuyo name no excede el tope', () => {
+      useGroupStore.setState({ groups: [grupo({ name: 'x'.repeat(MAX_TEXTO_CORTO) })] });
+      const viejo = useGroupStore.getState().groups[0];
+      const nuevo = traspasarGrupo(viejo, 'Saldo trasladado de ' + 'x'.repeat(MAX_TEXTO_CORTO), 'ana');
+
+      expect(nuevo.name.length).toBeLessThanOrEqual(MAX_TEXTO_CORTO);
+    });
+
+    it('el gasto de arrastre generado con una descripción larga se trunca al tope', () => {
+      const viejo = useGroupStore.getState().groups[0];
+      const descripcionLarga = 'Saldo trasladado de ' + 'x'.repeat(MAX_TEXTO_CORTO);
+      const nuevo = traspasarGrupo(viejo, descripcionLarga, 'ana');
+
+      const delNuevo = useExpenseStore.getState().expenses.filter(e => e.groupId === nuevo.id);
+      expect(delNuevo.length).toBeGreaterThan(0);
+      for (const gastoDeArrastre of delNuevo) {
+        expect(gastoDeArrastre.description.length).toBeLessThanOrEqual(MAX_TEXTO_CORTO);
+      }
+    });
+
+    // La descripción tiene la parte fija ("Saldo trasladado de ") PRIMERO y el
+    // nombre interpolado al final: truncar el string entero desde la derecha ya
+    // corta sólo la parte variable, sin tocar el prefijo fijo. Se deja como
+    // test de regresión explícito, pedido por el handoff de la ronda 2.
+    it('la descripción larga se trunca preservando el prefijo fijo, no lo pisa', () => {
+      const viejo = useGroupStore.getState().groups[0];
+      const descripcionLarga = 'Saldo trasladado de ' + 'x'.repeat(MAX_TEXTO_CORTO);
+      const nuevo = traspasarGrupo(viejo, descripcionLarga, 'ana');
+
+      const delNuevo = useExpenseStore.getState().expenses.filter(e => e.groupId === nuevo.id);
+      for (const gastoDeArrastre of delNuevo) {
+        expect(gastoDeArrastre.description.startsWith('Saldo trasladado de ')).toBe(true);
+      }
+    });
+  });
+
+  // T-150 ronda 2, defecto 2 del handoff (regresión de la ronda 2 anterior):
+  // `siguienteNombreDisponible` truncaba DESPUÉS de agregar el sufijo " (n)".
+  // Con una base ya en el tope, el sufijo entero se perdía y el nombre nuevo
+  // quedaba IGUAL al viejo — o, con una base un poco más corta, el sufijo
+  // quedaba cortado a la mitad ("... (2") y el regex de la línea 33 ya no lo
+  // reconocía, así que los traspasos siguientes repetían el mismo nombre.
+  // Contrato (`:18-25`): el N más chico que no choque con NINGÚN nombre
+  // existente, sin componer sufijos.
+  describe('T-150 ronda 2 (defecto 2): el truncado no puede comerse el sufijo', () => {
+    it('base de 200 (== MAX_TEXTO_CORTO): el nombre nuevo NO queda igual al viejo', () => {
+      const base = 'x'.repeat(MAX_TEXTO_CORTO);
+      const resultado = siguienteNombreDisponible(base, []);
+
+      expect(resultado).not.toBe(base);
+      expect(resultado.length).toBeLessThanOrEqual(MAX_TEXTO_CORTO);
+      expect(resultado).toMatch(/ \(\d+\)$/);
+    });
+
+    it('base de 199: el sufijo sigue completo y reconocible por el regex', () => {
+      const base = 'x'.repeat(199);
+      const resultado = siguienteNombreDisponible(base, []);
+
+      expect(resultado.length).toBeLessThanOrEqual(MAX_TEXTO_CORTO);
+      expect(resultado).toMatch(/ \(\d+\)$/);
+    });
+
+    it('base de 197: el paréntesis de cierre no se pierde', () => {
+      const base = 'x'.repeat(197);
+      const resultado = siguienteNombreDisponible(base, []);
+
+      expect(resultado.endsWith(')')).toBe(true);
+      expect(resultado).toMatch(/ \(\d+\)$/);
+    });
+
+    it('base de 196 (justo entra con el sufijo " (2)"): no se trunca de más', () => {
+      const base = 'x'.repeat(196);
+      const resultado = siguienteNombreDisponible(base, []);
+
+      expect(resultado).toBe(`${base} (2)`);
+    });
+
+    it('traspasos encadenados (2→3→4) con base larga mantienen unicidad y el regex sigue reconociendo el sufijo', () => {
+      const base = 'x'.repeat(197);
+      const n1 = siguienteNombreDisponible(base, []);
+      const n2 = siguienteNombreDisponible(base, [n1]);
+      const n3 = siguienteNombreDisponible(base, [n1, n2]);
+
+      expect(new Set([n1, n2, n3]).size).toBe(3);
+      for (const n of [n1, n2, n3]) expect(n).toMatch(/ \(\d+\)$/);
+    });
+
+    it('traspasarGrupo real, encadenado, con nombre en el tope: cada traspaso produce un nombre distinto', () => {
+      useGroupStore.setState({ groups: [grupo({ name: 'x'.repeat(MAX_TEXTO_CORTO) })] });
+      const viejo1 = useGroupStore.getState().groups[0];
+      const nuevo1 = traspasarGrupo(viejo1, 'Saldo trasladado de x', 'ana');
+
+      const viejo2 = useGroupStore.getState().groups.find(g => g.id === nuevo1.id)!;
+      const nuevo2 = traspasarGrupo(viejo2, 'Saldo trasladado de x', 'ana');
+
+      expect(nuevo2.name).not.toBe(nuevo1.name);
+      expect(nuevo2.name).toMatch(/ \(\d+\)$/);
     });
   });
 

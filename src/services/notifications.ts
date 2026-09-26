@@ -4,6 +4,7 @@ import { useSettingsStore } from '@/src/store/settingsStore';
 import { nombreDeGrupoEnConflicto, type KeyConflictNotice, type Notice } from './syncNotices';
 import { useNoticeInboxStore } from '@/src/store/noticeInboxStore';
 import { claveDeFalloDeSync } from '@/src/sync/publishHealth';
+import { MAX_MIEMBROS } from '@/src/sync/topes';
 
 /**
  * Entrega de notificaciones locales (T-010).
@@ -161,6 +162,8 @@ export function isEnabled(notice: Notice): boolean {
     // T-058: es sobre a qué grupo pertenecés de ahora en más — mismo dominio
     // que `joined`/`group_key_conflict`, no el de gastos ni el de saldos.
     case 'group_replaced': return s.notifInvites;
+    // T-150 ronda 2/5: es sobre una invitación, mismo dominio que las de arriba.
+    case 'group_invite_full': return s.notifInvites;
   }
 }
 
@@ -237,6 +240,11 @@ export function textFor(notice: Notice): { title: string; body: string } {
       return {
         title: t('notifications.group_replaced_title', { group: notice.groupName }),
         body: t('notifications.group_replaced_body', { newGroup: notice.newGroupName }),
+      };
+    case 'group_invite_full':
+      return {
+        title: t('notifications.invite_full_title', { group: notice.groupName }),
+        body: t('notifications.invite_full_body', { max: MAX_MIEMBROS }),
       };
   }
 }
@@ -315,4 +323,23 @@ export async function announceKeyConflict(notice: KeyConflictNotice): Promise<nu
     && i.notice.groupId === notice.groupId);
   if (yaHay) return 0;
   return announce([notice]);
+}
+
+/**
+ * Avisa a quien invita que un reclamo se rechazó por tope de miembros (T-150
+ * ronda 2/5, ruling del orquestador). **Sin apilar por reintento**: `admit()`
+ * relee el buzón entero en cada sync mientras la invitación siga viva (T-096,
+ * sin cursor) y vuelve a rechazar el mismo reclamo cada vez. A diferencia de
+ * `announceKeyConflict` (que sólo evita duplicar mientras el aviso sigue SIN
+ * LEER), acá el dedupe es por invitación y para siempre — leído o no —
+ * porque «alguien intentó entrar y no entró» es una sola historia, no una
+ * por sync.
+ */
+export async function announceInviteFull(groupId: string, groupName: string, inviteToken: string): Promise<number> {
+  const yaHay = useNoticeInboxStore.getState().items.some(i =>
+    i.notice.kind === 'group_invite_full'
+    && i.notice.groupId === groupId
+    && i.notice.inviteToken === inviteToken);
+  if (yaHay) return 0;
+  return announce([{ kind: 'group_invite_full', groupId, groupName, inviteToken }]);
 }
