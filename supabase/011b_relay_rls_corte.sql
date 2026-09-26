@@ -10,9 +10,17 @@
 --  1. Saca la lectura directa: `envelopes_read` y `device_keys_read` se van
 --     (cierra P1 y P5). Leer queda sólo por `fetch_since` (topic obligatorio)
 --     y `account_keys` (account_id obligatorio).
---  2. INSERT sólo `authenticated` (con el mismo tope de 1 MB). El cliente nuevo
---     igual escribe por `publish_envelope` (H1); la policy queda de defensa.
---  3. `anon` pierde los grants de tabla y el EXECUTE de las RPC del buzón.
+--  2. Nadie inserta directo: la escritura es SÓLO por `publish_envelope` (D2
+--     del verificador, ronda 1). Con INSERT directo, cualquiera que conozca el
+--     topic elegía `seq` (≈ 9,2e18) y `expires_at` (2099): envenenaba el
+--     cursor del grupo para siempre (el cliente adopta el `seq` del último
+--     sobre leído) y el TTL nunca lo levantaba. `publish_envelope` no recibe
+--     `seq`, `created_at` ni `expires_at`: los pone el servidor.
+--     El cliente nuevo ya publica por RPC y sólo cae al insert directo si la
+--     función NO existe, lo que tras 011a nunca pasa.
+--  3. `anon` y `authenticated` pierden TODO grant directo sobre `envelopes`
+--     (leer y escribir van por RPC `security definer`); `anon` además pierde
+--     la lectura del directorio y el EXECUTE de las RPC del buzón.
 --  4. Higiene (D7/P6): nadie ejecuta la purga ni las funciones de trigger.
 --  5. `envelopes` sale de la publicación de Realtime (cierra P4): el aviso en
 --     vivo ya va por Broadcast privado (011a).
@@ -42,7 +50,9 @@
 -- VERIFICACIÓN después de correrla:
 --   select policyname, roles from pg_policies
 --    where tablename in ('envelopes','device_keys') order by 1;
---     → device_keys_delete, device_keys_write, envelopes_write {authenticated}
+--     → device_keys_delete, device_keys_write   (ninguna de envelopes)
+--   select grantee, privilege_type from information_schema.role_table_grants
+--    where table_name = 'envelopes' and grantee in ('anon','authenticated');   → 0 filas
 --   select count(*) as sigue_en_realtime from pg_publication_tables
 --    where pubname = 'supabase_realtime' and tablename = 'envelopes';   → 0
 --   select enforce, retention from public.relay_quota_config;           → t, 02:00:00
@@ -59,17 +69,17 @@ begin;
 drop policy if exists envelopes_read on public.envelopes;
 drop policy if exists device_keys_read on public.device_keys;
 
--- 2 · INSERT sólo authenticated, mismo tope que 006 --------------------------
+-- 2 · Sin escritura directa (D2) ----------------------------------------------
+-- Sin policy de INSERT y sin grant: la única escritura es `publish_envelope`.
 drop policy if exists envelopes_write on public.envelopes;
-create policy envelopes_write on public.envelopes
-  for insert to authenticated
-  with check (octet_length(payload) <= 1048576);
 
--- 3 · anon sin grants de tabla -----------------------------------------------
--- anon → «permission denied» (no una lista vacía que parezca un buzón vacío).
--- `authenticated` conserva el grant pero sin policy de SELECT ve 0 filas; el
--- `upsert` de registerDeviceKey no necesita SELECT.
-revoke select, insert on public.envelopes from anon;
+-- 3 · Sin grants directos de tabla ----------------------------------------------
+-- anon y authenticated → «permission denied» sobre envelopes (no una lista
+-- vacía que parezca un buzón vacío). Las RPC son `security definer`: corren
+-- como dueño y no necesitan estos grants.
+-- device_keys: `authenticated` conserva lo suyo (registrar y borrar sus claves
+-- por las policies de 003); sin policy de SELECT ve 0 filas.
+revoke all on public.envelopes from anon, authenticated;
 revoke select on public.device_keys from anon;
 
 -- 4 · RPC del buzón sólo para authenticated (H3: nombrar anon) ---------------

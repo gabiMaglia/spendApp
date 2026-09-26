@@ -18,7 +18,25 @@
 --     habría frenado, no frena. El PO la activa con un `update` tras una
 --     semana de datos (checklist F3); 011b la fuerza igual.
 --     El contador NO guarda el topic (I3): uid + topic juntos en la base
---     serían un mapa persona↔grupo que hoy no existe.
+--     serían un mapa persona↔grupo que hoy no existe. Y tampoco se puede
+--     RECONSTRUIR uniendo con `envelopes` (D1 del verificador, ronda 1):
+--       · ninguna tabla de cuota guarda la hora exacta de un evento (el
+--         `now()` del insert es el mismo `envelopes.created_at` → join exacto);
+--         la única columna de tiempo es la ventana truncada (`bucket`);
+--       · el minuto cuenta sólo SOBRES, no bytes (la suma de bytes de un topic
+--         en un minuto calzaba exacto con el contador);
+--       · los bytes por hora arrancan con un relleno aleatorio de hasta 64 KB
+--         por ventana: la suma de un topic no calza. Cuesta ≤ 64 KB de los
+--         20 MB del tope (se frena apenas antes, nunca después);
+--       · sólo viven las ventanas ABIERTAS: la purga corre cada 5 minutos y
+--         borra toda ventana cerrada;
+--       · lo que se mide para decidir la cuota (F3) queda como PICO DIARIO por
+--         uid (`relay_quota_daily`): sin hora, MB redondeados hacia arriba.
+--     RESIDUAL declarado (ADR-017): mientras una ventana está abierta, su
+--     cuenta de sobres por minuto se puede comparar con la de un topic, y el
+--     pico diario también, de forma aproximada. Es la misma correlación
+--     uid↔horario que ya dan los logs de API de Supabase (§3 «Lo que NO
+--     cierra»); acá sólo se evita dejarla escrita en la base.
 --     Ventana FIJA (minuto/hora de reloj), no deslizante: en el borde de un
 --     minuto se pueden colar hasta 2×20. Aceptado: es freno de abuso, no
 --     facturación.
@@ -75,7 +93,8 @@
 -- deshacer igual: `drop trigger envelopes_a_quota` y `envelopes_z_notify`
 -- on public.envelopes; `drop function` de publish_envelope, fetch_since,
 -- relay_enforce_quota, relay_notify_news, purge_relay_quota; `drop table` de
--- las cuatro relay_*; `drop policy relay_news_listen on realtime.messages`;
+-- las cuatro relay_* (relay_quota_config, relay_quota, relay_quota_daily,
+-- relay_write_stats); `drop policy relay_news_listen on realtime.messages`;
 -- `select cron.unschedule('purge_relay_quota')`; y re-correr
 -- `005_claves_por_owner.sql` (vuelve account_keys a invoker).
 --
@@ -96,7 +115,8 @@ create table if not exists public.relay_quota_config (
   retention       interval not null default '8 days');
 insert into public.relay_quota_config default values on conflict do nothing;
 
--- Contador por uid y ventana ('m' = minuto, 'h' = hora).
+-- Contador por uid y ventana ABIERTA ('m' = minuto, 'h' = hora). Sin hora de
+-- evento: `bucket` es la ventana truncada. En 'm' `bytes` queda en 0 (D1).
 create table if not exists public.relay_quota (
   uid          uuid        not null,
   granularity  char(1)     not null check (granularity in ('m','h')),
@@ -106,14 +126,16 @@ create table if not exists public.relay_quota (
   primary key (uid, granularity, bucket));
 create index if not exists relay_quota_bucket_idx on public.relay_quota (bucket);
 
--- A quién habría frenado la cuota mientras está en modo observar.
-create table if not exists public.relay_quota_would_reject (
-  at       timestamptz not null default now(),
-  uid      uuid        not null,
-  reason   text        not null,
-  n_min    integer     not null,
-  bytes_h  bigint      not null);
-create index if not exists relay_quota_would_reject_at_idx on public.relay_quota_would_reject (at);
+-- Lo que se mide para fijar la cuota (F3): pico diario por uid y cuántas
+-- veces la cuota lo habría frenado. Sin hora, sin topic; MB hacia arriba.
+create table if not exists public.relay_quota_daily (
+  day                  date    not null,
+  uid                  uuid    not null,
+  peak_per_minute      integer not null default 0,
+  peak_mib_per_hour    integer not null default 0,
+  rejects_per_minute   integer not null default 0,
+  rejects_bytes_hour   integer not null default 0,
+  primary key (day, uid));
 
 -- Escrituras por rol del JWT y día. Sin uid ni topic: es el criterio A de 011b.
 create table if not exists public.relay_write_stats (
@@ -125,12 +147,12 @@ create table if not exists public.relay_write_stats (
 
 alter table public.relay_quota_config enable row level security;
 alter table public.relay_quota enable row level security;
-alter table public.relay_quota_would_reject enable row level security;
+alter table public.relay_quota_daily enable row level security;
 alter table public.relay_write_stats enable row level security;
 
 revoke all on public.relay_quota_config from anon, authenticated;
 revoke all on public.relay_quota from anon, authenticated;
-revoke all on public.relay_quota_would_reject from anon, authenticated;
+revoke all on public.relay_quota_daily from anon, authenticated;
 revoke all on public.relay_write_stats from anon, authenticated;
 
 -- 2 · Trigger de cuota -------------------------------------------------------
@@ -153,6 +175,8 @@ declare
   v_cfg      public.relay_quota_config%rowtype;
   v_n_min    integer;
   v_bytes_h  bigint;
+  v_over_min boolean;
+  v_over_h   boolean;
 begin
   insert into public.relay_write_stats (day, role, n, bytes)
     values (current_date, v_role, 1, v_bytes)
@@ -167,16 +191,19 @@ begin
 
   -- Upsert atómico con `returning`: dos inserts concurrentes del mismo uid se
   -- serializan en la fila del contador y cada uno ve su propio total.
+  -- Minuto: sólo cuenta sobres (bytes = 0, D1).
   insert into public.relay_quota (uid, granularity, bucket, n, bytes)
-    values (v_uid, 'm', date_trunc('minute', now()), 1, v_bytes)
+    values (v_uid, 'm', date_trunc('minute', now()), 1, 0)
     on conflict (uid, granularity, bucket)
-    do update set n = relay_quota.n + 1, bytes = relay_quota.bytes + excluded.bytes
+    do update set n = relay_quota.n + 1
     returning n into v_n_min;
 
+  -- Hora: la ventana nace con un relleno aleatorio de 1..65536 bytes para que
+  -- su total no sea la suma exacta de los sobres de ningún topic (D1).
   insert into public.relay_quota (uid, granularity, bucket, n, bytes)
-    values (v_uid, 'h', date_trunc('hour', now()), 1, v_bytes)
+    values (v_uid, 'h', date_trunc('hour', now()), 1, v_bytes + 1 + floor(random() * 65536)::bigint)
     on conflict (uid, granularity, bucket)
-    do update set n = relay_quota.n + 1, bytes = relay_quota.bytes + excluded.bytes
+    do update set n = relay_quota.n + 1, bytes = relay_quota.bytes + v_bytes
     returning bytes into v_bytes_h;
 
   select * into v_cfg from public.relay_quota_config where id;
@@ -184,17 +211,25 @@ begin
     return new;   -- sin config no se frena a nadie (fallar abierto: es un freno, no un permiso)
   end if;
 
-  if v_n_min > v_cfg.per_minute or v_bytes_h > v_cfg.bytes_per_hour then
-    if v_cfg.enforce then
-      -- PostgREST traduce SQLSTATE 'PTxyz' a HTTP xyz → 429.
-      raise exception 'relay_quota_exceeded'
-        using errcode = 'PT429', hint = 'reintentar en el próximo minuto';
-    end if;
-    insert into public.relay_quota_would_reject (uid, reason, n_min, bytes_h)
-      values (v_uid,
-              case when v_n_min > v_cfg.per_minute then 'per_minute' else 'bytes_per_hour' end,
-              v_n_min, v_bytes_h);
+  v_over_min := v_n_min > v_cfg.per_minute;
+  v_over_h   := v_bytes_h > v_cfg.bytes_per_hour;
+
+  if (v_over_min or v_over_h) and v_cfg.enforce then
+    -- PostgREST traduce SQLSTATE 'PTxyz' a HTTP xyz → 429.
+    raise exception 'relay_quota_exceeded'
+      using errcode = 'PT429', hint = 'reintentar en el próximo minuto';
   end if;
+
+  -- Pico del día (lo que mira el PO en F3). Sin hora de evento.
+  insert into public.relay_quota_daily as d
+      (day, uid, peak_per_minute, peak_mib_per_hour, rejects_per_minute, rejects_bytes_hour)
+    values (current_date, v_uid, v_n_min, ceil(v_bytes_h / 1048576.0)::integer,
+            v_over_min::integer, (v_over_h and not v_over_min)::integer)
+    on conflict (day, uid) do update set
+      peak_per_minute    = greatest(d.peak_per_minute, excluded.peak_per_minute),
+      peak_mib_per_hour  = greatest(d.peak_mib_per_hour, excluded.peak_mib_per_hour),
+      rejects_per_minute = d.rejects_per_minute + excluded.rejects_per_minute,
+      rejects_bytes_hour = d.rejects_bytes_hour + excluded.rejects_bytes_hour;
 
   return new;
 end;
@@ -340,9 +375,11 @@ as $$
      );
 $$;
 
--- 7 · Purga de la cuota (H5) --------------------------------------------------
--- `retention` = 8 días mientras se mide; 011b la baja a 2 horas (sólo hace
--- falta la ventana viva). La estadística por rol no tiene uid: se guarda 90 días.
+-- 7 · Purga de la cuota (H5 + D1) ---------------------------------------------
+-- `relay_quota` guarda sólo ventanas ABIERTAS: toda ventana cerrada se borra
+-- (cada 5 minutos). `retention` rige el pico diario: 8 días mientras se mide,
+-- 011b la baja a 2 horas (queda sólo el día en curso). La estadística por rol
+-- no tiene uid: se guarda 90 días.
 create or replace function public.purge_relay_quota()
 returns integer
 language plpgsql
@@ -352,18 +389,20 @@ as $$
 declare
   v_ret  interval;
   v_n    integer;
-  v_m    integer;
+  v_d    integer;
 begin
   select coalesce((select retention from public.relay_quota_config where id), interval '8 days')
     into v_ret;
 
-  delete from public.relay_quota where bucket < now() - v_ret;
+  delete from public.relay_quota
+   where (granularity = 'm' and bucket < date_trunc('minute', now()))
+      or (granularity = 'h' and bucket < date_trunc('hour', now()));
   get diagnostics v_n = row_count;
-  delete from public.relay_quota_would_reject where at < now() - v_ret;
-  get diagnostics v_m = row_count;
+  delete from public.relay_quota_daily where day < (now() - v_ret)::date;
+  get diagnostics v_d = row_count;
   delete from public.relay_write_stats where day < current_date - 90;
 
-  return v_n + v_m;
+  return v_n + v_d;
 end;
 $$;
 
@@ -371,7 +410,7 @@ select cron.unschedule('purge_relay_quota')
   where exists (select 1 from cron.job where jobname = 'purge_relay_quota');
 select cron.schedule(
   'purge_relay_quota',
-  '7 * * * *',
+  '*/5 * * * *',
   $$ select public.purge_relay_quota(); $$
 );
 
@@ -406,3 +445,26 @@ notify pgrst, 'reload schema';
 --    where jobname in ('purge_expired_envelopes','purge_relay_quota') order by 1;  -- 2
 --   select policyname from pg_policies
 --    where tablename in ('envelopes','device_keys') order by 1;   -- siguen las 5 de siempre
+--
+-- MEDICIÓN (checklist F3, a partir de D+7). REEMPLAZA las consultas 1–4 del
+-- plan: tras D1 ya no hay minutos ni horas viejas guardadas, sólo el pico
+-- diario por uid.
+--   -- 1) Pico de sobres por minuto, por teléfono y día
+--   select count(distinct uid) as telefonos,
+--          percentile_disc(0.50) within group (order by peak_per_minute) as p50,
+--          percentile_disc(0.95) within group (order by peak_per_minute) as p95,
+--          max(peak_per_minute) as maximo
+--     from public.relay_quota_daily where day > current_date - 7;
+--   -- 2) Pico de MB por hora (redondeado hacia arriba)
+--   select percentile_disc(0.95) within group (order by peak_mib_per_hour) as p95_mb_h,
+--          max(peak_mib_per_hour) as max_mb_h
+--     from public.relay_quota_daily where day > current_date - 7;
+--   -- 3) ¿A quién habría frenado la cuota?
+--   select day, sum(rejects_per_minute) as por_minuto, sum(rejects_bytes_hour) as por_mb,
+--          count(distinct uid) filter (where rejects_per_minute + rejects_bytes_hour > 0) as telefonos
+--     from public.relay_quota_daily where day > current_date - 7 group by 1 order by 1;
+--   -- 4) Los 10 teléfonos con más ráfaga
+--   select uid, max(peak_per_minute) as pico_por_minuto, max(peak_mib_per_hour) as pico_mb_hora
+--     from public.relay_quota_daily where day > current_date - 7
+--    group by uid order by 2 desc limit 10;
+-- Cómo se lee: si 3) sale en cero y el máximo de 1) es < 20 y el de 2) < 20 → se activa.

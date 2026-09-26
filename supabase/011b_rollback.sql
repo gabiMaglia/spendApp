@@ -2,7 +2,8 @@
 -- 011b · ROLLBACK del corte  (T-147)
 --
 -- Cuándo: si después de correr 011b algo que tenía que seguir sincronizando
--- dejó de hacerlo. Devuelve la lectura y la escritura anónimas y el aviso por
+-- dejó de hacerlo. Devuelve la lectura y la escritura directas (anon y
+-- authenticated) y el aviso por
 -- postgres_changes EXACTAMENTE como estaban antes del corte (policies de
 -- 003/006, grants de 005/008/011a, publicación de 001).
 --
@@ -33,7 +34,7 @@ drop policy if exists device_keys_read on public.device_keys;
 create policy device_keys_read on public.device_keys
   for select using (true);
 
-grant select, insert on public.envelopes to anon;
+grant select, insert on public.envelopes to anon, authenticated;
 grant select on public.device_keys to anon;
 
 grant execute on function
