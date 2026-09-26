@@ -41,9 +41,18 @@ export async function signIntoDirectory(
   }
 }
 
-/** Cierra la sesión del directorio. Se llama al desloguearse de la app. */
+/**
+ * Cierra la sesión del directorio. Se llama al desloguearse de la app.
+ *
+ * **`scope: 'local'` (T-147 H2).** El default de `signOut()` es
+ * `scope: 'global'`: revoca el refresh token en TODOS los dispositivos. Con la
+ * sesión persistida (D1) esto pasa de ser un detalle a doler de verdad —
+ * desloguearse en un teléfono cerraría también la sesión de Google del otro.
+ * `local` sólo tira la sesión de este aparato; la próxima operación del buzón
+ * abre una anónima nueva (I5, ninguna pérdida de datos).
+ */
 export async function signOutOfDirectory(): Promise<void> {
   const supabase = getRelayClient();
   if (!supabase) return;
-  try { await supabase.auth.signOut(); } catch { /* no bloquea el logout local */ }
+  try { await supabase.auth.signOut({ scope: 'local' }); } catch { /* no bloquea el logout local */ }
 }

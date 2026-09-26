@@ -78,12 +78,31 @@ export type Envelope = {
 
 let client: SupabaseClient | null = null;
 
-/** `null` si el relay no está configurado: la app tiene que seguir andando. */
+/**
+ * `null` si el relay no está configurado: la app tiene que seguir andando.
+ *
+ * **T-147 (D1):** la sesión se persiste — ya no es "la identidad la maneja la
+ * app, no Supabase". Sin sesión persistida, cerrar el buzón a `authenticated`
+ * (011b) cortaría el sync a todo el mundo en la segunda apertura de la app, no
+ * sólo al invitado. El storage es el mismo cifrado at-rest que el resto de los
+ * datos sensibles (`relaySession.supabaseAuthStorage`); el refresco automático
+ * NO se deja en manos del SDK (`autoRefreshToken: false` acá) — lo maneja
+ * `bindAuthRefreshToAppState`, atado a primer plano/fondo.
+ */
 export function getRelayClient(): SupabaseClient | null {
   if (!URL || !ANON) return null;
   if (!client) {
+    // Import perezoso: `relaySession` importa `getRelayClient` de este mismo
+    // archivo, y un `import` estático de arriba crearía un ciclo.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { supabaseAuthStorage } = require('./relaySession') as typeof import('./relaySession');
     client = createClient(URL, ANON, {
-      auth: { persistSession: false }, // la identidad la maneja la app, no Supabase
+      auth: {
+        persistSession: true,
+        autoRefreshToken: false,
+        detectSessionInUrl: false,
+        storage: supabaseAuthStorage(),
+      },
       realtime: { params: { eventsPerSecond: 5 } },
     });
   }
