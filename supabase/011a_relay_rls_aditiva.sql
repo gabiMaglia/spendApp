@@ -18,25 +18,44 @@
 --     habría frenado, no frena. El PO la activa con un `update` tras una
 --     semana de datos (checklist F3); 011b la fuerza igual.
 --     El contador NO guarda el topic (I3): uid + topic juntos en la base
---     serían un mapa persona↔grupo que hoy no existe. Y tampoco se puede
---     RECONSTRUIR uniendo con `envelopes` (D1 del verificador, ronda 1):
+--     serían un mapa persona↔grupo que hoy no existe. Contra la reconstrucción
+--     por hora y por bytes (D1 del verificador, ronda 1) se tomaron estas
+--     medidas — pero NO impiden la reconstrucción: ver RESIDUAL abajo.
 --       · ninguna tabla de cuota guarda la hora exacta de un evento (el
 --         `now()` del insert es el mismo `envelopes.created_at` → join exacto);
 --         la única columna de tiempo es la ventana truncada (`bucket`);
 --       · el minuto cuenta sólo SOBRES, no bytes (la suma de bytes de un topic
 --         en un minuto calzaba exacto con el contador);
---       · los bytes por hora arrancan con un relleno aleatorio de hasta 64 KB
---         por ventana: la suma de un topic no calza. Cuesta ≤ 64 KB de los
---         20 MB del tope (se frena apenas antes, nunca después);
---       · sólo viven las ventanas ABIERTAS: la purga corre cada 5 minutos y
---         borra toda ventana cerrada;
+--       · los bytes por hora arrancan con un relleno aleatorio de hasta 64 KB,
+--         FIJO por ventana: una sola lectura no calza con la suma de un topic,
+--         pero dos lecturas sucesivas dan el delta EXACTO. Cuesta ≤ 64 KB de
+--         los 20 MB del tope (se frena apenas antes, nunca después);
+--       · las ventanas 'm'/'h' cerradas se borran: la purga corre cada 5 min;
 --       · lo que se mide para decidir la cuota (F3) queda como PICO DIARIO por
 --         uid (`relay_quota_daily`): sin hora, MB redondeados hacia arriba.
---     RESIDUAL declarado (ADR-017): mientras una ventana está abierta, su
---     cuenta de sobres por minuto se puede comparar con la de un topic, y el
---     pico diario también, de forma aproximada. Es la misma correlación
---     uid↔horario que ya dan los logs de API de Supabase (§3 «Lo que NO
---     cierra»); acá sólo se evita dejarla escrita en la base.
+--     RESIDUAL — EXACTO, NO APROXIMADO (ronda 2 del verificador; ACEPTADO por
+--     el PO como riesgo documentado, 2026-09-26):
+--       · el trigger de cuota escribe en `relay_quota` y `relay_quota_daily`
+--         en la MISMA transacción que el insert del sobre, así que esas filas
+--         llevan el mismo `xmin` que la fila de `envelopes`:
+--           select d.uid, e.topic from public.relay_quota_daily d
+--             join public.envelopes e on e.xmin = d.xmin;
+--         devuelve uid ↔ topic EXACTO (en la prueba del verificador, 19 de
+--         19 uids). Sobrevive a `vacuum (freeze)` y a la purga;
+--       · además, el `n` de la ventana 'h' es exacto, y con el relleno fijo
+--         por ventana dos lecturas de `bytes` dan el delta exacto de bytes;
+--       · alcance: por cada uid, al menos el último sobre de cada día (fila
+--         diaria) y cada ventana abierta ('m'/'h', ≤ 1 h + 5 min). La fila
+--         diaria vive hasta 8 DÍAS en modo observar (`retention` = 8 days) y
+--         ~1 DÍA tras el corte (011b baja `retention` a 2 h; la purga borra
+--         por día).
+--     Es decir: quien lea la base (el operador, o quien la vulnere) puede
+--     reconstruir el mapa persona↔grupo que D3 del plan quería evitar,
+--     durante esos plazos. El CONTENIDO sigue cifrado de punta a punta
+--     (ADR-003); lo que se expone es qué uid escribió en qué topic. Se mantiene
+--     por decisión del PO (el operador es el propio PO) junto con la cuota de
+--     20/min y el captcha. Los logs de API de Supabase ya exponen uid↔horario
+--     por otro lado (§3 «Lo que NO cierra»).
 --     Ventana FIJA (minuto/hora de reloj), no deslizante: en el borde de un
 --     minuto se pueden colar hasta 2×20. Aceptado: es freno de abuso, no
 --     facturación.
@@ -214,7 +233,9 @@ begin
     returning n into v_n_min;
 
   -- Hora: la ventana nace con un relleno aleatorio de 1..65536 bytes para que
-  -- su total no sea la suma exacta de los sobres de ningún topic (D1).
+  -- una lectura suelta no sea la suma exacta de los sobres de un topic (D1).
+  -- El relleno es fijo por ventana: dos lecturas dan el delta exacto, y esta
+  -- fila comparte `xmin` con el sobre (ver RESIDUAL en el docblock).
   insert into public.relay_quota (uid, granularity, bucket, n, bytes)
     values (v_uid, 'h', date_trunc('hour', now()), 1, v_bytes + 1 + floor(random() * 65536)::bigint)
     on conflict (uid, granularity, bucket)
