@@ -246,16 +246,21 @@ export async function drainNow(groupId: string): Promise<number> {
     // limpia la otra. El drenaje que lanzó la elección se ocupa del real.
     if (!sigueSiendoLaClave(groupId, record)) return 0;
 
+    // Siempre a la altura de lo ya aplicado (o intentado 3 veces): `drainGroup`
+    // no devuelve un cursor por encima de una rebanada que falló (T-146).
     writeCursor(topic, r.cursor);
 
     /**
-     * El buzón se leyó hasta el final: este teléfono ya sabe lo que el grupo
-     * sabe, así que puede volver a publicar (T-089). Se limpia **aunque
-     * `r.applied` sea 0** — un buzón vacío es una respuesta válida, no un
-     * drenaje a medias. Lo que no puede limpiarla es un drenaje que falló, y
-     * por eso esto va después del `if (!r.ok)`.
+     * La marca de T-089 se limpia sólo si el buzón se leyó **hasta el final**:
+     * este teléfono ya sabe lo que el grupo sabe, así que puede volver a
+     * publicar. Se limpia **aunque `r.applied` sea 0** — un buzón vacío es una
+     * respuesta válida. Lo que no puede limpiarla es un drenaje que falló (el
+     * `if (!r.ok)` de arriba) ni uno que dejó páginas o una rebanada fallida
+     * por delante (`completo: false`, T-146): publicar con estado incompleto
+     * es exactamente la resurrección que T-089 cierra. El grupo espera a la
+     * próxima vuelta; nada se pierde, se posterga.
      */
-    limpiarPendienteDeDrenaje(groupId);
+    if (r.completo) limpiarPendienteDeDrenaje(groupId);
 
     // Los votos de borrado viajan como cualquier campo: lo que acaba de llegar
     // puede completar una ronda que hasta recién figuraba pendiente.

@@ -48,6 +48,8 @@ import { sealEnvelope, deriveTopic, openEnvelope } from '../envelopeCrypto';
 import { signEnvelope, verifyEnvelope } from '../envelopeSign';
 import { ensureIdentity } from '@/src/store/identityStore';
 import { sendEnvelope } from '../relay';
+import { olvidarFallosDeAplicacion, DRAIN_MAX_REINTENTOS } from '../drainFailures';
+import { listErrors, clearErrors } from '@/src/services/errorLog';
 import type { Group, Expense, User } from '@/src/types/models';
 
 const relayMock = jest.requireMock('../relay') as {
@@ -240,13 +242,20 @@ describe('drainGroup aplica rebanadas y detecta manifiestos incompletos', () => 
   });
 
   /**
-   * Revisión de Task 6, hallazgo #3: si `fetchSince` devuelve exactamente el
-   * límite del drenaje, puede haber más sobres esperando en el servidor —el
-   * manifiesto o sus rebanadas podrían estar en la página siguiente— y
-   * calcular un gap acá sería un falso positivo sin mitigación posible. El
-   * chequeo debe saltearse entero para esta vuelta.
+   * Revisión de Task 6, hallazgo #3 (histórico) + **T-146**: cuando `fetchSince`
+   * devolvía exactamente el límite del drenaje, el drenaje de UNA sola página no
+   * podía saber si había más sobres esperando —el manifiesto o sus rebanadas
+   * podrían estar en la página siguiente—, así que el chequeo de gap se
+   * salteaba entero para esa vuelta.
+   *
+   * Con la paginación de T-146 (TEC-02) esa ambigüedad se resuelve pidiendo la
+   * página siguiente en vez de rendirse: si no queda nada más, `drainGroup`
+   * termina con `completo: true` y RECIÉN AHÍ corre el chequeo de manifiesto
+   * (`if (completo && manifiestos.length > 0)`), así que ahora SÍ detecta la
+   * rebanada faltante — ya no hay "sin mitigación posible", la mitigación es
+   * pedir la próxima página.
    */
-  it('con la página llena al límite del drenaje, NO se registra ningún gap aunque falte una rebanada', async () => {
+  it('con la primera página llena al límite pero sin más por delante, sí se detecta el gap tras paginar', async () => {
     useGroupStore.setState({ groups: [grupo()] } as never);
     useExpenseStore.setState({ expenses: [gasto('e1'), gasto('e2')] } as never);
     await publishToGroup('G', 'u1', 'device1');
@@ -254,13 +263,14 @@ describe('drainGroup aplica rebanadas y detecta manifiestos incompletos', () => 
     const [topic] = [...relayMock.__buzones.keys()];
     const sobres = relayMock.__buzones.get(topic)! as unknown as { seq: number; topic: string; payload: string; sender: string; ckey?: string }[];
 
-    // Se pierde una rebanada de datos: sin el chequeo #3, esto generaría un gap.
+    // Se pierde una rebanada de datos: esto genera un gap real.
     const idxData = sobres.findIndex(s => s.ckey && !esManifiesto(sobres, s));
+    const ckeyPerdida = sobres[idxData]!.ckey!;
     sobres.splice(idxData, 1);
 
     // Se rellena el buzón con sobres basura hasta llegar EXACTO al límite de
-    // `fetchSince` (200) que usa `drainGroup` — simula que hay más allá de lo
-    // que esta página trajo.
+    // `fetchSince` (200) que usa `drainGroup` en su primera página — simula que
+    // la primera página vino llena, sin decir todavía si hay más detrás.
     let seq = Math.max(...sobres.map(s => s.seq), 0);
     while (sobres.length < 200) {
       sobres.push({ seq: ++seq, topic, payload: 'basura-no-descifra', sender: 'ajeno' });
@@ -270,7 +280,11 @@ describe('drainGroup aplica rebanadas y detecta manifiestos incompletos', () => 
     useExpenseStore.setState({ expenses: [] } as never);
     const result = await drainGroup('G', 'u1', 'device2', 0);
     expect(result.ok).toBe(true);
-    expect(manifestGapFor('G')).toBeNull();
+    if (!result.ok) return;
+    // La segunda página (vacía, porque no hay más allá del sobre 200) confirma
+    // `completo: true`, y sólo entonces se corre el chequeo de manifiesto.
+    expect(result.completo).toBe(true);
+    expect(manifestGapFor('G')?.missingCkeys).toEqual([ckeyPerdida]);
   });
 
   /**
@@ -514,3 +528,124 @@ function esManifiesto(
   const delMismoRemitente = todos.filter(s => s.sender === sobre.sender);
   return delMismoRemitente[delMismoRemitente.length - 1] === sobre;
 }
+
+/**
+ * T-146, ronda 1 del verifier (defecto D1). `relaySlicedDrain.test.ts` ya
+ * arma sobres a mano con `sealEnvelope`/`signEnvelope` para simular a un
+ * miembro legítimo del grupo mandando algo que `publishToGroup` nunca
+ * mandaría — acá el "algo" es un sobre cuyo texto plano, tras `JSON.parse`,
+ * es `null` en vez de un objeto: un sobre firmado y sellado con la clave del
+ * grupo (así que pasa firma y cifrado) no tiene por qué contener un objeto.
+ */
+describe('T-146 · D1: una rebanada cuyo texto plano no es un objeto', () => {
+  beforeEach(() => {
+    relayMock.__reset();
+    clearManifestGaps();
+    olvidarFallosDeAplicacion();
+    clearErrors();
+    useAuthStore.setState({ user: { id: 'u1' } } as never);
+    useGroupKeyStore.setState({ keys: [] });
+    useGroupKeyStore.getState().ensureKey('G');
+    authorHealth.observeAuthor.mockReset();
+    authorHealth.observeAuthor.mockResolvedValue('ok');
+    authorHealth.RECHAZAR_AUTORES_NO_VERIFICADOS = false;
+  });
+
+  it('no tira sin atajar: se anota, se reintenta y a los DRAIN_MAX_REINTENTOS se saltea con rastro, sin trabar el resto', async () => {
+    useGroupStore.setState({ groups: [grupo()] } as never);
+    useExpenseStore.setState({ expenses: [gasto('e1'), gasto('e2')] } as never);
+    await publishToGroup('G', 'u1', 'device1');
+
+    // Se agrega, a mano, un sobre extra cuyo plaintext es literalmente `null`.
+    // `JSON.parse('null')` da `null`; `isManifest(null)` es `false`
+    // (`manifest.ts`), así que entra al camino de "rebanada de datos" con
+    // `delta: null` — y `delta.fromUserId` (en `observeAuthor`) tira.
+    const key = groupKeyBytes('G')!;
+    const record = useGroupKeyStore.getState().getKey('G')!;
+    const topic = await deriveTopic(key, record.epoch);
+    const sealed = sealEnvelope(key, 'null');
+    const firmado = signEnvelope(sealed, ensureIdentity().privateKey);
+    await sendEnvelope(topic, firmado, 'deviceAttacker', false);
+
+    useExpenseStore.setState({ expenses: [] } as never);
+
+    let r = await drainGroup('G', 'u1', 'deviceVictima', 0);
+    // Mientras quede presupuesto, no se da por leída: no truena, y el
+    // resto del lote (e1, e2) todavía no se aplicó porque la rebanada rota
+    // vino ANTES en `seq` (se publicó después del grupo/gastos... en este
+    // mock el orden de sends es: rebanadas de G, luego el sobre roto, así
+    // que el roto es el ÚLTIMO — no bloquea a e1/e2, que ya se aplicaron).
+    for (let i = 1; i < DRAIN_MAX_REINTENTOS; i++) {
+      expect(r.ok).toBe(true);
+      if (!r.ok) return;
+      r = await drainGroup('G', 'u1', 'deviceVictima', r.cursor);
+    }
+    // Se agotó el presupuesto: la rebanada rota se deja atrás CON RASTRO, y
+    // el drenaje termina completo — nunca un throw crudo que tumbe `drainNow`.
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.completo).toBe(true);
+    expect(r.skipped).toBeGreaterThanOrEqual(1);
+    expect(useExpenseStore.getState().expenses.map(e => e.id).sort()).toEqual(['e1', 'e2']);
+    expect(listErrors().some(e => e.message.includes('sync.apply_failed'))).toBe(true);
+  });
+});
+
+/**
+ * T-146, ronda 2 del verifier (defecto D3). `isManifest` (`manifest.ts:22-26`)
+ * sólo pide `version === 2` y `entries` array — nunca valida los ELEMENTOS.
+ * Un sobre firmado y sellado con la clave del grupo cuyo texto plano sea
+ * `{"version":2,"entries":[null]}` pasa como manifiesto válido, y el chequeo
+ * final (`for (const entry of manifest.entries) { ...entry.ckey... }`) corre
+ * DESPUÉS del loop de rebanadas, fuera de cualquier `try` — `entry.ckey` tira
+ * un TypeError que `drainGroup` nunca ataja: `drainNow` cae en su `catch`
+ * crudo sin escribir cursor ni limpiar la marca de T-089, y el grupo no
+ * vuelve a publicar hasta el TTL de 30 días. `errorLog` queda vacío.
+ */
+describe('T-146 · D3 (ronda 2): un manifiesto con forma reconocible pero entradas inválidas', () => {
+  beforeEach(() => {
+    relayMock.__reset();
+    clearManifestGaps();
+    olvidarFallosDeAplicacion();
+    clearErrors();
+    useAuthStore.setState({ user: { id: 'u1' } } as never);
+    useGroupKeyStore.setState({ keys: [] });
+    useGroupKeyStore.getState().ensureKey('G');
+    authorHealth.observeAuthor.mockReset();
+    authorHealth.observeAuthor.mockResolvedValue('ok');
+    authorHealth.RECHAZAR_AUTORES_NO_VERIFICADOS = false;
+  });
+
+  async function enviarManifiestoRoto(entries: unknown[]) {
+    const key = groupKeyBytes('G')!;
+    const record = useGroupKeyStore.getState().getKey('G')!;
+    const topic = await deriveTopic(key, record.epoch);
+    const sealed = sealEnvelope(key, JSON.stringify({ version: 2, entries }));
+    const firmado = signEnvelope(sealed, ensureIdentity().privateKey);
+    await sendEnvelope(topic, firmado, 'deviceAttacker', false);
+  }
+
+  it.each([
+    ['entrada null', [null]],
+    ['entrada string', ['no-soy-un-objeto']],
+    ['ckey numérica', [{ ckey: 123, digest: 'd' }]],
+  ])('%s: no trunca el drenaje, deja rastro y no se cuela como manifiesto', async (_label, entries) => {
+    useGroupStore.setState({ groups: [grupo()] } as never);
+    useExpenseStore.setState({ expenses: [gasto('e1'), gasto('e2')] } as never);
+    await publishToGroup('G', 'u1', 'device1');
+
+    await enviarManifiestoRoto(entries);
+
+    useExpenseStore.setState({ expenses: [] } as never);
+    const r = await drainGroup('G', 'u1', 'deviceVictima', 0);
+
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.completo).toBe(true);
+    expect(useExpenseStore.getState().expenses.map(e => e.id).sort()).toEqual(['e1', 'e2']);
+    // No se cuela como manifiesto válido: ningún gap se registra a partir de
+    // entradas que nunca deberían haberse aceptado como manifiesto.
+    expect(manifestGapFor('G')).toBeNull();
+    expect(listErrors().some(e => e.message.includes('sync.') && e.message.includes('manifest'))).toBe(true);
+  });
+});

@@ -119,6 +119,10 @@ Con tombstones (`isDeleted: true`, `updatedAt` actualizado):
 3. Si `updatedAt` de A > `updatedAt` de B, el estado `isDeleted=true` gana.
 4. El gasto queda marcado como borrado en ambos dispositivos. Nunca resucita.
 
+> **Nota T-146:** El drenaje pagina (`DRAIN_FETCH_LIMIT` × `DRAIN_MAX_PAGES`), no
+> avanza el cursor sobre una rebanada que falló (3 intentos, `drainFailures.ts`)
+> y la `ckey` de una rebanada es por índice (T-146).
+
 ---
 
 ## Borrado consensuado {#deletion-consensus}

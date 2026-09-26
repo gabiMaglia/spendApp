@@ -8,11 +8,13 @@ import { signEnvelope, verifyEnvelope } from './envelopeSign';
 import { observeAuthor, RECHAZAR_AUTORES_NO_VERIFICADOS } from './authorHealth';
 import { refreshPendingAuthors } from './authorKeys';
 import { sliceEntities, deriveCkey } from './slices';
-import { buildManifest, digestOfJson, isManifest, type SliceManifest } from './manifest';
+import { buildManifest, digestOfJson, isManifest, looksLikeManifest, type SliceManifest } from './manifest';
 import { recordManifestCheck } from './manifestHealth';
 import { recordSlicePublished } from './sliceRenewal';
 import { publishAvatarIfOwn, fetchAvatarIfMissing } from './avatarTopic';
 import { useUserStore } from '@/src/store/userStore';
+import { registrarFalloDeAplicacion, agotoReintentos } from './drainFailures';
+import { recordError } from '@/src/services/errorLog';
 
 /**
  * Sync por el relay: arma el sobre cifrado, lo publica y aplica lo que llega.
@@ -206,9 +208,15 @@ async function buildSlicedEnvelopes(
   for (const campo of SLICED_FIELDS) {
     const lista = (deltaConUsuarios[campo] ?? []) as { id: string }[];
     const rebanadas = sliceEntities(lista);
-    for (const rebanada of rebanadas) {
-      const seedId = rebanada[0]!.id;
-      const ckey = await deriveCkey(key, campo, seedId);
+    for (let i = 0; i < rebanadas.length; i++) {
+      const rebanada = rebanadas[i]!;
+      // La ckey va por ÍNDICE de rebanada, no por el primer id (T-146). Con el
+      // id, un registro nuevo que ordenaba antes corría todos los límites y
+      // re-claveaba cada rebanada siguiente: las viejas quedaban huérfanas en
+      // el buzón hasta el TTL de 30 días, una tanda por publicación. Con el
+      // índice, la rebanada k de `campo` es siempre la misma ckey y la
+      // compactación del servidor la pisa.
+      const ckey = await deriveCkey(key, campo, String(i));
       const parcial: SyncDelta = {
         version: delta.version,
         featureVersion: delta.featureVersion,
@@ -333,7 +341,17 @@ export async function deleteMyGroupEnvelopes(
 }
 
 export type DrainResult =
-  | { ok: true; applied: number; skipped: number; cursor: number }
+  | {
+      ok: true; applied: number; skipped: number; cursor: number;
+      /**
+       * `true` = el buzón se leyó hasta el final (última página corta). `false`
+       * = quedó algo por delante del cursor: una página más, o una rebanada que
+       * falló y se va a volver a pedir. Sólo con `true` se puede limpiar la
+       * marca de «pendiente de drenaje» (T-089); con `false` el grupo espera a
+       * la próxima vuelta. Nada se pierde: se posterga.
+       */
+      completo: boolean;
+    }
   | { ok: false; reason: 'no_key' | 'not_configured' | 'network' | 'key_changed'; detail?: string };
 
 /**
@@ -357,238 +375,259 @@ export function sigueSiendoLaClave(groupId: string, foto: { key: string; epoch: 
  * `supabase/001_mailbox.sql`), y un sobre de una época anterior tampoco abre.
  * Se saltean y se sigue — frenar la cola por un sobre ajeno sería un DoS
  * trivial contra el grupo.
+ *
+ * **Desde T-146 son tres cosas más:** (1) se pagina hasta una página corta,
+ * (2) una rebanada que tira en `applyDelta` NO se da por leída — el cursor se
+ * devuelve justo antes de ella y la próxima vuelta la vuelve a pedir, hasta
+ * `DRAIN_MAX_REINTENTOS` (`drainFailures.ts`) —, y (3) `completo` le dice a
+ * `drainNow` si puede limpiar la marca de T-089.
  */
+
 /**
- * Límite de `fetchSince` para este drenaje, explícito acá (en vez de confiar
- * en el default de la función) para poder compararlo después contra
- * `r.envelopes.length` — ver el chequeo de página recortada más abajo
- * (revisión de Task 6, hallazgo #3).
+ * Tamaño de página de `fetchSince`. Exportado para que el test lo fije.
+ * Antes era la única lectura por drenaje: con K+1 sobres por dispositivo y
+ * las huérfanas que dejaba la `ckey` por `seedId`, 200 se alcanzaba, y la
+ * marca de T-089 se limpiaba igual (TEC-02).
  */
-const DRAIN_FETCH_LIMIT = 200;
+export const DRAIN_FETCH_LIMIT = 200;
+
+/**
+ * Techo de páginas por drenaje. 25 × 200 = 5.000 sobres; un buzón más grande
+ * que eso es o un ataque de relleno (SEC-03, T-147) o un bug, y en los dos
+ * casos lo correcto es aplicar lo leído, devolver `completo: false` y seguir
+ * en la próxima vuelta en vez de colgar el hilo.
+ */
+export const DRAIN_MAX_PAGES = 25;
+
+/** Sólo tests: páginas chicas para ejercitar la paginación sin 200 sobres. */
+export type DrainOptions = { pageLimit?: number; maxPages?: number };
 
 export async function drainGroup(
   groupId: string,
   currentUserId: string,
   deviceId: string,
   sinceSeq: number,
+  opts: DrainOptions = {},
 ): Promise<DrainResult> {
+  const pageLimit = opts.pageLimit ?? DRAIN_FETCH_LIMIT;
+  const maxPages = opts.maxPages ?? DRAIN_MAX_PAGES;
+
   const key = groupKeyBytes(groupId);
   if (!key) return { ok: false, reason: 'no_key' };
 
   const record = useGroupKeyStore.getState().getKey(groupId)!;
   const topic = await deriveTopic(key, record.epoch);
 
-  const r = await fetchSince(topic, sinceSeq, deviceId, DRAIN_FETCH_LIMIT);
-  if (!r.ok) return { ok: false, reason: r.reason, detail: r.detail };
-
-  // T-136 · D-1: la clave cambió mientras se esperaba la red. El lote entero
-  // se descarta ANTES de abrir un solo sobre: nada se aplica y quien llama no
-  // avanza el cursor ni limpia la marca de pendiente.
-  if (!sigueSiendoLaClave(groupId, record)) return { ok: false, reason: 'key_changed' };
-
+  let cursor = sinceSeq;
   let applied = 0;
   let skipped = 0;
+  let completo = false;
 
-  // Con ADR-007 lo que llega ya no es "un delta por sobre": son rebanadas de
-  // datos MÁS, en cualquier posición del lote, uno o más sobres de manifiesto
-  // (Task 5/`buildSlicedEnvelopes`). Por eso el drenaje pasa a ser DOS pasadas:
-  //
-  //  1. Colección: abrir y descifrar cada sobre, y separar manifiestos de
-  //     rebanadas de datos — sin aplicar nada todavía. El manifiesto puede
-  //     llegar en cualquier posición dentro de ESTE MISMO drenaje (aunque
-  //     `publishToGroup` siempre lo manda al final, `fetchSince` puede haber
-  //     recortado el lote, o el manifiesto puede venir de una publicación
-  //     distinta a las rebanadas), así que hay que ver TODO el lote antes de
-  //     poder decidir qué falta.
-  //  2. Aplicación: recorrer las rebanadas de datos EN EL MISMO ORDEN en que
-  //     se recibieron (`seq` ascendente, tal cual las entrega `fetchSince`).
-  //     Este orden es load-bearing — ver el comentario sobre `SLICED_FIELDS`
-  //     más arriba: `users` y `comments` dependen de que `groups`/`expenses`
-  //     de la MISMA publicación ya se hayan aplicado. Reordenar acá (por
-  //     ejemplo, aplicar primero por tipo de campo) rompería esa garantía.
-  const rebanadasRecibidas: { ckey?: string; sender: string; delta: SyncDelta; senderKey: string; json: string }[] = [];
+  // Lo que el chequeo de manifiesto necesita ver ENTERO, acumulado a través de
+  // las páginas: qué rebanadas llegaron de cada remitente (con su JSON, para
+  // recalcular el digest) y qué manifiestos. Un manifiesto puede caer en una
+  // página y sus rebanadas en otra.
+  const recibidasPorRemitente = new Map<string, Map<string, string>>();
   const manifiestos: { sender: string; manifest: SliceManifest }[] = [];
 
-  for (const envelope of r.envelopes) {
-    // 1. Firma. Descarta lo ajeno ANTES de gastar una operación de cifrado.
-    const firmado = verifyEnvelope(envelope.payload);
-    if (firmado === null) { skipped++; continue; }
-
-    // 2. Cifrado. Sin la clave del grupo no se lee nada, firme quien firme.
-    const plain = openEnvelope(key, firmado.sealed);
-    if (plain === null) { skipped++; continue; }
-
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(plain);
-    } catch {
-      // Descifró pero el JSON no era válido: se saltea igual.
-      skipped++;
-      continue;
+  for (let pagina = 0; pagina < maxPages; pagina++) {
+    const r = await fetchSince(topic, cursor, deviceId, pageLimit);
+    if (!r.ok) {
+      // Sin red en la primera página es un drenaje fallido. En una página
+      // posterior ya hay cosas aplicadas: se devuelve hasta dónde se llegó, y
+      // `completo: false` deja la marca de T-089 puesta.
+      if (pagina === 0) return { ok: false, reason: r.reason, detail: r.detail };
+      break;
     }
 
-    if (isManifest(parsed)) {
-      manifiestos.push({ sender: envelope.sender, manifest: parsed });
-      continue;
-    }
+    // T-136 · D-1: la clave cambió mientras se esperaba la red. El lote entero
+    // se descarta ANTES de abrir un solo sobre: nada se aplica y quien llama
+    // no avanza el cursor ni limpia la marca de pendiente.
+    if (!sigueSiendoLaClave(groupId, record)) return { ok: false, reason: 'key_changed' };
 
-    // `senderKey` viaja por sobre, no por delta: hay que guardarlo acá, en la
-    // colección, para no perderlo de vista para cuando se aplique este delta
-    // en la segunda pasada (ver nota de revisión de Task 6).
-    rebanadasRecibidas.push({
-      ckey: envelope.ckey,
-      sender: envelope.sender,
-      delta: parsed as SyncDelta,
-      senderKey: firmado.senderKey,
-      // Fix 4: se guarda el JSON plano (post-descifrado, pre-parse) de esta
-      // rebanada — hace falta para recalcular su digest y compararlo contra
-      // lo que el manifiesto declaró, más abajo.
-      json: plain,
-    });
-  }
+    // Con ADR-007 lo que llega ya no es "un delta por sobre": son rebanadas de
+    // datos MÁS, en cualquier posición del lote, uno o más sobres de manifiesto
+    // (Task 5/`buildSlicedEnvelopes`). Por eso cada página son DOS pasadas:
+    //
+    //  1. Colección: abrir y descifrar cada sobre, y separar manifiestos de
+    //     rebanadas de datos — sin aplicar nada todavía.
+    //  2. Aplicación: recorrer las rebanadas de datos EN EL MISMO ORDEN en que
+    //     se recibieron (`seq` ascendente, tal cual las entrega `fetchSince`).
+    //     Este orden es load-bearing — ver el comentario sobre `SLICED_FIELDS`
+    //     más arriba: `users` y `comments` dependen de que `groups`/`expenses`
+    //     de la MISMA publicación ya se hayan aplicado. Reordenar acá rompería
+    //     esa garantía; paginar no la toca porque `seq` es global al topic.
+    const rebanadas: { seq: number; ckey?: string; sender: string; delta: SyncDelta; senderKey: string; json: string }[] = [];
 
-  // Manifiesto: chequear completitud ANTES de aplicar, para no depender de en
-  // qué posición del lote cayó el sobre de manifiesto. Un gap acá sólo se
-  // REGISTRA para avisar en la UI más tarde (Task 7) — nunca es motivo para
-  // descartar o dejar de aplicar rebanadas que sí llegaron bien: un publish no
-  // es atómico (revisión de Task 5), así que un manifiesto desactualizado o
-  // incompleto en el buzón es un caso esperado, y LWW + `applyDelta` ya
-  // manejan con seguridad un estado parcial.
-  //
-  // El chequeo es POR REMITENTE (revisión de Task 6, hallazgo #2): el servidor
-  // compacta por topic + prenda de escritura + ckey — es decir, por
-  // dispositivo — así que el manifiesto de un remitente sólo puede completarse con las
-  // rebanadas DE ESE MISMO remitente. Pooler todo junto dejaría que las
-  // ckeys de un dispositivo B taparan (o generaran) falsos gaps del
-  // manifiesto de un dispositivo A, aunque A y B nunca compartan ckeys.
-  //
-  // Y sólo corre si esta página de `fetchSince` no vino recortada (revisión de
-  // Task 6, hallazgo #3): si `fetchSince` devolvió justo `DRAIN_FETCH_LIMIT`
-  // sobres, puede haber más esperando en el servidor —el manifiesto o sus
-  // rebanadas podrían estar en la próxima página— y calcular un gap acá sería
-  // un falso positivo sin mitigación. Se prefiere no decir nada a mentir.
-  const paginaCompleta = r.envelopes.length < DRAIN_FETCH_LIMIT;
-  if (manifiestos.length > 0 && paginaCompleta) {
-    // ckey -> json recibido, por remitente. Se guarda el JSON (no sólo un
-    // Set de presencia) porque el chequeo de completitud (Fix 4, revisión
-    // final) ya no es sólo "¿llegó esta ckey?" — también hace falta poder
-    // recalcular su digest para compararlo contra lo que el manifiesto
-    // declaró.
-    const recibidasPorRemitente = new Map<string, Map<string, string>>();
-    for (const reb of rebanadasRecibidas) {
-      if (!reb.ckey) continue;
-      let mapa = recibidasPorRemitente.get(reb.sender);
-      if (!mapa) {
-        mapa = new Map();
-        recibidasPorRemitente.set(reb.sender, mapa);
+    for (const envelope of r.envelopes) {
+      // 1. Firma. Descarta lo ajeno ANTES de gastar una operación de cifrado.
+      const firmado = verifyEnvelope(envelope.payload);
+      if (firmado === null) { skipped++; continue; }
+
+      // 2. Cifrado. Sin la clave del grupo no se lee nada, firme quien firme.
+      const plain = openEnvelope(key, firmado.sealed);
+      if (plain === null) { skipped++; continue; }
+
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(plain);
+      } catch {
+        skipped++; // descifró pero el JSON no era válido
+        continue;
       }
-      mapa.set(reb.ckey, reb.json);
+
+      if (isManifest(parsed)) {
+        manifiestos.push({ sender: envelope.sender, manifest: parsed });
+        continue;
+      }
+
+      // T-146, ronda 2 del verifier (D3): `looksLikeManifest` sólo mira
+      // `version`/`entries`, `isManifest` ya validó también cada entrada —
+      // si pasó lo primero y no lo segundo, es un manifiesto ROTO (entrada
+      // no-objeto, o `ckey`/`digest` que no son `string`). Antes esto se
+      // colaba como manifiesto válido y el chequeo final, después del loop
+      // de rebanadas y fuera de cualquier `try`, tiraba con `entry.ckey`.
+      // Se descarta acá, con rastro, y nunca llega a ese chequeo ni se
+      // procesa como si fuera una rebanada de datos (no lo es).
+      if (looksLikeManifest(parsed)) {
+        skipped++;
+        registrarFalloDeAplicacion(topic, envelope.seq, new Error('manifest_malformado'));
+        continue;
+      }
+
+      // `senderKey` viaja por sobre, no por delta: se guarda acá para la
+      // segunda pasada. `json` es el plano post-descifrado, pre-parse: hace
+      // falta para recalcular el digest contra el manifiesto.
+      rebanadas.push({
+        seq: envelope.seq,
+        ckey: envelope.ckey,
+        sender: envelope.sender,
+        delta: parsed as SyncDelta,
+        senderKey: firmado.senderKey,
+        json: plain,
+      });
+
+      if (envelope.ckey) {
+        let mapa = recibidasPorRemitente.get(envelope.sender);
+        if (!mapa) {
+          mapa = new Map();
+          recibidasPorRemitente.set(envelope.sender, mapa);
+        }
+        mapa.set(envelope.ckey, plain);
+      }
     }
 
-    const faltantes: string[] = [];
-    for (const { sender, manifest } of manifiestos) {
-      const recibidas = recibidasPorRemitente.get(sender) ?? new Map<string, string>();
-      for (const entry of manifest.entries) {
-        const json = recibidas.get(entry.ckey);
-        if (json === undefined) {
-          faltantes.push(entry.ckey);
+    for (const { seq, delta, senderKey } of rebanadas) {
+      // Ronda 1 del verifier (D1): TODO lo que puede tirar por esta rebanada —
+      // incluida la observación de autoría, que lee `delta.fromUserId` sin
+      // haber comprobado que `delta` sea un objeto— tiene que pasar por el
+      // MISMO camino de `drainFailures` (reintentos + rastro + skip). Antes
+      // `observeAuthor` estaba FUERA de este `try`: un sobre firmado y
+      // cifrado con la clave del grupo cuyo texto plano fuera `null` (u otro
+      // no-objeto) hacía que `delta.fromUserId` tirara un TypeError que
+      // `drainGroup` nunca atajaba — `drainNow` lo veía como un throw crudo,
+      // caía en su propio `catch` sin tocar cursor ni marca de T-089, y el
+      // presupuesto de 3 reintentos jamás llegaba a consumirse.
+      try {
+        // 3. Autoría (ADR-004 fase B/T-033). Con `RECHAZAR_AUTORES_NO_VERIFICADOS`
+        // apagado (default), esto sigue siendo modo AVISO: se mide, nunca se
+        // descarta. Prendido, sólo un veredicto `clave_desconocida` descarta el
+        // registro — nunca `sin_directorio` (rechazar ahí sería tratar "no sé"
+        // como "es malo"). Por eso se espera el veredicto antes de aplicar.
+        const veredicto = await observeAuthor(groupId, delta.fromUserId, senderKey);
+        if (RECHAZAR_AUTORES_NO_VERIFICADOS && veredicto === 'clave_desconocida') {
+          skipped++;
           continue;
         }
-        // Fix 4: la ckey llegó, pero eso no alcanza — su CONTENIDO tiene que
-        // coincidir con el digest que el manifiesto declaró para ella. Un
-        // sobre corrupto, o una versión vieja/equivocada que terminó
-        // aterrizando bajo esa ckey, se trata igual que si nunca hubiera
-        // llegado, a los fines del aviso de gap. Esto NUNCA bloquea que la
-        // rebanada se aplique — sólo afecta qué se reporta como faltante; el
-        // merge de abajo (LWW + `applyDelta`) sigue procesando exactamente
-        // las mismas `rebanadasRecibidas`, sin filtrar por este chequeo.
-        const digest = await digestOfJson(json);
-        if (digest !== entry.digest) faltantes.push(entry.ckey);
+
+        // S3-A1: la firma y el cifrado sólo prueban quién lo mandó y que tiene
+        // la clave del TOPIC — nunca acotan qué puede venir adentro. Se arma un
+        // delta nuevo, campo por campo, con sólo lo que pertenece a `groupId`
+        // antes de tocar cualquier store (`acotarDeltaAlGrupo.ts`).
+        const acotado = acotarDeltaAlGrupo(delta, groupId);
+        applyDelta(acotado, currentUserId);
+        applied++;
+
+        // Fotos por referencia (Task 9): se itera `acotado.users` (YA filtrado),
+        // nunca `delta.users` crudo, y el digest a pedir se lee del STORE YA
+        // MERGEADO — si esta rebanada perdió el LWW, `acotado` trae el viejo.
+        await Promise.all(
+          (acotado.users ?? [])
+            .filter(u => u.avatarDigest && u.id !== currentUserId)
+            .map((u) => {
+              const digest = useUserStore.getState().getUserById(u.id)?.avatarDigest;
+              return digest ? fetchAvatarIfMissing(groupId, u.id, digest) : Promise.resolve();
+            }),
+        );
+      } catch (e) {
+        // TEC-01: antes esto era `catch { skipped++ }` y el cursor avanzaba
+        // igual — la rebanada no volvía a pedirse hasta que su emisor la
+        // republicara. Ahora se anota y, mientras quede presupuesto, se
+        // devuelve el cursor JUSTO ANTES de ella para que la próxima vuelta la
+        // vuelva a pedir. Agotado el presupuesto, se deja atrás con rastro.
+        registrarFalloDeAplicacion(topic, seq, e);
+        if (!agotoReintentos(topic, seq)) {
+          void refreshPendingAuthors();
+          return { ok: true, applied, skipped, cursor: seq - 1, completo: false };
+        }
+        skipped++;
       }
     }
-    recordManifestCheck(groupId, faltantes);
+
+    cursor = r.cursor;
+    if (r.envelopes.length < pageLimit) {
+      completo = true;
+      break;
+    }
   }
 
-  for (const { delta, senderKey } of rebanadasRecibidas) {
-    // 3. Autoría (ADR-004 fase B/T-033). Con `RECHAZAR_AUTORES_NO_VERIFICADOS`
-    // apagado (default), esto sigue siendo modo AVISO: se mide, nunca se
-    // descarta. Prendido, sólo un veredicto `clave_desconocida` (SÉ que esa
-    // clave no está en el directorio de la cuenta) descarta el registro —
-    // nunca `sin_directorio` (no se pudo preguntar; rechazar ahí sería tratar
-    // "no sé" como "es malo", el mismo modo de falla silenciosa que ya pasó
-    // tres veces en este proyecto). Por eso ahora SÍ se espera el veredicto
-    // antes de aplicar, en vez de dispararlo al aire.
-    const veredicto = await observeAuthor(groupId, delta.fromUserId, senderKey);
-    if (RECHAZAR_AUTORES_NO_VERIFICADOS && veredicto === 'clave_desconocida') {
-      skipped++;
-      continue;
-    }
-
+  // Manifiesto: se chequea UNA vez, al final, y sólo si se leyó hasta el
+  // fondo. Con una página recortada por delante, el manifiesto o sus rebanadas
+  // pueden estar ahí y un gap acá sería un falso positivo sin mitigación. Se
+  // prefiere no decir nada a mentir. Un gap NUNCA descarta ni deja de aplicar
+  // rebanadas que sí llegaron: sólo se REGISTRA para avisar en la UI.
+  //
+  // Por remitente: el servidor compacta por topic + prenda + ckey, o sea por
+  // dispositivo — el manifiesto de A sólo se completa con rebanadas de A.
+  if (completo && manifiestos.length > 0) {
+    // T-146, ronda 2 del verifier (D3): `isManifest` ya valida cada entrada,
+    // así que `entry.ckey`/`entry.digest` deberían ser siempre `string` acá.
+    // Aun así, este bloque queda envuelto: nada de lo que corre DESPUÉS de
+    // abrir sobres —ni siquiera un chequeo que hoy es seguro— puede volver a
+    // tirar fuera del manejo con rastro. Si algo tira igual (p.ej. la
+    // librería de digest), se anota y el drenaje TERMINA igual: `applied`,
+    // `skipped` y `cursor` de las rebanadas ya procesadas no se pierden.
     try {
-      // S3-A1: acá pasaba el delta crudo. La firma y el cifrado sólo prueban
-      // quién lo mandó y que tiene la clave del TOPIC — nunca acotan qué puede
-      // venir adentro. Se arma un delta nuevo, campo por campo, con sólo lo que
-      // pertenece a `groupId` antes de tocar cualquier store (ver
-      // `acotarDeltaAlGrupo.ts`).
-      const acotado = acotarDeltaAlGrupo(delta, groupId);
-      applyDelta(acotado, currentUserId);
-      applied++;
-
-      // Fotos por referencia (Task 9): si esta rebanada trajo perfiles con
-      // `avatarDigest`, y el digest no es el que ya tenemos cacheado, se pide
-      // la foto aparte. Se espera acá (no fire-and-forget, a diferencia de
-      // `observeAuthor`/`refreshPendingAuthors` de abajo): esos son
-      // diagnóstico fuera de banda que puede esperar a la próxima vuelta, pero
-      // el perfil recién aplicado por `mergeUsers` es lo que la UI muestra ya
-      // mismo, y un miembro nuevo que recién ve a los demás por primera vez
-      // necesita la foto en el mismo drenaje, no en el próximo ciclo de sync.
-      //
-      // **Hallazgo #2 de la revisión (Critical, clase T-132/S3-A1):** este
-      // loop tiene que iterar `acotado.users` (la salida YA filtrada por
-      // `acotarDeltaAlGrupo`), NUNCA `delta.users` crudo. `acotarDeltaAlGrupo`
-      // existe justamente para descartar entradas de `users` de gente que no
-      // es miembro local de `groupId` — iterar el delta sin acotar reabre esa
-      // misma clase de ataque sólo para las fotos: un miembro de OTRO grupo
-      // podría declarar un `avatarDigest` para un contacto ajeno a `groupId`
-      // y este código lo buscaría y adoptaría igual, aunque el merge de datos
-      // ya lo hubiera descartado.
-      //
-      // Los fetches van en paralelo (hallazgo #4): son independientes entre
-      // sí, y esperarlos uno por uno serializa N round-trips de red por cada
-      // drenaje para un grupo con muchos miembros sin foto cacheada todavía.
-      //
-      // **Residual de Fix 2 (revisión final, parqueado y cerrado acá):** el
-      // digest a pedir se lee del STORE YA MERGEADO (`applyDelta` recién
-      // corrió arriba), nunca del delta entrante crudo. Si el registro que
-      // trajo esta rebanada perdió el LWW contra uno más nuevo que ya
-      // teníamos, `acotado.users` todavía tiene el digest VIEJO — pedirlo
-      // igual bajaría de versión una foto que el merge ya dejó bien.
-      await Promise.all(
-        (acotado.users ?? [])
-          .filter(u => u.avatarDigest && u.id !== currentUserId)
-          .map((u) => {
-            const digest = useUserStore.getState().getUserById(u.id)?.avatarDigest;
-            return digest ? fetchAvatarIfMissing(groupId, u.id, digest) : Promise.resolve();
-          }),
-      );
-    } catch {
-      skipped++;
+      const faltantes: string[] = [];
+      for (const { sender, manifest } of manifiestos) {
+        const recibidas = recibidasPorRemitente.get(sender) ?? new Map<string, string>();
+        for (const entry of manifest.entries) {
+          const json = recibidas.get(entry.ckey);
+          if (json === undefined) {
+            faltantes.push(entry.ckey);
+            continue;
+          }
+          // La ckey llegó, pero su CONTENIDO tiene que coincidir con el digest
+          // declarado: un sobre corrupto o una versión vieja bajo esa ckey se
+          // reporta como faltante. Nunca bloquea la aplicación de arriba.
+          const digest = await digestOfJson(json);
+          if (digest !== entry.digest) faltantes.push(entry.ckey);
+        }
+      }
+      recordManifestCheck(groupId, faltantes);
+    } catch (e) {
+      recordError({
+        message: `sync.manifest_check_failed topic=${topic.slice(0, 8)}: ${e instanceof Error ? e.message : String(e)}`,
+        stack: e instanceof Error ? e.stack : undefined,
+        fatal: false,
+        screen: 'sync',
+      });
     }
   }
 
-  /**
-   * Refresco de claves de autor FUERA DE BANDA (T-041 · S4).
-   *
-   * El merge no puede consultar el directorio: `applyDelta` es síncrono. Lo que
-   * hace es encolar los autores que no pudo resolver, y la consulta sale acá,
-   * una vez por vuelta, **sin `await`** — igual que `observeAuthor` arriba. Lo
-   * que aprenda sirve para la próxima vuelta; una clave que todavía no está
-   * produce `no_verificable`, que nunca es un rechazo.
-   *
-   * Con la cola vacía no hace absolutamente nada, que es el caso de hoy: hasta
-   * que S6 verifique en el merge, nadie encola.
-   */
+  // Refresco de claves de autor FUERA DE BANDA (T-041 · S4), sin `await`: lo
+  // que aprenda sirve para la próxima vuelta.
   void refreshPendingAuthors();
 
-  return { ok: true, applied, skipped, cursor: r.cursor };
+  return { ok: true, applied, skipped, cursor, completo };
 }
