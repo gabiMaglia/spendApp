@@ -179,9 +179,17 @@ const CASOS: CasoDeStore[] = [
     },
   },
   {
+    // rev/confirmations discriminan mergeByIdLevels (núcleo por rev + acuses
+    // unidos) de un LWW bare (T-149 · mutante payments): el destino tiene rev
+    // MAYOR y un acuse propio, la absorbida rev menor pero updatedAt más
+    // nuevo. Por niveles el núcleo (amount) del destino sobrevive y el acuse
+    // no se pierde; con LWW puro ganaría la absorbida entera —justo el
+    // defecto de TEC-03 que esta fila tiene que cazar.
     bucket: 'payments',
-    seedCurrent: (o) => pago({ ...o }) as unknown as Syncable,
-    seedIncoming: (o) => pago({ updatedAt: NOW - 1000, amount: 900, ...o }) as unknown as Syncable,
+    seedCurrent: (o) => pago({
+      rev: 7, confirmations: [{ userId: 'beto', confirmedAt: NOW - 20_000, action: 'confirm' }], ...o,
+    }) as unknown as Syncable,
+    seedIncoming: (o) => pago({ updatedAt: NOW - 1000, rev: 3, amount: 900, ...o }) as unknown as Syncable,
     viaStore: (current, incoming, now) => {
       usePaymentStore.setState({ payments: current as unknown as Payment[] });
       usePaymentStore.getState().mergePayments(incoming as unknown as Payment[], now);
@@ -199,9 +207,13 @@ const CASOS: CasoDeStore[] = [
     },
   },
   {
+    // rev discrimina el núcleo (T-149 · mutante recurring): destino con rev
+    // MAYOR y `amount` propio, absorbida con rev menor pero updatedAt más
+    // nuevo. Por niveles gana el `amount` del destino; con LWW puro ganaría
+    // la absorbida entera.
     bucket: 'recurring',
-    seedCurrent: (o) => recurrente({ ...o }) as unknown as Syncable,
-    seedIncoming: (o) => recurrente({ updatedAt: NOW - 1000, amount: 200, ...o }) as unknown as Syncable,
+    seedCurrent: (o) => recurrente({ rev: 7, ...o }) as unknown as Syncable,
+    seedIncoming: (o) => recurrente({ updatedAt: NOW - 1000, rev: 3, amount: 200, ...o }) as unknown as Syncable,
     viaStore: (current, incoming, now) => {
       useRecurringStore.setState({ recurring: current as unknown as RecurringExpense[] });
       useRecurringStore.getState().mergeRecurring(incoming as unknown as RecurringExpense[], now);
@@ -209,9 +221,13 @@ const CASOS: CasoDeStore[] = [
     },
   },
   {
+    // rev discrimina el núcleo (T-149 · mutante comments): destino con rev
+    // MAYOR y `text` propio, absorbida con rev menor pero updatedAt más
+    // nuevo. Por niveles gana el `text` del destino; con LWW puro ganaría la
+    // absorbida entera.
     bucket: 'comments',
-    seedCurrent: (o) => comentario({ ...o }) as unknown as Syncable,
-    seedIncoming: (o) => comentario({ updatedAt: NOW - 1000, text: 'Otro', ...o }) as unknown as Syncable,
+    seedCurrent: (o) => comentario({ rev: 7, ...o }) as unknown as Syncable,
+    seedIncoming: (o) => comentario({ updatedAt: NOW - 1000, rev: 3, text: 'Otro', ...o }) as unknown as Syncable,
     viaStore: (current, incoming, now) => {
       useCommentStore.setState({ comments: current as unknown as ExpenseComment[] });
       useCommentStore.getState().mergeComments(incoming as unknown as ExpenseComment[], now);
