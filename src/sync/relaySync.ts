@@ -8,12 +8,13 @@ import { signEnvelope, verifyEnvelope } from './envelopeSign';
 import { observeAuthor, RECHAZAR_AUTORES_NO_VERIFICADOS } from './authorHealth';
 import { refreshPendingAuthors } from './authorKeys';
 import { sliceEntities, deriveCkey } from './slices';
-import { buildManifest, digestOfJson, isManifest, type SliceManifest } from './manifest';
+import { buildManifest, digestOfJson, isManifest, looksLikeManifest, type SliceManifest } from './manifest';
 import { recordManifestCheck } from './manifestHealth';
 import { recordSlicePublished } from './sliceRenewal';
 import { publishAvatarIfOwn, fetchAvatarIfMissing } from './avatarTopic';
 import { useUserStore } from '@/src/store/userStore';
 import { registrarFalloDeAplicacion, agotoReintentos } from './drainFailures';
+import { recordError } from '@/src/services/errorLog';
 
 /**
  * Sync por el relay: arma el sobre cifrado, lo publica y aplica lo que llega.
@@ -480,6 +481,20 @@ export async function drainGroup(
         continue;
       }
 
+      // T-146, ronda 2 del verifier (D3): `looksLikeManifest` sólo mira
+      // `version`/`entries`, `isManifest` ya validó también cada entrada —
+      // si pasó lo primero y no lo segundo, es un manifiesto ROTO (entrada
+      // no-objeto, o `ckey`/`digest` que no son `string`). Antes esto se
+      // colaba como manifiesto válido y el chequeo final, después del loop
+      // de rebanadas y fuera de cualquier `try`, tiraba con `entry.ckey`.
+      // Se descarta acá, con rastro, y nunca llega a ese chequeo ni se
+      // procesa como si fuera una rebanada de datos (no lo es).
+      if (looksLikeManifest(parsed)) {
+        skipped++;
+        registrarFalloDeAplicacion(topic, envelope.seq, new Error('manifest_malformado'));
+        continue;
+      }
+
       // `senderKey` viaja por sobre, no por delta: se guarda acá para la
       // segunda pasada. `json` es el plano post-descifrado, pre-parse: hace
       // falta para recalcular el digest contra el manifiesto.
@@ -575,23 +590,39 @@ export async function drainGroup(
   // Por remitente: el servidor compacta por topic + prenda + ckey, o sea por
   // dispositivo — el manifiesto de A sólo se completa con rebanadas de A.
   if (completo && manifiestos.length > 0) {
-    const faltantes: string[] = [];
-    for (const { sender, manifest } of manifiestos) {
-      const recibidas = recibidasPorRemitente.get(sender) ?? new Map<string, string>();
-      for (const entry of manifest.entries) {
-        const json = recibidas.get(entry.ckey);
-        if (json === undefined) {
-          faltantes.push(entry.ckey);
-          continue;
+    // T-146, ronda 2 del verifier (D3): `isManifest` ya valida cada entrada,
+    // así que `entry.ckey`/`entry.digest` deberían ser siempre `string` acá.
+    // Aun así, este bloque queda envuelto: nada de lo que corre DESPUÉS de
+    // abrir sobres —ni siquiera un chequeo que hoy es seguro— puede volver a
+    // tirar fuera del manejo con rastro. Si algo tira igual (p.ej. la
+    // librería de digest), se anota y el drenaje TERMINA igual: `applied`,
+    // `skipped` y `cursor` de las rebanadas ya procesadas no se pierden.
+    try {
+      const faltantes: string[] = [];
+      for (const { sender, manifest } of manifiestos) {
+        const recibidas = recibidasPorRemitente.get(sender) ?? new Map<string, string>();
+        for (const entry of manifest.entries) {
+          const json = recibidas.get(entry.ckey);
+          if (json === undefined) {
+            faltantes.push(entry.ckey);
+            continue;
+          }
+          // La ckey llegó, pero su CONTENIDO tiene que coincidir con el digest
+          // declarado: un sobre corrupto o una versión vieja bajo esa ckey se
+          // reporta como faltante. Nunca bloquea la aplicación de arriba.
+          const digest = await digestOfJson(json);
+          if (digest !== entry.digest) faltantes.push(entry.ckey);
         }
-        // La ckey llegó, pero su CONTENIDO tiene que coincidir con el digest
-        // declarado: un sobre corrupto o una versión vieja bajo esa ckey se
-        // reporta como faltante. Nunca bloquea la aplicación de arriba.
-        const digest = await digestOfJson(json);
-        if (digest !== entry.digest) faltantes.push(entry.ckey);
       }
+      recordManifestCheck(groupId, faltantes);
+    } catch (e) {
+      recordError({
+        message: `sync.manifest_check_failed topic=${topic.slice(0, 8)}: ${e instanceof Error ? e.message : String(e)}`,
+        stack: e instanceof Error ? e.stack : undefined,
+        fatal: false,
+        screen: 'sync',
+      });
     }
-    recordManifestCheck(groupId, faltantes);
   }
 
   // Refresco de claves de autor FUERA DE BANDA (T-041 · S4), sin `await`: lo
