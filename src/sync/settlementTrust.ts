@@ -40,6 +40,14 @@ import type { SettlementConfirmation } from '@/src/types/models';
  * se reevalúa sola en la próxima lectura: ni aprender la clave nueva
  * (`rememberAuthorKey`) ni que el directorio conteste necesitan vaciar la
  * caché a mano.
+ *
+ * **Autor SIN ninguna clave, nunca** (T-145, Re-review 1). Distinto de D2: acá
+ * `keys` está VACÍO, no con una clave equivocada — el borde de ADR-004, quien
+ * entró por Apple sin `email` y el directorio jamás va a resolver. Sin esta
+ * guarda explícita, ese autor cae en la rama de D2 y, en cuanto el directorio
+ * contesta (vacío, que es lo normal para él), `authorKeyWasAsked` da `true` y
+ * queda `invalida` para siempre — no hay clave que pueda aprender jamás. Mismo
+ * guardia que `settlementSign.ts` ya tenía y que `recordHealth.ts` conserva.
  */
 const cache = new Map<string, Extract<CoreVerdict, 'valida' | 'invalida'>>();
 
@@ -54,12 +62,18 @@ export function checkSettlement(paymentId: string, c: SettlementConfirmation): C
   const keys = authorKeysFor(userId, k);
 
   let veredicto: CoreVerdict;
-  if (keys.includes(k)) {
+  if (keys.length === 0) {
+    // Autor irresoluble (borde de ADR-004): no hay ninguna clave con la que
+    // comparar, ni vieja ni nueva. Gastar la curva no informaría nada, y
+    // acusar acá sería acusar para siempre a alguien que el directorio nunca
+    // va a poder cubrir.
+    veredicto = 'no_verificable';
+  } else if (keys.includes(k)) {
     veredicto = verifySettlement(paymentId, c, keys);
   } else {
-    // D2: clave no cubierta. `invalida` sólo si el directorio ya contestó
-    // sobre ESTA clave presentada; si todavía no, es indistinguible de una
-    // reinstalación honesta.
+    // D2: clave no cubierta (pero HAY alguna, la vieja). `invalida` sólo si el
+    // directorio ya contestó sobre ESTA clave presentada; si todavía no, es
+    // indistinguible de una reinstalación honesta.
     veredicto = authorKeyWasAsked(userId, k) ? 'invalida' : 'no_verificable';
   }
 
