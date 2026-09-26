@@ -408,12 +408,31 @@ export async function fetchSince(
  * trajera el dato, la tentación de aplicarlo directo rompería el invariante (1)
  * y se perderían los sobres que llegaron mientras el socket estaba caído.
  */
+/**
+ * T-147 (D5): además del `postgres_changes` de siempre, se escucha un canal de
+ * Broadcast PRIVADO (`envelopes:<topic>`, `config: { private: true }`) —
+ * después de 011b, revocar el SELECT directo también apaga `postgres_changes`
+ * (Realtime aplica la RLS), así que el aviso pasa a un trigger de la base que
+ * publica ahí. Es privado en los dos sentidos: sólo `authenticated` puede
+ * ESCUCHARLO (policy de `realtime.messages`) y nadie puede PUBLICAR desde el
+ * cliente (no hay policy de insert) — así que no se pueden falsificar avisos.
+ *
+ * Mientras conviven servidores con y sin 011a, se escuchan los DOS canales:
+ * cualquiera de los dos dispara `onNews()`. El de `postgres_changes` se saca
+ * en un ticket de limpieza posterior a 011b (los servidores sin 011a todavía
+ * lo necesitan).
+ */
 export function subscribeTopic(topic: string, onNews: () => void): () => void {
   const supabase = getRelayClient();
   if (!supabase) return () => {};
 
-  const channel = supabase
-    .channel(`envelopes:${topic}`)
+  const privado = supabase
+    .channel(`envelopes:${topic}`, { config: { private: true } })
+    .on('broadcast', { event: 'news' }, () => onNews())
+    .subscribe();
+
+  const publico = supabase
+    .channel(`envelopes-pgc:${topic}`)
     .on(
       'postgres_changes',
       { event: 'INSERT', schema: 'public', table: 'envelopes', filter: `topic=eq.${topic}` },
@@ -421,7 +440,7 @@ export function subscribeTopic(topic: string, onNews: () => void): () => void {
     )
     .subscribe();
 
-  return () => { void supabase.removeChannel(channel); };
+  return () => { void supabase.removeChannel(privado); void supabase.removeChannel(publico); };
 }
 
 function byteLength(s: string): number {

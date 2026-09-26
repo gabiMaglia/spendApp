@@ -11,6 +11,8 @@ import { useAuthStore } from '@/src/store/authStore';
 import { esYo } from '@/src/store/identityAlias';
 import { deriveTopic, fromHex } from './envelopeCrypto';
 import { subscribeTopic, isRelayConfigured } from './relay';
+import { ensureRelaySession, bindAuthRefreshToAppState } from './relaySession';
+import type { SessionKind } from './relaySession';
 import { publishToGroup, drainGroup, sigueSiendoLaClave, type PublishResult } from './relaySync';
 import { recordPublish } from './publishHealth';
 import { noticeDeCaida } from './syncDownNotices';
@@ -430,6 +432,16 @@ export function startRelay(): Promise<void> {
  */
 const STARTUP_TIMEOUT_MS = 20_000;
 
+/**
+ * T-147 (D1/D5): qué sesión de Supabase había cuando arrancó la cadena. Se
+ * compara en cada vuelta de `releerTodo` — un canal privado (Broadcast) que se
+ * suscribió sin JWT queda afuera para siempre y en silencio, así que si la
+ * sesión cambió (captcha resuelto tarde, login con Google mientras corría,
+ * sesión perdida) hay que resuscribir con la nueva, no seguir con la vieja.
+ */
+let kindAlArrancar: SessionKind = 'none';
+let soltarRefresh: (() => void) | null = null;
+
 async function doStartRelay(): Promise<void> {
   stopRelay();
   if (!isRelayConfigured()) return;
@@ -439,6 +451,11 @@ async function doStartRelay(): Promise<void> {
 }
 
 async function arrancarCadenaDeSync(): Promise<void> {
+  // T-147 (D1): la sesión se garantiza ANTES de cualquier suscripción. Un
+  // canal privado que se une sin JWT queda afuera sin ningún error visible —
+  // el orden acá no es un detalle.
+  kindAlArrancar = await ensureRelaySession();
+
   // Las invitaciones se resuelven PRIMERO: una que se complete acá adopta la
   // clave del grupo, y recién con esa clave el grupo entra en `syncableGroupIds`
   // y se puede suscribir abajo. Al revés habría que esperar al próximo arranque.
@@ -496,14 +513,31 @@ function startPolling(): void {
   appStateSub = AppState.addEventListener('change', estado => {
     if (estado === 'active') void releerTodo();
   });
+
+  // T-147 (D1): el refresco automático del token va atado a primer plano/fondo
+  // — en background no tiene sentido reintentar (sin red garantizada) y sólo
+  // gasta batería.
+  soltarRefresh = bindAuthRefreshToAppState();
 }
 
 function stopPolling(): void {
   if (poll) { clearInterval(poll); poll = null; }
   if (appStateSub) { appStateSub.remove(); appStateSub = null; }
+  if (soltarRefresh) { soltarRefresh(); soltarRefresh = null; }
 }
 
 async function releerTodo(): Promise<void> {
+  // T-147 (D1/D5): si la sesión cambió desde que arrancamos —captcha resuelto
+  // tarde, login con Google mientras corría, sesión perdida— los canales
+  // privados quedaron suscriptos con el JWT viejo (o sin ninguno). Reiniciar
+  // TODA la cadena es más simple y más seguro que intentar resuscribir sólo
+  // los canales: vuelve a correr `arrancarCadenaDeSync` de punta a punta.
+  const kind = await ensureRelaySession();
+  if (kind !== kindAlArrancar) {
+    void startRelay();
+    return;
+  }
+
   // T-138-bis: mismo límite de tiempo total que `doStartRelay` — un poll
   // colgado no debe bloquear el siguiente (el `setInterval` ya dispara el
   // próximo solo, pero sin esto la promesa colgada queda viva para siempre).
