@@ -25,11 +25,13 @@ export const AERO_SKIN: SkinDefinition = {
       edgeShade: 'rgba(20,26,20,0.06)',
       marmolVeil: 'rgba(255,255,255,0.35)',
       marmolOpacity: 0.7,
-      vidrioVeilTop: 'rgba(255,255,255,0.10)',
-      vidrioVeilBottom: 'rgba(255,255,255,0.62)',
-      vidrioGloss: 'rgba(255,255,255,0.55)',
-      vidrioTint: 'rgba(58,74,94,0.10)',
-      vidrioMarmolOpacity: 0.45,
+      // PO 2026-09-26: en claro, blanco sobre blanco lavaba el mármol ("niebla").
+      // Más veta, menos velo, brillo más corto; la profundidad la da el tinte azul.
+      vidrioVeilTop: 'rgba(255,255,255,0)',
+      vidrioVeilBottom: 'rgba(255,255,255,0.30)',
+      vidrioGloss: 'rgba(255,255,255,0.40)',
+      vidrioTint: 'rgba(58,74,94,0.16)',
+      vidrioMarmolOpacity: 0.8,
     },
     elevation: {
       e1: { boxShadow: '0 1px 2px rgba(20,30,50,0.06), 0 4px 12px rgba(20,30,50,0.05)', elevationFallback: 1 },
