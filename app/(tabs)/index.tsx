@@ -10,6 +10,7 @@ import { Spacing } from '@/src/constants/spacing';
 import { formatMoney } from '@/src/constants/currencies';
 import { useSkinTokens } from '@/src/skins/useSkin';
 import { Panel } from '@/src/components/skin/Panel';
+import { StatCards } from '@/src/components/skin/StatCards';
 import { useFabSkinStyle } from '@/src/components/skin/useFabSkinStyle';
 import { Fab, FabRow, FAB_BOTTOM_GAP, FAB_HEIGHT } from '@/src/components/Fab';
 import { SplitStat, StatLead } from '@/src/components/Band';
@@ -64,6 +65,15 @@ export default function PersonalScreen() {
   // alguien lo escribió en minúscula, el saludo lo mostraba así. La UI es
   // quien prolija la primera letra, sin tocar el dato guardado.
   const firstName = capitalizar(currentUser?.name?.split(' ')[0] ?? 'vos');
+
+  const ingresoStat = {
+    label: t('personal.summary_income'),
+    value: `+${formatMoney(totalIncome, cur)}`,
+    color: c.semantic.positive,
+  };
+  const gruposStat = { label: t('tabs.groups'), value: String(misGrupos.length) };
+  const personalStat = { label: t('personal.summary_personal'), value: formatMoney(totalExpense, cur) };
+  const gruposGastoStat = { label: t('personal.summary_groups'), value: formatMoney(totalGroup, cur) };
 
   return (
     <SafeAreaView edges={['bottom']} style={[styles.safe, { backgroundColor: c.bg }]}>
@@ -137,25 +147,23 @@ export default function PersonalScreen() {
               entre sí, y no lo son: los de abajo salen del de arriba. Al lado
               del ingreso, cantidad de grupos (PO 2026-09-20, reemplaza la fila
               "Grupos · Balance" — mismo `misGrupos` ya derivado arriba). */}
-          <Panel>
+          {skin.flags.soft ? (
+            // Aero (PO 2026-09-26): las cuatro cifras como tarjetas sueltas.
+            <StatCards
+              rows={[
+                [ingresoStat, gruposStat],
+                [personalStat, gruposGastoStat],
+              ]}
+            />
+          ) : (
             <StatLead
               sunken
               noTop
-              lead={{
-                label: t('personal.summary_income'),
-                value: `+${formatMoney(totalIncome, cur)}`,
-                color: c.semantic.positive,
-              }}
-              leadRight={{
-                label: t('tabs.groups'),
-                value: String(misGrupos.length),
-              }}
-              items={[
-                { label: t('personal.summary_personal'), value: formatMoney(totalExpense, cur) },
-                { label: t('personal.summary_groups'),   value: formatMoney(totalGroup, cur) },
-              ]}
+              lead={ingresoStat}
+              leadRight={gruposStat}
+              items={[personalStat, gruposGastoStat]}
             />
-          </Panel>
+          )}
 
           {/* Deuda direccional: banda propia, nunca mezclada con lo gastado
               (ADR-006). "Te deben"/"Debés" ya se muestran arriba del todo —

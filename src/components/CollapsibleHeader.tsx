@@ -8,6 +8,7 @@ import { Colors } from '@/src/constants/colors';
 import { Spacing } from '@/src/constants/spacing';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { FondoMarmol } from '@/src/components/FondoMarmol';
+import { useSkin } from '@/src/skins/useSkin';
 import { HEADER_BAR_H, TITLE_BOTTOM_GAP, TITLE_BLOCK_H } from '@/src/constants/header';
 import {
   alturaHeaderColapsable, alturaBloqueTituloVisible, opacidadTituloCompacto, opacidadTituloCompactoSinMovimiento,
@@ -90,6 +91,15 @@ export function CollapsibleHeader({
   const scheme = useColorScheme() ?? 'light';
   const c = Colors[scheme];
   const insets = useSafeAreaInsets();
+  // Skin soft (Aero, PO 2026-09-26): el header flota como los paneles —
+  // esquinas de abajo redondeadas, sombra suave y sin la hairline. Con el
+  // default queda `null` y el header es el de siempre.
+  const { skin, degradado } = useSkin();
+  const flotante = useMemo(() => skin.flags.soft ? {
+    borderBottomLeftRadius: skin.radius.panel,
+    borderBottomRightRadius: skin.radius.panel,
+    ...(degradado ? { elevation: skin.elevation.e2.elevationFallback } : { boxShadow: skin.elevation.e2.boxShadow }),
+  } : null, [skin, degradado]);
 
   const expandido = insets.top + HEADER_BAR_H + TITLE_BLOCK_H;
   const colapsado = insets.top + HEADER_BAR_H;
@@ -132,7 +142,7 @@ export function CollapsibleHeader({
   return (
     <Animated.View
       testID="header-wrap"
-      style={[styles.wrap, wrapStyle]}
+      style={[styles.wrap, flotante, wrapStyle]}
       pointerEvents="box-none"
     >
       {/*
@@ -143,7 +153,7 @@ export function CollapsibleHeader({
         opaca: no hay overlay ni tinte encima, la propia foto es opaca.
       */}
       <FondoMarmol style={marmolStyle} />
-      <View style={[styles.hair, { backgroundColor: c.hair }]} pointerEvents="none" />
+      {!flotante && <View style={[styles.hair, { backgroundColor: c.hair }]} pointerEvents="none" />}
       <View style={[styles.content, { height: expandido, paddingTop: insets.top }]}>
         <View style={styles.buttonsRow}>
           <View style={styles.buttonsLeft}>

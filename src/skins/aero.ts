@@ -11,11 +11,12 @@ const SPACE = { inset: 16, gapPanel: 12, padPanel: 16, gapSection: 20 };
 export const AERO_SKIN: SkinDefinition = {
   light: {
     colors: {
-      bg: '#F1F3F6',
-      bgGrouped: '#EEF1F5',
+      // PO 2026-09-26: más luminoso que el primer #F1F3F6.
+      bg: '#F8F9FB',
+      bgGrouped: '#F4F6F9',
       surface: '#FFFFFF',
       surfaceRaised: '#FFFFFF',
-      surfaceSunken: '#EDF0F4',
+      surfaceSunken: '#F1F3F7',
       // El #8B9299 del default no pasa AA sobre #F1F3F6.
       textTertiary: '#6A7178',
       glow: 'rgba(58,74,94,0.14)',
