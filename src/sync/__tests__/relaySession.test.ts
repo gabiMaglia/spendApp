@@ -179,6 +179,33 @@ describe('refresco atado al ciclo de vida', () => {
   });
 });
 
+describe('D2: el login de cuenta gana la carrera contra la sesión anónima', () => {
+  it('si el login está en vuelo (trackIdentitySignIn), se espera antes de abrir anónima', async () => {
+    let resolverLogin!: () => void;
+    const loginEnCurso = new Promise<void>(r => { resolverLogin = r; });
+    S.trackIdentitySignIn(loginEnCurso);
+
+    const promesa = S.ensureRelaySession();
+    // El login "termina" y deja la sesión de cuenta en el storage.
+    sesion = { user: { is_anonymous: false } };
+    resolverLogin();
+
+    expect(await promesa).toBe('identity');
+    expect(signInAnonymously).not.toHaveBeenCalled();
+  });
+
+  it('si la anónima ya se estaba abriendo y el login gana DESPUÉS, se relee y gana la identidad', async () => {
+    // `signInAnonymously` tarda; mientras "está en el aire", el login de
+    // cuenta (que no pasa por acá) ya dejó la sesión real en el storage —
+    // exactamente lo que pasaría si las dos llamadas de red se cruzan.
+    signInAnonymously.mockImplementationOnce(async () => {
+      sesion = { user: { is_anonymous: false } };
+      return { data: { session: { user: { is_anonymous: true } } }, error: null };
+    });
+    expect(await S.ensureRelaySession()).toBe('identity');
+  });
+});
+
 describe('logout (H2)', () => {
   it('cierra SÓLO la sesión de este aparato', async () => {
     const { signOutOfDirectory } = require('../directoryAuth');
