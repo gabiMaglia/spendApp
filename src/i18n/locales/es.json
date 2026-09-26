@@ -226,6 +226,8 @@
     "delete_body_member": "Los demás tienen 72 hs para objetar. Si nadie lo hace, se elimina solo.",
     "delete_pending_title": "Eliminación pendiente",
     "delete_pending_body": "{{name}} pidió eliminar este gasto. Si nadie objeta, se borra en {{time}}.",
+    "authorship_disputed_title": "Autoría en disputa",
+    "authorship_disputed_body": "Hay más de una versión firmada de quién cargó este gasto: {{names}}.",
     "request_delete": "Solicitar eliminación",
     "new_income_title": "Nuevo ingreso",
     "income_desc_placeholder": "¿De dónde?",

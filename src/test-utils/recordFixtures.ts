@@ -36,6 +36,17 @@ export const EXPENSE: Required<Expense> = {
   note: 'con propina',
   receiptImageUri: 'file:///local/recibo.jpg',
   deletionVotes: [{ userId: 'beto', votedAt: 4_000, action: 'delete' }],
+  // T-170 · D-2 (ronda 2): ya no es un `string[]` de ids sueltos — cada
+  // entrada es el núcleo COMPETIDOR completo, con su firma (`k`/`s`), tal
+  // como lo captura `unirDisputa` (`src/algorithms/autoria.ts`). No hace
+  // falta que la firma verifique de verdad para este fixture (el meta-test
+  // de slots sólo recorre campos, no criptografía).
+  autoriaDisputada: [{
+    id: 'e-1', groupId: 'g-1', description: 'Cena', amount: 1, currency: 'ARS',
+    paidById: 'beto', payers: [], splits: [], splitMode: 'equal', category: 'food',
+    date: 1_700_000_000_000, createdAt: 1_700_000_000_100, createdById: 'beto',
+    note: '', rev: 1_000, k: 'aa'.repeat(32), s: 'bb'.repeat(64),
+  }],
   rev: 2_000,
   k: '',
   s: '',

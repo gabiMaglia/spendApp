@@ -1,7 +1,9 @@
 import { checkSettlement } from '@/src/sync/settlementTrust';
+import { checkRecord } from '@/src/sync/trustCheck';
 import { TOLERANCIA_RELOJ_MS } from '@/src/sync/voteCore';
 import { syncedNow } from '@/src/utils/syncedClock';
 import type { CoreVerdict } from '@/src/sync/recordSign';
+import type { RecordVerdict } from '@/src/sync/recordHealth';
 import type { Group, Payment, SettlementConfirmation } from '@/src/types/models';
 
 /**
@@ -46,23 +48,36 @@ export type EstadoSaldado =
  *
  * Dos salidas, y las dos son decisiones del PO, no atajos:
  *  - el grupo no es `consensus` (D0: el alcance es sólo ése);
- *  - lo declaró **quien cobra** (D3): ya es su propia declaración de haber
- *    recibido la plata, y pedirle que se confirme a sí mismo no informa nada.
+ *  - lo declaró **quien cobra** (D3) **y lo puede probar**: su núcleo
+ *    verifica `valida` contra las claves de `toUserId`. Es su propia
+ *    declaración de haber recibido la plata, y pedirle que se confirme a sí
+ *    mismo no informa nada — SALVO que cualquiera pueda escribir esa
+ *    declaración en su nombre (T-170 · D-3, verifier T-145 residual 1): el
+ *    deudor crea el pago con `createdById = toUserId` y hasta acá quedaba
+ *    `efectivo` sin acuse, y el `reject` real del acreedor se ignoraba
+ *    porque `estadoDelSaldado` ni llegaba a mirarlo. Sin firma válida, el
+ *    atajo no aplica y hace falta el acuse de siempre.
  */
-export function requiereConfirmacion(payment: Payment, group: Group | undefined): boolean {
+export function requiereConfirmacion(
+  payment: Payment, group: Group | undefined,
+  ctx: Pick<ContextoDeAcuse, 'nucleoDe'> = contextoReal(),
+): boolean {
   if (group?.deletionMode !== 'consensus') return false;
-  return payment.createdById !== payment.toUserId;
+  if (payment.createdById !== payment.toUserId) return true;
+  return ctx.nucleoDe(payment) !== 'valida';
 }
 
-/** Lo que el derivador necesita del mundo: la hora y quién verifica un acuse. */
+/** Lo que el derivador necesita del mundo: la hora, quién verifica un acuse y el núcleo. */
 export type ContextoDeAcuse = {
   now: number;
   veredicto: (paymentId: string, c: SettlementConfirmation) => CoreVerdict;
+  /** Veredicto del NÚCLEO del pago (D-3), no del acuse. `checkRecord('payment', p)` en producción. */
+  nucleoDe: (p: Payment) => RecordVerdict;
 };
 
 /** El contexto de producción. Se construye por llamada: `now` no se cachea. */
 export function contextoReal(): ContextoDeAcuse {
-  return { now: syncedNow(), veredicto: checkSettlement };
+  return { now: syncedNow(), veredicto: checkSettlement, nucleoDe: p => checkRecord('payment', p) };
 }
 
 /**
@@ -123,7 +138,7 @@ function acuseVigente(
 export function estadoDelSaldado(
   payment: Payment, group: Group | undefined, ctx: ContextoDeAcuse = contextoReal(),
 ): EstadoSaldado {
-  if (!requiereConfirmacion(payment, group)) return 'efectivo';
+  if (!requiereConfirmacion(payment, group, ctx)) return 'efectivo';
 
   const acuse = acuseVigente(payment.id, payment.confirmations, payment.toUserId, ctx);
   if (!acuse) return 'pendiente';

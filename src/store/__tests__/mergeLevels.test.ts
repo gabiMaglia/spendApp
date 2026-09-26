@@ -138,28 +138,28 @@ describe('coreWins', () => {
   it('gana el `rev` mayor, aunque llegue con `updatedAt` menor', () => {
     expect(coreWins('expense',
       { ...base, rev: 2, updatedAt: 1 } as never,
-      { ...base, rev: 1, updatedAt: 9 } as never)).toBe(true);
+      { ...base, rev: 1, updatedAt: 9 } as never, NOW)).toBe(true);
   });
 
   it('`rev` ausente cuenta como 0', () => {
     const sinRev = { ...base };
     delete sinRev.rev;
-    expect(coreWins('expense', sinRev as never, { ...base, rev: 1 } as never)).toBe(false);
-    expect(coreWins('expense', { ...base, rev: 1 } as never, sinRev as never)).toBe(true);
+    expect(coreWins('expense', sinRev as never, { ...base, rev: 1 } as never, NOW)).toBe(false);
+    expect(coreWins('expense', { ...base, rev: 1 } as never, sinRev as never, NOW)).toBe(true);
   });
 
   it('sin `rev` de los dos lados manda `updatedAt`, como siempre', () => {
     const a: Registro = { ...base, updatedAt: 1 }; delete a.rev;
     const b: Registro = { ...base, updatedAt: 2 }; delete b.rev;
-    expect(coreWins('expense', b as never, a as never)).toBe(true);
-    expect(coreWins('expense', a as never, b as never)).toBe(false);
+    expect(coreWins('expense', b as never, a as never, NOW)).toBe(true);
+    expect(coreWins('expense', a as never, b as never, NOW)).toBe(false);
   });
 
   it('empate de `rev`: exactamente uno de los dos sentidos gana', () => {
     const a = { ...base, rev: 7, description: 'aaa' };
     const b = { ...base, rev: 7, description: 'zzz' };
-    expect(coreWins('expense', a as never, b as never))
-      .not.toBe(coreWins('expense', b as never, a as never));
+    expect(coreWins('expense', a as never, b as never, NOW))
+      .not.toBe(coreWins('expense', b as never, a as never, NOW));
   });
 });
 

@@ -3,7 +3,8 @@ import { canonicalCore, coreFieldsOf, type CoreKind, type CoreRecord } from '@/s
 import { mergeDeletionVoteSets } from '@/src/sync/SyncEngine';
 import { mergeApprovals } from '@/src/algorithms/leaveRequest';
 import { envenenado } from './relojDelMerge';
-import type { DeletionVote, LeaveRequest, SettlementConfirmation } from '@/src/types/models';
+import { unirDisputa } from '@/src/algorithms/autoria';
+import type { DeletionVote, LeaveRequest, NucleoDisputado, SettlementConfirmation } from '@/src/types/models';
 
 /**
  * **Merge por niveles** (T-041 · S7).
@@ -52,8 +53,14 @@ type Registro = Record<string, unknown>;
  */
 const CAMPOS_DE_FIRMA = ['k', 's'] as const;
 
-/** Une dos versiones de un campo colaborativo. `undefined` = el campo no está. */
-type Union = (local: unknown, remoto: unknown) => unknown;
+/**
+ * Une dos versiones de un campo colaborativo. `undefined` = el campo no está.
+ *
+ * `cur`/`inc` (el registro completo de cada lado) sólo los necesita
+ * `unirAutoria`, para comparar `createdById` — el resto de las uniones los
+ * ignora.
+ */
+type Union = (local: unknown, remoto: unknown, cur: Registro, inc: Registro) => unknown;
 
 const unirVotos: Union = (local, remoto) => {
   const a = local as DeletionVote[] | undefined;
@@ -112,6 +119,25 @@ const unirAprobaciones: Union = (local, remoto) => {
 };
 
 /**
+ * `autoriaDisputada` (T-170 · D-2, ronda 2): unión de NÚCLEOS COMPETIDORES
+ * (con su firma) cuando `createdById` difiere entre versiones.
+ *
+ * `cur`/`inc` son los registros ENTEROS (no sólo el id): `unirDisputa` recorta
+ * de ahí el snapshot firmable. El merge sigue sin verificar nada (D9) — sólo
+ * captura y une por contenido; la firma se revisa afuera
+ * (`src/sync/autoriaTrust.ts`).
+ *
+ * Es colaborativo sólo en `expense`: en `payment` los registros derivados de
+ * `applyLeave.ts` pueden dar falsos positivos, y el único poder de creador
+ * sobre pagos es el atajo D3, que se cierra por otro lado (`settlementStatus`,
+ * Task 3). No hay ninguna razón de negocio para disputar autoría de
+ * comentarios, recurrentes o grupos hoy.
+ */
+const unirAutoria: Union = (local, remoto, cur, inc) =>
+  unirDisputa(local as NucleoDisputado[] | undefined, remoto as NucleoDisputado[] | undefined,
+    cur, inc);
+
+/**
  * Qué campos de cada entidad son colaborativos.
  *
  * Está escrito por entidad y no derivado de la clasificación de `recordCore`
@@ -121,7 +147,7 @@ const unirAprobaciones: Union = (local, remoto) => {
  * lo tanto no se puede elegir sin perder el aporte de alguien.
  */
 const COLABORATIVOS: Record<CoreKind, readonly (readonly [string, Union])[]> = {
-  expense: [['deletionVotes', unirVotos]],
+  expense: [['deletionVotes', unirVotos], ['autoriaDisputada', unirAutoria]],
   payment: [['confirmations', unirAcuses]],
   comment: [],
   recurring: [],
@@ -193,6 +219,14 @@ function traeFirma(r: Registro): boolean {
  * firmada. Es lo correcto: una edición sin firma de un registro firmado es
  * indistinguible de una suplantación.
  *
+ * Después, un `rev` ENVENENADO no gana (T-170 criterio 3): `rev` sale de
+ * `max(syncedNow(), prev+1)` (`signOnWrite.siguienteRev`), así que uno más
+ * allá de `now + TOLERANCIA_RELOJ_MS` no lo produce nadie honesto. Sin este
+ * tope, Mallory pone `rev: 9e15` y el autor genuino no recupera nunca su
+ * núcleo re-editando —`siguienteRev` seguiría sumando sobre ese valor—. Si
+ * los dos lados están envenenados, no hay nada que proteger y manda `rev`
+ * como siempre (exactamente un sentido gana, T-152).
+ *
  * Después, gana `rev` mayor. Ante empate, el desempate canónico del núcleo —
  * arbitrario pero igual en los dos dispositivos, que es lo único que hace
  * falta. **Los dos sin `rev` es un caso aparte**: son registros anteriores a
@@ -200,7 +234,7 @@ function traeFirma(r: Registro): boolean {
  * ordenar; manda `updatedAt`, igual que siempre.
  */
 export function coreWins<K extends CoreKind>(
-  kind: K, incoming: CoreRecord[K], current: CoreRecord[K],
+  kind: K, incoming: CoreRecord[K], current: CoreRecord[K], now: number,
 ): boolean {
   const inc = incoming as unknown as Registro;
   const cur = current as unknown as Registro;
@@ -211,6 +245,11 @@ export function coreWins<K extends CoreKind>(
 
   const revInc = revDe(inc);
   const revCur = revDe(cur);
+
+  const venInc = envenenado(revInc, now);
+  const venCur = envenenado(revCur, now);
+  if (venInc !== venCur) return venCur;
+
   if (revInc !== revCur) return revInc > revCur;
 
   if (revInc === 0 && incoming.updatedAt !== current.updatedAt) {
@@ -247,13 +286,13 @@ function restoWins<K extends CoreKind>(
 export function mergeRecord<K extends CoreKind>(
   kind: K, current: CoreRecord[K], incoming: CoreRecord[K], now: number,
 ): CoreRecord[K] {
-  const ganaNucleo = coreWins(kind, incoming, current) ? incoming : current;
+  const ganaNucleo = coreWins(kind, incoming, current, now) ? incoming : current;
   const ganaResto  = restoWins(kind, incoming, current, now) ? incoming : current;
 
   const cur = current as unknown as Registro;
   const inc = incoming as unknown as Registro;
   const colaborativos = COLABORATIVOS[kind]
-    .map(([campo, unir]) => [campo, unir(cur[campo], inc[campo])] as const);
+    .map(([campo, unir]) => [campo, unir(cur[campo], inc[campo], cur, inc)] as const);
 
   // Nada del entrante ganó nada: se devuelve el registro que ya estaba, con su
   // identidad intacta. Es el caso ABRUMADORAMENTE mayoritario —el sobre lleva

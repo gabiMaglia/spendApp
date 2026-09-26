@@ -4,6 +4,7 @@ import { privadaDelAparato } from './devicePrivateKey';
 import { activeUserId } from '@/src/store/userScope';
 import { esYo } from '@/src/store/identityAlias';
 import { syncedNow } from '@/src/utils/syncedClock';
+import { envenenado } from '@/src/store/relojDelMerge';
 
 /**
  * **Firmar al escribir** (T-041 · S5).
@@ -114,9 +115,20 @@ function firmar<K extends CoreKind>(kind: K, record: CoreRecord[K]): CoreRecord[
   }
 }
 
-/** Un `rev` estrictamente mayor que el anterior, incluso dentro del mismo ms. */
-function siguienteRev(previo: number | undefined): number {
-  return Math.max(syncedNow(), (previo ?? 0) + 1);
+/**
+ * Un `rev` estrictamente mayor que el anterior, incluso dentro del mismo ms.
+ *
+ * **No arrastra un `rev` envenenado (G8, T-170).** Un previo `9e15` puesto por
+ * un tercero seguiría envenenado sumándole 1, y el autor que re-edita
+ * quedaría para siempre perdiendo el desempate de `coreWins` contra su propio
+ * ataque. Se vuelve a `now`, igual que `siguienteUpdatedAt` hace con
+ * `updatedAt` (`relojDelMerge.ts`): es lo que deja que el autor sane su
+ * propio registro.
+ */
+export function siguienteRev(previo: number | undefined): number {
+  const now = syncedNow();
+  if (previo === undefined || envenenado(previo, now)) return now;
+  return Math.max(now, previo + 1);
 }
 
 /**
