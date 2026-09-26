@@ -10,6 +10,7 @@ process.env.EXPO_PUBLIC_SUPABASE_URL = 'https://prueba.local';
 process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = 'anon-de-prueba';
 
 let sesion: { user: { is_anonymous?: boolean } } | null = null;
+let errorDeGetSession: { message: string } | null = null;
 let opciones: { auth?: Record<string, unknown> } = {};
 const signInAnonymously = jest.fn(async () => ({ data: { session: { user: { is_anonymous: true } } }, error: null as null | { message: string } }));
 const signOut = jest.fn(async () => ({ error: null }));
@@ -17,7 +18,7 @@ const startAutoRefresh = jest.fn();
 const stopAutoRefresh = jest.fn();
 const mockCliente = {
   auth: {
-    getSession: jest.fn(async () => ({ data: { session: sesion }, error: null })),
+    getSession: jest.fn(async () => ({ data: { session: sesion }, error: errorDeGetSession })),
     signInAnonymously,
     signOut,
     startAutoRefresh,
@@ -47,6 +48,7 @@ afterAll(() => {
 beforeEach(() => {
   jest.resetModules();
   sesion = null;
+  errorDeGetSession = null;
   mockCaptcha = { status: 'not_required' };
   signInAnonymously.mockClear();
   signOut.mockClear();
@@ -119,6 +121,40 @@ describe('ensureRelaySession', () => {
     await Promise.all([S.ensureRelaySession(), S.ensureRelaySession()]);
     expect(signInAnonymously).toHaveBeenCalledTimes(1);
   });
+
+  /**
+   * Verifier D1: un refresh que falla por red (offline al volver del fondo,
+   * o el servidor caído) devuelve `{ session: null, error }` SIN borrar el
+   * refresh token del storage (`GoTrueClient.js:2486-2506`, auth-js 2.109.0).
+   * Tratar eso como "no hay sesión" abriría una anónima ENCIMA de una cuenta
+   * Google/Apple todavía válida. La regla: nunca reemplazar una sesión de
+   * cuenta por una anónima por un error transitorio.
+   */
+  it('D1: un error de getSession (refresh transitorio) NO abre sesión anónima', async () => {
+    sesion = null;
+    errorDeGetSession = { message: 'Failed to fetch' };
+    expect(await S.ensureRelaySession()).toBe('none');
+    expect(signInAnonymously).not.toHaveBeenCalled();
+  });
+
+  it('D1: tras el error de getSession, respeta SESSION_RETRY_MS antes de reintentar', async () => {
+    const ahora = jest.spyOn(Date, 'now').mockReturnValue(2_000_000);
+    errorDeGetSession = { message: 'Failed to fetch' };
+    expect(await S.ensureRelaySession()).toBe('none');
+    errorDeGetSession = null; // la red volvió
+    expect(await S.ensureRelaySession()).toBe('none'); // pero todavía no pasó el retry
+    expect(signInAnonymously).not.toHaveBeenCalled();
+    ahora.mockReturnValue(2_000_000 + S.SESSION_RETRY_MS + 1);
+    expect(await S.ensureRelaySession()).toBe('anonymous');
+    ahora.mockRestore();
+  });
+
+  it('D1: sin sesión y SIN error (logout explícito, o primer arranque) sí abre anónima', async () => {
+    sesion = null;
+    errorDeGetSession = null;
+    expect(await S.ensureRelaySession()).toBe('anonymous');
+    expect(signInAnonymously).toHaveBeenCalled();
+  });
 });
 
 describe('refresco atado al ciclo de vida', () => {
@@ -128,6 +164,18 @@ describe('refresco atado al ciclo de vida', () => {
     expect(startAutoRefresh).toHaveBeenCalled();
     appStateCb('background');
     expect(stopAutoRefresh).toHaveBeenCalled();
+  });
+
+  /**
+   * Verifier D1: con `autoRefreshToken: false` en el cliente, el refresco
+   * SÓLO lo dispara este binding — y sólo reaccionaba a un evento `change` de
+   * `AppState`. En un arranque en frío la app ya está `active` desde antes de
+   * que nada se suscriba, así que ese evento nunca llega y el refresco
+   * automático no arrancaba nunca hasta el primer backgrund/foreground.
+   */
+  it('arranca el auto-refresh también en frío, sin esperar ningún evento', () => {
+    S.bindAuthRefreshToAppState();
+    expect(startAutoRefresh).toHaveBeenCalled();
   });
 });
 
