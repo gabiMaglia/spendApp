@@ -37,17 +37,19 @@ export const TARGET_SLICE_BYTES = 65_536;
 export const MAX_SLICE_BYTES = 262_144;
 
 /**
- * `ckey` es opaca para el servidor — se deriva de la clave del grupo, nunca
- * del id de un registro (eso le daría al relay un conteo de registros).
+ * `ckey` es opaca para el servidor — se deriva de la clave del grupo más el
+ * tipo de entidad y el ÍNDICE de la rebanada dentro de ese tipo (T-146; antes
+ * era el primer id de la rebanada, y cada inserción que ordenaba antes
+ * re-claveaba todas las siguientes). Lo único que el relay puede contar es
+ * cuántas rebanadas hay, que ya podía contar antes.
  * Mismo mecanismo que `deriveTopic` (SHA256 de la clave en hex + contexto),
  * no HMAC formal: la clave del grupo ya es un secreto de 32 bytes de alta
- * entropía, de un solo uso por grupo, así que la propiedad que hace falta
- * (nadie sin la clave puede reproducir el hash) ya está cubierta.
+ * entropía, así que nadie sin la clave puede reproducir el hash.
  */
-export async function deriveCkey(key: GroupKey, tipo: string, seedId: string): Promise<string> {
+export async function deriveCkey(key: GroupKey, tipo: string, indice: string): Promise<string> {
   return Crypto.digestStringAsync(
     Crypto.CryptoDigestAlgorithm.SHA256,
-    `${toHex(key)}:ckey:${tipo}:${seedId}`,
+    `${toHex(key)}:ckey:${tipo}:${indice}`,
   );
 }
 

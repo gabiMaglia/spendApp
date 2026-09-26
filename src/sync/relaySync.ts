@@ -207,9 +207,15 @@ async function buildSlicedEnvelopes(
   for (const campo of SLICED_FIELDS) {
     const lista = (deltaConUsuarios[campo] ?? []) as { id: string }[];
     const rebanadas = sliceEntities(lista);
-    for (const rebanada of rebanadas) {
-      const seedId = rebanada[0]!.id;
-      const ckey = await deriveCkey(key, campo, seedId);
+    for (let i = 0; i < rebanadas.length; i++) {
+      const rebanada = rebanadas[i]!;
+      // La ckey va por ÍNDICE de rebanada, no por el primer id (T-146). Con el
+      // id, un registro nuevo que ordenaba antes corría todos los límites y
+      // re-claveaba cada rebanada siguiente: las viejas quedaban huérfanas en
+      // el buzón hasta el TTL de 30 días, una tanda por publicación. Con el
+      // índice, la rebanada k de `campo` es siempre la misma ckey y la
+      // compactación del servidor la pisa.
+      const ckey = await deriveCkey(key, campo, String(i));
       const parcial: SyncDelta = {
         version: delta.version,
         featureVersion: delta.featureVersion,
