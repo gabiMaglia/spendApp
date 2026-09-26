@@ -78,7 +78,14 @@ export function excesoDe(record: unknown): string | null {
  * (ver arriba), pero la app sigue acotando lo que ella misma produce.
  */
 export function truncar(s: string, max: number): string {
-  return s.length > max ? s.slice(0, max) : s;
+  if (s.length <= max) return s;
+  const cortado = s.slice(0, max);
+  // T-172 (ítem 5): un corte por unidad UTF-16 puede caer en medio de un
+  // emoji fuera del BMP (surrogate alto + bajo) y dejar el alto suelto al
+  // final — no es texto UTF-16 válido. Si eso pasó, se descarta ese último
+  // code unit entero (el emoji completo queda afuera, nunca partido).
+  const ultimo = cortado.charCodeAt(cortado.length - 1);
+  return ultimo >= 0xD800 && ultimo <= 0xDBFF ? cortado.slice(0, -1) : cortado;
 }
 
 /** ¿Hay lugar para un miembro más sin superar `MAX_MIEMBROS`? (T-150 ronda 2, D4). */
