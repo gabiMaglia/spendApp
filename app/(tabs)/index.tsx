@@ -8,7 +8,7 @@ import { router } from 'expo-router';
 
 import { Spacing } from '@/src/constants/spacing';
 import { formatMoney } from '@/src/constants/currencies';
-import { useSkin } from '@/src/skins/useSkin';
+import { useSkinTokens } from '@/src/skins/useSkin';
 import { Panel } from '@/src/components/skin/Panel';
 import { useFabSkinStyle } from '@/src/components/skin/useFabSkinStyle';
 import { Fab, FabRow, FAB_BOTTOM_GAP, FAB_HEIGHT } from '@/src/components/Fab';
@@ -32,7 +32,7 @@ import { MovimientosHeader } from '@/src/screens/personal/components/Movimientos
 import { MovimientosList } from '@/src/screens/personal/components/MovimientosList';
 
 export default function PersonalScreen() {
-  const { skin } = useSkin();
+  const skin = useSkinTokens();
   // T-121: sin aire entre el header y el bloque de deuda migrado (mismo
   // criterio que tenía Inicio, T-130).
   const headerPad = useHeaderPadding(0);

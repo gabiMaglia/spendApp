@@ -1,6 +1,7 @@
-import { Platform } from 'react-native';
+import { AccessibilityInfo, Platform } from 'react-native';
 import { act, renderHook } from '@testing-library/react-native';
-import { useSkin } from '@/src/skins/useSkin';
+import { useSkin, useSkinTokens } from '@/src/skins/useSkin';
+import { resolveSkin } from '@/src/skins/resolveSkin';
 import { useSettingsStore } from '@/src/store/settingsStore';
 
 function setPlatform(os: 'android' | 'ios', version: number | string): void {
@@ -59,5 +60,33 @@ describe('useSkin', () => {
     act(() => { useSettingsStore.setState({ skin: 'aero' }); });
     rerender({});
     expect(result.current.id).toBe('aero');
+  });
+});
+
+describe('useSkinTokens', () => {
+  beforeEach(() => {
+    setPlatform('ios', '17.0');
+    useSettingsStore.setState({ skin: 'default', reduceAnimations: false });
+  });
+
+  it('devuelve el skin resuelto del registro (el mismo objeto que resolveSkin)', () => {
+    const { result } = renderHook(() => useSkinTokens());
+    expect(result.current).toBe(resolveSkin('default', 'light'));
+  });
+
+  it('sigue a la preferencia de skin', () => {
+    const { result, rerender } = renderHook(() => useSkinTokens());
+    act(() => { useSettingsStore.setState({ skin: 'aero' }); });
+    rerender({});
+    expect(result.current).toBe(resolveSkin('aero', 'light'));
+    expect(result.current.flags.soft).toBe(true);
+  });
+
+  it('no consulta "reducir movimiento" al sistema (una fila no paga esa llamada)', () => {
+    const spy = jest.spyOn(AccessibilityInfo, 'isReduceMotionEnabled');
+    // El mock de RN ya es un `jest.fn` con las llamadas de los tests de `useSkin`.
+    spy.mockClear();
+    renderHook(() => useSkinTokens());
+    expect(spy).not.toHaveBeenCalled();
   });
 });

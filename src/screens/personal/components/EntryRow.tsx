@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 
 import { Typography } from '@/src/constants/typography';
-import { useSkin } from '@/src/skins/useSkin';
+import { useSkinTokens } from '@/src/skins/useSkin';
 import { BandRow } from '@/src/components/Band';
 import { formatMoney } from '@/src/constants/currencies';
 import type { PersonalEntry } from '@/src/types/models';
@@ -24,7 +24,7 @@ const ENTRY_KIND_META = {
 export const EntryRow = React.memo(function EntryRow({
   entry, onRemove, last,
 }: { entry: PersonalEntry; onRemove: (entry: PersonalEntry) => void; last?: boolean }) {
-  const { skin } = useSkin();
+  const skin = useSkinTokens();
   const { t } = useTranslation();
   const c = skin.colors;
   const meta = ENTRY_KIND_META[entry.kind];

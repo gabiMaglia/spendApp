@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 
 import { Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useSkin } from '@/src/skins/useSkin';
+import { useSkinTokens } from '@/src/skins/useSkin';
 import { MarmolPill } from '@/src/components/skin/MarmolPill';
 
 /**
@@ -16,7 +16,7 @@ import { MarmolPill } from '@/src/components/skin/MarmolPill';
  * tapa ni lo pisa, sólo llega hasta ese borde y se queda ahí.
  */
 export function MovimientosHeader({ count }: { count: number }) {
-  const { skin } = useSkin();
+  const skin = useSkinTokens();
   const c = skin.colors;
   // En un skin soft la píldora ya separa el encabezado de la lista: sin hairline.
   const borde = skin.flags.soft ? null : { borderBottomWidth: 1, borderBottomColor: c.hair };

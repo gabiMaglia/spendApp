@@ -1,4 +1,3 @@
-import { useMemo } from 'react';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAnimacionesReducidas } from '@/src/hooks/useAnimacionesReducidas';
 import { useSettingsStore } from '@/src/store/settingsStore';
@@ -17,10 +16,22 @@ import type { Skin } from './types';
  * "reducir animaciones" / "reducir movimiento" del sistema.
  */
 export function useSkin(): { skin: Skin; id: SkinId; degradado: boolean } {
-  const scheme = useColorScheme() ?? 'light';
   const id = useSettingsStore(s => s.skin);
+  const skin = useSkinTokens();
   const reducidas = useAnimacionesReducidas() === true;
-  const skin = useMemo(() => resolveSkin(id, scheme), [id, scheme]);
   const degradado = !skin.flags.soft || reducidas || esDispositivoDeGamaBaja();
   return { skin, id, degradado };
+}
+
+/**
+ * **Solo los tokens del skin activo** (colores, radios, espacios, flags).
+ * Sin `degradado`, y por eso sin la consulta async a "reducir movimiento" ni
+ * el re-render que dispara: es lo que usan las filas y todo lo que no dibuja
+ * sombras/glow. `resolveSkin` cachea, así que devuelve el mismo objeto en
+ * toda la app para el mismo skin y esquema.
+ */
+export function useSkinTokens(): Skin {
+  const scheme = useColorScheme() ?? 'light';
+  const id = useSettingsStore(s => s.skin);
+  return resolveSkin(id, scheme);
 }

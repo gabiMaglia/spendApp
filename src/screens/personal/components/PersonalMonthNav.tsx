@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import { Spacing } from '@/src/constants/spacing';
-import { useSkin } from '@/src/skins/useSkin';
+import { useSkinTokens } from '@/src/skins/useSkin';
 import { MarmolPill } from '@/src/components/skin/MarmolPill';
 import { hapticSelection } from '@/src/utils/haptics';
 import { monthLabel, nextMonth, prevMonth } from '@/src/screens/personal/utils/monthLabel';
@@ -20,7 +20,7 @@ export function PersonalMonthNav({
   atCurrentMonth: boolean;
   onChangeMonth: (month: string) => void;
 }) {
-  const { skin } = useSkin();
+  const skin = useSkinTokens();
   const c = skin.colors;
 
   return (

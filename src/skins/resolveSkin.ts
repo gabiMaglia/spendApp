@@ -28,6 +28,37 @@ function fusionar<T>(base: T, override: unknown): T {
   return out as T;
 }
 
+function congelar<T>(v: T): T {
+  if (esObjeto(v)) {
+    for (const k of Object.keys(v)) congelar(v[k]);
+    Object.freeze(v);
+  }
+  return v;
+}
+
+function resolver(
+  id: string,
+  scheme: ColorScheme,
+  skins: Record<string, SkinDefinition>,
+  fallback: string,
+): Skin {
+  try {
+    const conFallback = fusionar(DEFAULT_SKIN[scheme], skins[fallback]?.[scheme]);
+    return id === fallback ? conFallback : fusionar(conFallback, skins[id]?.[scheme]);
+  } catch {
+    return fusionar(DEFAULT_SKIN[scheme], undefined);
+  }
+}
+
+/**
+ * Caché del camino del registro (`SKINS` + `FALLBACK_SKIN`, sin `opts`): los
+ * skins son estáticos, así que cada `id:scheme` se resuelve una sola vez y
+ * todos los componentes reciben el MISMO objeto (un `useMemo`/`React.memo`
+ * que dependa de él no se invalida por fila). Va congelado: es compartido,
+ * nadie lo puede mutar. Con `opts` (tests) no hay caché: objeto fresco.
+ */
+const cache = new Map<string, Skin>();
+
 /**
  * **Skin resuelto para un esquema.** Cadena: `DEFAULT_SKIN` (completo) ←
  * fallback ← skin elegido, campo a campo. Un id que no existe, un esquema sin
@@ -38,12 +69,12 @@ export function resolveSkin(
   scheme: ColorScheme,
   opts?: { skins?: Record<string, SkinDefinition>; fallback?: string },
 ): Skin {
-  const skins: Record<string, SkinDefinition> = opts?.skins ?? SKINS;
-  const fallback = opts?.fallback ?? FALLBACK_SKIN;
-  try {
-    const conFallback = fusionar(DEFAULT_SKIN[scheme], skins[fallback]?.[scheme]);
-    return id === fallback ? conFallback : fusionar(conFallback, skins[id]?.[scheme]);
-  } catch {
-    return fusionar(DEFAULT_SKIN[scheme], undefined);
+  if (opts) return resolver(id, scheme, opts.skins ?? SKINS, opts.fallback ?? FALLBACK_SKIN);
+  const clave = `${id}:${scheme}`;
+  let skin = cache.get(clave);
+  if (!skin) {
+    skin = congelar(resolver(id, scheme, SKINS, FALLBACK_SKIN));
+    cache.set(clave, skin);
   }
+  return skin;
 }

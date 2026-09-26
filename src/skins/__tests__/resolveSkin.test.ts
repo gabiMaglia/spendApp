@@ -1,6 +1,6 @@
 import { resolveSkin } from '@/src/skins/resolveSkin';
 import { DEFAULT_SKIN } from '@/src/skins/default';
-import { esSkinId, FALLBACK_SKIN } from '@/src/skins/registry';
+import { esSkinId, FALLBACK_SKIN, SKINS } from '@/src/skins/registry';
 import type { SkinDefinition } from '@/src/skins/types';
 
 describe('resolveSkin', () => {
@@ -59,10 +59,48 @@ describe('resolveSkin', () => {
 
   it('no muta el default', () => {
     const antes = JSON.stringify(DEFAULT_SKIN);
-    const r = resolveSkin('aero', 'light');
+    // Con `opts` el resultado es fresco (sin caché): se puede mutar sin
+    // ensuciar el objeto cacheado que comparte toda la app. Mismos skins y
+    // mismo fallback que el camino del registro.
+    const r = resolveSkin('aero', 'light', { skins: SKINS, fallback: FALLBACK_SKIN });
     r.colors.bg = '#000000';
     r.colors.brand.primary = '#000000';
     expect(JSON.stringify(DEFAULT_SKIN)).toBe(antes);
+  });
+});
+
+describe('resolveSkin: caché del registro', () => {
+  it('sin opts, el mismo id y esquema devuelven el MISMO objeto', () => {
+    expect(resolveSkin('aero', 'light')).toBe(resolveSkin('aero', 'light'));
+    expect(resolveSkin('default', 'dark')).toBe(resolveSkin('default', 'dark'));
+  });
+
+  it('distinto id o esquema, distinto objeto', () => {
+    expect(resolveSkin('aero', 'light')).not.toBe(resolveSkin('aero', 'dark'));
+    expect(resolveSkin('aero', 'light')).not.toBe(resolveSkin('default', 'light'));
+  });
+
+  it('con opts no cachea: cada llamada es un objeto nuevo', () => {
+    const opts = { skins: SKINS, fallback: FALLBACK_SKIN };
+    const a = resolveSkin('aero', 'light', opts);
+    const b = resolveSkin('aero', 'light', opts);
+    expect(a).not.toBe(b);
+    expect(a).toEqual(b);
+    expect(a).toEqual(resolveSkin('aero', 'light'));
+  });
+
+  it('el objeto cacheado está congelado: nadie lo puede mutar por accidente', () => {
+    const r = resolveSkin('aero', 'light');
+    expect(Object.isFrozen(r)).toBe(true);
+    expect(Object.isFrozen(r.colors)).toBe(true);
+    expect(Object.isFrozen(r.colors.brand)).toBe(true);
+  });
+
+  it('el cacheado tampoco comparte referencias con DEFAULT_SKIN', () => {
+    const r = resolveSkin('default', 'light');
+    expect(r).not.toBe(DEFAULT_SKIN.light);
+    expect(r.colors).not.toBe(DEFAULT_SKIN.light.colors);
+    expect(Object.isFrozen(DEFAULT_SKIN.light.colors)).toBe(false);
   });
 });
 

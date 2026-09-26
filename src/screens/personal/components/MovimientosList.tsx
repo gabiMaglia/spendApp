@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 
 import { Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useSkin } from '@/src/skins/useSkin';
+import { useSkinTokens } from '@/src/skins/useSkin';
 import { Band } from '@/src/components/Band';
 import { Panel } from '@/src/components/skin/Panel';
 import type { PersonalEntry } from '@/src/types/models';
@@ -20,7 +20,7 @@ export function MovimientosList({
   monthLabelText: string;
   onRemove: (entry: PersonalEntry) => void;
 }) {
-  const { skin } = useSkin();
+  const skin = useSkinTokens();
   const c = skin.colors;
   const { t } = useTranslation();
 

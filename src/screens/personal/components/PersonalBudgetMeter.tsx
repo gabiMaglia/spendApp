@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 
 import { Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useSkin } from '@/src/skins/useSkin';
+import { useSkinTokens } from '@/src/skins/useSkin';
 import { Band } from '@/src/components/Band';
 import { GlowMeter } from '@/src/components/skin/GlowMeter';
 import { MoneyText } from '@/src/components/MoneyText';
@@ -29,7 +29,7 @@ export function PersonalBudgetMeter({
   onOpenBudgetSheet: () => void;
 }) {
   const { t } = useTranslation();
-  const { skin } = useSkin();
+  const skin = useSkinTokens();
   const c = skin.colors;
   const pendingCalculando = t('fx.calculating');
 
