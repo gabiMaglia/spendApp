@@ -43,10 +43,30 @@ export const SESSION_RETRY_MS = 120_000;
 let ultimoFallo = 0;
 let enCurso: Promise<SessionKind> | null = null;
 
+/**
+ * Verifier D2: el login de cuenta (Google/Apple, `directoryAuth.signIntoDirectory`)
+ * y `ensureRelaySession` corren en paralelo — `setUser` dispara `startRelay`
+ * ANTES de que `signInWithIdToken` termine. Si la anónima abre y persiste
+ * DESPUÉS de la identidad, la sesión de cuenta queda pisada.
+ *
+ * `directoryAuth` marca acá su login en vuelo; `hacerEnsure` lo espera antes
+ * de decidir abrir una anónima — así la identidad, si ya está en camino, gana
+ * sin carrera.
+ */
+let identityEnCurso: Promise<unknown> | null = null;
+
+export function trackIdentitySignIn<T>(p: Promise<T>): Promise<T> {
+  const marcado = p.then(() => undefined, () => undefined);
+  identityEnCurso = marcado;
+  void marcado.finally(() => { if (identityEnCurso === marcado) identityEnCurso = null; });
+  return p;
+}
+
 /** Sólo tests. */
 export function __resetRelaySession(): void {
   ultimoFallo = 0;
   enCurso = null;
+  identityEnCurso = null;
 }
 
 async function abrirSesion(): Promise<SessionKind> {
@@ -90,6 +110,11 @@ async function hacerEnsure(): Promise<SessionKind> {
   const supabase = getRelayClient();
   if (!supabase) return 'none';
 
+  // D2: si un login de cuenta ya está en vuelo, se espera — evita abrir (y
+  // mostrarle captcha a) una anónima que la identidad, unos milisegundos
+  // después, iba a pisar igual.
+  if (identityEnCurso) await identityEnCurso;
+
   const { data, error } = await supabase.auth.getSession();
   if (data.session) return data.session.user.is_anonymous ? 'anonymous' : 'identity';
 
@@ -115,7 +140,20 @@ async function hacerEnsure(): Promise<SessionKind> {
   // Acá SÍ es seguro abrir una anónima: `getSession()` contestó sin error y
   // sin sesión — primer arranque, o logout explícito (`signOut`, que borra el
   // storage) — nunca un refresh que no se pudo confirmar.
-  return abrirSesion();
+  const resultado = await abrirSesion();
+
+  /**
+   * D2, la mitad que importa: `signInAnonymously` no espera a nadie, así que
+   * si el login de cuenta ganó la carrera MIENTRAS se abría la anónima —el
+   * caso real del defecto—, el storage ya tiene la sesión de identidad
+   * cuando esto termina. Releer acá es más simple y más seguro que tratar de
+   * sincronizar el timing exacto de las dos llamadas de red: pase lo que
+   * pase, la fuente de verdad es el storage, no lo que ESTA llamada creyó
+   * que había pasado.
+   */
+  const { data: relectura } = await supabase.auth.getSession();
+  if (relectura.session) return relectura.session.user.is_anonymous ? 'anonymous' : 'identity';
+  return resultado;
 }
 
 /**

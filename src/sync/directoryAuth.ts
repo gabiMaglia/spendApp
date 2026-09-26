@@ -1,4 +1,5 @@
 import { getRelayClient } from './relay';
+import { trackIdentitySignIn } from './relaySession';
 
 /**
  * Sesión contra Supabase Auth, usada SÓLO para poder escribir en el directorio
@@ -33,7 +34,10 @@ export async function signIntoDirectory(
   if (!idToken) return { ok: false, reason: 'no_token' };
 
   try {
-    const { error } = await supabase.auth.signInWithIdToken({ provider, token: idToken });
+    // T-147 (D2): mientras esto está en vuelo, `ensureRelaySession` lo espera
+    // antes de decidir abrir una sesión anónima — sin esto, una anónima que
+    // termina de escribirse DESPUÉS de este login pisa la sesión de cuenta.
+    const { error } = await trackIdentitySignIn(supabase.auth.signInWithIdToken({ provider, token: idToken }));
     if (error) return { ok: false, reason: 'rejected', detail: error.message };
     return { ok: true };
   } catch (e) {
