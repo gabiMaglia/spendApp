@@ -452,6 +452,19 @@ async function doStartRelay(): Promise<void> {
 }
 
 async function arrancarCadenaDeSync(): Promise<void> {
+  /**
+   * Verifier D5: sin usuario activo (pantalla de login, antes de elegir
+   * Google/Apple/invitado) no hay NADA que sincronizar todavía —
+   * `syncableGroupIds()` ya exige `currentUser` un poco más abajo—, así que
+   * abrir una sesión acá (y su captcha) sólo interrumpiría el login sin
+   * necesidad. En cuanto el usuario elige cualquier opción, `setUser` dispara
+   * un `startRelay` nuevo con `currentUser` ya puesto, y ahí sí corresponde.
+   *
+   * No se toca `kindAlArrancar` ni `sessionStatus`: no es "sin sesión", es
+   * "todavía no hace falta ninguna" — no tiene que avisar nada en pantalla.
+   */
+  if (!useAuthStore.getState().currentUser) return;
+
   // T-147 (D1): la sesión se garantiza ANTES de cualquier suscripción. Un
   // canal privado que se une sin JWT queda afuera sin ningún error visible —
   // el orden acá no es un detalle.
@@ -529,6 +542,12 @@ function stopPolling(): void {
 }
 
 async function releerTodo(): Promise<void> {
+  // D5: mismo motivo que en `arrancarCadenaDeSync` — sin usuario todavía
+  // (login en curso) no hay nada que releer, y pedir sesión en cada vuelta de
+  // poll era justo lo que hacía reaparecer el captcha cada 20s sobre esa
+  // pantalla.
+  if (!useAuthStore.getState().currentUser) return;
+
   // T-147 (D1/D5): si la sesión cambió desde que arrancamos —captcha resuelto
   // tarde, login con Google mientras corría, sesión perdida— los canales
   // privados quedaron suscriptos con el JWT viejo (o sin ninguno). Reiniciar

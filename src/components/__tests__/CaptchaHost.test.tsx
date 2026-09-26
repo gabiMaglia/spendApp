@@ -1,4 +1,5 @@
 import React from 'react';
+import { Modal } from 'react-native';
 import { render, act, fireEvent } from '@testing-library/react-native';
 import { CaptchaHost } from '../CaptchaHost';
 import * as bridge from '@/src/sync/captchaBridge';
@@ -83,6 +84,23 @@ it('cerrar la hoja → failed/dismissed', async () => {
   await act(async () => {});
   await enviar({ type: 'interactive' });
   await act(async () => { fireEvent.press(getByText('captcha.cancel')); });
+  await expect(p).resolves.toEqual({ status: 'failed', reason: 'dismissed' });
+});
+
+/**
+ * Verifier D5: el `Modal` de la hoja (Android) no tenía `onRequestClose` —
+ * sin él, el botón atrás del sistema no hace NADA en Android (el modal se
+ * queda ahí, sin forma de salir salvo el botón "Ahora no").
+ */
+it('el botón atrás de Android (onRequestClose) cierra como "Ahora no"', async () => {
+  const { getByText, UNSAFE_getByType } = montar();
+  const p = bridge.requestCaptchaToken();
+  await act(async () => {});
+  await enviar({ type: 'interactive' });
+  expect(getByText('captcha.title')).toBeTruthy();
+  const modal = UNSAFE_getByType(Modal);
+  expect(typeof modal.props.onRequestClose).toBe('function');
+  await act(async () => { modal.props.onRequestClose(); });
   await expect(p).resolves.toEqual({ status: 'failed', reason: 'dismissed' });
 });
 
