@@ -32,6 +32,15 @@ const mockCliente = {
   }),
   rpc: async (fn: string, args: Record<string, unknown>) => {
     llamadasRpc.push({ fn, args });
+    // T-147: `sendEnvelope` prueba `publish_envelope` ANTES del insert directo
+    // (H1). Este suite es anterior a esa RPC y ejercita a propósito el camino
+    // viejo (`filasInsertadas`) — se le devuelve "función ausente" para que
+    // `sendEnvelope` caiga al insert de siempre, sin tocar ninguna de las
+    // aserciones de acá abajo. `delete_my_envelopes` sigue gobernado por
+    // `respuestaRpc`, como siempre.
+    if (fn === 'publish_envelope') {
+      return { data: null, error: { code: 'PGRST202', message: 'Could not find the function' } };
+    }
     return respuestaRpc;
   },
 };

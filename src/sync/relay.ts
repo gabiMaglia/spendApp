@@ -152,9 +152,40 @@ function esRechazoDeLaPrenda(mensaje: string): boolean {
   return /owner_proof/i.test(mensaje);
 }
 
+/**
+ * El servidor no tiene la migración 011a: no existe `publish_envelope` ni
+ * `fetch_since` (T-147 D4/H1). Igual que `servidorSinPrenda`, se aprende del
+ * primer rechazo y NO se persiste — es el degradado de la sesión, nunca del
+ * disco (compatibilidad F2: el cliente nuevo habla con la base de hoy).
+ */
+let servidorSinRpcPublish = false;
+let servidorSinRpcFetch = false;
+
+/**
+ * ¿Este error es "la función no existe en este proyecto"? — la RPC todavía no
+ * se corrió (011a pendiente), no un fallo transitorio. `PGRST202` es el código
+ * de PostgREST; `42883` el de Postgres directo; el texto es la red de
+ * seguridad para versiones que no mandan ninguno de los dos.
+ */
+export function esFuncionAusente(e: { code?: string; message: string }): boolean {
+  return e.code === 'PGRST202' || e.code === '42883'
+    || /could not find the function/i.test(e.message)
+    || /function .*does not exist/i.test(e.message);
+}
+
+/**
+ * ¿Este error es el freno de la cuota (T-147 D3)? `PT429` es el código propio
+ * que usa `relay_enforce_quota`; el texto es la red de seguridad si PostgREST
+ * no llega a mapearlo. **No es un error de red**: reintentar en el momento
+ * sólo empeora, por eso no cae a ningún fallback (H6).
+ */
+export function esLimiteDeRitmo(e: { code?: string; message: string }): boolean {
+  return e.code === 'PT429' || /relay_quota_exceeded/i.test(e.message);
+}
+
 export type SendResult =
   | { ok: true; seq: number }
-  | { ok: false; reason: 'not_configured' | 'too_large' | 'network'; detail?: string };
+  | { ok: false; reason: 'not_configured' | 'too_large' | 'network' | 'rate_limited'; detail?: string };
 
 /**
  * Deja un sobre en el buzón del topic.
@@ -194,6 +225,37 @@ export async function sendEnvelope(
   // del desfase que vamos a calcular.
   const antes = Date.now();
 
+  // T-147 (D4/H1): publicar por RPC — un INSERT directo con `.select()` exige
+  // la policy de SELECT sobre `envelopes`, y 011b la borra (PostgREST hace el
+  // INSERT con RETURNING por dentro). Se cae al insert de hoy SÓLO si la RPC
+  // no existe todavía (servidor sin 011a); cualquier otro error (red, cuota)
+  // se devuelve tal cual, sin fallback.
+  if (!servidorSinRpcPublish) {
+    const { data, error } = await supabase.rpc('publish_envelope', {
+      p_topic: topic,
+      p_payload: payload,
+      p_sender: sender,
+      p_compactable: compactable,
+      p_owner_proof: proof,
+      p_ckey: ckey ?? null,
+    });
+
+    if (!error) {
+      const fila = (data as { seq: number; created_at?: string }[])[0]!;
+      if (fila.created_at) recordServerTime(fila.created_at, antes);
+      return { ok: true, seq: fila.seq };
+    }
+
+    if (esFuncionAusente(error)) {
+      servidorSinRpcPublish = true;
+      // sigue abajo por el camino viejo, sin volver a chequear la RPC
+    } else if (esLimiteDeRitmo(error)) {
+      return { ok: false, reason: 'rate_limited', detail: error.message };
+    } else {
+      return { ok: false, reason: 'network', detail: error.message };
+    }
+  }
+
   const { data, error } = await supabase
     .from('envelopes')
     .insert(envelopeRow(topic, payload, sender, compactable, proof, ckey))
@@ -208,6 +270,9 @@ export async function sendEnvelope(
       servidorSinPrenda = true;
       return sendEnvelope(topic, payload, sender, compactable, ckey);
     }
+    // La cuota (`relay_enforce_quota`) corre también sobre el INSERT directo:
+    // el trigger no distingue el camino de escritura.
+    if (esLimiteDeRitmo(error)) return { ok: false, reason: 'rate_limited', detail: error.message };
     return { ok: false, reason: 'network', detail: error.message };
   }
 
@@ -255,7 +320,7 @@ export async function deleteMyEnvelopes(topic: string): Promise<DeleteResult> {
 }
 
 export type FetchResult =
-  | { ok: true; envelopes: Envelope[]; cursor: number }
+  | { ok: true; envelopes: Envelope[]; cursor: number; more?: boolean }
   | { ok: false; reason: 'not_configured' | 'network'; detail?: string };
 
 /**
@@ -284,6 +349,36 @@ export async function fetchSince(
   const supabase = getRelayClient();
   if (!supabase) return { ok: false, reason: 'not_configured' };
 
+  // T-147 (D4): leer por RPC — 011b borra la policy de SELECT directo sobre
+  // `envelopes`. `more` viene de la RPC (tope de 4 MB por página, I4); un
+  // servidor sin 011a no la manda, y el drenaje cae a "página corta = fondo"
+  // (`relaySync.ts`). Cualquier error que NO sea "función ausente" se
+  // devuelve tal cual — NUNCA cae al SELECT: un fallback por red ensuciaría el
+  // criterio de corte (0 GET directos durante 7 días).
+  if (!servidorSinRpcFetch) {
+    const { data, error } = await supabase.rpc('fetch_since', {
+      p_topic: topic,
+      p_since: sinceSeq,
+      p_exclude_sender: excludeSender ?? null,
+      p_limit: limit,
+    });
+
+    if (!error) {
+      const filas = (data ?? []) as (Envelope & { more?: boolean })[];
+      const envelopes = filas.map(({ more: _more, ...resto }) => ({ ...resto, topic })) as Envelope[];
+      const cursor = envelopes.length > 0 ? envelopes[envelopes.length - 1]!.seq : sinceSeq;
+      const more = filas.length > 0 ? Boolean(filas[0]!.more) : false;
+      return { ok: true, envelopes, cursor, more };
+    }
+
+    if (esFuncionAusente(error)) {
+      servidorSinRpcFetch = true;
+      // sigue abajo por el SELECT de siempre, sin volver a chequear la RPC
+    } else {
+      return { ok: false, reason: 'network', detail: error.message };
+    }
+  }
+
   let query = supabase
     .from('envelopes')
     .select(ENVELOPES_SELECT)
@@ -300,7 +395,9 @@ export async function fetchSince(
 
   const envelopes = (data ?? []) as Envelope[];
   const cursor = envelopes.length > 0 ? envelopes[envelopes.length - 1]!.seq : sinceSeq;
-  return { ok: true, envelopes, cursor };
+  // Servidor viejo: no manda `more`, así que el drenaje sigue usando "página
+  // corta = fondo" (`envelopes.length >= limit` = puede haber más).
+  return { ok: true, envelopes, cursor, more: envelopes.length >= limit };
 }
 
 /**

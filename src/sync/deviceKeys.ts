@@ -1,4 +1,4 @@
-import { getRelayClient } from './relay';
+import { esFuncionAusente, getRelayClient } from './relay';
 import { ensureIdentity } from '@/src/store/identityStore';
 import { useAuthStore } from '@/src/store/authStore';
 
@@ -111,8 +111,17 @@ export async function queryAccountKeys(accountId: string): Promise<KeysQuery> {
     // a mano y un cliente actualizado puede llegar antes. Se cae a la consulta
     // vieja —correcta, sólo más angosta— en vez de quedarse sin ninguna clave,
     // que en fase B se leería como "este sobre no verifica".
+    //
+    // T-147 (D6): **sólo** se cae al SELECT si la función está ausente. Tras
+    // 011b esa consulta directa también está cerrada (`device_keys_read` se
+    // borra) y devuelve vacío — un error de red que cayera acá lo confundiría
+    // con "esta cuenta no tiene claves", que en fase B rechazaría a alguien
+    // legítimo por un simple corte de señal.
+    if (!esFuncionAusente(error)) return { ok: false, keys: [] };
   } catch {
-    // La red se reintenta abajo; si también falla, vacío.
+    // El método ni siquiera existe (SDK viejo): es la misma situación que
+    // "función ausente" —incompatibilidad de interfaz, no la red— así que cae
+    // al SELECT de siempre en vez de rendirse.
   }
 
   try {

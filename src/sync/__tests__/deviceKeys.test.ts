@@ -1,5 +1,5 @@
 import {
-  registerDeviceKey, fetchAccountKeys, verifyMyKeyRegistered, myKeyPresence,
+  registerDeviceKey, fetchAccountKeys, queryAccountKeys, verifyMyKeyRegistered, myKeyPresence,
 } from '../deviceKeys';
 import { signIntoDirectory } from '../directoryAuth';
 import { useAuthStore } from '@/src/store/authStore';
@@ -53,6 +53,12 @@ jest.mock('../relay', () => ({
     }),
   } : null,
   isRelayConfigured: () => estado.cliente,
+  // T-147 (D6): el real detecta "función ausente" por código/texto — el mock
+  // usa la implementación real para no desincronizarse de `esFuncionAusente`.
+  esFuncionAusente: (e: { code?: string; message: string }) =>
+    e.code === 'PGRST202' || e.code === '42883'
+    || /could not find the function/i.test(e.message)
+    || /function .*does not exist/i.test(e.message),
 }));
 
 beforeEach(() => {
@@ -136,6 +142,19 @@ describe('leer las claves de una cuenta', () => {
   it('sin relay configurado devuelve vacío', async () => {
     estado.cliente = false;
     expect(await fetchAccountKeys('cuenta-ana')).toEqual([]);
+  });
+
+  /**
+   * T-147 (D6): un error de RED de `account_keys` NO cae al SELECT — tras
+   * 011b esa consulta directa está cerrada igual (vacía), así que caer ahí
+   * confundiría "no pude preguntar" con "no tiene claves". Sólo la función
+   * AUSENTE (servidor sin la migración 005) habilita el respaldo.
+   */
+  it('un error de red de account_keys no cae al SELECT', async () => {
+    estado.errorRpc = { message: 'Failed to fetch' };
+    estado.filas = [{ public_key: 'zz' }];
+    const r = await queryAccountKeys('cuenta-ana');
+    expect(r).toEqual({ ok: false, keys: [] });
   });
 });
 

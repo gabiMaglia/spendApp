@@ -265,7 +265,7 @@ export type PublishResult =
    * mientras este teléfono estuvo afuera. **No es un fallo**: se resuelve solo
    * en cuanto el drenaje termine, y por eso no es bloqueante.
    */
-  | { ok: false; reason: 'no_key' | 'too_large' | 'not_configured' | 'network' | 'pending_drain'; detail?: string };
+  | { ok: false; reason: 'no_key' | 'too_large' | 'not_configured' | 'network' | 'pending_drain' | 'rate_limited'; detail?: string };
 
 /**
  * Publica el estado actual en el buzón del grupo, cifrado.
@@ -596,7 +596,12 @@ export async function drainGroup(
     }
 
     cursor = r.cursor;
-    if (r.envelopes.length < pageLimit) {
+    // T-147 (D4): `fetch_since` puede cortar por BYTES (tope de 4 MB), no sólo
+    // por cantidad de filas — una página puede traer menos de `pageLimit`
+    // sobres y aun así avisar `more = true`. Con un servidor viejo que no
+    // manda `more`, se conserva la regla de siempre: página corta = fondo.
+    const hayMas = r.more ?? r.envelopes.length >= pageLimit;
+    if (!hayMas) {
       completo = true;
       break;
     }
