@@ -101,4 +101,35 @@ describe('fetchSince por RPC (D4)', () => {
     await expect(relay.fetchSince('T', 0)).resolves.toMatchObject({ ok: false, reason: 'network' });
     expect(mockFrom).not.toHaveBeenCalled();
   });
+
+  /**
+   * Verifier D6: el flag de "función ausente" no puede ser un candado para
+   * siempre — si 011a (y 011b) se aplican mientras el proceso sigue abierto,
+   * el SELECT de respaldo se queda devolviendo 0 filas SIN error (la RLS lo
+   * filtra en silencio, 011b §3), y eso se leía como "no hay más", marcando
+   * el drenaje `completo` sin haber leído nada. Pasado `RPC_REINTENTO_MS`
+   * tiene que volver a probar la RPC sola.
+   */
+  it('D6: pasado el tiempo de reintento, vuelve a probar la RPC (no se queda pegado en el SELECT)', async () => {
+    const ahora = jest.spyOn(Date, 'now').mockReturnValue(1_000_000);
+
+    // Primer llamado: la función no existe todavía → cae al SELECT.
+    selectRows = [];
+    await expect(relay.fetchSince('T', 0)).resolves.toMatchObject({ ok: true, envelopes: [], more: false });
+    expect(mockFrom).toHaveBeenCalledTimes(1);
+
+    // Poco después, sigue en el SELECT (no reintenta antes de tiempo).
+    ahora.mockReturnValue(1_000_000 + 1_000);
+    await relay.fetchSince('T', 0);
+    expect(mockRpc).toHaveBeenCalledTimes(1); // sólo el primer intento
+
+    // Pasado `RPC_REINTENTO_MS`: la migración ya llegó, `fetch_since` existe.
+    ahora.mockReturnValue(1_000_000 + relay.RPC_REINTENTO_MS + 1);
+    rpcResp.fetch_since = { data: [{ seq: 1, payload: 'a', sender: 's', created_at: 'x', ckey: null, more: false }], error: null };
+    const r = await relay.fetchSince('T', 0);
+    expect(mockRpc).toHaveBeenCalledTimes(2); // reintentó
+    expect(r).toMatchObject({ ok: true, envelopes: [{ seq: 1 }] });
+
+    ahora.mockRestore();
+  });
 });
