@@ -1,4 +1,4 @@
-import { publishClaim, processInvite, activeInvites } from '../inviteEngine';
+import { publishClaim, processInvite, activeInvites, JOIN_STALL_NOTICE_AFTER } from '../inviteEngine';
 import {
   createInvite, deriveInviteTopic, sealGrant, sealClaim, wrapGroupKey,
   generateIdentity, generateWrapKeypair, type GroupInvite, type InviteClaim,
@@ -854,6 +854,63 @@ describe('SEC-06 (T-151) · un reclamo a nombre de alguien que YA es miembro', (
     usar('beto', BETO);
     const adoptados = await processInvite(invite, 'device-beto');
     expect(adoptados).toEqual(['g1']);
+  });
+});
+
+/**
+ * **T-172 (ítem 2, hallazgo de T-151 GAP): el reclamante rechazado reintenta
+ * en silencio indefinidamente.**
+ *
+ * `processAllInvites` relee el buzón entero en cada sync (T-096, sin cursor)
+ * mientras la invitación siga viva. Si `admit()` sigue rechazando —identidad
+ * no pinneada, tope de miembros, canje de otra persona— el invitado nunca se
+ * enteraba de que su ingreso no se iba a completar solo: esperaba en
+ * silencio hasta que la invitación expiraba a las 48hs.
+ */
+describe('T-172 (ítem 2) · el reclamante rechazado avisa tras N intentos sin grant', () => {
+  it(`tras ${JOIN_STALL_NOTICE_AFTER} intentos sin recibir grant, avisa UNA vez (no antes)`, async () => {
+    // Mallory reclama "como Beto" (SEC-06): admit() la rechaza en cada
+    // pasada porque su wrap no coincide con la pinneada.
+    const { invite } = anaInvitaConBeto();
+    createSecureStorage('notices').clearAll();
+    useNoticeInboxStore.setState({ items: [] });
+
+    usar('mallory', MALLORY);
+    useAuthStore.setState({ currentUser: { ...MALLORY, id: BETO.id } });
+    await publishClaim(invite, 'device-mallory');
+
+    for (let i = 1; i < JOIN_STALL_NOTICE_AFTER; i++) {
+      await processInvite(invite, 'device-mallory');
+      expect(useNoticeInboxStore.getState().items.some(it => it.notice.kind === 'join_claim_stalled')).toBe(false);
+    }
+
+    await processInvite(invite, 'device-mallory'); // intento número N
+
+    const avisos = useNoticeInboxStore.getState().items.filter(i => i.notice.kind === 'join_claim_stalled');
+    expect(avisos).toHaveLength(1);
+    expect(avisos[0]!.notice).toMatchObject({ kind: 'join_claim_stalled', groupId: invite.groupId, inviteToken: invite.token });
+
+    // Intentos posteriores no apilan un segundo aviso.
+    await processInvite(invite, 'device-mallory');
+    expect(useNoticeInboxStore.getState().items.filter(i => i.notice.kind === 'join_claim_stalled')).toHaveLength(1);
+  });
+
+  it('si el grant llega antes de agotar los intentos, nunca avisa', async () => {
+    const { invite } = anaInvita();
+    createSecureStorage('notices').clearAll();
+    useNoticeInboxStore.setState({ items: [] });
+
+    usar('beto', BETO);
+    await publishClaim(invite, 'device-beto');
+
+    usar('ana', ANA);
+    await processInvite(invite, 'device-ana'); // admite y entrega en la 1ra pasada
+
+    usar('beto', BETO);
+    const adoptados = await processInvite(invite, 'device-beto');
+    expect(adoptados).toEqual(['g1']);
+
+    expect(useNoticeInboxStore.getState().items.some(i => i.notice.kind === 'join_claim_stalled')).toBe(false);
   });
 });
 
