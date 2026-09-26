@@ -454,22 +454,28 @@ async function doStartRelay(): Promise<void> {
 async function arrancarCadenaDeSync(): Promise<void> {
   /**
    * Verifier D5: sin usuario activo (pantalla de login, antes de elegir
-   * Google/Apple/invitado) no hay NADA que sincronizar todavía —
-   * `syncableGroupIds()` ya exige `currentUser` un poco más abajo—, así que
-   * abrir una sesión acá (y su captcha) sólo interrumpiría el login sin
-   * necesidad. En cuanto el usuario elige cualquier opción, `setUser` dispara
-   * un `startRelay` nuevo con `currentUser` ya puesto, y ahí sí corresponde.
+   * Google/Apple/invitado) no hay ningún GRUPO que sincronizar todavía
+   * (`syncableGroupIds()` ya exige `currentUser`, un poco más abajo) — abrir
+   * una sesión acá (y su captcha) sólo interrumpiría el login sin necesidad.
+   * En cuanto el usuario elige cualquier opción, `setUser` dispara un
+   * `startRelay` nuevo con `currentUser` ya puesto, y ahí sí corresponde.
    *
-   * No se toca `kindAlArrancar` ni `sessionStatus`: no es "sin sesión", es
-   * "todavía no hace falta ninguna" — no tiene que avisar nada en pantalla.
+   * El resto de la cadena SÍ sigue corriendo sin usuario (T-096: invitaciones
+   * de CONTACTO no dependen de tener una cuenta elegida) — sólo se salta el
+   * paso que abre sesión y que puede mostrar captcha.
+   *
+   * No se toca `sessionStatus`: no es "sin sesión", es "todavía no hace falta
+   * ninguna" — no tiene que avisar nada en pantalla.
    */
-  if (!useAuthStore.getState().currentUser) return;
-
-  // T-147 (D1): la sesión se garantiza ANTES de cualquier suscripción. Un
-  // canal privado que se une sin JWT queda afuera sin ningún error visible —
-  // el orden acá no es un detalle.
-  kindAlArrancar = await ensureRelaySession();
-  setUltimaSesionConocida(kindAlArrancar);
+  if (useAuthStore.getState().currentUser) {
+    // T-147 (D1): la sesión se garantiza ANTES de cualquier suscripción. Un
+    // canal privado que se une sin JWT queda afuera sin ningún error visible
+    // — el orden acá no es un detalle.
+    kindAlArrancar = await ensureRelaySession();
+    setUltimaSesionConocida(kindAlArrancar);
+  } else {
+    kindAlArrancar = 'none';
+  }
 
   // Las invitaciones se resuelven PRIMERO: una que se complete acá adopta la
   // clave del grupo, y recién con esa clave el grupo entra en `syncableGroupIds`
@@ -542,22 +548,25 @@ function stopPolling(): void {
 }
 
 async function releerTodo(): Promise<void> {
-  // D5: mismo motivo que en `arrancarCadenaDeSync` — sin usuario todavía
-  // (login en curso) no hay nada que releer, y pedir sesión en cada vuelta de
-  // poll era justo lo que hacía reaparecer el captcha cada 20s sobre esa
-  // pantalla.
-  if (!useAuthStore.getState().currentUser) return;
-
-  // T-147 (D1/D5): si la sesión cambió desde que arrancamos —captcha resuelto
-  // tarde, login con Google mientras corría, sesión perdida— los canales
-  // privados quedaron suscriptos con el JWT viejo (o sin ninguno). Reiniciar
-  // TODA la cadena es más simple y más seguro que intentar resuscribir sólo
-  // los canales: vuelve a correr `arrancarCadenaDeSync` de punta a punta.
-  const kind = await ensureRelaySession();
-  setUltimaSesionConocida(kind);
-  if (kind !== kindAlArrancar) {
-    void startRelay();
-    return;
+  /**
+   * D5: mismo motivo que en `arrancarCadenaDeSync` — sin usuario todavía
+   * (login en curso) pedir sesión en cada vuelta de poll era justo lo que
+   * hacía reaparecer el captcha cada 20s sobre esa pantalla. El resto de la
+   * vuelta (contactos, invitaciones) sigue corriendo igual.
+   */
+  if (useAuthStore.getState().currentUser) {
+    // T-147 (D1/D5): si la sesión cambió desde que arrancamos —captcha
+    // resuelto tarde, login con Google mientras corría, sesión perdida— los
+    // canales privados quedaron suscriptos con el JWT viejo (o sin ninguno).
+    // Reiniciar TODA la cadena es más simple y más seguro que intentar
+    // resuscribir sólo los canales: vuelve a correr `arrancarCadenaDeSync`
+    // de punta a punta.
+    const kind = await ensureRelaySession();
+    setUltimaSesionConocida(kind);
+    if (kind !== kindAlArrancar) {
+      void startRelay();
+      return;
+    }
   }
 
   // T-138-bis: mismo límite de tiempo total que `doStartRelay` — un poll

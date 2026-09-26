@@ -113,7 +113,15 @@ export function CaptchaHost() {
   }
 
   return (
-    <Modal visible transparent animationType="fade">
+    <Modal
+      visible
+      transparent
+      animationType="fade"
+      // Verifier D5: sin esto, el botón atrás de Android no hace NADA con el
+      // modal abierto — la única salida quedaba en el botón "Ahora no". Se
+      // trata igual que cerrar la hoja: `failed/dismissed`, nunca un error.
+      onRequestClose={() => resolver({ status: 'failed', reason: 'dismissed' })}
+    >
       <View style={[styles.velo, { backgroundColor: 'rgba(12, 16, 14, 0.5)' }]}>
         <View style={[styles.hoja, { backgroundColor: c.surface }]}>
           <Text style={[styles.titulo, { color: c.text }]}>{t('captcha.title')}</Text>
