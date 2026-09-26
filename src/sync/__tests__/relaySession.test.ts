@@ -9,10 +9,28 @@
 process.env.EXPO_PUBLIC_SUPABASE_URL = 'https://prueba.local';
 process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = 'anon-de-prueba';
 
+import type { User } from '@/src/types/models';
+// `useAuthStore` se pide FRESCO en cada test (ver `beforeEach`), como `S` y
+// `relay`: con `jest.resetModules()`, un `import` estático de arriba quedaría
+// atado a una instancia del store DISTINTA de la que `relaySession.ts` lee
+// puertas adentro después del reset — el `setState` de acá nunca lo vería.
+let useAuthStore: typeof import('@/src/store/authStore').useAuthStore;
+
 let sesion: { user: { is_anonymous?: boolean } } | null = null;
 let errorDeGetSession: { message: string } | null = null;
 let opciones: { auth?: Record<string, unknown> } = {};
-const signInAnonymously = jest.fn(async () => ({ data: { session: { user: { is_anonymous: true } } }, error: null as null | { message: string } }));
+/**
+ * Verifier ronda 2 (D2-bis): `signInAnonymously` real (`auth-js`
+ * `GoTrueClient.js:497-499`) hace `_saveSession` INCONDICIONAL — deja la
+ * sesión escrita pase lo que pase, nunca "no hace nada". El mock viejo no lo
+ * hacía, y por eso un test podía pasar por una razón que auth-js no
+ * respetaría en la realidad. Éste sí escribe `sesion` al resolver, como el
+ * real.
+ */
+const signInAnonymously = jest.fn(async () => {
+  sesion = { user: { is_anonymous: true } };
+  return { data: { session: sesion }, error: null as null | { message: string } };
+});
 const signOut = jest.fn(async () => ({ error: null }));
 const startAutoRefresh = jest.fn();
 const stopAutoRefresh = jest.fn();
@@ -32,13 +50,22 @@ jest.mock('@supabase/supabase-js', () => ({
 let mockCaptcha: import('../captchaBridge').CaptchaOutcome = { status: 'not_required' };
 jest.mock('../captchaBridge', () => ({ requestCaptchaToken: jest.fn(async () => mockCaptcha) }));
 
+/**
+ * No se reemplaza el módulo `react-native` entero (como antes): esta versión
+ * del suite importa `useAuthStore` (D2), que arrastra `expo-constants` →
+ * `expo-modules-core`, que necesita el `Platform` REAL de RN. Alcanza con
+ * espiar `AppState.addEventListener` para capturar el callback — y, como
+ * `useAuthStore`, hay que pedirlo FRESCO en cada test (mismo motivo: con
+ * `jest.resetModules()`, `relaySession.ts` importa una instancia de
+ * `react-native` distinta de la que este archivo espió antes del reset).
+ */
 let appStateCb: (s: string) => void = () => {};
-jest.mock('react-native', () => ({
-  AppState: { addEventListener: (_: string, cb: (s: string) => void) => { appStateCb = cb; return { remove: jest.fn() }; } },
-}));
 
 let S: typeof import('../relaySession');
 let relay: typeof import('../relay');
+
+const invitado = (): User => ({ id: 'g1', authProvider: 'guest' } as User);
+const conCuenta = (proveedor: 'google' | 'apple' = 'google'): User => ({ id: 'acc1', authProvider: proveedor } as User);
 
 afterAll(() => {
   delete process.env.EXPO_PUBLIC_SUPABASE_URL;
@@ -54,6 +81,20 @@ beforeEach(() => {
   signOut.mockClear();
   startAutoRefresh.mockClear();
   stopAutoRefresh.mockClear();
+
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  useAuthStore = (require('@/src/store/authStore') as typeof import('@/src/store/authStore')).useAuthStore;
+  // Default histórico de este suite: modo invitado, salvo que el test diga
+  // otra cosa (los de "con cuenta" lo pisan explícitamente).
+  useAuthStore.setState({ currentUser: invitado() });
+
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const RN = require('react-native') as typeof import('react-native');
+  jest.spyOn(RN.AppState, 'addEventListener').mockImplementation((_: string, cb: (s: string) => void) => {
+    appStateCb = cb;
+    return { remove: jest.fn() } as never;
+  });
+
   S = require('../relaySession');
   relay = require('../relay');
   S.__resetRelaySession();
@@ -77,24 +118,25 @@ describe('el cliente persiste la sesión', () => {
 
 describe('ensureRelaySession', () => {
   it('Gherkin «reapertura»: con sesión Google guardada no abre otra', async () => {
+    useAuthStore.setState({ currentUser: conCuenta() });
     sesion = { user: { is_anonymous: false } };
     expect(await S.ensureRelaySession()).toBe('identity');
     expect(signInAnonymously).not.toHaveBeenCalled();
   });
 
-  it('con sesión anónima guardada la reusa', async () => {
+  it('con sesión anónima guardada la reusa (invitado)', async () => {
     sesion = { user: { is_anonymous: true } };
     expect(await S.ensureRelaySession()).toBe('anonymous');
     expect(signInAnonymously).not.toHaveBeenCalled();
   });
 
-  it('Gherkin «usuario viejo que actualiza»: sin sesión abre anónima con el token del captcha', async () => {
+  it('Gherkin «usuario viejo que actualiza»: invitado sin sesión abre anónima con el token del captcha', async () => {
     mockCaptcha = { status: 'ok', token: 'tok' };
     expect(await S.ensureRelaySession()).toBe('anonymous');
     expect(signInAnonymously).toHaveBeenCalledWith({ options: { captchaToken: 'tok' } });
   });
 
-  it('sin site key configurada abre anónima sin captcha', async () => {
+  it('sin site key configurada, invitado abre anónima sin captcha', async () => {
     expect(await S.ensureRelaySession()).toBe('anonymous');
     expect(signInAnonymously).toHaveBeenCalledWith();
   });
@@ -149,7 +191,7 @@ describe('ensureRelaySession', () => {
     ahora.mockRestore();
   });
 
-  it('D1: sin sesión y SIN error (logout explícito, o primer arranque) sí abre anónima', async () => {
+  it('D1: sin sesión y SIN error (logout explícito, o primer arranque) sí abre anónima (invitado)', async () => {
     sesion = null;
     errorDeGetSession = null;
     expect(await S.ensureRelaySession()).toBe('anonymous');
@@ -179,30 +221,90 @@ describe('refresco atado al ciclo de vida', () => {
   });
 });
 
-describe('D2: el login de cuenta gana la carrera contra la sesión anónima', () => {
-  it('si el login está en vuelo (trackIdentitySignIn), se espera antes de abrir anónima', async () => {
-    let resolverLogin!: () => void;
-    const loginEnCurso = new Promise<void>(r => { resolverLogin = r; });
-    S.trackIdentitySignIn(loginEnCurso);
-
-    const promesa = S.ensureRelaySession();
-    // El login "termina" y deja la sesión de cuenta en el storage.
-    sesion = { user: { is_anonymous: false } };
-    resolverLogin();
-
-    expect(await promesa).toBe('identity');
+/**
+ * Verifier D2-bis (ronda 2, ruling del orquestador): «cortar de raíz, no
+ * parchear» — la sesión ANÓNIMA sólo existe para el modo invitado. Con
+ * cuenta (Google/Apple), `hacerEnsure` NUNCA llama a `signInAnonymously`,
+ * ni siquiera mientras el login todavía no terminó: no hay ninguna carrera
+ * posible porque el camino que la generaba no se toma. `setUser` YA trae
+ * `authProvider` puesto en el mismo llamado que dispara `startRelay`
+ * (`app/auth/index.tsx:247`, antes de `entrarAlDirectorio:273`), así que este
+ * chequeo alcanza sin reordenar nada en el login.
+ */
+describe('D2 (ruling): la anónima sólo existe para el invitado', () => {
+  it('con usuario de cuenta y el login TODAVÍA sin terminar, nunca abre anónima', async () => {
+    useAuthStore.setState({ currentUser: conCuenta('google') });
+    sesion = null; // signInWithIdToken no terminó (o ni empezó)
+    expect(await S.ensureRelaySession()).toBe('none');
     expect(signInAnonymously).not.toHaveBeenCalled();
   });
 
-  it('si la anónima ya se estaba abriendo y el login gana DESPUÉS, se relee y gana la identidad', async () => {
-    // `signInAnonymously` tarda; mientras "está en el aire", el login de
-    // cuenta (que no pasa por acá) ya dejó la sesión real en el storage —
-    // exactamente lo que pasaría si las dos llamadas de red se cruzan.
-    signInAnonymously.mockImplementationOnce(async () => {
-      sesion = { user: { is_anonymous: false } };
-      return { data: { session: { user: { is_anonymous: true } } }, error: null };
-    });
+  it('sin usuario activo (currentUser null), tampoco abre anónima', async () => {
+    useAuthStore.setState({ currentUser: null });
+    expect(await S.ensureRelaySession()).toBe('none');
+    expect(signInAnonymously).not.toHaveBeenCalled();
+  });
+
+  it('con usuario invitado, sí abre anónima', async () => {
+    useAuthStore.setState({ currentUser: invitado() });
+    expect(await S.ensureRelaySession()).toBe('anonymous');
+    expect(signInAnonymously).toHaveBeenCalled();
+  });
+
+  /**
+   * El orden real de `app/auth/index.tsx`: `setUser` (con `authProvider` ya
+   * puesto) dispara `startRelay` ANTES de que `entrarAlDirectorio` llame a
+   * `signInWithIdToken`. Con la anónima descartada de raíz para cuentas, el
+   * orden deja de importar: la primera vuelta no hace nada (`none`, se avisa
+   * "sin sesión"), y en cuanto el login persiste la sesión de cuenta —auth-js
+   * la escribe siempre, `_saveSession` incondicional— la vuelta siguiente
+   * (poll o el reinicio por cambio de sesión) la encuentra y usa `identity`.
+   * `registerDeviceKey` nunca corre con un uid anónimo.
+   */
+  it('orden real del login: primera vuelta "none", la siguiente ya ve la identidad', async () => {
+    useAuthStore.setState({ currentUser: conCuenta('google') }); // auth/index.tsx:247
+    sesion = null; // entrarAlDirectorio (:273) todavía no llamó a signInWithIdToken
+    expect(await S.ensureRelaySession()).toBe('none');
+
+    sesion = { user: { is_anonymous: false } }; // signInWithIdToken terminó y auth-js persistió
     expect(await S.ensureRelaySession()).toBe('identity');
+    expect(signInAnonymously).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Verifier D2-bis, hallazgo hostil (ronda 2): `await identityEnCurso` no
+ * tenía tope — con la anónima descartada de raíz para cuentas, ESA espera ya
+ * no existe, pero `getSession`/`signInAnonymously` (invitado) siguen siendo
+ * llamadas de red reales, y el resto de `relayEngine` usa `withTimeout` en
+ * cada punto donde algo podría colgarse (T-138-bis). `ensureRelaySession`
+ * tiene que seguir esa misma regla: si la red nunca contesta, se resuelve a
+ * `none` pasado el tope, nunca cuelga el sync entero (el single-flight
+ * compartiría esa promesa colgada con cada `releerTodo`).
+ */
+describe('D2 (ronda 2): tope de tiempo, nunca cuelga', () => {
+  it('si signInAnonymously nunca resuelve, ensureRelaySession vence a SESSION_TIMEOUT_MS', async () => {
+    jest.useFakeTimers();
+    signInAnonymously.mockImplementationOnce(() => new Promise(() => {})); // se cuelga
+
+    const p = S.ensureRelaySession();
+    await jest.advanceTimersByTimeAsync(S.SESSION_TIMEOUT_MS + 1);
+
+    expect(await p).toBe('none');
+    jest.useRealTimers();
+  });
+
+  it('vencido el tope, una llamada siguiente puede volver a intentar (no queda el single-flight pegado)', async () => {
+    jest.useFakeTimers();
+    signInAnonymously.mockImplementationOnce(() => new Promise(() => {}));
+    const primera = S.ensureRelaySession();
+    await jest.advanceTimersByTimeAsync(S.SESSION_TIMEOUT_MS + 1);
+    expect(await primera).toBe('none');
+
+    signInAnonymously.mockClear();
+    await S.ensureRelaySession();
+    expect(signInAnonymously).toHaveBeenCalledTimes(1);
+    jest.useRealTimers();
   });
 });
 
