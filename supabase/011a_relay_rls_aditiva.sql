@@ -56,6 +56,19 @@
 --     `device_keys_read`, la versión invoker devolvería vacío y la fase B de
 --     ADR-004 lo leería como «esta cuenta no tiene claves».
 --
+--  7. El INSERT directo (el camino de los clientes viejos) queda limitado a
+--     las columnas que el cliente manda: `topic, payload, sender, compactable,
+--     owner_proof, ckey`. `seq`, `created_at`, `expires_at` y `owner_tag` los
+--     pone SIEMPRE el servidor. Cierra ya el cursor envenenado (D2 de la
+--     ronda 1 del verificador): con `seq` ≈ 9,2e18 y `expires_at` 2099,
+--     cualquiera que conociera el topic congelaba el cursor del grupo para
+--     siempre y el TTL no lo levantaba.
+--     Compatibilidad verificada contra la historia de `src/sync/relay.ts`: las
+--     únicas formas de fila que publicó algún cliente son {topic, payload,
+--     sender} (1dfcaf8), + compactable (fbf5bfc), + owner_proof (e26fd6a) y
+--     + ckey (228132e); todas son subconjunto de la lista. El RETURNING de
+--     `insert().select('seq,created_at')` usa el grant de SELECT, que no cambia.
+--
 -- QUÉ NO CAMBIA
 -- `envelopes_read`, `envelopes_write`, `device_keys_read`, la publicación de
 -- Realtime, el tope de 1 MB, la prenda (008/009), la compactación por ckey
@@ -95,8 +108,10 @@
 -- relay_enforce_quota, relay_notify_news, purge_relay_quota; `drop table` de
 -- las cuatro relay_* (relay_quota_config, relay_quota, relay_quota_daily,
 -- relay_write_stats); `drop policy relay_news_listen on realtime.messages`;
--- `select cron.unschedule('purge_relay_quota')`; y re-correr
--- `005_claves_por_owner.sql` (vuelve account_keys a invoker).
+-- `select cron.unschedule('purge_relay_quota')`; re-correr
+-- `005_claves_por_owner.sql` (vuelve account_keys a invoker); y
+-- `grant insert on public.envelopes to anon, authenticated` (reabre el cursor
+-- envenenado: sólo si un cliente real no pudiera publicar).
 --
 -- Correrla dos veces no rompe nada (idempotente).
 -- ---------------------------------------------------------------------------
@@ -423,6 +438,11 @@ revoke execute on function public.publish_envelope(text, text, text, boolean, te
 grant execute on function public.publish_envelope(text, text, text, boolean, text, text) to anon, authenticated;
 revoke execute on function public.account_keys(text) from public;
 grant execute on function public.account_keys(text) to anon, authenticated;
+
+-- INSERT directo sólo con las columnas del cliente (punto 7 del docblock).
+-- El revoke de tabla va primero: un grant de columna no achica un grant de tabla.
+revoke insert on public.envelopes from anon, authenticated;
+grant insert (topic, payload, sender, compactable, owner_proof, ckey) on public.envelopes to anon, authenticated;
 
 -- Funciones de trigger y de cron: nadie las llama desde la app.
 revoke execute on function public.relay_enforce_quota() from public, anon, authenticated;

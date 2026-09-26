@@ -4,8 +4,8 @@
 -- Cuándo: si después de correr 011b algo que tenía que seguir sincronizando
 -- dejó de hacerlo. Devuelve la lectura y la escritura directas (anon y
 -- authenticated) y el aviso por
--- postgres_changes EXACTAMENTE como estaban antes del corte (policies de
--- 003/006, grants de 005/008/011a, publicación de 001).
+-- postgres_changes como estaban antes del corte, con 011a aplicada (policies de
+-- 003/006, grants de 005/008/011a —insert por columnas—, publicación de 001).
 --
 -- Qué NO toca:
 --  - 011a queda entera (RPC, cuota, Broadcast, estadística): es aditiva y los
@@ -34,7 +34,10 @@ drop policy if exists device_keys_read on public.device_keys;
 create policy device_keys_read on public.device_keys
   for select using (true);
 
-grant select, insert on public.envelopes to anon, authenticated;
+-- Vuelve al estado de 011a, NO al de antes: el insert directo sigue limitado a
+-- las columnas del cliente (seq/created_at/expires_at los pone el servidor).
+grant select on public.envelopes to anon, authenticated;
+grant insert (topic, payload, sender, compactable, owner_proof, ckey) on public.envelopes to anon, authenticated;
 grant select on public.device_keys to anon;
 
 grant execute on function
