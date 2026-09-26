@@ -63,10 +63,10 @@ export const useCommentStore = create<CommentStoreState>((set, get) => ({
   // y viajando en cada delta de sync. Se tombstonea (no se borra físico) para
   // que el borrado se propague a los otros devices, igual que el del gasto.
   removeForExpense: (expenseId) => {
-    const now = syncedNow();
+    const ahora = syncedNow();
     const comments = get().comments.map(c =>
       c.expenseId === expenseId && !c.isDeleted
-        ? { ...c, isDeleted: true, updatedAt: now }
+        ? { ...c, isDeleted: true, updatedAt: siguienteUpdatedAt(c.updatedAt, ahora) }
         : c,
     );
     persist(comments);
