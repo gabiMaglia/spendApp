@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { readScoped, writeScoped } from './userScope';
 import { mergeByIdLevels } from './mergeLevels';
+import { siguienteUpdatedAt } from './relojDelMerge';
 import { signOnCreate, signOnEdit } from '@/src/sync/signOnWrite';
 import type { RecurringExpense } from '@/src/types/models';
 import { syncedNow } from '@/src/utils/syncedClock';
@@ -18,7 +19,7 @@ interface RecurringStoreState {
   addRecurring: (r: RecurringExpense) => void;
   updateRecurring: (id: string, patch: Partial<RecurringExpense>) => void;
   removeRecurring: (id: string) => void;
-  mergeRecurring: (incoming: RecurringExpense[]) => void;
+  mergeRecurring: (incoming: RecurringExpense[], now?: number) => void;
   hydrate: () => void;
 }
 
@@ -41,9 +42,10 @@ export const useRecurringStore = create<RecurringStoreState>((set, get) => ({
   },
 
   updateRecurring: (id, patch) => {
+    const ahora = syncedNow();
     const recurring = get().recurring.map(r =>
       r.id === id
-        ? signOnEdit('recurring', r, { ...r, ...patch, updatedAt: syncedNow() })
+        ? signOnEdit('recurring', r, { ...r, ...patch, updatedAt: siguienteUpdatedAt(r.updatedAt, ahora) })
         : r,
     );
     persist(recurring);
@@ -52,16 +54,17 @@ export const useRecurringStore = create<RecurringStoreState>((set, get) => ({
 
   // Tombstone, nunca DELETE físico (regla de negocio #1).
   removeRecurring: (id) => {
+    const ahora = syncedNow();
     const recurring = get().recurring.map(r =>
-      r.id === id ? { ...r, isDeleted: true, updatedAt: syncedNow() } : r,
+      r.id === id ? { ...r, isDeleted: true, updatedAt: siguienteUpdatedAt(r.updatedAt, ahora) } : r,
     );
     persist(recurring);
     set({ recurring });
   },
 
-  // LWW por updatedAt, igual que el resto de los stores (sync P2P).
-  mergeRecurring: (incoming) => {
-    const merged = mergeByIdLevels('recurring', get().recurring, incoming);
+  // Merge por niveles (T-041 · S7) con tope de reloj (T-144).
+  mergeRecurring: (incoming, now = syncedNow()) => {
+    const merged = mergeByIdLevels('recurring', get().recurring, incoming, now);
     persist(merged);
     set({ recurring: merged });
   },

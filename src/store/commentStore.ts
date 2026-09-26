@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { readScoped, writeScoped } from './userScope';
 import { mergeByIdLevels } from './mergeLevels';
+import { siguienteUpdatedAt } from './relojDelMerge';
 import { signOnCreate } from '@/src/sync/signOnWrite';
 import { schedulePublish } from '@/src/sync/relayEngine';
 import { useExpenseStore } from './expenseStore';
@@ -30,7 +31,7 @@ interface CommentStoreState {
   /** Tombstonea todos los comentarios de un gasto (cascada al borrarlo). */
   removeForExpense: (expenseId: string) => void;
   removeComment: (id: string) => void;
-  mergeComments: (incoming: ExpenseComment[]) => void;
+  mergeComments: (incoming: ExpenseComment[], now?: number) => void;
   hydrate: () => void;
 }
 
@@ -62,10 +63,10 @@ export const useCommentStore = create<CommentStoreState>((set, get) => ({
   // y viajando en cada delta de sync. Se tombstonea (no se borra físico) para
   // que el borrado se propague a los otros devices, igual que el del gasto.
   removeForExpense: (expenseId) => {
-    const now = syncedNow();
+    const ahora = syncedNow();
     const comments = get().comments.map(c =>
       c.expenseId === expenseId && !c.isDeleted
-        ? { ...c, isDeleted: true, updatedAt: now }
+        ? { ...c, isDeleted: true, updatedAt: siguienteUpdatedAt(c.updatedAt, ahora) }
         : c,
     );
     persist(comments);
@@ -75,8 +76,9 @@ export const useCommentStore = create<CommentStoreState>((set, get) => ({
   },
 
   removeComment: (id) => {
+    const ahora = syncedNow();
     const comments = get().comments.map(c =>
-      c.id === id ? { ...c, isDeleted: true, updatedAt: syncedNow() } : c,
+      c.id === id ? { ...c, isDeleted: true, updatedAt: siguienteUpdatedAt(c.updatedAt, ahora) } : c,
     );
     persist(comments);
     set({ comments });
@@ -87,8 +89,8 @@ export const useCommentStore = create<CommentStoreState>((set, get) => ({
 
   // LWW por updatedAt. Como cada comentario es un registro con id propio, dos
   // personas comentando el mismo gasto sin haber sincronizado NO se pisan.
-  mergeComments: (incoming) => {
-    const merged = mergeByIdLevels('comment', get().comments, incoming);
+  mergeComments: (incoming, now = syncedNow()) => {
+    const merged = mergeByIdLevels('comment', get().comments, incoming, now);
     persist(merged);
     set({ comments: merged });
   },

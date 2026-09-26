@@ -35,6 +35,8 @@ jest.mock('@noble/curves/ed25519.js', () => {
 
 const PRIV = toHex(new Uint8Array(32).fill(5));
 const PUB  = toHex(ed25519.getPublicKey(new Uint8Array(32).fill(5)));
+// Mayor que cualquier `updatedAt` de los fixtures de este archivo (~5 000 o ~1.7e12).
+const NOW = 1_800_000_000_000;
 
 type Registro = Record<string, unknown>;
 
@@ -67,7 +69,7 @@ function versiones(kind: CoreKind, base: Registro): Registro[] {
 
 function aplicar(kind: CoreKind, orden: Registro[]): Registro {
   let estado: Registro[] = [];
-  for (const v of orden) estado = mergeByIdLevels(kind, estado as never, [v] as never) as never;
+  for (const v of orden) estado = mergeByIdLevels(kind, estado as never, [v] as never, NOW) as never;
   return estado[0]!;
 }
 
@@ -87,8 +89,8 @@ describe.each(FIXTURES)('$kind — convergencia', ({ kind, record }) => {
   });
 
   it('volver a mergear lo mismo no cambia nada, y ni siquiera crea un objeto nuevo', () => {
-    const uno = mergeByIdLevels(kind, [] as never, vs as never);
-    const dos = mergeByIdLevels(kind, uno, vs as never);
+    const uno = mergeByIdLevels(kind, [] as never, vs as never, NOW);
+    const dos = mergeByIdLevels(kind, uno, vs as never, NOW);
     expect(canonical(dos[0]!)).toEqual(canonical(uno[0]!));
     // Identidad, no sólo igualdad: el sobre trae el estado completo del grupo
     // cada 20 s y un objeto nuevo por registro es un re-render y una escritura
@@ -112,7 +114,7 @@ describe.each(FIXTURES)('$kind — convergencia', ({ kind, record }) => {
       // El perdedor sí lo tiene, y encima gana el `updatedAt`.
       const perdedor = { ...sinFirma(record as Registro), rev: 10, updatedAt: 9_999 };
 
-      const [out] = mergeByIdLevels(kind, [perdedor] as never, [ganador] as never);
+      const [out] = mergeByIdLevels(kind, [perdedor] as never, [ganador] as never, NOW);
       expect((out as unknown as Registro)[campo]).toBeUndefined();
       expect(verifyCore(kind, out as never, [PUB])).toBe('valida');
     });
@@ -125,7 +127,7 @@ describe.each(FIXTURES)('$kind — convergencia', ({ kind, record }) => {
     // acusaríamos al autor honesto de una mezcla que hicimos nosotros.
     const otro = { ...sinFirma(record as Registro), rev: 10, updatedAt: 9_999, createdAt: 123 };
 
-    const [out] = mergeByIdLevels(kind, [otro] as never, [conFirma] as never);
+    const [out] = mergeByIdLevels(kind, [otro] as never, [conFirma] as never, NOW);
     expect(verifyCore(kind, out as never, [PUB])).toBe('valida');
   });
 });
@@ -174,7 +176,7 @@ describe('el merge NO toca la curva (D9)', () => {
     const locales = Array.from({ length: 200 }, (_, i) => ({ ...gastoFirmado(), id: `e${i}` }));
     const entrantes = locales.map(r => ({ ...r, rev: 20, updatedAt: 20 }));
 
-    mergeByIdLevels('expense', locales as never, entrantes as never);
+    mergeByIdLevels('expense', locales as never, entrantes as never, NOW);
     expect(espia).not.toHaveBeenCalled();
 
     // Y el espía SÍ ve la curva cuando alguien la usa de verdad: sin esto, el
@@ -274,7 +276,7 @@ describe('mergeRecord no muta lo que recibe', () => {
   it('el registro local queda como estaba', () => {
     const local = { ...FIXTURES[0]!.record as Registro, rev: 1, updatedAt: 1 };
     const antes = canonical(local);
-    mergeRecord('expense', local as never, { ...local, rev: 9, updatedAt: 9 } as never);
+    mergeRecord('expense', local as never, { ...local, rev: 9, updatedAt: 9 } as never, NOW);
     expect(canonical(local)).toBe(antes);
   });
 });
@@ -292,7 +294,7 @@ describe('los acuses de un saldado se unen', () => {
   });
 
   const merge = (a: ReturnType<typeof pago>, b: ReturnType<typeof pago>) =>
-    mergeRecord('payment', a as never, b as never) as unknown as
+    mergeRecord('payment', a as never, b as never, NOW) as unknown as
       { confirmations: { userId: string }[] };
 
   const acuse = (userId: string, confirmedAt: number, action = 'confirm') =>

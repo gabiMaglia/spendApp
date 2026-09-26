@@ -1,5 +1,5 @@
 import { incomingWins, type Syncable } from './lww';
-import { TOLERANCIA_RELOJ_MS } from '@/src/sync/voteCore';
+import { envenenado as estaEnvenenado } from './relojDelMerge';
 
 /**
  * LWW de perfiles con tope de reloj (T-137, ADR-012 opción 1).
@@ -43,8 +43,7 @@ import { TOLERANCIA_RELOJ_MS } from '@/src/sync/voteCore';
  * puede entrar al grafo de un módulo que además corre en tests.
  */
 export function mergeUsersLWW<T extends Syncable>(current: T[], incoming: T[], now: number): T[] {
-  const limiteFuturo = now + TOLERANCIA_RELOJ_MS;
-  const envenenado = (updatedAt: number) => !Number.isFinite(updatedAt) || updatedAt > limiteFuturo;
+  const envenenado = (updatedAt: number) => estaEnvenenado(updatedAt, now);
 
   const out = [...current];
   const indexById = new Map(out.map((item, i) => [item.id, i]));
