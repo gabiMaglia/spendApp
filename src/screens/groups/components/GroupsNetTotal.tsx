@@ -2,7 +2,6 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { Colors } from '@/src/constants/colors';
 import { Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -10,6 +9,7 @@ import { Band } from '@/src/components/Band';
 import { FondoMarmol } from '@/src/components/FondoMarmol';
 import { MontoRodante } from '@/src/components/MontoRodante';
 import type { CurrencyCode } from '@/src/constants/currencies';
+import { useColors } from '@/src/skins/useSkin';
 
 /**
  * "Total" (PO 2026-09-22): la sumatoria neta de los grupos QUE SE VEN AHORA —
@@ -21,7 +21,7 @@ import type { CurrencyCode } from '@/src/constants/currencies';
 export function GroupsNetTotal({ netTotal, cur }: { netTotal: number; cur: CurrencyCode }) {
   const { t } = useTranslation();
   const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
 
   return (
     <Band noTop>

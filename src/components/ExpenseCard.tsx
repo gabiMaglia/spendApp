@@ -1,6 +1,5 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Colors } from '@/src/constants/colors';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { formatMoney } from '@/src/constants/currencies';
@@ -10,6 +9,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Avatar, AvatarStack } from './Avatar';
 import { BalancePill } from './BalancePill';
 import { CategoryIcon } from './CategoryIcon';
+import { useColors } from '@/src/skins/useSkin';
 
 interface ExpenseCardProps {
   category?: CategoryKind;
@@ -37,7 +37,7 @@ export function ExpenseCard({
   onPress,
 }: ExpenseCardProps) {
   const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
 
   return (
     <Pressable

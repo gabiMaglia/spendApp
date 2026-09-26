@@ -5,7 +5,6 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 
-import { Colors } from '@/src/constants/colors';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -13,6 +12,7 @@ import { DetailHeader } from '@/src/components/CollapsibleHeader';
 import { deleteAccount } from '@/src/services/deleteAccount';
 import { LEGAL_DISPONIBLE, urlDeBorrado } from '@/src/constants/legal';
 import { hapticWarning } from '@/src/utils/haptics';
+import { useColors } from '@/src/skins/useSkin';
 
 /**
  * Borrar la cuenta (T-074). **Requisito duro de las dos tiendas**, y con dos
@@ -27,7 +27,7 @@ import { hapticWarning } from '@/src/utils/haptics';
  */
 export default function BorrarCuentaScreen() {
   const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
   const { t } = useTranslation();
   const [borrando, setBorrando] = useState(false);
 

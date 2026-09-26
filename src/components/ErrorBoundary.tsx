@@ -1,11 +1,10 @@
 import React, { Component, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Colors } from '@/src/constants/colors';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { recordError } from '@/src/services/errorLog';
+import { useColors } from '@/src/skins/useSkin';
 
 /**
  * **Lo que hoy es una pantalla blanca** (T-078 · §5.2).
@@ -90,7 +89,7 @@ function PantallaDeError({
   onRetry: () => void;
   onExport?: () => void;
 }) {
-  const c = Colors[useColorScheme() ?? 'light'];
+  const c = useColors();
 
   return (
     <View style={[styles.root, { backgroundColor: c.bg }]}>

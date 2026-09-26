@@ -11,7 +11,6 @@ import { v4 as uuidv4 } from 'uuid';
 import { hapticSelection, hapticSuccess } from '@/src/utils/haptics';
 import { useTranslation } from 'react-i18next';
 
-import { Colors } from '@/src/constants/colors';
 import { RecurrencePicker, type RecurrenceValue } from '@/src/components/RecurrencePicker';
 import { PayerSplitter } from '@/src/components/PayerSplitter';
 import { normalizePayers, validatePayers } from '@/src/algorithms/payers';
@@ -43,6 +42,7 @@ import type { ExpenseCategory, PersonalCategory } from '@/src/types/models';
 import { syncedNow } from '@/src/utils/syncedClock';
 import { esYo } from '@/src/store/identityAlias';
 import { MAX_TEXTO_CORTO, MAX_NOTA } from '@/src/sync/topes';
+import { useColors } from '@/src/skins/useSkin';
 
 type CatMeta = { id: PersonalCategory; icon: React.ComponentProps<typeof Ionicons>['name']; label: string };
 
@@ -82,7 +82,7 @@ function formatDate(d: Date): string {
 export default function NewExpenseScreen() {
   const scheme = useColorScheme() ?? 'light';
   const { t } = useTranslation();
-  const c = Colors[scheme];
+  const c = useColors();
 
   const { currentUser, isPro } = useAuthStore();
   const { requiresRewardedAd, superoElTope, getDailyCount, incrementCount } = useTierStore();

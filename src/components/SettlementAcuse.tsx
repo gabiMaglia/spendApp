@@ -3,13 +3,13 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 
-import { Colors } from '@/src/constants/colors';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { ActionButton } from './ActionButton';
 import { ButtonRack } from './ButtonRack';
 import type { EstadoSaldado } from '@/src/algorithms/settlementStatus';
+import { useColors } from '@/src/skins/useSkin';
 
 export interface SettlementAcuseProps {
   estado: EstadoSaldado;
@@ -42,7 +42,7 @@ export function SettlementAcuse({
 }: SettlementAcuseProps) {
   const scheme = useColorScheme() ?? 'light';
   const { t } = useTranslation();
-  const c = Colors[scheme];
+  const c = useColors();
 
   if (estado === 'efectivo') return null;
 

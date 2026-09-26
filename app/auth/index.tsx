@@ -11,7 +11,6 @@ import { registerDeviceKey } from '@/src/sync/deviceKeys';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import * as AppleAuthentication from 'expo-apple-authentication';
 
-import { Colors } from '@/src/constants/colors';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -22,6 +21,7 @@ import { actualizarMiPerfil } from '@/src/store/miPerfil';
 import { mergeProviderUser } from '@/src/utils/mergeProviderUser';
 import { syncedNow } from '@/src/utils/syncedClock';
 import { Button } from '@/src/components/Button';
+import { useColors } from '@/src/skins/useSkin';
 
 type GoogleUser = {
   id: string;
@@ -34,7 +34,7 @@ type GoogleUser = {
 export default function AuthScreen() {
   const { t } = useTranslation();
   const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
   const { setUser, getStoredProfile, resolveAccount, confirmAccountLink, keepAccountSeparate } = useAuthStore();
 
   const [appleAvailable, setAppleAvailable] = useState(false);

@@ -5,9 +5,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { HapticTab } from '@/components/haptic-tab';
-import { Colors } from '@/src/constants/colors';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useSkin } from '@/src/skins/useSkin';
+import { useSkin, useColors } from '@/src/skins/useSkin';
 import { TabBarFondoAero } from '@/src/components/skin/TabBarFondoAero';
 
 /**
@@ -30,7 +29,7 @@ const PISO_INFERIOR = 12;
 
 function TabLabel({ label, focused }: { label: string; focused: boolean }) {
   const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
   const { skin, degradado } = useSkin();
   const color = focused ? c.brand.primary : c.textTertiary;
   // Aero (PO 2026-09-26): el punto activo pasa a una píldora corta con brillo
@@ -52,7 +51,7 @@ function TabLabel({ label, focused }: { label: string; focused: boolean }) {
 
 export default function TabLayout() {
   const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
 

@@ -2,10 +2,10 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-import { Colors } from '@/src/constants/colors';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useColors } from '@/src/skins/useSkin';
 
 /**
  * Avisa que este grupo dejó de sincronizar.
@@ -20,7 +20,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
  */
 export function SyncWarningBanner({ title, body }: { title: string; body: string }) {
   const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
 
   return (
     <View

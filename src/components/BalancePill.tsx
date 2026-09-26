@@ -1,9 +1,9 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { Colors } from '@/src/constants/colors';
 import { formatAmount } from '@/src/constants/currencies';
 import type { CurrencyCode } from '@/src/constants/currencies';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useColors } from '@/src/skins/useSkin';
 
 interface BalancePillProps {
   amount: number;
@@ -13,7 +13,7 @@ interface BalancePillProps {
 
 export function BalancePill({ amount, currency = 'ARS', size = 'md' }: BalancePillProps) {
   const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
 
   const settled = amount === 0;
   const positive = amount > 0;

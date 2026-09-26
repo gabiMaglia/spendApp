@@ -10,7 +10,6 @@ import { useTranslation } from 'react-i18next';
 import i18n from '@/src/i18n';
 import { Ionicons } from '@expo/vector-icons';
 
-import { Colors } from '@/src/constants/colors';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { DetailHeader } from '@/src/components/CollapsibleHeader';
 import { FondoMarmol } from '@/src/components/FondoMarmol';
@@ -39,6 +38,7 @@ import { emitirVoto } from '@/src/services/deletionVotes';
 import type { CategoryKind } from '@/src/constants/colors';
 import { syncedNow } from '@/src/utils/syncedClock';
 import { esYo } from '@/src/store/identityAlias';
+import { useColors } from '@/src/skins/useSkin';
 
 /** "2 días" / "5 horas" / "40 minutos": basta para saber si hay que apurarse. */
 function formatearRestante(ms: number): string {
@@ -55,7 +55,7 @@ export default function ExpenseDetailScreen() {
   // condicional rompe el orden de hooks entre renders. Lo atrapó el lint.
   const groups = useGroupStore(st => st.groups);
   const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
 
   const { currentUser } = useAuthStore();
   const expense = useExpenseStore(s => s.expenses.find(e => e.id === id));

@@ -6,7 +6,6 @@ import { useHeaderColapsable } from '@/src/hooks/useHeaderColapsable';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
-import { Colors } from '@/src/constants/colors';
 import { formatMoney } from '@/src/constants/currencies';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuthStore } from '@/src/store/authStore';
@@ -20,6 +19,7 @@ import { useFriendsContacts } from '@/src/screens/friends/hooks/useFriendsContac
 import { useAddContactSheet } from '@/src/screens/friends/hooks/useAddContactSheet';
 import { ContactsList } from '@/src/screens/friends/components/ContactsList';
 import { AddContactSheet } from '@/src/screens/friends/components/AddContactSheet';
+import { useColors } from '@/src/skins/useSkin';
 
 export default function FriendsScreen() {
   const { t } = useTranslation();
@@ -27,7 +27,7 @@ export default function FriendsScreen() {
   const headerPad = useHeaderPadding(0);
   const limiteContenido = useLimiteContenido();
   const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
   const { currentUser } = useAuthStore();
 
   const { scrollHandler, progress, contenidoMinimo, alMedirScroll } = useHeaderColapsable();

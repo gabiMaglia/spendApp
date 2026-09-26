@@ -4,11 +4,10 @@ import Animated, { useAnimatedStyle, useReducedMotion, type SharedValue } from '
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Colors } from '@/src/constants/colors';
 import { Spacing } from '@/src/constants/spacing';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { FondoMarmol } from '@/src/components/FondoMarmol';
-import { useSkinTokens } from '@/src/skins/useSkin';
+import { useSkinTokens, useColors } from '@/src/skins/useSkin';
 import { HeaderAero, fondoBarraAero } from '@/src/components/skin/HeaderAero';
 import { RECORRIDO_AERO } from '@/src/components/skin/headerAeroGeometria';
 import { HEADER_BAR_H, TITLE_BOTTOM_GAP, TITLE_BLOCK_H } from '@/src/constants/header';
@@ -96,7 +95,7 @@ export function CollapsibleHeader({
   left?: React.ReactNode;
 }) {
   const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
   const insets = useSafeAreaInsets();
   const soft = useSkinTokens().flags.soft;
 
@@ -197,7 +196,7 @@ export function CollapsibleHeader({
 /** Avatar de iniciales del header. */
 export function HeaderAvatar({ initials }: { initials: string }) {
   const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
   return (
     <View style={[styles.avatar, { backgroundColor: c.text }]}>
       <Text style={{ fontSize: 11, fontWeight: '600', color: c.bg }}>{initials}</Text>
@@ -208,7 +207,7 @@ export function HeaderAvatar({ initials }: { initials: string }) {
 /** Chip de moneda del header. */
 export function HeaderCurrency({ code, onPress }: { code: string; onPress?: () => void }) {
   const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
   return (
     <Pressable onPress={onPress} hitSlop={8}>
       <Text style={{ fontSize: 12, fontWeight: '700', letterSpacing: 0.5, color: c.textSecondary }}>
@@ -223,7 +222,7 @@ export function HeaderIcon({
   name, onPress,
 }: { name: keyof typeof Ionicons.glyphMap; onPress: () => void }) {
   const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
   return (
     <Pressable onPress={onPress} hitSlop={10} style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}>
       <Ionicons name={name} size={19} color={c.text} />
@@ -300,7 +299,7 @@ export function DetailHeader({
   icon?: keyof typeof Ionicons.glyphMap;
 }) {
   const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
   const insets = useSafeAreaInsets();
   return (
     <View style={[detail.wrap, { paddingTop: insets.top, borderBottomColor: c.hair }]}>

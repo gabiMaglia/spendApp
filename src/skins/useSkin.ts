@@ -4,7 +4,7 @@ import { useSettingsStore } from '@/src/store/settingsStore';
 import { esDispositivoDeGamaBaja } from '@/src/utils/deviceTier';
 import { resolveSkin } from './resolveSkin';
 import type { SkinId } from './registry';
-import type { Skin } from './types';
+import type { Skin, SkinColors } from './types';
 
 /**
  * **Skin activo, ya resuelto contra el respaldo.**
@@ -34,4 +34,13 @@ export function useSkinTokens(): Skin {
   const scheme = useColorScheme() ?? 'light';
   const id = useSettingsStore(s => s.skin);
   return resolveSkin(id, scheme);
+}
+
+/**
+ * **Paleta del skin activo** (etapa 2 del Aero): reemplaza a `Colors[scheme]`
+ * en componentes y pantallas. Con el skin default los valores son exactamente
+ * los de `Colors` (ver `DEFAULT_SKIN`), así el Clásico no cambia.
+ */
+export function useColors(): SkinColors {
+  return useSkinTokens().colors;
 }

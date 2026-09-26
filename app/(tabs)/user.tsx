@@ -9,7 +9,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
-import { Colors } from '@/src/constants/colors';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -50,12 +49,13 @@ import { compartirArchivoTemporal } from '@/src/services/compartirArchivoTempora
 import {
   buildBackup, serializeBackup, parseBackup, applyBackup, backupFileName,
 } from '@/src/services/backup';
+import { useColors } from '@/src/skins/useSkin';
 
 export default function UserScreen() {
   const scheme = useColorScheme() ?? 'light';
   const headerPad = useHeaderPadding(0);
   const limiteContenido = useLimiteContenido();
-  const c = Colors[scheme];
+  const c = useColors();
   const { t, i18n } = useTranslation();
   const { currentUser, isPro, signOut } = useAuthStore();
   const { scrollHandler, progress, contenidoMinimo, alMedirScroll } = useHeaderColapsable();
@@ -574,7 +574,7 @@ function ToggleRow({
   sub?: string;
 }) {
   const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
   return (
     <BandRow last={last}>
       <View style={{ flex: 1, gap: 2 }}>
@@ -602,7 +602,7 @@ function LinkRow({
   sub?: string;
 }) {
   const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
   return (
     <BandRow onPress={onPress} last={last}>
       <Ionicons name={icon} size={17} color={c.textSecondary} />

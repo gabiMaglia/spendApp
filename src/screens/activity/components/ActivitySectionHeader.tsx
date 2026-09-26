@@ -1,11 +1,11 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { Colors } from '@/src/constants/colors';
 import { Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { FondoMarmol } from '@/src/components/FondoMarmol';
+import { useColors } from '@/src/skins/useSkin';
 
 /**
  * **Separador de temporalidad ("Hoy"/"Ayer"/"Antes") con mármol** (PO
@@ -21,7 +21,7 @@ export function ActivitySectionHeader({
   label, topOverride, right,
 }: { label: string; topOverride?: number; right?: React.ReactNode }) {
   const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
   return (
     <View style={[
       styles.sectionHeader,

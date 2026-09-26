@@ -7,7 +7,6 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { v4 as uuidv4 } from 'uuid';
 
-import { Colors } from '@/src/constants/colors';
 import { DetailHeader } from '@/src/components/CollapsibleHeader';
 import { FondoMarmol } from '@/src/components/FondoMarmol';
 
@@ -40,6 +39,7 @@ import { useTranslation } from 'react-i18next';
 import i18n from '@/src/i18n';
 import { syncedNow } from '@/src/utils/syncedClock';
 import { esYo, idCanonico } from '@/src/store/identityAlias';
+import { useColors } from '@/src/skins/useSkin';
 
 function formatDate(d: Date): string {
   const today     = new Date(); today.setHours(0, 0, 0, 0);
@@ -53,7 +53,7 @@ function formatDate(d: Date): string {
 export default function SettleNewScreen() {
   const scheme = useColorScheme() ?? 'light';
   const { t } = useTranslation();
-  const c = Colors[scheme];
+  const c = useColors();
 
   const { currentUser } = useAuthStore();
   const { addPayment } = usePaymentStore();

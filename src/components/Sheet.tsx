@@ -7,12 +7,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
-import { Colors } from '@/src/constants/colors';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAnimacionesReducidas } from '@/src/hooks/useAnimacionesReducidas';
 import { UserAvatar } from './UserAvatar';
+import { useColors } from '@/src/skins/useSkin';
 
 /**
  * Sheets y modales — vocabulario "flat bands".
@@ -106,7 +106,7 @@ export function BottomSheet({
   scroll?: boolean;
 }) {
   const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
   const insets = useSafeAreaInsets();
   const alturaTeclado = useAlturaTeclado();
 
@@ -283,7 +283,7 @@ export function SheetOption({
   testID?: string;
 }) {
   const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
 
   const tint = destructive ? c.semantic.negative : selected ? c.brand.primary : c.text;
   const iconTint = destructive ? c.semantic.negative : selected ? c.brand.primary : c.textSecondary;
@@ -329,7 +329,7 @@ export function SheetOptionAvatar({
   last?: boolean;
 }) {
   const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
   return (
     <Pressable
       onPress={onPress}
@@ -363,7 +363,7 @@ export function SheetOptionAvatar({
 /** Bajada bajo el título: una línea de contexto, no un párrafo. */
 export function SheetNote({ children }: { children: React.ReactNode }) {
   const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
   return (
     <Text style={[Typography.bodyS, styles.note, { color: c.textSecondary }]}>{children}</Text>
   );
@@ -372,7 +372,7 @@ export function SheetNote({ children }: { children: React.ReactNode }) {
 /** Etiqueta de sección dentro del sheet (uppercase, como en las pantallas). */
 export function SheetLabel({ children }: { children: string }) {
   const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
   return (
     <Text style={[Typography.label, styles.sheetLabel, { color: c.textTertiary, textTransform: 'uppercase' }]}>
       {children}
@@ -386,7 +386,7 @@ export const SheetInput = React.forwardRef<
   TextInputProps & { icon?: React.ComponentProps<typeof Ionicons>['name'] }
 >(function SheetInput({ icon, style, multiline, ...rest }, ref) {
   const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
   return (
     <View
       style={[
@@ -425,7 +425,7 @@ export function SheetToggle({
   label, sublabel, value, onChange,
 }: { label: string; sublabel?: string; value: boolean; onChange: (v: boolean) => void }) {
   const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
   return (
     <Pressable onPress={() => onChange(!value)} style={styles.toggleRow}>
       <View style={{ flex: 1, minWidth: 0, gap: Spacing[1] }}>
@@ -453,7 +453,7 @@ export function SheetButton({
   testID?: string;
 }) {
   const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
 
   const bg = disabled ? c.bgGrouped
     : variant === 'primary' ? c.brand.primary
@@ -505,7 +505,7 @@ export function ConfirmSheet({
   cancelTestID?: string;
 }) {
   const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
   return (
     <BottomSheet
       visible={visible}

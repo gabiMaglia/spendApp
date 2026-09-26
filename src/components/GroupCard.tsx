@@ -1,12 +1,12 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Colors } from '@/src/constants/colors';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { formatMoney } from '@/src/constants/currencies';
 import type { CurrencyCode } from '@/src/constants/currencies';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTranslation } from 'react-i18next';
+import { useColors } from '@/src/skins/useSkin';
 
 interface GroupCardProps {
   name: string;
@@ -34,7 +34,7 @@ export function GroupCard({
 }: GroupCardProps) {
   const { t } = useTranslation();
   const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
 
   const settled  = balance === 0;
   const positive = balance > 0;

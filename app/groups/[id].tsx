@@ -8,7 +8,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { v4 as uuidv4 } from 'uuid';
 import { hapticLight, hapticSuccess } from '@/src/utils/haptics';
 
-import { Colors } from '@/src/constants/colors';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { formatMoney } from '@/src/constants/currencies';
@@ -53,6 +52,7 @@ import i18n from '@/src/i18n';
 import { syncedNow } from '@/src/utils/syncedClock';
 import { salirDelGrupo } from '@/src/services/salirDelGrupo';
 import { esYo, mismaPersona } from '@/src/store/identityAlias';
+import { useColors } from '@/src/skins/useSkin';
 
 type TimelineItem =
   | { type: 'expense'; data: Expense; ts: number }
@@ -64,7 +64,7 @@ export default function GroupDetailScreen() {
   const { t } = useTranslation();
   const falloDeSync = useGroupSyncFailure(id as string);
   const manifiestoIncompleto = useManifestGap(id as string);
-  const c = Colors[scheme];
+  const c = useColors();
 
   const { currentUser } = useAuthStore();
   const ensureKey    = useGroupKeyStore(st => st.ensureKey);
@@ -651,7 +651,7 @@ function ExpenseRow({
 }) {
   const scheme = useColorScheme() ?? 'light';
   const { t } = useTranslation();
-  const c = Colors[scheme];
+  const c = useColors();
 
   const myShare   = expense.splits.find(s => mismaPersona(s.userId, currentUserId));
   const isPayer   = mismaPersona(expense.paidById, currentUserId);
@@ -699,7 +699,7 @@ function PaymentRow({
 }) {
   const scheme = useColorScheme() ?? 'light';
   const { t } = useTranslation();
-  const c = Colors[scheme];
+  const c = useColors();
 
   const acuse     = useSaldadoAcuse(payment, currentUserId);
   const fromName  = mismaPersona(payment.fromUserId, currentUserId) ? t('common.you') : getUserName(payment.fromUserId);

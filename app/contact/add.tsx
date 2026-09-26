@@ -8,7 +8,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import QRCode from 'react-native-qrcode-svg';
 
-import { Colors } from '@/src/constants/colors';
 import { DetailHeader } from '@/src/components/CollapsibleHeader';
 import { Segmented } from '@/src/components/Band';
 import { Fab, FabRow } from '@/src/components/Fab';
@@ -32,6 +31,7 @@ import { useTranslation } from 'react-i18next';
 import { syncedNow } from '@/src/utils/syncedClock';
 import { esYo } from '@/src/store/identityAlias';
 import { shortFingerprint } from '@/src/utils/keyFingerprint';
+import { useColors } from '@/src/skins/useSkin';
 
 type Mode = 'my_qr' | 'scan';
 
@@ -47,7 +47,7 @@ function volverAContactos() {
 export default function AddContactScreen() {
   const scheme = useColorScheme() ?? 'light';
   const { t } = useTranslation();
-  const c = Colors[scheme];
+  const c = useColors();
   const { currentUser } = useAuthStore();
   const { addOrUpdateUser, getUserById } = useUserStore();
 

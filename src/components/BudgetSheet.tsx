@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { Colors } from '@/src/constants/colors';
 import { Radius } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -11,6 +10,7 @@ import { usePersonalStore } from '@/src/store/personalStore';
 import { hapticLight, hapticSelection } from '@/src/utils/haptics';
 import { useTranslation } from 'react-i18next';
 import type { CurrencyCode } from '@/src/constants/currencies';
+import { useColors } from '@/src/skins/useSkin';
 
 /**
  * **Configurar/editar el presupuesto mensual** (T-137).
@@ -28,7 +28,7 @@ import type { CurrencyCode } from '@/src/constants/currencies';
  */
 export function BudgetSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
   const { t } = useTranslation();
   const { budget, setBudget } = usePersonalStore();
 

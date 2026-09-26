@@ -2,11 +2,11 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { Colors } from '@/src/constants/colors';
 import { Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { FondoMarmol } from '@/src/components/FondoMarmol';
+import { useColors } from '@/src/skins/useSkin';
 
 /**
  * **La fila "Contactos (N)" — chip con mármol** (PO 2026-09-22, corrige el
@@ -19,7 +19,7 @@ import { FondoMarmol } from '@/src/components/FondoMarmol';
  */
 export function ContactsCountHeader({ count }: { count: number }) {
   const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
   const { t } = useTranslation();
   return (
     <View testID="contactos-count-header" style={[styles.countHeader, { borderBottomColor: c.hair }]}>

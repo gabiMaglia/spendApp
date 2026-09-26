@@ -5,7 +5,6 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 
-import { Colors } from '@/src/constants/colors';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -15,6 +14,7 @@ import { contactInviteFromParams, isContactInviteExpired } from '@/src/sync/cont
 import { publishContactClaim, processContactInvite } from '@/src/sync/contactInviteEngine';
 import { deviceId, startRelay } from '@/src/sync/relayEngine';
 import { shortFingerprint } from '@/src/utils/keyFingerprint';
+import { useColors } from '@/src/skins/useSkin';
 
 /**
  * Pantalla que recibe el link de contacto por invitación (T-096 · ADR-015):
@@ -30,7 +30,7 @@ type Estado = 'listo' | 'entrando' | 'entre' | 'esperando';
 
 export default function ContactClaimScreen() {
   const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
   const { t } = useTranslation();
 
   const params = useLocalSearchParams();

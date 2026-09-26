@@ -2,15 +2,15 @@ import React, { useContext } from 'react';
 import { Pressable, StyleSheet, Text, View, type ViewStyle, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-import { Colors } from '@/src/constants/colors';
 import { Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { MontoRodante } from '@/src/components/MontoRodante';
 import type { MontoRegistry } from '@/src/utils/montoRodanteRegistry';
 import type { CurrencyCode } from '@/src/constants/currencies';
 import { PanelContext } from '@/src/components/skin/PanelContext';
-import type { Widen } from '@/src/skins/types';
+import type { SkinColors } from '@/src/skins/types';
+import { useSkinTokens } from '@/src/skins/useSkin';
+import { Panel } from '@/src/components/skin/Panel';
 
 /**
  * Primitivas del reskin "flat bands".
@@ -22,13 +22,13 @@ import type { Widen } from '@/src/skins/types';
  */
 
 /**
- * Paleta de las primitivas. Fuera de un `Panel` del skin es `Colors[scheme]`
- * (igual que siempre); adentro, la paleta del skin que puso el panel.
+ * Paleta de las primitivas: la del skin activo (con el default, exactamente
+ * `Colors[scheme]`); adentro de un `Panel`, la que puso el panel.
  */
-export function useC(): Widen<typeof Colors.light> {
-  const scheme = useColorScheme() ?? 'light';
+export function useC(): SkinColors {
+  const skin = useSkinTokens();
   const panel = useContext(PanelContext);
-  return panel?.colors ?? Colors[scheme];
+  return panel?.colors ?? skin.colors;
 }
 
 /** Etiqueta de sección sobre una banda. `right` es un link o accesorio opcional. */
@@ -79,9 +79,19 @@ export function Band({
   noTop?: boolean;
 }) {
   const c = useC();
+  const soft = useSkinTokens().flags.soft;
   // Dentro de un `Panel` del skin, el panel pone fondo/radio/sombra: la banda
   // no dibuja sus hairlines ni su fondo (salvo `sunken`, con el tono del skin).
   const panel = useContext(PanelContext);
+  // Aero (etapa 2): una banda suelta se dibuja como panel. `style` va al panel
+  // (es layout: flexGrow, márgenes). Bandas que deben ir juntas: `BandStack`.
+  if (soft && !panel) {
+    return (
+      <Panel style={style}>
+        <Band sunken={sunken} noTop={noTop} noBottom={noBottom}>{children}</Band>
+      </Panel>
+    );
+  }
   return (
     <View
       style={[
