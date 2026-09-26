@@ -737,6 +737,42 @@ describe('SEC-06 (T-151) · un reclamo a nombre de alguien que YA es miembro', (
     expect(relayMock.__buzones.get(topic) ?? []).toHaveLength(1);
     expect(useGroupStore.getState().groups[0]!.memberIds).toEqual([ANA.id, BETO.id]);
   });
+
+  /**
+   * O3 (verifier T-151, ronda 2): la comparación de `wrapPublicKey` en `admit`
+   * normaliza con `toLowerCase`, pero `wrapGroupKey` envolvía con el valor
+   * CRUDO del claim. Si el propio Beto reclama con su wrap en mayúsculas (un
+   * cliente que la formatee distinto, por ejemplo), pasaba la comparación
+   * pero la clave salía envuelta hacia un `info` HKDF que no coincide con el
+   * que deriva `unwrapGroupKey` desde su clave privada real (minúsculas,
+   * `toHex`) — el link quedaba gastado sin que ni el dueño real pudiera abrir
+   * el grant.
+   */
+  it('T-151 O3: Beto legítimo con su wrap en MAYÚSCULAS sí puede abrir el grant', async () => {
+    const { invite } = anaInvita();
+
+    usar('beto', BETO);
+    const identidadDeBeto = ensureIdentity().publicKey;
+    const wrapDeBeto = ensureWrapKeypair().publicKey;
+
+    const claimEnMayusculas: InviteClaim = {
+      kind: 'claim',
+      groupId: invite.groupId,
+      userId: BETO.id,
+      wrapPublicKey: wrapDeBeto.toUpperCase(),
+      identityPublicKey: identidadDeBeto,
+      displayName: 'Beto',
+      claimedAt: Date.now(),
+    };
+    await inyectar(invite, await sealClaim(invite.token, claimEnMayusculas), 'device-beto');
+
+    usar('ana', ANA);
+    await processInvite(invite, 'device-ana');
+
+    usar('beto', BETO);
+    const adoptados = await processInvite(invite, 'device-beto');
+    expect(adoptados).toEqual(['g1']);
+  });
 });
 
 describe('D2 (verifier T-151, ronda 1) · reintento del invitado nuevo si la primera entrega falla', () => {
