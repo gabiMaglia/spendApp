@@ -85,7 +85,7 @@ describe('app.json — metadatos iOS (T-123)', () => {
     }
   });
 
-  it('no toca ITSAppUsesNonExemptEncryption (espera firma del PO, ADR-010)', () => {
-    expect(app.expo.ios.infoPlist?.ITSAppUsesNonExemptEncryption).toBe(false);
+  it('ITSAppUsesNonExemptEncryption en true (DEC-01, ratifica ADR-010: self-classification por cifrado propio)', () => {
+    expect(app.expo.ios.infoPlist?.ITSAppUsesNonExemptEncryption).toBe(true);
   });
 });
