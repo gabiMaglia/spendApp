@@ -3,6 +3,7 @@ import { createStorage } from '@/src/utils/createStorage';
 import { readScoped, readScopedBool, writeScoped, writeScopedBool } from './userScope';
 import { SUPPORTED_CURRENCIES, type CurrencyCode } from '@/src/constants/currencies';
 import { esDispositivoDeGamaBaja } from '@/src/utils/deviceTier';
+import { FALLBACK_SKIN, esSkinId, type SkinId } from '@/src/skins/registry';
 
 const storage = createStorage('settings');
 
@@ -13,6 +14,7 @@ const KEYS = {
   NOTIF_SETTLEMENTS:'notif_settlements',
   DISPLAY_CURRENCY:'display_currency',
   REDUCE_ANIMATIONS:'reduce_animations',
+  SKIN: 'skin',
 } as const;
 
 /**
@@ -41,6 +43,10 @@ interface SettingsState {
    */
   reduceAnimations: boolean;
 
+  /** Skin visual elegido en Yo (PO 2026-09-25). Default = `FALLBACK_SKIN`. */
+  skin: SkinId;
+  setSkin: (id: SkinId) => void;
+
   setDisplayCurrency: (code: CurrencyCode) => void;
   setNotifExpenses: (value: boolean) => void;
   setNotifDeletions: (value: boolean) => void;
@@ -62,6 +68,12 @@ export function createSettingsStore() {
     notifSettlements: true,
     displayCurrency: DEFAULT_DISPLAY_CURRENCY,
     reduceAnimations: esDispositivoDeGamaBaja(),
+    skin: FALLBACK_SKIN,
+
+    setSkin: (id) => {
+      writeScoped(storage, KEYS.SKIN, id);
+      set({ skin: id });
+    },
 
     setDisplayCurrency: (code) => {
       writeScoped(storage, KEYS.DISPLAY_CURRENCY, code);
@@ -105,6 +117,12 @@ export function createSettingsStore() {
         displayCurrency: (() => {
           const guardado = readScoped(storage, KEYS.DISPLAY_CURRENCY);
           return esMonedaSoportada(guardado) ? guardado : DEFAULT_DISPLAY_CURRENCY;
+        })(),
+        // Un skin guardado que ya no exista (retirado, data vieja) cae al
+        // respaldo en vez de dejar la app pidiendo un skin inexistente.
+        skin: (() => {
+          const guardado = readScoped(storage, KEYS.SKIN);
+          return esSkinId(guardado) ? guardado : FALLBACK_SKIN;
         })(),
       });
     },

@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 import { createSettingsStore, useSettingsStore } from '../settingsStore';
 import { createStorage } from '@/src/utils/createStorage';
+import { writeScoped } from '@/src/store/userScope';
 import { useAuthStore } from '../authStore';
 import type { User } from '@/src/types/models';
 
@@ -111,6 +112,33 @@ describe('settingsStore (preferencias por cuenta)', () => {
       setActive(USER_A);
       useSettingsStore.getState().hydrate();
       expect(useSettingsStore.getState().reduceAnimations).toBe(false);
+    });
+  });
+
+  describe('skin', () => {
+    it('arranca en el skin de respaldo', () => {
+      const fresh = createSettingsStore();
+      expect(fresh.getState().skin).toBe('default');
+    });
+
+    it('setSkin persiste y hydrate lo recupera', () => {
+      useSettingsStore.getState().setSkin('aero');
+      useSettingsStore.setState({ skin: 'default' });
+      useSettingsStore.getState().hydrate();
+      expect(useSettingsStore.getState().skin).toBe('aero');
+    });
+
+    it('un valor guardado que no es un skin conocido cae al respaldo', () => {
+      writeScoped(createStorage('settings'), 'skin', 'retirado');
+      useSettingsStore.getState().hydrate();
+      expect(useSettingsStore.getState().skin).toBe('default');
+    });
+
+    it('es por cuenta: otra cuenta no hereda el skin', () => {
+      useSettingsStore.getState().setSkin('aero');
+      setActive(USER_B);
+      useSettingsStore.getState().hydrate();
+      expect(useSettingsStore.getState().skin).toBe('default');
     });
   });
 });
