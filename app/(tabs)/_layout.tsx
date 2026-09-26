@@ -63,8 +63,7 @@ export default function TabLayout() {
   const { skin } = useSkin();
   const soft = skin.flags.soft;
   // Aero (PO 2026-09-26): la tarjeta flota 8pt por encima de la zona del
-  // sistema (en Android con barra de tres botones quedaba pegada), y el
-  // contenido sube 4pt para quedar centrado dentro de la tarjeta.
+  // sistema (en Android con barra de tres botones quedaba pegada).
   const separacionAero = soft ? 8 : 0;
   const bajoTarjeta = inferior + separacionAero;
 
@@ -93,7 +92,7 @@ export default function TabLayout() {
         tabBarInactiveTintColor: c.textTertiary,
         tabBarStyle: {
           height: ALTO_CONTENIDO + bajoTarjeta,
-          paddingTop: soft ? 2 : 11,
+          paddingTop: 11,
           paddingBottom: bajoTarjeta,
           backgroundColor: c.bg,
           borderTopWidth: 1,
