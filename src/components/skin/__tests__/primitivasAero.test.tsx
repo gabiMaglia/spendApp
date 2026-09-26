@@ -34,7 +34,7 @@ describe('DetailHeader aero', () => {
     useSettingsStore.setState({ skin: 'aero', reduceAnimations: true });
     const onBack = jest.fn();
     const { UNSAFE_root } = render(<DetailHeader title="X" onBack={onBack} />);
-    const boton = UNSAFE_root.findAll(n => typeof n.props.onPress === 'function')[0];
+    const boton = UNSAFE_root.findAll((n: { props: { onPress?: unknown } }) => typeof n.props.onPress === 'function')[0];
     fireEvent.press(boton);
     expect(onBack).toHaveBeenCalledTimes(1);
   });

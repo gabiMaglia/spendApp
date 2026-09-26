@@ -3,6 +3,8 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { Typography } from '@/src/constants/typography';
 import type { StatItem } from '@/src/components/Band';
+import { MontoRodante } from '@/src/components/MontoRodante';
+import type { MontoRegistry } from '@/src/utils/montoRodanteRegistry';
 import { useSkinTokens } from '@/src/skins/useSkin';
 import { Panel } from './Panel';
 
@@ -14,7 +16,14 @@ import { Panel } from './Panel';
  * Solo tiene sentido con un skin `soft`: quien llama elige entre esto y la
  * banda de siempre (`StatLead`/`SplitStat`) según `skin.flags.soft`.
  */
-export function StatCards({ rows, testID = 'stat-cards' }: { rows: StatItem[][]; testID?: string }) {
+export function StatCards({
+  rows, testID = 'stat-cards', registry,
+}: {
+  rows: StatItem[][];
+  testID?: string;
+  /** Sólo para tests: registro inyectable de `MontoRodante`. */
+  registry?: MontoRegistry;
+}) {
   const skin = useSkinTokens();
   const c = skin.colors;
   const gap = skin.space.gapPanel;
@@ -34,14 +43,26 @@ export function StatCards({ rows, testID = 'stat-cards' }: { rows: StatItem[][];
                 <Text style={[Typography.label, { color: c.textTertiary, textTransform: 'uppercase' }]}>
                   {it.label}
                 </Text>
-                <Text
-                  style={[Typography.amountM, { color: it.color ?? c.text }]}
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.75}
-                >
-                  {it.value}
-                </Text>
+                {it.id ? (
+                  <MontoRodante
+                    id={it.id}
+                    minor={it.minor ?? 0}
+                    code={it.code}
+                    style={[Typography.amountM, { color: it.color ?? c.text }]}
+                    registry={registry}
+                    pending={it.pending}
+                    pendingAccessibilityLabel={it.pendingLabel}
+                  />
+                ) : (
+                  <Text
+                    style={[Typography.amountM, { color: it.color ?? c.text }]}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.75}
+                  >
+                    {it.value}
+                  </Text>
+                )}
               </View>
             </Panel>
           ))}

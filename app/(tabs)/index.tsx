@@ -10,7 +10,6 @@ import { Spacing } from '@/src/constants/spacing';
 import { formatMoney } from '@/src/constants/currencies';
 import { useSkinTokens } from '@/src/skins/useSkin';
 import { Panel } from '@/src/components/skin/Panel';
-import { StatCards } from '@/src/components/skin/StatCards';
 import { useFabSkinStyle } from '@/src/components/skin/useFabSkinStyle';
 import { Fab, FabRow, FAB_BOTTOM_GAP, FAB_HEIGHT } from '@/src/components/Fab';
 import { SplitStat, StatLead } from '@/src/components/Band';
@@ -111,15 +110,13 @@ export default function PersonalScreen() {
               diferencia de la vieja Inicio, esta fuente no tiene noción de
               "conversión en vuelo" — igual que el SplitStat de deuda de más
               abajo, que también convive en esta pantalla. */}
-          <Panel>
-            <SplitStat
-              noTop
-              items={[
-                { label: t('friends.owed_to_you'), value: formatMoney(owedToMe, cur), color: c.semantic.positive },
-                { label: t('friends.you_owe'),     value: formatMoney(youOwe, cur),   color: c.textSecondary },
-              ]}
-            />
-          </Panel>
+          <SplitStat
+            noTop
+            items={[
+              { label: t('friends.owed_to_you'), value: formatMoney(owedToMe, cur), color: c.semantic.positive },
+              { label: t('friends.you_owe'),     value: formatMoney(youOwe, cur),   color: c.textSecondary },
+            ]}
+          />
 
           <PersonalMonthNav
             activeMonth={activeMonth}
@@ -147,23 +144,14 @@ export default function PersonalScreen() {
               entre sí, y no lo son: los de abajo salen del de arriba. Al lado
               del ingreso, cantidad de grupos (PO 2026-09-20, reemplaza la fila
               "Grupos · Balance" — mismo `misGrupos` ya derivado arriba). */}
-          {skin.flags.soft ? (
-            // Aero (PO 2026-09-26): las cuatro cifras como tarjetas sueltas.
-            <StatCards
-              rows={[
-                [ingresoStat, gruposStat],
-                [personalStat, gruposGastoStat],
-              ]}
-            />
-          ) : (
-            <StatLead
-              sunken
-              noTop
-              lead={ingresoStat}
-              leadRight={gruposStat}
-              items={[personalStat, gruposGastoStat]}
-            />
-          )}
+          {/* Con el Aero, `StatLead` se dibuja como tarjetas sueltas (PO 2026-09-26). */}
+          <StatLead
+            sunken
+            noTop
+            lead={ingresoStat}
+            leadRight={gruposStat}
+            items={[personalStat, gruposGastoStat]}
+          />
 
           {/* Deuda direccional: banda propia, nunca mezclada con lo gastado
               (ADR-006). "Te deben"/"Debés" ya se muestran arriba del todo —
@@ -171,21 +159,19 @@ export default function PersonalScreen() {
               queda disponible DESPUÉS de saldar TODO. Sin `youOwe` no hay nada
               propio que saldar y por lo tanto nada nuevo que agregar acá. */}
           {youOwe > 0 && (
-            <Panel>
-              <SplitStat
-                noTop
-                items={[{
-                  label: t('personal.available_after_debts'),
-                  // formatMoney() siempre devuelve el valor absoluto (T-137): el
-                  // signo hay que ponerlo a mano, si no un negativo se mostraba
-                  // en rojo pero SIN el "-" — se leía positivo a simple vista.
-                  value: `${disponibleTrasSaldar < 0 ? '-' : ''}${formatMoney(disponibleTrasSaldar, cur)}`,
-                  // Rojo cuando saldar todo te deja en negativo: es justamente
-                  // el caso en el que el número importa.
-                  color: disponibleTrasSaldar >= 0 ? c.semantic.positive : c.semantic.negative,
-                }]}
-              />
-            </Panel>
+            <SplitStat
+              noTop
+              items={[{
+                label: t('personal.available_after_debts'),
+                // formatMoney() siempre devuelve el valor absoluto (T-137): el
+                // signo hay que ponerlo a mano, si no un negativo se mostraba
+                // en rojo pero SIN el "-" — se leía positivo a simple vista.
+                value: `${disponibleTrasSaldar < 0 ? '-' : ''}${formatMoney(disponibleTrasSaldar, cur)}`,
+                // Rojo cuando saldar todo te deja en negativo: es justamente
+                // el caso en el que el número importa.
+                color: disponibleTrasSaldar >= 0 ? c.semantic.positive : c.semantic.negative,
+              }]}
+            />
           )}
 
           {pendientes.length > 0 && (

@@ -11,6 +11,7 @@ import { PanelContext } from '@/src/components/skin/PanelContext';
 import type { SkinColors } from '@/src/skins/types';
 import { useSkinTokens } from '@/src/skins/useSkin';
 import { Panel } from '@/src/components/skin/Panel';
+import { StatCards } from '@/src/components/skin/StatCards';
 
 /**
  * Primitivas del reskin "flat bands".
@@ -188,7 +189,11 @@ export function SplitStat({
   noTop?: boolean;
 }) {
   const c = useC();
+  const soft = useSkinTokens().flags.soft;
+  const panel = useContext(PanelContext);
   const centered = items.length > 2;
+  // Aero (etapa 2): cifras como tarjetas sueltas (PO 2026-09-26).
+  if (soft && !panel) return <StatCards rows={[items]} registry={registry} />;
   return (
     <Band sunken={sunken} noTop={noTop}>
       <View style={{ flexDirection: 'row' }}>
@@ -250,6 +255,8 @@ export function StatGrid({
   noTop?: boolean;
 }) {
   const c = useC();
+  const soft = useSkinTokens().flags.soft;
+  const panel = useContext(PanelContext);
 
   const celda = (it: StatItem, i: number) => (
     <View
@@ -295,6 +302,8 @@ export function StatGrid({
     </View>
   );
 
+  if (soft && !panel) return <StatCards rows={[items.slice(0, 2), items.slice(2, 4)]} registry={registry} />;
+
   return (
     <Band sunken={sunken} noTop={noTop}>
       <View style={{ flexDirection: 'row' }}>{items.slice(0, 2).map(celda)}</View>
@@ -323,6 +332,8 @@ export function StatLead({
   noTop?: boolean;
 }) {
   const c = useC();
+  const soft = useSkinTokens().flags.soft;
+  const panel = useContext(PanelContext);
 
   const cuerpo = (it: StatItem, extra?: ViewStyle, testID?: string) => (
     <View
@@ -346,6 +357,10 @@ export function StatLead({
       </Text>
     </View>
   );
+
+  if (soft && !panel) {
+    return <StatCards rows={[leadRight ? [lead, leadRight] : [lead], items]} />;
+  }
 
   return (
     <Band sunken={sunken} noTop={noTop}>
@@ -421,6 +436,45 @@ export function Segmented<T extends string>({
   borde?: 'abajo' | 'arriba' | 'ambos' | 'ninguno';
 }) {
   const c = useC();
+  const skin = useSkinTokens();
+
+  // Aero (etapa 2): las pestañas pasan de «T invertida» de borde a borde a un
+  // selector de píldora con margen; la activa, tarjeta blanca con sombra suave.
+  if (variant === 'tabs' && skin.flags.soft) {
+    const items = options.map(o => {
+      const on = o.key === value;
+      const color = on ? c.text : c.textTertiary;
+      return (
+        <Pressable
+          key={o.key}
+          accessibilityRole="tab"
+          accessibilityState={{ selected: on }}
+          onPress={() => onChange(o.key)}
+          style={[
+            scroll ? styles.pillItemScroll : styles.pillItem,
+            compact && styles.pillItemCompact,
+            on && { backgroundColor: c.surface, boxShadow: skin.elevation.e1.boxShadow },
+          ]}
+        >
+          {o.icon ? <Ionicons name={o.icon} size={compact ? 14 : 16} color={color} /> : null}
+          <Text numberOfLines={1} style={{ fontSize: compact ? 12 : 13.5, fontWeight: on ? '700' : '500', color }}>
+            {o.label}
+          </Text>
+        </Pressable>
+      );
+    });
+    const pista = [
+      styles.pillWrap,
+      { marginHorizontal: skin.space.inset, backgroundColor: c.surfaceSunken, borderColor: c.hair },
+    ];
+    return (
+      <View testID="segmented-tabs-wrap" style={pista}>
+        {scroll
+          ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillScroll}>{items}</ScrollView>
+          : items}
+      </View>
+    );
+  }
 
   if (variant === 'tabs') {
     const items = options.map((o, i) => {
@@ -534,6 +588,21 @@ const styles = StyleSheet.create({
     paddingBottom: 9,
   },
   segWrap: { flexDirection: 'row', padding: 4, gap: 4 },
+  // Aero: pista redondeada con las pestañas como píldoras.
+  pillWrap: {
+    flexDirection: 'row', padding: 4, gap: 4, borderRadius: 18, borderWidth: 1,
+    marginTop: Spacing[3], marginBottom: Spacing[1],
+  },
+  pillItem: {
+    flex: 1, height: 40, borderRadius: 14, flexDirection: 'row',
+    alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: 8,
+  },
+  pillItemCompact: { height: 32, gap: 5 },
+  pillItemScroll: {
+    height: 40, borderRadius: 14, flexDirection: 'row',
+    alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: Spacing[4],
+  },
+  pillScroll: { gap: 4 },
   // Variante `tabs` («T invertida»): de borde a borde, sin caja ni sombra. La línea de
   // abajo y los trazos verticales entre celdas son toda la estructura.
   tabsWrap: { flexDirection: 'row', borderBottomWidth: 1 },
