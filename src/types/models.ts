@@ -352,12 +352,54 @@ export interface Expense extends SyncMeta, CoreSigned {
   receiptImageUri?: string;
   deletionVotes: DeletionVote[];
   /**
-   * Autores en disputa (T-170 · D-2). La escribe el merge, no el usuario: es
-   * una unión colaborativa de `createdById` que difieren entre versiones del
-   * mismo gasto. Con dos o más ids, `enDisputa()` es `true` y ningún `forced`
-   * es inmediato para nadie, tampoco para el autor genuino (I-10).
+   * Núcleos competidores en disputa (T-170 · D-2, enmienda de disputa firmada
+   * — ronda 2). La escribe el merge, no el usuario: es una unión colaborativa
+   * (`src/algorithms/autoria.ts`, `unirDisputa`) de las versiones del núcleo
+   * que trajeron `createdById` distinto entre sí. El merge SÓLO une contenido
+   * —nunca verifica firmas (D9)—, así que esto puede traer basura o un `id`
+   * sin firma con formato de núcleo pero sin `k`/`s` reales.
+   *
+   * Lo que decide si hay disputa DE VERDAD vive afuera del merge, en
+   * `src/sync/autoriaTrust.ts` (`enDisputa`/`autoresVerificados`): cuenta sólo
+   * los núcleos cuya firma cierra contra la clave conocida de su autor. Antes
+   * (ronda 1) esto era `string[]` de ids sueltos y bastaba inyectar un id para
+   * abrir una disputa irreversible sin tocar el núcleo — el verifier lo marcó
+   * (T-170 D-3 del dictamen) y el PO lo cerró exigiendo que la disputa quede
+   * firmada y atribuible.
    */
-  autoriaDisputada?: string[];
+  autoriaDisputada?: NucleoDisputado[];
+}
+
+/**
+ * Snapshot de un núcleo COMPETIDOR de un gasto, capturado por el merge en el
+ * momento en que ve dos versiones con `createdById` distinto (T-170 D-2/D3).
+ *
+ * Son los mismos campos que `EXPENSE_SLOTS` clasifica `'core'` en
+ * `src/sync/recordCore.ts` + la firma (`k`/`s`), para poder reverificar la
+ * firma de ESE lado de forma independiente, afuera del merge. Es un
+ * duplicado deliberado de esa clasificación (no se importa `recordCore.ts`
+ * desde acá para no crear un ciclo `models.ts` ⇄ `recordCore.ts`); si
+ * `EXPENSE_SLOTS` gana un campo `core` nuevo, este tipo hay que actualizarlo
+ * a mano — lo marca `recordCore.test.ts`.
+ */
+export interface NucleoDisputado {
+  id: string;
+  groupId: string;
+  description: string;
+  amount: number;
+  currency: CurrencyCode;
+  paidById: string;
+  payers?: Payer[];
+  splits: Split[];
+  splitMode: SplitMode;
+  category: ExpenseCategory;
+  date: number;
+  createdAt: number;
+  createdById: string;
+  note?: string;
+  rev: number;
+  k: string;
+  s: string;
 }
 
 // Payment = liquidación de deuda. No necesita consenso.

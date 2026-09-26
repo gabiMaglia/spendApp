@@ -4,7 +4,7 @@ import { mergeDeletionVoteSets } from '@/src/sync/SyncEngine';
 import { mergeApprovals } from '@/src/algorithms/leaveRequest';
 import { envenenado } from './relojDelMerge';
 import { unirDisputa } from '@/src/algorithms/autoria';
-import type { DeletionVote, LeaveRequest, SettlementConfirmation } from '@/src/types/models';
+import type { DeletionVote, LeaveRequest, NucleoDisputado, SettlementConfirmation } from '@/src/types/models';
 
 /**
  * **Merge por niveles** (T-041 · S7).
@@ -119,7 +119,13 @@ const unirAprobaciones: Union = (local, remoto) => {
 };
 
 /**
- * `autoriaDisputada` (T-170 · D-2): unión de `createdById` en disputa.
+ * `autoriaDisputada` (T-170 · D-2, ronda 2): unión de NÚCLEOS COMPETIDORES
+ * (con su firma) cuando `createdById` difiere entre versiones.
+ *
+ * `cur`/`inc` son los registros ENTEROS (no sólo el id): `unirDisputa` recorta
+ * de ahí el snapshot firmable. El merge sigue sin verificar nada (D9) — sólo
+ * captura y une por contenido; la firma se revisa afuera
+ * (`src/sync/autoriaTrust.ts`).
  *
  * Es colaborativo sólo en `expense`: en `payment` los registros derivados de
  * `applyLeave.ts` pueden dar falsos positivos, y el único poder de creador
@@ -128,8 +134,8 @@ const unirAprobaciones: Union = (local, remoto) => {
  * comentarios, recurrentes o grupos hoy.
  */
 const unirAutoria: Union = (local, remoto, cur, inc) =>
-  unirDisputa(local as string[] | undefined, remoto as string[] | undefined,
-    cur.createdById, inc.createdById);
+  unirDisputa(local as NucleoDisputado[] | undefined, remoto as NucleoDisputado[] | undefined,
+    cur, inc);
 
 /**
  * Qué campos de cada entidad son colaborativos.

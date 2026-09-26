@@ -1,3 +1,4 @@
+import { ed25519 } from '@noble/curves/ed25519.js';
 import { resolvePendingDeletions } from '../resolveDeletions';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { useCommentStore } from '@/src/store/commentStore';
@@ -7,6 +8,8 @@ import { emitirVoto } from '@/src/services/deletionVotes';
 import { ensureIdentity } from '@/src/store/identityStore';
 import { rememberAuthorKey, forgetAuthorKeys } from '@/src/sync/authorKeys';
 import { signVote } from '@/src/sync/voteSign';
+import { signCore } from '@/src/sync/recordSign';
+import { toHex } from '@/src/sync/hexBytes';
 import type { DeletionVote, Expense, ExpenseComment } from '@/src/types/models';
 
 jest.mock('@/src/sync/relayEngine', () => ({ schedulePublish: jest.fn(), deviceId: () => 'dev' }));
@@ -180,5 +183,85 @@ describe('T-143 · el override del creador exige firma que cierre', () => {
     useExpenseStore.setState({ expenses: [gasto('e1', [firmadoPorMallory])] });
 
     expect(resolvePendingDeletions(AHORA + 1)).toBe(0);
+  });
+});
+
+/**
+ * T-170 · D-1 (regresión del verificador ciego, `T-170-verifier.md` D1): con
+ * el fix de D-2 sin consumidor, Mallory re-estampaba el núcleo con su id,
+ * emitía un `forced` firmado CON SU PROPIA CLAVE (la firma cierra: es de
+ * ella) y `resolvePendingDeletions` la honraba de inmediato.
+ *
+ * El predicado único (`src/sync/forcedTrust.ts`, `esForcedConfiable`) corta
+ * esto exigiendo `!enDisputa(e)` ADEMÁS de la firma que cierra. Acá se prueba
+ * con crypto real: dos claves conocidas, dos núcleos que verifican — la
+ * disputa es ATRIBUIBLE, no un id suelto.
+ */
+describe('T-170 · D-1: un forced no es confiable con autoría en disputa', () => {
+  afterEach(() => forgetAuthorKeys());
+
+  const PRIV_ANA = toHex(new Uint8Array(32).fill(9));
+  const PUB_ANA = toHex(ed25519.getPublicKey(new Uint8Array(32).fill(9)));
+
+  const nucleoBase = {
+    id: 'e1', groupId: 'g1', description: 'Cena', amount: 1000, currency: 'ARS',
+    paidById: 'ana', splits: [], splitMode: 'equal', category: 'food',
+    date: 0, createdAt: 0, createdById: 'ana', rev: 1,
+  };
+  const nucleoAna = { ...nucleoBase, ...signCore('expense', nucleoBase as never, PRIV_ANA) };
+
+  it('Mallory re-estampa el núcleo, lo firma con su clave y emite un forced firmado: NO borra al instante', () => {
+    const { publicKey, privateKey } = ensureIdentity();
+    rememberAuthorKey('mallory', publicKey);
+    rememberAuthorKey('ana', PUB_ANA);
+
+    const nucleoVigente = { ...nucleoBase, createdById: 'mallory', amount: 1, rev: 2 };
+    const firmadoPorMallory = { ...nucleoVigente, ...signCore('expense', nucleoVigente as never, privateKey) };
+
+    const e = gasto('e1', [], {
+      ...firmadoPorMallory,
+      autoriaDisputada: [nucleoAna as never],
+    } as Partial<Expense>);
+    const votos = emitirVoto(e, 'mallory', 'force', AHORA);
+    useExpenseStore.setState({ expenses: [{ ...e, deletionVotes: votos }] });
+
+    // No es inmediato: la disputa degrada a los DOS lados al camino seguro.
+    expect(resolvePendingDeletions(AHORA + 1)).toBe(0);
+    expect(useExpenseStore.getState().expenses[0]!.isDeleted).toBe(false);
+    // Pero tampoco queda bloqueado para siempre: sin objeción, vence igual a las 72h.
+    expect(resolvePendingDeletions(VENCIDO)).toBe(1);
+  });
+
+  it('baseline: el MISMO forced, sin disputa registrada, sigue borrando al instante (no regresiona)', () => {
+    const { publicKey, privateKey } = ensureIdentity();
+    rememberAuthorKey('mallory', publicKey);
+
+    const nucleoVigente = { ...nucleoBase, createdById: 'mallory', amount: 1, rev: 2 };
+    const firmadoPorMallory = { ...nucleoVigente, ...signCore('expense', nucleoVigente as never, privateKey) };
+
+    const e = gasto('e1', [], { ...firmadoPorMallory } as Partial<Expense>);
+    const votos = emitirVoto(e, 'mallory', 'force', AHORA);
+    useExpenseStore.setState({ expenses: [{ ...e, deletionVotes: votos }] });
+
+    expect(resolvePendingDeletions(AHORA + 1)).toBe(1);
+    expect(useExpenseStore.getState().expenses[0]!.isDeleted).toBe(true);
+  });
+
+  it('con la disputa registrada pero SIN la clave de Ana conocida: no es atribuible — sigue borrando ya (fail-safe hacia el lado de antes, no una acusación gratis)', () => {
+    const { publicKey, privateKey } = ensureIdentity();
+    rememberAuthorKey('mallory', publicKey);
+    // Ojo: NO se llama rememberAuthorKey('ana', ...) — su clave es desconocida.
+
+    const nucleoVigente = { ...nucleoBase, createdById: 'mallory', amount: 1, rev: 2 };
+    const firmadoPorMallory = { ...nucleoVigente, ...signCore('expense', nucleoVigente as never, privateKey) };
+
+    const e = gasto('e1', [], {
+      ...firmadoPorMallory,
+      autoriaDisputada: [nucleoAna as never],
+    } as Partial<Expense>);
+    const votos = emitirVoto(e, 'mallory', 'force', AHORA);
+    useExpenseStore.setState({ expenses: [{ ...e, deletionVotes: votos }] });
+
+    expect(resolvePendingDeletions(AHORA + 1)).toBe(1);
   });
 });

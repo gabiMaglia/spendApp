@@ -33,7 +33,7 @@ it('los dos órdenes convergen (con la disputa incluida)', () => {
   const a = mergeRecord('expense', deAna, veneno, NOW);
   const b = mergeRecord('expense', veneno, deAna, NOW);
   expect(a).toEqual(b);
-  expect(a.autoriaDisputada).toEqual(['ana', 'mallory']);
+  expect(a.autoriaDisputada!.map(n => n.createdById).sort()).toEqual(['ana', 'mallory']);
 });
 
 it('un rev dentro de la tolerancia sigue ganando como siempre', () => {

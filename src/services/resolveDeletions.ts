@@ -1,7 +1,7 @@
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { useCommentStore } from '@/src/store/commentStore';
 import { resolveDeletionVotes } from '@/src/sync/SyncEngine';
-import { checkVote } from '@/src/sync/trustCheck';
+import { esForcedConfiable } from '@/src/sync/forcedTrust';
 import { syncedNow } from '@/src/utils/syncedClock';
 import type { Expense } from '@/src/types/models';
 
@@ -24,13 +24,19 @@ import type { Expense } from '@/src/types/models';
  * `applyLeave.ts`): esto corre solo, sin nadie mirando, y borra datos de otros.
  * El costo es acotado — una verificación por gasto con `forced` vigente, con
  * caché de veredictos — y está fuera del merge (D9).
+ *
+ * **T-170 · D-1:** el predicado de confianza es `esForcedConfiable(e)`, el
+ * ÚNICO que decide si un `forced` es inmediato — también corta cuando hay
+ * autoría en disputa (`enDisputa`), aunque la firma cierre: la disputa
+ * degrada a los DOS lados al camino seguro (ronda de 72 h), nunca sólo al
+ * falso.
  */
 export function resolvePendingDeletions(now: number = syncedNow()): number {
   const store = useExpenseStore.getState();
   const vencidas: Expense[] = store.expenses.filter(e =>
     !e.isDeleted &&
     (e.deletionVotes?.length ?? 0) > 0 &&
-    resolveDeletionVotes(e, [], now, v => checkVote(e.id, v) === 'valida'),
+    resolveDeletionVotes(e, [], now, esForcedConfiable(e)),
   );
 
   for (const expense of vencidas) {

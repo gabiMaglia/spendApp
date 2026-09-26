@@ -1,6 +1,7 @@
 import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
 import { Alert } from 'react-native';
+import { ed25519 } from '@noble/curves/ed25519.js';
 import ExpenseDetailScreen from '@/app/expense/[id]';
 import { useAuthStore } from '@/src/store/authStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
@@ -9,6 +10,9 @@ import { useUserStore } from '@/src/store/userStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useArchiveStore } from '@/src/store/archiveStore';
 import { hasRequested } from '@/src/algorithms/deletionRound';
+import { toHex } from '@/src/sync/hexBytes';
+import { signCore } from '@/src/sync/recordSign';
+import { rememberAuthorKey, forgetAuthorKeys } from '@/src/sync/authorKeys';
 import type { Expense, ExpenseComment, Group, User } from '@/src/types/models';
 
 /**
@@ -198,6 +202,65 @@ describe('borrado consensuado', () => {
     const votos = useExpenseStore.getState().expenses[0]!.deletionVotes;
     expect(votos.every(v => v.action === 'delete')).toBe(true);
     expect(votos).toHaveLength(1);
+  });
+});
+
+/**
+ * T-170 · D-1: la opción de forzar el borrado tiene que desaparecer cuando la
+ * autoría está en disputa DE VERDAD (firma que verifica, no un id inyectado —
+ * `src/sync/autoriaTrust.ts`). Antes de este fix, `enDisputa` no tenía
+ * consumidor en esta pantalla: Mallory forzaba igual (T-170-verifier.md, D1).
+ */
+describe('T-170 · D-1: "Forzar" desaparece con autoría en disputa (verificada)', () => {
+  const PRIV_UA = toHex(new Uint8Array(32).fill(1));
+  const PUB_UA = toHex(ed25519.getPublicKey(new Uint8Array(32).fill(1)));
+  const PRIV_MALLORY = toHex(new Uint8Array(32).fill(2));
+  const PUB_MALLORY = toHex(ed25519.getPublicKey(new Uint8Array(32).fill(2)));
+
+  const nucleoBase = {
+    id: 'e1', groupId: 'g1', description: 'Carne', amount: 20000, currency: 'ARS', paidById: 'ua',
+    splits: [{ userId: 'ua', amount: 10000 }, { userId: 'ub', amount: 10000 }],
+    splitMode: 'equal', category: 'food', date: 0, createdAt: 0, createdById: 'ua', rev: 1,
+  };
+
+  beforeEach(() => {
+    useUserStore.setState({ users: [{ id: 'ua', name: 'Ana' } as User, { id: 'ub', name: 'Beto' } as User] });
+  });
+
+  afterEach(() => { jest.restoreAllMocks(); forgetAuthorKeys(); });
+
+  it('el creador NO ve "Forzar" cuando Mallory re-estampó el núcleo y su firma verifica', () => {
+    rememberAuthorKey('ua', PUB_UA);
+    rememberAuthorKey('mallory', PUB_MALLORY);
+
+    const nucleoUa = { ...nucleoBase, ...signCore('expense', nucleoBase as never, PRIV_UA) };
+    const nucleoMallory = { ...nucleoBase, createdById: 'mallory', rev: 2 };
+    const firmadoPorMallory = { ...nucleoMallory, ...signCore('expense', nucleoMallory as never, PRIV_MALLORY) };
+
+    useExpenseStore.setState({ expenses: [gasto({
+      ...nucleoUa, createdById: 'ua', autoriaDisputada: [firmadoPorMallory as never],
+    } as unknown as Partial<Expense>)] });
+
+    const alertMock = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    const { getByText } = render(<ExpenseDetailScreen />);
+    fireEvent.press(getByText('expense.delete_expense'));
+
+    const opciones = alertMock.mock.calls[0]![2] as { text: string }[];
+    expect(opciones.some(o => o.text === 'expense.delete_force')).toBe(false);
+    expect(opciones.some(o => o.text === 'expense.delete_request')).toBe(true);
+  });
+
+  it('SIN disputa registrada, el creador sigue viendo "Forzar" (no regresiona)', () => {
+    rememberAuthorKey('ua', PUB_UA);
+    const nucleoUa = { ...nucleoBase, ...signCore('expense', nucleoBase as never, PRIV_UA) };
+    useExpenseStore.setState({ expenses: [gasto({ ...nucleoUa, createdById: 'ua' } as unknown as Partial<Expense>)] });
+
+    const alertMock = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    const { getByText } = render(<ExpenseDetailScreen />);
+    fireEvent.press(getByText('expense.delete_expense'));
+
+    const opciones = alertMock.mock.calls[0]![2] as { text: string }[];
+    expect(opciones.some(o => o.text === 'expense.delete_force')).toBe(true);
   });
 });
 

@@ -39,6 +39,7 @@ import { emitirVoto } from '@/src/services/deletionVotes';
 import type { CategoryKind } from '@/src/constants/colors';
 import { syncedNow } from '@/src/utils/syncedClock';
 import { esYo } from '@/src/store/identityAlias';
+import { enDisputa } from '@/src/sync/autoriaTrust';
 
 /** "2 días" / "5 horas" / "40 minutos": basta para saber si hay que apurarse. */
 function formatearRestante(ms: number): string {
@@ -130,6 +131,11 @@ export default function ExpenseDetailScreen() {
   }
 
   const isCreator = esYo(expense.createdById);
+  // T-170 · D-1: con autoría en disputa, ningún `forced` es inmediato — ni
+  // siquiera el del autor genuino (I-10). La opción de forzar se oculta acá,
+  // y `resolvePendingDeletions` corta lo mismo del lado que corre solo
+  // (`src/sync/forcedTrust.ts`, predicado único).
+  const puedeForzar = isCreator && !enDisputa(expense);
 
   // En un grupo de borrado LIBRE (elegido al crearlo) cualquier miembro borra
   // al instante, igual que Splitwise: la defensa no es impedir sino que quede
@@ -221,9 +227,10 @@ export default function ExpenseDetailScreen() {
       return;
     }
 
-    // El creador elige: pedirlo y esperar, o forzarlo. Los demás sólo pueden
-    // pedirlo (regla de negocio #2).
-    const opciones = isCreator
+    // El creador elige: pedirlo y esperar, o forzarlo. Los demás —y un
+    // creador con la autoría en disputa (T-170 · D-1)— sólo pueden pedirlo
+    // (regla de negocio #2).
+    const opciones = puedeForzar
       ? [
           { text: t('common.cancel'), style: 'cancel' as const },
           { text: t('expense.delete_request'), onPress: pedirBorrado },
@@ -236,7 +243,7 @@ export default function ExpenseDetailScreen() {
 
     Alert.alert(
       t('expense.delete_title'),
-      isCreator ? t('expense.delete_body_creator') : t('expense.delete_body_member'),
+      puedeForzar ? t('expense.delete_body_creator') : t('expense.delete_body_member'),
       opciones,
     );
   }
