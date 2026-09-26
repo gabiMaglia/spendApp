@@ -8,7 +8,8 @@ import { Spacing } from '@/src/constants/spacing';
 import { FondoMarmol } from '@/src/components/FondoMarmol';
 import { useSkinTokens, useColors } from '@/src/skins/useSkin';
 import { HeaderAero, fondoBarraAero } from '@/src/components/skin/HeaderAero';
-import { RECORRIDO_AERO } from '@/src/components/skin/headerAeroGeometria';
+import { AERO_RADIO, AERO_TOPE, RECORRIDO_AERO } from '@/src/components/skin/headerAeroGeometria';
+import { VidrioMarmol } from '@/src/components/skin/VidrioMarmol';
 import { HEADER_BAR_H, TITLE_BOTTOM_GAP, TITLE_BLOCK_H } from '@/src/constants/header';
 import {
   alturaHeaderColapsable, alturaBloqueTituloVisible, opacidadTituloCompacto, opacidadTituloCompactoSinMovimiento,
@@ -295,6 +296,34 @@ export function DetailHeader({
 }) {
   const c = useColors();
   const insets = useSafeAreaInsets();
+  const skin = useSkinTokens();
+
+  // Aero (etapa 2): la misma tarjeta flotante que la barra de las tabs —
+  // fuera de la status bar, con margen, radio pronunciado, mármol y vidrio.
+  if (skin.flags.soft) {
+    return (
+      <View style={{ paddingTop: insets.top + AERO_TOPE, backgroundColor: c.bg }}>
+        <View
+          testID="detail-header-aero"
+          style={[
+            detail.tarjetaAero,
+            { marginHorizontal: skin.space.inset, backgroundColor: c.surface, borderColor: c.hair },
+          ]}
+        >
+          <FondoMarmol patron="franja" />
+          <VidrioMarmol />
+          <View style={[detail.bar, detail.barAero]}>
+            <Pressable onPress={onBack} hitSlop={12} style={detail.side}>
+              <Ionicons name={icon} size={22} color={c.text} />
+            </Pressable>
+            <Text numberOfLines={1} style={[detail.title, { color: c.text }]}>{title}</Text>
+            <View style={[detail.side, { alignItems: 'flex-end' }]}>{right}</View>
+          </View>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={[detail.wrap, { paddingTop: insets.top, borderBottomColor: c.hair }]}>
       {/*
@@ -322,6 +351,8 @@ export function DetailHeader({
 
 const detail = StyleSheet.create({
   wrap: { borderBottomWidth: 1 },
+  tarjetaAero: { borderWidth: 1, borderRadius: AERO_RADIO, overflow: 'hidden' },
+  barAero: { paddingHorizontal: Spacing.screenPad - 8 },
   bar: {
     height: 52, flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: Spacing.screenPad, gap: 12,
