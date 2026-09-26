@@ -1,3 +1,5 @@
+import { envenenado } from './relojDelMerge';
+
 /**
  * Merge Last-Write-Wins compartido por todos los stores.
  *
@@ -52,20 +54,39 @@ export function incomingWins<T extends Syncable>(incoming: T, current: T): boole
 }
 
 /**
- * Une dos listas por id aplicando LWW. No muta las entradas.
- * Los que no estaban se agregan; los que estaban se reemplazan sólo si el
- * entrante gana.
+ * Une dos listas por id aplicando LWW, con tope de reloj (T-171,
+ * generaliza T-137/T-144). No muta las entradas.
+ *
+ * Sin tope, un `updatedAt: 9e15` ganaba el desempate para siempre: ninguna
+ * edición honesta futura (`syncedNow()`) puede superarlo numéricamente. La
+ * regla es la misma que ya usaban `relojDelMerge.ts`/`mergeUsersLWW.ts`:
+ *
+ *  1. Un ENTRANTE envenenado (futuro, o `updatedAt` no numérico/no finito)
+ *     no gana ni se agrega si el id era nuevo.
+ *  2. Un LOCAL que ya quedó envenenado (vandalizado antes de este fix) pierde
+ *     contra cualquier entrante plausible, aunque su `updatedAt` sea
+ *     numéricamente menor — es lo que autocura un registro ya vandalizado.
+ *
+ * `now` se inyecta (nunca `Date.now()`/`syncedClock` acá adentro): módulo
+ * puro, igual que `relojDelMerge.ts`.
  */
-export function mergeByIdLWW<T extends Syncable>(current: T[], incoming: T[]): T[] {
+export function mergeByIdLWW<T extends Syncable>(current: T[], incoming: T[], now: number): T[] {
   const out = [...current];
   const indexById = new Map(out.map((item, i) => [item.id, i]));
 
   for (const inc of incoming) {
+    if (envenenado(inc.updatedAt, now)) continue; // futuro o no numérico: no gana ni se agrega
+
     const i = indexById.get(inc.id);
     if (i === undefined) {
       indexById.set(inc.id, out.length);
       out.push(inc);
-    } else if (incomingWins(inc, out[i]!)) {
+      continue;
+    }
+
+    const cur = out[i]!;
+    // local envenenado pierde contra cualquier entrante plausible (autocura)
+    if (envenenado(cur.updatedAt, now) || incomingWins(inc, cur)) {
       out[i] = inc;
     }
   }
