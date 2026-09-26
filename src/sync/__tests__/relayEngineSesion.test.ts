@@ -48,6 +48,7 @@ jest.mock('../contactChannel', () => ({
 jest.mock('../contactInviteEngine', () => ({ processAllContactInvites: jest.fn(async () => false) }));
 
 import { startRelay, stopRelay, POLL_INTERVAL_MS } from '../relayEngine';
+import { sinSesionDeSync, __resetSessionStatus } from '../sessionStatus';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
@@ -78,6 +79,7 @@ beforeEach(() => {
   mockEnsureRelaySession.mockReset().mockResolvedValue('anonymous');
   mockBindAuthRefreshToAppState.mockReset().mockReturnValue(jest.fn());
   mockSubscribeTopic.mockReset().mockImplementation(() => () => {});
+  __resetSessionStatus();
 });
 
 afterEach(() => {
@@ -120,6 +122,24 @@ it('con la misma sesión, la vuelta NO reinicia', async () => {
   await jest.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
 
   expect(mockSubscribeTopic.mock.calls.length).toBe(n);
+});
+
+/**
+ * Enmienda del PO (aprobación 2026-09-26): sin sesión, el teléfono avisa que
+ * no está sincronizando — y deja de avisar en cuanto se recupera, sin que el
+ * usuario tenga que hacer nada.
+ */
+it('sin sesión avisa; al recuperarla, se retira', async () => {
+  sembrarUnGrupoConClave();
+  mockEnsureRelaySession.mockResolvedValueOnce('none').mockResolvedValue('anonymous');
+
+  await startRelay();
+  expect(sinSesionDeSync()).toBe(true);
+
+  await jest.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
+  await jest.advanceTimersByTimeAsync(0);
+
+  expect(sinSesionDeSync()).toBe(false);
 });
 
 it('ata el refresco al ciclo de vida y lo suelta al parar', async () => {

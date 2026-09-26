@@ -393,6 +393,8 @@
     "wait": "ou esperar até amanhã · renova em {{time}}"
   },
   "sync": {
+    "no_session_title": "Este telefone não conseguiu se conectar",
+    "no_session_body": "Não está sincronizando com seus grupos. Vai se resolver sozinho assim que a conexão voltar.",
     "key_conflict": {
       "title_two": "Duas pessoas te enviaram chaves diferentes para \"{{group}}\"",
       "title_many": "Você recebeu chaves diferentes para \"{{group}}\"",

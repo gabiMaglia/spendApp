@@ -36,6 +36,7 @@ import { useCurrenciesInUse } from '@/src/store/currenciesInUse';
 import { needsRates, readCache } from '@/src/services/fx';
 import { Band, BandRow, SectionLabel, Segmented, SoonBadge } from '@/src/components/Band';
 import { SyncNoDisponible } from '@/src/components/SyncNoDisponible';
+import { SinSesionDeSync } from '@/src/components/SinSesionDeSync';
 import { listErrors } from '@/src/services/errorLog';
 import { exportarDiagnostico } from '@/src/services/exportDiagnostico';
 import { useLiveValue } from '@/src/hooks/useLiveValue';
@@ -492,6 +493,7 @@ export default function UserScreen() {
         </Band>
 
         <SyncNoDisponible />
+        <SinSesionDeSync />
 
         {/* Seguridad */}
         <SectionLabel label={t('profile.section_security')} />

@@ -393,6 +393,8 @@
     "wait": "or wait until tomorrow · resets in {{time}}"
   },
   "sync": {
+    "no_session_title": "This phone couldn't connect",
+    "no_session_body": "It's not syncing with your groups. It'll fix itself once the connection is back.",
     "key_conflict": {
       "title_two": "Two people sent you different keys for \"{{group}}\"",
       "title_many": "You got different keys for \"{{group}}\"",

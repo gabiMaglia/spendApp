@@ -13,6 +13,7 @@ import { deriveTopic, fromHex } from './envelopeCrypto';
 import { subscribeTopic, isRelayConfigured } from './relay';
 import { ensureRelaySession, bindAuthRefreshToAppState } from './relaySession';
 import type { SessionKind } from './relaySession';
+import { setUltimaSesionConocida } from './sessionStatus';
 import { publishToGroup, drainGroup, sigueSiendoLaClave, type PublishResult } from './relaySync';
 import { recordPublish } from './publishHealth';
 import { noticeDeCaida } from './syncDownNotices';
@@ -455,6 +456,7 @@ async function arrancarCadenaDeSync(): Promise<void> {
   // canal privado que se une sin JWT queda afuera sin ningún error visible —
   // el orden acá no es un detalle.
   kindAlArrancar = await ensureRelaySession();
+  setUltimaSesionConocida(kindAlArrancar);
 
   // Las invitaciones se resuelven PRIMERO: una que se complete acá adopta la
   // clave del grupo, y recién con esa clave el grupo entra en `syncableGroupIds`
@@ -533,6 +535,7 @@ async function releerTodo(): Promise<void> {
   // TODA la cadena es más simple y más seguro que intentar resuscribir sólo
   // los canales: vuelve a correr `arrancarCadenaDeSync` de punta a punta.
   const kind = await ensureRelaySession();
+  setUltimaSesionConocida(kind);
   if (kind !== kindAlArrancar) {
     void startRelay();
     return;
