@@ -5,7 +5,7 @@ import { avatarCabe } from '@/src/services/avatarSize';
 import { useAuthStore } from '@/src/store/authStore';
 import { useUserStore } from '@/src/store/userStore';
 import { sealEnvelope, openEnvelope, toHex, fromHex } from './envelopeCrypto';
-import { sendEnvelope, fetchSince } from './relay';
+import { sendEnvelope, fetchSince, type SendResult } from './relay';
 import { ensureIdentity, ensureWrapKeypair } from '@/src/store/identityStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { wrapGroupKey, unwrapGroupKey } from './groupInvite';
@@ -202,19 +202,25 @@ function dropPayload(d: Omit<GroupKeyDrop, 'kind' | 'signature'>): string {
 }
 
 /**
- * Le manda a un contacto la clave de un grupo.
- * `false` si no lo conocemos lo suficiente (sin buzón o sin su pública) o si
- * no tenemos la clave: en esos casos no hay nada que entregar.
+ * Le manda a un contacto la clave de un grupo — versión que expone el motivo
+ * del fallo (T-147 D4, ronda 2).
+ *
+ * `{ ok: false, reason: 'no_data' }` si no lo conocemos lo suficiente (sin
+ * buzón o sin su pública) o si no tenemos la clave: en esos casos no hay nada
+ * que entregar y reintentarlo no cambiaría nada. El resto de las razones son
+ * las de `sendEnvelope` (`relay.ts`) — en particular `rate_limited`, que
+ * `relayQueue` sabe reintentar solo (antes se perdía: `sendGroupKey` sólo
+ * devolvía `boolean` y el motivo se descartaba).
  */
-export async function sendGroupKey(
+export async function sendGroupKeyResultado(
   peerUserId: string,
   group: { id: string; name: string },
   deviceId: string,
-): Promise<boolean> {
+): Promise<SendResult | { ok: false; reason: 'no_data' }> {
   const me = useAuthStore.getState().currentUser;
   const peer = getPeer(peerUserId);
   const record = useGroupKeyStore.getState().getKey(group.id);
-  if (!me || !peer?.secret || !peer.wrapPublicKey || !record) return false;
+  if (!me || !peer?.secret || !peer.wrapPublicKey || !record) return { ok: false, reason: 'no_data' };
 
   const wrap = ensureWrapKeypair();
   const identity = ensureIdentity();
@@ -240,10 +246,26 @@ export async function sendGroupKey(
   try {
     const topic = await deriveContactTopic(peer.secret);
     const sealed = sealEnvelope(await contactKey(peer.secret), JSON.stringify(drop));
-    return (await sendEnvelope(topic, sealed, deviceId)).ok;
-  } catch {
-    return false;
+    return await sendEnvelope(topic, sealed, deviceId);
+  } catch (e) {
+    return { ok: false, reason: 'network', detail: String(e) };
   }
+}
+
+/**
+ * Le manda a un contacto la clave de un grupo.
+ * `false` si no lo conocemos lo suficiente (sin buzón o sin su pública) o si
+ * no tenemos la clave: en esos casos no hay nada que entregar.
+ *
+ * Envoltorio fino sobre `sendGroupKeyResultado` (mantenido por compatibilidad
+ * — casi todos los llamadores sólo necesitan saber si salió).
+ */
+export async function sendGroupKey(
+  peerUserId: string,
+  group: { id: string; name: string },
+  deviceId: string,
+): Promise<boolean> {
+  return (await sendGroupKeyResultado(peerUserId, group, deviceId)).ok;
 }
 
 /**
