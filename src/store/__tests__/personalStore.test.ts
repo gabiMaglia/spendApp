@@ -113,5 +113,14 @@ describe('personalStore', () => {
 
       expect(usePersonalStore.getState().entries).toHaveLength(1);
     });
+
+    // T-171: sin tope, un updatedAt del futuro ganaba para siempre.
+    it('un entrante con updatedAt del futuro no vandaliza el movimiento local', () => {
+      const NOW = 1_700_000_000_000;
+      usePersonalStore.getState().addEntry(entry({ description: 'local', updatedAt: 1_000 }));
+      usePersonalStore.getState().mergeEntries([entry({ description: 'atacante', updatedAt: 9e15 })], NOW);
+
+      expect(usePersonalStore.getState().entries[0]!.description).toBe('local');
+    });
   });
 });

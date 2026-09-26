@@ -1,5 +1,4 @@
-import { incomingWins, type Syncable } from './lww';
-import { envenenado as estaEnvenenado } from './relojDelMerge';
+import { mergeByIdLWW, type Syncable } from './lww';
 
 /**
  * LWW de perfiles con tope de reloj (T-137, ADR-012 opción 1).
@@ -41,28 +40,13 @@ import { envenenado as estaEnvenenado } from './relojDelMerge';
  * `now` se inyecta (nunca `Date.now()` ni `syncedClock` acá adentro): el
  * merge es una función pura y `syncedClock` abre almacenamiento nativo, que no
  * puede entrar al grafo de un módulo que además corre en tests.
+ *
+ * **T-171:** este algoritmo (criterios 1+2, D2) se generalizó a
+ * `mergeByIdLWW` (`lww.ts`), que ahora aplica exactamente el mismo tope. Se
+ * delega para que quede una sola definición del loop en vez de dos copias —
+ * `personalStore` (vía `mergePersonalPure`) y `userStore` (acá) comparten el
+ * mismo comportamiento sin mantenerlo dos veces.
  */
 export function mergeUsersLWW<T extends Syncable>(current: T[], incoming: T[], now: number): T[] {
-  const envenenado = (updatedAt: number) => estaEnvenenado(updatedAt, now);
-
-  const out = [...current];
-  const indexById = new Map(out.map((item, i) => [item.id, i]));
-
-  for (const inc of incoming) {
-    if (envenenado(inc.updatedAt)) continue; // criterio 1 + D2: futuro o no numérico, no gana ni se agrega
-
-    const i = indexById.get(inc.id);
-    if (i === undefined) {
-      indexById.set(inc.id, out.length);
-      out.push(inc);
-      continue;
-    }
-
-    const cur = out[i]!;
-    // criterio 2 + D2: local envenenado (futuro o no numérico) pierde contra cualquier entrante plausible
-    if (envenenado(cur.updatedAt) || incomingWins(inc, cur)) {
-      out[i] = inc;
-    }
-  }
-  return out;
+  return mergeByIdLWW(current, incoming, now);
 }

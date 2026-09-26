@@ -665,10 +665,12 @@ function mergeContactPeers(fromAccountId: string, toAccountId: string): void {
  * Movimientos personales y presupuesto. Van aparte porque `personalStore` no usa
  * la clave `data_v1` de los demás.
  *
- * Regla `mergePersonalPure` (T-149 · D3 verifier): LWW simple, la misma que usa
- * `personalStore.mergeEntries` — SIN el tope de reloj de `mergeUsersLWW`, que
- * era lo que estaba acá antes y descartaba en silencio un movimiento con
- * `updatedAt` adelantado. El tope para `personal` es T-171, fuera de alcance.
+ * Regla `mergePersonalPure` (T-149 · D3 verifier, tope de reloj desde T-171):
+ * la misma que usa `personalStore.mergeEntries` — ahora con el mismo tope que
+ * `mergeUsersLWW` (`mergeByIdLWW` lo aplica desde adentro), pero sin el
+ * defecto que tuvo el reemplazo directo por `mergeUsersLWW` antes de T-149:
+ * un `updatedAt` sólo un poco adelantado (dentro de `TOLERANCIA_RELOJ_MS`)
+ * sigue ganando normal, no queda invisible tras fusionar.
  */
 function mergePersonal(fromAccountId: string, toAccountId: string, report: MergeReport, now: number): void {
   if (fromAccountId === toAccountId) return;
@@ -746,7 +748,7 @@ export const COBERTURA_FUSION: Record<string, string> = {
   'store/userStore':      'fusionado (MERGEABLE_STORES · users/data_v1 · regla: mergeUsersPure, la misma función que mergeUsers — LWW con tope + avatar preservado)',
   'store/recurringStore': 'fusionado (MERGEABLE_STORES · recurring/data_v1 · regla: por niveles, mergeByIdLevels desnudo — igual que mergeRecurring)',
   'store/commentStore':   'fusionado (MERGEABLE_STORES · comments/data_v1 · regla: por niveles, mergeByIdLevels desnudo — igual que mergeComments)',
-  'store/personalStore':  'aparte · mergePersonal (usa entries_v1 + budget_v1, no data_v1; regla: mergePersonalPure, la misma función que mergeEntries — LWW sin tope, T-171 fuera de alcance)',
+  'store/personalStore':  'aparte · mergePersonal (usa entries_v1 + budget_v1, no data_v1; regla: mergePersonalPure, la misma función que mergeEntries — LWW con tope de reloj, T-171)',
   'store/groupKeyStore':  'aparte · mergeGroupKeys (es {groupId,key,epoch}, sin id/updatedAt; gana la época mayor)',
   'store/archiveStore':   'aparte · mergeArchived (string[] bajo archived_v1, en el bucket groups; unión)',
   'store/settingsStore':  'aparte · mergeSettings (preferencias, no datos)',

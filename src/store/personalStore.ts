@@ -29,7 +29,7 @@ interface PersonalStoreState {
   updateReplicatedEntry:  (sourceGroupExpenseId: string, patch: Partial<PersonalEntry>) => void;
   setBudget:              (budget: PersonalBudget) => void;
   setLastSeenMonth:       (month: string) => void;
-  mergeEntries:           (incoming: PersonalEntry[]) => void;
+  mergeEntries:           (incoming: PersonalEntry[], now?: number) => void;
   hydrate:                () => void;
 }
 
@@ -93,10 +93,11 @@ export const usePersonalStore = create<PersonalStoreState>((set, get) => ({
     set({ lastSeenMonth: month });
   },
 
-  // LWW merge por updatedAt (para import de backup / sync). Mismo patrón que
-  // expenseStore.mergeExpenses: gana el registro con mayor updatedAt.
-  mergeEntries: (incoming) => {
-    const merged = mergePersonalPure(get().entries, incoming);
+  // LWW merge por updatedAt, con tope de reloj (T-171). Mismo patrón que
+  // expenseStore.mergeExpenses: `now` se inyecta con default `syncedNow()`
+  // ACÁ, no dentro de `mergePersonalPure` (esa función es pura).
+  mergeEntries: (incoming, now = syncedNow()) => {
+    const merged = mergePersonalPure(get().entries, incoming, now);
     persistEntries(merged);
     set({ entries: merged });
   },
