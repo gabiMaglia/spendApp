@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { readScoped, writeScoped } from './userScope';
 import { mergeByIdLevels } from './mergeLevels';
+import { siguienteUpdatedAt } from './relojDelMerge';
 import { preservarRecibo } from '@/src/sync/soloLocal';
 import { signOnCreate, signOnEdit } from '@/src/sync/signOnWrite';
 import { schedulePublish } from '@/src/sync/relayEngine';
@@ -21,7 +22,7 @@ interface ExpenseStoreState {
   getByGroupId: (groupId: string) => Expense[];
   addExpense: (expense: Expense) => void;
   updateExpense: (id: string, patch: Partial<Expense>) => void;
-  mergeExpenses: (incoming: Expense[]) => void;
+  mergeExpenses: (incoming: Expense[], now?: number) => void;
   hydrate: () => void;
 }
 
@@ -48,9 +49,10 @@ export const useExpenseStore = create<ExpenseStoreState>((set, get) => ({
   },
 
   updateExpense: (id, patch) => {
+    const ahora = syncedNow();
     const expenses = get().expenses.map(e =>
       e.id === id
-        ? signOnEdit('expense', e, { ...e, ...patch, updatedAt: syncedNow() })
+        ? signOnEdit('expense', e, { ...e, ...patch, updatedAt: siguienteUpdatedAt(e.updatedAt, ahora) })
         : e,
     );
     persist(expenses);
@@ -60,13 +62,18 @@ export const useExpenseStore = create<ExpenseStoreState>((set, get) => ({
     if (groupId) schedulePublish(groupId);
   },
 
-  // LWW merge para sync P2P
-  mergeExpenses: (incoming) => {
+  /**
+   * Merge por niveles (T-041 · S7) con tope de reloj (T-144). `now` se inyecta
+   * con default `syncedNow()` ACÁ, no dentro de `mergeLevels`: esa función es
+   * pura. `applyDelta` (relay y QR) y `backup.ts` no pasan `now` y heredan
+   * este default.
+   */
+  mergeExpenses: (incoming, now = syncedNow()) => {
     // El recibo es del APARATO y ya no viaja: un entrante sin él no puede
     // borrar el nuestro. Sin esto, sacarlo del sobre destruiría recibos.
     const locales = new Map(get().expenses.map(e => [e.id, e]));
     const conRecibo = incoming.map(e => preservarRecibo(e, locales.get(e.id)));
-    const merged = mergeByIdLevels('expense', get().expenses, conRecibo);
+    const merged = mergeByIdLevels('expense', get().expenses, conRecibo, now);
     persist(merged);
     set({ expenses: merged });
   },

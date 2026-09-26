@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { readScoped, writeScoped } from './userScope';
 import { mergeByIdLevels } from './mergeLevels';
+import { siguienteUpdatedAt } from './relojDelMerge';
 import { signOnCreate, signOnEdit } from '@/src/sync/signOnWrite';
 import { schedulePublish } from '@/src/sync/relayEngine';
 import type { Group, LeaveRequest } from '@/src/types/models';
@@ -38,7 +39,7 @@ interface GroupStoreState {
   approveLeave: (id: string, userId: string) => void;
   /** Retira el pedido (lo cancela quien se iba, o se limpia al aplicarlo). */
   cancelLeave: (id: string) => void;
-  mergeGroups: (incoming: Group[]) => void;
+  mergeGroups: (incoming: Group[], now?: number) => void;
   hydrate: () => void;
 }
 
@@ -64,9 +65,10 @@ export const useGroupStore = create<GroupStoreState>((set, get) => ({
     // Del grupo se firma sólo `id`/`createdAt`/`createdById`: nada de lo que
     // pasa por acá los toca, así que `signOnEdit` no re-firma. Se llama igual
     // para que el día que el núcleo del grupo crezca, esto no quede mudo.
+    const ahora = syncedNow();
     const groups = get().groups.map(g =>
       g.id === id
-        ? signOnEdit('group', g, { ...g, ...patch, updatedAt: syncedNow() })
+        ? signOnEdit('group', g, { ...g, ...patch, updatedAt: siguienteUpdatedAt(g.updatedAt, ahora) })
         : g,
     );
     persist(groups);
@@ -78,8 +80,9 @@ export const useGroupStore = create<GroupStoreState>((set, get) => ({
   // propaga por sync en vez de "reaparecer" desde el otro dispositivo, que
   // seguiría teniendo el grupo y lo reintroduciría en el merge.
   deleteGroup: (id) => {
+    const ahora = syncedNow();
     const groups = get().groups.map(g =>
-      g.id === id ? { ...g, isDeleted: true, updatedAt: syncedNow() } : g,
+      g.id === id ? { ...g, isDeleted: true, updatedAt: siguienteUpdatedAt(g.updatedAt, ahora) } : g,
     );
     persist(groups);
     set({ groups });
@@ -96,9 +99,10 @@ export const useGroupStore = create<GroupStoreState>((set, get) => ({
    * no haber estado.
    */
   leaveGroup: (id, userId) => {
+    const ahora = syncedNow();
     const groups = get().groups.map(g =>
       g.id === id
-        ? { ...g, memberIds: g.memberIds.filter(m => m !== userId), updatedAt: syncedNow() }
+        ? { ...g, memberIds: g.memberIds.filter(m => m !== userId), updatedAt: siguienteUpdatedAt(g.updatedAt, ahora) }
         : g,
     );
     persist(groups);
@@ -119,6 +123,7 @@ export const useGroupStore = create<GroupStoreState>((set, get) => ({
   },
 
   requestLeave: (id, userId, plan) => {
+    const ahora = syncedNow();
     const groups = get().groups.map(g => g.id === id ? {
       ...g,
       leaveRequest: {
@@ -134,7 +139,7 @@ export const useGroupStore = create<GroupStoreState>((set, get) => ({
         // trabar una salida ya en curso; se vencen solos.
         v: 2 as const,
       },
-      updatedAt: syncedNow(),
+      updatedAt: siguienteUpdatedAt(g.updatedAt, ahora),
     } : g);
     persist(groups);
     set({ groups });
@@ -142,6 +147,7 @@ export const useGroupStore = create<GroupStoreState>((set, get) => ({
   },
 
   approveLeave: (id, userId) => {
+    const ahora = syncedNow();
     const groups = get().groups.map(g => {
       if (g.id !== id || !g.leaveRequest) return g;
       if (yaAprobo(g.leaveRequest, userId)) return g; // idempotente
@@ -175,7 +181,7 @@ export const useGroupStore = create<GroupStoreState>((set, get) => ({
           ...g.leaveRequest,
           approvedBy: [...g.leaveRequest.approvedBy, firmada],
         },
-        updatedAt: syncedNow(),
+        updatedAt: siguienteUpdatedAt(g.updatedAt, ahora),
       };
     });
     persist(groups);
@@ -184,8 +190,9 @@ export const useGroupStore = create<GroupStoreState>((set, get) => ({
   },
 
   cancelLeave: (id) => {
+    const ahora = syncedNow();
     const groups = get().groups.map(g =>
-      g.id === id ? { ...g, leaveRequest: undefined, updatedAt: syncedNow() } : g,
+      g.id === id ? { ...g, leaveRequest: undefined, updatedAt: siguienteUpdatedAt(g.updatedAt, ahora) } : g,
     );
     persist(groups);
     set({ groups });
@@ -200,9 +207,9 @@ export const useGroupStore = create<GroupStoreState>((set, get) => ({
    * con el mismo criterio. Estaban sueltas en este store desde antes de que
    * existiera un nivel colaborativo donde ponerlas.
    */
-  mergeGroups: (incoming) => {
+  mergeGroups: (incoming, now = syncedNow()) => {
     const antes = new Map(get().groups.map(g => [g.id, g]));
-    const merged = mergeByIdLevels('group', get().groups, incoming).map(g => {
+    const merged = mergeByIdLevels('group', get().groups, incoming, now).map(g => {
       const local = antes.get(g.id);
       const remoto = incoming.find(x => x.id === g.id);
       // El modo de borrado NO se sincroniza: lo fija quien crea el grupo. Ver

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { readScoped, writeScoped } from './userScope';
 import { mergeByIdLevels } from './mergeLevels';
+import { siguienteUpdatedAt } from './relojDelMerge';
 import { signOnCreate, signOnEdit } from '@/src/sync/signOnWrite';
 import { schedulePublish } from '@/src/sync/relayEngine';
 import { migratePaymentAmounts } from './moneyMigration';
@@ -25,7 +26,7 @@ interface PaymentStoreState {
   isLoading: boolean;
   addPayment: (payment: Payment, opts?: AddPaymentOpts) => void;
   updatePayment: (id: string, patch: Partial<Payment>) => void;
-  mergePayments: (incoming: Payment[]) => void;
+  mergePayments: (incoming: Payment[], now?: number) => void;
   hydrate: () => void;
 }
 
@@ -52,9 +53,10 @@ export const usePaymentStore = create<PaymentStoreState>((set, get) => ({
   },
 
   updatePayment: (id, patch) => {
+    const ahora = syncedNow();
     const payments = get().payments.map(p =>
       p.id === id
-        ? signOnEdit('payment', p, { ...p, ...patch, updatedAt: syncedNow() })
+        ? signOnEdit('payment', p, { ...p, ...patch, updatedAt: siguienteUpdatedAt(p.updatedAt, ahora) })
         : p,
     );
     persist(payments);
@@ -64,9 +66,10 @@ export const usePaymentStore = create<PaymentStoreState>((set, get) => ({
     if (groupId) schedulePublish(groupId);
   },
 
-  // LWW merge para sync P2P
-  mergePayments: (incoming) => {
-    const merged = mergeByIdLevels('payment', get().payments, incoming);
+  // Merge por niveles (T-041 · S7) con tope de reloj (T-144). Ver comentario
+  // equivalente en `expenseStore.mergeExpenses`.
+  mergePayments: (incoming, now = syncedNow()) => {
+    const merged = mergeByIdLevels('payment', get().payments, incoming, now);
     persist(merged);
     set({ payments: merged });
   },
