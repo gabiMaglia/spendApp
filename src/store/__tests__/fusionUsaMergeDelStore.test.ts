@@ -111,7 +111,14 @@ it('D2: deletionMode del destino sobrevive a la fusión de groups (T-053) — no
 // test): así si `accountLink.ts` vuelve a poner el tope de reloj para
 // `personal`, este test lo agarra igual que agarraría el mutante del
 // verificador (D5).
-it('D3: personal se fusiona con mergeByIdLWW (sin tope) — un movimiento adelantado no se pierde', () => {
+//
+// T-171 (fix ronda 1, PO 2026-09-26): desde T-171 `mergeByIdLWW` SÍ tiene
+// tope de reloj — pero para `personal` (`mergePersonalPure`,
+// `agregarNuevosEnvenenados: true`) un entrante envenenado cuyo id es NUEVO
+// se agrega igual (nunca se pierde un movimiento propio). El título quedó
+// "sin tope" desde T-149; la garantía que protege ahora es más específica:
+// id nuevo, no reemplazo de uno existente (ver el test siguiente).
+it('D3: personal se fusiona vía mergeAccounts — un movimiento adelantado con id NUEVO se agrega, no se pierde', () => {
   createSecureStorage('personal').clearAll();
   createSecureStorage('personal').set(`entries_v1::u:${APPLE}`, JSON.stringify([]));
   createSecureStorage('personal').set(
@@ -123,6 +130,28 @@ it('D3: personal se fusiona con mergeByIdLWW (sin tope) — un movimiento adelan
 
   const raw = createSecureStorage('personal').getString(`entries_v1::u:${APPLE}`);
   expect(JSON.parse(raw!)).toHaveLength(1);
+});
+
+// D3b (T-171, ronda de fix 1) — el otro lado de la misma regla: si el id YA
+// EXISTE en el destino, un entrante envenenado NO lo reemplaza (a diferencia
+// de D3, acá "adelantado" sí pierde). Puerta 3 real (mergeAccounts).
+it('D3b: personal se fusiona vía mergeAccounts — un movimiento adelantado con id EXISTENTE no pisa al local', () => {
+  createSecureStorage('personal').clearAll();
+  createSecureStorage('personal').set(
+    `entries_v1::u:${APPLE}`,
+    JSON.stringify([entrada({ id: 'pe1', description: 'local', updatedAt: NOW - 10_000 })]),
+  );
+  createSecureStorage('personal').set(
+    `entries_v1::u:${GOOGLE}`,
+    JSON.stringify([entrada({ id: 'pe1', description: 'atacante', updatedAt: NOW + 10 * 24 * 60 * 60 * 1000 })]),
+  );
+
+  mergeAccounts(GOOGLE, APPLE);
+
+  const raw = createSecureStorage('personal').getString(`entries_v1::u:${APPLE}`);
+  const out = JSON.parse(raw!) as PersonalEntry[];
+  expect(out).toHaveLength(1);
+  expect(out[0]!.description).toBe('local');
 });
 
 // Avatar (mismo tipo de defecto que D1, encontrado al auditar los 7 stores) --

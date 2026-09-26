@@ -70,3 +70,49 @@ describe('mergePersonalPure — tope de reloj (T-171)', () => {
     expect(device1[0]!.description).toBe('real');
   });
 });
+
+/**
+ * PO 2026-09-26 (T-171, ronda de fix 1) — «agregar, pero no pisar», SOLO
+ * para `personal`: el riesgo es un reloj propio adelantado (no un atacante),
+ * y perder un movimiento propio es peor que dejarlo envenenado un rato.
+ * `users` (perfiles) NO cambia — sigue T-137 sin esta opción
+ * (`mergeUsersLWW.test.ts`, 22 casos intactos).
+ */
+describe('mergePersonalPure — agregar pero no pisar (T-171 fix 1, PO 2026-09-26)', () => {
+  it('un entrante futuro cuyo id NO EXISTE localmente se agrega: nunca se pierde un movimiento personal', () => {
+    const out = mergePersonalPure(
+      [],
+      [entry({ id: 'e2', description: 'adelantado-nuevo', updatedAt: 9e15 })],
+      NOW,
+    );
+    expect(out).toHaveLength(1);
+    expect(out[0]!.description).toBe('adelantado-nuevo');
+  });
+
+  it('un entrante futuro cuyo id YA EXISTE no reemplaza al local', () => {
+    const out = mergePersonalPure(
+      [entry({ id: 'e1', description: 'local', updatedAt: 1_000 })],
+      [entry({ id: 'e1', description: 'atacante', updatedAt: 9e15 })],
+      NOW,
+    );
+    expect(out).toHaveLength(1);
+    expect(out[0]!.description).toBe('local');
+  });
+
+  it('convergencia: un movimiento nuevo adelantado y uno legítimo posterior llegan en órdenes distintos y convergen', () => {
+    // Ids DISTINTOS (ambos se agregan, no se reemplazan entre sí): el array
+    // resultante puede quedar en distinto ORDEN según por dónde llegó cada
+    // uno primero — eso es esperado en una lista. Lo que tiene que converger
+    // es el CONTENIDO: mismos dos movimientos, mismos datos, en los dos
+    // dispositivos.
+    const adelantadoNuevo = entry({ id: 'e2', description: 'adelantado-nuevo', updatedAt: 9e15 });
+    const legit = entry({ id: 'e3', description: 'legit', updatedAt: NOW + 1_000 });
+
+    const device1 = mergePersonalPure(mergePersonalPure([], [adelantadoNuevo], NOW), [legit], NOW + 2_000);
+    const device2 = mergePersonalPure(mergePersonalPure([], [legit], NOW + 2_000), [adelantadoNuevo], NOW + 2_000);
+
+    const porId = (list: PersonalEntry[]) => [...list].sort((a, b) => (a.id < b.id ? -1 : 1));
+    expect(porId(device1)).toEqual(porId(device2));
+    expect(device1.map(e => e.id).sort()).toEqual(['e2', 'e3']);
+  });
+});

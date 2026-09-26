@@ -14,7 +14,21 @@ import type { PersonalEntry } from '@/src/types/models';
  * que `mergeUsersLWW` — un `updatedAt` dentro de `TOLERANCIA_RELOJ_MS` sigue
  * ganando normal (cubre el error de reloj chico que motivó la nota vieja de
  * este docblock); sólo lo absurdamente futuro o no numérico pierde.
+ *
+ * **PO 2026-09-26 (fix ronda 1) — «agregar, pero no pisar».** El tope a
+ * secas (igual que `users`) descartaba un movimiento personal NUEVO con
+ * reloj adelantado (T-149 D3, `fusionUsaMergeDelStore.test.ts`) — y en
+ * `personal` eso es casi siempre el reloj del PROPIO dueño, no un atacante:
+ * acá el único que escribe es el dueño del dispositivo (a diferencia de
+ * `users`, donde cualquier co-miembro puede mandarte un perfil por el
+ * relay). Perder un movimiento propio es peor que dejarlo un rato con un
+ * `updatedAt` envenenado. Por eso acá se pasa
+ * `agregarNuevosEnvenenados: true`: un entrante envenenado con id NUEVO se
+ * agrega igual; uno con id YA EXISTENTE sigue sin poder pisar al local (ahí
+ * no hay forma de distinguir "mi reloj se adelantó" de "me llegó basura",
+ * así que se mantiene el criterio conservador). `users` (`mergeUsersLWW.ts`)
+ * deja la opción en su default (`false`) a propósito: no debe cambiar.
  */
 export function mergePersonalPure(current: PersonalEntry[], incoming: PersonalEntry[], now: number): PersonalEntry[] {
-  return mergeByIdLWW(current, incoming, now);
+  return mergeByIdLWW(current, incoming, now, { agregarNuevosEnvenenados: true });
 }

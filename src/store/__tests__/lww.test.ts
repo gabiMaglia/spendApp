@@ -150,4 +150,45 @@ describe('mergeByIdLWW', () => {
       expect(device1[0]).toMatchObject({ v: 'real' });
     });
   });
+
+  /**
+   * PO 2026-09-26 (T-171, ronda de fix 1): «agregar, pero no pisar» — SOLO
+   * para `personal` (`mergePersonalPure` la activa). El riesgo ahí es un
+   * reloj propio adelantado, no un atacante externo, y perder un movimiento
+   * propio es peor que dejarlo envenenado un rato. `users` NO usa esta
+   * opción: sigue el criterio de T-137 sin cambios (ver mergeUsersLWW.test.ts,
+   * que no toca `now`/opts y corre con el default).
+   */
+  describe('opción agregarNuevosEnvenenados (T-171 fix 1)', () => {
+    it('sin la opción (default), un id NUEVO envenenado NO se agrega — comportamiento de users intacto', () => {
+      const out = mergeByIdLWW([], [rec('a', 9e15)], NOW);
+      expect(out).toHaveLength(0);
+    });
+
+    it('con la opción activa, un id NUEVO envenenado SÍ se agrega', () => {
+      const out = mergeByIdLWW([], [rec('a', 9e15, { v: 'adelantado' })], NOW, { agregarNuevosEnvenenados: true });
+      expect(out).toHaveLength(1);
+      expect(out[0]).toMatchObject({ v: 'adelantado' });
+    });
+
+    it('con la opción activa, un entrante envenenado cuyo id YA EXISTE no pisa al local', () => {
+      const out = mergeByIdLWW(
+        [rec('a', 1_000, { v: 'local' })],
+        [rec('a', 9e15, { v: 'atacante' })],
+        NOW,
+        { agregarNuevosEnvenenados: true },
+      );
+      expect(out[0]).toMatchObject({ v: 'local' });
+    });
+
+    it('con la opción activa, un local envenenado sigue autocurándose contra un entrante plausible', () => {
+      const out = mergeByIdLWW(
+        [rec('a', 9e15, { v: 'vandalizado' })],
+        [rec('a', 500, { v: 'real' })],
+        NOW,
+        { agregarNuevosEnvenenados: true },
+      );
+      expect(out[0]).toMatchObject({ v: 'real' });
+    });
+  });
 });
