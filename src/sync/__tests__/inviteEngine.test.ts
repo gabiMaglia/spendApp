@@ -76,9 +76,9 @@ const relayMock = jest.requireMock('../relay') as {
   __reset: () => void;
 };
 
-const ANA    = usuario('u-ana', 'Ana');
-const BETO   = usuario('u-beto', 'Beto');
-const MALLORY = usuario('u-mallory', 'Mallory');
+const ANA    = usuario('u-ana-1', 'Ana');
+const BETO   = usuario('u-beto-2', 'Beto');
+const MALLORY = usuario('u-mallory-3', 'Mallory');
 
 function usuario(id: string, name: string): User {
   return {
@@ -478,10 +478,10 @@ describe('T-136 · la invitación choca con una clave plantada por contacto', ()
   function plantadaPorContacto(key: string): void {
     useGroupKeyStore.setState({ keys: [{ groupId: 'g1', key, epoch: 1e9 }] });
     registrarOferta({
-      groupId: 'g1', fromUserId: 'u-mallory', key, epoch: 1e9,
+      groupId: 'g1', fromUserId: 'u-mallory-3', key, epoch: 1e9,
       origen: 'contact', receivedAt: 0, adoptada: false,
     });
-    marcarAdoptada('g1', 'u-mallory');
+    marcarAdoptada('g1', 'u-mallory-3');
   }
 
   const avisos = () => useNoticeInboxStore.getState().items.filter(i => i.notice.kind === 'group_key_conflict');
