@@ -1,5 +1,7 @@
 import { mergeAccountData, type StoreAFusionar, type ReglaDeFusion } from '../mergeAccountData';
-import { MERGEABLE_STORES } from '../accountLink';
+import { MERGEABLE_STORES, mergeAccounts } from '../accountLink';
+import { createSecureStorage } from '@/src/utils/secureStorage';
+import { usePersonalStore } from '../personalStore';
 import { useExpenseStore } from '../expenseStore';
 import { mergeExpensesPure } from '../mergeExpensesPure';
 import { useGroupStore } from '../groupStore';
@@ -9,7 +11,6 @@ import { useUserStore } from '../userStore';
 import { mergeUsersPure } from '../mergeUsersPure';
 import { useRecurringStore } from '../recurringStore';
 import { useCommentStore } from '../commentStore';
-import { mergePersonalPure } from '../mergePersonalPure';
 import type { Syncable } from '../lww';
 import type { SimpleStorage } from '@/src/utils/createStorage';
 import type {
@@ -106,14 +107,22 @@ it('D2: deletionMode del destino sobrevive a la fusión de groups (T-053) — no
 });
 
 // D3 -------------------------------------------------------------------
+// Corre por `mergeAccounts` de verdad (no una regla armada a mano en el
+// test): así si `accountLink.ts` vuelve a poner el tope de reloj para
+// `personal`, este test lo agarra igual que agarraría el mutante del
+// verificador (D5).
 it('D3: personal se fusiona con mergeByIdLWW (sin tope) — un movimiento adelantado no se pierde', () => {
-  const st = fakeStorage();
-  st.set(`entries_v1::u:${APPLE}`, JSON.stringify([]));
-  st.set(`entries_v1::u:${GOOGLE}`, JSON.stringify([entrada({ updatedAt: NOW + 10 * 24 * 60 * 60 * 1000 })]));
+  createSecureStorage('personal').clearAll();
+  createSecureStorage('personal').set(`entries_v1::u:${APPLE}`, JSON.stringify([]));
+  createSecureStorage('personal').set(
+    `entries_v1::u:${GOOGLE}`,
+    JSON.stringify([entrada({ updatedAt: NOW + 10 * 24 * 60 * 60 * 1000 })]),
+  );
 
-  mergeAccountData([[st, 'entries_v1', mergePersonalPure] as unknown as StoreAFusionar], GOOGLE, APPLE, NOW);
+  mergeAccounts(GOOGLE, APPLE);
 
-  expect(leer<PersonalEntry>(st, 'entries_v1', APPLE)).toHaveLength(1);
+  const raw = createSecureStorage('personal').getString(`entries_v1::u:${APPLE}`);
+  expect(JSON.parse(raw!)).toHaveLength(1);
 });
 
 // Avatar (mismo tipo de defecto que D1, encontrado al auditar los 7 stores) --
@@ -239,19 +248,30 @@ describe('invariante: fusionar da lo mismo que sincronizar, para cada store de M
     expect(viaFusion).toEqual(viaSync);
   });
 
-  it('personal: mergeAccountData(entries_v1) === el store fusionando los mismos dos estados', () => {
+  // `personal` no está en MERGEABLE_STORES (persiste bajo otra clave, se
+  // fusiona aparte en `mergePersonal`), así que no hay lista de la que sacar
+  // su regla. Por eso este caso corre por `mergeAccounts` DE VERDAD —el
+  // mismo camino que produción, que toca `accountLink.ts:678`— y se compara
+  // contra la acción real del store (`usePersonalStore.mergeEntries`), no
+  // contra `mergePersonalPure` invocada dos veces a mano (D5 verifier: eso
+  // se comparaba contra sí mismo y no agarraba el mutante que vuelve la
+  // regla a `'lww'`).
+  it('personal: mergeAccounts(...) === el store fusionando los mismos dos estados', () => {
+    createSecureStorage('personal').clearAll();
     const current = [entrada()];
     const incoming = [entrada({ updatedAt: NOW - 1000, amount: 999 })];
 
-    const st = fakeStorage();
-    st.set(`entries_v1::u:${APPLE}`, JSON.stringify(current));
-    st.set(`entries_v1::u:${GOOGLE}`, JSON.stringify(incoming));
-    mergeAccountData(
-      [[st, 'entries_v1', mergePersonalPure]] as unknown as StoreAFusionar[], GOOGLE, APPLE, NOW,
-    );
-    const viaFusion = leer<PersonalEntry>(st, 'entries_v1', APPLE);
+    createSecureStorage('personal').set(`entries_v1::u:${APPLE}`, JSON.stringify(current));
+    createSecureStorage('personal').set(`entries_v1::u:${GOOGLE}`, JSON.stringify(incoming));
 
-    const viaSync = mergePersonalPure(current, incoming);
+    mergeAccounts(GOOGLE, APPLE);
+
+    const raw = createSecureStorage('personal').getString(`entries_v1::u:${APPLE}`);
+    const viaFusion = JSON.parse(raw!) as PersonalEntry[];
+
+    usePersonalStore.setState({ entries: current.map(r => ({ ...r })) });
+    usePersonalStore.getState().mergeEntries(incoming.map(r => ({ ...r })));
+    const viaSync = usePersonalStore.getState().entries;
 
     expect(viaFusion).toEqual(viaSync);
   });
