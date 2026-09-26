@@ -488,6 +488,60 @@ describe('T-150 ronda 2 (D4): tope de miembros al admitir un reclamo', () => {
     expect(useGroupKeyStore.getState().getKey('g1')).toEqual(record);
     expect(listErrors().some(e => e.message.includes('tope_de_miembros'))).toBe(true);
   });
+
+  /**
+   * Ruling del orquestador (handoff ronda 2/5, punto 3): el rastro de
+   * diagnóstico no lo ve nadie — quien invita necesita un aviso VISIBLE. Se
+   * anota en la bandeja de avisos de quien admite (ANA, dueña de la
+   * invitación), una sola vez por invitación aunque `processInvite` reintente
+   * el mismo reclamo en cada sync (T-096: sin cursor, el buzón se relee
+   * entero mientras siga vivo).
+   */
+  it('avisa a quien invita, en la bandeja de avisos, que alguien intentó entrar a un grupo lleno', async () => {
+    usar('ana', ANA);
+    const llenoConAna = [ANA.id, ...Array.from({ length: MAX_MIEMBROS - 1 }, (_, i) => `relleno-${i}`)];
+    useGroupStore.setState({ groups: [grupo(llenoConAna)] });
+    useUserStore.setState({ users: [ANA] });
+    useGroupKeyStore.getState().ensureKey('g1');
+    const identidadDeAna = ensureIdentity().publicKey;
+    const invite = createInvite('g1', 'Viaje', identidadDeAna);
+    saveInvite(invite);
+    createSecureStorage('notices').clearAll();
+    useNoticeInboxStore.setState({ items: [] });
+
+    usar('beto', BETO);
+    await publishClaim(invite, 'dev-beto');
+
+    usar('ana', ANA);
+    await processInvite(invite, 'dev-ana');
+
+    const avisos = useNoticeInboxStore.getState().items.filter(i => i.notice.kind === 'group_invite_full');
+    expect(avisos).toHaveLength(1);
+    expect(avisos[0]!.notice).toMatchObject({ kind: 'group_invite_full', groupId: 'g1' });
+  });
+
+  it('no apila un aviso por cada reintento del mismo reclamo', async () => {
+    usar('ana', ANA);
+    const llenoConAna = [ANA.id, ...Array.from({ length: MAX_MIEMBROS - 1 }, (_, i) => `relleno-${i}`)];
+    useGroupStore.setState({ groups: [grupo(llenoConAna)] });
+    useUserStore.setState({ users: [ANA] });
+    useGroupKeyStore.getState().ensureKey('g1');
+    const identidadDeAna = ensureIdentity().publicKey;
+    const invite = createInvite('g1', 'Viaje', identidadDeAna);
+    saveInvite(invite);
+    createSecureStorage('notices').clearAll();
+    useNoticeInboxStore.setState({ items: [] });
+
+    usar('beto', BETO);
+    await publishClaim(invite, 'dev-beto');
+
+    usar('ana', ANA);
+    await processInvite(invite, 'dev-ana');
+    await processInvite(invite, 'dev-ana'); // reintento del mismo reclamo, mismo sync
+
+    const avisos = useNoticeInboxStore.getState().items.filter(i => i.notice.kind === 'group_invite_full');
+    expect(avisos).toHaveLength(1);
+  });
 });
 
 describe('activeInvites', () => {
