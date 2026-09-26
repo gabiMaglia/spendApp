@@ -1,6 +1,6 @@
 import {
   ensureContactSecret, myContactCard, announceContact, drainContacts,
-  deriveContactTopic, savePeer, peerSecret, listPeers, sendGroupKey,
+  deriveContactTopic, savePeer, peerSecret, listPeers, sendGroupKey, sendGroupKeyResultado,
   getPeer, peersIncompletos, hasConflictingPinnedKeys,
 } from '../contactChannel';
 import { ofertasDe, registrarOferta, idDeOfertaDeInvitacion } from '../groupKeyOffers';
@@ -390,6 +390,26 @@ describe('crear un grupo con un contacto: le llega solo', () => {
     useGroupKeyStore.getState().ensureKey('g1');
 
     expect(await sendGroupKey('u-desconocido', { id: 'g1', name: 'Viaje' }, 'dev-ana')).toBe(false);
+  });
+
+  /**
+   * T-147 (D4, ronda 2): `sendGroupKey` colapsaba TODO a `boolean` — un
+   * `rate_limited` se veía igual que "no tiene con quién". `relayQueue`
+   * necesita distinguirlos para saber cuándo reintentar solo.
+   */
+  it('D4 (ronda 2): sendGroupKeyResultado expone el motivo, no lo colapsa a boolean', async () => {
+    await yaSonContactos();
+    usar(ANA);
+    useGroupKeyStore.getState().ensureKey('g1');
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const espia = jest.spyOn(relayMock as any, 'sendEnvelope')
+      .mockResolvedValueOnce({ ok: false, reason: 'rate_limited' });
+
+    const r = await sendGroupKeyResultado(BETO.id, { id: 'g1', name: 'Viaje' }, 'dev-ana');
+
+    expect(r).toMatchObject({ ok: false, reason: 'rate_limited' });
+    espia.mockRestore();
   });
 
   it('sin la clave del grupo no hay nada que entregar', async () => {
