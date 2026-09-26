@@ -114,8 +114,15 @@ describe.each([
     const porMinuto = total / (segundos / 60);
 
     expect(enviados).toBe(total); // nada se pierde
-    expect(porMinuto).toBeLessThanOrEqual(15);
+    // El primer envío sale "gratis" (t=0, ráfaga chica explícitamente
+    // aceptada por el ruling); el resto respeta el intervalo. Para un lote
+    // chico esa gratuidad infla el promedio medido por sobre el
+    // asintótico (60000/QUEUE_INTERVAL_MS = 15/min) — el techo real, medido
+    // en régimen (excluyendo el primero), sí es 15/min exactas.
+    expect(porMinuto).toBeLessThanOrEqual(17);
+    const regimen = (total - 1) / (segundos / 60);
+    expect(regimen).toBeLessThanOrEqual(15);
     // eslint-disable-next-line no-console
-    console.log(`[medición D4] ${grupos}×${miembros}: ${total} sobres, ~${segundos.toFixed(1)}s, ${porMinuto.toFixed(1)}/min`);
+    console.log(`[medición D4] ${grupos}×${miembros}: ${total} sobres, ~${segundos.toFixed(1)}s, ${porMinuto.toFixed(1)}/min (${regimen.toFixed(1)}/min en régimen)`);
   });
 });
