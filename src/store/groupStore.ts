@@ -1,12 +1,11 @@
 import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { readScoped, writeScoped } from './userScope';
-import { mergeByIdLevels } from './mergeLevels';
 import { siguienteUpdatedAt } from './relojDelMerge';
+import { mergeGroupsPure } from './mergeGroupsPure';
 import { signOnCreate, signOnEdit } from '@/src/sync/signOnWrite';
 import { schedulePublish } from '@/src/sync/relayEngine';
 import type { Group, LeaveRequest } from '@/src/types/models';
-import { mergeDeletionMode } from '@/src/algorithms/deletionPolicy';
 import { syncedNow } from '@/src/utils/syncedClock';
 import { privadaDelAparato } from '@/src/sync/devicePrivateKey';
 import { signLeaveApproval } from '@/src/sync/leaveApprovalSign';
@@ -208,15 +207,7 @@ export const useGroupStore = create<GroupStoreState>((set, get) => ({
    * existiera un nivel colaborativo donde ponerlas.
    */
   mergeGroups: (incoming, now = syncedNow()) => {
-    const antes = new Map(get().groups.map(g => [g.id, g]));
-    const merged = mergeByIdLevels('group', get().groups, incoming, now).map(g => {
-      const local = antes.get(g.id);
-      const remoto = incoming.find(x => x.id === g.id);
-      // El modo de borrado NO se sincroniza: lo fija quien crea el grupo. Ver
-      // `mergeDeletionMode` — sin esto cualquiera afloja el grupo por sync.
-      const modo = mergeDeletionMode(antes.has(g.id), local?.deletionMode, remoto?.deletionMode);
-      return g.deletionMode === modo ? g : { ...g, deletionMode: modo };
-    });
+    const merged = mergeGroupsPure(get().groups, incoming, now);
     persist(merged);
     set({ groups: merged });
   },

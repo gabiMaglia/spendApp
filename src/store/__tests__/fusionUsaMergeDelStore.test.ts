@@ -1,12 +1,15 @@
 import { mergeAccountData, type StoreAFusionar, type ReglaDeFusion } from '../mergeAccountData';
 import { MERGEABLE_STORES } from '../accountLink';
-import { useExpenseStore, mergeExpensesPure } from '../expenseStore';
-import { useGroupStore, mergeGroupsPure } from '../groupStore';
+import { useExpenseStore } from '../expenseStore';
+import { mergeExpensesPure } from '../mergeExpensesPure';
+import { useGroupStore } from '../groupStore';
+import { mergeGroupsPure } from '../mergeGroupsPure';
 import { usePaymentStore } from '../paymentStore';
-import { useUserStore, mergeUsersPure } from '../userStore';
+import { useUserStore } from '../userStore';
+import { mergeUsersPure } from '../mergeUsersPure';
 import { useRecurringStore } from '../recurringStore';
 import { useCommentStore } from '../commentStore';
-import { mergePersonalPure } from '../personalStore';
+import { mergePersonalPure } from '../mergePersonalPure';
 import type { Syncable } from '../lww';
 import type { SimpleStorage } from '@/src/utils/createStorage';
 import type {
@@ -86,7 +89,7 @@ it('D1: el recibo local sobrevive a la fusión de expenses, igual que al sync', 
   st.set(`data_v1::u:${APPLE}`, JSON.stringify([gasto({ receiptImageUri: 'file://r.jpg' })]));
   st.set(`data_v1::u:${GOOGLE}`, JSON.stringify([gasto({ updatedAt: NOW - 1000 })]));
 
-  mergeAccountData([[st, 'data_v1', mergeExpensesPure] as StoreAFusionar], GOOGLE, APPLE, NOW);
+  mergeAccountData([[st, 'data_v1', mergeExpensesPure] as unknown as StoreAFusionar], GOOGLE, APPLE, NOW);
 
   expect(leer<Expense>(st, 'data_v1', APPLE)[0]!.receiptImageUri).toBe('file://r.jpg');
 });
@@ -97,7 +100,7 @@ it('D2: deletionMode del destino sobrevive a la fusión de groups (T-053) — no
   st.set(`data_v1::u:${APPLE}`, JSON.stringify([grupo({ deletionMode: 'consensus' })]));
   st.set(`data_v1::u:${GOOGLE}`, JSON.stringify([grupo({ deletionMode: 'open', updatedAt: NOW - 1000 })]));
 
-  mergeAccountData([[st, 'data_v1', mergeGroupsPure] as StoreAFusionar], GOOGLE, APPLE, NOW);
+  mergeAccountData([[st, 'data_v1', mergeGroupsPure] as unknown as StoreAFusionar], GOOGLE, APPLE, NOW);
 
   expect(leer<Group>(st, 'data_v1', APPLE)[0]!.deletionMode).toBe('consensus');
 });
@@ -108,7 +111,7 @@ it('D3: personal se fusiona con mergeByIdLWW (sin tope) — un movimiento adelan
   st.set(`entries_v1::u:${APPLE}`, JSON.stringify([]));
   st.set(`entries_v1::u:${GOOGLE}`, JSON.stringify([entrada({ updatedAt: NOW + 10 * 24 * 60 * 60 * 1000 })]));
 
-  mergeAccountData([[st, 'entries_v1', mergePersonalPure] as StoreAFusionar], GOOGLE, APPLE, NOW);
+  mergeAccountData([[st, 'entries_v1', mergePersonalPure] as unknown as StoreAFusionar], GOOGLE, APPLE, NOW);
 
   expect(leer<PersonalEntry>(st, 'entries_v1', APPLE)).toHaveLength(1);
 });
@@ -121,7 +124,7 @@ it('el avatar local sobrevive a la fusión de users, igual que al sync', () => {
   st.set(`data_v1::u:${APPLE}`, JSON.stringify([conAvatar]));
   st.set(`data_v1::u:${GOOGLE}`, JSON.stringify([sinAvatar]));
 
-  mergeAccountData([[st, 'data_v1', mergeUsersPure] as StoreAFusionar], GOOGLE, APPLE, NOW);
+  mergeAccountData([[st, 'data_v1', mergeUsersPure] as unknown as StoreAFusionar], GOOGLE, APPLE, NOW);
 
   expect(leer<User>(st, 'data_v1', APPLE)[0]!.avatar).toBe('b64==');
 });
@@ -209,7 +212,9 @@ const CASOS: CasoDeStore[] = [
 ];
 
 describe('invariante: fusionar da lo mismo que sincronizar, para cada store de MERGEABLE_STORES', () => {
-  const porBucket = new Map(MERGEABLE_STORES.map(([bucket, regla]) => [bucket, regla as ReglaDeFusion]));
+  const porBucket = new Map<string, ReglaDeFusion>(
+    MERGEABLE_STORES.map(([bucket, regla]) => [bucket as string, regla as ReglaDeFusion]),
+  );
 
   it.each(CASOS)('$bucket: mergeAccountData($bucket) === el store fusionando los mismos dos estados', (caso) => {
     const regla = porBucket.get(caso.bucket);
@@ -242,7 +247,7 @@ describe('invariante: fusionar da lo mismo que sincronizar, para cada store de M
     st.set(`entries_v1::u:${APPLE}`, JSON.stringify(current));
     st.set(`entries_v1::u:${GOOGLE}`, JSON.stringify(incoming));
     mergeAccountData(
-      [[st, 'entries_v1', mergePersonalPure]] as StoreAFusionar[], GOOGLE, APPLE, NOW,
+      [[st, 'entries_v1', mergePersonalPure]] as unknown as StoreAFusionar[], GOOGLE, APPLE, NOW,
     );
     const viaFusion = leer<PersonalEntry>(st, 'entries_v1', APPLE);
 

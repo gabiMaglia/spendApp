@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { readScoped, writeScoped } from './userScope';
-import { mergeUsersLWW } from './mergeUsersLWW';
+import { mergeUsersPure } from './mergeUsersPure';
 import i18n from '@/src/i18n';
 import { preservarAvatar } from './userAvatar';
 import type { User } from '@/src/types/models';
@@ -103,11 +103,7 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
    * este default.
    */
   mergeUsers: (incoming, now = syncedNow()) => {
-    // Los previos se leen ANTES del merge: después de mergear ya no está lo que
-    // había, que es justo contra lo que hay que proteger la foto.
-    const previos = new Map(get().users.map(u => [u.id, u]));
-    const merged = mergeUsersLWW(get().users, incoming, now)
-      .map(u => preservarAvatar(previos.get(u.id), u));
+    const merged = mergeUsersPure(get().users, incoming, now);
     persist(merged);
     set({ users: merged });
   },

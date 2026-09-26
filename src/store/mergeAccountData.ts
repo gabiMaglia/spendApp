@@ -26,9 +26,24 @@ import type { Syncable } from './lww';
  *
  * No borra el scope de origen: si algo sale mal, los datos siguen ahí.
  * `now` se inyecta: este módulo es puro y no abre `syncedClock`.
+ *
+ * **Ronda 1 del verificador (D1/D2/D3).** «Cada store declara su regla» no
+ * alcanzaba cuando la regla era sólo un `CoreKind`: el sync de varios stores
+ * hace más que el merge desnudo (`expenseStore.mergeExpenses` preserva el
+ * recibo, `groupStore.mergeGroups` preserva el `deletionMode`, `userStore.
+ * mergeUsers` preserva el avatar), y una fusión con `mergeByIdLevels`/
+ * `mergeUsersLWW` a secas se saltea esos pasos. Por eso `ReglaDeFusion` acepta
+ * también la función PURA que cada store exporta (`mergeExpensesPure`,
+ * `mergeGroupsPure`, `mergeUsersPure`, `mergePersonalPure`): es literalmente
+ * la misma función que usa `mergeExpenses`/`mergeGroups`/`mergeUsers`/
+ * `mergeEntries`, así que si el sync le agrega un paso, la fusión lo hereda
+ * sola. Un `CoreKind` sigue aceptado para los stores cuyo sync llama a
+ * `mergeByIdLevels` desnudo y nada más (payment, recurring, comment): ahí
+ * pasar el kind ES pasar la misma función.
  */
 
-export type ReglaDeFusion = CoreKind | 'lww';
+export type FusionFn = (current: Syncable[], incoming: Syncable[], now: number) => Syncable[];
+export type ReglaDeFusion = CoreKind | 'lww' | FusionFn;
 export type StoreAFusionar = [storage: SimpleStorage, base: string, regla: ReglaDeFusion];
 
 function scopedKey(base: string, uid: string): string {
@@ -47,6 +62,7 @@ function readList(storage: SimpleStorage, base: string, uid: string): Syncable[]
 }
 
 function fusionar(regla: ReglaDeFusion, to: Syncable[], from: Syncable[], now: number): Syncable[] {
+  if (typeof regla === 'function') return regla(to, from, now);
   if (regla === 'lww') return mergeUsersLWW(to, from, now);
   return mergeByIdLevels(
     regla,
