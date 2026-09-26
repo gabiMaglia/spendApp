@@ -696,7 +696,11 @@
     "group_replaced_title": "«{{group}}» was transferred",
     "group_replaced_body": "It moved to a new group: «{{newGroup}}». The old one is now archived, read-only.",
     "invite_full_title": "Your «{{group}}» link had an extra attempt",
-    "invite_full_body": "Someone tried to join with your link, but the group already has the maximum of {{max}} members. No one was added."
+    "invite_full_body": "Someone tried to join with your link, but the group already has the maximum of {{max}} members. No one was added.",
+    "join_stalled_title": "We couldn't complete your join",
+    "join_stalled_body": "Your join to «{{group}}» didn't complete. Ask whoever invited you for a new link.",
+    "traspaso_recurring_blocked_title": "A recurring expense from «{{group}}» wasn't moved",
+    "traspaso_recurring_blocked_body": "The group was transferred, but this recurring expense stayed in the archived group. Recreate it in the new group."
   },
   "fx": {
     "partial_title": "There's money we're not showing you",

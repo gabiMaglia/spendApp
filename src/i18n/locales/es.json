@@ -696,7 +696,11 @@
     "group_replaced_title": "«{{group}}» se traspasó",
     "group_replaced_body": "Se pasó a un grupo nuevo: «{{newGroup}}». El anterior queda archivado, de solo lectura.",
     "invite_full_title": "Tu link de «{{group}}» tuvo un intento de más",
-    "invite_full_body": "Alguien quiso entrar con tu link, pero el grupo ya llegó al máximo de {{max}} miembros. No se sumó a nadie."
+    "invite_full_body": "Alguien quiso entrar con tu link, pero el grupo ya llegó al máximo de {{max}} miembros. No se sumó a nadie.",
+    "join_stalled_title": "No pudimos completar tu ingreso",
+    "join_stalled_body": "Tu ingreso a «{{group}}» no se completó. Pedile a quien te invitó que te mande un link nuevo.",
+    "traspaso_recurring_blocked_title": "Un gasto recurrente de «{{group}}» no se movió",
+    "traspaso_recurring_blocked_body": "El grupo se traspasó, pero esta recurrente quedó en el grupo archivado. Volvé a crearla en el grupo nuevo."
   },
   "fx": {
     "partial_title": "Hay saldo que no te estamos mostrando",

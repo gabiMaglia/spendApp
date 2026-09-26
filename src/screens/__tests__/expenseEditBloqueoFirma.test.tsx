@@ -28,6 +28,15 @@ jest.mock('expo-router', () => ({
   useLocalSearchParams: () => mockSearchParams,
 }));
 
+// T-172 (ítem 4): `hapticSuccess` sonaba ANTES de saber si `updateExpense`
+// bloqueó el guardado. Se mockea para poder afirmar que sólo suena cuando el
+// guardado de verdad se completó.
+const mockHapticSuccess = jest.fn();
+jest.mock('@/src/utils/haptics', () => ({
+  ...jest.requireActual('@/src/utils/haptics'),
+  hapticSuccess: (...args: unknown[]) => mockHapticSuccess(...args),
+}));
+
 const USER = { id: 'ua', name: 'Ana' } as User;
 const GROUP: Group = {
   id: 'g1', name: 'Viaje', memberIds: ['ua', 'ub'], currency: 'ARS',
@@ -48,6 +57,7 @@ describe('T-152 · D2 — edición bloqueada por firma avisa y no cierra la pant
   beforeEach(() => {
     mockSearchParams = { expenseId: 'e1' };
     mockRouterBack.mockReset();
+    mockHapticSuccess.mockReset();
     useAuthStore.setState({ currentUser: USER, isPro: false });
     useGroupStore.setState({ groups: [GROUP] });
     useExpenseStore.setState({ expenses: [EXPENSE] });
@@ -80,5 +90,32 @@ describe('T-152 · D2 — edición bloqueada por firma avisa y no cierra la pant
 
     expect(Alert.alert).not.toHaveBeenCalled();
     expect(mockRouterBack).toHaveBeenCalled();
+  });
+
+  /**
+   * T-172 (ítem 4, hallado en la ronda de QA de T-152): `hapticSuccess()` se
+   * disparaba ANTES de llamar a `updateExpense`, así que un guardado
+   * BLOQUEADO por firma vibraba éxito igual que uno que sí guardó — el
+   * usuario siente "listo" un instante antes de que aparezca el Alert de
+   * error.
+   */
+  it('si el guardado se bloquea por firma, NO vibra éxito', () => {
+    const updateExpense = jest.fn(() => false);
+    useExpenseStore.setState({ updateExpense });
+    const { getByText } = render(<NewExpenseScreen />);
+
+    fireEvent.press(getByText('expense.save'));
+
+    expect(mockHapticSuccess).not.toHaveBeenCalled();
+  });
+
+  it('si el guardado sí se completa, vibra éxito', () => {
+    const updateExpense = jest.fn(() => true);
+    useExpenseStore.setState({ updateExpense });
+    const { getByText } = render(<NewExpenseScreen />);
+
+    fireEvent.press(getByText('expense.save'));
+
+    expect(mockHapticSuccess).toHaveBeenCalledTimes(1);
   });
 });

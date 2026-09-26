@@ -5,7 +5,7 @@ import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import {
   ensureIdentity, ensureWrapKeypair,
   savePendingJoin, removePendingJoin, listInvites, listPendingJoins,
-  findInviteToken, markInviteClaimed,
+  findInviteToken, markInviteClaimed, msDesdePrimerReclamo,
 } from '@/src/store/identityStore';
 import { publishToGroup } from './relaySync';
 import { getPeer } from './contactChannel';
@@ -18,7 +18,7 @@ import {
 import { syncedNow } from '@/src/utils/syncedClock';
 import { withTimeout } from '@/src/utils/withTimeout';
 import { recordError } from '@/src/services/errorLog';
-import { announceInviteFull } from '@/src/services/notifications';
+import { announceInviteFull, announceJoinStalled, resolveJoinStalled } from '@/src/services/notifications';
 import { admiteUnMiembroMas } from './topes';
 import {
   claveLocalVinoDeContacto, idDeOfertaDeInvitacion, olvidarOfertas, registrarOferta,
@@ -27,6 +27,33 @@ import { avisarConflictoDeClave } from './keyConflictNotice';
 
 /** T-138-bis: ver `processAllInvites`. */
 const INVITE_TIMEOUT_MS = 8_000;
+
+/**
+ * Tiempo sin recibir grant antes de avisarle al invitado (T-172, ítem 2 —
+ * ronda 2/5, D1 del verificador).
+ *
+ * **La ronda 1 contaba LLAMADAS a `processInvite`, no tiempo, y eso era
+ * falso respecto de cómo se llama de verdad:**
+ *  - `app/groups/join.tsx:37-38,72-84` sondea el buzón cada `REINTENTO_MS`
+ *    (3s) durante `ESPERA_MS` (25s) mientras la pantalla sigue abierta —
+ *    unas 8 llamadas en 25 SEGUNDOS, no en varios ciclos de sync.
+ *  - `relayEngine.ts` además llama `processAllInvites` desde `doStartRelay`
+ *    (arranque, reconexión) y desde `onInviteNews` cada vez que el buzón de
+ *    invitaciones tiene novedades — ninguna de las dos espera 15 minutos.
+ *  - Con esos llamadores, 6 llamadas se agotaban en ~16s: el caso más común
+ *    (un link por WhatsApp, el invitador sin la app abierta todavía) avisaba
+ *    "no se completó" segundos después de tocar "Unirme", aunque el ingreso
+ *    terminara bien apenas el invitador abriera la app.
+ *
+ * **Ahora se mide tiempo real desde el primer reclamo** (`firstAttemptAt`,
+ * `msDesdePrimerReclamo`), sin importar cuántas veces se sondeó el buzón.
+ * 24hs — la mitad del TTL de 48hs de la invitación (regla 9 de CLAUDE.md) —
+ * es defendible en las dos puntas: le da al invitador un día entero para
+ * abrir la app alguna vez (el único evento que dispara `admit`, sin el cual
+ * el ingreso nunca cierra solo), y deja al invitado con otras 24hs de
+ * invitación viva para pedir un link nuevo si de verdad hace falta.
+ */
+export const JOIN_STALL_NOTICE_AFTER_MS = 24 * 60 * 60 * 1000;
 
 /**
  * El encuentro entre quien invita y quien entra.
@@ -129,6 +156,21 @@ export async function processInvite(invite: GroupInvite, deviceId: string): Prom
       const grant = await openGrant(invite.token, envelope.payload, invite.inviterFingerprint);
       if (grant && await redeem(grant, invite, me.id)) adoptados.push(grant.groupId);
     } catch { /* sobre inservible: se saltea */ }
+  }
+
+  // T-172 (ítem 2): si esta pasada NO adoptó el grupo de esta invitación, es
+  // un intento más sin éxito del lado de quien reclama. `msDesdePrimerReclamo`
+  // sólo devuelve algo si `invite.token` sigue siendo un join PENDIENTE de
+  // este dispositivo (`null` si no — por ejemplo, somos quien invita, o el
+  // join ya se resolvió y `removePendingJoin` lo borró más arriba, en el
+  // mismo pase), así que este bloque es un no-op inofensivo del lado de
+  // quien invita, y no dispara nada en el mismo pase donde `redeem` acaba de
+  // cerrar el ingreso.
+  if (!adoptados.includes(invite.groupId)) {
+    const esperando = msDesdePrimerReclamo(invite.token);
+    if (esperando !== null && esperando >= JOIN_STALL_NOTICE_AFTER_MS) {
+      void announceJoinStalled(invite.groupId, invite.groupName, invite.token);
+    }
   }
 
   return adoptados;
@@ -320,6 +362,10 @@ async function redeem(grant: InviteGrant, invite: GroupInvite, myUserId: string)
     // El ingreso por link está cerrado: o ya la teníamos, o decide el usuario
     // desde el aviso.
     removePendingJoin(invite.token);
+    // T-172 (ítem 2, ronda 2/5): el ingreso cerró bien, así que un aviso de
+    // demora que hubiera salido para este token queda contradiciendo un
+    // ingreso exitoso si no se retira acá.
+    resolveJoinStalled(invite.token);
     return false;
   }
 
@@ -340,6 +386,9 @@ async function redeem(grant: InviteGrant, invite: GroupInvite, myUserId: string)
     { groupId: grant.groupId, key: clave, epoch: grant.epoch },
   ]);
   removePendingJoin(invite.token);
+  // T-172 (ítem 2, ronda 2/5): mismo motivo que arriba — el ingreso acaba de
+  // completarse de verdad, no puede quedar un aviso diciendo lo contrario.
+  resolveJoinStalled(invite.token);
   return true;
 }
 

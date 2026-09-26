@@ -1,4 +1,7 @@
-import { announce, announceKeyConflict } from '../notifications';
+import {
+  announce, announceKeyConflict, announceInviteFull, announceJoinStalled,
+  announceRecurringTraspasoBlocked,
+} from '../notifications';
 import { useSettingsStore } from '@/src/store/settingsStore';
 import { useNoticeInboxStore } from '@/src/store/noticeInboxStore';
 import { useAuthStore } from '@/src/store/authStore';
@@ -89,5 +92,70 @@ describe('announceKeyConflict (T-136): como máximo un aviso sin leer por grupo'
     useNoticeInboxStore.getState().markAllRead();
     await announceKeyConflict(conflicto);
     expect(useNoticeInboxStore.getState().items).toHaveLength(2);
+  });
+});
+
+describe('announceInviteFull (T-150 ronda 2/5): sin apilar por reintento, para siempre', () => {
+  it('el primero se registra y avisa', async () => {
+    expect(await announceInviteFull('g1', 'Viaje', 'tok-1')).toBe(1);
+    expect(useNoticeInboxStore.getState().items).toHaveLength(1);
+  });
+
+  it('el mismo grupo+token no vuelve a avisar, leído o no', async () => {
+    await announceInviteFull('g1', 'Viaje', 'tok-1');
+    useNoticeInboxStore.getState().markAllRead();
+    expect(await announceInviteFull('g1', 'Viaje', 'tok-1')).toBe(0);
+    expect(useNoticeInboxStore.getState().items).toHaveLength(1);
+  });
+
+  /**
+   * **T-172 (ítem 6, deuda documentada en T-150 ronda 3).** El dedupe
+   * miraba los ÍTEMS de la bandeja (tope de 200, `noticeInboxStore.ts:39`):
+   * si el aviso original se desalojaba de esa cola por avisos más nuevos, el
+   * dedupe se perdía sin que el reclamo rechazado hubiera cambiado en nada.
+   * Ahora el dedupe se persiste APARTE (`noticeDedupe.ts`), sin ese tope.
+   */
+  it('aunque el aviso original se desaloje de la bandeja (tope de 200), NO vuelve a avisar', async () => {
+    await announceInviteFull('g1', 'Viaje', 'tok-1');
+
+    // 200 avisos nuevos desalojan cualquier rastro del original de la cola.
+    await announce(Array.from({ length: 200 }, (_, i) => (
+      { kind: 'expenses', groupId: `g-otro-${i}`, groupName: 'Otro', count: 1 } as Notice
+    )));
+    expect(useNoticeInboxStore.getState().items.some(i => i.notice.kind === 'group_invite_full')).toBe(false);
+
+    expect(await announceInviteFull('g1', 'Viaje', 'tok-1')).toBe(0);
+  });
+
+  it('otro token del mismo grupo sí avisa', async () => {
+    await announceInviteFull('g1', 'Viaje', 'tok-1');
+    expect(await announceInviteFull('g1', 'Viaje', 'tok-2')).toBe(1);
+  });
+});
+
+describe('announceJoinStalled (T-172, ítem 2): aviso al invitado cuyo reclamo nunca cerró', () => {
+  it('el primero se registra y avisa', async () => {
+    expect(await announceJoinStalled('g1', 'Viaje', 'tok-1')).toBe(1);
+    expect(useNoticeInboxStore.getState().items).toHaveLength(1);
+  });
+
+  it('el mismo token no vuelve a avisar', async () => {
+    await announceJoinStalled('g1', 'Viaje', 'tok-1');
+    expect(await announceJoinStalled('g1', 'Viaje', 'tok-1')).toBe(0);
+  });
+
+  it('sobrevive al desalojo de la bandeja (mismo mecanismo que announceInviteFull)', async () => {
+    await announceJoinStalled('g1', 'Viaje', 'tok-1');
+    await announce(Array.from({ length: 200 }, (_, i) => (
+      { kind: 'expenses', groupId: `g-otro-${i}`, groupName: 'Otro', count: 1 } as Notice
+    )));
+    expect(await announceJoinStalled('g1', 'Viaje', 'tok-1')).toBe(0);
+  });
+});
+
+describe('announceRecurringTraspasoBlocked (T-172, ítem 3)', () => {
+  it('avisa (no dedupe entre traspasos: cada uno es un evento propio)', async () => {
+    expect(await announceRecurringTraspasoBlocked('g-viejo', 'Viaje', 'g-nuevo')).toBe(1);
+    expect(useNoticeInboxStore.getState().items).toHaveLength(1);
   });
 });

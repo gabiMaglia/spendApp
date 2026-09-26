@@ -114,7 +114,26 @@ export type Notice =
    * diagnóstico (`inviteEngine.ts`), invisible para quien invita. Informativo:
    * no hay nada que aprobar acá, el reclamo ya fue rechazado.
    */
-  | { kind: 'group_invite_full'; groupId: string; groupName: string; inviteToken: string };
+  | { kind: 'group_invite_full'; groupId: string; groupName: string; inviteToken: string }
+  /**
+   * El reclamo de ingreso por link se agotó sin recibir la clave (T-172,
+   * ítem 2). `processInvite`/`admit` lo reintentan en silencio en cada sync
+   * (identidad no pinneada, tope de miembros, canje ajeno — ver
+   * `inviteEngine.ts`); sin este aviso, el invitado nunca se entera de que su
+   * ingreso no se va a completar solo y sigue esperando hasta que la
+   * invitación expira (48hs). Informativo con una acción FUERA de la app
+   * (pedir un link nuevo), mismo criterio que `clock_off`.
+   */
+  | { kind: 'join_claim_stalled'; groupId: string; groupName: string; inviteToken: string }
+  /**
+   * Una plantilla recurrente no se pudo re-firmar durante un traspaso de
+   * grupo por límite (T-058) y `updateRecurring` la bloqueó — no la movió —
+   * para no perderla en silencio (T-152 · D2, mismo mecanismo que un gasto
+   * editado sin clave). Antes esto sólo dejaba rastro en `errorLog.ts`: la
+   * plantilla queda congelada en el grupo viejo, ya archivado. Informativo:
+   * el traspaso del resto ya se aplicó, no hay nada que aprobar.
+   */
+  | { kind: 'group_traspaso_recurring_blocked'; groupId: string; groupName: string; newGroupId: string };
 
 /**
  * ¿Este aviso pide que el usuario HAGA algo, o sólo informa? (T-062)
@@ -140,6 +159,9 @@ export function esAccionable(kind: Notice['kind']): boolean {
     case 'clock_off':
     // T-136: leerlo no resuelve nada; hay que elegir una clave.
     case 'group_key_conflict':
+    // T-172 (ítem 2): igual que `clock_off`, lo que hay que hacer está FUERA
+    // de la app (pedir un link nuevo) pero hay algo concreto que hacer.
+    case 'join_claim_stalled':
       return true;
     case 'expenses':
     case 'settled':
@@ -148,6 +170,8 @@ export function esAccionable(kind: Notice['kind']): boolean {
     case 'group_replaced':
     // T-150 ronda 2/5: el reclamo ya fue rechazado, no hay nada que resolver.
     case 'group_invite_full':
+    // T-172 (ítem 3): el traspaso del resto ya se aplicó, no hay nada que aprobar.
+    case 'group_traspaso_recurring_blocked':
       return false;
   }
 }

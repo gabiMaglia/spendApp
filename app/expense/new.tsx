@@ -348,7 +348,6 @@ export default function NewExpenseScreen() {
     // Hasta entonces `needsAd` es siempre false — un `return` seco dejaba el
     // botón muerto y la app sin poder guardar gastos, en silencio.
     if (needsAd) return;
-    hapticSuccess();
 
     const splitPayload = splits.map(s => ({
       userId: s.userId,
@@ -380,6 +379,10 @@ export default function NewExpenseScreen() {
         Alert.alert(t('sync.sign_failed_title'), t('sync.sign_failed_body'));
         return;
       }
+      // T-172 (ítem 4): recién ACÁ se sabe que guardó de verdad. Antes el
+      // haptic sonaba junto con el gate del anuncio, así que un bloqueo por
+      // firma vibraba "éxito" un instante antes del Alert de error.
+      hapticSuccess();
       // Keep personal replica in sync with edited values
       if (myShare > 0) {
         updateReplicatedEntry(expenseId, {
@@ -411,6 +414,9 @@ export default function NewExpenseScreen() {
         updatedAt:       syncedNow(),
         isDeleted:       false,
       });
+      // Un alta nueva no tiene núcleo previo firmado que re-firmar: no puede
+      // bloquearse como una edición (T-152 · D2), así que el haptic va sin gate.
+      hapticSuccess();
       // ADR-006: se replica lo que SALIÓ DE MI BOLSILLO, no mi porción.
       // Si pagó otro, todavía no gasté nada — es una deuda, y se vuelve gasto
       // recién cuando la salde. Antes se replicaba `myShare` siempre, que

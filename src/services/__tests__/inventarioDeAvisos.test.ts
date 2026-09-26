@@ -80,6 +80,17 @@ const INVENTARIO: Record<string, string> = {
    * intentó entrar con el link a un grupo que ya está en el tope de miembros.
    */
   group_invite_full: 'alguien intentó entrar con mi link de invitación a un grupo que ya está en el tope de miembros',
+  /**
+   * **Pide una acción FUERA de la app, y entra igual** (T-172, ítem 2), mismo
+   * criterio que `clock_off`: mi reclamo de ingreso nunca cerró y no hay
+   * nada más que la app pueda reintentar sola.
+   */
+  join_claim_stalled: 'mi reclamo de ingreso por link nunca cerró tras varios intentos',
+  /**
+   * **Informativo, T-172 (ítem 3).** El traspaso del resto ya se aplicó; sólo
+   * enterarse de que una recurrente quedó bloqueada en el grupo archivado.
+   */
+  group_traspaso_recurring_blocked: 'una recurrente no se pudo mover al traspasar el grupo por falta de firma',
 };
 
 /** Los `kind` declarados en la unión `Notice`, leídos del fuente. */
