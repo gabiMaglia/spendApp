@@ -19,6 +19,7 @@ import { useSettingsStore } from './settingsStore';
 import { useNoticeInboxStore } from './noticeInboxStore';
 import { reloadVerdictCache } from '@/src/sync/verdictCache';
 import { reloadAuthorKeys } from '@/src/sync/authorKeys';
+import { __resetSettlementTrust } from '@/src/sync/settlementTrust';
 import { reloadRatchet } from '@/src/sync/ratchet';
 import { reloadRecordHealth } from '@/src/sync/recordHealth';
 import { reloadAuthorHealth } from '@/src/sync/authorHealth';
@@ -60,6 +61,9 @@ export function rehydrateForActiveUser(): void {
   reloadRatchet();
   reloadRecordHealth();
   reloadAuthorHealth();
+  // La caché de acuses de saldado (T-145) es por cuenta como la de veredictos:
+  // al cambiar de cuenta cambian las claves conocidas.
+  __resetSettlementTrust();
 
   /**
    * Las identidades viejas de esta cuenta (T-048). Mismo motivo que las de
