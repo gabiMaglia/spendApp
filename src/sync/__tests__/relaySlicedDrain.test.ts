@@ -65,9 +65,13 @@ function grupo(): Group {
   } as Group;
 }
 
+// El relleno de 2.000 chars fuerza el slicing en varias rebanadas (no cabe
+// entero en TARGET_SLICE_BYTES junto con 200 gastos). Va en un campo propio
+// (`relleno`), no en `description`: T-150 (SEC-07 + TEC-14) capea `description`
+// a MAX_TEXTO_CORTO, y este relleno es artificio de test, no un dato real.
 function gasto(id: string): Expense {
   return {
-    id, groupId: 'G', description: 'x'.repeat(2_000), amount: 10, currency: 'USD',
+    id, groupId: 'G', description: 'Cena', relleno: 'x'.repeat(2_000), amount: 10, currency: 'USD',
     paidById: 'u1', splits: [{ userId: 'u1', amount: 10, isPaid: false }], splitMode: 'equal',
     category: 'other', date: 1, createdAt: 1, createdById: 'u1', deletionVotes: [],
     updatedAt: 1_000, isDeleted: false,

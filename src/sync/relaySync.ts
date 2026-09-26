@@ -544,7 +544,18 @@ export async function drainGroup(
         // la clave del TOPIC — nunca acotan qué puede venir adentro. Se arma un
         // delta nuevo, campo por campo, con sólo lo que pertenece a `groupId`
         // antes de tocar cualquier store (`acotarDeltaAlGrupo.ts`).
-        const acotado = acotarDeltaAlGrupo(delta, groupId);
+        const descartados = { count: 0, motivos: [] as string[] };
+        const acotado = acotarDeltaAlGrupo(delta, groupId, undefined, descartados);
+        if (descartados.count > 0) {
+          // Rastro, no aviso al usuario (T-150, SEC-07): no hay nada que la
+          // víctima pueda hacer con «un miembro mandó un registro demasiado
+          // grande», y sí sirve en el diagnóstico exportado cuando alguien
+          // pregunta «¿y mi gasto?».
+          recordError({
+            message: `sync.registro_descartado topic=${topic.slice(0, 8)} n=${descartados.count} ${descartados.motivos.slice(0, 5).join(',')}`,
+            fatal: false, screen: 'sync',
+          });
+        }
         applyDelta(acotado, currentUserId);
         applied++;
 

@@ -103,7 +103,8 @@ function grupo(): Group {
  * Gasto con `splits` real de los 8 miembros del grupo (no 1, como en los
  * fixtures de Tasks 5/6) — es lo que reproduce el peso por gasto del
  * escenario de 8 personas / 700 gastos que `relay.ts` mide en 116 % del
- * tope sin partir.
+ * tope sin partir. El relleno de peso va en `relleno` (no `description`):
+ * T-150 (SEC-07 + TEC-14) capea `description` a MAX_TEXTO_CORTO.
  */
 function gastoDeOchoMiembros(id: string, miembros: string[]): Expense {
   const monto = 100;
@@ -111,7 +112,8 @@ function gastoDeOchoMiembros(id: string, miembros: string[]): Expense {
   return {
     id,
     groupId: 'G',
-    description: `Gasto compartido ${id} `.repeat(10),
+    description: `Gasto compartido ${id}`,
+    relleno: `Gasto compartido ${id} `.repeat(10),
     amount: monto,
     currency: 'USD',
     paidById: miembros[0],
