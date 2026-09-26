@@ -90,10 +90,10 @@ beforeEach(() => {
 
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const RN = require('react-native') as typeof import('react-native');
-  jest.spyOn(RN.AppState, 'addEventListener').mockImplementation((_: string, cb: (s: string) => void) => {
+  jest.spyOn(RN.AppState, 'addEventListener').mockImplementation(((_type: string, cb: (s: string) => void) => {
     appStateCb = cb;
-    return { remove: jest.fn() } as never;
-  });
+    return { remove: jest.fn() };
+  }) as typeof RN.AppState.addEventListener);
 
   S = require('../relaySession');
   relay = require('../relay');

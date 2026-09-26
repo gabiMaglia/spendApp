@@ -2,6 +2,8 @@ import { AppState } from 'react-native';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { requestCaptchaToken } from './captchaBridge';
 import { getRelayClient } from './relay';
+import { useAuthStore } from '@/src/store/authStore';
+import { withTimeout } from '@/src/utils/withTimeout';
 
 /**
  * Sesión de Supabase SIEMPRE presente (T-147 D1/D2).
@@ -44,29 +46,17 @@ let ultimoFallo = 0;
 let enCurso: Promise<SessionKind> | null = null;
 
 /**
- * Verifier D2: el login de cuenta (Google/Apple, `directoryAuth.signIntoDirectory`)
- * y `ensureRelaySession` corren en paralelo — `setUser` dispara `startRelay`
- * ANTES de que `signInWithIdToken` termine. Si la anónima abre y persiste
- * DESPUÉS de la identidad, la sesión de cuenta queda pisada.
- *
- * `directoryAuth` marca acá su login en vuelo; `hacerEnsure` lo espera antes
- * de decidir abrir una anónima — así la identidad, si ya está en camino, gana
- * sin carrera.
+ * Cuánto se espera, como máximo, a que la sesión quede lista (T-138-bis: el
+ * resto de `relayEngine` ya sigue esta misma regla — ninguna espera de red
+ * puede colgar el sync para siempre). Vencido, se resuelve a `'none'`: la
+ * próxima vuelta (poll o reinicio) lo vuelve a intentar solo.
  */
-let identityEnCurso: Promise<unknown> | null = null;
-
-export function trackIdentitySignIn<T>(p: Promise<T>): Promise<T> {
-  const marcado = p.then(() => undefined, () => undefined);
-  identityEnCurso = marcado;
-  void marcado.finally(() => { if (identityEnCurso === marcado) identityEnCurso = null; });
-  return p;
-}
+export const SESSION_TIMEOUT_MS = 20_000;
 
 /** Sólo tests. */
 export function __resetRelaySession(): void {
   ultimoFallo = 0;
   enCurso = null;
-  identityEnCurso = null;
 }
 
 async function abrirSesion(): Promise<SessionKind> {
@@ -99,21 +89,24 @@ async function abrirSesion(): Promise<SessionKind> {
  *
  * Single-flight: dos llamadas concurrentes comparten la misma promesa, así que
  * un `startRelay` y un poll que coinciden no abren dos sesiones anónimas.
+ *
+ * **Verifier D2, ronda 2 (hallazgo hostil):** sin tope, una red que nunca
+ * contesta dejaría `enCurso` colgado para siempre — y como es compartida,
+ * CADA `releerTodo` futuro heredaría la misma promesa colgada, matando el
+ * sync entero en silencio. `withTimeout` envuelve la promesa CACHEADA (no la
+ * interna): al vencer el tope, `enCurso` se resuelve (a `'none'`) y se
+ * libera, así que la vuelta siguiente puede reintentar sola.
  */
 export function ensureRelaySession(): Promise<SessionKind> {
   if (enCurso) return enCurso;
-  enCurso = hacerEnsure().finally(() => { enCurso = null; });
+  const promesa = withTimeout(hacerEnsure(), SESSION_TIMEOUT_MS, 'none' as SessionKind);
+  enCurso = promesa.finally(() => { enCurso = null; });
   return enCurso;
 }
 
 async function hacerEnsure(): Promise<SessionKind> {
   const supabase = getRelayClient();
   if (!supabase) return 'none';
-
-  // D2: si un login de cuenta ya está en vuelo, se espera — evita abrir (y
-  // mostrarle captcha a) una anónima que la identidad, unos milisegundos
-  // después, iba a pisar igual.
-  if (identityEnCurso) await identityEnCurso;
 
   const { data, error } = await supabase.auth.getSession();
   if (data.session) return data.session.user.is_anonymous ? 'anonymous' : 'identity';
@@ -135,25 +128,32 @@ async function hacerEnsure(): Promise<SessionKind> {
     return 'none';
   }
 
+  /**
+   * **Verifier D2-bis, ruling del orquestador (ronda 2): "cortar de raíz, no
+   * parchear".** La sesión ANÓNIMA sólo existe para el modo invitado
+   * (DEC-03). Con usuario de cuenta (Google/Apple) — incluso mientras el
+   * login todavía no terminó, `authProvider` ya viene puesto en el mismo
+   * `setUser` que dispara `startRelay` (`app/auth/index.tsx:247`, antes de
+   * `entrarAlDirectorio:273`) — nunca se abre una anónima: no hay ninguna
+   * carrera posible porque el camino que la generaba directamente no se
+   * toma. Se reporta `'none'` (el aviso de "sin sesión", D3/D5, cubre la
+   * espera) hasta que el login persista la sesión de cuenta — auth-js la
+   * escribe siempre (`_saveSession` incondicional) — y la vuelta siguiente
+   * (poll o el reinicio por cambio de sesión) la encuentre.
+   *
+   * La vieja lógica de «esperar un login en vuelo + releer el storage
+   * después de abrir la anónima» quedó sin uso y se borró: parcheaba una
+   * carrera que ahora es estructuralmente imposible.
+   */
+  const esInvitado = useAuthStore.getState().currentUser?.authProvider === 'guest';
+  if (!esInvitado) return 'none';
+
   if (ultimoFallo && Date.now() - ultimoFallo < SESSION_RETRY_MS) return 'none';
 
-  // Acá SÍ es seguro abrir una anónima: `getSession()` contestó sin error y
-  // sin sesión — primer arranque, o logout explícito (`signOut`, que borra el
-  // storage) — nunca un refresh que no se pudo confirmar.
-  const resultado = await abrirSesion();
-
-  /**
-   * D2, la mitad que importa: `signInAnonymously` no espera a nadie, así que
-   * si el login de cuenta ganó la carrera MIENTRAS se abría la anónima —el
-   * caso real del defecto—, el storage ya tiene la sesión de identidad
-   * cuando esto termina. Releer acá es más simple y más seguro que tratar de
-   * sincronizar el timing exacto de las dos llamadas de red: pase lo que
-   * pase, la fuente de verdad es el storage, no lo que ESTA llamada creyó
-   * que había pasado.
-   */
-  const { data: relectura } = await supabase.auth.getSession();
-  if (relectura.session) return relectura.session.user.is_anonymous ? 'anonymous' : 'identity';
-  return resultado;
+  // Acá SÍ es seguro abrir una anónima: invitado, `getSession()` contestó sin
+  // error y sin sesión — primer arranque, o logout explícito (`signOut`, que
+  // borra el storage) — nunca un refresh que no se pudo confirmar.
+  return abrirSesion();
 }
 
 /**
