@@ -10,6 +10,10 @@ const REQUERIDAS = [
   'EXPO_PUBLIC_SUPABASE_ANON_KEY',
   'EXPO_PUBLIC_GOOGLE_CLIENT_ID_WEB',
   'EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS',
+  // T-147 (P-3): sin esto el captcha no carga, y sin captcha no hay sesión
+  // anónima — el modo invitado se apaga en silencio.
+  'EXPO_PUBLIC_TURNSTILE_SITEKEY',
+  'EXPO_PUBLIC_TURNSTILE_HOSTNAME',
 ];
 const PERFILES_CHEQUEADOS = ['production', 'preview'];
 

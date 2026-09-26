@@ -737,5 +737,10 @@
     "anon_name": "Conta excluída",
     "partial": "Sua conta foi excluída. Algo ficou na caixa postal e não pôde ser retirado; será tentado de novo ao abrir o app.",
     "web": "Ver esta informação na web"
+  },
+  "captcha": {
+    "title": "Confirme que você não é um robô",
+    "body": "É um passo rápido para proteger a sincronização dos seus grupos.",
+    "cancel": "Agora não"
   }
 }

@@ -737,5 +737,10 @@
     "anon_name": "Cuenta borrada",
     "partial": "Se borró tu cuenta. Quedó algo en el buzón que no se pudo sacar; se reintenta al abrir la app.",
     "web": "Ver esta información en la web"
+  },
+  "captcha": {
+    "title": "Confirmá que no sos un robot",
+    "body": "Es un paso rápido para proteger el sync de tus grupos.",
+    "cancel": "Ahora no"
   }
 }

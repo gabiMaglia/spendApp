@@ -25,6 +25,7 @@ import { installNotificationHandler } from '@/src/services/notifications';
 import { installGlobalErrorHandler } from '@/src/services/globalErrorHandler';
 import { ErrorBoundary } from '@/src/components/ErrorBoundary';
 import { exportarDiagnostico } from '@/src/services/exportDiagnostico';
+import { CaptchaHost } from '@/src/components/CaptchaHost';
 
 // A nivel de módulo, no dentro de un componente: el handler tiene que estar
 // registrado ANTES de que llegue el primer aviso. Sin él, expo-notifications
@@ -134,6 +135,12 @@ export default function RootLayout() {
     <SafeAreaProvider>
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <AuthGuard />
+      {/*
+        T-147 (P-3): host del captcha de Turnstile — vive junto al Stack,
+        montado UNA sola vez, para que `ensureRelaySession` siempre tenga a
+        quién pedirle un token cuando hace falta abrir sesión anónima.
+      */}
+      <CaptchaHost />
       {/*
         Envuelve al Stack y no a la app entera: adentro del ThemeProvider la
         pantalla de recuperación puede leer el tema, y `AuthGuard` —que no

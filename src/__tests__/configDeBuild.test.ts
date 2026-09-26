@@ -54,7 +54,9 @@ const VARIABLES_DEL_BINARIO = [
   'EXPO_PUBLIC_GOOGLE_CLIENT_ID_WEB',
   // T-147 (P-3): Cloudflare Turnstile para la sesión anónima. La site key es
   // pública por diseño (viaja en el binario); la secret vive sólo en Supabase.
+  // El hostname (para el `baseUrl` del WebView) es igual de público.
   'EXPO_PUBLIC_TURNSTILE_SITEKEY',
+  'EXPO_PUBLIC_TURNSTILE_HOSTNAME',
 ] as const;
 
 describe('el formato del binario', () => {

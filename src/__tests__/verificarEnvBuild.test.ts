@@ -11,16 +11,21 @@ const { REQUERIDAS, faltantes, main } = require('../../scripts/verificar-env-bui
  * además `authStore.ts:240` fusiona cuentas sin probar el proveedor.
  */
 const COMPLETO = Object.fromEntries(
-  ['EXPO_PUBLIC_SUPABASE_URL', 'EXPO_PUBLIC_SUPABASE_ANON_KEY', 'EXPO_PUBLIC_GOOGLE_CLIENT_ID_WEB', 'EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS']
-    .map(n => [n, `CENTINELA-${n}`]),
+  [
+    'EXPO_PUBLIC_SUPABASE_URL', 'EXPO_PUBLIC_SUPABASE_ANON_KEY',
+    'EXPO_PUBLIC_GOOGLE_CLIENT_ID_WEB', 'EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS',
+    // T-147 (P-3): sin site key no hay captcha, y sin captcha no hay sesión
+    // anónima — el modo invitado se apaga en silencio.
+    'EXPO_PUBLIC_TURNSTILE_SITEKEY', 'EXPO_PUBLIC_TURNSTILE_HOSTNAME',
+  ].map(n => [n, `CENTINELA-${n}`]),
 );
 
 describe('verificar-env-build', () => {
-  it('exige exactamente las 4 variables que lee el código', () => {
+  it('exige exactamente las 6 variables que lee el código', () => {
     expect([...REQUERIDAS].sort()).toEqual(Object.keys(COMPLETO).sort());
   });
 
-  it('con las 4 presentes no falta nada', () => {
+  it('con las 6 presentes no falta nada', () => {
     expect(faltantes(COMPLETO, 'production')).toEqual([]);
   });
 
@@ -59,10 +64,15 @@ describe('verificar-env-build', () => {
     expect(pkg.scripts['eas-build-post-install']).toBe('node scripts/verificar-env-build.js');
   });
 
-  it('las 4 variables son las que usa el código', () => {
+  it('las 6 variables son las que usa el código', () => {
     const relay = readFileSync(join(__dirname, '..', 'sync', 'relay.ts'), 'utf8');
     const auth = readFileSync(join(__dirname, '..', '..', 'app', 'auth', 'index.tsx'), 'utf8');
-    const usadas = new Set([...(relay + auth).matchAll(/process\.env\.(EXPO_PUBLIC_[A-Z0-9_]+)/g)].map(m => m[1]));
+    // T-147: las de Turnstile las lee el puente del captcha, no `relay.ts`.
+    const captchaBridge = readFileSync(join(__dirname, '..', 'sync', 'captchaBridge.ts'), 'utf8');
+    const captchaHost = readFileSync(join(__dirname, '..', 'components', 'CaptchaHost.tsx'), 'utf8');
+    const usadas = new Set(
+      [...(relay + auth + captchaBridge + captchaHost).matchAll(/process\.env\.(EXPO_PUBLIC_[A-Z0-9_]+)/g)].map(m => m[1]),
+    );
     expect([...usadas].sort()).toEqual([...REQUERIDAS].sort());
   });
 });

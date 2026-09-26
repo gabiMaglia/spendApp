@@ -1,0 +1,24 @@
+import { turnstileHtml, parseTurnstileMessage } from '../turnstileHtml';
+
+describe('turnstileHtml', () => {
+  it('carga el script oficial y usa la site key escapada', () => {
+    const html = turnstileHtml('0x4AAA"</script>');
+    expect(html).toContain('https://challenges.cloudflare.com/turnstile/v0/api.js');
+    expect(html).toContain(JSON.stringify('0x4AAA"</script>').replace(/</g, '\\u003c'));
+    expect(html).not.toContain('0x4AAA"</script>');
+  });
+  it('pide aparecer sólo si hace falta interacción', () => {
+    expect(turnstileHtml('k')).toContain("appearance: 'interaction-only'");
+  });
+});
+
+describe('parseTurnstileMessage', () => {
+  it.each([
+    ['{"type":"token","token":"abc"}', { type: 'token', token: 'abc' }],
+    ['{"type":"error","code":"110200"}', { type: 'error', code: '110200' }],
+    ['{"type":"expired"}', { type: 'expired' }],
+    ['{"type":"interactive"}', { type: 'interactive' }],
+  ])('%s', (raw, esperado) => expect(parseTurnstileMessage(raw)).toEqual(esperado));
+  it.each(['', 'no-json', '{"type":"token"}', '{"type":"otro"}', '{"type":"token","token":5}'])('inválido: %s', raw =>
+    expect(parseTurnstileMessage(raw)).toBeNull());
+});
