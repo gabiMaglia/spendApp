@@ -207,7 +207,17 @@ async function buildSlicedEnvelopes(
 
   for (const campo of SLICED_FIELDS) {
     const lista = (deltaConUsuarios[campo] ?? []) as { id: string }[];
-    const rebanadas = sliceEntities(lista);
+    const { rebanadas, excluidos } = sliceEntities(lista);
+    if (excluidos.length > 0) {
+      // Rastro para el diagnóstico (T-150, SEC-07): el registro sigue local,
+      // pero no viaja — mandarlo entero rompía la publicación de todos los
+      // peers honestos que lo recibieran (`sendEnvelope` rechaza sobres por
+      // encima de `MAX_PAYLOAD_BYTES`).
+      recordError({
+        message: `sync.registro_excluido campo=${campo} ids=${excluidos.slice(0, 5).map(e => e.id).join(',')}`,
+        fatal: false, screen: 'sync',
+      });
+    }
     for (let i = 0; i < rebanadas.length; i++) {
       const rebanada = rebanadas[i]!;
       // La ckey va por ÍNDICE de rebanada, no por el primer id (T-146). Con el

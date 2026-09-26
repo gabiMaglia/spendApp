@@ -57,9 +57,17 @@ export async function deriveCkey(key: GroupKey, tipo: string, indice: string): P
  * Parte una lista de entidades en rebanadas, cada una intentando quedar bajo
  * `TARGET_SLICE_BYTES` de JSON. Greedy: acumula en orden hasta que agregar el
  * siguiente elemento cruzaría el objetivo, ahí cierra la rebanada y empieza
- * otra. Un elemento solo que ya supera el objetivo queda solo en su propia
- * rebanada — nunca se descarta ni se trunca (ver `MAX_SLICE_BYTES` como aviso,
- * no como corte: cortar a la mitad un registro lo rompería).
+ * otra. Un elemento solo que supera el objetivo pero no el tope duro queda
+ * solo en su propia rebanada.
+ *
+ * **Un elemento que supera `MAX_SLICE_BYTES` se EXCLUYE** (T-150, SEC-07) y
+ * vuelve en `excluidos` para que el publicador deje rastro. Hasta acá se
+ * mandaba «entero y señalado» con un `console.warn` — y como `sendEnvelope`
+ * rechaza sobres por encima de `MAX_PAYLOAD_BYTES`, un solo registro
+ * sobredimensionado hacía fallar la publicación de TODOS los peers honestos
+ * que lo hubieran recibido: el grupo dejaba de sincronizar para siempre.
+ * Excluirlo deja al grupo vivo; el registro sigue en el store local de quien
+ * lo tiene, sólo no viaja.
  *
  * Partición puramente LOCAL: cada dispositivo decide la suya sin coordinarse
  * con otros (ADR-007 §3.1) — por eso el orden de entrada (por `id`) es lo
@@ -73,11 +81,14 @@ export async function deriveCkey(key: GroupKey, tipo: string, indice: string): P
  * (`MAX_PAYLOAD_BYTES`). Medir distinto acá que en el chequeo real desalinea
  * la contabilidad de rebanadas del límite que en verdad importa.
  */
-export function sliceEntities<T extends { id: string }>(entities: T[]): T[][] {
-  if (entities.length === 0) return [];
+export function sliceEntities<T extends { id: string }>(
+  entities: T[],
+): { rebanadas: T[][]; excluidos: T[] } {
+  if (entities.length === 0) return { rebanadas: [], excluidos: [] };
 
   const ordenadas = [...entities].sort((a, b) => a.id.localeCompare(b.id));
   const rebanadas: T[][] = [];
+  const excluidos: T[] = [];
   let actual: T[] = [];
   let tamanoActual = 2; // '[' + ']'
 
@@ -85,15 +96,9 @@ export function sliceEntities<T extends { id: string }>(entities: T[]): T[][] {
     const itemJson = JSON.stringify(item);
     const bytesItem = byteLength(itemJson);
 
-    // Aviso, no corte (revisión final, hallazgo menor): un elemento solo que
-    // ya supera el tope duro se manda igual, entero, en su propia rebanada —
-    // partirlo a la mitad lo rompería. Lo único que faltaba era el aviso que
-    // el plan siempre prometió ("enviado entero y señalado").
     if (bytesItem > MAX_SLICE_BYTES) {
-      console.warn(
-        `sliceEntities: el elemento "${item.id}" pesa ${bytesItem} bytes, ` +
-        `supera MAX_SLICE_BYTES (${MAX_SLICE_BYTES}) — se envía igual, entero, en su propia rebanada.`,
-      );
+      excluidos.push(item);
+      continue;
     }
 
     const tamanoItem = bytesItem + 1; // + coma/cierre
@@ -107,5 +112,5 @@ export function sliceEntities<T extends { id: string }>(entities: T[]): T[][] {
   }
   if (actual.length > 0) rebanadas.push(actual);
 
-  return rebanadas;
+  return { rebanadas, excluidos };
 }
