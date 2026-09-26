@@ -196,12 +196,18 @@ function ultimoDe(
  *
  * Tres reglas, y la del medio es la que S8 tuvo que escribir explícita:
  *
- * 1. **El override del creador se honra SIEMPRE** (R3 del PO), verifique su
- *    firma o no. Su contraparte es deshacerlo en un toque: un `object` o un
- *    `restore` posteriores lo anulan. Sin eso, restaurar un borrado forzado no
- *    funcionaría nunca —desde S7 los votos se unen en vez de pisarse, así que
- *    el `forced` sobrevive y `resolvePendingDeletions` re-borra el gasto en el
- *    próximo arranque.
+ * 1. **El override del creador es inmediato SÓLO si su firma cierra** (T-143,
+ *    SEC-01). Hasta el 2026-09-26 esto decía «se honra SIEMPRE, verifique su
+ *    firma o no» (R3), y así cualquier miembro publicaba un `forced` a nombre
+ *    del creador, sin `k`/`s`, y el gasto se borraba en todos los teléfonos al
+ *    instante — la regla #2 vaciada por el canal de sync. Es la misma excepción
+ *    declarada a R1 que ya rige en `applyLeave.ts`: marcar sirve cuando hay
+ *    alguien mirando, y esto corre solo, al arrancar y tras cada drenaje.
+ *    Quién decide si la firma cierra es el LLAMADOR (`esForcedConfiable`): esta
+ *    función vive en el grafo del merge y no puede tocar la curva (D9). Un
+ *    `forced` no confiable no se descarta — es un `delete` como cualquier otro
+ *    y abre su ronda de 72 h. Su contraparte sigue siendo deshacerlo en un
+ *    toque: un `object` o un `restore` posteriores lo anulan.
  *
  * 2. **Un voto sólo habla por quien lo firmó.** `object` y `restore` son
  *    enunciados sobre la RONDA y la frenan para todos; `withdraw` retira el
@@ -220,11 +226,16 @@ export function resolveDeletionVotes(
   expense: Expense,
   _memberIds: string[],
   now: number = Date.now(),
+  // Fail-closed a propósito: sin verificador, ningún override es inmediato.
+  esForcedConfiable: (vote: DeletionVote) => boolean = () => false,
 ): boolean {
   const vigentes = mergeDeletionVotes(expense.deletionVotes ?? [], now);
 
   const delCreador = ultimoDe(vigentes, expense.createdById, now);
-  if (delCreador && accionDe(delCreador) === 'delete' && delCreador.forced) {
+  if (
+    delCreador && accionDe(delCreador) === 'delete' && delCreador.forced
+    && esForcedConfiable(delCreador)
+  ) {
     // "Posterior" con el reloj en la mano (T-059): si el `forced` viene con
     // fecha del futuro, ningún `restore` real sería posterior y el borrado
     // quedaría indeshacible — la contraparte que R3 le pone al override.

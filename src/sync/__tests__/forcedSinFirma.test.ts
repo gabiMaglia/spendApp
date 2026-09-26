@@ -31,9 +31,11 @@ describe('SEC-01 · un `forced` a nombre del creador sin firma que cierre', () =
   });
 
   it('se degrada a un pedido normal: vence a las 72 h si nadie objeta', () => {
+    // El voto se emitió en NOW - 10: el vencimiento se cuenta desde ESE
+    // `votedAt`, no desde NOW.
     const e = gasto([forcedSinFirma]);
-    expect(resolveDeletionVotes(e, [], NOW + DELETION_TIMEOUT_MS - 1, () => false)).toBe(false);
-    expect(resolveDeletionVotes(e, [], NOW + DELETION_TIMEOUT_MS + 1, () => false)).toBe(true);
+    expect(resolveDeletionVotes(e, [], forcedSinFirma.votedAt + DELETION_TIMEOUT_MS - 1, () => false)).toBe(false);
+    expect(resolveDeletionVotes(e, [], forcedSinFirma.votedAt + DELETION_TIMEOUT_MS + 1, () => false)).toBe(true);
   });
 
   it('y una objeción lo frena, como a cualquier pedido', () => {

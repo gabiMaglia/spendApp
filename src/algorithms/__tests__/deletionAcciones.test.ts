@@ -111,13 +111,13 @@ describe('restaurar tiene su PROPIO estado (R-Q2)', () => {
   });
 
   /**
-   * El `forced` del creador se honra SIEMPRE (R3), pero restaurar es su
-   * contraparte: sin esto `resolvePendingDeletions` re-borra el gasto solo en
-   * el próximo arranque.
+   * El `forced` del creador se honra cuando su firma cierra (T-143), pero
+   * restaurar es su contraparte: sin esto `resolvePendingDeletions` re-borra
+   * el gasto solo en el próximo arranque.
    */
   it('y deshace el borrado forzado del creador', () => {
     const e = gasto([fuerza('ana', T0), restaura('beto', T0 + HORA)]);
-    expect(resolveDeletionVotes(e, [], T0 + 2 * HORA)).toBe(false);
+    expect(resolveDeletionVotes(e, [], T0 + 2 * HORA, () => true)).toBe(false);
   });
 
   it('quien restaura NO queda contado como objetor', () => {
@@ -127,13 +127,13 @@ describe('restaurar tiene su PROPIO estado (R-Q2)', () => {
 });
 
 describe('el override del creador y sus contrapartes', () => {
-  it('se honra siempre (R3): el gasto se borra ya', () => {
-    expect(resolveDeletionVotes(gasto([fuerza('ana', T0)]), [], T0 + 1)).toBe(true);
+  it('se honra cuando su firma cierra (T-143): el gasto se borra ya', () => {
+    expect(resolveDeletionVotes(gasto([fuerza('ana', T0)]), [], T0 + 1, () => true)).toBe(true);
   });
 
   it('el creador puede retirar SU forzado', () => {
     const e = gasto([fuerza('ana', T0), retira('ana', T0 + HORA)]);
-    expect(resolveDeletionVotes(e, [], T0 + 2 * HORA)).toBe(false);
+    expect(resolveDeletionVotes(e, [], T0 + 2 * HORA, () => true)).toBe(false);
   });
 
   /**
@@ -142,7 +142,7 @@ describe('el override del creador y sus contrapartes', () => {
    */
   it('el `withdraw` de un tercero no deshace el forzado del creador', () => {
     const e = gasto([fuerza('ana', T0), retira('beto', T0 + HORA)]);
-    expect(resolveDeletionVotes(e, [], T0 + 2 * HORA)).toBe(true);
+    expect(resolveDeletionVotes(e, [], T0 + 2 * HORA, () => true)).toBe(true);
   });
 });
 
@@ -223,6 +223,8 @@ describe('un peer que no actualizó sigue entendiéndose con nosotros', () => {
  * S7 mantuvo y S8 no puede romper). La firma del voto existe para MARCAR y
  * medir, nunca para descartar: un voto que no cierra sigue contando, y la
  * atribución de quién lo emitió es lo que se muestra.
+ * **Excepción (T-143):** el `forced` del creador, que borra sin que nadie
+ * mire — ver `SyncEngine.ts` regla 1.
  */
 describe('un voto que no verifica cuenta igual', () => {
   const conFirmaFalsa = (v: DeletionVote): DeletionVote => ({ ...v, k: 'ff'.repeat(32), s: '00'.repeat(64) });
@@ -241,9 +243,17 @@ describe('un voto que no verifica cuenta igual', () => {
     expect(resolveDeletionVotes(e, [], T0 + DELETION_TIMEOUT_MS + 1)).toBe(true);
   });
 
-  it('el override del creador se honra aunque su firma no cierre (R3)', () => {
+  /**
+   * T-143 (SEC-01): esto decía «el override del creador se honra aunque su
+   * firma no cierre (R3)», y era el agujero — un `forced` sin firma a nombre
+   * del creador borraba al instante desde cualquier teléfono del grupo. La
+   * excepción a R1 es la misma que `applyLeave`: lo que corre solo y mueve
+   * datos de otros tiene que venir firmado.
+   */
+  it('el override del creador con firma que no cierra NO es inmediato: es un pedido de 72 h', () => {
     const e = gasto([conFirmaFalsa(fuerza('ana', T0))]);
-    expect(resolveDeletionVotes(e, [], T0 + 1)).toBe(true);
+    expect(resolveDeletionVotes(e, [], T0 + 1, () => false)).toBe(false);
+    expect(resolveDeletionVotes(e, [], T0 + DELETION_TIMEOUT_MS + 1, () => false)).toBe(true);
   });
 });
 

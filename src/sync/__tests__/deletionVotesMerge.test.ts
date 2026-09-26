@@ -98,22 +98,27 @@ describe('resolveDeletionVotes — deshacer le gana al forzado anterior (R3)', (
   const gasto = (votes: DeletionVote[]): Expense =>
     ({ id: 'e1', createdById: 'ana', deletionVotes: votes } as Expense);
 
+  // En estos tests el `forced` representa el override REAL del creador
+  // (T-143): se confía en que su firma cierra.
+  const R3 = () => true;
+
   it('el creador que fuerza sigue borrando al instante', () => {
-    expect(resolveDeletionVotes(gasto([fuerza('ana', 1_000)]), [], 1_000)).toBe(true);
+    expect(resolveDeletionVotes(gasto([fuerza('ana', 1_000)]), [], 1_000, R3)).toBe(true);
   });
 
   it('una objeción ANTERIOR no lo frena', () => {
-    expect(resolveDeletionVotes(gasto([objeta('beto', 500), fuerza('ana', 1_000)]), [], 1_000)).toBe(true);
+    expect(resolveDeletionVotes(gasto([objeta('beto', 500), fuerza('ana', 1_000)]), [], 1_000, R3)).toBe(true);
   });
 
   /**
    * Sin esto, restaurar un borrado forzado no funciona nunca: con la unión el
    * voto `forced` sobrevive para siempre y `resolvePendingDeletions` vuelve a
    * borrar el gasto en el próximo arranque. R3 del PO es explícita — el
-   * override se honra siempre, y la contraparte es que deshacer sea de un toque.
+   * override se honra siempre que su firma cierre (T-143), y la contraparte es
+   * que deshacer sea de un toque.
    */
   it('una objeción POSTERIOR lo deshace', () => {
-    expect(resolveDeletionVotes(gasto([fuerza('ana', 1_000), objeta('beto', 2_000)]), [], 2_000)).toBe(false);
+    expect(resolveDeletionVotes(gasto([fuerza('ana', 1_000), objeta('beto', 2_000)]), [], 2_000, R3)).toBe(false);
   });
 
   it('el pedido normal sigue venciendo a las 72hs', () => {
