@@ -37,6 +37,10 @@ import { scanRepoUsage } from '../scanLocaleUsage';
  *   borró entero — pero el Orquestador pidió explícitamente conservar este
  *   par al arreglar el bug de `_plural` (ver más abajo), no borrarlo con el
  *   resto.
+ * - `profile.coming_soon`: el selector de skin (Task 6, 2026-09-25) sacó su
+ *   único call site (`app/(tabs)/user.tsx`, fila "Estilo") al reemplazarla
+ *   por `SkinPicker`. El brief pidió explícitamente no borrar la clave por si
+ *   la usa otra fila "próximamente" — queda en revisión, no borrada.
  *
  * Todas están reportadas en el handoff de T-070.
  */
@@ -54,6 +58,7 @@ const HUERFANAS_EN_REVISION = new Set([
   'trust.payment',
   'invite.groups_in_common',
   'invite.groups_in_common_other',
+  'profile.coming_soon',
 ]);
 
 /**

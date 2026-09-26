@@ -31,6 +31,7 @@ import { sanitizeEmail } from '@/src/utils/sanitizeEmail';
 import { Avatar } from '@/src/components/Avatar';
 import { BottomSheet } from '@/src/components/Sheet';
 import { CurrencyPicker } from '@/src/components/CurrencyPicker';
+import { SkinPicker } from '@/src/components/SkinPicker';
 import { useCurrenciesInUse } from '@/src/store/currenciesInUse';
 import { needsRates, readCache } from '@/src/services/fx';
 import { Band, BandRow, SectionLabel, Segmented, SoonBadge } from '@/src/components/Band';
@@ -432,13 +433,7 @@ export default function UserScreen() {
               ]}
             />
           </BandRow>
-          <BandRow last>
-            <View style={{ flex: 1, gap: 2 }}>
-              <Text style={[Typography.bodyL, { color: c.text }]}>{t('profile.skins')}</Text>
-              <Text style={[Typography.caption, { color: c.textTertiary }]}>{t('profile.coming_soon')}</Text>
-            </View>
-            <SoonBadge />
-          </BandRow>
+          <SkinPicker last />
         </Band>
 
         {/* Moneda */}
