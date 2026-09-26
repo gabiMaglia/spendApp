@@ -8,6 +8,7 @@ import { Typography } from '@/src/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Band, BandRow } from '@/src/components/Band';
 import { sinSesionDeSync } from '@/src/sync/sessionStatus';
+import { useLiveValue } from '@/src/hooks/useLiveValue';
 
 /**
  * **T-147, enmienda del PO (2026-09-26).** Cuando el buzón SÍ está
@@ -19,11 +20,20 @@ import { sinSesionDeSync } from '@/src/sync/sessionStatus';
  *
  * Se retira solo en cuanto `ensureRelaySession()` vuelve a conseguir una
  * sesión (identidad o anónima) — no hace falta que el usuario la cierre.
+ *
+ * **Verifier D3:** `sinSesionDeSync()` lee una variable de MÓDULO —React no
+ * se entera cuando cambia sola—. Un default param la evalúa una vez, al
+ * montar, y se queda pegado ahí; en la app real "parecía" andar sólo porque
+ * "Yo" volvía a renderizar cada 2s por otro efecto (`useLiveValue` en la
+ * medición de errores). Acá se sondea con el mismo hook que ya usa el repo
+ * para este problema exacto (ver su docblock).
  */
-export function SinSesionDeSync({ sinSesion = sinSesionDeSync() }: { sinSesion?: boolean }) {
+export function SinSesionDeSync({ sinSesion }: { sinSesion?: boolean } = {}) {
   const { t } = useTranslation();
   const c = Colors[useColorScheme() ?? 'light'];
-  if (!sinSesion) return null;
+  const enVivo = useLiveValue(sinSesionDeSync);
+  const activo = sinSesion ?? enVivo;
+  if (!activo) return null;
 
   return (
     <Band>
