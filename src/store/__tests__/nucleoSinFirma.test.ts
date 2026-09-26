@@ -39,13 +39,13 @@ it('los dos órdenes de llegada convergen', () => {
 });
 
 it('dos núcleos sin firma se siguen ordenando por rev (peers pre-T-041, registros derivados)', () => {
-  expect(coreWins('expense', sinFirma({ amount: 2, rev: 3 }), sinFirma({ amount: 1, rev: 2 }))).toBe(true);
-  expect(coreWins('expense', sinFirma({ amount: 2, rev: 1 }), sinFirma({ amount: 1, rev: 2 }))).toBe(false);
+  expect(coreWins('expense', sinFirma({ amount: 2, rev: 3 }), sinFirma({ amount: 1, rev: 2 }), NOW)).toBe(true);
+  expect(coreWins('expense', sinFirma({ amount: 2, rev: 1 }), sinFirma({ amount: 1, rev: 2 }), NOW)).toBe(false);
 });
 
 it('dos núcleos firmados se siguen ordenando por rev', () => {
   const otro = { ...firmado, amount: 500, rev: (firmado as { rev: number }).rev + 1, s: 'cc'.repeat(64) } as Expense;
-  expect(coreWins('expense', otro, firmado)).toBe(true);
+  expect(coreWins('expense', otro, firmado, NOW)).toBe(true);
 });
 
 it('una firma vacía (k o s en blanco) cuenta como sin firma', () => {

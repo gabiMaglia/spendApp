@@ -213,6 +213,14 @@ function traeFirma(r: Registro): boolean {
  * firmada. Es lo correcto: una edición sin firma de un registro firmado es
  * indistinguible de una suplantación.
  *
+ * Después, un `rev` ENVENENADO no gana (T-170 criterio 3): `rev` sale de
+ * `max(syncedNow(), prev+1)` (`signOnWrite.siguienteRev`), así que uno más
+ * allá de `now + TOLERANCIA_RELOJ_MS` no lo produce nadie honesto. Sin este
+ * tope, Mallory pone `rev: 9e15` y el autor genuino no recupera nunca su
+ * núcleo re-editando —`siguienteRev` seguiría sumando sobre ese valor—. Si
+ * los dos lados están envenenados, no hay nada que proteger y manda `rev`
+ * como siempre (exactamente un sentido gana, T-152).
+ *
  * Después, gana `rev` mayor. Ante empate, el desempate canónico del núcleo —
  * arbitrario pero igual en los dos dispositivos, que es lo único que hace
  * falta. **Los dos sin `rev` es un caso aparte**: son registros anteriores a
@@ -220,7 +228,7 @@ function traeFirma(r: Registro): boolean {
  * ordenar; manda `updatedAt`, igual que siempre.
  */
 export function coreWins<K extends CoreKind>(
-  kind: K, incoming: CoreRecord[K], current: CoreRecord[K],
+  kind: K, incoming: CoreRecord[K], current: CoreRecord[K], now: number,
 ): boolean {
   const inc = incoming as unknown as Registro;
   const cur = current as unknown as Registro;
@@ -231,6 +239,11 @@ export function coreWins<K extends CoreKind>(
 
   const revInc = revDe(inc);
   const revCur = revDe(cur);
+
+  const venInc = envenenado(revInc, now);
+  const venCur = envenenado(revCur, now);
+  if (venInc !== venCur) return venCur;
+
   if (revInc !== revCur) return revInc > revCur;
 
   if (revInc === 0 && incoming.updatedAt !== current.updatedAt) {
@@ -267,7 +280,7 @@ function restoWins<K extends CoreKind>(
 export function mergeRecord<K extends CoreKind>(
   kind: K, current: CoreRecord[K], incoming: CoreRecord[K], now: number,
 ): CoreRecord[K] {
-  const ganaNucleo = coreWins(kind, incoming, current) ? incoming : current;
+  const ganaNucleo = coreWins(kind, incoming, current, now) ? incoming : current;
   const ganaResto  = restoWins(kind, incoming, current, now) ? incoming : current;
 
   const cur = current as unknown as Registro;
