@@ -8,6 +8,7 @@ import {
   findInviteToken, markInviteClaimed,
 } from '@/src/store/identityStore';
 import { publishToGroup } from './relaySync';
+import { getPeer } from './contactChannel';
 import { sendEnvelope, fetchSince } from './relay';
 import {
   deriveInviteTopic, sealClaim, openClaim, sealGrant, openGrant,
@@ -166,6 +167,20 @@ async function admit(
   const record = useGroupKeyStore.getState().getKey(claim.groupId);
   const group = useGroupStore.getState().getById(claim.groupId);
   if (!record || !group || group.isDeleted || !group.memberIds.includes(myUserId)) return false;
+
+  /**
+   * SEC-06 (T-151): un reclamo a nombre de alguien que YA es miembro no puede
+   * ser un ingreso — o es esa misma persona reinstalando, o es alguien
+   * usándole el nombre para recibir la clave sin figurar como miembro nuevo
+   * ni disparar `joined`. Se distingue por la identidad: sólo se entrega si
+   * la Ed25519 del reclamo es la que ya teníamos pinneada para ese id. Sin
+   * clave pinneada no hay forma de saberlo, y ante la duda no se entrega — el
+   * miembro real tiene el camino de contacto (ADR-013) para recuperar la clave.
+   */
+  if (group.memberIds.includes(claim.userId)) {
+    const pinneada = getPeer(claim.userId)?.identityPublicKey;
+    if (!pinneada || pinneada.toLowerCase() !== claim.identityPublicKey.toLowerCase()) return false;
+  }
 
   // Marcar como canjeado en storage si no estaba ya (para robustez entre app closes).
   // `actual` ya está garantizado no-nulo por el `if (!actual) return false` de arriba.

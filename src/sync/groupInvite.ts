@@ -3,6 +3,7 @@ import { hkdf } from '@noble/hashes/hkdf.js';
 import { sha256 } from '@noble/hashes/sha2.js';
 import * as Crypto from 'expo-crypto';
 import { enlaceCompacto, enlaceCompartible, rutaDeEnlace } from '@/src/utils/appLink';
+import { esIdDeCuenta } from '@/src/utils/idDeCuenta';
 import { codificarInvitacion, decodificarInvitacion, RE_UUID } from '@/src/utils/linkCompacto';
 import { esNombreSeguro, limpiarNombre } from '@/src/utils/nombreSeguro';
 import { sealEnvelope, openEnvelope, toHex, fromHex } from './envelopeCrypto';
@@ -233,6 +234,10 @@ export async function openClaim(token: string, sealed: string): Promise<InviteCl
   const msg = await open(token, sealed);
   if (msg === null || msg.kind !== 'claim') return null;
   if (!msg.groupId || !msg.userId || !msg.wrapPublicKey || !msg.identityPublicKey) return null;
+  // T-151 (SEC-06): el `userId` entra al roster y a los repartos tal cual. La
+  // misma forma que exige un link de contacto (T-124): un id armado a mano
+  // (`__proto__`, NUL, `../x`) no calza.
+  if (!esIdDeCuenta(msg.userId)) return null;
   return msg;
 }
 
