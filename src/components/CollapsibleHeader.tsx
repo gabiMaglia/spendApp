@@ -10,7 +10,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { FondoMarmol } from '@/src/components/FondoMarmol';
 import { useSkinTokens } from '@/src/skins/useSkin';
 import { HeaderAero, fondoBarraAero } from '@/src/components/skin/HeaderAero';
-import { AERO_AIRE } from '@/src/components/skin/headerAeroGeometria';
+import { RECORRIDO_AERO } from '@/src/components/skin/headerAeroGeometria';
 import { HEADER_BAR_H, TITLE_BOTTOM_GAP, TITLE_BLOCK_H } from '@/src/constants/header';
 import {
   alturaHeaderColapsable, alturaBloqueTituloVisible, opacidadTituloCompacto, opacidadTituloCompactoSinMovimiento,
@@ -62,7 +62,8 @@ export {
 export function useHeaderPadding(aire: number = Spacing[4]): number {
   // T-131: el scroll ya arranca debajo de la barra fija (`useLimiteContenido`), así que el
   // padding sólo cubre el bloque título que se colapsa.
-  return TITLE_BLOCK_H + aire;
+  const soft = useSkinTokens().flags.soft;
+  return (soft ? RECORRIDO_AERO : TITLE_BLOCK_H) + aire;
 }
 
 /**
@@ -73,10 +74,10 @@ export function useHeaderPadding(aire: number = Spacing[4]): number {
 export function useLimiteContenido(): { marginTop: number } {
   const insets = useSafeAreaInsets();
   // Skin Aero (PO 2026-09-26): la barra es una tarjeta separada de la status
-  // bar, así que el límite queda debajo de ella más el aire que la separa del
-  // título. Con el skin default, el límite de siempre.
+  // bar; el contenido se corta justo en su borde de abajo (ni un punto más
+  // abajo: se leía como un «fondo fantasma»). Con el default, el de siempre.
   const soft = useSkinTokens().flags.soft;
-  return { marginTop: soft ? fondoBarraAero(insets.top) + AERO_AIRE : insets.top + HEADER_BAR_H };
+  return { marginTop: soft ? fondoBarraAero(insets.top) : insets.top + HEADER_BAR_H };
 }
 
 /** Margen extra, en pt, del mármol más allá del alto expandido — colchón de seguridad para que nunca se vea un hueco. */

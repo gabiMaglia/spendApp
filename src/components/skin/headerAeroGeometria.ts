@@ -12,12 +12,26 @@
  * Funciones puras (`worklet`) para poder testearlas sin Reanimated.
  */
 
+import { TITLE_BLOCK_H } from '@/src/constants/header';
+
+/**
+ * Alto de la tarjeta del título (y recorrido del colapso) en el Aero: 3/4 del
+ * bloque título del header de siempre (PO 2026-09-26: «1/4 menos»).
+ */
+export const TITULO_AERO_H = Math.round(TITLE_BLOCK_H * 0.75);
+
 /** Aire entre la status bar y la barra. */
 export const AERO_TOPE = 6;
 /** Aire entre la barra y la tarjeta del título (expandido). */
 export const AERO_AIRE = 8;
 /** Radio pronunciado de las dos tarjetas. */
 export const AERO_RADIO = 24;
+/**
+ * Recorrido del colapso en el Aero: alto del título + el aire que se cierra.
+ * Es exactamente lo que baja el borde inferior de la tarjeta del título, así
+ * que ese borde acompaña al contenido 1:1 (PO 2026-09-26: sin «fondo fantasma»).
+ */
+export const RECORRIDO_AERO = TITULO_AERO_H + AERO_AIRE;
 /** Fin de la fase de fusión. */
 export const FUSION = 0.35;
 /** Desde acá la barra vuelve a redondear sus esquinas de abajo. */

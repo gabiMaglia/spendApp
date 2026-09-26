@@ -5,7 +5,7 @@ import { CollapsibleHeader } from '@/src/components/CollapsibleHeader';
 import { useSettingsStore } from '@/src/store/settingsStore';
 import {
   AERO_AIRE, AERO_RADIO, FUSION, REAPARECE,
-  aireEntreTarjetas, altoTarjetaTitulo, radioEnfrentado, radioInferiorBarra, unidas,
+  RECORRIDO_AERO, TITULO_AERO_H, aireEntreTarjetas, altoTarjetaTitulo, radioEnfrentado, radioInferiorBarra, unidas,
 } from '@/src/components/skin/headerAeroGeometria';
 
 describe('geometría del header Aero', () => {
@@ -39,6 +39,15 @@ describe('geometría del header Aero', () => {
       expect(alto).toBeGreaterThanOrEqual(0);
       expect(alto).toBeLessThanOrEqual(previo);
       previo = alto;
+    }
+  });
+
+  it('el borde de abajo del título baja 1:1 con el contenido (sin «fondo fantasma»)', () => {
+    for (let i = 0; i <= 20; i++) {
+      const p = i / 20;
+      const bordeDesdeLaBarra = aireEntreTarjetas(p) + altoTarjetaTitulo(p, TITULO_AERO_H);
+      // El contenido se desplaza RECORRIDO_AERO * p; el borde, lo mismo.
+      expect(bordeDesdeLaBarra).toBeCloseTo(RECORRIDO_AERO * (1 - p), 6);
     }
   });
 

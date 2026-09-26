@@ -4,7 +4,7 @@ import Animated, { useAnimatedStyle, useReducedMotion, type SharedValue } from '
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Spacing } from '@/src/constants/spacing';
-import { HEADER_BAR_H, TITLE_BLOCK_H, TITLE_BOTTOM_GAP } from '@/src/constants/header';
+import { HEADER_BAR_H, TITLE_BOTTOM_GAP } from '@/src/constants/header';
 import { FondoMarmol } from '@/src/components/FondoMarmol';
 import { useSkinTokens } from '@/src/skins/useSkin';
 import {
@@ -14,7 +14,7 @@ import {
 import { VidrioMarmol } from './VidrioMarmol';
 import {
   AERO_RADIO, AERO_TOPE, aireEntreTarjetas, altoTarjetaTitulo, radioEnfrentado,
-  radioInferiorBarra, unidas,
+  radioInferiorBarra, TITULO_AERO_H, unidas,
 } from './headerAeroGeometria';
 
 /** Dónde termina la barra, medido desde arriba de la pantalla. */
@@ -29,8 +29,8 @@ export function fondoBarraAero(insetsTop: number): number {
  * Dos tarjetas de mármol con vidrio, con margen a los costados y fuera de la
  * status bar: la barra de botones (fija) y la del título. Al scrollear se
  * acercan, se funden en una y la del título se achica hasta desaparecer (ver
- * `headerAeroGeometria.ts`). Mismo recorrido (`TITLE_BLOCK_H`) que el header
- * de siempre, así `useHeaderColapsable` no cambia.
+ * `headerAeroGeometria.ts`). Recorrido `RECORRIDO_AERO`: `useHeaderColapsable`,
+ * `useHeaderPadding` y `useLimiteContenido` lo toman del skin.
  */
 export function HeaderAero({
   title, subtitle, progress, right, left,
@@ -64,7 +64,7 @@ export function HeaderAero({
 
   const tituloStyle = useAnimatedStyle(() => {
     const r = radioEnfrentado(progress.value);
-    const alto = altoTarjetaTitulo(progress.value, TITLE_BLOCK_H);
+    const alto = altoTarjetaTitulo(progress.value, TITULO_AERO_H);
     return {
       top: barraBottom + aireEntreTarjetas(progress.value),
       height: alto,
@@ -142,7 +142,7 @@ const styles = StyleSheet.create({
   },
   titulo: { zIndex: 0 },
   // Alto fijo: la textura nunca se estira al achicarse la tarjeta, solo se ve menos.
-  marmolTitulo: { top: 0, bottom: undefined, height: TITLE_BLOCK_H + 16 },
+  marmolTitulo: { top: 0, bottom: undefined, height: TITULO_AERO_H + 16 },
   bloqueTitulo: {
     position: 'absolute', left: 0, right: 0, bottom: 0,
     gap: 2, paddingHorizontal: Spacing.screenPad - 4, paddingBottom: TITLE_BOTTOM_GAP + 8,
