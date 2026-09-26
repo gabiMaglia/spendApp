@@ -62,6 +62,11 @@ export default function TabLayout() {
   const inferior = Math.max(insets.bottom, PISO_INFERIOR);
   const { skin } = useSkin();
   const soft = skin.flags.soft;
+  // Aero (PO 2026-09-26): la tarjeta flota 8pt por encima de la zona del
+  // sistema (en Android con barra de tres botones quedaba pegada), y el
+  // contenido sube 4pt para quedar centrado dentro de la tarjeta.
+  const separacionAero = soft ? 8 : 0;
+  const bajoTarjeta = inferior + separacionAero;
 
   const screen = (
     name: string,
@@ -87,9 +92,9 @@ export default function TabLayout() {
         tabBarActiveTintColor:   c.brand.primary,
         tabBarInactiveTintColor: c.textTertiary,
         tabBarStyle: {
-          height: ALTO_CONTENIDO + inferior,
-          paddingTop: 11,
-          paddingBottom: inferior,
+          height: ALTO_CONTENIDO + bajoTarjeta,
+          paddingTop: soft ? 2 : 11,
+          paddingBottom: bajoTarjeta,
           backgroundColor: c.bg,
           borderTopWidth: 1,
           borderTopColor: c.hair,
@@ -97,7 +102,7 @@ export default function TabLayout() {
           // Aero: sin hairline ni fondo propio; la tarjeta la dibuja `TabBarFondoAero`.
           ...(soft && { borderTopWidth: 0, backgroundColor: 'transparent' }),
         },
-        ...(soft && { tabBarBackground: () => <TabBarFondoAero inferior={inferior} /> }),
+        ...(soft && { tabBarBackground: () => <TabBarFondoAero inferior={bajoTarjeta} /> }),
         tabBarItemStyle: { paddingTop: 0 },
         tabBarIconStyle: { marginBottom: -2 },
       }}
