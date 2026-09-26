@@ -31,10 +31,11 @@ import { withTimeout } from '@/src/utils/withTimeout';
 /** T-138-bis: ver `anunciarMiTarjeta`. */
 const ANUNCIO_TIMEOUT_MS = 8_000;
 import {
-  ensureContactSecret, deriveContactTopic, drainContacts, sendGroupKey,
+  ensureContactSecret, deriveContactTopic, drainContacts, sendGroupKey, sendGroupKeyResultado,
   announceContact, listPeers, myContactCard, cardFingerprint,
   cardYaEnviada, marcarCardEnviada,
 } from './contactChannel';
+import { encolar } from './relayQueue';
 
 /**
  * Motor del sync en tiempo real: publica lo que cambia y aplica lo que llega.
@@ -511,7 +512,7 @@ async function arrancarCadenaDeSync(): Promise<void> {
   // mirando la pantalla esperando ver el grupo aparecer.
   for (const groupId of adoptados) await drainNow(groupId);
 
-  await reenviarClavesDeGrupo();
+  await reenviarClavesDeGrupo(adoptados);
 }
 
 // --- relectura periódica ------------------------------------------------------
@@ -671,6 +672,17 @@ export async function anunciarMiTarjeta(): Promise<void> {
  * `REENVIO_CLAVES_COOLDOWN_MS`, sea cual sea la cantidad de reinicios: no
  * cuesta nada perderse un reintento en ese lapso — el mismo reenvío se hace
  * de nuevo apenas se cumple.
+ *
+ * **Ronda 2 (ruling del orquestador): el cooldown solo no alcanza.** Frena
+ * las REPETICIONES entre arranques, pero la ráfaga de UN SOLO arranque
+ * (`relayQueue.ts` documenta la medición completa: 3×4→9, 5×5→20, 5×8→35
+ * sobres) no tenía ningún ritmo — para 5×8 eso es 35 sobres de una, contra
+ * una cuota de 20/min. Cada sobre se encola por `relayQueue` (≤15/min,
+ * medido) en vez de mandarse en el loop directo: los grupos recién
+ * ADOPTADOS en este mismo arranque van con prioridad `alta` (alguien está
+ * esperando activamente entrar), el resto es reenvío de rutina (`normal`).
+ * Un `rate_limited` de `sendGroupKeyResultado` no se descarta: la cola lo
+ * reintenta sola, sin acción del usuario.
  */
 const REENVIO_CLAVES_COOLDOWN_MS = 5 * 60_000;
 let ultimoReenvioClaves = 0;
@@ -680,22 +692,33 @@ export function __resetReenvioClaves(): void {
   ultimoReenvioClaves = 0;
 }
 
-async function reenviarClavesDeGrupo(): Promise<void> {
+async function reenviarClavesDeGrupo(adoptados: string[] = []): Promise<void> {
   const me = useAuthStore.getState().currentUser;
   if (!me) return;
   if (Date.now() - ultimoReenvioClaves < REENVIO_CLAVES_COOLDOWN_MS) return;
   ultimoReenvioClaves = Date.now();
 
+  const adoptadosSet = new Set(adoptados);
   const ids = syncableGroupIds();
   for (const groupId of ids) {
     const group = useGroupStore.getState().getById(groupId);
     if (!group) continue;
 
+    const prioridad = adoptadosSet.has(groupId) ? 'alta' : 'normal';
     for (const memberId of group.memberIds) {
       if (memberId === me.id) continue;
-      try {
-        await sendGroupKey(memberId, group, deviceId());
-      } catch { /* reintento futuro, no hay nada que hacer con el error aca */ }
+      encolar({
+        prioridad,
+        ejecutar: async () => {
+          try {
+            const r = await sendGroupKeyResultado(memberId, group, deviceId());
+            if (r.ok) return 'hecho';
+            return (r.reason === 'rate_limited' || r.reason === 'network') ? 'reintentar' : 'descartar';
+          } catch {
+            return 'reintentar';
+          }
+        },
+      });
     }
   }
 }
