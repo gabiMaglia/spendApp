@@ -1,4 +1,5 @@
 import { traspasarGrupo, siguienteNombreDisponible } from '../groupTraspaso';
+import { MAX_TEXTO_CORTO } from '@/src/sync/topes';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { usePaymentStore } from '@/src/store/paymentStore';
@@ -189,6 +190,38 @@ describe('traspasarGrupo', () => {
       const nuevo = traspasarGrupo(viejo, 'Saldo trasladado de Viaje', 'ana');
 
       expect(nuevo.name).toBe('Viaje (3)');
+    });
+  });
+
+  // T-150 ronda 2 (D3, verifier): un grupo con nombre en el tope, traspasado,
+  // no debe producir un nombre ni una descripción de arrastre que superen
+  // MAX_TEXTO_CORTO — aunque el predicado de recibir/publicar ya no los mida
+  // por caracteres, la app sigue acotando lo que ella misma genera.
+  describe('T-150 ronda 2 (D3): textos generados por el traspaso se truncan al tope', () => {
+    it('siguienteNombreDisponible nunca devuelve más de MAX_TEXTO_CORTO caracteres', () => {
+      const base = 'x'.repeat(MAX_TEXTO_CORTO);
+      const resultado = siguienteNombreDisponible(base, []);
+      expect(resultado.length).toBeLessThanOrEqual(MAX_TEXTO_CORTO);
+    });
+
+    it('traspasarGrupo con un nombre de 200 caracteres produce un grupo nuevo cuyo name no excede el tope', () => {
+      useGroupStore.setState({ groups: [grupo({ name: 'x'.repeat(MAX_TEXTO_CORTO) })] });
+      const viejo = useGroupStore.getState().groups[0];
+      const nuevo = traspasarGrupo(viejo, 'Saldo trasladado de ' + 'x'.repeat(MAX_TEXTO_CORTO), 'ana');
+
+      expect(nuevo.name.length).toBeLessThanOrEqual(MAX_TEXTO_CORTO);
+    });
+
+    it('el gasto de arrastre generado con una descripción larga se trunca al tope', () => {
+      const viejo = useGroupStore.getState().groups[0];
+      const descripcionLarga = 'Saldo trasladado de ' + 'x'.repeat(MAX_TEXTO_CORTO);
+      const nuevo = traspasarGrupo(viejo, descripcionLarga, 'ana');
+
+      const delNuevo = useExpenseStore.getState().expenses.filter(e => e.groupId === nuevo.id);
+      expect(delNuevo.length).toBeGreaterThan(0);
+      for (const gastoDeArrastre of delNuevo) {
+        expect(gastoDeArrastre.description.length).toBeLessThanOrEqual(MAX_TEXTO_CORTO);
+      }
     });
   });
 

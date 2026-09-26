@@ -10,6 +10,7 @@ import { useExpenseStore } from '@/src/store/expenseStore';
 import { usePaymentStore } from '@/src/store/paymentStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { createSecureStorage } from '@/src/utils/secureStorage';
+import { MAX_MIEMBROS } from '@/src/sync/topes';
 import type { Group, User } from '@/src/types/models';
 
 /**
@@ -118,6 +119,51 @@ describe('agregar miembros', () => {
       'group_detail.member_added_title',
       'group_detail.without_app_warning',
     );
+  });
+});
+
+// T-150 ronda 2 (D4, verifier): un grupo nunca debe superar MAX_MIEMBROS por
+// un camino honesto de la UI — ni sumando un contacto, ni dando de alta a
+// alguien "sin app".
+describe('tope de miembros al agregar (T-150 ronda 2, D4)', () => {
+  function grupoLleno(): Group {
+    return {
+      id: 'g1', name: 'Asado',
+      memberIds: Array.from({ length: MAX_MIEMBROS }, (_, i) => `u${i}`),
+      currency: 'ARS', createdAt: 0, createdById: 'u0', deletionVotes: [],
+      updatedAt: 0, isDeleted: false,
+    } as Group;
+  }
+
+  beforeEach(() => {
+    useGroupStore.setState({ groups: [grupoLleno()] });
+    useAuthStore.setState({ currentUser: { id: 'u0', name: 'U0', isDeleted: false } as User });
+    useUserStore.setState({
+      users: [
+        ...Array.from({ length: MAX_MIEMBROS }, (_, i) => ({ id: `u${i}`, name: `U${i}`, isDeleted: false }) as User),
+        BETO,
+      ],
+    });
+  });
+
+  it('bloquea sumar un contacto cuando el grupo ya está en el tope', () => {
+    const r = render(<GroupDetailScreen />);
+    abrirModal(r);
+
+    fireEvent.press(r.getByText('Beto'));
+
+    expect(useGroupStore.getState().getById('g1')!.memberIds).not.toContain('beto');
+    expect(Alert.alert).toHaveBeenCalled();
+  });
+
+  it('bloquea el alta "sin app" cuando el grupo ya está en el tope', () => {
+    const r = render(<GroupDetailScreen />);
+    abrirModal(r);
+    fireEvent.press(r.getByText('group_detail.add_without_app'));
+    fireEvent.changeText(r.getByPlaceholderText('group_detail.name_placeholder'), 'Tio Pepe');
+    fireEvent.press(r.getByText('group_detail.add_to_group'));
+
+    expect(useGroupStore.getState().getById('g1')!.memberIds).toHaveLength(MAX_MIEMBROS);
   });
 });
 
