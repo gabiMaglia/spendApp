@@ -18,6 +18,7 @@ import {
   conflictoForzado, idDeOfertaDeInvitacion, marcarAdoptada, marcarConflictoForzado,
   ofertasDe, registrarOferta,
 } from '../groupKeyOffers';
+import { savePeer } from '../contactChannel';
 
 jest.mock('expo-notifications', () => ({
   setNotificationHandler: () => {},
@@ -167,6 +168,20 @@ function anaInvita(): { invite: GroupInvite; clave: string; identidadDeAna: stri
   usar('ana', ANA);
   useGroupStore.setState({ groups: [grupo([ANA.id])] });
   useUserStore.setState({ users: [ANA] });
+
+  const record = useGroupKeyStore.getState().ensureKey('g1');
+  const identidadDeAna = ensureIdentity().publicKey;
+  const invite = createInvite('g1', 'Viaje', identidadDeAna);
+  saveInvite(invite);
+
+  return { invite, clave: record.key, identidadDeAna };
+}
+
+/** Como `anaInvita`, pero Beto ya es miembro del grupo (SEC-06, T-151). */
+function anaInvitaConBeto(): { invite: GroupInvite; clave: string; identidadDeAna: string } {
+  usar('ana', ANA);
+  useGroupStore.setState({ groups: [grupo([ANA.id, BETO.id])] });
+  useUserStore.setState({ users: [ANA, BETO] });
 
   const record = useGroupKeyStore.getState().ensureKey('g1');
   const identidadDeAna = ensureIdentity().publicKey;
@@ -634,5 +649,49 @@ describe('T-096 · invitación de un solo uso (claimedBy)', () => {
     // así que el riesgo de que Beto (nuevo miembro) admita a Mallory NO es reachable
     // a través del flujo normal. (Sí lo sería si algo explícitamente llamara
     // processInvite(invite), pero eso no es un code path actual.)
+  });
+});
+
+describe('SEC-06 (T-151) · un reclamo a nombre de alguien que YA es miembro', () => {
+  /**
+   * `admit` aceptaba un reclamo cuyo `userId` YA era miembro —el
+   * `if (!group.memberIds.includes(...))` se salteaba y `sendEnvelope` iba
+   * igual—, así que con el link alguien entraba «como Beto» sin figurar como
+   * miembro nuevo ni disparar el aviso `joined`: recibía la clave en silencio.
+   */
+  it('un reclamo a nombre de alguien que YA es miembro no recibe la clave', async () => {
+    // Ana invita a un grupo donde Beto ya es miembro. Mallory reclama diciendo ser Beto.
+    const { invite } = anaInvitaConBeto();
+
+    usar('mallory', MALLORY);
+    useAuthStore.setState({ currentUser: { ...MALLORY, id: BETO.id } });
+    await publishClaim(invite, 'device-mallory');
+
+    usar('ana', ANA);
+    await processInvite(invite, 'device-ana');
+
+    // En el buzón de invitación hay SOLO el reclamo (ningún grant de Ana): el
+    // filtro es por sobres de ANA (quien admitiría), no por remitente del
+    // reclamo, porque tanto el reclamo como un eventual grant indebido viajan
+    // por el mismo buzón y el grant lo firma el propio dispositivo de Ana.
+    const topic = await deriveInviteTopic(invite.token);
+    expect(relayMock.__buzones.get(topic) ?? []).toHaveLength(1);
+    expect(useGroupStore.getState().groups[0]!.memberIds).toEqual([ANA.id, BETO.id]);
+  });
+
+  it('el propio miembro reinstalado SÍ recibe la clave si su identidad coincide con la pinneada', async () => {
+    const { invite } = anaInvitaConBeto();
+
+    usar('beto', BETO);
+    const identidadDeBeto = ensureIdentity().publicKey;
+    await publishClaim(invite, 'device-beto');
+
+    usar('ana', ANA);
+    savePeer(BETO.id, { secret: 'sec-beto', identityPublicKey: identidadDeBeto });
+    await processInvite(invite, 'device-ana');
+
+    // Reclamo + entrega: los dos sobres del buzón de invitación.
+    const topic = await deriveInviteTopic(invite.token);
+    expect((relayMock.__buzones.get(topic) ?? []).length).toBe(2);
   });
 });
