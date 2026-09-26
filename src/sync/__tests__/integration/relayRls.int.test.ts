@@ -335,3 +335,82 @@ soloEn('011a')('011a · compatibilidad: el camino viejo sigue andando', () => {
     expect((data as Fila[]).map((r) => r.payload)).toEqual(['v1']);
   });
 });
+
+soloEn('011b')('011b · el buzón cerrado', () => {
+  it('Gherkin «anónimo no escribe»: anon key sin sesión no inserta ni llama RPC', async () => {
+    expect((await nuevo().from('envelopes').insert(fila(topic()))).error).not.toBeNull();
+    expect((await rpcPub(nuevo(), topic())).error).not.toBeNull();
+  });
+  it('Gherkin «anónimo no lista»: GET directo rechazado, RPC también', async () => {
+    for (const t of ['envelopes', 'device_keys']) {
+      const { data, error } = await nuevo().from(t).select('*');
+      expect(error !== null || (data ?? []).length === 0).toBe(true);
+    }
+    expect((await nuevo().rpc('fetch_since', { p_topic: 'x', p_since: 0 })).error).not.toBeNull();
+    expect((await nuevo().rpc('account_keys', { p_account_id: 'acc-1' })).error).not.toBeNull();
+    expect((await nuevo().rpc('delete_my_envelopes', { p_topic: 'x', p_secret: 'd'.repeat(64) })).error).not.toBeNull();
+    expect((await nuevo().rpc('purge_expired_envelopes')).error).not.toBeNull();
+  });
+  it('Gherkin «nadie lista aunque esté autenticado»', async () => {
+    const t = topic();
+    const c = await conCuenta();
+    expect((await rpcPub(c, t)).error).toBeNull();
+    for (const cli of [c, await anonimo()]) {
+      for (const tabla of ['envelopes', 'device_keys']) {
+        const { data } = await cli.from(tabla).select('*');
+        expect(data ?? []).toHaveLength(0);
+      }
+    }
+  });
+  it('sesión anónima y con cuenta: publican y leen por RPC', async () => {
+    for (const c of [await anonimo(), await conCuenta()]) {
+      const t = topic();
+      expect((await rpcPub(c, t, 'a')).error).toBeNull();
+      const { data } = await c.rpc('fetch_since', { p_topic: t, p_since: 0 });
+      expect(data).toHaveLength(1);
+    }
+  });
+  it('la cuota rechaza por defecto (enforce = true, retención 2 h)', async () => {
+    const { data } = await admin.from('relay_quota_config').select('enforce,retention').single();
+    expect(data!.enforce).toBe(true);
+    expect(data!.retention).toBe('02:00:00');
+  });
+  it('delete_my_envelopes sigue andando para authenticated (I6)', async () => {
+    const c = await anonimo();
+    const t = topic();
+    const secreto = 'd'.repeat(64);
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const proof = require('crypto').createHash('sha256').update(secreto).digest('hex');
+    await c.rpc('publish_envelope', { p_topic: t, p_payload: 'x', p_sender: 'a', p_compactable: true, p_owner_proof: proof });
+    const { data } = await c.rpc('delete_my_envelopes', { p_topic: t, p_secret: secreto });
+    expect(data).toBe(1);
+  });
+  it('compactación sigue igual tras el corte (I6)', async () => {
+    const c = await anonimo();
+    const t = topic();
+    for (let i = 0; i < 2; i++) {
+      await c.rpc('publish_envelope', {
+        p_topic: t, p_payload: `v${i}`, p_sender: 'devA', p_compactable: true, p_owner_proof: 'e'.repeat(64), p_ckey: 'k1',
+      });
+    }
+    const { data } = await c.rpc('fetch_since', { p_topic: t, p_since: 0 });
+    expect((data as Fila[]).map((r) => r.payload)).toEqual(['v1']);
+  });
+  it('postgres_changes ya no entrega filas de envelopes (P4)', async () => {
+    const oyente = await anonimo();
+    let filas = 0;
+    await new Promise<void>((ok) =>
+      oyente
+        .channel(`pgc-${topic()}`)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'envelopes' }, () => {
+          filas++;
+        })
+        .subscribe((s) => {
+          if (s !== 'CLOSED') ok();
+        }),
+    );
+    await rpcPub(await anonimo(), topic());
+    await new Promise((r) => setTimeout(r, 3_000));
+    expect(filas).toBe(0);
+  });
+});

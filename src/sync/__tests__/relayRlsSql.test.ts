@@ -106,3 +106,69 @@ describe('011a · aditiva', () => {
     expect(sql.lastIndexOf('notify pgrst')).toBeGreaterThan(sql.lastIndexOf('commit;'));
   });
 });
+
+describe('011b · corte', () => {
+  const sql = sin(leer('011b_relay_rls_corte.sql'));
+  const crudo = leer('011b_relay_rls_corte.sql');
+
+  it('avisa que no va junto con 011a y copia la condición medida', () => {
+    expect(crudo).toMatch(/NO CORRER JUNTO CON 011a/);
+    expect(crudo).toMatch(/relay_write_stats where role = 'anon'/);
+    expect(crudo).toMatch(/pg_stat_statements/);
+  });
+  it('saca la lectura directa de los dos lados (I1)', () => {
+    expect(sql).toMatch(/drop policy if exists envelopes_read on public\.envelopes/i);
+    expect(sql).toMatch(/drop policy if exists device_keys_read on public\.device_keys/i);
+    expect(sql).not.toMatch(/create policy envelopes_read/i);
+    expect(sql).not.toMatch(/create policy device_keys_read/i);
+  });
+  it('INSERT sólo authenticated, con el tope de 1 MB', () => {
+    const pol = sql.match(/create policy envelopes_write[\s\S]*?;/i)![0];
+    expect(pol).toMatch(/to authenticated\b/i);
+    expect(pol).not.toMatch(/\banon\b/i);
+    expect(pol).toMatch(/1048576/);
+  });
+  it('anon pierde los grants directos de tabla', () => {
+    expect(sql).toMatch(/revoke select, insert on public\.envelopes from anon/i);
+    expect(sql).toMatch(/revoke select on public\.device_keys from anon/i);
+  });
+  it('las RPC del buzón pierden anon (H3: nombra anon, no sólo public)', () => {
+    for (const fn of ['fetch_since', 'publish_envelope', 'account_keys', 'delete_my_envelopes']) {
+      expect(sql).toMatch(new RegExp(`revoke execute on function[\\s\\S]*public\\.${fn}\\([\\s\\S]*from public, anon`, 'i'));
+      expect(sql).toMatch(new RegExp(`grant execute on function[\\s\\S]*public\\.${fn}\\([\\s\\S]*to authenticated`, 'i'));
+    }
+  });
+  it('higiene D7/P6: purga y funciones de trigger sin EXECUTE para nadie', () => {
+    expect(sql).toMatch(
+      /revoke execute on function public\.purge_expired_envelopes\(\), public\.compact_envelopes\(\), public\.stamp_owner_tag\(\)\s+from public, anon, authenticated/i,
+    );
+  });
+  it('fuera de postgres_changes (P4) y cuota rechazando con retención corta (H5)', () => {
+    expect(sql).toMatch(/alter publication supabase_realtime drop table public\.envelopes/i);
+    expect(sql).toMatch(/set enforce = true, retention = interval '2 hours'/i);
+  });
+  it('transaccional y refresca PostgREST después', () => {
+    expect(sql).toMatch(/^\s*begin;/m);
+    expect(sql.lastIndexOf('notify pgrst')).toBeGreaterThan(sql.lastIndexOf('commit;'));
+  });
+});
+
+describe('011b · rollback', () => {
+  const sql = sin(leer('011b_rollback.sql'));
+  it('devuelve las tres policies y la publicación', () => {
+    expect(sql).toMatch(/create policy envelopes_read[\s\S]*to anon, authenticated[\s\S]*using \(true\)/i);
+    expect(sql).toMatch(/create policy envelopes_write[\s\S]*to anon, authenticated/i);
+    expect(sql).toMatch(/create policy device_keys_read/i);
+    expect(sql).toMatch(/alter publication supabase_realtime add table public\.envelopes/i);
+  });
+  it('devuelve los grants de anon', () => {
+    expect(sql).toMatch(/grant select, insert on public\.envelopes to anon/i);
+    expect(sql).toMatch(/grant select on public\.device_keys to anon/i);
+    for (const fn of ['fetch_since', 'publish_envelope', 'account_keys', 'delete_my_envelopes']) {
+      expect(sql).toMatch(new RegExp(`grant execute on function[\\s\\S]*public\\.${fn}\\([\\s\\S]*to anon`, 'i'));
+    }
+  });
+  it('no toca la cuota (la decide el PO aparte)', () => {
+    expect(sql).not.toMatch(/relay_quota_config/i);
+  });
+});
