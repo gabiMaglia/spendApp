@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useContext } from 'react';
 import { Pressable, StyleSheet, Text, View, type ViewStyle, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -9,6 +9,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { MontoRodante } from '@/src/components/MontoRodante';
 import type { MontoRegistry } from '@/src/utils/montoRodanteRegistry';
 import type { CurrencyCode } from '@/src/constants/currencies';
+import { PanelContext } from '@/src/components/skin/PanelContext';
 
 /**
  * Primitivas del reskin "flat bands".
@@ -72,15 +73,20 @@ export function Band({
   noTop?: boolean;
 }) {
   const c = useC();
+  // Dentro de un `Panel` del skin, el panel pone fondo/radio/sombra: la banda
+  // no dibuja sus hairlines ni su fondo (salvo `sunken`, con el tono del skin).
+  const panel = useContext(PanelContext);
   return (
     <View
       style={[
-        {
-          backgroundColor: sunken ? c.bgGrouped : c.surface,
-          borderTopWidth: noTop ? 0 : 1,
-          borderBottomWidth: noBottom ? 0 : 1,
-          borderColor: c.hair,
-        },
+        panel
+          ? { backgroundColor: sunken ? panel.sunkenBg : 'transparent' }
+          : {
+              backgroundColor: sunken ? c.bgGrouped : c.surface,
+              borderTopWidth: noTop ? 0 : 1,
+              borderBottomWidth: noBottom ? 0 : 1,
+              borderColor: c.hair,
+            },
         style,
       ]}
     >

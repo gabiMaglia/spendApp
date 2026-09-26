@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BottomTabBarHeightContext } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -59,6 +59,7 @@ interface FabProps {
   iconColor?: string;
   textColor?: string;
   testID?: string;
+  style?: StyleProp<ViewStyle>;
 }
 
 export function Fab({
@@ -71,6 +72,7 @@ export function Fab({
   iconColor = '#fff',
   textColor = '#fff',
   testID,
+  style,
 }: FabProps) {
   const isPrimary = variant === 'primary';
   return (
@@ -82,6 +84,7 @@ export function Fab({
         isPrimary ? styles.fabPrimary : styles.fabSecondary,
         { backgroundColor },
         borderColor ? { borderWidth: 1, borderColor } : null,
+        style,
         pressed && { opacity: 0.9 },
       ]}
     >
