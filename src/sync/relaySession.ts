@@ -90,11 +90,31 @@ async function hacerEnsure(): Promise<SessionKind> {
   const supabase = getRelayClient();
   if (!supabase) return 'none';
 
-  const { data } = await supabase.auth.getSession();
+  const { data, error } = await supabase.auth.getSession();
   if (data.session) return data.session.user.is_anonymous ? 'anonymous' : 'identity';
+
+  /**
+   * Verifier D1: `error` acá significa que el refresh del token FALLÓ —red
+   * caída al volver de background, servidor de Auth caído— no que "no hay
+   * sesión". `auth-js` (2.109.0, `GoTrueClient.js:2486-2506`) no borra el
+   * refresh token del storage ante un fallo reintentable: la sesión de
+   * Google/Apple sigue ahí, sólo que esta consulta no la pudo confirmar.
+   *
+   * Tratar esto igual que "nunca hubo sesión" abriría una anónima y la
+   * PERSISTIRÍA encima de una cuenta todavía válida (D1: "si hay sesión
+   * guardada, se usa"). Se prefiere no tocar nada y reintentar más tarde —
+   * igual que cualquier otro fallo de Auth (`SESSION_RETRY_MS`).
+   */
+  if (error) {
+    ultimoFallo = Date.now();
+    return 'none';
+  }
 
   if (ultimoFallo && Date.now() - ultimoFallo < SESSION_RETRY_MS) return 'none';
 
+  // Acá SÍ es seguro abrir una anónima: `getSession()` contestó sin error y
+  // sin sesión — primer arranque, o logout explícito (`signOut`, que borra el
+  // storage) — nunca un refresh que no se pudo confirmar.
   return abrirSesion();
 }
 
@@ -106,6 +126,16 @@ async function hacerEnsure(): Promise<SessionKind> {
  */
 export function bindAuthRefreshToAppState(): () => void {
   const supabase = getRelayClient();
+
+  // Verifier D1: antes sólo arrancaba en el próximo evento `change` a
+  // `active`. En un arranque en frío la app YA está `active` desde antes de
+  // que esto se suscriba, así que ese evento nunca llega — el refresco
+  // automático no se prendía hasta el primer viaje a background y de vuelta.
+  // Con `autoRefreshToken: false` en el cliente (`relay.ts`), esto es lo
+  // ÚNICO que dispara el refresco: sin esta línea, un token que vence antes
+  // de la primera vez que la app va a background nunca se renueva.
+  if (supabase) supabase.auth.startAutoRefresh();
+
   const sub = AppState.addEventListener('change', estado => {
     if (!supabase) return;
     if (estado === 'active') supabase.auth.startAutoRefresh();
