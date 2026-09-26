@@ -27,6 +27,7 @@ import { UserAvatar } from '@/src/components/UserAvatar';
 import { useTranslation } from 'react-i18next';
 import { syncedNow } from '@/src/utils/syncedClock';
 import { esYo } from '@/src/store/identityAlias';
+import { MAX_TEXTO_CORTO } from '@/src/sync/topes';
 
 const PRIMARY_CURRENCIES: CurrencyCode[] = ['ARS', 'USD', 'EUR', 'BRL'];
 
@@ -131,6 +132,7 @@ export default function NewGroupScreen() {
               placeholderTextColor={c.textTertiary}
               value={name}
               onChangeText={setName}
+              maxLength={MAX_TEXTO_CORTO}
               style={[Typography.bodyL, styles.nameInput, { color: c.text }]}
               returnKeyType="done"
               autoFocus
