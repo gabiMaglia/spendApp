@@ -54,6 +54,15 @@ function calcular(e: Expense, verificar: VerificadorDeNucleo): string[] {
   for (const entrada of e.autoriaDisputada ?? []) {
     if (!entrada || typeof entrada.createdById !== 'string' || !entrada.createdById) continue;
     if (typeof entrada.k !== 'string' || !entrada.k) continue;
+    // T-170 · D-3, ronda de retorno 2 (PoC P3c del verificador): la firma
+    // cubre el núcleo ENTERO, id y groupId incluidos — cierra igual de bien
+    // para el gasto que la trajo que para CUALQUIER OTRO gasto real de ese
+    // mismo autor. Sin este chequeo, un miembro cualquiera puede pegar acá
+    // un núcleo legítimo y legítimamente firmado de OTRO gasto (uno que
+    // tiene a mano en su propio estado local) y hacer que esa firma real
+    // cuente como si fuera del gasto que la aloja. La entrada sólo puede
+    // disputar EL GASTO CUYA COPIA ES: mismo `id` y mismo `groupId`.
+    if (entrada.id !== e.id || entrada.groupId !== e.groupId) continue;
     if (verificar(entrada.createdById, entrada) === 'valida') autores.add(entrada.createdById);
   }
 

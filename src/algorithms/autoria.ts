@@ -87,10 +87,24 @@ function tieneFormaDeNucleo(x: unknown): x is NucleoDisputado {
  * canónico y aplica el tope determinista de cantidad (G9: sin esto un
  * registro podría crecer sin límite con entradas basura — acotado además, en
  * bytes, por `MAX_REGISTRO_BYTES` al recibir, `lww.ts`/`topes.ts`).
+ *
+ * **`anfitrion` (T-170 · D-3, ronda de retorno 2, defensa en profundidad).**
+ * Cuando se pasa, descarta además cualquier entrada cuyo `id`/`groupId` no
+ * coincida con el gasto que la aloja — el núcleo firmado y legítimo de OTRO
+ * gasto no puede colarse como disputa de éste (PoC P3c del verificador). Es
+ * sólo FORMA (comparar dos strings), no verificación (D9): el chequeo
+ * decisivo, que no se puede evitar, vive afuera del merge en
+ * `src/sync/autoriaTrust.ts`, que no tiene forma de saltearse porque ahí no
+ * hay ningún "anfitrión" que dejar de pasar.
  */
-export function normalizarDisputa(entradas: unknown): NucleoDisputado[] {
+export function normalizarDisputa(
+  entradas: unknown, anfitrion?: { id: string; groupId: string },
+): NucleoDisputado[] {
   if (!Array.isArray(entradas)) return [];
-  const limpias = entradas.filter(tieneFormaDeNucleo);
+  let limpias = entradas.filter(tieneFormaDeNucleo);
+  if (anfitrion) {
+    limpias = limpias.filter(n => n.id === anfitrion.id && n.groupId === anfitrion.groupId);
+  }
 
   const porContenido = new Map<string, NucleoDisputado>();
   for (const e of limpias) porContenido.set(canonical(e), e);
@@ -133,7 +147,17 @@ export function unirDisputa(
     if (nr) base.push(nr);
   }
 
-  const out = normalizarDisputa(base);
+  // El anfitrión es el `id`/`groupId` de ESTE registro (los dos lados del
+  // merge comparten el mismo `id` por construcción: `mergeRecord` opera por
+  // id). Si por lo que sea faltara alguno, se omite el filtro de anfitrión y
+  // queda el chequeo decisivo de `autoriaTrust.ts`.
+  const idAnfitrion = registroLocal.id ?? registroRemoto.id;
+  const groupIdAnfitrion = registroLocal.groupId ?? registroRemoto.groupId;
+  const anfitrion = typeof idAnfitrion === 'string' && typeof groupIdAnfitrion === 'string'
+    ? { id: idAnfitrion, groupId: groupIdAnfitrion }
+    : undefined;
+
+  const out = normalizarDisputa(base, anfitrion);
   if (out.length === 0) return undefined;
   if (
     local !== undefined && local.length === out.length
