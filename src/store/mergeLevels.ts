@@ -18,7 +18,8 @@ import type { DeletionVote, LeaveRequest, SettlementConfirmation } from '@/src/t
  *
  * Un registro tiene tres niveles y cada uno se resuelve con su propia regla:
  *
- * 1. **Núcleo** — lo que decide plata y autoría (`recordCore.ts`). Gana el de
+ * 1. **Núcleo** — lo que decide plata y autoría (`recordCore.ts`). Entre uno
+ *    con firma y uno sin firma gana el que la trae (T-152); si no, gana el de
  *    `rev` mayor, que sólo sube el autor y va ADENTRO de la firma. Subirlo sin
  *    la privada del autor rompe la firma; ése es todo el mecanismo.
  * 2. **Colaborativo** — `deletionVotes` y `leaveRequest.approvedBy`. Son
@@ -166,23 +167,45 @@ function restoDe(kind: CoreKind, record: Registro): Registro {
   return fuera;
 }
 
+/** ¿Trae firma? Por PRESENCIA, nunca por verificación: el merge no toca la curva (D9). */
+function traeFirma(r: Registro): boolean {
+  return typeof r.k === 'string' && r.k.length > 0 && typeof r.s === 'string' && r.s.length > 0;
+}
+
 /**
  * ¿Gana el NÚCLEO entrante?
  *
- * Gana `rev` mayor. Ante empate, el desempate canónico del núcleo — arbitrario
- * pero igual en los dos dispositivos, que es lo único que hace falta.
+ * **Primero la firma, después el `rev`** (T-152, DEC-05 del PO; SEC-08). Un
+ * núcleo SIN firma nunca le gana a uno CON firma: hasta acá bastaba un `rev`
+ * gigante sin `k`/`s` para pisar el monto firmado del autor, y el resultado
+ * quedaba «no verificable» —que por R1 nunca es un rechazo— en vez de
+ * «inválido». La regla es simétrica para que dos teléfonos converjan desde
+ * cualquier lado. No enciende la fase B: entre dos sin firma (peers
+ * anteriores a T-041, registros derivados) y entre dos con firma manda el
+ * `rev` como siempre. Se mira PRESENCIA de firma, no validez — una firma
+ * falsa con `rev` alto sigue ganando y sigue marcándose `invalida`: ése es
+ * el residual que R1 acepta.
  *
- * **Los dos sin `rev` es un caso aparte y no un empate cualquiera**: son
- * registros anteriores a T-041, o de un peer que no actualizó, y ahí no hay
- * ninguna firma que ordenar. Decidirlos por contenido le daría vuelta el
- * comportamiento de hoy y las ediciones de un peer viejo dejarían de entrar. En
- * ese mundo manda `updatedAt`, igual que siempre.
+ * Consecuencia declarada: si al autor le falla firmar una edición (sin
+ * privada, o `signCore` tira), esa edición no viaja por encima de su versión
+ * firmada. Es lo correcto: una edición sin firma de un registro firmado es
+ * indistinguible de una suplantación.
+ *
+ * Después, gana `rev` mayor. Ante empate, el desempate canónico del núcleo —
+ * arbitrario pero igual en los dos dispositivos, que es lo único que hace
+ * falta. **Los dos sin `rev` es un caso aparte**: son registros anteriores a
+ * T-041, o de un peer que no actualizó, y ahí no hay ninguna firma que
+ * ordenar; manda `updatedAt`, igual que siempre.
  */
 export function coreWins<K extends CoreKind>(
   kind: K, incoming: CoreRecord[K], current: CoreRecord[K],
 ): boolean {
   const inc = incoming as unknown as Registro;
   const cur = current as unknown as Registro;
+
+  const firmaInc = traeFirma(inc);
+  const firmaCur = traeFirma(cur);
+  if (firmaInc !== firmaCur) return firmaInc;
 
   const revInc = revDe(inc);
   const revCur = revDe(cur);

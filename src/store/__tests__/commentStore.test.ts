@@ -91,10 +91,14 @@ describe('commentStore', () => {
      */
     it('el mismo comentario editado gana', () => {
       useCommentStore.getState().addComment(comment({ text: 'viejo', updatedAt: 1_000 }));
-      const revLocal = useCommentStore.getState().comments[0]!.rev!;
+      const local = useCommentStore.getState().comments[0]!;
 
+      // T-152: un núcleo sin firma nunca pisa uno firmado. `addComment` firma
+      // (`signOnCreate`), así que la edición real que se simula acá parte del
+      // mismo local firmado — no de un `comment()` a mano sin `k`/`s` — para
+      // seguir probando el desempate por `rev` y no el de presencia de firma.
       useCommentStore.getState().mergeComments([
-        comment({ text: 'nuevo', updatedAt: 2_000, rev: revLocal + 1 }),
+        { ...local, text: 'nuevo', updatedAt: 2_000, rev: local.rev! + 1 },
       ]);
 
       expect(useCommentStore.getState().forExpense('e1')[0]!.text).toBe('nuevo');

@@ -102,10 +102,14 @@ describe('recurringStore', () => {
      */
     it('gana la versión más nueva', () => {
       useRecurringStore.getState().addRecurring(template({ description: 'viejo', updatedAt: 1_000 }));
-      const revLocal = useRecurringStore.getState().recurring[0]!.rev!;
+      const local = useRecurringStore.getState().recurring[0]!;
 
+      // T-152: un núcleo sin firma nunca pisa uno firmado. `addRecurring`
+      // firma, así que la edición real que se simula acá parte del mismo
+      // local firmado — no de un `template()` a mano sin `k`/`s` — para
+      // seguir probando el desempate por `rev` y no el de presencia de firma.
       useRecurringStore.getState().mergeRecurring([
-        template({ description: 'nuevo', updatedAt: 2_000, rev: revLocal + 1 }),
+        { ...local, description: 'nuevo', updatedAt: 2_000, rev: local.rev! + 1 },
       ]);
 
       expect(useRecurringStore.getState().getById('r1')!.description).toBe('nuevo');
