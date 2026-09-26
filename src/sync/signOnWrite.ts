@@ -84,6 +84,12 @@ function sinFirma<K extends CoreKind>(record: CoreRecord[K]): CoreRecord[K] {
   return copia as unknown as CoreRecord[K];
 }
 
+/** ¿Trae firma? Por presencia, igual que `coreWins` en `mergeLevels.ts` (D9: acá tampoco se valida curva). */
+function traeFirma(record: { k?: unknown; s?: unknown }): boolean {
+  return typeof record.k === 'string' && record.k.length > 0
+      && typeof record.s === 'string' && record.s.length > 0;
+}
+
 /**
  * Firma el núcleo, o devuelve el registro sin firma si no se pudo.
  *
@@ -148,6 +154,9 @@ function nucleoCambio<K extends CoreKind>(
 
 /**
  * Al editar. `siguiente` es el registro ya con el patch y el `updatedAt` nuevo.
+ * Devuelve `null` cuando la edición NO se puede guardar — el llamador tiene
+ * que tratarlo como "no escribas nada" y avisarle a quien editaba, nunca como
+ * "guardalo sin firma".
  *
  * Se re-firma sólo si **soy el autor** y el cambio tocó el **núcleo**. Los dos
  * filtros importan:
@@ -157,12 +166,28 @@ function nucleoCambio<K extends CoreKind>(
  * - Sin el segundo, un voto del propio autor movería `rev` sin que el contenido
  *   cambie, y en S7 esa revisión fantasma le ganaría a una edición real hecha
  *   desde su otro teléfono.
+ *
+ * **Bloquear, no perder en silencio** (T-152 · D2, decisión del PO
+ * 2026-09-26). Si el núcleo YA estaba firmado y la re-firma de ESTA edición
+ * falla (`privadaDelAparato()` da `null`, o `signCore` tira), guardar la
+ * edición sin firma la condena: en `coreWins` (T-152) un núcleo sin firma
+ * nunca le gana a uno firmado, así que la próxima vez que cualquier peer
+ * —incluido este mismo aparato— reciba la republicación de su propia versión
+ * firmada vieja, esa edición desaparece sin ningún aviso (el PoC del
+ * verificador: 20000 vuelve a 10000). Si el núcleo NUNCA estuvo firmado (peer
+ * pre-T-041) no hay nada firmado contra lo que perder, así que ese caso sigue
+ * como siempre: se guarda sin firma y queda `no_verificable`.
  */
 export function signOnEdit<K extends CoreKind>(
   kind: K, previo: CoreRecord[K], siguiente: CoreRecord[K],
-): CoreRecord[K] {
+): CoreRecord[K] | null {
   if (!esMio(kind, siguiente)) return siguiente;
   if (!nucleoCambio(kind, previo, siguiente)) return siguiente;
 
-  return firmar(kind, { ...siguiente, rev: siguienteRev(previo.rev) });
+  const firmado = firmar(kind, { ...siguiente, rev: siguienteRev(previo.rev) });
+  if (traeFirma(previo as unknown as { k?: unknown; s?: unknown })
+      && !traeFirma(firmado as unknown as { k?: unknown; s?: unknown })) {
+    return null;
+  }
+  return firmado;
 }

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef } from 'react';
 import {
-  KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
+  Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -359,7 +359,7 @@ export default function NewExpenseScreen() {
     const groupName = group?.name ?? '';
 
     if (isEditMode && expenseId) {
-      updateExpense(expenseId, {
+      const guardo = updateExpense(expenseId, {
         description:     description.trim(),
         amount,
         ...payerFields(),
@@ -370,6 +370,15 @@ export default function NewExpenseScreen() {
         note:            note || undefined,
         receiptImageUri: receiptUri,
       });
+      // T-152 · D2: si el núcleo ya estaba firmado y no se pudo re-firmar esta
+      // edición, el store la bloqueó — no la guardó — para no perderla en
+      // silencio contra la próxima republicación de la versión vieja. Se le
+      // avisa a quien editaba y la pantalla NO se cierra, como si hubiera
+      // guardado.
+      if (!guardo) {
+        Alert.alert(t('sync.sign_failed_title'), t('sync.sign_failed_body'));
+        return;
+      }
       // Keep personal replica in sync with edited values
       if (myShare > 0) {
         updateReplicatedEntry(expenseId, {

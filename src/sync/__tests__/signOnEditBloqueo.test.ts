@@ -29,7 +29,7 @@ function base(): Expense {
   return {
     id: 'e1', groupId: 'g1', description: 'Cena', amount: 10_000, currency: 'ARS',
     paidById: 'ana', createdById: 'ana', splits: [], splitMode: 'equal', category: 'food',
-    date: 1_000, createdAt: 1_000, updatedAt: 1_000, isDeleted: false,
+    date: 1_000, createdAt: 1_000, updatedAt: 1_000, isDeleted: false, deletionVotes: [],
   } as Expense;
 }
 

@@ -8,6 +8,7 @@ import { schedulePublish } from '@/src/sync/relayEngine';
 import { migratePaymentAmounts } from './moneyMigration';
 import type { Payment } from '@/src/types/models';
 import { syncedNow } from '@/src/utils/syncedClock';
+import { recordError } from '@/src/services/errorLog';
 
 const storage = createSecureStorage('payments');
 const KEY = 'data_v1';
@@ -25,7 +26,8 @@ interface PaymentStoreState {
   payments: Payment[];
   isLoading: boolean;
   addPayment: (payment: Payment, opts?: AddPaymentOpts) => void;
-  updatePayment: (id: string, patch: Partial<Payment>) => void;
+  /** `false` = la edición NO se guardó (T-152 · D2). Ver `expenseStore.updateExpense`. */
+  updatePayment: (id: string, patch: Partial<Payment>) => boolean;
   mergePayments: (incoming: Payment[], now?: number) => void;
   hydrate: () => void;
 }
@@ -53,17 +55,27 @@ export const usePaymentStore = create<PaymentStoreState>((set, get) => ({
   },
 
   updatePayment: (id, patch) => {
+    const actual = get().payments.find(p => p.id === id);
+    if (!actual) return true;
+
     const ahora = syncedNow();
-    const payments = get().payments.map(p =>
-      p.id === id
-        ? signOnEdit('payment', p, { ...p, ...patch, updatedAt: siguienteUpdatedAt(p.updatedAt, ahora) })
-        : p,
-    );
+    const firmado = signOnEdit('payment', actual, {
+      ...actual, ...patch, updatedAt: siguienteUpdatedAt(actual.updatedAt, ahora),
+    });
+    if (firmado === null) {
+      recordError({
+        message: 'signOnEdit bloqueado: no se pudo re-firmar una edición propia de un pago ya firmado',
+        fatal: false,
+      });
+      return false;
+    }
+
+    const payments = get().payments.map(p => (p.id === id ? firmado : p));
     persist(payments);
     set({ payments });
 
-    const groupId = payments.find(p => p.id === id)?.groupId;
-    if (groupId) schedulePublish(groupId);
+    if (firmado.groupId) schedulePublish(firmado.groupId);
+    return true;
   },
 
   // Merge por niveles (T-041 · S7) con tope de reloj (T-144). Ver comentario
