@@ -1,0 +1,57 @@
+# Arnés de integración de T-147 — Supabase LOCAL, nunca el proyecto real.
+# Lo levanta `scripts/supabase-int.sh`. Puertos 553xx a propósito: la Mac del PO
+# suele tener otro stack local en los 543xx por defecto (proyecto webApp).
+project_id = "splitp2p-int"
+
+[api]
+enabled = true
+port = 55321
+schemas = ["public"]
+
+[db]
+port = 55322
+shadow_port = 55320
+# [NV] Poner la de producción (checklist F0 paso 0: `select version();`).
+# 17 es la de todo proyecto nuevo de Supabase y la imagen ya está en la Mac.
+major_version = 17
+
+[db.pooler]
+enabled = false
+
+[realtime]
+enabled = true
+
+[studio]
+enabled = false
+
+[local_smtp]
+enabled = false
+
+[storage]
+enabled = false
+
+[edge_runtime]
+enabled = false
+
+[analytics]
+enabled = false
+
+[auth]
+enabled = true
+site_url = "http://127.0.0.1"
+enable_anonymous_sign_ins = true
+
+[auth.email]
+enable_signup = true
+enable_confirmations = false
+
+[auth.rate_limit]
+# El test abre muchas sesiones anónimas; producción queda en 30/h por IP.
+anonymous_users = 1000
+sign_in_sign_ups = 1000
+
+[auth.captcha]
+enabled = true
+provider = "turnstile"
+# Clave secreta de PRUEBA, pública y documentada por Cloudflare: siempre valida.
+secret = "1x0000000000000000000000000000000AA"

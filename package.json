@@ -16,6 +16,7 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
+    "test:int": "jest -c jest.integration.config.js --runInBand",
     "web": "expo start --web"
   },
   "jest": {
@@ -32,7 +33,8 @@
     ],
     "testPathIgnorePatterns": [
       "/node_modules/",
-      "<rootDir>/.claude/"
+      "<rootDir>/.claude/",
+      "\\.int\\.test\\.ts$"
     ],
     "transformIgnorePatterns": [
       "node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|sentry-expo|native-base|react-native-svg|i18next|react-i18next|react-native-mmkv|zustand|uuid|react-native-get-random-values|@noble|number-flow-react-native)"
