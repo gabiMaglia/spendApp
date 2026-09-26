@@ -206,6 +206,76 @@ function claveDelPeer(authorId: string): string | null {
   }
 }
 
+type ModuloAlias = { esYo(id: string | null | undefined): boolean };
+type ModuloIdentidad = { ensureIdentity(): { publicKey: string } };
+let modAlias: ModuloAlias | null | undefined;
+let modIdentidad: ModuloIdentidad | null | undefined;
+
+function cargarAlias(): ModuloAlias | null {
+  if (modAlias !== undefined) return modAlias;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    modAlias = require('@/src/store/identityAlias') as ModuloAlias;
+  } catch {
+    modAlias = null;
+  }
+  return modAlias;
+}
+
+function cargarIdentidad(): ModuloIdentidad | null {
+  if (modIdentidad !== undefined) return modIdentidad;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    modIdentidad = require('@/src/store/identityStore') as ModuloIdentidad;
+  } catch {
+    modIdentidad = null;
+  }
+  return modIdentidad;
+}
+
+/**
+ * **Fuente 0 (D-2, dictamen del verificador — ronda de retorno 2).** La
+ * pública de ESTE aparato/cuenta, cuando el autor sos VOS MISMO.
+ *
+ * Sin esto, un pago legítimo del acreedor —firmado con su propia clave— o el
+ * `forced` del creador sobre su propio gasto daban `no_verificable` en
+ * cualquier aparato que todavía no resolvió esa clave por peer o directorio,
+ * **incluido el propio**: la pública propia sólo llegaba por
+ * `resolveAuthorKeys` a través de esas dos fuentes externas, nunca de forma
+ * local. Con el borde ADR-004 (Apple sin `email` en autorizaciones
+ * posteriores) el directorio no contesta NUNCA — la degradación era
+ * permanente («un aparato puede no conocer su propia pública → su `forced`
+ * no aplica localmente», marca del arquitecto).
+ *
+ * **Guardia obligatoria: `esYo(authorId)`.** Sin ella, cualquiera podría
+ * validar un registro a nombre de OTRO con su propia firma — es la clase de
+ * ataque exacta que este archivo existe para impedir (ver el comentario de
+ * arriba sobre por qué esto no es un acumulador TOFU). La pública propia
+ * SÓLO cuenta cuando el registro dice ser mío.
+ *
+ * Carga perezosa por el mismo motivo que `cargarPeers`/`cargarDirectorio`:
+ * `identityStore` arrastra `expo-crypto` (nativo), y este archivo lo importa
+ * el camino síncrono del merge/delta.
+ */
+function clavePropia(authorId: string): string | null {
+  const alias = cargarAlias();
+  if (!alias) return null;
+  try {
+    if (!alias.esYo(authorId)) return null;
+  } catch {
+    return null;
+  }
+
+  const identidad = cargarIdentidad();
+  if (!identidad) return null;
+  try {
+    const k = identidad.ensureIdentity().publicKey;
+    return k && ES_PUBLICA.test(k) ? k : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Las públicas con las que puede haber firmado este autor. **Síncrona y sin
  * red**: es lo que va a llamar el merge, y `applyDelta` es síncrono (§3).
@@ -222,6 +292,7 @@ export function resolveAuthorKeys(authorId: string): readonly string[] {
   };
 
   sumar(claveDelPeer(authorId));
+  sumar(clavePropia(authorId));
   for (const k of knownAuthorKeys(authorId)) sumar(k);
 
   return union;

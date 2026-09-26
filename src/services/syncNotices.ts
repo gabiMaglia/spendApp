@@ -359,11 +359,22 @@ export function noticesFor(
    * avisa en las DOS direcciones —me pagaron, o registraron que yo pagué—
    * porque en ambas alguien tocó mi saldo sin que yo estuviera mirando.
    *
-   * **G5 / T-170 · D-3.** Un pago «mío» (`createdById === yo`) que YO no
-   * firmé es exactamente el forjado de H3: el deudor lo declaró con
-   * `createdById = toUserId`. Sin la excepción de la segunda cláusula, el
-   * filtro lo descartaba ANTES de mirar `requiereConfirmacion`, y el
-   * acreedor nunca veía el `settlement_pending` que le toca (T-170.4).
+   * **G5 / T-170 · D-3.** Un pago «mío» (`createdById === yo`) cuyo núcleo NO
+   * verifica `valida` contra mis claves conocidas es exactamente el forjado
+   * de H3: el deudor lo declaró con `createdById = toUserId`, firmado con SU
+   * clave, no la mía. Sin la excepción de la segunda cláusula, el filtro lo
+   * descartaba ANTES de mirar `requiereConfirmacion`, y el acreedor nunca
+   * veía el `settlement_pending` que le toca (T-170.4).
+   *
+   * **Esto no mira "quién firmó" en abstracto — mira el VEREDICTO contra las
+   * claves conocidas de `yo`** (`requiereConfirmacion` → `nucleoDe` →
+   * `checkRecord` → `authorKeysFor`), y desde T-170 · D-2 esas claves SIEMPRE
+   * incluyen la pública de este aparato/cuenta para autoría propia
+   * (`src/sync/authorKeys.ts`, `clavePropia`), sin depender del directorio.
+   * Antes de ese fix, un pago MÍO de verdad —que YO firmé— también daba
+   * `no_verificable` en mi propio aparato mientras el directorio no
+   * resolviera esa clave (o nunca la resolviera: borde ADR-004), y me
+   * mandaba `settlement_pending` por un pago que acababa de cargar yo mismo.
    */
   const conocidos_pagos = new Set(before.paymentIds);
   const saldos: Notice[] = paymentsAfter
