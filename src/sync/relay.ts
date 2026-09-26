@@ -157,9 +157,34 @@ function esRechazoDeLaPrenda(mensaje: string): boolean {
  * `fetch_since` (T-147 D4/H1). Igual que `servidorSinPrenda`, se aprende del
  * primer rechazo y NO se persiste — es el degradado de la sesión, nunca del
  * disco (compatibilidad F2: el cliente nuevo habla con la base de hoy).
+ *
+ * **Verifier D6.** Un booleano fijo por proceso es peligroso para `fetch`: el
+ * SELECT de respaldo, DESPUÉS de que 011b corra, devuelve 0 filas SIN error
+ * (la RLS lo filtra en silencio — 011b §3), y `fetchSince` lee eso como "no
+ * hay más" (`more = length >= limit` = false). Si la migración se aplicó
+ * ENTERA (011a + 011b) mientras la app seguía abierta con el flag ya prendido
+ * de un rechazo anterior, el drenaje se marcaría `completo` sin haber leído
+ * NADA, en silencio — justo el modo de falla que T-146 existe para cerrar.
+ *
+ * Por eso el flag no es un candado para siempre: pasado `RPC_REINTENTO_MS` se
+ * vuelve a probar la RPC. Si sigue ausente, se re-marca y el costo es UNA
+ * llamada de más cada tanto; si ya existe (011a llegó, o fue un falso
+ * positivo), el camino correcto se recupera solo, sin reinstalar la app ni
+ * reiniciar el proceso.
  */
 let servidorSinRpcPublish = false;
 let servidorSinRpcFetch = false;
+let momentoSinRpcPublish = 0;
+let momentoSinRpcFetch = 0;
+
+/** Cada cuánto se reintenta la RPC aunque el flag esté prendido. Generoso a
+ *  propósito: es una migración rara, no un fallo de red — no hace falta
+ *  probar cada pocos segundos. */
+export const RPC_REINTENTO_MS = 5 * 60_000;
+
+function tocaReintentar(momento: number): boolean {
+  return momento !== 0 && Date.now() - momento >= RPC_REINTENTO_MS;
+}
 
 /**
  * ¿Este error es "la función no existe en este proyecto"? — la RPC todavía no
@@ -230,7 +255,7 @@ export async function sendEnvelope(
   // INSERT con RETURNING por dentro). Se cae al insert de hoy SÓLO si la RPC
   // no existe todavía (servidor sin 011a); cualquier otro error (red, cuota)
   // se devuelve tal cual, sin fallback.
-  if (!servidorSinRpcPublish) {
+  if (!servidorSinRpcPublish || tocaReintentar(momentoSinRpcPublish)) {
     const { data, error } = await supabase.rpc('publish_envelope', {
       p_topic: topic,
       p_payload: payload,
@@ -241,6 +266,7 @@ export async function sendEnvelope(
     });
 
     if (!error) {
+      servidorSinRpcPublish = false; // D6: la RPC volvió — se abandona el degradado
       const fila = (data as { seq: number; created_at?: string }[])[0]!;
       if (fila.created_at) recordServerTime(fila.created_at, antes);
       return { ok: true, seq: fila.seq };
@@ -248,6 +274,7 @@ export async function sendEnvelope(
 
     if (esFuncionAusente(error)) {
       servidorSinRpcPublish = true;
+      momentoSinRpcPublish = Date.now();
       // sigue abajo por el camino viejo, sin volver a chequear la RPC
     } else if (esLimiteDeRitmo(error)) {
       return { ok: false, reason: 'rate_limited', detail: error.message };
@@ -355,7 +382,7 @@ export async function fetchSince(
   // (`relaySync.ts`). Cualquier error que NO sea "función ausente" se
   // devuelve tal cual — NUNCA cae al SELECT: un fallback por red ensuciaría el
   // criterio de corte (0 GET directos durante 7 días).
-  if (!servidorSinRpcFetch) {
+  if (!servidorSinRpcFetch || tocaReintentar(momentoSinRpcFetch)) {
     const { data, error } = await supabase.rpc('fetch_since', {
       p_topic: topic,
       p_since: sinceSeq,
@@ -364,6 +391,7 @@ export async function fetchSince(
     });
 
     if (!error) {
+      servidorSinRpcFetch = false; // D6: la RPC volvió — se abandona el degradado
       const filas = (data ?? []) as (Envelope & { more?: boolean })[];
       const envelopes = filas.map(({ more: _more, ...resto }) => ({ ...resto, topic })) as Envelope[];
       const cursor = envelopes.length > 0 ? envelopes[envelopes.length - 1]!.seq : sinceSeq;
@@ -373,6 +401,7 @@ export async function fetchSince(
 
     if (esFuncionAusente(error)) {
       servidorSinRpcFetch = true;
+      momentoSinRpcFetch = Date.now();
       // sigue abajo por el SELECT de siempre, sin volver a chequear la RPC
     } else {
       return { ok: false, reason: 'network', detail: error.message };
