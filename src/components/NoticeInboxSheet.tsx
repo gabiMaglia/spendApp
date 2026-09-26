@@ -5,7 +5,6 @@ import { useTranslation } from 'react-i18next';
 
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { textFor } from '@/src/services/notifications';
 import { esAccionable, msRestanteDeBorrado, type Notice } from '@/src/services/syncNotices';
 import type { StoredNotice } from '@/src/store/noticeInboxStore';
@@ -89,7 +88,6 @@ export function NoticeInboxSheet({
   onOpenNotice: (item: StoredNotice) => void;
   onMarkAll: () => void;
 }) {
-  const scheme = useColorScheme() ?? 'light';
   const c = useColors();
   const { t } = useTranslation();
   const groups = useGroupStore(s => s.groups);

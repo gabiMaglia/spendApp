@@ -3,7 +3,6 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Radius } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAmountInput } from '@/src/hooks/useAmountInput';
 import { BottomSheet } from '@/src/components/Sheet';
 import { usePersonalStore } from '@/src/store/personalStore';
@@ -27,7 +26,6 @@ import { useColors } from '@/src/skins/useSkin';
  * seguidas no arrastran un borrador viejo si el usuario cerró sin guardar.
  */
 export function BudgetSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
-  const scheme = useColorScheme() ?? 'light';
   const c = useColors();
   const { t } = useTranslation();
   const { budget, setBudget } = usePersonalStore();

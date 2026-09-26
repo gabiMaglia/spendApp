@@ -9,7 +9,6 @@ import { Radius, Spacing } from '@/src/constants/spacing';
 import { Segmented } from '@/src/components/Band';
 import { Typography } from '@/src/constants/typography';
 import { formatMoney } from '@/src/constants/currencies';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useUserStore } from '@/src/store/userStore';
@@ -42,7 +41,6 @@ const MODOS: { id: SplitMode; label: string }[] = [
 export default function LeaveGroupScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { t } = useTranslation();
-  const scheme = useColorScheme() ?? 'light';
   const c = useColors();
 
   const currentUser = useAuthStore(s => s.currentUser);

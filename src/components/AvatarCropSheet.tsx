@@ -6,7 +6,6 @@ import { useTranslation } from 'react-i18next';
 
 import { Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { BottomSheet } from './Sheet';
 import { ActionButton } from './ActionButton';
 import { ButtonRack } from './ButtonRack';
@@ -56,7 +55,6 @@ export function AvatarCropSheet({
   onCancel: () => void;
   onConfirm: (recorte: Recorte) => void;
 }) {
-  const scheme = useColorScheme() ?? 'light';
   const { t } = useTranslation();
   const c = useColors();
 

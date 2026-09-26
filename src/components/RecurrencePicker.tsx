@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next';
 
 import { Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { hapticLight } from '@/src/utils/haptics';
 import { Segmented } from '@/src/components/Band';
 import type { RecurrenceRule } from '@/src/types/models';
@@ -53,7 +52,6 @@ export function RecurrencePicker({
   onChange: (v: RecurrenceValue) => void;
 }) {
   const { t } = useTranslation();
-  const scheme = useColorScheme() ?? 'light';
   const c = useColors();
 
   return (

@@ -3,7 +3,6 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useColors } from '@/src/skins/useSkin';
 
 /**
@@ -13,7 +12,6 @@ import { useColors } from '@/src/skins/useSkin';
  * miraron todavía. No viaja a ningún lado (decisión del PO).
  */
 export function NoticeBell({ unread, onPress }: { unread: number; onPress: () => void }) {
-  const scheme = useColorScheme() ?? 'light';
   const c = useColors();
   const { t } = useTranslation();
 

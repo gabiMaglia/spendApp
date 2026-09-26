@@ -6,7 +6,6 @@ import i18n from '@/src/i18n';
 
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { hapticLight } from '@/src/utils/haptics';
 import { UserAvatar } from './UserAvatar';
 import type { ExpenseComment } from '@/src/types/models';
@@ -34,7 +33,6 @@ export function CommentThread({
   comments, currentUserId, authorName, onAdd, onDelete,
 }: CommentThreadProps) {
   const { t } = useTranslation();
-  const scheme = useColorScheme() ?? 'light';
   const c = useColors();
   const [draft, setDraft] = useState('');
 

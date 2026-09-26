@@ -7,7 +7,6 @@ import { useTranslation } from 'react-i18next';
 
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuthStore } from '@/src/store/authStore';
 import { hapticLight, hapticSuccess } from '@/src/utils/haptics';
 import { contactInviteFromParams, isContactInviteExpired } from '@/src/sync/contactInvite';
@@ -29,7 +28,6 @@ const REINTENTO_MS = 3_000;
 type Estado = 'listo' | 'entrando' | 'entre' | 'esperando';
 
 export default function ContactClaimScreen() {
-  const scheme = useColorScheme() ?? 'light';
   const c = useColors();
   const { t } = useTranslation();
 

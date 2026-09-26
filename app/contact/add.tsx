@@ -15,7 +15,6 @@ import { ConfirmSheet } from '@/src/components/Sheet';
 
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuthStore } from '@/src/store/authStore';
 import { useUserStore } from '@/src/store/userStore';
 import { hapticLight, hapticSuccess, hapticWarning } from '@/src/utils/haptics';
@@ -45,7 +44,6 @@ function volverAContactos() {
 }
 
 export default function AddContactScreen() {
-  const scheme = useColorScheme() ?? 'light';
   const { t } = useTranslation();
   const c = useColors();
   const { currentUser } = useAuthStore();

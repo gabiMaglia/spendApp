@@ -7,7 +7,6 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { hapticLight } from '@/src/utils/haptics';
 import { useTranslation } from 'react-i18next';
 import { useColors } from '@/src/skins/useSkin';
@@ -33,7 +32,6 @@ export function SwipeToArchive({
   disabled?: boolean;
   children: React.ReactNode;
 }) {
-  const scheme = useColorScheme() ?? 'light';
   const { t } = useTranslation();
   const c = useColors();
   const row = useRef<SwipeableMethods>(null);

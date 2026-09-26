@@ -7,7 +7,6 @@ import { useTranslation } from 'react-i18next';
 
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { hapticLight, hapticSuccess } from '@/src/utils/haptics';
@@ -40,7 +39,6 @@ const REINTENTO_MS = 3_000;
 type Estado = 'listo' | 'entrando' | 'entre' | 'esperando';
 
 export default function JoinGroupScreen() {
-  const scheme = useColorScheme() ?? 'light';
   const c = useColors();
   const { t } = useTranslation();
 

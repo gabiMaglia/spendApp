@@ -11,7 +11,6 @@ import { useTranslation } from 'react-i18next';
 
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { claveDeFallo, elegirAvatarDeGaleria, recortarAAvatar } from '@/src/services/avatar';
 import { AvatarCropSheet } from '@/src/components/AvatarCropSheet';
 import type { Recorte } from '@/src/algorithms/avatarCrop';
@@ -52,7 +51,6 @@ import {
 import { useColors } from '@/src/skins/useSkin';
 
 export default function UserScreen() {
-  const scheme = useColorScheme() ?? 'light';
   const headerPad = useHeaderPadding(0);
   const limiteContenido = useLimiteContenido();
   const c = useColors();
@@ -573,7 +571,6 @@ function ToggleRow({
   /** Segunda línea, para las filas que necesitan aclarar qué hacen. */
   sub?: string;
 }) {
-  const scheme = useColorScheme() ?? 'light';
   const c = useColors();
   return (
     <BandRow last={last}>
@@ -601,7 +598,6 @@ function LinkRow({
   /** Segunda línea, para las filas que necesitan aclarar qué hacen. */
   sub?: string;
 }) {
-  const scheme = useColorScheme() ?? 'light';
   const c = useColors();
   return (
     <BandRow onPress={onPress} last={last}>

@@ -12,7 +12,6 @@ import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { formatMoney } from '@/src/constants/currencies';
 import { MontoRodante } from '@/src/components/MontoRodante';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
@@ -60,7 +59,6 @@ type TimelineItem =
 
 export default function GroupDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const scheme = useColorScheme() ?? 'light';
   const { t } = useTranslation();
   const falloDeSync = useGroupSyncFailure(id as string);
   const manifiestoIncompleto = useManifestGap(id as string);
@@ -649,7 +647,6 @@ function ExpenseRow({
   trust?: TrustState;
   last?: boolean;
 }) {
-  const scheme = useColorScheme() ?? 'light';
   const { t } = useTranslation();
   const c = useColors();
 
@@ -697,7 +694,6 @@ function PaymentRow({
   trust?: TrustState;
   last?: boolean;
 }) {
-  const scheme = useColorScheme() ?? 'light';
   const { t } = useTranslation();
   const c = useColors();
 

@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next';
 
 import { Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { textFor } from '@/src/services/notifications';
 import { nombreDeGrupoEnConflicto, type KeyConflictNotice } from '@/src/services/syncNotices';
 import { elegirClaveDeGrupo } from '@/src/services/elegirClaveDeGrupo';
@@ -52,7 +51,6 @@ export interface GroupKeyConflictCardProps {
  * estado, con confirmación.
  */
 export function GroupKeyConflictCard({ notice, senderIds, onResuelto, onDespues }: GroupKeyConflictCardProps) {
-  const scheme = useColorScheme() ?? 'light';
   const c = useColors();
   const { t } = useTranslation();
   const usuarios = useUserStore(s => s.users);

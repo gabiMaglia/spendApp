@@ -7,7 +7,6 @@ import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
 import { formatMoney } from '@/src/constants/currencies';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuthStore } from '@/src/store/authStore';
 import { Fab, FabRow } from '@/src/components/Fab';
 import { SplitStat } from '@/src/components/Band';
@@ -26,7 +25,6 @@ export default function FriendsScreen() {
   // 0 (PO 2026-09-22): sin gap entre el header y el bloque "te deben/debés".
   const headerPad = useHeaderPadding(0);
   const limiteContenido = useLimiteContenido();
-  const scheme = useColorScheme() ?? 'light';
   const c = useColors();
   const { currentUser } = useAuthStore();
 

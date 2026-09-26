@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next';
 
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Band } from '@/src/components/Band';
 import { EmptyState } from '@/src/components/EmptyState';
 import { PERSONAL_ACTIVITY_KEY, type ActivityKind } from '@/src/store/selectors';
@@ -29,7 +28,6 @@ export function ActivityFeedList({
   trustFor: (ev: ActivityKind) => TrustState;
 }) {
   const { t } = useTranslation();
-  const scheme = useColorScheme() ?? 'light';
   const c = useColors();
 
   if (feedIsEmpty) {

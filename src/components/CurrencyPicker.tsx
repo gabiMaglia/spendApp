@@ -5,7 +5,6 @@ import { useTranslation } from 'react-i18next';
 
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { SUPPORTED_CURRENCIES, type CurrencyCode } from '@/src/constants/currencies';
 import { BottomSheet, SheetOption } from './Sheet';
 import { useColors } from '@/src/skins/useSkin';
@@ -32,7 +31,6 @@ export function CurrencyPicker({
   ratesNeeded: boolean;
   locale: string;
 }) {
-  const scheme = useColorScheme() ?? 'light';
   const c = useColors();
   const { t } = useTranslation();
   const [abierto, setAbierto] = useState(false);

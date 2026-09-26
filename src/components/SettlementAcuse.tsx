@@ -5,7 +5,6 @@ import { useTranslation } from 'react-i18next';
 
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { ActionButton } from './ActionButton';
 import { ButtonRack } from './ButtonRack';
 import type { EstadoSaldado } from '@/src/algorithms/settlementStatus';
@@ -40,7 +39,6 @@ export interface SettlementAcuseProps {
 export function SettlementAcuse({
   estado, meToca, nombreDeQuienCobra, onConfirmar, onRechazar, testID,
 }: SettlementAcuseProps) {
-  const scheme = useColorScheme() ?? 'light';
   const { t } = useTranslation();
   const c = useColors();
 

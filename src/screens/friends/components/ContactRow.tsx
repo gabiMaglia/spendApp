@@ -5,7 +5,6 @@ import { useTranslation } from 'react-i18next';
 
 import { Radius } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { BandRow } from '@/src/components/Band';
 import { UserAvatar } from '@/src/components/UserAvatar';
 import { formatMoney } from '@/src/constants/currencies';
@@ -28,7 +27,6 @@ export const ContactRow = React.memo(function ContactRow({
   last?: boolean;
 }) {
   const { t } = useTranslation();
-  const scheme = useColorScheme() ?? 'light';
   const c = useColors();
   const hasBalance = amount !== undefined && amount !== 0;
   const positive   = (amount ?? 0) > 0;

@@ -5,7 +5,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { HapticTab } from '@/components/haptic-tab';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useSkin, useColors } from '@/src/skins/useSkin';
 import { TabBarFondoAero } from '@/src/components/skin/TabBarFondoAero';
 
@@ -28,7 +27,6 @@ const ALTO_CONTENIDO = 70;
 const PISO_INFERIOR = 12;
 
 function TabLabel({ label, focused }: { label: string; focused: boolean }) {
-  const scheme = useColorScheme() ?? 'light';
   const c = useColors();
   const { skin, degradado } = useSkin();
   const color = focused ? c.brand.primary : c.textTertiary;
@@ -50,7 +48,6 @@ function TabLabel({ label, focused }: { label: string; focused: boolean }) {
 }
 
 export default function TabLayout() {
-  const scheme = useColorScheme() ?? 'light';
   const c = useColors();
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();

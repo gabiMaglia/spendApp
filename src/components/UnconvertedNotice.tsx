@@ -5,7 +5,6 @@ import { useTranslation } from 'react-i18next';
 
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { formatMoney, type CurrencyCode } from '@/src/constants/currencies';
 import type { Bucket } from '@/src/services/fxTotals';
 import { useColors } from '@/src/skins/useSkin';
@@ -34,7 +33,6 @@ export function UnconvertedNotice({
   owed?: Bucket[];
   onClose: () => void;
 }) {
-  const scheme = useColorScheme() ?? 'light';
   const c = useColors();
   const { t } = useTranslation();
 

@@ -14,7 +14,6 @@ import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import type { DeletionMode } from '@/src/types/models';
 import type { CurrencyCode } from '@/src/constants/currencies';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useUserStore } from '@/src/store/userStore';
@@ -32,7 +31,6 @@ import { useColors } from '@/src/skins/useSkin';
 const PRIMARY_CURRENCIES: CurrencyCode[] = ['ARS', 'USD', 'EUR', 'BRL'];
 
 export default function NewGroupScreen() {
-  const scheme = useColorScheme() ?? 'light';
   const { t } = useTranslation();
   const c = useColors();
 
@@ -283,7 +281,6 @@ function MemberRow({
 }: {
   id: string; name: string; selected: boolean; locked: boolean; onToggle: () => void;
 }) {
-  const scheme = useColorScheme() ?? 'light';
   const c = useColors();
 
   return (

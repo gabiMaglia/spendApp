@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next';
 
 import { Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Band } from '@/src/components/Band';
 import { FondoMarmol } from '@/src/components/FondoMarmol';
 import { MontoRodante } from '@/src/components/MontoRodante';
@@ -20,7 +19,6 @@ import { useColors } from '@/src/skins/useSkin';
  */
 export function GroupsNetTotal({ netTotal, cur }: { netTotal: number; cur: CurrencyCode }) {
   const { t } = useTranslation();
-  const scheme = useColorScheme() ?? 'light';
   const c = useColors();
 
   return (

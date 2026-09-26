@@ -3,7 +3,6 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useColors } from '@/src/skins/useSkin';
 
 interface EmptyStateProps {
@@ -14,7 +13,6 @@ interface EmptyStateProps {
 }
 
 export function EmptyState({ iconName = 'people-outline', title, body, action }: EmptyStateProps) {
-  const scheme = useColorScheme() ?? 'light';
   const c = useColors();
 
   return (

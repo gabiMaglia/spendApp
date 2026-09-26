@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next';
 
 import { Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { FondoMarmol } from '@/src/components/FondoMarmol';
 import { useColors } from '@/src/skins/useSkin';
 
@@ -18,7 +17,6 @@ import { useColors } from '@/src/skins/useSkin';
  * (más espaciado y tenue) para no repetir la foto exacta del header/Movimientos.
  */
 export function ContactsCountHeader({ count }: { count: number }) {
-  const scheme = useColorScheme() ?? 'light';
   const c = useColors();
   const { t } = useTranslation();
   return (

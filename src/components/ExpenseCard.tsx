@@ -5,7 +5,6 @@ import { Typography } from '@/src/constants/typography';
 import { formatMoney } from '@/src/constants/currencies';
 import type { CurrencyCode } from '@/src/constants/currencies';
 import type { CategoryKind } from '@/src/constants/colors';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Avatar, AvatarStack } from './Avatar';
 import { BalancePill } from './BalancePill';
 import { CategoryIcon } from './CategoryIcon';
@@ -36,7 +35,6 @@ export function ExpenseCard({
   deletionPending,
   onPress,
 }: ExpenseCardProps) {
-  const scheme = useColorScheme() ?? 'light';
   const c = useColors();
 
   return (

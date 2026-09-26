@@ -2,7 +2,6 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { formatMoney, type CurrencyCode } from '@/src/constants/currencies';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { StatGrid } from '@/src/components/Band';
 import { useColors } from '@/src/skins/useSkin';
 
@@ -17,7 +16,6 @@ export function GroupsSummaryStats({
   cur: CurrencyCode;
 }) {
   const { t } = useTranslation();
-  const scheme = useColorScheme() ?? 'light';
   const c = useColors();
 
   return (

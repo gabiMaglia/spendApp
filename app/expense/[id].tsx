@@ -17,7 +17,6 @@ import { Band, BandRow } from '@/src/components/Band';
 import { Typography } from '@/src/constants/typography';
 import { formatMoney } from '@/src/constants/currencies';
 import { MoneyText } from '@/src/components/MoneyText';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useArchiveStore } from '@/src/store/archiveStore';
 import { borraAlInstante, deletionModeOf } from '@/src/algorithms/deletionPolicy';
@@ -54,7 +53,6 @@ export default function ExpenseDetailScreen() {
   // ARRIBA del early return de la línea ~74: un hook después de un return
   // condicional rompe el orden de hooks entre renders. Lo atrapó el lint.
   const groups = useGroupStore(st => st.groups);
-  const scheme = useColorScheme() ?? 'light';
   const c = useColors();
 
   const { currentUser } = useAuthStore();

@@ -5,14 +5,12 @@ import { useTranslation } from 'react-i18next';
 
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useColors } from '@/src/skins/useSkin';
 
 export function ActivitySearchBar({
   value, onChangeText,
 }: { value: string; onChangeText: (v: string) => void }) {
   const { t } = useTranslation();
-  const scheme = useColorScheme() ?? 'light';
   const c = useColors();
 
   return (

@@ -4,7 +4,6 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useColors } from '@/src/skins/useSkin';
 
 /**
@@ -19,7 +18,6 @@ import { useColors } from '@/src/skins/useSkin';
  * Recibe el texto YA traducido: el componente dibuja, no resuelve idioma.
  */
 export function SyncWarningBanner({ title, body }: { title: string; body: string }) {
-  const scheme = useColorScheme() ?? 'light';
   const c = useColors();
 
   return (

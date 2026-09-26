@@ -3,7 +3,6 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { SkinColors } from '@/src/skins/types';
 import { Radius } from '@/src/constants/spacing';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTranslation } from 'react-i18next';
 import { useColors } from '@/src/skins/useSkin';
 
@@ -22,7 +21,6 @@ interface SyncStatusBadgeProps {
 
 export function SyncStatusBadge({ state = 'synced' }: SyncStatusBadgeProps) {
   const { t } = useTranslation();
-  const scheme = useColorScheme() ?? 'light';
   const c = useColors();
   const meta = SYNC_META[state];
   const iconColor = meta.getColor(c);

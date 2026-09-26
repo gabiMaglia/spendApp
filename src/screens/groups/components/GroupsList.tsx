@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next';
 
 import { Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Band } from '@/src/components/Band';
 import { SwipeToArchive } from '@/src/components/SwipeToArchive';
 import type { Group } from '@/src/types/models';
@@ -29,7 +28,6 @@ export function GroupsList({
   onArchiveAction: (id: string) => void;
 }) {
   const { t } = useTranslation();
-  const scheme = useColorScheme() ?? 'light';
   const c = useColors();
 
   return (

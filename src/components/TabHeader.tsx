@@ -6,7 +6,6 @@ import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
 import { CollapsibleHeader, HeaderCurrency } from './CollapsibleHeader';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { NoticeBell } from './NoticeBell';
 import { NoticeInboxSheet } from './NoticeInboxSheet';
 import { GroupKeyConflictCard } from './GroupKeyConflictCard';
@@ -65,7 +64,6 @@ export function TabHeader({
   progress: SharedValue<number>;
 }) {
   const { t } = useTranslation();
-  const scheme = useColorScheme() ?? 'light';
   const c = useColors();
   const currentUser = useAuthStore(s => s.currentUser);
   const cur         = useSettingsStore(s => s.displayCurrency);

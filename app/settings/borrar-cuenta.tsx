@@ -7,7 +7,6 @@ import { useTranslation } from 'react-i18next';
 
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { DetailHeader } from '@/src/components/CollapsibleHeader';
 import { deleteAccount } from '@/src/services/deleteAccount';
 import { LEGAL_DISPONIBLE, urlDeBorrado } from '@/src/constants/legal';
@@ -26,7 +25,6 @@ import { useColors } from '@/src/skins/useSkin';
  * el usuario toque el botón, no después.
  */
 export default function BorrarCuentaScreen() {
-  const scheme = useColorScheme() ?? 'light';
   const c = useColors();
   const { t } = useTranslation();
   const [borrando, setBorrando] = useState(false);

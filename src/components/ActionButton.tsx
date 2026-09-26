@@ -4,7 +4,6 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useColors } from '@/src/skins/useSkin';
 
 export type ActionButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'plain';
@@ -52,7 +51,6 @@ export function ActionButton({
   disabled = false, loading = false, sub,
   testID, accessibilityLabel, style,
 }: ActionButtonProps) {
-  const scheme = useColorScheme() ?? 'light';
   const c = useColors();
   const inactivo = disabled || loading;
 

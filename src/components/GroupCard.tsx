@@ -4,7 +4,6 @@ import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { formatMoney } from '@/src/constants/currencies';
 import type { CurrencyCode } from '@/src/constants/currencies';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTranslation } from 'react-i18next';
 import { useColors } from '@/src/skins/useSkin';
 
@@ -33,7 +32,6 @@ export function GroupCard({
   name, memberIds, balance, currency = 'ARS', subtitle, onPress, last, chevron,
 }: GroupCardProps) {
   const { t } = useTranslation();
-  const scheme = useColorScheme() ?? 'light';
   const c = useColors();
 
   const settled  = balance === 0;

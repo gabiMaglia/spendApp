@@ -3,7 +3,6 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { FondoMarmol } from '@/src/components/FondoMarmol';
 import { useColors } from '@/src/skins/useSkin';
 
@@ -20,7 +19,6 @@ export const SECTION_HEADER_TOP = 22;
 export function ActivitySectionHeader({
   label, topOverride, right,
 }: { label: string; topOverride?: number; right?: React.ReactNode }) {
-  const scheme = useColorScheme() ?? 'light';
   const c = useColors();
   return (
     <View style={[

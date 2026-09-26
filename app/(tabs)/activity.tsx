@@ -5,7 +5,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useHeaderColapsable } from '@/src/hooks/useHeaderColapsable';
 import { useTranslation } from 'react-i18next';
 
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuthStore } from '@/src/store/authStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useActivityFeed } from '@/src/store/selectors';
@@ -26,7 +25,6 @@ export default function ActivityScreen() {
   const { t } = useTranslation();
   const headerPad = useHeaderPadding();
   const limiteContenido = useLimiteContenido();
-  const scheme = useColorScheme() ?? 'light';
   const c = useColors();
   const { currentUser } = useAuthStore();
   const { getUserName } = useUserStore();

@@ -7,7 +7,6 @@ import { Platform } from 'react-native';
 
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
   sendEnvelope, fetchSince, subscribeTopic, isRelayConfigured, type Envelope,
 } from '@/src/sync/relay';
@@ -26,7 +25,6 @@ import { useColors } from '@/src/skins/useSkin';
  *     websocket se cayó, la próxima lectura recupera igual.
  */
 function PantallaRelay() {
-  const scheme = useColorScheme() ?? 'light';
   const c = useColors();
 
   const [topic, setTopic] = useState('spike');

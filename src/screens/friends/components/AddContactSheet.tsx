@@ -6,7 +6,6 @@ import { useTranslation } from 'react-i18next';
 
 import { Radius } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { BottomSheet } from '@/src/components/Sheet';
 import { useColors } from '@/src/skins/useSkin';
 
@@ -22,7 +21,6 @@ export function AddContactSheet({
   onConfirm: () => void;
 }) {
   const { t } = useTranslation();
-  const scheme = useColorScheme() ?? 'light';
   const c = useColors();
 
   return (

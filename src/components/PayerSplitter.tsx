@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next';
 
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { UserAvatar } from './UserAvatar';
 import { formatMoney, minorFactor, type CurrencyCode } from '@/src/constants/currencies';
 import { validatePayers } from '@/src/algorithms/payers';
@@ -31,7 +30,6 @@ export function PayerSplitter({
   members, value, totalAmount, currency, onChange,
 }: PayerSplitterProps) {
   const { t } = useTranslation();
-  const scheme = useColorScheme() ?? 'light';
   const c = useColors();
 
   const amountOf = (userId: string) => value.find(p => p.userId === userId)?.amount ?? 0;

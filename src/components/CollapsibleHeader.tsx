@@ -5,7 +5,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Spacing } from '@/src/constants/spacing';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { FondoMarmol } from '@/src/components/FondoMarmol';
 import { useSkinTokens, useColors } from '@/src/skins/useSkin';
 import { HeaderAero, fondoBarraAero } from '@/src/components/skin/HeaderAero';
@@ -94,7 +93,6 @@ export function CollapsibleHeader({
   /** Avatar u otro botón de la fila de arriba. */
   left?: React.ReactNode;
 }) {
-  const scheme = useColorScheme() ?? 'light';
   const c = useColors();
   const insets = useSafeAreaInsets();
   const soft = useSkinTokens().flags.soft;
@@ -195,7 +193,6 @@ export function CollapsibleHeader({
 
 /** Avatar de iniciales del header. */
 export function HeaderAvatar({ initials }: { initials: string }) {
-  const scheme = useColorScheme() ?? 'light';
   const c = useColors();
   return (
     <View style={[styles.avatar, { backgroundColor: c.text }]}>
@@ -206,7 +203,6 @@ export function HeaderAvatar({ initials }: { initials: string }) {
 
 /** Chip de moneda del header. */
 export function HeaderCurrency({ code, onPress }: { code: string; onPress?: () => void }) {
-  const scheme = useColorScheme() ?? 'light';
   const c = useColors();
   return (
     <Pressable onPress={onPress} hitSlop={8}>
@@ -221,7 +217,6 @@ export function HeaderCurrency({ code, onPress }: { code: string; onPress?: () =
 export function HeaderIcon({
   name, onPress,
 }: { name: keyof typeof Ionicons.glyphMap; onPress: () => void }) {
-  const scheme = useColorScheme() ?? 'light';
   const c = useColors();
   return (
     <Pressable onPress={onPress} hitSlop={10} style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}>
@@ -298,7 +293,6 @@ export function DetailHeader({
   /** `close` en pantallas de formulario que se cierran, no que vuelven. */
   icon?: keyof typeof Ionicons.glyphMap;
 }) {
-  const scheme = useColorScheme() ?? 'light';
   const c = useColors();
   const insets = useSafeAreaInsets();
   return (

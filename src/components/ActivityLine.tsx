@@ -1,4 +1,4 @@
-import { View, Text, useColorScheme } from 'react-native';
+import { View, Text } from 'react-native';
 import { Typography } from '@/src/constants/typography';
 import { useColors } from '@/src/skins/useSkin';
 
