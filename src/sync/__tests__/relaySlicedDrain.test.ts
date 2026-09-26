@@ -590,3 +590,62 @@ describe('T-146 · D1: una rebanada cuyo texto plano no es un objeto', () => {
     expect(listErrors().some(e => e.message.includes('sync.apply_failed'))).toBe(true);
   });
 });
+
+/**
+ * T-146, ronda 2 del verifier (defecto D3). `isManifest` (`manifest.ts:22-26`)
+ * sólo pide `version === 2` y `entries` array — nunca valida los ELEMENTOS.
+ * Un sobre firmado y sellado con la clave del grupo cuyo texto plano sea
+ * `{"version":2,"entries":[null]}` pasa como manifiesto válido, y el chequeo
+ * final (`for (const entry of manifest.entries) { ...entry.ckey... }`) corre
+ * DESPUÉS del loop de rebanadas, fuera de cualquier `try` — `entry.ckey` tira
+ * un TypeError que `drainGroup` nunca ataja: `drainNow` cae en su `catch`
+ * crudo sin escribir cursor ni limpiar la marca de T-089, y el grupo no
+ * vuelve a publicar hasta el TTL de 30 días. `errorLog` queda vacío.
+ */
+describe('T-146 · D3 (ronda 2): un manifiesto con forma reconocible pero entradas inválidas', () => {
+  beforeEach(() => {
+    relayMock.__reset();
+    clearManifestGaps();
+    olvidarFallosDeAplicacion();
+    clearErrors();
+    useAuthStore.setState({ user: { id: 'u1' } } as never);
+    useGroupKeyStore.setState({ keys: [] });
+    useGroupKeyStore.getState().ensureKey('G');
+    authorHealth.observeAuthor.mockReset();
+    authorHealth.observeAuthor.mockResolvedValue('ok');
+    authorHealth.RECHAZAR_AUTORES_NO_VERIFICADOS = false;
+  });
+
+  async function enviarManifiestoRoto(entries: unknown[]) {
+    const key = groupKeyBytes('G')!;
+    const record = useGroupKeyStore.getState().getKey('G')!;
+    const topic = await deriveTopic(key, record.epoch);
+    const sealed = sealEnvelope(key, JSON.stringify({ version: 2, entries }));
+    const firmado = signEnvelope(sealed, ensureIdentity().privateKey);
+    await sendEnvelope(topic, firmado, 'deviceAttacker', false);
+  }
+
+  it.each([
+    ['entrada null', [null]],
+    ['entrada string', ['no-soy-un-objeto']],
+    ['ckey numérica', [{ ckey: 123, digest: 'd' }]],
+  ])('%s: no trunca el drenaje, deja rastro y no se cuela como manifiesto', async (_label, entries) => {
+    useGroupStore.setState({ groups: [grupo()] } as never);
+    useExpenseStore.setState({ expenses: [gasto('e1'), gasto('e2')] } as never);
+    await publishToGroup('G', 'u1', 'device1');
+
+    await enviarManifiestoRoto(entries);
+
+    useExpenseStore.setState({ expenses: [] } as never);
+    const r = await drainGroup('G', 'u1', 'deviceVictima', 0);
+
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.completo).toBe(true);
+    expect(useExpenseStore.getState().expenses.map(e => e.id).sort()).toEqual(['e1', 'e2']);
+    // No se cuela como manifiesto válido: ningún gap se registra a partir de
+    // entradas que nunca deberían haberse aceptado como manifiesto.
+    expect(manifestGapFor('G')).toBeNull();
+    expect(listErrors().some(e => e.message.includes('sync.') && e.message.includes('manifest'))).toBe(true);
+  });
+});
