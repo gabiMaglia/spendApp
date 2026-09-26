@@ -1,7 +1,9 @@
 import { ed25519 } from '@noble/curves/ed25519.js';
 import { checkSettlement, __resetSettlementTrust } from '../settlementTrust';
 import { signSettlement } from '../settlementSign';
-import { rememberAuthorKey, forgetAuthorKeys } from '../authorKeys';
+import {
+  rememberAuthorKey, forgetAuthorKeys, refreshPendingAuthors, __resetAuthorSources,
+} from '../authorKeys';
 import { toHex } from '../hexBytes';
 import type { SettlementConfirmation } from '@/src/types/models';
 
@@ -10,11 +12,31 @@ jest.mock('@noble/curves/ed25519.js', () => {
   return { ...real, ed25519: { ...real.ed25519, verify: jest.fn((...a: unknown[]) => real.ed25519.verify(...a)) } };
 });
 
+const mockGetPeer = jest.fn();
+jest.mock('../contactChannel', () => ({ getPeer: (userId: string) => mockGetPeer(userId) }));
+
+const mockFetchAccountKeys = jest.fn();
+jest.mock('../deviceKeys', () => ({
+  fetchAccountKeys: (accountId: string) => mockFetchAccountKeys(accountId),
+}));
+
+function par(seed: number) {
+  const priv = new Uint8Array(32).fill(seed);
+  return { priv: toHex(priv), pub: toHex(ed25519.getPublicKey(priv)) };
+}
+
 const PRIV = toHex(new Uint8Array(32).fill(7));
 const PUB  = toHex(ed25519.getPublicKey(new Uint8Array(32).fill(7)));
 const acuse: SettlementConfirmation = { userId: 'beto', confirmedAt: 1_000, action: 'confirm' };
 
-beforeEach(() => { forgetAuthorKeys(); __resetSettlementTrust(); (ed25519.verify as jest.Mock).mockClear(); });
+beforeEach(() => {
+  forgetAuthorKeys();
+  __resetAuthorSources();
+  __resetSettlementTrust();
+  (ed25519.verify as jest.Mock).mockClear();
+  mockGetPeer.mockReset().mockReturnValue(undefined);
+  mockFetchAccountKeys.mockReset().mockResolvedValue([]);
+});
 
 it('sin firma: no_verificable', () => {
   expect(checkSettlement('p1', acuse)).toBe('no_verificable');
@@ -23,11 +45,6 @@ it('sin firma: no_verificable', () => {
 it('firmado por una clave que sabemos de Beto: valida', () => {
   rememberAuthorKey('beto', PUB);
   expect(checkSettlement('p1', { ...acuse, ...signSettlement('p1', acuse, PRIV) })).toBe('valida');
-});
-
-it('firmado por otra clave a nombre de Beto: invalida', () => {
-  rememberAuthorKey('beto', 'cc'.repeat(32));
-  expect(checkSettlement('p1', { ...acuse, ...signSettlement('p1', acuse, PRIV) })).toBe('invalida');
 });
 
 it('la misma firma no toca la curva dos veces (caché por mensaje+k+s)', () => {
@@ -44,4 +61,82 @@ it('cambiar el paymentId invalida la caché: es otro mensaje', () => {
   expect(checkSettlement('p1', firmado)).toBe('valida');
   expect(checkSettlement('p2', firmado)).toBe('invalida');
   expect(ed25519.verify).toHaveBeenCalledTimes(2);
+});
+
+it('una firma que no verifica contra la clave propia del autor sigue siendo `invalida`', () => {
+  // La clave presentada SÍ es una de las conocidas: no hay nada viejo acá, la
+  // firma simplemente no cierra (D2 no puede tapar esto).
+  rememberAuthorKey('beto', PUB);
+  const firmado = { ...acuse, ...signSettlement('p1', acuse, PRIV) };
+  expect(checkSettlement('p1', { ...firmado, confirmedAt: 999 })).toBe('invalida');
+});
+
+/**
+ * **D1 (ronda 2 del verificador): una clave STALE no puede producir `invalida`.**
+ *
+ * Beto reinstaló. `authorKeys` guarda su clave VIEJA (`rememberAuthorKey`
+ * simula el registro local de peers, que nunca la reemplaza): la lista de
+ * claves conocidas de Beto NO está vacía, tiene una, la equivocada. Antes de
+ * este fix, `verifySettlement` marcaba esto `invalida` apenas la clave
+ * presentada no estaba en esa lista — sin importar si el directorio alguna vez
+ * contestó sobre ELLA. Mismo bug que D2 en `recordHealth.ts`, acá sin arreglar.
+ */
+describe('D2 (authorKeys) aplicado al acuse de saldado: una clave stale no es `invalida`', () => {
+  const VIEJA = par(21);
+  const NUEVA = par(22);
+
+  it('clave vieja conocida + clave nueva presentada, directorio sin contestar todavía: `no_verificable`', () => {
+    rememberAuthorKey('beto', VIEJA.pub);
+    const c = { ...acuse, ...signSettlement('p1', acuse, NUEVA.priv) };
+    expect(checkSettlement('p1', c)).toBe('no_verificable');
+  });
+
+  it('y dispara la consulta al directorio, que es lo que lo arregla', async () => {
+    rememberAuthorKey('beto', VIEJA.pub);
+    const c = { ...acuse, ...signSettlement('p1', acuse, NUEVA.priv) };
+    checkSettlement('p1', c); // encola la consulta por la clave presentada
+
+    mockFetchAccountKeys.mockResolvedValue([NUEVA.pub]);
+    await refreshPendingAuthors();
+
+    expect(checkSettlement('p1', c)).toBe('valida');
+  });
+
+  it('cuando el directorio ya contestó y la clave sigue afuera: recién ahí `invalida`', async () => {
+    rememberAuthorKey('beto', VIEJA.pub);
+    const c = { ...acuse, ...signSettlement('p1', acuse, NUEVA.priv) };
+    checkSettlement('p1', c); // encola
+
+    mockFetchAccountKeys.mockResolvedValue([]); // el directorio contesta: sigue sin cubrirla
+    await refreshPendingAuthors();
+
+    expect(checkSettlement('p1', c)).toBe('invalida');
+  });
+
+  it('un directorio caído nunca convierte un corte de red en una acusación', async () => {
+    rememberAuthorKey('beto', VIEJA.pub);
+    const c = { ...acuse, ...signSettlement('p1', acuse, NUEVA.priv) };
+    checkSettlement('p1', c);
+
+    mockFetchAccountKeys.mockRejectedValue(new Error('sin red'));
+    await refreshPendingAuthors();
+
+    expect(checkSettlement('p1', c)).toBe('no_verificable');
+  });
+
+  /**
+   * El defecto exacto que reportó el verificador: `invalida` no puede quedar
+   * pegado en la caché cuando lo único que cambió es que este teléfono APRENDIÓ
+   * la clave nueva (sin pasar por el directorio simulado arriba). No hace falta
+   * limpiar la caché a mano — `no_verificable` nunca se cachea (S3), así que la
+   * próxima consulta se reevalúa sola.
+   */
+  it('aprender la clave nueva reevalúa solo, sin vaciar la caché a mano', () => {
+    rememberAuthorKey('beto', VIEJA.pub);
+    const c = { ...acuse, ...signSettlement('p1', acuse, NUEVA.priv) };
+    expect(checkSettlement('p1', c)).toBe('no_verificable');
+
+    rememberAuthorKey('beto', NUEVA.pub);
+    expect(checkSettlement('p1', c)).toBe('valida');
+  });
 });
