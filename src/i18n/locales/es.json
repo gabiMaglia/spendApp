@@ -198,7 +198,9 @@
     "leave_last_member": "Sos el único que queda y hay saldo abierto. No hay a quién pasarle esa deuda, así que no se puede salir sin saldarla.",
     "options": "Opciones del grupo",
     "add_person": "Agregar persona",
-    "validate_member": "Validar miembro"
+    "validate_member": "Validar miembro",
+    "member_limit_title": "Grupo lleno",
+    "member_limit_body": "Este grupo ya llegó al máximo de {{max}} miembros. Para sumar a alguien, sacá a otro primero."
   },
   "invite": {
     "groups_in_common": "{{count}} grupo en común",

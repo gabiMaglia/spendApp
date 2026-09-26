@@ -198,7 +198,9 @@
     "leave_last_member": "You're the only one left and there's an open balance. There's nobody to hand it to, so you can't leave without settling it.",
     "options": "Group options",
     "add_person": "Add person",
-    "validate_member": "Validate member"
+    "validate_member": "Validate member",
+    "member_limit_title": "Group is full",
+    "member_limit_body": "This group already has the maximum of {{max}} members. To add someone, remove another one first."
   },
   "invite": {
     "groups_in_common": "{{count}} group in common",

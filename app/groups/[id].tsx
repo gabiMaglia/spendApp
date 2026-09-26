@@ -22,6 +22,7 @@ import { useUserStore } from '@/src/store/userStore';
 import { useGroupBalance, useGroupExpenseCount } from '@/src/store/selectors';
 import { debeAvisar } from '@/src/algorithms/groupExpenseLimit';
 import { traspasarGrupo } from '@/src/services/groupTraspaso';
+import { admiteUnMiembroMas, MAX_TEXTO_CORTO, MAX_MIEMBROS } from '@/src/sync/topes';
 import { useArchiveStore } from '@/src/store/archiveStore';
 import { UserAvatar } from '@/src/components/UserAvatar';
 import { SyncWarningBanner } from '@/src/components/SyncWarningBanner';
@@ -103,6 +104,12 @@ export default function GroupDetailScreen() {
 
   function handleAddContact(userId: string) {
     if (!group) return;
+    // T-150 ronda 2 (D4): un grupo nunca supera MAX_MIEMBROS por un camino
+    // honesto de la UI.
+    if (!admiteUnMiembroMas(group.memberIds)) {
+      Alert.alert(t('group_detail.member_limit_title'), t('group_detail.member_limit_body', { max: MAX_MIEMBROS }));
+      return;
+    }
     hapticSuccess();
     updateGroup(group.id, { memberIds: [...group.memberIds, userId] });
     ensureKey(group.id);
@@ -225,6 +232,11 @@ export default function GroupDetailScreen() {
   function handleAddMember() {
     const name = inviteName.trim();
     if (!name || !group) return;
+    // T-150 ronda 2 (D4): mismo tope que handleAddContact, por este otro camino.
+    if (!admiteUnMiembroMas(group.memberIds)) {
+      Alert.alert(t('group_detail.member_limit_title'), t('group_detail.member_limit_body', { max: MAX_MIEMBROS }));
+      return;
+    }
 
     const newUser = {
       id:           uuidv4(),
@@ -605,6 +617,7 @@ export default function GroupDetailScreen() {
               style={[styles.input, { backgroundColor: c.bgGrouped, color: c.text, borderColor: c.hair }]}
               returnKeyType="done"
               onSubmitEditing={handleAddMember}
+              maxLength={MAX_TEXTO_CORTO}
             />
             <Pressable
               accessibilityRole="button"

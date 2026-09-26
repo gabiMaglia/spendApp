@@ -11,6 +11,7 @@ import { useRecurringStore } from '@/src/store/recurringStore';
 import { announceGroupToContacts } from '@/src/sync/relayEngine';
 import { syncedNow } from '@/src/utils/syncedClock';
 import { pagosQueCuentan } from '@/src/algorithms/settlementStatus';
+import { truncar, MAX_TEXTO_CORTO } from '@/src/sync/topes';
 
 /**
  * Siguiente nombre disponible para un traspaso repetido (Important #5a,
@@ -21,13 +22,19 @@ import { pagosQueCuentan } from '@/src/algorithms/settlementStatus';
  * Se despoja un sufijo `" (N)"` final del nombre base ANTES de buscar, para
  * no componer sufijos ("Viaje (2) (2)"), y se busca el N más chico (≥ 2) que
  * no choque con ningún nombre ya existente.
+ *
+ * T-150 ronda 2 (D3, verifier): el resultado se trunca a `MAX_TEXTO_CORTO`.
+ * El predicado de recibir/publicar ya no descarta por caracteres (T-150,
+ * enmienda), pero un nombre de grupo sigue siendo un texto que la app misma
+ * genera — sin este truncado, traspasos repetidos con un nombre base ya
+ * cerca del tope podían crecer sin límite con cada sufijo " (N)".
  */
 export function siguienteNombreDisponible(nombreBase: string, nombresExistentes: string[]): string {
   const base = nombreBase.replace(/ \(\d+\)$/, '');
   const existentes = new Set(nombresExistentes);
   let n = 2;
   while (existentes.has(`${base} (${n})`)) n += 1;
-  return `${base} (${n})`;
+  return truncar(`${base} (${n})`, MAX_TEXTO_CORTO);
 }
 
 /**
@@ -38,9 +45,12 @@ export function siguienteNombreDisponible(nombreBase: string, nombresExistentes:
  *
  * `description` ya viene resuelta (con `t()`) desde la UI — este servicio no
  * depende de i18n, sigue el mismo criterio de pureza que el resto de
- * `src/algorithms`.
+ * `src/algorithms`. Se trunca a `MAX_TEXTO_CORTO` acá (T-150 ronda 2, D3):
+ * es interpolada con el nombre del grupo viejo (`carryover_description`,
+ * `app/groups/[id].tsx`), así que un nombre largo la hacía crecer sin tope.
  */
 export function traspasarGrupo(grupoViejo: Group, description: string, createdById: string): Group {
+  const descripcionAcotada = truncar(description, MAX_TEXTO_CORTO);
   const { expenses } = useExpenseStore.getState();
   const { payments } = usePaymentStore.getState();
   const gastosDelGrupo = expenses.filter(e => e.groupId === grupoViejo.id);
@@ -68,7 +78,7 @@ export function traspasarGrupo(grupoViejo: Group, description: string, createdBy
     defaultSplitMode: grupoViejo.defaultSplitMode,
   };
 
-  const carryOvers = buildCarryOverExpenses(balances, grupoNuevo.id, description, createdById);
+  const carryOvers = buildCarryOverExpenses(balances, grupoNuevo.id, descripcionAcotada, createdById);
 
   useGroupStore.getState().addGroup(grupoNuevo);
   for (const gasto of carryOvers) {

@@ -1,6 +1,7 @@
 import * as Crypto from 'expo-crypto';
 import type { GroupKey } from './envelopeCrypto';
 import { toHex } from './envelopeCrypto';
+import { excesoDe } from './topes';
 
 /**
  * Mide bytes UTF-8 reales, no unidades UTF-16 de `.length` (revisión final,
@@ -96,7 +97,12 @@ export function sliceEntities<T extends { id: string }>(
     const itemJson = JSON.stringify(item);
     const bytesItem = byteLength(itemJson);
 
-    if (bytesItem > MAX_SLICE_BYTES) {
+    // T-150 ronda 2 (D1, verifier): la exclusión usa EL MISMO predicado que
+    // `acotarDeltaAlGrupo` usa para descartar al recibir (`excesoDe`,
+    // `topes.ts`) — antes esta puerta sólo miraba bytes y la de recibir
+    // también medía caracteres, así que un registro honesto que pasaba acá
+    // se descartaba en silencio en todos los peers que lo recibían.
+    if (excesoDe(item) !== null) {
       excluidos.push(item);
       continue;
     }

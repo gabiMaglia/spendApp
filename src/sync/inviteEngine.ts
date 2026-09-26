@@ -18,6 +18,7 @@ import {
 import { syncedNow } from '@/src/utils/syncedClock';
 import { withTimeout } from '@/src/utils/withTimeout';
 import { recordError } from '@/src/services/errorLog';
+import { admiteUnMiembroMas } from './topes';
 import {
   claveLocalVinoDeContacto, idDeOfertaDeInvitacion, olvidarOfertas, registrarOferta,
 } from './groupKeyOffers';
@@ -222,6 +223,17 @@ async function admit(
         return false;
       }
     }
+  }
+
+  // T-150 ronda 2 (D4, verifier): `admit()` es un camino sin UI del lado de
+  // quien invita — un grupo nunca debe superar MAX_MIEMBROS tampoco por acá.
+  // Sólo aplica si `claim.userId` sería NUEVO: un reintento de alguien que ya
+  // es miembro no se bloquea (no suma a nadie). Rechazo total (no se marca
+  // canjeado, no se entrega nada) con rastro en el diagnóstico, porque no hay
+  // pantalla de este lado que pueda avisarle a quien admite.
+  if (!group.memberIds.includes(claim.userId) && !admiteUnMiembroMas(group.memberIds)) {
+    recordError({ message: 'admit_rechazado: tope_de_miembros', fatal: false, screen: 'sync.invite' });
+    return false;
   }
 
   // Marcar como canjeado en storage si no estaba ya (para robustez entre app closes).
