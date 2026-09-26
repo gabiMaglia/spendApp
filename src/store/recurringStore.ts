@@ -6,6 +6,7 @@ import { siguienteUpdatedAt } from './relojDelMerge';
 import { signOnCreate, signOnEdit } from '@/src/sync/signOnWrite';
 import type { RecurringExpense } from '@/src/types/models';
 import { syncedNow } from '@/src/utils/syncedClock';
+import { recordError } from '@/src/services/errorLog';
 
 const storage = createSecureStorage('recurring');
 const KEY = 'data_v1';
@@ -17,7 +18,8 @@ interface RecurringStoreState {
   /** Plantillas vivas: ni borradas ni pausadas. */
   active: () => RecurringExpense[];
   addRecurring: (r: RecurringExpense) => void;
-  updateRecurring: (id: string, patch: Partial<RecurringExpense>) => void;
+  /** `false` = la edición NO se guardó (T-152 · D2). Ver `expenseStore.updateExpense`. */
+  updateRecurring: (id: string, patch: Partial<RecurringExpense>) => boolean;
   removeRecurring: (id: string) => void;
   mergeRecurring: (incoming: RecurringExpense[], now?: number) => void;
   hydrate: () => void;
@@ -42,14 +44,25 @@ export const useRecurringStore = create<RecurringStoreState>((set, get) => ({
   },
 
   updateRecurring: (id, patch) => {
+    const actual = get().recurring.find(r => r.id === id);
+    if (!actual) return true;
+
     const ahora = syncedNow();
-    const recurring = get().recurring.map(r =>
-      r.id === id
-        ? signOnEdit('recurring', r, { ...r, ...patch, updatedAt: siguienteUpdatedAt(r.updatedAt, ahora) })
-        : r,
-    );
+    const firmado = signOnEdit('recurring', actual, {
+      ...actual, ...patch, updatedAt: siguienteUpdatedAt(actual.updatedAt, ahora),
+    });
+    if (firmado === null) {
+      recordError({
+        message: 'signOnEdit bloqueado: no se pudo re-firmar una edición propia de una recurrente ya firmada',
+        fatal: false,
+      });
+      return false;
+    }
+
+    const recurring = get().recurring.map(r => (r.id === id ? firmado : r));
     persist(recurring);
     set({ recurring });
+    return true;
   },
 
   // Tombstone, nunca DELETE físico (regla de negocio #1).

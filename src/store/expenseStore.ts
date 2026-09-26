@@ -8,6 +8,7 @@ import { schedulePublish } from '@/src/sync/relayEngine';
 import { migrateExpenseAmounts } from './moneyMigration';
 import type { Expense } from '@/src/types/models';
 import { syncedNow } from '@/src/utils/syncedClock';
+import { recordError } from '@/src/services/errorLog';
 
 const storage = createSecureStorage('expenses');
 const KEY = 'data_v1';
@@ -20,7 +21,12 @@ interface ExpenseStoreState {
   isLoading: boolean;
   getByGroupId: (groupId: string) => Expense[];
   addExpense: (expense: Expense) => void;
-  updateExpense: (id: string, patch: Partial<Expense>) => void;
+  /**
+   * `false` = la edición NO se guardó (T-152 · D2): un núcleo ya firmado cuya
+   * re-firma propia falló. El store queda intacto — el llamador le avisa al
+   * usuario, no asume que guardó.
+   */
+  updateExpense: (id: string, patch: Partial<Expense>) => boolean;
   mergeExpenses: (incoming: Expense[], now?: number) => void;
   hydrate: () => void;
 }
@@ -48,17 +54,30 @@ export const useExpenseStore = create<ExpenseStoreState>((set, get) => ({
   },
 
   updateExpense: (id, patch) => {
+    const actual = get().expenses.find(e => e.id === id);
+    if (!actual) return true;
+
     const ahora = syncedNow();
-    const expenses = get().expenses.map(e =>
-      e.id === id
-        ? signOnEdit('expense', e, { ...e, ...patch, updatedAt: siguienteUpdatedAt(e.updatedAt, ahora) })
-        : e,
-    );
+    const firmado = signOnEdit('expense', actual, {
+      ...actual, ...patch, updatedAt: siguienteUpdatedAt(actual.updatedAt, ahora),
+    });
+    if (firmado === null) {
+      // T-152 · D2: el núcleo ya estaba firmado y la re-firma propia falló. No
+      // se guarda sin firma (perdería en silencio contra la versión vieja);
+      // el store queda como estaba.
+      recordError({
+        message: 'signOnEdit bloqueado: no se pudo re-firmar una edición propia de un gasto ya firmado',
+        fatal: false,
+      });
+      return false;
+    }
+
+    const expenses = get().expenses.map(e => (e.id === id ? firmado : e));
     persist(expenses);
     set({ expenses });
 
-    const groupId = expenses.find(e => e.id === id)?.groupId;
-    if (groupId) schedulePublish(groupId);
+    if (firmado.groupId) schedulePublish(firmado.groupId);
+    return true;
   },
 
   /**

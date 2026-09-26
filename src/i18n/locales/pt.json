@@ -439,7 +439,9 @@
     "failure_too_large": "O grupo acumulou informação demais para enviar de uma vez. Suas despesas estão salvas neste telefone, mas os outros não estão recebendo.",
     "failure_no_key": "Falta a chave deste grupo neste dispositivo. Peça a alguém do grupo para compartilhar o acesso novamente.",
     "manifest_gap_title": "Faltam dados de um membro",
-    "manifest_gap_body": "Os saldos deste grupo podem estar incompletos até sincronizar."
+    "manifest_gap_body": "Os saldos deste grupo podem estar incompletos até sincronizar.",
+    "sign_failed_title": "Não foi possível salvar a alteração",
+    "sign_failed_body": "Falta a chave deste dispositivo. Feche o app e tente de novo; se continuar falhando, peça ajuda pelo diagnóstico em Configurações."
   },
   "categories": {
     "food": "Comida",

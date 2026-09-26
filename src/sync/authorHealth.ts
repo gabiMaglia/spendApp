@@ -33,6 +33,10 @@ import { readScoped, writeScoped } from '@/src/store/userScope';
  * confirmar `clave_desconocida` en cero sostenido — encenderlo sobre un
  * número que no se midió es exactamente cómo este proyecto perdió mensajes
  * en silencio antes. Es el PO quien decide cuándo, no un valor por defecto.
+ *
+ * Desde T-152 hay una regla intermedia que no depende de esta bandera: un
+ * núcleo sin firma nunca pisa uno firmado (`mergeLevels.coreWins`). La fase B
+ * sigue apagada y sigue siendo decisión del PO.
  */
 export const RECHAZAR_AUTORES_NO_VERIFICADOS = false;
 
