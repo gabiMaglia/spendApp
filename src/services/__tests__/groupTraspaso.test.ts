@@ -16,6 +16,11 @@ jest.mock('@/src/sync/relayEngine', () => ({
   announceGroupToContacts: jest.fn(),
 }));
 
+const mockAnnounceRecurringTraspasoBlocked = jest.fn().mockResolvedValue(1);
+jest.mock('@/src/services/notifications', () => ({
+  announceRecurringTraspasoBlocked: (...args: unknown[]) => mockAnnounceRecurringTraspasoBlocked(...args),
+}));
+
 function grupo(over: Partial<Group> = {}): Group {
   return {
     id: 'g-viejo', name: 'Viaje', memberIds: ['ana', 'beto'], currency: 'ARS',
@@ -71,6 +76,7 @@ beforeEach(() => {
   useGroupKeyStore.setState({ keys: [] });
   useRecurringStore.setState({ recurring: [] });
   jest.clearAllMocks();
+  mockAnnounceRecurringTraspasoBlocked.mockClear().mockResolvedValue(1);
 });
 
 describe('traspasarGrupo', () => {
@@ -371,5 +377,46 @@ describe('traspasarGrupo', () => {
     const usd = delNuevo.find(e => e.currency === 'USD')!;
     expect(usd.payers).toEqual([{ userId: 'beto', amount: 150 }]);
     expect(usd.splits).toEqual([{ userId: 'caro', amount: 150, isPaid: false }]);
+  });
+
+  // T-172 (ítem 3, residual de T-152 ronda 2): `updateRecurring` bloquea la
+  // recurrente que no se pudo re-firmar (falta de clave privada) y devuelve
+  // `false` — antes eso sólo dejaba rastro en `errorLog`, invisible para quien
+  // hizo el traspaso. La plantilla quedaba congelada en el grupo archivado sin
+  // que nadie se enterara.
+  describe('T-172 (ítem 3): aviso cuando una recurrente queda bloqueada en el traspaso', () => {
+    it('si updateRecurring bloquea, avisa UNA vez con el grupo viejo y el nuevo', () => {
+      useRecurringStore.setState({
+        recurring: [recurrente()],
+        updateRecurring: jest.fn(() => false),
+      });
+      const viejo = useGroupStore.getState().groups[0];
+      const nuevo = traspasarGrupo(viejo, 'Saldo trasladado de Viaje', 'ana');
+
+      expect(mockAnnounceRecurringTraspasoBlocked).toHaveBeenCalledTimes(1);
+      expect(mockAnnounceRecurringTraspasoBlocked).toHaveBeenCalledWith(viejo.id, viejo.name, nuevo.id);
+    });
+
+    it('con dos recurrentes bloqueadas, avisa UNA sola vez (no una por plantilla)', () => {
+      useRecurringStore.setState({
+        recurring: [recurrente(), recurrente({ id: 'r-otro', description: 'Internet' })],
+        updateRecurring: jest.fn(() => false),
+      });
+      const viejo = useGroupStore.getState().groups[0];
+      traspasarGrupo(viejo, 'Saldo trasladado de Viaje', 'ana');
+
+      expect(mockAnnounceRecurringTraspasoBlocked).toHaveBeenCalledTimes(1);
+    });
+
+    it('si updateRecurring guarda bien, no avisa nada', () => {
+      useRecurringStore.setState({
+        recurring: [recurrente()],
+        updateRecurring: jest.fn(() => true),
+      });
+      const viejo = useGroupStore.getState().groups[0];
+      traspasarGrupo(viejo, 'Saldo trasladado de Viaje', 'ana');
+
+      expect(mockAnnounceRecurringTraspasoBlocked).not.toHaveBeenCalled();
+    });
   });
 });
