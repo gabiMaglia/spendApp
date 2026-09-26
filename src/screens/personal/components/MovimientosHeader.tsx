@@ -26,7 +26,7 @@ export function MovimientosHeader({ count }: { count: number }) {
   // `borderTopColor` explícito: si no, gana el filo de luz de `MarmolPill`.
   const extra = skin.flags.soft
     ? {
-        paddingTop: skin.space.gapPanel, paddingBottom: skin.space.gapPanel,
+        paddingTop: skin.space.gapInline, paddingBottom: skin.space.gapInline,
         borderWidth: 1, borderColor: c.hair, borderTopColor: c.hair,
       }
     : { borderBottomWidth: 1, borderBottomColor: c.hair };

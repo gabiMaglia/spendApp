@@ -105,7 +105,7 @@ export default function PersonalScreen() {
         // el índice no se rompe si algo cambia adentro del bloque de arriba.
         stickyHeaderIndices={[1]}
       >
-        <View style={skin.flags.soft ? { paddingBottom: skin.space.gapSection } : undefined}>
+        <View>
           {/* T-121: migrado de Inicio — reusa owedToMe/youOwe, ya derivados
               de useDirectedDebts (no se duplica el cálculo). Sin pending: a
               diferencia de la vieja Inicio, esta fuente no tiene noción de

@@ -18,11 +18,12 @@ export function StatCards({ rows, testID = 'stat-cards' }: { rows: StatItem[][];
   const skin = useSkinTokens();
   const c = skin.colors;
   const gap = skin.space.gapPanel;
+  const gapFila = skin.space.gapInline;
 
   return (
     <View testID={testID} style={{ paddingHorizontal: skin.space.inset, marginTop: gap, gap }}>
       {rows.map((fila, i) => (
-        <View key={i} style={[styles.fila, { gap }]}>
+        <View key={i} style={[styles.fila, { gap: gapFila }]}>
           {fila.map(it => (
             <Panel
               key={it.label}

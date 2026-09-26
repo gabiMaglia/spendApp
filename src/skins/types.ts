@@ -34,7 +34,11 @@ export type Skin = {
   colors: SkinColors;
   elevation: { e1: Elevation; e2: Elevation; e3: Elevation };
   radius: { panel: number; row: number; chip: number; fab: number };
-  space: { inset: number; gapPanel: number; padPanel: number; gapSection: number };
+  space: {
+    inset: number; gapPanel: number; padPanel: number; gapSection: number;
+    /** Aire chico: entre tarjetas de una misma fila y relleno vertical de una píldora. */
+    gapInline: number;
+  };
   /** `soft`: el skin dibuja paneles con sombra/halo en vez de bandas planas. */
   flags: { soft: boolean };
 };

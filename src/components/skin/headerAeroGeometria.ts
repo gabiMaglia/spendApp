@@ -23,7 +23,7 @@ export const TITULO_AERO_H = Math.round(TITLE_BLOCK_H * 0.75);
 /** Aire entre la status bar y la barra. */
 export const AERO_TOPE = 6;
 /** Aire entre la barra y la tarjeta del título (expandido). */
-export const AERO_AIRE = 8;
+export const AERO_AIRE = 16;
 /** Radio pronunciado de las dos tarjetas. */
 export const AERO_RADIO = 24;
 /**

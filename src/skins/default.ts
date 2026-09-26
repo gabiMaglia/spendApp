@@ -38,7 +38,7 @@ function paraEsquema(scheme: ColorScheme): Skin {
       e3: { boxShadow: '0 6px 16px rgba(20,60,40,0.22)', elevationFallback: 4 },
     },
     radius: { panel: 0, row: 0, chip: Radius.sm, fab: Radius.lg },
-    space: { inset: 0, gapPanel: 0, padPanel: Spacing.screenPad, gapSection: 0 },
+    space: { inset: 0, gapPanel: 0, padPanel: Spacing.screenPad, gapSection: 0, gapInline: 0 },
     flags: { soft: false },
   };
 }

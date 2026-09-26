@@ -6,7 +6,8 @@ import type { SkinDefinition } from './types';
  * declara lo que cambia; marca, semánticos y tipografía vienen del default.
  */
 const RADIUS = { panel: 20, row: 16, chip: 12, fab: 18 };
-const SPACE = { inset: 16, gapPanel: 12, padPanel: 16, gapSection: 20 };
+// PO 2026-09-26: gap vertical entre componentes duplicado (12 → 24).
+const SPACE = { inset: 16, gapPanel: 24, padPanel: 16, gapSection: 20, gapInline: 12 };
 
 export const AERO_SKIN: SkinDefinition = {
   light: {
