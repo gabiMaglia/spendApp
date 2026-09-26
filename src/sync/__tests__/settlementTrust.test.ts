@@ -189,3 +189,35 @@ describe('R1: autor sin ninguna clave conocida (borde de ADR-004)', () => {
     expect(checkSettlement('p1', c)).toBe('valida');
   });
 });
+
+/**
+ * **H6 (T-145, ronda 2 del verificador; ticket T-172): el `invalida` de D2
+ * queda cacheado sin refresco.**
+ *
+ * Diferencia con "aprender la clave nueva reevalúa solo" (arriba): ahí el
+ * directorio TODAVÍA no había contestado, así que el primer veredicto era
+ * `no_verificable` — y ese nunca se cachea. Acá el directorio YA CONTESTÓ
+ * antes de que este teléfono aprendiera la clave nueva del acreedor
+ * reinstalado: el veredicto pasa a `invalida` y SÍ se cachea (S3), por clave
+ * de mensaje+k+s. Cuando después se aprende la clave nueva (`rememberAuthorKey`)
+ * ese `reject`/`confirm` legítimo debería reevaluarse — pero el hit de caché
+ * corta antes de volver a mirar `authorKeysFor`, así que quedaba `invalida`
+ * hasta reiniciar el proceso o cambiar de sesión (`session.ts:66`).
+ */
+describe('H6: un `invalida` de D2 (clave stale + directorio ya contestó) no puede quedar pegado tras aprender la clave nueva', () => {
+  const VIEJA = par(31);
+  const NUEVA = par(32);
+
+  it('tras el directorio contestando vacío queda `invalida`; al aprender la clave nueva pasa a `valida`', async () => {
+    rememberAuthorKey('beto', VIEJA.pub);
+    const c = { ...acuse, ...signSettlement('p1', acuse, NUEVA.priv) };
+    checkSettlement('p1', c); // encola la consulta por la clave presentada
+
+    mockFetchAccountKeys.mockResolvedValue([]); // el directorio contesta: sigue sin cubrirla
+    await refreshPendingAuthors();
+    expect(checkSettlement('p1', c)).toBe('invalida'); // D2
+
+    rememberAuthorKey('beto', NUEVA.pub); // el aparato aprende la clave nueva del acreedor
+    expect(checkSettlement('p1', c)).toBe('valida'); // no puede seguir pegado en `invalida`
+  });
+});
