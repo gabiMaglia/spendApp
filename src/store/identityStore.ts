@@ -167,8 +167,15 @@ export function markInviteClaimed(
  */
 export function savePendingJoin(invite: GroupInvite): void {
   const all = readScopedJson<GroupInvite[]>(K_PENDING, []);
+  // `firstAttemptAt` se preserva de una entrada previa con el MISMO token
+  // (T-172, ítem 2 — ronda 2/5): un reclamo repetido (reintento manual, o el
+  // mismo link tocado dos veces) no puede correr el ancla de tiempo hacia
+  // adelante, o el aviso de demora nunca dispararía mientras el invitado siga
+  // insistiendo.
+  const previa = all.find(i => i.token === invite.token);
   const vivas = all.filter(i => i.expiresAt > Date.now() && i.token !== invite.token);
-  writeScoped(storage, K_PENDING, JSON.stringify([...vivas, invite]));
+  const conAncla: GroupInvite = { ...invite, firstAttemptAt: previa?.firstAttemptAt ?? Date.now() };
+  writeScoped(storage, K_PENDING, JSON.stringify([...vivas, conAncla]));
 }
 
 export function listPendingJoins(): GroupInvite[] {
@@ -182,24 +189,18 @@ export function removePendingJoin(token: string): void {
 }
 
 /**
- * Suma un intento de reclamo sin grant (T-172, ítem 2) y devuelve el
- * contador nuevo. `0` si `token` no es (o ya dejó de ser) un join pendiente
- * de este dispositivo — por ejemplo, quien invita procesando su PROPIA
- * invitación, o un join que ya se resolvió y se borró con `removePendingJoin`.
+ * Milisegundos transcurridos desde el PRIMER reclamo de este `token` (T-172,
+ * ítem 2 — ronda 2/5). `null` si `token` no es (o ya dejó de ser) un join
+ * pendiente de este dispositivo — por ejemplo, quien invita procesando su
+ * PROPIA invitación, o un join que ya se resolvió y se borró con
+ * `removePendingJoin`. Sin llamadas de por medio a propósito: cuenta tiempo
+ * real, no cuántas veces `processInvite` volvió a mirar el buzón.
  */
-export function incrementJoinAttempts(token: string): number {
+export function msDesdePrimerReclamo(token: string, now: number = Date.now()): number | null {
   const all = readScopedJson<GroupInvite[]>(K_PENDING, []);
-  let contador = 0;
-  let encontrado = false;
-  const actualizadas = all.map(i => {
-    if (i.token !== token) return i;
-    encontrado = true;
-    contador = (i.joinAttempts ?? 0) + 1;
-    return { ...i, joinAttempts: contador };
-  });
-  if (!encontrado) return 0;
-  writeScoped(storage, K_PENDING, JSON.stringify(actualizadas));
-  return contador;
+  const entry = all.find(i => i.token === token);
+  if (!entry) return null;
+  return now - (entry.firstAttemptAt ?? now);
 }
 
 export function saveContactInvite(invite: ContactInvite): void {

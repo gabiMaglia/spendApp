@@ -383,6 +383,29 @@ export async function announceJoinStalled(groupId: string, groupName: string, in
 }
 
 /**
+ * Retira el aviso de demora si el ingreso terminó completándose (T-172,
+ * ítem 2 — ronda 2/5, D1 del verificador). El invariante es que el aviso
+ * nunca puede quedar contradiciendo un ingreso exitoso: `redeem()` llama
+ * esto en cuanto adopta la clave (o confirma que el ingreso ya estaba
+ * cerrado), antes de que el usuario vuelva a mirar la bandeja.
+ *
+ * No hay un "borrar" en la bandeja (T-044: es historia, no una cola de
+ * pendientes) — `markReadWhere` es el mismo mecanismo que ya usa la tarjeta
+ * de conflicto de clave para resolverse sola al elegir una oferta
+ * (`TabHeader.tsx`). Marcarlo leído es "resuelto" en este vocabulario: deja
+ * de contar para el badge y de aparecer como accionable.
+ *
+ * Best effort, como el resto del módulo: si la bandeja no puede escribir,
+ * el ingreso ya se completó igual y no hay nada más crítico que perder acá.
+ */
+export function resolveJoinStalled(inviteToken: string): void {
+  try {
+    useNoticeInboxStore.getState().markReadWhere(i =>
+      i.notice.kind === 'join_claim_stalled' && i.notice.inviteToken === inviteToken);
+  } catch { /* ver comentario de arriba */ }
+}
+
+/**
  * Avisa que un traspaso de grupo (T-058) dejó una o más recurrentes SIN
  * mover, bloqueadas por falta de firma (T-172, ítem 3; residual de T-152
  * ronda 2, D2 aplicado acá). Sin dedupe persistido: cada traspaso es un

@@ -83,13 +83,21 @@ export type GroupInvite = {
    */
   claimedWrapKey?: string;
   /**
-   * Intentos de reclamo sin recibir grant (T-172, ítem 2). Sólo tiene sentido
-   * en la copia PENDIENTE (lado del que reclama, `K_PENDING`) — la de quien
-   * invita nunca lo toca. Vive en la MISMA entrada persistida en vez de un
-   * storage aparte: se borra sola cuando el join se resuelve (`removePendingJoin`)
-   * o expira, sin nada extra que limpiar.
+   * `Date.now()` del PRIMER reclamo publicado (T-172, ítem 2 — ronda 2/5).
+   * Sólo tiene sentido en la copia PENDIENTE (lado del que reclama,
+   * `K_PENDING`) — la de quien invita nunca lo toca. Se estampa una sola vez
+   * en `savePendingJoin` y sobrevive a reclamos repetidos del mismo token
+   * (reintentos manuales, `processAllInvites` en cada sync): es el ancla de
+   * tiempo contra la que se mide si el ingreso se demoró demasiado. Vive en
+   * la MISMA entrada persistida en vez de un storage aparte: se borra sola
+   * cuando el join se resuelve (`removePendingJoin`) o expira, sin nada
+   * extra que limpiar.
+   *
+   * Reemplaza al contador de intentos de la ronda 1 (D1 del verificador):
+   * contar LLAMADAS a `processInvite` confundía "sin respuesta" con "el loop
+   * interactivo de `join.tsx` sondeó varias veces en pocos segundos".
    */
-  joinAttempts?: number;
+  firstAttemptAt?: number;
 };
 
 export function createInvite(

@@ -1,4 +1,4 @@
-import { publishClaim, processInvite, activeInvites, JOIN_STALL_NOTICE_AFTER } from '../inviteEngine';
+import { publishClaim, processInvite, activeInvites, JOIN_STALL_NOTICE_AFTER_MS } from '../inviteEngine';
 import {
   createInvite, deriveInviteTopic, sealGrant, sealClaim, wrapGroupKey,
   generateIdentity, generateWrapKeypair, type GroupInvite, type InviteClaim,
@@ -866,36 +866,86 @@ describe('SEC-06 (T-151) · un reclamo a nombre de alguien que YA es miembro', (
  * no pinneada, tope de miembros, canje de otra persona— el invitado nunca se
  * enteraba de que su ingreso no se iba a completar solo: esperaba en
  * silencio hasta que la invitación expiraba a las 48hs.
+ *
+ * **Ronda 2/5 (D1 del verificador): la ronda 1 contaba LLAMADAS, no tiempo.**
+ * `app/groups/join.tsx` sondea cada 3s durante 25s con la pantalla abierta —
+ * unas 8 llamadas en segundos, no en ciclos de sync separados. Eso disparaba
+ * el aviso "no se completó" mientras el ingreso todavía podía cerrar bien
+ * segundos después. Estos tests fijan tiempo con `jest.useFakeTimers`
+ * (sólo `Date`, para no tocar los `setTimeout` reales que sí usa este
+ * archivo en otras pruebas) y verifican que ahora manda el reloj, no el
+ * contador de sondeos.
  */
-describe('T-172 (ítem 2) · el reclamante rechazado avisa tras N intentos sin grant', () => {
-  it(`tras ${JOIN_STALL_NOTICE_AFTER} intentos sin recibir grant, avisa UNA vez (no antes)`, async () => {
-    // Mallory reclama "como Beto" (SEC-06): admit() la rechaza en cada
-    // pasada porque su wrap no coincide con la pinneada.
+describe('T-172 (ítem 2) · el reclamante se entera por TIEMPO, no por cantidad de sondeos', () => {
+  // Sólo se fija `Date`: este archivo usa `setTimeout` real en otras pruebas
+  // (`processAllInvites`/`withTimeout`), y fakearlo tumbaría esas.
+  function fijarSoloFecha(): void {
+    jest.useFakeTimers({ doNotFake: [
+      'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval',
+      'nextTick', 'setImmediate', 'clearImmediate', 'queueMicrotask',
+      'requestAnimationFrame', 'cancelAnimationFrame',
+      'requestIdleCallback', 'cancelIdleCallback', 'hrtime', 'performance',
+    ] });
+  }
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('el loop de join.tsx (8 sondeos cada 3s, ~21s en total) NO dispara el aviso', async () => {
+    // PoC del verificador: Mallory reclama "como Beto" (SEC-06) — admit() la
+    // rechaza en cada pasada porque su wrap no coincide con la pinneada, así
+    // que el ingreso nunca cierra solo. Con la ronda 1 (conteo de llamadas),
+    // 6-8 sondeos alcanzaban para avisar "no se completó" en segundos.
     const { invite } = anaInvitaConBeto();
     createSecureStorage('notices').clearAll();
     useNoticeInboxStore.setState({ items: [] });
+
+    fijarSoloFecha();
+    jest.setSystemTime(0);
 
     usar('mallory', MALLORY);
     useAuthStore.setState({ currentUser: { ...MALLORY, id: BETO.id } });
     await publishClaim(invite, 'device-mallory');
 
-    for (let i = 1; i < JOIN_STALL_NOTICE_AFTER; i++) {
+    for (let i = 1; i <= 8; i++) {
+      jest.setSystemTime(i * 3_000); // REINTENTO_MS de join.tsx
       await processInvite(invite, 'device-mallory');
-      expect(useNoticeInboxStore.getState().items.some(it => it.notice.kind === 'join_claim_stalled')).toBe(false);
     }
 
-    await processInvite(invite, 'device-mallory'); // intento número N
+    expect(useNoticeInboxStore.getState().items.some(i => i.notice.kind === 'join_claim_stalled')).toBe(false);
+  });
+
+  it(`tras ${JOIN_STALL_NOTICE_AFTER_MS}ms sin recibir grant, avisa UNA vez (no antes)`, async () => {
+    const { invite } = anaInvitaConBeto();
+    createSecureStorage('notices').clearAll();
+    useNoticeInboxStore.setState({ items: [] });
+
+    fijarSoloFecha();
+    jest.setSystemTime(0);
+
+    usar('mallory', MALLORY);
+    useAuthStore.setState({ currentUser: { ...MALLORY, id: BETO.id } });
+    await publishClaim(invite, 'device-mallory');
+
+    jest.setSystemTime(JOIN_STALL_NOTICE_AFTER_MS - 1);
+    await processInvite(invite, 'device-mallory');
+    expect(useNoticeInboxStore.getState().items.some(i => i.notice.kind === 'join_claim_stalled')).toBe(false);
+
+    jest.setSystemTime(JOIN_STALL_NOTICE_AFTER_MS);
+    await processInvite(invite, 'device-mallory'); // umbral cumplido
 
     const avisos = useNoticeInboxStore.getState().items.filter(i => i.notice.kind === 'join_claim_stalled');
     expect(avisos).toHaveLength(1);
     expect(avisos[0]!.notice).toMatchObject({ kind: 'join_claim_stalled', groupId: invite.groupId, inviteToken: invite.token });
 
-    // Intentos posteriores no apilan un segundo aviso.
+    // Sondeos posteriores no apilan un segundo aviso.
+    jest.setSystemTime(JOIN_STALL_NOTICE_AFTER_MS + 60_000);
     await processInvite(invite, 'device-mallory');
     expect(useNoticeInboxStore.getState().items.filter(i => i.notice.kind === 'join_claim_stalled')).toHaveLength(1);
   });
 
-  it('si el grant llega antes de agotar los intentos, nunca avisa', async () => {
+  it('si el grant llega antes de que se cumpla el umbral de tiempo, nunca avisa', async () => {
     const { invite } = anaInvita();
     createSecureStorage('notices').clearAll();
     useNoticeInboxStore.setState({ items: [] });
@@ -911,6 +961,42 @@ describe('T-172 (ítem 2) · el reclamante rechazado avisa tras N intentos sin g
     expect(adoptados).toEqual(['g1']);
 
     expect(useNoticeInboxStore.getState().items.some(i => i.notice.kind === 'join_claim_stalled')).toBe(false);
+  });
+
+  it('aviso ya emitido y el ingreso se completa después → el aviso queda resuelto', async () => {
+    // El invariante del ítem 2: el aviso nunca puede quedar contradiciendo un
+    // ingreso exitoso. Beto se demora en publicar su reclamo (podría ser
+    // porque tardó en abrir el link), el umbral se cumple sin que Ana haya
+    // abierto la app todavía, y RECIÉN DESPUÉS Ana entra y admite.
+    const { invite } = anaInvita();
+    createSecureStorage('notices').clearAll();
+    useNoticeInboxStore.setState({ items: [] });
+
+    fijarSoloFecha();
+    jest.setSystemTime(0);
+
+    usar('beto', BETO);
+    await publishClaim(invite, 'device-beto');
+
+    jest.setSystemTime(JOIN_STALL_NOTICE_AFTER_MS);
+    await processInvite(invite, 'device-beto'); // Ana todavía no procesó nada: avisa
+
+    let avisos = useNoticeInboxStore.getState().items.filter(i => i.notice.kind === 'join_claim_stalled');
+    expect(avisos).toHaveLength(1);
+    expect(avisos[0]!.readAt).toBeNull();
+
+    // Ana por fin abre la app y admite.
+    usar('ana', ANA);
+    await processInvite(invite, 'device-ana');
+
+    // Beto vuelve a sondear y recibe la clave.
+    usar('beto', BETO);
+    const adoptados = await processInvite(invite, 'device-beto');
+    expect(adoptados).toEqual(['g1']);
+
+    avisos = useNoticeInboxStore.getState().items.filter(i => i.notice.kind === 'join_claim_stalled');
+    expect(avisos).toHaveLength(1); // no se borra ni se duplica: se resuelve
+    expect(avisos[0]!.readAt).not.toBeNull();
   });
 });
 
