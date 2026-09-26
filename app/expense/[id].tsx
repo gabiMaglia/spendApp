@@ -139,11 +139,16 @@ export default function ExpenseDetailScreen() {
   const disputada = enDisputa(expense);
   const puedeForzar = isCreator && !disputada;
   // T-170 · D-3 (decisión del PO): quién abrió la disputa, para mostrarlo.
-  // Sólo autores ATRIBUIBLES (`autoresVerificados`: firma que cierra, D9
-  // afuera del merge) y nunca el creador vigente contra sí mismo.
-  const otrosAutoresDisputa = disputada
-    ? autoresVerificados(expense).filter(id => id !== expense.createdById)
-    : [];
+  // TODOS los autores ATRIBUIBLES (`autoresVerificados`: firma que cierra,
+  // D9 afuera del merge) — SIN filtrar por `expense.createdById` vigente.
+  //
+  // Filtrar por el vigente era el defecto de la ronda 3 del verificador: el
+  // núcleo sigue ganando por `rev` (R4), así que Mallory puede re-estampar
+  // con un `rev` mayor y CONVERTIRSE en el creador vigente. Un filtro contra
+  // ese id escondía justo a la atacante y dejaba sólo al autor genuino en la
+  // lista — lo opuesto de lo que el PO pidió («mostrar quién abrió la
+  // disputa»).
+  const autoresDeLaDisputa = disputada ? [...autoresVerificados(expense)] : [];
 
   // En un grupo de borrado LIBRE (elegido al crearlo) cualquier miembro borra
   // al instante, igual que Splitwise: la defensa no es impedir sino que quede
@@ -431,12 +436,12 @@ export default function ExpenseDetailScreen() {
         {/* Autoría en disputa (T-170 · D-3, decisión del PO): decir QUIÉN la
             abrió, no sólo ocultar "Forzar" en silencio. Sólo autores
             ATRIBUIBLES — nunca una entrada sin verificar ni un id inyectado. */}
-        {otrosAutoresDisputa.length > 0 && (
+        {autoresDeLaDisputa.length > 0 && (
           <InlineWarningBanner
             icon="warning-outline"
             title={t('expense.authorship_disputed_title')}
             body={t('expense.authorship_disputed_body', {
-              names: otrosAutoresDisputa.map(nombreDe).join(', '),
+              names: autoresDeLaDisputa.map(nombreDe).join(', '),
             })}
           />
         )}
