@@ -1,12 +1,11 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { Colors } from '@/src/constants/colors';
 import { Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { FondoMarmol } from '@/src/components/FondoMarmol';
+import { useSkin } from '@/src/skins/useSkin';
+import { MarmolPill } from '@/src/components/skin/MarmolPill';
 
 /**
  * **Encabezado pegajoso de "Movimientos"** (PO 2026-09-20): mismo mármol que
@@ -17,19 +16,20 @@ import { FondoMarmol } from '@/src/components/FondoMarmol';
  * tapa ni lo pisa, sólo llega hasta ese borde y se queda ahí.
  */
 export function MovimientosHeader({ count }: { count: number }) {
-  const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const { skin } = useSkin();
+  const c = skin.colors;
+  // En un skin soft la píldora ya separa el encabezado de la lista: sin hairline.
+  const borde = skin.flags.soft ? null : { borderBottomWidth: 1, borderBottomColor: c.hair };
   const { t } = useTranslation();
   return (
-    <View testID="movimientos-header" style={[styles.movimientosHeader, { borderBottomColor: c.hair }]}>
-      <FondoMarmol variante />
+    <MarmolPill testID="movimientos-header" variante sticky style={[styles.movimientosHeader, borde]}>
       <Text style={[Typography.label, styles.movimientosBold, { color: c.textTertiary }]}>
         {t('personal.movements_title')}
       </Text>
       <Text style={[Typography.amountS, styles.movimientosBold, { color: c.text }]}>
         {count}
       </Text>
-    </View>
+    </MarmolPill>
   );
 }
 
@@ -43,7 +43,6 @@ const styles = StyleSheet.create({
     // más abajo del punto de corte. Menos aire arriba corre el bloque hacia
     // arriba lo suficiente para que quede completo antes del corte.
     paddingHorizontal: Spacing.screenPad, paddingTop: Spacing[5], paddingBottom: 9,
-    borderBottomWidth: 1,
   },
   movimientosBold: { fontWeight: '800' },
 });

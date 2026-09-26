@@ -6,10 +6,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useHeaderColapsable } from '@/src/hooks/useHeaderColapsable';
 import { router } from 'expo-router';
 
-import { Colors } from '@/src/constants/colors';
 import { Spacing } from '@/src/constants/spacing';
 import { formatMoney } from '@/src/constants/currencies';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useSkin } from '@/src/skins/useSkin';
+import { Panel } from '@/src/components/skin/Panel';
+import { useFabSkinStyle } from '@/src/components/skin/useFabSkinStyle';
 import { Fab, FabRow, FAB_BOTTOM_GAP, FAB_HEIGHT } from '@/src/components/Fab';
 import { SplitStat, StatLead } from '@/src/components/Band';
 import { BudgetSheet } from '@/src/components/BudgetSheet';
@@ -31,13 +32,15 @@ import { MovimientosHeader } from '@/src/screens/personal/components/Movimientos
 import { MovimientosList } from '@/src/screens/personal/components/MovimientosList';
 
 export default function PersonalScreen() {
-  const scheme = useColorScheme() ?? 'light';
+  const { skin } = useSkin();
   // T-121: sin aire entre el header y el bloque de deuda migrado (mismo
   // criterio que tenía Inicio, T-130).
   const headerPad = useHeaderPadding(0);
   const limiteContenido = useLimiteContenido();
   const { t } = useTranslation();
-  const c = Colors[scheme];
+  const c = skin.colors;
+  const fabPrimario = useFabSkinStyle('primary');
+  const fabSecundario = useFabSkinStyle('secondary');
 
   const today = toMonthKey(Date.now());
   const [activeMonth, setActiveMonth] = useState(today);
@@ -92,19 +95,21 @@ export default function PersonalScreen() {
         // el índice no se rompe si algo cambia adentro del bloque de arriba.
         stickyHeaderIndices={[1]}
       >
-        <View>
+        <View style={skin.flags.soft ? { paddingBottom: skin.space.gapSection } : undefined}>
           {/* T-121: migrado de Inicio — reusa owedToMe/youOwe, ya derivados
               de useDirectedDebts (no se duplica el cálculo). Sin pending: a
               diferencia de la vieja Inicio, esta fuente no tiene noción de
               "conversión en vuelo" — igual que el SplitStat de deuda de más
               abajo, que también convive en esta pantalla. */}
-          <SplitStat
-            noTop
-            items={[
-              { label: t('friends.owed_to_you'), value: formatMoney(owedToMe, cur), color: c.semantic.positive },
-              { label: t('friends.you_owe'),     value: formatMoney(youOwe, cur),   color: c.textSecondary },
-            ]}
-          />
+          <Panel>
+            <SplitStat
+              noTop
+              items={[
+                { label: t('friends.owed_to_you'), value: formatMoney(owedToMe, cur), color: c.semantic.positive },
+                { label: t('friends.you_owe'),     value: formatMoney(youOwe, cur),   color: c.textSecondary },
+              ]}
+            />
+          </Panel>
 
           <PersonalMonthNav
             activeMonth={activeMonth}
@@ -112,41 +117,45 @@ export default function PersonalScreen() {
             onChangeMonth={setActiveMonth}
           />
 
-          <PersonalBudgetMeter
-            hasBudget={hasBudget}
-            totalSpent={totalSpent}
-            remaining={remaining}
-            pct={pct}
-            effectiveBudget={effectiveBudget}
-            cur={cur}
-            personalPending={!!personalPending}
-            includeOwedToMe={budget.includeOwedToMe}
-            owedToMe={owedToMe}
-            onOpenBudgetSheet={() => setShowBudgetSheet(true)}
-          />
+          <Panel nivel="e2" halo>
+            <PersonalBudgetMeter
+              hasBudget={hasBudget}
+              totalSpent={totalSpent}
+              remaining={remaining}
+              pct={pct}
+              effectiveBudget={effectiveBudget}
+              cur={cur}
+              personalPending={!!personalPending}
+              includeOwedToMe={budget.includeOwedToMe}
+              owedToMe={owedToMe}
+              onOpenBudgetSheet={() => setShowBudgetSheet(true)}
+            />
+          </Panel>
 
           {/* El ingreso a lo ancho y los dos gastos abajo (PO 2026-09-02). En una
               sola fila de tres, un ingreso y dos gastos se leen como comparables
               entre sí, y no lo son: los de abajo salen del de arriba. Al lado
               del ingreso, cantidad de grupos (PO 2026-09-20, reemplaza la fila
               "Grupos · Balance" — mismo `misGrupos` ya derivado arriba). */}
-          <StatLead
-            sunken
-            noTop
-            lead={{
-              label: t('personal.summary_income'),
-              value: `+${formatMoney(totalIncome, cur)}`,
-              color: c.semantic.positive,
-            }}
-            leadRight={{
-              label: t('tabs.groups'),
-              value: String(misGrupos.length),
-            }}
-            items={[
-              { label: t('personal.summary_personal'), value: formatMoney(totalExpense, cur) },
-              { label: t('personal.summary_groups'),   value: formatMoney(totalGroup, cur) },
-            ]}
-          />
+          <Panel>
+            <StatLead
+              sunken
+              noTop
+              lead={{
+                label: t('personal.summary_income'),
+                value: `+${formatMoney(totalIncome, cur)}`,
+                color: c.semantic.positive,
+              }}
+              leadRight={{
+                label: t('tabs.groups'),
+                value: String(misGrupos.length),
+              }}
+              items={[
+                { label: t('personal.summary_personal'), value: formatMoney(totalExpense, cur) },
+                { label: t('personal.summary_groups'),   value: formatMoney(totalGroup, cur) },
+              ]}
+            />
+          </Panel>
 
           {/* Deuda direccional: banda propia, nunca mezclada con lo gastado
               (ADR-006). "Te deben"/"Debés" ya se muestran arriba del todo —
@@ -154,19 +163,21 @@ export default function PersonalScreen() {
               queda disponible DESPUÉS de saldar TODO. Sin `youOwe` no hay nada
               propio que saldar y por lo tanto nada nuevo que agregar acá. */}
           {youOwe > 0 && (
-            <SplitStat
-              noTop
-              items={[{
-                label: t('personal.available_after_debts'),
-                // formatMoney() siempre devuelve el valor absoluto (T-137): el
-                // signo hay que ponerlo a mano, si no un negativo se mostraba
-                // en rojo pero SIN el "-" — se leía positivo a simple vista.
-                value: `${disponibleTrasSaldar < 0 ? '-' : ''}${formatMoney(disponibleTrasSaldar, cur)}`,
-                // Rojo cuando saldar todo te deja en negativo: es justamente
-                // el caso en el que el número importa.
-                color: disponibleTrasSaldar >= 0 ? c.semantic.positive : c.semantic.negative,
-              }]}
-            />
+            <Panel>
+              <SplitStat
+                noTop
+                items={[{
+                  label: t('personal.available_after_debts'),
+                  // formatMoney() siempre devuelve el valor absoluto (T-137): el
+                  // signo hay que ponerlo a mano, si no un negativo se mostraba
+                  // en rojo pero SIN el "-" — se leía positivo a simple vista.
+                  value: `${disponibleTrasSaldar < 0 ? '-' : ''}${formatMoney(disponibleTrasSaldar, cur)}`,
+                  // Rojo cuando saldar todo te deja en negativo: es justamente
+                  // el caso en el que el número importa.
+                  color: disponibleTrasSaldar >= 0 ? c.semantic.positive : c.semantic.negative,
+                }]}
+              />
+            </Panel>
           )}
 
           {pendientes.length > 0 && (
@@ -207,12 +218,14 @@ export default function PersonalScreen() {
           borderColor={c.hair}
           iconColor={c.brand.primary}
           textColor={c.brand.primary}
+          style={fabSecundario}
         />
         <Fab
           onPress={() => router.push({ pathname: '/expense/new', params: { allowIncome: '1' } } as any)}
           icon="add"
           label={t('personal.fab_expense')}
           backgroundColor={c.brand.primary}
+          style={fabPrimario}
         />
       </FabRow>
 

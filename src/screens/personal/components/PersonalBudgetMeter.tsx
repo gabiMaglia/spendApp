@@ -3,11 +3,11 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 
-import { Colors } from '@/src/constants/colors';
 import { Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { Band, Meter } from '@/src/components/Band';
+import { useSkin } from '@/src/skins/useSkin';
+import { Band } from '@/src/components/Band';
+import { GlowMeter } from '@/src/components/skin/GlowMeter';
 import { MoneyText } from '@/src/components/MoneyText';
 import { formatMoney, type CurrencyCode } from '@/src/constants/currencies';
 import { hapticLight } from '@/src/utils/haptics';
@@ -29,8 +29,8 @@ export function PersonalBudgetMeter({
   onOpenBudgetSheet: () => void;
 }) {
   const { t } = useTranslation();
-  const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const { skin } = useSkin();
+  const c = skin.colors;
   const pendingCalculando = t('fx.calculating');
 
   const barColor = pct >= 1 ? c.semantic.negative
@@ -86,7 +86,7 @@ export function PersonalBudgetMeter({
         </View>
 
         <View style={{ marginTop: 14, marginBottom: 10 }}>
-          <Meter pct={pct} color={barColor} />
+          <GlowMeter pct={pct} color={barColor} />
         </View>
 
         <Text style={[Typography.caption, { color: c.textTertiary, textAlign: 'center' }]}>
