@@ -38,6 +38,11 @@ jest.mock('../contactChannel', () => ({
   deriveContactTopic: jest.fn(async () => 'topic-contactos'),
   drainContacts: jest.fn(async () => ({ cursor: 0, added: 0, joinedGroups: [], conflictedGroups: [] })),
   sendGroupKey: jest.fn(async () => true),
+  // T-147 (D4, ronda 2): `reenviarClavesDeGrupo` ahora despacha por
+  // `relayQueue` usando el resultado DETALLADO (para poder reintentar
+  // `rate_limited` sin perderlo) — `sendGroupKey` (boolean) queda para otros
+  // llamadores (`announceGroupToContacts`), que no pasan por la cola.
+  sendGroupKeyResultado: jest.fn(async () => ({ ok: true, seq: 1 })),
   announceContact: jest.fn(async () => true),
   listPeers: () => ({}),
   myContactCard: () => null,
@@ -50,6 +55,7 @@ jest.mock('../contactInviteEngine', () => ({ processAllContactInvites: jest.fn(a
 import { startRelay, stopRelay, POLL_INTERVAL_MS, __resetReenvioClaves } from '../relayEngine';
 import { sinSesionDeSync, __resetSessionStatus } from '../sessionStatus';
 import { recordPublish, publishFailures, clearPublishFailures } from '../publishHealth';
+import { __resetRelayQueue, QUEUE_INTERVAL_MS } from '../relayQueue';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
@@ -59,7 +65,7 @@ import type { Group, User } from '@/src/types/models';
 const mockEnsureRelaySession = jest.requireMock('../relaySession').ensureRelaySession as jest.Mock;
 const mockBindAuthRefreshToAppState = jest.requireMock('../relaySession').bindAuthRefreshToAppState as jest.Mock;
 const mockSubscribeTopic = jest.requireMock('../relay').subscribeTopic as jest.Mock;
-const mockSendGroupKey = jest.requireMock('../contactChannel').sendGroupKey as jest.Mock;
+const mockSendGroupKeyResultado = jest.requireMock('../contactChannel').sendGroupKeyResultado as jest.Mock;
 
 function sembrarUnGrupoConClave(): void {
   useAuthStore.setState({ currentUser: { id: 'u1' } as User });
@@ -96,10 +102,11 @@ beforeEach(() => {
   mockEnsureRelaySession.mockReset().mockResolvedValue('anonymous');
   mockBindAuthRefreshToAppState.mockReset().mockReturnValue(jest.fn());
   mockSubscribeTopic.mockReset().mockImplementation(() => () => {});
-  mockSendGroupKey.mockClear();
+  mockSendGroupKeyResultado.mockReset().mockResolvedValue({ ok: true, seq: 1 });
   clearPublishFailures();
   __resetSessionStatus();
   __resetReenvioClaves();
+  __resetRelayQueue();
 });
 
 afterEach(() => {
@@ -207,12 +214,78 @@ describe('D4: reenviarClavesDeGrupo no ráfaguea contra la cuota', () => {
     sembrarGrupoConOtroMiembro();
 
     await startRelay();
-    expect(mockSendGroupKey).toHaveBeenCalledTimes(1);
+    await jest.advanceTimersByTimeAsync(0); // la cola (ronda 2) despacha diferido
+    expect(mockSendGroupKeyResultado).toHaveBeenCalledTimes(1);
 
-    mockSendGroupKey.mockClear();
+    mockSendGroupKeyResultado.mockClear();
     await startRelay(); // p.ej. el reinicio de D1/D2 por cambio de sesión
+    await jest.advanceTimersByTimeAsync(0);
 
-    expect(mockSendGroupKey).not.toHaveBeenCalled();
+    expect(mockSendGroupKeyResultado).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Verifier D4, ronda 2 (ruling del orquestador): "una cola de publicación con
+ * ritmo por debajo de la cuota... para TODO lo que manda (publicaciones de
+ * grupo, `sendGroupKey`, reenvíos de claves), priorizando claves a miembros
+ * nuevos". `reenviarClavesDeGrupo` ahora encola por `relayQueue` en vez de
+ * mandar todo en una ráfaga sin ritmo.
+ */
+describe('D4 ronda 2: reenviarClavesDeGrupo pasa por la cola', () => {
+  it('despacha por la cola (diferido, no en el mismo tick de startRelay)', async () => {
+    sembrarGrupoConOtroMiembro();
+
+    await startRelay();
+    expect(mockSendGroupKeyResultado).not.toHaveBeenCalled(); // todavía no drenó
+
+    await jest.advanceTimersByTimeAsync(0);
+    expect(mockSendGroupKeyResultado).toHaveBeenCalledTimes(1);
+  });
+
+  it('un rate_limited de sendGroupKey se reintenta por la cola, no se pierde', async () => {
+    sembrarGrupoConOtroMiembro();
+    mockSendGroupKeyResultado
+      .mockResolvedValueOnce({ ok: false, reason: 'rate_limited' })
+      .mockResolvedValue({ ok: true, seq: 2 });
+
+    await startRelay();
+    await jest.advanceTimersByTimeAsync(0);
+    expect(mockSendGroupKeyResultado).toHaveBeenCalledTimes(1); // el primero, rechazado
+
+    await jest.advanceTimersByTimeAsync(QUEUE_INTERVAL_MS);
+    expect(mockSendGroupKeyResultado).toHaveBeenCalledTimes(2); // la cola lo reintentó solo
+  });
+
+  it('las claves de un grupo recién adoptado van con prioridad alta (antes que el reenvío de rutina)', async () => {
+    // Grupo "de rutina" (ya sincronizado) con un miembro ajeno.
+    sembrarGrupoConOtroMiembro();
+    // Segundo grupo, adoptado por una invitación en ESTE arranque.
+    useGroupStore.setState({
+      groups: [
+        ...useGroupStore.getState().groups,
+        {
+          id: 'ADOPTADO', name: 'Nuevo', memberIds: ['u1', 'u3'], currency: 'USD', createdAt: 0, createdById: 'u1',
+          deletionVotes: [], updatedAt: 1_000, isDeleted: false,
+        } as Group,
+      ],
+    });
+    useGroupKeyStore.getState().ensureKey('ADOPTADO');
+    const { processAllInvites } = jest.requireMock('../inviteEngine') as { processAllInvites: jest.Mock };
+    processAllInvites.mockResolvedValueOnce(['ADOPTADO']);
+
+    const orden: string[] = [];
+    mockSendGroupKeyResultado.mockImplementation(async (_peer: string, group: { id: string }) => {
+      orden.push(group.id);
+      return { ok: true, seq: 1 };
+    });
+
+    await startRelay();
+    await jest.advanceTimersByTimeAsync(0);
+    await jest.advanceTimersByTimeAsync(QUEUE_INTERVAL_MS);
+
+    expect(orden[0]).toBe('ADOPTADO');
+    expect(orden).toContain('G');
   });
 });
 
