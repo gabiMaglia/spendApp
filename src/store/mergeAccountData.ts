@@ -1,4 +1,8 @@
 import type { SimpleStorage } from '@/src/utils/createStorage';
+import { mergeByIdLevels } from './mergeLevels';
+import { mergeUsersLWW } from './mergeUsersLWW';
+import type { CoreKind, CoreRecord } from '@/src/sync/recordCore';
+import type { Syncable } from './lww';
 
 /**
  * Fusión de datos entre dos cuentas del MISMO usuario en este device.
@@ -9,14 +13,38 @@ import type { SimpleStorage } from '@/src/utils/createStorage';
  * mover los datos los deja invisibles — el usuario abre la app y ve todo vacío.
  * (Eso fue exactamente el defecto que hundió el primer intento de T-019.)
  *
- * La fusión es **unión con Last-Write-Wins por `updatedAt`**, la misma semántica
- * que ya usa el sync P2P (`mergeGroups`/`mergeExpenses`/…): ante dos versiones
- * del mismo registro gana la más nueva, y nada se descarta.
+ * **La fusión usa EXACTAMENTE el merge del sync, no una copia** (T-149,
+ * TEC-03). Hasta el 2026-09-26 acá vivía un tercer LWW —registro entero por
+ * `updatedAt`, sin desempate, sin unir votos ni acuses— y el docblock decía
+ * «la misma semántica que el sync P2P», que era falso desde T-041. Fusionar
+ * dos cuentas podía perder el voto de borrado o el acuse de saldado que sólo
+ * estaba en la absorbida, y destruir la firma de un núcleo. Ahora cada store
+ * declara su regla: las cinco entidades con núcleo van por `mergeByIdLevels`
+ * (rev + colaborativo + LWW con tope); perfiles y personales por
+ * `mergeUsersLWW` (LWW con tope). Si el merge del sync cambia, éste cambia
+ * solo.
  *
  * No borra el scope de origen: si algo sale mal, los datos siguen ahí.
+ * `now` se inyecta: este módulo es puro y no abre `syncedClock`.
+ *
+ * **Ronda 1 del verificador (D1/D2/D3).** «Cada store declara su regla» no
+ * alcanzaba cuando la regla era sólo un `CoreKind`: el sync de varios stores
+ * hace más que el merge desnudo (`expenseStore.mergeExpenses` preserva el
+ * recibo, `groupStore.mergeGroups` preserva el `deletionMode`, `userStore.
+ * mergeUsers` preserva el avatar), y una fusión con `mergeByIdLevels`/
+ * `mergeUsersLWW` a secas se saltea esos pasos. Por eso `ReglaDeFusion` acepta
+ * también la función PURA que cada store exporta (`mergeExpensesPure`,
+ * `mergeGroupsPure`, `mergeUsersPure`, `mergePersonalPure`): es literalmente
+ * la misma función que usa `mergeExpenses`/`mergeGroups`/`mergeUsers`/
+ * `mergeEntries`, así que si el sync le agrega un paso, la fusión lo hereda
+ * sola. Un `CoreKind` sigue aceptado para los stores cuyo sync llama a
+ * `mergeByIdLevels` desnudo y nada más (payment, recurring, comment): ahí
+ * pasar el kind ES pasar la misma función.
  */
 
-type Syncable = { id: string; updatedAt: number };
+export type FusionFn = (current: Syncable[], incoming: Syncable[], now: number) => Syncable[];
+export type ReglaDeFusion = CoreKind | 'lww' | FusionFn;
+export type StoreAFusionar = [storage: SimpleStorage, base: string, regla: ReglaDeFusion];
 
 function scopedKey(base: string, uid: string): string {
   return `${base}::u:${uid}`;
@@ -33,18 +61,15 @@ function readList(storage: SimpleStorage, base: string, uid: string): Syncable[]
   }
 }
 
-/**
- * Une dos listas por id quedándose con el `updatedAt` mayor.
- * Exportada aparte para poder testear la regla sin storage de por medio.
- */
-export function mergeById<T extends Syncable>(base: T[], incoming: T[]): T[] {
-  const out = [...base];
-  for (const inc of incoming) {
-    const i = out.findIndex(x => x.id === inc.id);
-    if (i === -1) out.push(inc);
-    else if (inc.updatedAt > out[i].updatedAt) out[i] = inc;
-  }
-  return out;
+function fusionar(regla: ReglaDeFusion, to: Syncable[], from: Syncable[], now: number): Syncable[] {
+  if (typeof regla === 'function') return regla(to, from, now);
+  if (regla === 'lww') return mergeUsersLWW(to, from, now);
+  return mergeByIdLevels(
+    regla,
+    to as unknown as CoreRecord[typeof regla][],
+    from as unknown as CoreRecord[typeof regla][],
+    now,
+  ) as unknown as Syncable[];
 }
 
 export type MergeReport = {
@@ -56,20 +81,22 @@ export type MergeReport = {
 
 /**
  * Fusiona el scope `fromUid` dentro de `toUid` para cada store indicado.
- * `stores` es una lista de [storage, claveBase] — el llamador decide cuáles,
- * así este módulo no importa los stores y se puede testear aislado.
+ * `stores` es una lista de [storage, claveBase, regla] — el llamador decide
+ * cuáles y con qué regla, así este módulo no importa los stores y se puede
+ * testear aislado.
  */
 export function mergeAccountData(
-  stores: Array<[SimpleStorage, string]>,
+  stores: StoreAFusionar[],
   fromUid: string,
   toUid: string,
+  now: number,
 ): MergeReport {
   const counts: Record<string, number> = {};
   let sourceWasEmpty = true;
 
   if (fromUid === toUid) return { counts, sourceWasEmpty };
 
-  for (const [storage, base] of stores) {
+  for (const [storage, base, regla] of stores) {
     const from = readList(storage, base, fromUid);
     const to = readList(storage, base, toUid);
 
@@ -79,7 +106,7 @@ export function mergeAccountData(
       continue;
     }
 
-    const merged = mergeById(to, from);
+    const merged = fusionar(regla, to, from, now);
     storage.set(scopedKey(base, toUid), JSON.stringify(merged));
     counts[base] = merged.length;
   }

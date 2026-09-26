@@ -1,8 +1,9 @@
-import { mergeAccountData, mergeById } from '../mergeAccountData';
+import { mergeAccountData } from '../mergeAccountData';
 import type { SimpleStorage } from '@/src/utils/createStorage';
 
 const APPLE = 'apple:000123.abc';
 const GOOGLE = 'google:11887766';
+const NOW = 1_000_000; // mayor que todo updatedAt de los fixtures (5, 10, 20)
 
 function fakeStorage(): SimpleStorage & { dump: () => Record<string, string> } {
   const m = new Map<string, string>();
@@ -18,35 +19,13 @@ function fakeStorage(): SimpleStorage & { dump: () => Record<string, string> } {
 
 const g = (id: string, updatedAt: number, name = id) => ({ id, updatedAt, name });
 
-describe('mergeById (regla LWW)', () => {
-  it('agrega los que no estaban', () => {
-    expect(mergeById([g('a', 1)], [g('b', 1)]).map(x => x.id).sort()).toEqual(['a', 'b']);
-  });
-
-  it('ante el mismo id gana el updatedAt mayor', () => {
-    const out = mergeById([g('a', 10, 'viejo')], [g('a', 20, 'nuevo')]);
-    expect(out).toHaveLength(1);
-    expect(out[0].name).toBe('nuevo');
-  });
-
-  it('no pisa con un registro más viejo', () => {
-    const out = mergeById([g('a', 20, 'nuevo')], [g('a', 10, 'viejo')]);
-    expect(out[0].name).toBe('nuevo');
-  });
-
-  it('empate: se queda con el que ya estaba (determinista)', () => {
-    const out = mergeById([g('a', 10, 'base')], [g('a', 10, 'entrante')]);
-    expect(out[0].name).toBe('base');
-  });
-});
-
 describe('mergeAccountData', () => {
   it('EL CASO DEL PO: fusiona dos cuentas con datos propios sin perder nada', () => {
     const st = fakeStorage();
     st.set(`groups::u:${APPLE}`, JSON.stringify([g('g1', 5), g('g2', 5)]));
     st.set(`groups::u:${GOOGLE}`, JSON.stringify([g('g3', 5)]));
 
-    const rep = mergeAccountData([[st, 'groups']], GOOGLE, APPLE);
+    const rep = mergeAccountData([[st, 'groups', 'group']], GOOGLE, APPLE, NOW);
 
     const dest = JSON.parse(st.getString(`groups::u:${APPLE}`)!);
     expect(dest.map((x: any) => x.id).sort()).toEqual(['g1', 'g2', 'g3']);
@@ -58,7 +37,7 @@ describe('mergeAccountData', () => {
     const st = fakeStorage();
     st.set(`groups::u:${GOOGLE}`, JSON.stringify([g('g3', 5)]));
 
-    mergeAccountData([[st, 'groups']], GOOGLE, APPLE);
+    mergeAccountData([[st, 'groups', 'group']], GOOGLE, APPLE, NOW);
 
     expect(st.getString(`groups::u:${GOOGLE}`)).toBeDefined();
   });
@@ -68,7 +47,7 @@ describe('mergeAccountData', () => {
     st.set(`groups::u:${APPLE}`, JSON.stringify([g('g1', 1, 'viejo')]));
     st.set(`groups::u:${GOOGLE}`, JSON.stringify([g('g1', 99, 'nuevo')]));
 
-    mergeAccountData([[st, 'groups']], GOOGLE, APPLE);
+    mergeAccountData([[st, 'groups', 'group']], GOOGLE, APPLE, NOW);
 
     expect(JSON.parse(st.getString(`groups::u:${APPLE}`)!)[0].name).toBe('nuevo');
   });
@@ -77,7 +56,7 @@ describe('mergeAccountData', () => {
     const st = fakeStorage();
     st.set(`expenses::u:${GOOGLE}`, JSON.stringify([g('e1', 5), g('e2', 5)]));
 
-    mergeAccountData([[st, 'expenses']], GOOGLE, APPLE);
+    mergeAccountData([[st, 'expenses', 'expense']], GOOGLE, APPLE, NOW);
 
     expect(JSON.parse(st.getString(`expenses::u:${APPLE}`)!)).toHaveLength(2);
   });
@@ -86,7 +65,7 @@ describe('mergeAccountData', () => {
     const st = fakeStorage();
     st.set(`groups::u:${APPLE}`, JSON.stringify([g('g1', 5)]));
 
-    const rep = mergeAccountData([[st, 'groups']], GOOGLE, APPLE);
+    const rep = mergeAccountData([[st, 'groups', 'group']], GOOGLE, APPLE, NOW);
 
     expect(JSON.parse(st.getString(`groups::u:${APPLE}`)!)).toHaveLength(1);
     expect(rep.sourceWasEmpty).toBe(true);
@@ -97,7 +76,9 @@ describe('mergeAccountData', () => {
     st.set(`groups::u:${GOOGLE}`, JSON.stringify([g('g1', 5)]));
     st.set(`expenses::u:${GOOGLE}`, JSON.stringify([g('e1', 5), g('e2', 5)]));
 
-    const rep = mergeAccountData([[st, 'groups'], [st, 'expenses']], GOOGLE, APPLE);
+    const rep = mergeAccountData(
+      [[st, 'groups', 'group'], [st, 'expenses', 'expense']], GOOGLE, APPLE, NOW,
+    );
 
     expect(rep.counts).toEqual({ groups: 1, expenses: 2 });
   });
@@ -107,7 +88,9 @@ describe('mergeAccountData', () => {
     st.set(`groups::u:${GOOGLE}`, '{roto');
     st.set(`expenses::u:${GOOGLE}`, JSON.stringify([g('e1', 5)]));
 
-    expect(() => mergeAccountData([[st, 'groups'], [st, 'expenses']], GOOGLE, APPLE)).not.toThrow();
+    expect(() => mergeAccountData(
+      [[st, 'groups', 'group'], [st, 'expenses', 'expense']], GOOGLE, APPLE, NOW,
+    )).not.toThrow();
     expect(JSON.parse(st.getString(`expenses::u:${APPLE}`)!)).toHaveLength(1);
   });
 
@@ -115,7 +98,7 @@ describe('mergeAccountData', () => {
     const st = fakeStorage();
     st.set(`groups::u:${APPLE}`, JSON.stringify([g('g1', 5)]));
 
-    mergeAccountData([[st, 'groups']], APPLE, APPLE);
+    mergeAccountData([[st, 'groups', 'group']], APPLE, APPLE, NOW);
 
     expect(JSON.parse(st.getString(`groups::u:${APPLE}`)!)).toHaveLength(1);
   });

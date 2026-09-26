@@ -1,8 +1,13 @@
 import { createSecureStorage, type SecureId } from '@/src/utils/secureStorage';
 import { bucketsAbiertos, createStorage, type SimpleStorage } from '@/src/utils/createStorage';
-import { mergeAccountData, type MergeReport } from './mergeAccountData';
+import { mergeAccountData, type MergeReport, type ReglaDeFusion, type StoreAFusionar } from './mergeAccountData';
+import { syncedNow } from '@/src/utils/syncedClock';
 import { AUTH_KEYS } from './authKeys';
 import { mergeProviderUser } from '@/src/utils/mergeProviderUser';
+import { mergeExpensesPure } from './mergeExpensesPure';
+import { mergeGroupsPure } from './mergeGroupsPure';
+import { mergeUsersPure } from './mergeUsersPure';
+import { mergePersonalPure } from './mergePersonalPure';
 import { K_INVITES, K_PENDING, K_CONTACT_INVITES, K_CONTACT_PENDING } from './identityStore';
 import type { User } from '@/src/types/models';
 import type { GroupInvite } from '@/src/sync/groupInvite';
@@ -25,7 +30,22 @@ import type { ContactInvite } from '@/src/sync/contactInvite';
  * registros, así que los movimientos personales y el presupuesto de la cuenta
  * absorbida desaparecían en silencio. Se fusiona aparte, en `mergePersonal()`.
  */
-const MERGEABLE_STORES = ['groups', 'expenses', 'payments', 'users', 'recurring', 'comments'] as const;
+/**
+ * Qué stores fusiona `mergeAccounts` y con qué regla (T-149): la misma que usa
+ * su store en el sync — literalmente la misma función cuando el sync hace algo
+ * más que el merge desnudo (`groups`, `expenses`, `users`; D1/D2 verifier), y
+ * el mismo `CoreKind` cuando el sync de ese store llama a `mergeByIdLevels` sin
+ * ningún paso propio alrededor (`payments`, `recurring`, `comments`: pasar el
+ * kind ES pasar la misma función, ver `mergeAccountData.ts`).
+ */
+const MERGEABLE_STORES = [
+  ['groups', mergeGroupsPure as unknown as ReglaDeFusion],
+  ['expenses', mergeExpensesPure as unknown as ReglaDeFusion],
+  ['payments', 'payment'],
+  ['users', mergeUsersPure as unknown as ReglaDeFusion],
+  ['recurring', 'recurring'],
+  ['comments', 'comment'],
+] as const satisfies readonly (readonly [string, ReglaDeFusion])[];
 
 const DATA_KEY = 'data_v1';
 const INBOX_MAX = 200;
@@ -91,7 +111,7 @@ const SUFIJO = '::u:';
 
 
 // Las ranuras, en el mismo orden en que la fusión las toca.
-for (const name of MERGEABLE_STORES) ranura(name, DATA_KEY);
+for (const [name] of MERGEABLE_STORES) ranura(name, DATA_KEY);
 const kPersonalEntries = ranura('personal', 'entries_v1');
 const kPersonalBudget  = ranura('personal', 'budget_v1');
 const kGroupKeys       = ranura('groupkeys', DATA_KEY);
@@ -131,14 +151,16 @@ const kContactPending = ranura('groupkeys', K_CONTACT_PENDING);
 
 /**
  * Fusiona TODOS los datos de `fromAccountId` dentro de `toAccountId`.
- * Unión con LWW por `updatedAt`; no borra el origen.
+ * Cada store se fusiona con SU regla — la misma función que usa al
+ * sincronizar, no un LWW genérico (T-149) — y no borra el origen.
  */
 export function mergeAccounts(fromAccountId: string, toAccountId: string): MergeReport {
-  const stores = MERGEABLE_STORES.map(
-    name => [createSecureStorage(name), DATA_KEY] as [ReturnType<typeof createSecureStorage>, string],
+  const now = syncedNow();
+  const stores: StoreAFusionar[] = MERGEABLE_STORES.map(
+    ([name, regla]) => [createSecureStorage(name), DATA_KEY, regla],
   );
-  const report = mergeAccountData(stores, fromAccountId, toAccountId);
-  mergePersonal(fromAccountId, toAccountId, report);
+  const report = mergeAccountData(stores, fromAccountId, toAccountId, now);
+  mergePersonal(fromAccountId, toAccountId, report, now);
   mergeGroupKeys(fromAccountId, toAccountId);
   mergeArchived(fromAccountId, toAccountId);
   mergeNotices(fromAccountId, toAccountId);
@@ -642,12 +664,20 @@ function mergeContactPeers(fromAccountId: string, toAccountId: string): void {
 /**
  * Movimientos personales y presupuesto. Van aparte porque `personalStore` no usa
  * la clave `data_v1` de los demás.
+ *
+ * Regla `mergePersonalPure` (T-149 · D3 verifier): LWW simple, la misma que usa
+ * `personalStore.mergeEntries` — SIN el tope de reloj de `mergeUsersLWW`, que
+ * era lo que estaba acá antes y descartaba en silencio un movimiento con
+ * `updatedAt` adelantado. El tope para `personal` es T-171, fuera de alcance.
  */
-function mergePersonal(fromAccountId: string, toAccountId: string, report: MergeReport): void {
+function mergePersonal(fromAccountId: string, toAccountId: string, report: MergeReport, now: number): void {
   if (fromAccountId === toAccountId) return;
   const storage = createSecureStorage('personal');
 
-  const sub = mergeAccountData([[storage, 'entries_v1']], fromAccountId, toAccountId);
+  const sub = mergeAccountData(
+    [[storage, 'entries_v1', mergePersonalPure as unknown as ReglaDeFusion]],
+    fromAccountId, toAccountId, now,
+  );
   report.counts.personal = sub.counts['entries_v1'] ?? 0;
   if (!sub.sourceWasEmpty) report.sourceWasEmpty = false;
 
@@ -710,13 +740,13 @@ function mergeProfiles(fromAccountId: string, toAccountId: string): void {
  * mismo basename en carpetas distintas compartirían declaración sin que se note.
  */
 export const COBERTURA_FUSION: Record<string, string> = {
-  'store/groupStore':     'fusionado (MERGEABLE_STORES · groups/data_v1)',
-  'store/expenseStore':   'fusionado (MERGEABLE_STORES · expenses/data_v1)',
-  'store/paymentStore':   'fusionado (MERGEABLE_STORES · payments/data_v1)',
-  'store/userStore':      'fusionado (MERGEABLE_STORES · users/data_v1)',
-  'store/recurringStore': 'fusionado (MERGEABLE_STORES · recurring/data_v1)',
-  'store/commentStore':   'fusionado (MERGEABLE_STORES · comments/data_v1)',
-  'store/personalStore':  'aparte · mergePersonal (usa entries_v1 + budget_v1, no data_v1)',
+  'store/groupStore':     'fusionado (MERGEABLE_STORES · groups/data_v1 · regla: mergeGroupsPure, la misma función que mergeGroups — por niveles + deletionMode preservado)',
+  'store/expenseStore':   'fusionado (MERGEABLE_STORES · expenses/data_v1 · regla: mergeExpensesPure, la misma función que mergeExpenses — por niveles + recibo preservado)',
+  'store/paymentStore':   'fusionado (MERGEABLE_STORES · payments/data_v1 · regla: por niveles, mergeByIdLevels desnudo — igual que mergePayments)',
+  'store/userStore':      'fusionado (MERGEABLE_STORES · users/data_v1 · regla: mergeUsersPure, la misma función que mergeUsers — LWW con tope + avatar preservado)',
+  'store/recurringStore': 'fusionado (MERGEABLE_STORES · recurring/data_v1 · regla: por niveles, mergeByIdLevels desnudo — igual que mergeRecurring)',
+  'store/commentStore':   'fusionado (MERGEABLE_STORES · comments/data_v1 · regla: por niveles, mergeByIdLevels desnudo — igual que mergeComments)',
+  'store/personalStore':  'aparte · mergePersonal (usa entries_v1 + budget_v1, no data_v1; regla: mergePersonalPure, la misma función que mergeEntries — LWW sin tope, T-171 fuera de alcance)',
   'store/groupKeyStore':  'aparte · mergeGroupKeys (es {groupId,key,epoch}, sin id/updatedAt; gana la época mayor)',
   'store/archiveStore':   'aparte · mergeArchived (string[] bajo archived_v1, en el bucket groups; unión)',
   'store/settingsStore':  'aparte · mergeSettings (preferencias, no datos)',

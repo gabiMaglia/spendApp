@@ -234,12 +234,17 @@ describe('guard: quién usa qué merge', () => {
   const conNucleo = [...modelos.matchAll(/export interface (\w+) extends [^{]*CoreSigned/g)]
     .map(m => m[1]!);
 
+  // T-149: `Expense` y `Group` extrajeron su merge puro a un módulo propio
+  // (`mergeExpensesPure.ts`/`mergeGroupsPure.ts`) para que `accountLink`
+  // pueda reutilizarlo sin arrastrar `relayEngine` (ver el docblock de esos
+  // archivos). El store sigue llamando a esa MISMA función — el guard mira el
+  // módulo donde vive la llamada real, no el store en sí.
   const STORE_DE: Record<string, string> = {
-    Expense: 'expenseStore.ts',
+    Expense: 'mergeExpensesPure.ts',
     Payment: 'paymentStore.ts',
     ExpenseComment: 'commentStore.ts',
     RecurringExpense: 'recurringStore.ts',
-    Group: 'groupStore.ts',
+    Group: 'mergeGroupsPure.ts',
   };
 
   it('las entidades firmables son las cinco que el plan enumera', () => {
@@ -258,15 +263,18 @@ describe('guard: quién usa qué merge', () => {
   });
 
   it('los que NO tienen núcleo siguen con el LWW liso', () => {
-    const personal = readFileSync(resolve(__dirname, '..', 'personalStore.ts'), 'utf8');
+    // T-149: la llamada vive en `mergePersonalPure.ts`, que `personalStore.ts`
+    // importa — misma razón que Expense/Group arriba.
+    const personal = readFileSync(resolve(__dirname, '..', 'mergePersonalPure.ts'), 'utf8');
     expect(personal).toContain('mergeByIdLWW');
 
     // userStore.ts (T-137, ADR-012): sigue en la familia LWW lisa — nunca pasa
     // a `mergeByIdLevels` — pero ya no llama al genérico `mergeByIdLWW`
     // directo: usa `mergeUsersLWW`, que le agrega el tope de reloj
     // (`TOLERANCIA_RELOJ_MS`) y por abajo sigue desempatando con
-    // `incomingWins` de `lww.ts`.
-    const user = readFileSync(resolve(__dirname, '..', 'userStore.ts'), 'utf8');
+    // `incomingWins` de `lww.ts`. T-149 movió la llamada a `mergeUsersPure.ts`,
+    // que `userStore.ts` importa — misma razón que arriba.
+    const user = readFileSync(resolve(__dirname, '..', 'mergeUsersPure.ts'), 'utf8');
     expect(user).toContain('mergeUsersLWW');
     expect(user).not.toContain('mergeByIdLevels');
   });

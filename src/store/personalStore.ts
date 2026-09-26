@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { readScoped, writeScoped } from './userScope';
-import { mergeByIdLWW } from './lww';
+import { mergePersonalPure } from './mergePersonalPure';
 import { migratePersonalBudgetAmount, migratePersonalEntryAmounts } from './moneyMigration';
 import type { PersonalEntry, PersonalBudget } from '@/src/types/models';
 import { syncedNow } from '@/src/utils/syncedClock';
@@ -96,7 +96,7 @@ export const usePersonalStore = create<PersonalStoreState>((set, get) => ({
   // LWW merge por updatedAt (para import de backup / sync). Mismo patrón que
   // expenseStore.mergeExpenses: gana el registro con mayor updatedAt.
   mergeEntries: (incoming) => {
-    const merged = mergeByIdLWW(get().entries, incoming);
+    const merged = mergePersonalPure(get().entries, incoming);
     persistEntries(merged);
     set({ entries: merged });
   },
