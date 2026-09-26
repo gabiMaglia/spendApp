@@ -5,6 +5,7 @@ import { nombreDeGrupoEnConflicto, type KeyConflictNotice, type Notice } from '.
 import { useNoticeInboxStore } from '@/src/store/noticeInboxStore';
 import { claveDeFalloDeSync } from '@/src/sync/publishHealth';
 import { MAX_MIEMBROS } from '@/src/sync/topes';
+import { yaSeAviso, marcarAvisado } from './noticeDedupe';
 
 /**
  * Entrega de notificaciones locales (T-010).
@@ -164,6 +165,11 @@ export function isEnabled(notice: Notice): boolean {
     case 'group_replaced': return s.notifInvites;
     // T-150 ronda 2/5: es sobre una invitación, mismo dominio que las de arriba.
     case 'group_invite_full': return s.notifInvites;
+    // T-172 (ítem 2): es sobre el mismo ingreso por link, mismo dominio.
+    case 'join_claim_stalled': return s.notifInvites;
+    // T-172 (ítem 3): es sobre a qué grupo pertenecés de ahora en más, mismo
+    // dominio que `group_replaced` (T-058).
+    case 'group_traspaso_recurring_blocked': return s.notifInvites;
   }
 }
 
@@ -245,6 +251,16 @@ export function textFor(notice: Notice): { title: string; body: string } {
       return {
         title: t('notifications.invite_full_title', { group: notice.groupName }),
         body: t('notifications.invite_full_body', { max: MAX_MIEMBROS }),
+      };
+    case 'join_claim_stalled':
+      return {
+        title: t('notifications.join_stalled_title'),
+        body: t('notifications.join_stalled_body', { group: notice.groupName }),
+      };
+    case 'group_traspaso_recurring_blocked':
+      return {
+        title: t('notifications.traspaso_recurring_blocked_title', { group: notice.groupName }),
+        body: t('notifications.traspaso_recurring_blocked_body'),
       };
   }
 }
@@ -334,12 +350,48 @@ export async function announceKeyConflict(notice: KeyConflictNotice): Promise<nu
  * LEER), acá el dedupe es por invitación y para siempre — leído o no —
  * porque «alguien intentó entrar y no entró» es una sola historia, no una
  * por sync.
+ *
+ * **T-172 (ítem 6): el dedupe vive en `noticeDedupe.ts`, no en los ítems de
+ * la bandeja.** Mirar `noticeInboxStore` se rompía si el aviso original se
+ * desalojaba de su tope de 200 (T-150 ronda 3 lo documentó como residual
+ * aceptado); el dedupe persistido aparte no tiene ese problema.
  */
 export async function announceInviteFull(groupId: string, groupName: string, inviteToken: string): Promise<number> {
-  const yaHay = useNoticeInboxStore.getState().items.some(i =>
-    i.notice.kind === 'group_invite_full'
-    && i.notice.groupId === groupId
-    && i.notice.inviteToken === inviteToken);
-  if (yaHay) return 0;
+  const clave = `group_invite_full|${groupId}|${inviteToken}`;
+  if (yaSeAviso(clave)) return 0;
+  marcarAvisado(clave);
   return announce([{ kind: 'group_invite_full', groupId, groupName, inviteToken }]);
+}
+
+/**
+ * Avisa al invitado que su reclamo de ingreso nunca cerró (T-172, ítem 2).
+ *
+ * `processAllInvites` reintenta en silencio en cada sync (apertura, primer
+ * plano, cada 15 min): si `admit()` sigue rechazando —identidad no pinneada,
+ * tope de miembros, canje de otra persona— el invitado se queda esperando
+ * hasta que la invitación expira a las 48hs, sin ningún indicio de que algo
+ * anda mal. Se avisa UNA vez por invitación (mismo dedupe persistido que
+ * `announceInviteFull`, del otro lado del mismo intercambio) — no hay nada
+ * que reintentar más rápido, y repetirlo en cada sync sería la misma clase
+ * de ruido que T-150 evitó para quien invita.
+ */
+export async function announceJoinStalled(groupId: string, groupName: string, inviteToken: string): Promise<number> {
+  const clave = `join_claim_stalled|${inviteToken}`;
+  if (yaSeAviso(clave)) return 0;
+  marcarAvisado(clave);
+  return announce([{ kind: 'join_claim_stalled', groupId, groupName, inviteToken }]);
+}
+
+/**
+ * Avisa que un traspaso de grupo (T-058) dejó una o más recurrentes SIN
+ * mover, bloqueadas por falta de firma (T-172, ítem 3; residual de T-152
+ * ronda 2, D2 aplicado acá). Sin dedupe persistido: cada traspaso es un
+ * evento propio que ocurre una sola vez, a diferencia de una invitación que
+ * se relee en cada sync — el llamador (`groupTraspaso.ts`) ya agrupa todas
+ * las plantillas bloqueadas de un mismo traspaso en un solo llamado.
+ */
+export async function announceRecurringTraspasoBlocked(
+  groupId: string, groupName: string, newGroupId: string,
+): Promise<number> {
+  return announce([{ kind: 'group_traspaso_recurring_blocked', groupId, groupName, newGroupId }]);
 }

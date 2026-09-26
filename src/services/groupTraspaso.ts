@@ -12,6 +12,7 @@ import { announceGroupToContacts } from '@/src/sync/relayEngine';
 import { syncedNow } from '@/src/utils/syncedClock';
 import { pagosQueCuentan } from '@/src/algorithms/settlementStatus';
 import { truncar, MAX_TEXTO_CORTO } from '@/src/sync/topes';
+import { announceRecurringTraspasoBlocked } from './notifications';
 
 /**
  * Siguiente nombre disponible para un traspaso repetido (Important #5a,
@@ -119,10 +120,24 @@ export function traspasarGrupo(grupoViejo: Group, description: string, createdBy
   // dejan de materializar ahí (guard de `session.ts`). Sin esto, "alquiler",
   // "internet", etc. se congelarían para siempre en vez de seguir generando
   // gastos en el grupo nuevo — que es adonde el usuario se mudó.
+  //
+  // T-172 (ítem 3, residual de T-152 ronda 2): `updateRecurring` puede
+  // BLOQUEAR el movimiento (devuelve `false`) si el núcleo ya estaba firmado
+  // y este aparato no pudo re-firmarlo (sin clave privada, mismo mecanismo
+  // que una edición de gasto — T-152 · D2). Antes eso sólo dejaba rastro en
+  // `errorLog`: la plantilla quedaba congelada en el grupo archivado sin que
+  // nadie lo viera. Se avisa UNA vez por traspaso, agregando todas las
+  // plantillas bloqueadas — no una por plantilla, que sería la misma clase de
+  // ruido que T-150 evitó del lado de quien invita.
+  let algunaRecurrenteBloqueada = false;
   for (const r of useRecurringStore.getState().recurring) {
     if (r.groupId === grupoViejo.id) {
-      useRecurringStore.getState().updateRecurring(r.id, { groupId: grupoNuevo.id });
+      const movida = useRecurringStore.getState().updateRecurring(r.id, { groupId: grupoNuevo.id });
+      if (!movida) algunaRecurrenteBloqueada = true;
     }
+  }
+  if (algunaRecurrenteBloqueada) {
+    void announceRecurringTraspasoBlocked(grupoViejo.id, grupoViejo.name, grupoNuevo.id);
   }
 
   return grupoNuevo;

@@ -386,6 +386,8 @@ describe('esAccionable (T-062)', () => {
       joined: esAccionable('joined'),
       group_replaced: esAccionable('group_replaced'),
       group_invite_full: esAccionable('group_invite_full'),
+      join_claim_stalled: esAccionable('join_claim_stalled'),
+      group_traspaso_recurring_blocked: esAccionable('group_traspaso_recurring_blocked'),
     };
     expect(clasificacion).toEqual({
       // `clock_off` es accionable aunque lo que hay que hacer esté FUERA de la
@@ -394,10 +396,15 @@ describe('esAccionable (T-062)', () => {
       deletion: true, settlement_pending: true, sync_down: true, clock_off: true,
       // T-136: leerlo no lo resuelve — hay que elegir una clave.
       group_key_conflict: true,
+      // T-172 (ítem 2): mismo criterio que `clock_off` — hay algo que hacer,
+      // aunque sea fuera de la app (pedir un link nuevo).
+      join_claim_stalled: true,
       // T-058: el traspaso ya se aplicó, no hay nada que aprobar u objetar.
       expenses: false, settled: false, restored: false, joined: false, group_replaced: false,
       // T-150 ronda 2/5: el reclamo ya fue rechazado, no hay nada que resolver.
       group_invite_full: false,
+      // T-172 (ítem 3): el traspaso del resto ya se aplicó, no hay nada que aprobar.
+      group_traspaso_recurring_blocked: false,
     });
   });
 });
