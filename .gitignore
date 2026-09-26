@@ -38,6 +38,14 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
+# builds locales (se generan con eas build/expo run, no van al repo)
+*.aab
+*.apk
+*.ipa
+
+# reportes de cobertura de Jest
+coverage/
+
 app-example
 
 # generated native folders

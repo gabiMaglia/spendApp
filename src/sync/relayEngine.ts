@@ -574,18 +574,15 @@ async function reenviarClavesDeGrupo(): Promise<void> {
   if (!me) return;
 
   const ids = syncableGroupIds();
-  console.log('[DIAG reenviarClavesDeGrupo] syncableGroupIds=', JSON.stringify(ids));
   for (const groupId of ids) {
     const group = useGroupStore.getState().getById(groupId);
-    console.log('[DIAG reenviarClavesDeGrupo] group=', groupId, 'existe=', !!group, 'members=', JSON.stringify(group?.memberIds));
     if (!group) continue;
 
     for (const memberId of group.memberIds) {
       if (memberId === me.id) continue;
       try {
-        const ok = await sendGroupKey(memberId, group, deviceId());
-        console.log('[DIAG reenviarClavesDeGrupo] sendGroupKey a', memberId, '=', ok);
-      } catch (e) { console.log('[DIAG reenviarClavesDeGrupo] THREW', String(e)); }
+        await sendGroupKey(memberId, group, deviceId());
+      } catch { /* reintento futuro, no hay nada que hacer con el error aca */ }
     }
   }
 }

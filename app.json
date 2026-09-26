@@ -15,7 +15,7 @@
       "associatedDomains": ["applinks:spendapp.github.io"],
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Usamos tu galería de fotos para elegir tu foto de perfil.",
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": true
       },
       "privacyManifests": {
         "NSPrivacyCollectedDataTypes": [
@@ -50,6 +50,7 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
+      "allowBackup": false,
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_MEDIA_IMAGES",
