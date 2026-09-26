@@ -1,11 +1,11 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { FondoMarmol } from '@/src/components/FondoMarmol';
-import { useColors } from '@/src/skins/useSkin';
+import { MarmolPill } from '@/src/components/skin/MarmolPill';
+import { useSkinTokens } from '@/src/skins/useSkin';
 
 /**
  * **La fila "Contactos (N)" — chip con mármol** (PO 2026-09-22, corrige el
@@ -17,23 +17,29 @@ import { useColors } from '@/src/skins/useSkin';
  * (más espaciado y tenue) para no repetir la foto exacta del header/Movimientos.
  */
 export function ContactsCountHeader({ count }: { count: number }) {
-  const c = useColors();
+  const skin = useSkinTokens();
+  const c = skin.colors;
   const { t } = useTranslation();
+  // Aero: píldora con borde, como Movimientos. Clásico: la franja de siempre.
+  const extra = skin.flags.soft
+    ? {
+        paddingTop: skin.space.gapInline, paddingBottom: skin.space.gapInline,
+        borderWidth: 1, borderColor: c.hair, borderTopColor: c.hair,
+      }
+    : { paddingTop: Spacing[8], borderBottomWidth: 1, borderBottomColor: c.hair };
   return (
-    <View testID="contactos-count-header" style={[styles.countHeader, { borderBottomColor: c.hair }]}>
-      <FondoMarmol patron="distendida" />
+    <MarmolPill testID="contactos-count-header" patron="distendida" style={[styles.countHeader, extra]}>
       <Text style={[Typography.label, styles.countBold, { color: c.textTertiary }]}>
         {t('friends.contacts_count', { count })}
       </Text>
-    </View>
+    </MarmolPill>
   );
 }
 
 const styles = StyleSheet.create({
   countHeader: {
     overflow: 'hidden',
-    paddingHorizontal: Spacing.screenPad, paddingTop: Spacing[8], paddingBottom: 9,
-    borderBottomWidth: 1,
+    paddingHorizontal: Spacing.screenPad, paddingBottom: 9,
   },
   countBold: { fontWeight: '800' },
 });

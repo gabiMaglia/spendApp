@@ -1,10 +1,10 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 
 import { Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { FondoMarmol } from '@/src/components/FondoMarmol';
-import { useColors } from '@/src/skins/useSkin';
+import { MarmolPill } from '@/src/components/skin/MarmolPill';
+import { useSkinTokens } from '@/src/skins/useSkin';
 
 /**
  * **Separador de temporalidad ("Hoy"/"Ayer"/"Antes") con mármol** (PO
@@ -19,18 +19,24 @@ export const SECTION_HEADER_TOP = 22;
 export function ActivitySectionHeader({
   label, topOverride, right,
 }: { label: string; topOverride?: number; right?: React.ReactNode }) {
-  const c = useColors();
+  const skin = useSkinTokens();
+  const c = skin.colors;
+  // Aero (PO 2026-09-26): píldora de mármol con borde, igual que la de
+  // Movimientos; el aire de arriba lo pone la píldora. Clásico: la franja de
+  // siempre (MarmolPill no-soft = View + FondoMarmol).
+  const extra = skin.flags.soft
+    ? {
+        paddingTop: skin.space.gapInline, paddingBottom: skin.space.gapInline,
+        borderWidth: 1, borderColor: c.hair, borderTopColor: c.hair,
+      }
+    : { borderBottomWidth: 1, borderBottomColor: c.hair, paddingTop: topOverride ?? SECTION_HEADER_TOP };
   return (
-    <View style={[
-      styles.sectionHeader,
-      { borderBottomColor: c.hair, paddingTop: topOverride ?? SECTION_HEADER_TOP },
-    ]}>
-      <FondoMarmol patron="franja" />
+    <MarmolPill patron="franja" style={[styles.sectionHeader, extra]}>
       <Text style={[Typography.label, styles.sectionHeaderBold, { color: c.textTertiary }]}>
         {label}
       </Text>
       {right}
-    </View>
+    </MarmolPill>
   );
 }
 
@@ -39,7 +45,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     overflow: 'hidden',
     paddingHorizontal: Spacing.screenPad, paddingTop: SECTION_HEADER_TOP, paddingBottom: 9,
-    borderBottomWidth: 1,
   },
   sectionHeaderBold: { fontWeight: '800' },
 });
