@@ -2,6 +2,7 @@ import { canonical, type Syncable } from './lww';
 import { canonicalCore, coreFieldsOf, type CoreKind, type CoreRecord } from '@/src/sync/recordCore';
 import { mergeDeletionVoteSets } from '@/src/sync/SyncEngine';
 import { mergeApprovals } from '@/src/algorithms/leaveRequest';
+import { envenenado } from './relojDelMerge';
 import type { DeletionVote, LeaveRequest, SettlementConfirmation } from '@/src/types/models';
 
 /**
@@ -23,7 +24,9 @@ import type { DeletionVote, LeaveRequest, SettlementConfirmation } from '@/src/t
  * 2. **Colaborativo** — `deletionVotes` y `leaveRequest.approvedBy`. Son
  *    aportes de gente distinta: no se eligen, se unen.
  * 3. **El resto** — `updatedAt`, `isDeleted`, el nombre del grupo, el URI local
- *    del recibo. Sigue siendo LWW por `updatedAt`, exactamente como hoy.
+ *    del recibo. Sigue siendo LWW por `updatedAt`, exactamente como hoy, con el
+ *    tope de reloj de T-144: un `updatedAt` más de `TOLERANCIA_RELOJ_MS` en el
+ *    futuro no gana.
  *
  * **Esto no reemplaza el LWW: le saca una responsabilidad que nunca pudo
  * sostener.** `updatedAt` sigue ordenando la escritura, sigue filtrando el
@@ -191,10 +194,18 @@ export function coreWins<K extends CoreKind>(
   return canonicalCore(kind, incoming) > canonicalCore(kind, current);
 }
 
-/** ¿Gana el RESTO entrante? Es el LWW de siempre, sobre los campos que le quedan. */
+/**
+ * ¿Gana el RESTO entrante? Es el LWW de siempre, sobre los campos que le
+ * quedan — con el tope de reloj de T-144 (SEC-02): un `updatedAt` que no pudo
+ * haber pasado todavía no gana el desempate, y un local que ya quedó así
+ * pierde contra cualquier entrante plausible. Sin esto, `isDeleted: true` con
+ * `9e15` era un tombstone permanente que ninguna edición honesta revertía.
+ */
 function restoWins<K extends CoreKind>(
-  kind: K, incoming: CoreRecord[K], current: CoreRecord[K],
+  kind: K, incoming: CoreRecord[K], current: CoreRecord[K], now: number,
 ): boolean {
+  if (envenenado(incoming.updatedAt, now)) return false;
+  if (envenenado(current.updatedAt, now)) return true;
   if (incoming.updatedAt !== current.updatedAt) {
     return incoming.updatedAt > current.updatedAt;
   }
@@ -202,12 +213,17 @@ function restoWins<K extends CoreKind>(
        > canonical(restoDe(kind, current as unknown as Registro));
 }
 
-/** Une dos versiones del MISMO registro, nivel por nivel. */
+/**
+ * Une dos versiones del MISMO registro, nivel por nivel.
+ *
+ * `now` se inyecta (nunca `syncedClock` acá): el merge es puro y corre en tests
+ * sin almacenamiento nativo. Los stores le pasan `syncedNow()` por default.
+ */
 export function mergeRecord<K extends CoreKind>(
-  kind: K, current: CoreRecord[K], incoming: CoreRecord[K],
+  kind: K, current: CoreRecord[K], incoming: CoreRecord[K], now: number,
 ): CoreRecord[K] {
   const ganaNucleo = coreWins(kind, incoming, current) ? incoming : current;
-  const ganaResto  = restoWins(kind, incoming, current) ? incoming : current;
+  const ganaResto  = restoWins(kind, incoming, current, now) ? incoming : current;
 
   const cur = current as unknown as Registro;
   const inc = incoming as unknown as Registro;
@@ -254,7 +270,7 @@ export function mergeRecord<K extends CoreKind>(
  * económico ni firma, así que no hay niveles que separar.
  */
 export function mergeByIdLevels<K extends CoreKind>(
-  kind: K, current: readonly CoreRecord[K][], incoming: readonly CoreRecord[K][],
+  kind: K, current: readonly CoreRecord[K][], incoming: readonly CoreRecord[K][], now: number,
 ): CoreRecord[K][] {
   const out = [...current];
   const indexById = new Map<string, number>(
@@ -265,10 +281,15 @@ export function mergeByIdLevels<K extends CoreKind>(
     const id = (inc as unknown as Syncable).id;
     const i = indexById.get(id);
     if (i === undefined) {
+      // Un id nuevo con `updatedAt` envenenado no entra (T-144): si entrara,
+      // nada plausible podría pisarlo después. Mismo criterio que
+      // `mergeUsersLWW`. No es un descarte de datos —nadie lo persiste— sino
+      // el mismo "no gana" que arriba, aplicado a un local que no existe.
+      if (envenenado(inc.updatedAt, now)) continue;
       indexById.set(id, out.length);
       out.push(inc);
     } else {
-      out[i] = mergeRecord(kind, out[i]!, inc);
+      out[i] = mergeRecord(kind, out[i]!, inc, now);
     }
   }
   return out;
