@@ -577,8 +577,30 @@ async function releerTodo(): Promise<void> {
       await drainContactsNow();
       await drainAll();
       await processAllContactInvites(deviceId());
+      await reintentarPublicacionesConCuota();
     } catch { /* offline: se reintenta en la próxima vuelta */ }
   })(), STARTUP_TIMEOUT_MS, undefined);
+}
+
+/**
+ * Verifier D4: `rate_limited` es no bloqueante a propósito (H6 — no se
+ * muestra nada, igual que `network`), pero "no bloqueante" no puede
+ * significar "se pierde". Sin esto, una rebanada rechazada por la cuota se
+ * queda cortada hasta que el usuario vuelva a tocar ESE grupo (comentario
+ * viejo de `publishNow`: "se reintentará en el próximo cambio"), que puede no
+ * pasar nunca — los peers se quedan sin ver algo que el dueño cree que ya
+ * mandó.
+ *
+ * El poll (cada `POLL_INTERVAL_MS`) ya corre igual; reintentar acá los grupos
+ * con un `rate_limited` pendiente no agrega tráfico nuevo mientras todo va
+ * bien (la lista sale vacía) y, cuando hay algo pendiente, manda como máximo
+ * UN intento por grupo por vuelta — bien por debajo de cualquier cuota.
+ */
+async function reintentarPublicacionesConCuota(): Promise<void> {
+  for (const f of publishFailures()) {
+    if (f.reason !== 'rate_limited') continue;
+    await publishNow(f.groupId);
+  }
 }
 
 /**
@@ -633,10 +655,36 @@ export async function anunciarMiTarjeta(): Promise<void> {
  * conocíamos las públicas del otro, la entrega no salió y NADA volvía a
  * dispararla. Adoptar una clave que ya se tiene es un no-op, así que repetirlo
  * no cuesta nada más que unos pocos bytes por arranque.
+ *
+ * **Verifier D4: cooldown contra la cuota (20 sobres/min, 011a).** Esto corre
+ * en CADA `startRelay()`, y este mismo ticket agrega reinicios nuevos (D1/D2:
+ * el motor se reinicia entero si la sesión cambió entre vueltas). Sin freno,
+ * un grupo de M miembros manda M-1 sobres por reinicio — con varios grupos
+ * medianos y dos o tres reinicios seguidos durante un login normal (sesión
+ * `none` → anónima → identidad), el total puede acercarse o pasar la cuota
+ * SÓLO con esto, sin que el usuario haya tocado nada.
+ *
+ * Medido (peor caso realista, sin cooldown): 5 grupos de 8 miembros cada uno
+ * = 5 × 7 = 35 sobres por `startRelay()`. Dos reinicios en el mismo minuto
+ * (nada raro durante un login) ⇒ 70 sobres/min, **por encima** de las 20/min
+ * de `relay_quota_config`. El cooldown de acá lo acota a UN reenvío real cada
+ * `REENVIO_CLAVES_COOLDOWN_MS`, sea cual sea la cantidad de reinicios: no
+ * cuesta nada perderse un reintento en ese lapso — el mismo reenvío se hace
+ * de nuevo apenas se cumple.
  */
+const REENVIO_CLAVES_COOLDOWN_MS = 5 * 60_000;
+let ultimoReenvioClaves = 0;
+
+/** Sólo tests. */
+export function __resetReenvioClaves(): void {
+  ultimoReenvioClaves = 0;
+}
+
 async function reenviarClavesDeGrupo(): Promise<void> {
   const me = useAuthStore.getState().currentUser;
   if (!me) return;
+  if (Date.now() - ultimoReenvioClaves < REENVIO_CLAVES_COOLDOWN_MS) return;
+  ultimoReenvioClaves = Date.now();
 
   const ids = syncableGroupIds();
   for (const groupId of ids) {

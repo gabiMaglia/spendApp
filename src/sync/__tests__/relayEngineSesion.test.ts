@@ -47,7 +47,7 @@ jest.mock('../contactChannel', () => ({
 }));
 jest.mock('../contactInviteEngine', () => ({ processAllContactInvites: jest.fn(async () => false) }));
 
-import { startRelay, stopRelay, POLL_INTERVAL_MS } from '../relayEngine';
+import { startRelay, stopRelay, POLL_INTERVAL_MS, __resetReenvioClaves } from '../relayEngine';
 import { sinSesionDeSync, __resetSessionStatus } from '../sessionStatus';
 import { recordPublish, publishFailures, clearPublishFailures } from '../publishHealth';
 import { useAuthStore } from '@/src/store/authStore';
@@ -99,6 +99,7 @@ beforeEach(() => {
   mockSendGroupKey.mockClear();
   clearPublishFailures();
   __resetSessionStatus();
+  __resetReenvioClaves();
 });
 
 afterEach(() => {
