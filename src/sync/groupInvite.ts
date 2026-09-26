@@ -69,9 +69,17 @@ export type GroupInvite = {
    * (T-151 · SEC-06). Ata el reintento al MISMO reclamante: si vuelve a
    * verse el mismo `claimedBy` con esta misma wrap, es él reintentando —el
    * envío anterior se perdió— y se re-entrega aunque ya figure como miembro.
-   * Con otra wrap, no es él: es alguien más con el link. Opcional y
-   * retrocompatible: una invitación vieja sin este campo se comporta como
-   * antes de T-151.
+   * Con otra wrap, no es él: es alguien más con el link.
+   *
+   * Opcional, pero NO retrocompatible en el sentido de "se comporta como
+   * antes de T-151" (observación O2, verificador ronda 2): un canje hecho con
+   * un build viejo (sin este campo) cuya entrega falló, y cuyo reintento ya
+   * corre en un build con T-151, NO se re-entrega — cae al chequeo de lo
+   * pinneado (`getPeer`) y lo rechaza, porque un invitado nuevo nunca pasó por
+   * ahí. Antes de T-151 sí se re-entregaba (no había chequeo de miembro en
+   * `admit`). Es un caso residual, acotado por el TTL de 48hs de la
+   * invitación, y falla cerrado — la opción segura frente a re-entregar sin
+   * poder confirmar que es el mismo reclamante.
    */
   claimedWrapKey?: string;
 };
