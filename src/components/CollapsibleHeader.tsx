@@ -8,6 +8,9 @@ import { Colors } from '@/src/constants/colors';
 import { Spacing } from '@/src/constants/spacing';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { FondoMarmol } from '@/src/components/FondoMarmol';
+import { useSkinTokens } from '@/src/skins/useSkin';
+import { HeaderAero, fondoBarraAero } from '@/src/components/skin/HeaderAero';
+import { RECORRIDO_AERO } from '@/src/components/skin/headerAeroGeometria';
 import { HEADER_BAR_H, TITLE_BOTTOM_GAP, TITLE_BLOCK_H } from '@/src/constants/header';
 import {
   alturaHeaderColapsable, alturaBloqueTituloVisible, opacidadTituloCompacto, opacidadTituloCompactoSinMovimiento,
@@ -59,7 +62,8 @@ export {
 export function useHeaderPadding(aire: number = Spacing[4]): number {
   // T-131: el scroll ya arranca debajo de la barra fija (`useLimiteContenido`), así que el
   // padding sólo cubre el bloque título que se colapsa.
-  return TITLE_BLOCK_H + aire;
+  const soft = useSkinTokens().flags.soft;
+  return (soft ? RECORRIDO_AERO : TITLE_BLOCK_H) + aire;
 }
 
 /**
@@ -69,7 +73,11 @@ export function useHeaderPadding(aire: number = Spacing[4]): number {
  */
 export function useLimiteContenido(): { marginTop: number } {
   const insets = useSafeAreaInsets();
-  return { marginTop: insets.top + HEADER_BAR_H };
+  // Skin Aero (PO 2026-09-26): la barra es una tarjeta separada de la status
+  // bar; el contenido se corta justo en su borde de abajo (ni un punto más
+  // abajo: se leía como un «fondo fantasma»). Con el default, el de siempre.
+  const soft = useSkinTokens().flags.soft;
+  return { marginTop: soft ? fondoBarraAero(insets.top) : insets.top + HEADER_BAR_H };
 }
 
 /** Margen extra, en pt, del mármol más allá del alto expandido — colchón de seguridad para que nunca se vea un hueco. */
@@ -90,6 +98,7 @@ export function CollapsibleHeader({
   const scheme = useColorScheme() ?? 'light';
   const c = Colors[scheme];
   const insets = useSafeAreaInsets();
+  const soft = useSkinTokens().flags.soft;
 
   const expandido = insets.top + HEADER_BAR_H + TITLE_BLOCK_H;
   const colapsado = insets.top + HEADER_BAR_H;
@@ -128,6 +137,13 @@ export function CollapsibleHeader({
       ? opacidadTituloCompactoSinMovimiento(progress.value)
       : opacidadTituloCompacto(progress.value),
   }));
+
+  // Skin Aero: header propio (dos tarjetas que se funden). Va después de
+  // todos los hooks de arriba; con el skin default este return no ocurre y el
+  // header es exactamente el de siempre.
+  if (soft) {
+    return <HeaderAero title={title} subtitle={subtitle} progress={progress} right={right} left={left} />;
+  }
 
   return (
     <Animated.View

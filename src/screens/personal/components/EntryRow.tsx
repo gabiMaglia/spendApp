@@ -3,10 +3,8 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 
-import { Colors } from '@/src/constants/colors';
-import { Radius } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useSkinTokens } from '@/src/skins/useSkin';
 import { BandRow } from '@/src/components/Band';
 import { formatMoney } from '@/src/constants/currencies';
 import type { PersonalEntry } from '@/src/types/models';
@@ -26,9 +24,9 @@ const ENTRY_KIND_META = {
 export const EntryRow = React.memo(function EntryRow({
   entry, onRemove, last,
 }: { entry: PersonalEntry; onRemove: (entry: PersonalEntry) => void; last?: boolean }) {
-  const scheme = useColorScheme() ?? 'light';
+  const skin = useSkinTokens();
   const { t } = useTranslation();
-  const c = Colors[scheme];
+  const c = skin.colors;
   const meta = ENTRY_KIND_META[entry.kind];
   const isCarryover = entry.kind === 'carryover';
   const isPositive  = entry.kind === 'income' || (isCarryover && entry.isPositiveCarryover === true);
@@ -45,7 +43,7 @@ export const EntryRow = React.memo(function EntryRow({
 
   return (
     <BandRow last={last}>
-      <View style={[styles.entryIcon, { backgroundColor: iconBg }]}>
+      <View style={[styles.entryIcon, { backgroundColor: iconBg, borderRadius: skin.radius.chip }]}>
         <Ionicons name={meta.icon} size={17} color={iconColor} />
       </View>
       <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
@@ -75,5 +73,5 @@ export const EntryRow = React.memo(function EntryRow({
 });
 
 const styles = StyleSheet.create({
-  entryIcon: { width: 36, height: 36, borderRadius: Radius.sm, alignItems: 'center', justifyContent: 'center' },
+  entryIcon: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
 });

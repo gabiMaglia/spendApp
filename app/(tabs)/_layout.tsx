@@ -7,6 +7,8 @@ import { useTranslation } from 'react-i18next';
 import { HapticTab } from '@/components/haptic-tab';
 import { Colors } from '@/src/constants/colors';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useSkin } from '@/src/skins/useSkin';
+import { TabBarFondoAero } from '@/src/components/skin/TabBarFondoAero';
 
 /**
  * Tab bar del reskin: 70 de contenido + el inset inferior del sistema, hairline superior, ícono 20, label 9.5/600 y
@@ -29,11 +31,21 @@ const PISO_INFERIOR = 12;
 function TabLabel({ label, focused }: { label: string; focused: boolean }) {
   const scheme = useColorScheme() ?? 'light';
   const c = Colors[scheme];
+  const { skin, degradado } = useSkin();
   const color = focused ? c.brand.primary : c.textTertiary;
+  // Aero (PO 2026-09-26): el punto activo pasa a una píldora corta con brillo
+  // de marca. Con el skin default, el punto de siempre.
+  const indicador = skin.flags.soft
+    ? [
+        styles.pill,
+        focused && { backgroundColor: c.brand.primary },
+        focused && !degradado && { boxShadow: `0 0 8px ${skin.colors.glowStrong}` },
+      ]
+    : [styles.dot, { backgroundColor: focused ? c.brand.primary : 'transparent' }];
   return (
     <View style={styles.labelWrap}>
       <Text numberOfLines={1} style={[styles.label, { color }]}>{label}</Text>
-      <View style={[styles.dot, { backgroundColor: focused ? c.brand.primary : 'transparent' }]} />
+      <View style={indicador} />
     </View>
   );
 }
@@ -52,6 +64,8 @@ export default function TabLayout() {
    * real, y `paddingBottom` va con el mismo valor para que el contenido quede encima.
    */
   const inferior = Math.max(insets.bottom, PISO_INFERIOR);
+  const { skin } = useSkin();
+  const soft = skin.flags.soft;
 
   const screen = (
     name: string,
@@ -84,7 +98,10 @@ export default function TabLayout() {
           borderTopWidth: 1,
           borderTopColor: c.hair,
           elevation: 0,
+          // Aero: sin hairline ni fondo propio; la tarjeta la dibuja `TabBarFondoAero`.
+          ...(soft && { borderTopWidth: 0, backgroundColor: 'transparent' }),
         },
+        ...(soft && { tabBarBackground: () => <TabBarFondoAero inferior={inferior} /> }),
         tabBarItemStyle: { paddingTop: 0 },
         tabBarIconStyle: { marginBottom: -2 },
       }}
@@ -112,4 +129,5 @@ const styles = StyleSheet.create({
   labelWrap: { alignItems: 'center', gap: 5 },
   label: { fontSize: 9.5, fontWeight: '600' },
   dot: { width: 4, height: 4, borderRadius: 2 },
+  pill: { width: 14, height: 4, borderRadius: 2 },
 });

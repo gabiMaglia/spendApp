@@ -5,6 +5,8 @@ import {
 } from 'react-native-reanimated';
 
 import { TITLE_BLOCK_H } from '@/src/constants/header';
+import { useSkinTokens } from '@/src/skins/useSkin';
+import { RECORRIDO_AERO } from '@/src/components/skin/headerAeroGeometria';
 
 
 /**
@@ -157,7 +159,9 @@ export function useHeaderColapsable(
   alMedirScroll: (e: LayoutChangeEvent) => void;
 } {
   // 1:1 con lo que pierde el header (T-131): así su borde inferior sigue exacto al contenido.
-  const distancia = options.distanciaColapso ?? TITLE_BLOCK_H;
+  // Skin Aero: el recorrido es el de su tarjeta de título (ver `RECORRIDO_AERO`).
+  const soft = useSkinTokens().flags.soft;
+  const distancia = options.distanciaColapso ?? (soft ? RECORRIDO_AERO : TITLE_BLOCK_H);
   const progress = useSharedValue(0);
 
   const scrollHandler = useAnimatedScrollHandler({

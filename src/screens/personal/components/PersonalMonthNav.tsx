@@ -1,11 +1,10 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-import { Colors } from '@/src/constants/colors';
 import { Spacing } from '@/src/constants/spacing';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { FondoMarmol } from '@/src/components/FondoMarmol';
+import { useSkinTokens } from '@/src/skins/useSkin';
+import { MarmolPill } from '@/src/components/skin/MarmolPill';
 import { hapticSelection } from '@/src/utils/haptics';
 import { monthLabel, nextMonth, prevMonth } from '@/src/screens/personal/utils/monthLabel';
 
@@ -21,12 +20,11 @@ export function PersonalMonthNav({
   atCurrentMonth: boolean;
   onChangeMonth: (month: string) => void;
 }) {
-  const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const skin = useSkinTokens();
+  const c = skin.colors;
 
   return (
-    <View testID="month-nav" style={styles.monthNav}>
-      <FondoMarmol patron="franja" />
+    <MarmolPill testID="month-nav" patron="franja" style={styles.monthNav}>
       <Pressable onPress={() => { hapticSelection(); onChangeMonth(prevMonth(activeMonth)); }} hitSlop={12}>
         <Ionicons name="chevron-back" size={19} color={c.textSecondary} />
       </Pressable>
@@ -41,7 +39,7 @@ export function PersonalMonthNav({
       >
         <Ionicons name="chevron-forward" size={19} color={c.textSecondary} />
       </Pressable>
-    </View>
+    </MarmolPill>
   );
 }
 

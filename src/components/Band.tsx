@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useContext } from 'react';
 import { Pressable, StyleSheet, Text, View, type ViewStyle, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -9,6 +9,8 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { MontoRodante } from '@/src/components/MontoRodante';
 import type { MontoRegistry } from '@/src/utils/montoRodanteRegistry';
 import type { CurrencyCode } from '@/src/constants/currencies';
+import { PanelContext } from '@/src/components/skin/PanelContext';
+import type { Widen } from '@/src/skins/types';
 
 /**
  * Primitivas del reskin "flat bands".
@@ -19,9 +21,14 @@ import type { CurrencyCode } from '@/src/constants/currencies';
  * de borde a borde.
  */
 
-export function useC() {
+/**
+ * Paleta de las primitivas. Fuera de un `Panel` del skin es `Colors[scheme]`
+ * (igual que siempre); adentro, la paleta del skin que puso el panel.
+ */
+export function useC(): Widen<typeof Colors.light> {
   const scheme = useColorScheme() ?? 'light';
-  return Colors[scheme];
+  const panel = useContext(PanelContext);
+  return panel?.colors ?? Colors[scheme];
 }
 
 /** Etiqueta de sección sobre una banda. `right` es un link o accesorio opcional. */
@@ -72,15 +79,20 @@ export function Band({
   noTop?: boolean;
 }) {
   const c = useC();
+  // Dentro de un `Panel` del skin, el panel pone fondo/radio/sombra: la banda
+  // no dibuja sus hairlines ni su fondo (salvo `sunken`, con el tono del skin).
+  const panel = useContext(PanelContext);
   return (
     <View
       style={[
-        {
-          backgroundColor: sunken ? c.bgGrouped : c.surface,
-          borderTopWidth: noTop ? 0 : 1,
-          borderBottomWidth: noBottom ? 0 : 1,
-          borderColor: c.hair,
-        },
+        panel
+          ? { backgroundColor: sunken ? panel.sunkenBg : 'transparent' }
+          : {
+              backgroundColor: sunken ? c.bgGrouped : c.surface,
+              borderTopWidth: noTop ? 0 : 1,
+              borderBottomWidth: noBottom ? 0 : 1,
+              borderColor: c.hair,
+            },
         style,
       ]}
     >
@@ -102,6 +114,8 @@ export function BandRow({
   testID?: string;
 }) {
   const c = useC();
+  // Dentro de un `Panel`, el divisor es el suave del skin (`edgeShade`).
+  const panel = useContext(PanelContext);
   const base: ViewStyle = {
     flexDirection: 'row',
     alignItems: 'center',
@@ -109,7 +123,7 @@ export function BandRow({
     paddingHorizontal: Spacing.screenPad,
     paddingVertical: Spacing.rowPadV,
     borderBottomWidth: last ? 0 : 1,
-    borderBottomColor: c.hair2,
+    borderBottomColor: panel ? panel.colors.edgeShade : c.hair2,
   };
   if (!onPress) return <View testID={testID} style={[base, style]}>{children}</View>;
   return (
