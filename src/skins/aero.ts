@@ -25,6 +25,11 @@ export const AERO_SKIN: SkinDefinition = {
       edgeShade: 'rgba(20,26,20,0.06)',
       marmolVeil: 'rgba(255,255,255,0.35)',
       marmolOpacity: 0.7,
+      vidrioVeilTop: 'rgba(255,255,255,0.10)',
+      vidrioVeilBottom: 'rgba(255,255,255,0.62)',
+      vidrioGloss: 'rgba(255,255,255,0.55)',
+      vidrioTint: 'rgba(58,74,94,0.10)',
+      vidrioMarmolOpacity: 0.45,
     },
     elevation: {
       e1: { boxShadow: '0 1px 2px rgba(20,30,50,0.06), 0 4px 12px rgba(20,30,50,0.05)', elevationFallback: 1 },
@@ -51,6 +56,11 @@ export const AERO_SKIN: SkinDefinition = {
       edgeShade: 'rgba(0,0,0,0.35)',
       marmolVeil: 'rgba(15,17,18,0.30)',
       marmolOpacity: 0.55,
+      vidrioVeilTop: 'rgba(12,14,17,0.10)',
+      vidrioVeilBottom: 'rgba(12,14,17,0.60)',
+      vidrioGloss: 'rgba(255,255,255,0.08)',
+      vidrioTint: 'rgba(139,163,189,0.16)',
+      vidrioMarmolOpacity: 0.4,
     },
     elevation: {
       e1: { boxShadow: '0 1px 2px rgba(0,0,0,0.5)', elevationFallback: 1 },

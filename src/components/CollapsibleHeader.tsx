@@ -9,6 +9,7 @@ import { Spacing } from '@/src/constants/spacing';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { FondoMarmol } from '@/src/components/FondoMarmol';
 import { useSkin } from '@/src/skins/useSkin';
+import { VidrioMarmol } from '@/src/components/skin/VidrioMarmol';
 import { HEADER_BAR_H, TITLE_BOTTOM_GAP, TITLE_BLOCK_H } from '@/src/constants/header';
 import {
   alturaHeaderColapsable, alturaBloqueTituloVisible, opacidadTituloCompacto, opacidadTituloCompactoSinMovimiento,
@@ -95,10 +96,15 @@ export function CollapsibleHeader({
   // esquinas de abajo redondeadas, sombra suave y sin la hairline. Con el
   // default queda `null` y el header es el de siempre.
   const { skin, degradado } = useSkin();
+  // El fondo `surface` es lo que queda detrás del mármol atenuado del vidrio
+  // (ver `VidrioMarmol`): sin él, lo de abajo se transparentaría.
   const flotante = useMemo(() => skin.flags.soft ? {
+    backgroundColor: skin.colors.surface,
     borderBottomLeftRadius: skin.radius.panel,
     borderBottomRightRadius: skin.radius.panel,
-    ...(degradado ? { elevation: skin.elevation.e2.elevationFallback } : { boxShadow: skin.elevation.e2.boxShadow }),
+    ...(degradado
+      ? { elevation: skin.elevation.e2.elevationFallback }
+      : { boxShadow: `${skin.elevation.e2.boxShadow}, 0 0 28px ${skin.colors.glow}` }),
   } : null, [skin, degradado]);
 
   const expandido = insets.top + HEADER_BAR_H + TITLE_BLOCK_H;
@@ -110,8 +116,12 @@ export function CollapsibleHeader({
   // siempre, aunque el valor fuera idéntico. `expandido` casi no cambia
   // (depende del inset del sistema), así que esta referencia queda estable.
   const marmolStyle = useMemo(
-    () => ({ top: 0, bottom: undefined, height: expandido + MARMOL_BLEED }),
-    [expandido],
+    () => ({
+      top: 0, bottom: undefined, height: expandido + MARMOL_BLEED,
+      // Aero: mármol atenuado detrás del vidrio. Default: 1 (opaco, como siempre).
+      opacity: skin.colors.vidrioMarmolOpacity,
+    }),
+    [expandido, skin.colors.vidrioMarmolOpacity],
   );
 
   // «Reducir movimiento»: sin fades en los títulos (T-128).
@@ -153,6 +163,7 @@ export function CollapsibleHeader({
         opaca: no hay overlay ni tinte encima, la propia foto es opaca.
       */}
       <FondoMarmol style={marmolStyle} />
+      <VidrioMarmol />
       {!flotante && <View style={[styles.hair, { backgroundColor: c.hair }]} pointerEvents="none" />}
       <View style={[styles.content, { height: expandido, paddingTop: insets.top }]}>
         <View style={styles.buttonsRow}>

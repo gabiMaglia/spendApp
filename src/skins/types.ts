@@ -18,6 +18,14 @@ export type SkinColors = Widen<typeof Colors.light> & {
   /** Velo sobre el mármol para que el texto se lea. */
   marmolVeil: string;
   marmolOpacity: number;
+  /** Mármol "detrás de vidrio" (Aero): velo en degradé de arriba a abajo. */
+  vidrioVeilTop: string;
+  vidrioVeilBottom: string;
+  /** Brillo superior (gloss) y tinte de marca que entra desde abajo. */
+  vidrioGloss: string;
+  vidrioTint: string;
+  /** Opacidad del mármol cuando va detrás del vidrio. */
+  vidrioMarmolOpacity: number;
 };
 
 export type Elevation = { boxShadow: string; elevationFallback: number };

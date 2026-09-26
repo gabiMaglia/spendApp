@@ -25,6 +25,11 @@ function paraEsquema(scheme: ColorScheme): Skin {
       edgeShade: c.hair2,
       marmolVeil: 'transparent',
       marmolOpacity: 1,
+      vidrioVeilTop: 'transparent',
+      vidrioVeilBottom: 'transparent',
+      vidrioGloss: 'transparent',
+      vidrioTint: 'transparent',
+      vidrioMarmolOpacity: 1,
     },
     elevation: {
       e1: SIN_SOMBRA,
