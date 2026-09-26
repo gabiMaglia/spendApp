@@ -31,12 +31,12 @@ describe('sliceEntities', () => {
   }
 
   it('lista vacía produce cero rebanadas', () => {
-    expect(sliceEntities([])).toEqual([]);
+    expect(sliceEntities([]).rebanadas).toEqual([]);
   });
 
   it('una lista chica cabe en una sola rebanada', () => {
     const items = [gasto('a'), gasto('b'), gasto('c')];
-    const slices = sliceEntities(items);
+    const { rebanadas: slices } = sliceEntities(items);
     expect(slices).toHaveLength(1);
     expect(slices[0]).toEqual(items);
   });
@@ -44,7 +44,7 @@ describe('sliceEntities', () => {
   it('una lista grande se parte en varias rebanadas, cada una bajo el objetivo', () => {
     const relleno = 'x'.repeat(2_000);
     const items = Array.from({ length: 200 }, (_, i) => gasto(`e${i}`, relleno));
-    const slices = sliceEntities(items);
+    const { rebanadas: slices } = sliceEntities(items);
     expect(slices.length).toBeGreaterThan(1);
     for (const slice of slices) {
       expect(JSON.stringify(slice).length).toBeLessThanOrEqual(TARGET_SLICE_BYTES * 1.05);
@@ -54,12 +54,13 @@ describe('sliceEntities', () => {
     expect(idsDeVuelta).toEqual(items.map(i => i.id).sort());
   });
 
-  it('un solo elemento que ya supera el objetivo va solo en su rebanada, no se descarta', () => {
+  it('un solo elemento que ya supera el objetivo (pero no MAX_SLICE_BYTES) va solo en su rebanada, no se descarta', () => {
     const gigante = gasto('grande', 'x'.repeat(TARGET_SLICE_BYTES * 2));
     const items = [gasto('chico1'), gigante, gasto('chico2')];
-    const slices = sliceEntities(items);
+    const { rebanadas: slices, excluidos } = sliceEntities(items);
     const conElGigante = slices.find(s => s.some(i => i.id === 'grande'));
     expect(conElGigante).toHaveLength(1);
+    expect(excluidos).toEqual([]);
   });
 
   /**
@@ -76,7 +77,7 @@ describe('sliceEntities', () => {
     // realmente es.
     const relleno = 'ñ'.repeat(TARGET_SLICE_BYTES - 100);
     const items = [gasto('a', relleno), gasto('b', relleno), gasto('c', relleno)];
-    const slices = sliceEntities(items);
+    const { rebanadas: slices } = sliceEntities(items);
 
     // Con `.length` (medición vieja), cada item "mediría" ~TARGET_SLICE_BYTES
     // - 100 y dos de ellos podrían convivir por debajo del objetivo. Medido
@@ -90,31 +91,20 @@ describe('sliceEntities', () => {
   });
 
   /**
-   * Revisión final, Fix 7 (menor): el plan siempre prometió que un elemento
-   * que por sí solo supera `MAX_SLICE_BYTES` se manda "entero y señalado" —
-   * pero nada lo señalaba. El aviso es un `console.warn`, nada más: no
-   * cambia el comportamiento de partición (sigue yendo entero, solo, en su
-   * propia rebanada), sólo agrega la trazabilidad que faltaba.
+   * T-150 (SEC-07): antes un elemento que superaba `MAX_SLICE_BYTES` se
+   * mandaba «entero y señalado» con un `console.warn`. Eso hacía que TODOS
+   * los peers honestos que lo recibieran fallaran `too_large` al republicar,
+   * y el grupo dejaba de sincronizar. Ahora se excluye y se devuelve aparte,
+   * para que el publicador deje rastro.
    */
-  it('un elemento que supera MAX_SLICE_BYTES se avisa por consola, pero se manda igual, entero', () => {
-    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
-
+  it('un elemento que supera MAX_SLICE_BYTES se excluye y se devuelve en `excluidos`', () => {
     const gigante = gasto('elemento-grande', 'x'.repeat(MAX_SLICE_BYTES + 1));
-    const slices = sliceEntities([gigante]);
-
-    expect(slices).toEqual([[gigante]]); // se manda igual, entero — no se descarta ni se trunca
-    expect(warnSpy).toHaveBeenCalledTimes(1);
-    expect(warnSpy.mock.calls[0]?.[0]).toContain('elemento-grande');
-
-    warnSpy.mockRestore();
+    const { rebanadas, excluidos } = sliceEntities([gasto('a'), gigante, gasto('b')]);
+    expect(rebanadas.flat().map(x => x.id).sort()).toEqual(['a', 'b']);
+    expect(excluidos.map(x => x.id)).toEqual(['elemento-grande']);
   });
 
-  it('un elemento por debajo de MAX_SLICE_BYTES no dispara ningún aviso', () => {
-    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
-
-    sliceEntities([gasto('chico')]);
-
-    expect(warnSpy).not.toHaveBeenCalled();
-    warnSpy.mockRestore();
+  it('sin elementos gigantes, `excluidos` viene vacío', () => {
+    expect(sliceEntities([gasto('a')]).excluidos).toEqual([]);
   });
 });
