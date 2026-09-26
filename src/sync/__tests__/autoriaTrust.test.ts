@@ -105,4 +105,37 @@ describe('enDisputa / autoresVerificados (T-170 · D-2, verificación real)', ()
     const siempreInvalida = () => 'invalida' as const;
     expect(enDisputa(e, siempreInvalida)).toBe(false);
   });
+
+  /**
+   * T-170 · D-3, ronda de retorno 2 (dictamen del verificador, defecto 1):
+   * Mallory NO necesita re-estampar nada. Le alcanza con pegar en
+   * `autoriaDisputada` de un gasto CUALQUIERA (e1, de Ana) el núcleo
+   * LEGÍTIMO —y legítimamente firmado— de OTRO gasto de Beto (`e-otro`). La
+   * firma de Beto cierra (es de verdad SU núcleo, de SU gasto), pero
+   * `calcular` no exigía que ese núcleo fuera del gasto que lo aloja. PoC
+   * P3c del verifier: Mallory queda anónima, Beto aparece acusado, y Ana
+   * pierde su "Forzar".
+   */
+  it('PoC P3c: un núcleo legítimo de OTRO gasto (mismo id/groupId distintos) no cuenta como disputa de ESTE gasto', () => {
+    rememberAuthorKey('ana', PUB_ANA);
+    const PRIV_BETO = toHex(new Uint8Array(32).fill(7));
+    const PUB_BETO = toHex(ed25519.getPublicKey(new Uint8Array(32).fill(7)));
+    rememberAuthorKey('beto', PUB_BETO);
+
+    // El núcleo REAL de Beto, para OTRO gasto (`e-otro`, incluso otro grupo).
+    const deOtroGasto = {
+      ...base, id: 'e-otro', groupId: 'g-otro', createdById: 'beto', rev: 1,
+    };
+    const nucleoDeBetoParaOtroGasto =
+      { ...deOtroGasto, ...signCore('expense', deOtroGasto as never, PRIV_BETO) };
+
+    // Mallory lo pega, tal cual, en el gasto de Ana (e1) — sin re-estampar nada.
+    const replay = {
+      ...deAna,
+      autoriaDisputada: [nucleoDeBetoParaOtroGasto as never],
+    } as unknown as Expense;
+
+    expect(autoresVerificados(replay)).toEqual(['ana']);
+    expect(enDisputa(replay)).toBe(false);
+  });
 });
