@@ -181,6 +181,27 @@ export function removePendingJoin(token: string): void {
   writeScoped(storage, K_PENDING, JSON.stringify(all.filter(i => i.token !== token)));
 }
 
+/**
+ * Suma un intento de reclamo sin grant (T-172, ítem 2) y devuelve el
+ * contador nuevo. `0` si `token` no es (o ya dejó de ser) un join pendiente
+ * de este dispositivo — por ejemplo, quien invita procesando su PROPIA
+ * invitación, o un join que ya se resolvió y se borró con `removePendingJoin`.
+ */
+export function incrementJoinAttempts(token: string): number {
+  const all = readScopedJson<GroupInvite[]>(K_PENDING, []);
+  let contador = 0;
+  let encontrado = false;
+  const actualizadas = all.map(i => {
+    if (i.token !== token) return i;
+    encontrado = true;
+    contador = (i.joinAttempts ?? 0) + 1;
+    return { ...i, joinAttempts: contador };
+  });
+  if (!encontrado) return 0;
+  writeScoped(storage, K_PENDING, JSON.stringify(actualizadas));
+  return contador;
+}
+
 export function saveContactInvite(invite: ContactInvite): void {
   const all = readScopedJson<ContactInvite[]>(K_CONTACT_INVITES, []);
   const vivas = all.filter(i => i.expiresAt > Date.now() && i.token !== invite.token);

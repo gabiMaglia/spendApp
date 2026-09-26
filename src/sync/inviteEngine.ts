@@ -5,7 +5,7 @@ import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import {
   ensureIdentity, ensureWrapKeypair,
   savePendingJoin, removePendingJoin, listInvites, listPendingJoins,
-  findInviteToken, markInviteClaimed,
+  findInviteToken, markInviteClaimed, incrementJoinAttempts,
 } from '@/src/store/identityStore';
 import { publishToGroup } from './relaySync';
 import { getPeer } from './contactChannel';
@@ -18,7 +18,7 @@ import {
 import { syncedNow } from '@/src/utils/syncedClock';
 import { withTimeout } from '@/src/utils/withTimeout';
 import { recordError } from '@/src/services/errorLog';
-import { announceInviteFull } from '@/src/services/notifications';
+import { announceInviteFull, announceJoinStalled } from '@/src/services/notifications';
 import { admiteUnMiembroMas } from './topes';
 import {
   claveLocalVinoDeContacto, idDeOfertaDeInvitacion, olvidarOfertas, registrarOferta,
@@ -27,6 +27,17 @@ import { avisarConflictoDeClave } from './keyConflictNotice';
 
 /** T-138-bis: ver `processAllInvites`. */
 const INVITE_TIMEOUT_MS = 8_000;
+
+/**
+ * Intentos de reclamo sin recibir grant antes de avisarle al invitado (T-172,
+ * ítem 2). El sync corre al abrir la app, al recuperar internet, y cada 15min
+ * en primer plano (regla 10 de CLAUDE.md) — 6 intentos son unos pocos ciclos
+ * de sync, alcanzables en la misma sesión o en el mismo día, muy por debajo
+ * de las 48hs de vida de la invitación (así el invitado todavía tiene tiempo
+ * de pedir un link nuevo y usarlo). Es bastante más de 1 para no avisar por
+ * un sync suelto que falló por una razón transitoria (sin red, timeout).
+ */
+export const JOIN_STALL_NOTICE_AFTER = 6;
 
 /**
  * El encuentro entre quien invita y quien entra.
@@ -129,6 +140,19 @@ export async function processInvite(invite: GroupInvite, deviceId: string): Prom
       const grant = await openGrant(invite.token, envelope.payload, invite.inviterFingerprint);
       if (grant && await redeem(grant, invite, me.id)) adoptados.push(grant.groupId);
     } catch { /* sobre inservible: se saltea */ }
+  }
+
+  // T-172 (ítem 2): si esta pasada NO adoptó el grupo de esta invitación, es
+  // un intento más sin éxito del lado de quien reclama. `incrementJoinAttempts`
+  // sólo cuenta si `invite.token` sigue siendo un join PENDIENTE de este
+  // dispositivo (0 si no — por ejemplo, somos quien invita, o el join ya se
+  // resolvió y `removePendingJoin` lo borró), así que este bloque es un no-op
+  // inofensivo del lado de quien invita.
+  if (!adoptados.includes(invite.groupId)) {
+    const intentos = incrementJoinAttempts(invite.token);
+    if (intentos === JOIN_STALL_NOTICE_AFTER) {
+      void announceJoinStalled(invite.groupId, invite.groupName, invite.token);
+    }
   }
 
   return adoptados;

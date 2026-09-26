@@ -82,6 +82,14 @@ export type GroupInvite = {
    * poder confirmar que es el mismo reclamante.
    */
   claimedWrapKey?: string;
+  /**
+   * Intentos de reclamo sin recibir grant (T-172, ítem 2). Sólo tiene sentido
+   * en la copia PENDIENTE (lado del que reclama, `K_PENDING`) — la de quien
+   * invita nunca lo toca. Vive en la MISMA entrada persistida en vez de un
+   * storage aparte: se borra sola cuando el join se resuelve (`removePendingJoin`)
+   * o expira, sin nada extra que limpiar.
+   */
+  joinAttempts?: number;
 };
 
 export function createInvite(
