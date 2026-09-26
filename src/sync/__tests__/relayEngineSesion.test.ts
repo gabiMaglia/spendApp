@@ -49,6 +49,7 @@ jest.mock('../contactInviteEngine', () => ({ processAllContactInvites: jest.fn(a
 
 import { startRelay, stopRelay, POLL_INTERVAL_MS } from '../relayEngine';
 import { sinSesionDeSync, __resetSessionStatus } from '../sessionStatus';
+import { recordPublish, publishFailures, clearPublishFailures } from '../publishHealth';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
@@ -58,12 +59,27 @@ import type { Group, User } from '@/src/types/models';
 const mockEnsureRelaySession = jest.requireMock('../relaySession').ensureRelaySession as jest.Mock;
 const mockBindAuthRefreshToAppState = jest.requireMock('../relaySession').bindAuthRefreshToAppState as jest.Mock;
 const mockSubscribeTopic = jest.requireMock('../relay').subscribeTopic as jest.Mock;
+const mockSendGroupKey = jest.requireMock('../contactChannel').sendGroupKey as jest.Mock;
 
 function sembrarUnGrupoConClave(): void {
   useAuthStore.setState({ currentUser: { id: 'u1' } as User });
   useGroupStore.setState({
     groups: [{
       id: 'G', name: 'Grupo', memberIds: ['u1'], currency: 'USD', createdAt: 0, createdById: 'u1',
+      deletionVotes: [], updatedAt: 1_000, isDeleted: false,
+    } as Group],
+    isLoading: false,
+  });
+  useGroupKeyStore.getState().ensureKey('G');
+}
+
+/** D4: un grupo con OTRO miembro — `reenviarClavesDeGrupo` sólo manda algo
+ *  cuando hay a quién mandárselo (se saltea al propio `me.id`). */
+function sembrarGrupoConOtroMiembro(): void {
+  useAuthStore.setState({ currentUser: { id: 'u1' } as User });
+  useGroupStore.setState({
+    groups: [{
+      id: 'G', name: 'Grupo', memberIds: ['u1', 'u2'], currency: 'USD', createdAt: 0, createdById: 'u1',
       deletionVotes: [], updatedAt: 1_000, isDeleted: false,
     } as Group],
     isLoading: false,
@@ -80,6 +96,8 @@ beforeEach(() => {
   mockEnsureRelaySession.mockReset().mockResolvedValue('anonymous');
   mockBindAuthRefreshToAppState.mockReset().mockReturnValue(jest.fn());
   mockSubscribeTopic.mockReset().mockImplementation(() => () => {});
+  mockSendGroupKey.mockClear();
+  clearPublishFailures();
   __resetSessionStatus();
 });
 
@@ -173,4 +191,47 @@ it('ata el refresco al ciclo de vida y lo suelta al parar', async () => {
 
   expect(mockBindAuthRefreshToAppState).toHaveBeenCalled();
   expect(soltar).toHaveBeenCalled();
+});
+
+/**
+ * Verifier D4: `reenviarClavesDeGrupo` manda un sobre por (grupo, miembro
+ * ajeno) en CADA `startRelay()` — sin nada que lo frene, dos arranques
+ * seguidos (p. ej. el reinicio por cambio de sesión que agrega este mismo
+ * ticket, D1/D2) duplican el reenvío sin necesidad: adoptar una clave que ya
+ * se tiene es un no-op del lado de quien la recibe, así que repetirla antes
+ * de que pase un tiempo razonable no logra nada, sólo gasta cuota.
+ */
+describe('D4: reenviarClavesDeGrupo no ráfaguea contra la cuota', () => {
+  it('dos arranques seguidos no duplican el reenvío (cooldown)', async () => {
+    sembrarGrupoConOtroMiembro();
+
+    await startRelay();
+    expect(mockSendGroupKey).toHaveBeenCalledTimes(1);
+
+    mockSendGroupKey.mockClear();
+    await startRelay(); // p.ej. el reinicio de D1/D2 por cambio de sesión
+
+    expect(mockSendGroupKey).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Verifier D4: `rate_limited` es no bloqueante (H6, no se muestra nada) pero
+ * ESO NO PUEDE significar "se pierde": sin un reintento activo, una rebanada
+ * rechazada por la cuota se queda ahí hasta que el usuario vuelva a tocar ese
+ * grupo — que puede no pasar nunca. El poll ya corre cada 20s; reintentar ahí
+ * los grupos con un `rate_limited` pendiente cierra el hueco sin agregar
+ * ninguna llamada de red nueva mientras todo va bien.
+ */
+it('D4: un rate_limited se reintenta solo, sin que el usuario haga nada', async () => {
+  sembrarUnGrupoConClave();
+  await startRelay();
+
+  recordPublish('G', { ok: false, reason: 'rate_limited' });
+  expect(publishFailures().map(f => f.groupId)).toContain('G');
+
+  await jest.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
+  await jest.advanceTimersByTimeAsync(0);
+
+  expect(publishFailures().map(f => f.groupId)).not.toContain('G');
 });

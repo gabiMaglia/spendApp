@@ -15,7 +15,7 @@ import { ensureRelaySession, bindAuthRefreshToAppState } from './relaySession';
 import type { SessionKind } from './relaySession';
 import { setUltimaSesionConocida } from './sessionStatus';
 import { publishToGroup, drainGroup, sigueSiendoLaClave, type PublishResult } from './relaySync';
-import { recordPublish } from './publishHealth';
+import { recordPublish, publishFailures } from './publishHealth';
 import { noticeDeCaida } from './syncDownNotices';
 import { noticeDeReloj } from './clockNotice';
 import { estaPendienteDeDrenaje, limpiarPendienteDeDrenaje } from './pendingDrain';
