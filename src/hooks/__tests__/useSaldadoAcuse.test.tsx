@@ -2,6 +2,10 @@ import { act, renderHook } from '@testing-library/react-native';
 import { useSaldadoAcuse } from '../useSaldadoAcuse';
 import { useGroupStore } from '@/src/store/groupStore';
 import { usePaymentStore } from '@/src/store/paymentStore';
+import { ensureIdentity } from '@/src/store/identityStore';
+import { signSettlement } from '@/src/sync/settlementSign';
+import { rememberAuthorKey, forgetAuthorKeys } from '@/src/sync/authorKeys';
+import { __resetSettlementTrust } from '@/src/sync/settlementTrust';
 import type { Group, Payment } from '@/src/types/models';
 
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
@@ -22,6 +26,8 @@ const grupo = (mode: 'consensus' | 'open' = 'consensus'): Group => ({
 beforeEach(() => {
   useGroupStore.setState({ groups: [grupo()] });
   usePaymentStore.setState({ payments: [pago()] });
+  forgetAuthorKeys();
+  __resetSettlementTrust();
 });
 
 describe('a quién le toca', () => {
@@ -48,7 +54,14 @@ describe('a quién le toca', () => {
    * los botones quedan ahí y la persona no sabe si su acuse entró.
    */
   it('una vez que acusó, deja de tocarle', () => {
-    const p = pago({ confirmations: [{ userId: 'beto', confirmedAt: 1, action: 'confirm' }] });
+    // El acuse tiene que verificar de verdad (T-145, SEC-04): se firma con la
+    // identidad real del dispositivo y se registra esa clave como la de Beto,
+    // igual que en `settlementConfirm.test.ts`.
+    const acuse = { userId: 'beto', confirmedAt: 1, action: 'confirm' as const };
+    const firmado = { ...acuse, ...signSettlement('p1', acuse, ensureIdentity().privateKey) };
+    rememberAuthorKey('beto', ensureIdentity().publicKey);
+
+    const p = pago({ confirmations: [firmado] });
     const { result } = renderHook(() => useSaldadoAcuse(p, 'beto'));
     expect(result.current.estado).toBe('efectivo');
     expect(result.current.meToca).toBe(false);

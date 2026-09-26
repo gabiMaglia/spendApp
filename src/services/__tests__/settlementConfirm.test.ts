@@ -2,6 +2,9 @@ import { puedeAcusar, emitirAcuse, acusarRecibo } from '../settlementConfirm';
 import { estadoDelSaldado } from '@/src/algorithms/settlementStatus';
 import { usePaymentStore } from '@/src/store/paymentStore';
 import { useGroupStore } from '@/src/store/groupStore';
+import { ensureIdentity } from '@/src/store/identityStore';
+import { rememberAuthorKey, forgetAuthorKeys } from '@/src/sync/authorKeys';
+import { __resetSettlementTrust } from '@/src/sync/settlementTrust';
 import type { Group, Payment } from '@/src/types/models';
 
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
@@ -22,7 +25,17 @@ const grupo = (mode: 'consensus' | 'open' = 'consensus'): Group => ({
 beforeEach(() => {
   useGroupStore.setState({ groups: [grupo()] });
   usePaymentStore.setState({ payments: [pago()] });
+  forgetAuthorKeys();
+  __resetSettlementTrust();
 });
+
+/**
+ * `emitirAcuse`/`acusarRecibo` firman con la identidad REAL de este
+ * dispositivo (`privadaDelAparato`). Para que el acuse de Beto verifique
+ * (T-145, SEC-04) hay que anotar esa pública como la de Beto, igual que haría
+ * el QR de contacto o el directorio en producción.
+ */
+const confiarEnBeto = () => rememberAuthorKey('beto', ensureIdentity().publicKey);
 
 describe('quién puede acusar recibo', () => {
   it('el que cobra, sí', () => {
@@ -48,11 +61,14 @@ describe('quién puede acusar recibo', () => {
 
 describe('el acuse que se emite', () => {
   it('confirmar deja el saldado efectivo', () => {
+    confiarEnBeto();
     const p = { ...pago(), confirmations: emitirAcuse(pago(), 'beto', 'confirm', 1_000) };
     expect(estadoDelSaldado(p, grupo())).toBe('efectivo');
   });
 
   it('rechazar devuelve la deuda a la vida', () => {
+    // Un `reject` se honra aunque el directorio todavía no confirme la clave:
+    // ante la duda se yerra hacia la deuda viva (T-145).
     const p = { ...pago(), confirmations: emitirAcuse(pago(), 'beto', 'reject', 1_000) };
     expect(estadoDelSaldado(p, grupo())).toBe('rechazado');
   });
@@ -84,6 +100,7 @@ describe('el acuse que se emite', () => {
 
 describe('acusarRecibo escribe en el store', () => {
   it('el cobrador confirma y el pago queda efectivo', () => {
+    confiarEnBeto();
     expect(acusarRecibo('p1', 'beto', 'confirm', 1_000)).toBe(true);
     const p = usePaymentStore.getState().payments[0];
     expect(estadoDelSaldado(p, grupo())).toBe('efectivo');

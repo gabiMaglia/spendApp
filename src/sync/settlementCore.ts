@@ -12,6 +12,9 @@ import type { SettlementConfirmation } from '@/src/types/models';
  * estado, que corre en cada render de balance; un `@noble` acá se pagaría 18 ms
  * por acuse en el camino más caliente de la app (D9 de T-041, remedido en el
  * device del PO el 2026-09-01). Firmar y verificar viven en `settlementSign.ts`.
+ *
+ * Desde T-145 el derivador SÍ verifica, vía `settlementTrust` con caché — la
+ * razón de que este archivo siga limpio es que lo importa también el merge.
  */
 
 /**
