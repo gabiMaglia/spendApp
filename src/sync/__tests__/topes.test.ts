@@ -1,3 +1,5 @@
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
 import { excesoDe, byteLengthUtf8, MAX_TEXTO_CORTO, MAX_NOTA, MAX_MIEMBROS, MAX_REGISTRO_BYTES } from '../topes';
 import { MAX_SLICE_BYTES } from '../slices';
 
@@ -34,5 +36,16 @@ describe('excesoDe — qué tope viola un registro', () => {
   });
   it('el tope duro es el mismo que el de las rebanadas', () => {
     expect(MAX_REGISTRO_BYTES).toBe(MAX_SLICE_BYTES);
+  });
+});
+
+describe('guard: los inputs de texto libre tienen maxLength', () => {
+  it.each([
+    ['app/expense/new.tsx', /onChangeText=\{setDescription\}[\s\S]{0,400}?maxLength=\{MAX_TEXTO_CORTO\}/],
+    ['app/expense/new.tsx', /onChangeText=\{setNote\}[\s\S]{0,400}?maxLength=\{MAX_NOTA\}/],
+    ['app/groups/new.tsx',  /onChangeText=\{setName\}[\s\S]{0,400}?maxLength=\{MAX_TEXTO_CORTO\}/],
+  ])('%s', (archivo, patron) => {
+    const texto = readFileSync(resolve(__dirname, '../../..', archivo), 'utf8');
+    expect(texto).toMatch(patron);
   });
 });
