@@ -41,6 +41,18 @@ import type { SettlementConfirmation } from '@/src/types/models';
  * (`rememberAuthorKey`) ni que el directorio conteste necesitan vaciar la
  * caché a mano.
  *
+ * **H6 (T-145 ronda 2 del verificador; ticket T-172): el `invalida` de D2
+ * tampoco se cachea.** Es un `invalida` DISTINTO del que sale de
+ * `verifySettlement` (ese sí pagó la curva, y es lo que esta caché existe
+ * para no repetir). El de D2 es sólo una comparación de listas en memoria —no
+ * gasta curva, cachearlo no ahorra nada— y cachearlo tenía un costo real:
+ * cuando el directorio ya contestó y DESPUÉS este mismo teléfono aprende la
+ * clave nueva del autor (`rememberAuthorKey`, reinstalación legítima), el hit
+ * de caché cortaba antes de volver a mirar `authorKeysFor` y el
+ * `reject`/`confirm` quedaba `invalida` hasta reiniciar el proceso o cambiar
+ * de sesión — justo el reject que la regla de negocio 3 dice que es lo único
+ * que devuelve la deuda a la vida.
+ *
  * **Autor SIN ninguna clave, nunca** (T-145, Re-review 1). Distinto de D2: acá
  * `keys` está VACÍO, no con una clave equivocada — el borde de ADR-004, quien
  * entró por Apple sin `email` y el directorio jamás va a resolver. Sin esta
@@ -61,24 +73,27 @@ export function checkSettlement(paymentId: string, c: SettlementConfirmation): C
 
   const keys = authorKeysFor(userId, k);
 
-  let veredicto: CoreVerdict;
   if (keys.length === 0) {
     // Autor irresoluble (borde de ADR-004): no hay ninguna clave con la que
     // comparar, ni vieja ni nueva. Gastar la curva no informaría nada, y
     // acusar acá sería acusar para siempre a alguien que el directorio nunca
     // va a poder cubrir.
-    veredicto = 'no_verificable';
-  } else if (keys.includes(k)) {
-    veredicto = verifySettlement(paymentId, c, keys);
-  } else {
-    // D2: clave no cubierta (pero HAY alguna, la vieja). `invalida` sólo si el
-    // directorio ya contestó sobre ESTA clave presentada; si todavía no, es
-    // indistinguible de una reinstalación honesta.
-    veredicto = authorKeyWasAsked(userId, k) ? 'invalida' : 'no_verificable';
+    return 'no_verificable';
   }
 
-  if (veredicto !== 'no_verificable') cache.set(clave, veredicto);
-  return veredicto;
+  if (keys.includes(k)) {
+    const veredicto = verifySettlement(paymentId, c, keys);
+    // Sólo este veredicto pagó la curva: es el único que vale la pena cachear.
+    if (veredicto !== 'no_verificable') cache.set(clave, veredicto);
+    return veredicto;
+  }
+
+  // D2: clave no cubierta (pero HAY alguna, la vieja). `invalida` sólo si el
+  // directorio ya contestó sobre ESTA clave presentada; si todavía no, es
+  // indistinguible de una reinstalación honesta. H6: NUNCA se cachea — no
+  // gastó curva, y cachearlo pegaría este veredicto aunque el autor publique
+  // la clave nueva un instante después.
+  return authorKeyWasAsked(userId, k) ? 'invalida' : 'no_verificable';
 }
 
 /** Sólo tests, logout y wipe. */
