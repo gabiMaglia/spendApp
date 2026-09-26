@@ -19,10 +19,14 @@ export function MovimientosHeader({ count }: { count: number }) {
   const skin = useSkinTokens();
   const c = skin.colors;
   // En un skin soft la píldora ya separa el encabezado de la lista: sin hairline.
-  const borde = skin.flags.soft ? null : { borderBottomWidth: 1, borderBottomColor: c.hair };
+  // Y el aire vertical es simétrico: el Spacing[5]/9 de abajo está afinado
+  // para la banda plana (corte de reposo del scroll), no para una píldora.
+  const extra = skin.flags.soft
+    ? { paddingTop: skin.space.gapPanel, paddingBottom: skin.space.gapPanel }
+    : { borderBottomWidth: 1, borderBottomColor: c.hair };
   const { t } = useTranslation();
   return (
-    <MarmolPill testID="movimientos-header" variante sticky style={[styles.movimientosHeader, borde]}>
+    <MarmolPill testID="movimientos-header" variante sticky style={[styles.movimientosHeader, extra]}>
       <Text style={[Typography.label, styles.movimientosBold, { color: c.textTertiary }]}>
         {t('personal.movements_title')}
       </Text>

@@ -15,11 +15,19 @@ export function GlowMeter({ pct, color }: { pct: number; color: string }) {
   const { skin, degradado } = useSkin();
   if (!skin.flags.soft) return <Meter pct={pct} color={color} />;
 
-  const ancho = `${Math.max(0, Math.min(pct, 1)) * 100}%` as DimensionValue;
-  const efectos: ViewStyle | null = degradado ? null : {
-    boxShadow: `0 0 8px ${conAlfa(color, 0.35)}`,
-    experimental_backgroundImage: `linear-gradient(90deg, ${conAlfa(color, 0.75)}, ${color})`,
-  };
+  const lleno = Math.max(0, Math.min(pct, 1));
+  const ancho = `${lleno * 100}%` as DimensionValue;
+  // Con gradiente, el fondo va transparente: si no, el tramo al 0.75 del
+  // arranque se pinta sobre el color pleno y el gradiente no se ve. En 0 no
+  // hay efectos (el glow dibujaría un punto sobre una barra de ancho 0).
+  const conEfectos = !degradado && lleno > 0;
+  const relleno: ViewStyle = conEfectos
+    ? {
+        backgroundColor: 'transparent',
+        boxShadow: `0 0 8px ${conAlfa(color, 0.35)}`,
+        experimental_backgroundImage: `linear-gradient(90deg, ${conAlfa(color, 0.75)}, ${color})`,
+      }
+    : { backgroundColor: color };
 
   return (
     <View
@@ -27,7 +35,7 @@ export function GlowMeter({ pct, color }: { pct: number; color: string }) {
       style={{ height: ALTO, borderRadius: ALTO / 2, backgroundColor: skin.colors.surfaceSunken }}
     >
       <View
-        style={[{ width: ancho, height: '100%', borderRadius: ALTO / 2, backgroundColor: color }, efectos]}
+        style={[{ width: ancho, height: '100%', borderRadius: ALTO / 2 }, relleno]}
       />
     </View>
   );

@@ -41,6 +41,9 @@ export const AERO_SKIN: SkinDefinition = {
       surface: '#171A1E',
       surfaceRaised: '#1E2227',
       surfaceSunken: '#121417',
+      // El #767E85 del default da 4.23:1 sobre #171A1E; este, 4.98:1 (y 4.56:1
+      // sobre surfaceRaised #1E2227).
+      textTertiary: '#828A91',
       glow: 'rgba(139,163,189,0.16)',
       glowStrong: 'rgba(139,163,189,0.26)',
       edgeLight: 'rgba(255,255,255,0.07)',
