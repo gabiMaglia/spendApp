@@ -30,6 +30,13 @@ beforeEach(() => {
   createSecureStorage('users').clearAll();
   useAuthStore.setState({ currentUser: YO });
   useGroupKeyStore.setState({ keys: [] });
+  // T-173: faltaba. `useUserStore` es un singleton de módulo que "la foto
+  // propia actual" y "sin avatarDigest propio" mutan (avatar/avatarDigest de
+  // YO); sin resetearlo acá, ese estado sobrevivía al test y "junta los tres
+  // tipos, sin repetidos" heredaba topics de foto que no pidió — invisible en
+  // el orden de declaración porque ese test corre primero, expuesto por
+  // `--randomize` cuando corre después.
+  useUserStore.setState({ users: [YO] });
 });
 
 describe('los topics de una cuenta', () => {

@@ -1,3 +1,4 @@
+import { createStorage } from '@/src/utils/createStorage';
 import { createSettingsStore } from '../settingsStore';
 import { useAuthStore } from '../authStore';
 import type { User } from '@/src/types/models';
@@ -6,7 +7,16 @@ const user = (id: string): User => ({
   id, name: id, email: `${id}@t.local`, authProvider: 'google',
 } as User);
 
-beforeEach(() => useAuthStore.setState({ currentUser: user('u1') }));
+// T-173: `createStorage('settings')` es un singleton de módulo (registrado en
+// `BUCKETS`, ver `createStorage.ts`) que sobrevive entre tests del mismo
+// archivo. Sin vaciarlo acá, lo que un test escribe para 'u1' (p. ej. "la
+// eleccion sobrevive al reinicio") quedaba en disco para el siguiente test —
+// invisible en el orden de declaración porque "arranca en ARS" corre primero,
+// pero `--randomize` lo expone: si corre después, hereda el BRL ajeno.
+beforeEach(() => {
+  createStorage('settings').clearAll();
+  useAuthStore.setState({ currentUser: user('u1') });
+});
 
 describe('moneda maestra de visualizacion', () => {
   it('arranca en ARS si el usuario nunca eligio', () => {

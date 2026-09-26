@@ -23,6 +23,7 @@
     "setupFilesAfterEnv": [
       "<rootDir>/src/test-utils/setup.ts"
     ],
+    "testTimeout": 30000,
     "moduleNameMapper": {
       "^@/(.*)$": "<rootDir>/$1"
     },

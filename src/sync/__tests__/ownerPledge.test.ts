@@ -11,6 +11,15 @@ import { prendaDelAparato, olvidarPrendaEnCache } from '../ownerPledge';
  *     `delete_my_envelopes` devuelve siempre 0 y nadie se entera;
  *  2. no tener prenda **no bloquea publicar** — un sobre sin prenda se comporta
  *     como los de antes de este ticket.
+ *
+ * Los casos de "el módulo de identidad no se puede tocar en absoluto" viven en
+ * `ownerPledgeModuloAusente.test.ts` y `ownerPledgeGeneracionFalla.test.ts`,
+ * separados por la misma razón que separa `authorSourcesDegrade.test.ts` de
+ * `authorResolve.test.ts` (ver el docblock de ese archivo, T-173/S4): un
+ * `jest.doMock` dinámico — con o sin `jest.isolateModules` — no pisa el
+ * `require`/import ya resuelto en ESTE archivo; sólo un `jest.mock` hoisteado
+ * desde el arranque de un archivo dedicado garantiza que el módulo esté roto
+ * quien sea que lo pida.
  */
 describe('la prenda del aparato', () => {
   beforeEach(() => {
@@ -51,9 +60,21 @@ describe('la prenda del aparato', () => {
    * del texto; el secreto es hex ASCII, así que las dos cuentas tienen que dar
    * lo mismo. La confirmación cruzada contra Postgres es el paso (1) de la
    * prueba funcional de `engram/plans/T-087.md` §7.
+   *
+   * T-173: antes comparaba contra el `ensureOwnerPledge` importado ESTÁTICO de
+   * arriba del archivo. Bajo `--randomize`, si un test de OTRO archivo — no,
+   * de ESTE mismo archivo (ver más abajo) — corría antes y dejaba el registro
+   * de módulos de Jest reseteado, el `require` perezoso de `prendaDelAparato()`
+   * resolvía una instancia de `identityStore` (y de su storage) DISTINTA de la
+   * que usa el import estático: dos módulos, dos storages, dos secretos random
+   * — nunca iguales. La comparación tiene que hacerse contra un `require` del
+   * MISMO módulo, tomado en el mismo instante: así, esté el registro reseteado
+   * o no, las dos mitades leen la misma instancia.
    */
   it('el acceso perezoso devuelve la misma prenda que el store', () => {
-    expect(prendaDelAparato()?.secret).toBe(ensureOwnerPledge().secret);
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const identidadActual = require('@/src/store/identityStore') as typeof import('@/src/store/identityStore');
+    expect(prendaDelAparato()?.secret).toBe(identidadActual.ensureOwnerPledge().secret);
   });
 });
 
@@ -68,55 +89,46 @@ describe('la prenda del aparato', () => {
  * no cumple. La confirmación cruzada contra Postgres es el paso (1) de la
  * prueba funcional de `engram/plans/T-087.md` §7.
  */
+// Bandera mutable + `jest.mock` HOISTEADO (no `jest.doMock` dinámico, T-173):
+// pisa el mock de `expo-crypto` de `src/test-utils/setup.ts` para TODO este
+// archivo, replicando su comportamiento salvo cuando se pide el vector fijo.
+// Sin esto, un `jest.resetModules()` en este describe volvía a divergir el
+// registro de módulos del archivo (mismo bug que el test de arriba).
+let mockForzarCeros = false;
+jest.mock('expo-crypto', () => {
+  let mockSeed = 1;
+  return {
+    getRandomBytesAsync: async (n: number) =>
+      new Uint8Array(Array.from({ length: n }, (_, i) => (i * 7 + 3) % 256)),
+    getRandomBytes: (n: number) => {
+      if (mockForzarCeros) return new Uint8Array(n);
+      return new Uint8Array(Array.from({ length: n }, () => {
+        mockSeed = (mockSeed * 1103515245 + 12345) & 0x7fffffff;
+        return mockSeed % 256;
+      }));
+    },
+    digestStringAsync: async (_alg: string, data: string) => {
+      let h1 = 0x811c9dc5, h2 = 0x01000193;
+      for (let i = 0; i < data.length; i++) {
+        h1 = ((h1 ^ data.charCodeAt(i)) * 16777619) >>> 0;
+        h2 = ((h2 + data.charCodeAt(i) * (i + 1)) * 2654435761) >>> 0;
+      }
+      return (h1.toString(16).padStart(8, '0') + h2.toString(16).padStart(8, '0')).repeat(4);
+    },
+    CryptoDigestAlgorithm: { SHA256: 'SHA-256' },
+  };
+});
+
 describe('la cuenta del hash coincide con la del servidor', () => {
-  afterEach(() => {
-    jest.resetModules();
-    jest.dontMock('expo-crypto');
-  });
+  afterEach(() => { mockForzarCeros = false; });
 
   it('con 32 bytes en cero, el proof es el vector conocido', () => {
-    jest.resetModules();
-    jest.doMock('expo-crypto', () => ({
-      ...jest.requireActual('expo-crypto'),
-      getRandomBytes: () => new Uint8Array(32),   // ⇒ secret = 64 ceros ASCII
-    }));
+    mockForzarCeros = true;
+    createSecureStorage('groupkeys').clearAll();
 
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const storage = require('@/src/utils/secureStorage') as typeof import('@/src/utils/secureStorage');
-    storage.createSecureStorage('groupkeys').clearAll();
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const store = require('@/src/store/identityStore') as typeof import('@/src/store/identityStore');
-
-    const { secret, proof } = store.ensureOwnerPledge();
+    const { secret, proof } = ensureOwnerPledge();
     expect(secret).toBe('0'.repeat(64));
     // sha256 de esos 64 caracteres ASCII.
     expect(proof).toBe('60e05bd1b195af2f94112fa7197a5c88289058840ce7c6df9693756bc6250f55');
-  });
-});
-
-describe('cuando la identidad no se puede tocar', () => {
-  afterEach(() => {
-    jest.resetModules();
-    jest.dontMock('@/src/store/identityStore');
-  });
-
-  it('devuelve null sin lanzar si el módulo no carga', () => {
-    jest.resetModules();
-    jest.doMock('@/src/store/identityStore', () => {
-      throw new Error('nativo ausente');
-    });
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const mod = require('../ownerPledge') as typeof import('../ownerPledge');
-    expect(mod.prendaDelAparato()).toBeNull();
-  });
-
-  it('devuelve null sin lanzar si la generación falla', () => {
-    jest.resetModules();
-    jest.doMock('@/src/store/identityStore', () => ({
-      ensureOwnerPledge: () => { throw new Error('storage cifrado que no abrió'); },
-    }));
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const mod = require('../ownerPledge') as typeof import('../ownerPledge');
-    expect(mod.prendaDelAparato()).toBeNull();
   });
 });
