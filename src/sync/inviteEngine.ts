@@ -17,6 +17,7 @@ import {
 } from './groupInvite';
 import { syncedNow } from '@/src/utils/syncedClock';
 import { withTimeout } from '@/src/utils/withTimeout';
+import { recordError } from '@/src/services/errorLog';
 import {
   claveLocalVinoDeContacto, idDeOfertaDeInvitacion, olvidarOfertas, registrarOferta,
 } from './groupKeyOffers';
@@ -160,7 +161,11 @@ async function admit(
   // que un segundo device (claimant en un grupo, nunca inviter) admita claims.
   const actual = findInviteToken(invite.groupId, invite.token);
   if (!actual) return false; // Este dispositivo no emitió esta invitación — no puede admitir (T-096)
-  if (actual.claimedBy && actual.claimedBy !== claim.userId) return false;
+  if (actual.claimedBy && actual.claimedBy !== claim.userId) {
+    // D3 (T-151): rechazo por seguridad con rastro corto, sin claves completas.
+    recordError({ message: 'admit_rechazado: ya_reclamado_por_otro_usuario', fatal: false, screen: 'sync.invite' });
+    return false;
+  }
 
   // Sólo puede admitir un miembro vivo que tenga la clave. Un tercero con el
   // link no puede fabricar una entrega válida porque no la tiene.
@@ -170,21 +175,60 @@ async function admit(
 
   /**
    * SEC-06 (T-151): un reclamo a nombre de alguien que YA es miembro no puede
-   * ser un ingreso — o es esa misma persona reinstalando, o es alguien
+   * ser un ingreso franco — o es esa misma persona (reinstalando, o
+   * reintentando porque la entrega anterior no salió), o es alguien
    * usándole el nombre para recibir la clave sin figurar como miembro nuevo
-   * ni disparar `joined`. Se distingue por la identidad: sólo se entrega si
-   * la Ed25519 del reclamo es la que ya teníamos pinneada para ese id. Sin
-   * clave pinneada no hay forma de saberlo, y ante la duda no se entrega — el
-   * miembro real tiene el camino de contacto (ADR-013) para recuperar la clave.
+   * ni disparar `joined`.
+   *
+   * La identidad Ed25519 sola NO prueba nada: es pública, viaja en la tarjeta
+   * de contacto (`contactChannel.ts:146`) y en cada registro que esa persona
+   * firma (`recordSign.ts:45`), así que cualquiera puede copiarla en su
+   * reclamo. Lo que sí prueba algo es hacia DÓNDE se envuelve la clave del
+   * grupo: la entrega envuelve hacia `claim.wrapPublicKey` (X25519,
+   * `wrapGroupKey` más abajo), y sólo quien tiene la PRIVADA correspondiente
+   * puede abrirla. Por eso se exige que TANTO `wrapPublicKey` como
+   * `identityPublicKey` coincidan con las que ya teníamos pinneadas para ese
+   * id (`getPeer`, que guarda `wrapPublicKey` desde el intercambio de
+   * contacto — `contactChannel.ts:115`): aunque Mallory copie las dos claves
+   * públicas de Beto, la única forma de que EL RECLAMO pase este chequeo con
+   * la wrap real de Beto es que la clave salga envuelta hacia esa wrap — y
+   * ahí sólo Beto, dueño de la privada, puede abrirla. Es prueba de posesión
+   * implícita, sin tocar el protocolo de claim (no se firma).
+   *
+   * Excepción: el MISMO reclamante reintentando. Si la entrega anterior no
+   * salió (sin red, por ejemplo) el invitado ya quedó sumado a `memberIds`
+   * sin estar pinneado en ningún lado — no hay pinned que pueda coincidir, y
+   * sin esta excepción quedaría bloqueado para siempre (D2 del verificador).
+   * `claimedWrapKey` (guardado en el primer reclamo, T-151) identifica a ese
+   * mismo reclamante: mismo `userId` Y misma wrap que la primera vez. Otra
+   * wrap con el mismo `userId` no es él — es alguien más con el link
+   * reclamando "como" el invitado tras su primer canje, y se rechaza igual
+   * que cualquier otro miembro no pinneado.
    */
   if (group.memberIds.includes(claim.userId)) {
-    const pinneada = getPeer(claim.userId)?.identityPublicKey;
-    if (!pinneada || pinneada.toLowerCase() !== claim.identityPublicKey.toLowerCase()) return false;
+    const esReintentoDelMismoReclamante =
+      actual.claimedBy === claim.userId &&
+      actual.claimedWrapKey !== undefined &&
+      actual.claimedWrapKey.toLowerCase() === claim.wrapPublicKey.toLowerCase();
+
+    if (!esReintentoDelMismoReclamante) {
+      const pinneada = getPeer(claim.userId);
+      const coincide = !!pinneada?.wrapPublicKey && !!pinneada.identityPublicKey
+        && pinneada.wrapPublicKey.toLowerCase() === claim.wrapPublicKey.toLowerCase()
+        && pinneada.identityPublicKey.toLowerCase() === claim.identityPublicKey.toLowerCase();
+      if (!coincide) {
+        // D3 (T-151): rechazo por seguridad con rastro corto, sin claves completas.
+        recordError({ message: 'admit_rechazado: claim_a_nombre_de_miembro_sin_prueba_de_posesion', fatal: false, screen: 'sync.invite' });
+        return false;
+      }
+    }
   }
 
   // Marcar como canjeado en storage si no estaba ya (para robustez entre app closes).
   // `actual` ya está garantizado no-nulo por el `if (!actual) return false` de arriba.
-  if (!actual.claimedBy) markInviteClaimed(invite.groupId, invite.token, claim.userId);
+  // Se persiste también la wrap del reclamo (T-151): es lo que permite
+  // reconocer al mismo reclamante en un reintento (ver bloque de arriba).
+  if (!actual.claimedBy) markInviteClaimed(invite.groupId, invite.token, claim.userId, claim.wrapPublicKey);
 
   const users = useUserStore.getState();
   if (!users.getUserById(claim.userId)) {

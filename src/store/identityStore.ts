@@ -140,11 +140,22 @@ export function findInviteToken(groupId: string, token: string): GroupInvite | u
   return listInvites().find(i => i.groupId === groupId && i.token === token);
 }
 
-/** Marca quién canjeó una invitación (T-096): un solo uso, un solo destinatario. */
-export function markInviteClaimed(groupId: string, token: string, userId: string): void {
+/**
+ * Marca quién canjeó una invitación (T-096): un solo uso, un solo destinatario.
+ *
+ * `wrapPublicKey` (T-151 · SEC-06) ata el canje a la wrap del primer
+ * reclamante: es lo que permite distinguir «el mismo reclamante reintentando
+ * porque la entrega anterior no salió» de «otro reclamando como él».
+ */
+export function markInviteClaimed(
+  groupId: string,
+  token: string,
+  userId: string,
+  wrapPublicKey?: string,
+): void {
   const invite = findInviteToken(groupId, token);
   if (!invite) return;
-  saveInvite({ ...invite, claimedBy: userId });
+  saveInvite({ ...invite, claimedBy: userId, claimedWrapKey: wrapPublicKey });
 }
 
 /**

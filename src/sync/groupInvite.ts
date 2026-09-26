@@ -6,6 +6,7 @@ import { enlaceCompacto, enlaceCompartible, rutaDeEnlace } from '@/src/utils/app
 import { esIdDeCuenta } from '@/src/utils/idDeCuenta';
 import { codificarInvitacion, decodificarInvitacion, RE_UUID } from '@/src/utils/linkCompacto';
 import { esNombreSeguro, limpiarNombre } from '@/src/utils/nombreSeguro';
+import { recordError } from '@/src/services/errorLog';
 import { sealEnvelope, openEnvelope, toHex, fromHex } from './envelopeCrypto';
 
 /**
@@ -63,6 +64,16 @@ export type GroupInvite = {
    * persistida de quien invita — nunca se codifica en el link.
    */
   claimedBy?: string;
+  /**
+   * Wrap pública (X25519) con la que `claimedBy` reclamó por primera vez
+   * (T-151 · SEC-06). Ata el reintento al MISMO reclamante: si vuelve a
+   * verse el mismo `claimedBy` con esta misma wrap, es él reintentando —el
+   * envío anterior se perdió— y se re-entrega aunque ya figure como miembro.
+   * Con otra wrap, no es él: es alguien más con el link. Opcional y
+   * retrocompatible: una invitación vieja sin este campo se comporta como
+   * antes de T-151.
+   */
+  claimedWrapKey?: string;
 };
 
 export function createInvite(
@@ -237,7 +248,12 @@ export async function openClaim(token: string, sealed: string): Promise<InviteCl
   // T-151 (SEC-06): el `userId` entra al roster y a los repartos tal cual. La
   // misma forma que exige un link de contacto (T-124): un id armado a mano
   // (`__proto__`, NUL, `../x`) no calza.
-  if (!esIdDeCuenta(msg.userId)) return null;
+  if (!esIdDeCuenta(msg.userId)) {
+    // D3 (T-151): rechazo por seguridad con rastro — sin la clave completa,
+    // sólo el motivo, para poder diagnosticar sin filtrar datos sensibles.
+    recordError({ message: 'openClaim_rechazado: id_forma_invalida', fatal: false, screen: 'sync.invite' });
+    return null;
+  }
   return msg;
 }
 
