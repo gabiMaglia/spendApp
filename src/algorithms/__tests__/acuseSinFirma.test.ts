@@ -2,7 +2,9 @@ import { ed25519 } from '@noble/curves/ed25519.js';
 import { estadoDelSaldado, saldadosPendientes, pagosQueCuentan, type ContextoDeAcuse } from '../settlementStatus';
 import { TOLERANCIA_RELOJ_MS } from '@/src/sync/voteCore';
 import { signSettlement } from '@/src/sync/settlementSign';
-import { rememberAuthorKey, forgetAuthorKeys, __resetAuthorSources } from '@/src/sync/authorKeys';
+import {
+  rememberAuthorKey, forgetAuthorKeys, refreshPendingAuthors, __resetAuthorSources,
+} from '@/src/sync/authorKeys';
 import { __resetSettlementTrust } from '@/src/sync/settlementTrust';
 import { toHex } from '@/src/sync/hexBytes';
 import type { Group, Payment, SettlementConfirmation } from '@/src/types/models';
@@ -137,6 +139,8 @@ describe('compatibilidad: pagos anteriores a T-064 (criterio 3 del ticket)', () 
 describe('D1 (ronda 2): el reject de un acreedor reinstalado se sigue honrando', () => {
   const VIEJA = par(41);
   const NUEVA = par(42);
+  /** Un acreedor sin ninguna clave conocida (borde de ADR-004). */
+  const TERCERA = par(43);
 
   beforeEach(() => {
     forgetAuthorKeys();
@@ -151,6 +155,32 @@ describe('D1 (ronda 2): el reject de un acreedor reinstalado se sigue honrando',
 
     const p = pago({ confirmations: [firmadoDeVerdad] });
     // Contexto REAL: sin inyectar nada, es `contextoReal()` con `checkSettlement`.
+    expect(estadoDelSaldado(p, grupo)).toBe('rechazado');
+  });
+
+  /**
+   * **R1 (Re-review 1 del verificador): borde de ADR-004, sin ninguna clave.**
+   *
+   * Distinto del caso de arriba: Beto no tiene NINGUNA clave conocida —ni
+   * vieja ni nueva—, porque entró por Apple sin `email` y el directorio nunca
+   * lo va a resolver (`authorKeys.ts`, borde de ADR-004). El PoC exacto del
+   * dictamen: antes del directorio, `rechazado`; el fix de D1 rompió esto
+   * porque sacó la guarda `keys.length === 0` y, apenas el directorio
+   * contesta (vacío, como corresponde a este borde), el acuse quedaba
+   * `invalida` para siempre.
+   */
+  it('reject de un acreedor SIN ninguna clave conocida (ADR-004): sigue vivo, con o sin respuesta del directorio', async () => {
+    const rechazo = acuse({ action: 'reject', confirmedAt: NOW - 1000 });
+    const firmadoDeVerdad = { ...rechazo, ...signSettlement('p1', rechazo, TERCERA.priv) };
+    const p = pago({ confirmations: [firmadoDeVerdad] });
+
+    // Antes de que el directorio conteste.
+    expect(estadoDelSaldado(p, grupo)).toBe('rechazado');
+
+    // El directorio contesta VACÍO — el caso normal de este borde, no un corte
+    // de red. Sigue `rechazado`: nunca puede ser `invalida` sin una clave con
+    // la que comparar.
+    await refreshPendingAuthors();
     expect(estadoDelSaldado(p, grupo)).toBe('rechazado');
   });
 });

@@ -140,3 +140,52 @@ describe('D2 (authorKeys) aplicado al acuse de saldado: una clave stale no es `i
     expect(checkSettlement('p1', c)).toBe('valida');
   });
 });
+
+/**
+ * **R1 (verificador, Re-review 1): el borde de ADR-004 — autor SIN NINGUNA
+ * clave conocida, nunca — se rompió al arreglar D1.**
+ *
+ * Diferencia con el describe de arriba: ahí Beto tenía UNA clave (la vieja).
+ * Acá no tiene NINGUNA — ni registro local de peers, ni caché — porque entró
+ * por Apple sin `email` (ADR-004) y el directorio nunca va a resolverlo. El
+ * fix de D1 sacó la guarda explícita `keys.length === 0` que existía en
+ * `settlementSign.ts:50` (y sigue en `recordHealth.ts:278-281`): sin ella, un
+ * autor irresoluble cae en la rama de D2, y en cuanto el directorio contesta
+ * (aunque sea vacío) `authorKeyWasAsked` da `true` y el acuse queda `invalida`
+ * PARA SIEMPRE — la caché lo fija y nunca hay una clave que aprender.
+ */
+describe('R1: autor sin ninguna clave conocida (borde de ADR-004)', () => {
+  const NUEVA = par(23);
+
+  it('sin ninguna clave conocida y el directorio TODAVÍA sin contestar: `no_verificable`', () => {
+    const c = { ...acuse, ...signSettlement('p1', acuse, NUEVA.priv) };
+    expect(checkSettlement('p1', c)).toBe('no_verificable');
+  });
+
+  /**
+   * El PoC exacto del dictamen: antes del directorio, `rechazado`
+   * (`no_verificable` se honra). Con el directorio contestando VACÍO —el
+   * caso normal de ADR-004, no un corte de red— debe seguir `no_verificable`,
+   * nunca `invalida`: un autor sin directorio nunca puede acusarse por eso.
+   */
+  it('y el directorio contesta VACÍO (ADR-004: nunca va a resolverlo): sigue `no_verificable`, no `invalida`', async () => {
+    const c = { ...acuse, ...signSettlement('p1', acuse, NUEVA.priv) };
+    checkSettlement('p1', c); // encola la consulta
+
+    mockFetchAccountKeys.mockResolvedValue([]); // contesta, sin nada: el borde de ADR-004
+    await refreshPendingAuthors();
+
+    expect(checkSettlement('p1', c)).toBe('no_verificable');
+  });
+
+  it('no queda cacheado: si el directorio aprende la clave más tarde, pasa a `valida`', async () => {
+    const c = { ...acuse, ...signSettlement('p1', acuse, NUEVA.priv) };
+    checkSettlement('p1', c);
+    mockFetchAccountKeys.mockResolvedValue([]);
+    await refreshPendingAuthors();
+    expect(checkSettlement('p1', c)).toBe('no_verificable'); // seguía sin cerrar
+
+    rememberAuthorKey('beto', NUEVA.pub); // ahora sí se resuelve
+    expect(checkSettlement('p1', c)).toBe('valida');
+  });
+});
