@@ -271,7 +271,9 @@ soloEn('011a', '011b')('011a · piezas nuevas', () => {
         }),
     );
     expect((await rpcPub(intruso, t)).error).toBeNull();
-    await new Promise((r) => setTimeout(r, 3_000));
+    // Realtime recién levantado tarda en entregar el primero: se espera hasta
+    // 15 s a que llegue, en vez de una pausa fija.
+    for (let i = 0; i < 150 && avisos === 0; i++) await new Promise((r) => setTimeout(r, 100));
     expect(avisos).toBe(1);
     await intruso.realtime.setAuth((await intruso.auth.getSession()).data.session!.access_token);
     const ch = intruso.channel(`envelopes:${t}`, { config: { private: true } });
