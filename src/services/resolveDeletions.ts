@@ -1,11 +1,13 @@
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { useCommentStore } from '@/src/store/commentStore';
 import { resolveDeletionVotes } from '@/src/sync/SyncEngine';
+import { checkVote } from '@/src/sync/trustCheck';
 import { syncedNow } from '@/src/utils/syncedClock';
 import type { Expense } from '@/src/types/models';
 
 /**
- * Aplica las solicitudes de borrado que ya cumplieron sus 72hs sin objeción.
+ * Aplica las solicitudes de borrado que ya cumplieron sus 72hs sin objeción, y
+ * los overrides del creador **cuya firma cierra** (T-143).
  *
  * Esto FALTABA: `resolveDeletionVotes` existía, estaba testeado... y no lo
  * llamaba nadie. O sea que el plazo no vencía nunca y una solicitud quedaba
@@ -17,13 +19,18 @@ import type { Expense } from '@/src/types/models';
  * evalúa igual de bien al volver. Cada dispositivo llega a la misma conclusión
  * por su cuenta porque los votos viajan por el sync; el tombstone que resulte
  * se resuelve por LWW como cualquier otro.
+ *
+ * **Acá la firma AUTORIZA el override, no informa** (misma excepción a R1 que
+ * `applyLeave.ts`): esto corre solo, sin nadie mirando, y borra datos de otros.
+ * El costo es acotado — una verificación por gasto con `forced` vigente, con
+ * caché de veredictos — y está fuera del merge (D9).
  */
 export function resolvePendingDeletions(now: number = syncedNow()): number {
   const store = useExpenseStore.getState();
   const vencidas: Expense[] = store.expenses.filter(e =>
     !e.isDeleted &&
     (e.deletionVotes?.length ?? 0) > 0 &&
-    resolveDeletionVotes(e, [], now),
+    resolveDeletionVotes(e, [], now, v => checkVote(e.id, v) === 'valida'),
   );
 
   for (const expense of vencidas) {
