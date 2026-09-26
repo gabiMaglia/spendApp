@@ -23,6 +23,7 @@ import { reloadRatchet } from '@/src/sync/ratchet';
 import { reloadRecordHealth } from '@/src/sync/recordHealth';
 import { reloadAuthorHealth } from '@/src/sync/authorHealth';
 import { recargarAlias, sembrarAliasDesdeIndice } from './identityAlias';
+import { olvidarFallosDeAplicacion } from '@/src/sync/drainFailures';
 
 // (Re)hidrata todos los stores scopeados por cuenta con los datos del usuario
 // activo. Con usuario nulo (deslogueado), cada hydrate lee un scope vacío y deja
@@ -60,6 +61,9 @@ export function rehydrateForActiveUser(): void {
   reloadRatchet();
   reloadRecordHealth();
   reloadAuthorHealth();
+  // Los intentos de drenaje (T-146) son por topic, y los topics son por
+  // cuenta: mismo hueco que los de arriba si no se sueltan acá.
+  olvidarFallosDeAplicacion();
 
   /**
    * Las identidades viejas de esta cuenta (T-048). Mismo motivo que las de
