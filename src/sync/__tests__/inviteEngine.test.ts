@@ -1,7 +1,7 @@
 import { publishClaim, processInvite, activeInvites } from '../inviteEngine';
 import {
-  createInvite, deriveInviteTopic, sealGrant, wrapGroupKey,
-  generateIdentity, generateWrapKeypair, type GroupInvite,
+  createInvite, deriveInviteTopic, sealGrant, sealClaim, wrapGroupKey,
+  generateIdentity, generateWrapKeypair, type GroupInvite, type InviteClaim,
 } from '../groupInvite';
 import { drainGroup } from '../relaySync';
 import {
@@ -18,6 +18,8 @@ import {
   conflictoForzado, idDeOfertaDeInvitacion, marcarAdoptada, marcarConflictoForzado,
   ofertasDe, registrarOferta,
 } from '../groupKeyOffers';
+import { savePeer } from '../contactChannel';
+import { listErrors, clearErrors } from '@/src/services/errorLog';
 
 jest.mock('expo-notifications', () => ({
   setNotificationHandler: () => {},
@@ -76,9 +78,9 @@ const relayMock = jest.requireMock('../relay') as {
   __reset: () => void;
 };
 
-const ANA    = usuario('u-ana', 'Ana');
-const BETO   = usuario('u-beto', 'Beto');
-const MALLORY = usuario('u-mallory', 'Mallory');
+const ANA    = usuario('u-ana-1', 'Ana');
+const BETO   = usuario('u-beto-2', 'Beto');
+const MALLORY = usuario('u-mallory-3', 'Mallory');
 
 function usuario(id: string, name: string): User {
   return {
@@ -176,6 +178,20 @@ function anaInvita(): { invite: GroupInvite; clave: string; identidadDeAna: stri
   return { invite, clave: record.key, identidadDeAna };
 }
 
+/** Como `anaInvita`, pero Beto ya es miembro del grupo (SEC-06, T-151). */
+function anaInvitaConBeto(): { invite: GroupInvite; clave: string; identidadDeAna: string } {
+  usar('ana', ANA);
+  useGroupStore.setState({ groups: [grupo([ANA.id, BETO.id])] });
+  useUserStore.setState({ users: [ANA, BETO] });
+
+  const record = useGroupKeyStore.getState().ensureKey('g1');
+  const identidadDeAna = ensureIdentity().publicKey;
+  const invite = createInvite('g1', 'Viaje', identidadDeAna);
+  saveInvite(invite);
+
+  return { invite, clave: record.key, identidadDeAna };
+}
+
 /** Deja un sobre en el buzón de la invitación como si lo mandara otro. */
 async function inyectar(invite: GroupInvite, payload: string, sender: string): Promise<void> {
   const topic = await deriveInviteTopic(invite.token);
@@ -189,6 +205,7 @@ beforeEach(() => {
   guardados.clear();
   actual = null;
   for (const id of ['groups', 'users', 'groupkeys'] as const) createSecureStorage(id).clearAll();
+  clearErrors();
 });
 
 // -----------------------------------------------------------------------------
@@ -478,10 +495,10 @@ describe('T-136 · la invitación choca con una clave plantada por contacto', ()
   function plantadaPorContacto(key: string): void {
     useGroupKeyStore.setState({ keys: [{ groupId: 'g1', key, epoch: 1e9 }] });
     registrarOferta({
-      groupId: 'g1', fromUserId: 'u-mallory', key, epoch: 1e9,
+      groupId: 'g1', fromUserId: 'u-mallory-3', key, epoch: 1e9,
       origen: 'contact', receivedAt: 0, adoptada: false,
     });
-    marcarAdoptada('g1', 'u-mallory');
+    marcarAdoptada('g1', 'u-mallory-3');
   }
 
   const avisos = () => useNoticeInboxStore.getState().items.filter(i => i.notice.kind === 'group_key_conflict');
@@ -634,5 +651,247 @@ describe('T-096 · invitación de un solo uso (claimedBy)', () => {
     // así que el riesgo de que Beto (nuevo miembro) admita a Mallory NO es reachable
     // a través del flujo normal. (Sí lo sería si algo explícitamente llamara
     // processInvite(invite), pero eso no es un code path actual.)
+  });
+});
+
+describe('SEC-06 (T-151) · un reclamo a nombre de alguien que YA es miembro', () => {
+  /**
+   * `admit` aceptaba un reclamo cuyo `userId` YA era miembro —el
+   * `if (!group.memberIds.includes(...))` se salteaba y `sendEnvelope` iba
+   * igual—, así que con el link alguien entraba «como Beto» sin figurar como
+   * miembro nuevo ni disparar el aviso `joined`: recibía la clave en silencio.
+   */
+  it('un reclamo a nombre de alguien que YA es miembro no recibe la clave', async () => {
+    // Ana invita a un grupo donde Beto ya es miembro. Mallory reclama diciendo ser Beto.
+    const { invite } = anaInvitaConBeto();
+
+    usar('mallory', MALLORY);
+    useAuthStore.setState({ currentUser: { ...MALLORY, id: BETO.id } });
+    await publishClaim(invite, 'device-mallory');
+
+    usar('ana', ANA);
+    await processInvite(invite, 'device-ana');
+
+    // En el buzón de invitación hay SOLO el reclamo (ningún grant de Ana): el
+    // filtro es por sobres de ANA (quien admitiría), no por remitente del
+    // reclamo, porque tanto el reclamo como un eventual grant indebido viajan
+    // por el mismo buzón y el grant lo firma el propio dispositivo de Ana.
+    const topic = await deriveInviteTopic(invite.token);
+    expect(relayMock.__buzones.get(topic) ?? []).toHaveLength(1);
+    expect(useGroupStore.getState().groups[0]!.memberIds).toEqual([ANA.id, BETO.id]);
+  });
+
+  it('el propio miembro reinstalado SÍ recibe la clave si su identidad Y su wrap coinciden con las pinneadas', async () => {
+    const { invite } = anaInvitaConBeto();
+
+    usar('beto', BETO);
+    const identidadDeBeto = ensureIdentity().publicKey;
+    const wrapDeBeto = ensureWrapKeypair().publicKey;
+    await publishClaim(invite, 'device-beto');
+
+    usar('ana', ANA);
+    savePeer(BETO.id, { secret: 'sec-beto', identityPublicKey: identidadDeBeto, wrapPublicKey: wrapDeBeto });
+    await processInvite(invite, 'device-ana');
+
+    // Reclamo + entrega: los dos sobres del buzón de invitación.
+    const topic = await deriveInviteTopic(invite.token);
+    expect((relayMock.__buzones.get(topic) ?? []).length).toBe(2);
+  });
+
+  /**
+   * D1 (verifier T-151, ronda 1): la identidad Ed25519 es pública (tarjeta de
+   * contacto, `k` de cada registro firmado) y el claim no va firmado. Mallory
+   * copia el `userId` y la `identityPublicKey` REALES de Beto pero pone SU
+   * PROPIA wrap key — antes de este fix, `admit` sólo comparaba
+   * `identityPublicKey` y esto pasaba: la clave del grupo salía envuelta hacia
+   * la wrap de Mallory, que ella sí puede abrir.
+   */
+  it('T-151 D1: identidad pública copiada + wrap propia de Mallory no basta con Beto pinneado', async () => {
+    const { invite } = anaInvitaConBeto();
+
+    usar('beto', BETO);
+    const identidadDeBeto = ensureIdentity().publicKey;
+    const wrapDeBeto = ensureWrapKeypair().publicKey;
+
+    usar('ana', ANA);
+    savePeer(BETO.id, { secret: 'sec-beto', identityPublicKey: identidadDeBeto, wrapPublicKey: wrapDeBeto });
+
+    // Mallory arma el reclamo a mano: userId + identidad pública REALES de
+    // Beto (copiables, públicas), pero su PROPIA wrap key.
+    const wrapDeMallory = generateWrapKeypair().publicKey;
+    const claimFalso: InviteClaim = {
+      kind: 'claim',
+      groupId: invite.groupId,
+      userId: BETO.id,
+      wrapPublicKey: wrapDeMallory,
+      identityPublicKey: identidadDeBeto.toUpperCase(), // mayúsculas: la comparación normaliza
+      displayName: 'Beto',
+      claimedAt: Date.now(),
+    };
+    await inyectar(invite, await sealClaim(invite.token, claimFalso), 'device-mallory');
+
+    await processInvite(invite, 'device-ana');
+
+    // Sólo el reclamo de Mallory en el buzón: ningún grant salió.
+    const topic = await deriveInviteTopic(invite.token);
+    expect(relayMock.__buzones.get(topic) ?? []).toHaveLength(1);
+    expect(useGroupStore.getState().groups[0]!.memberIds).toEqual([ANA.id, BETO.id]);
+  });
+
+  /**
+   * O3 (verifier T-151, ronda 2): la comparación de `wrapPublicKey` en `admit`
+   * normaliza con `toLowerCase`, pero `wrapGroupKey` envolvía con el valor
+   * CRUDO del claim. Si el propio Beto reclama con su wrap en mayúsculas (un
+   * cliente que la formatee distinto, por ejemplo), pasaba la comparación
+   * pero la clave salía envuelta hacia un `info` HKDF que no coincide con el
+   * que deriva `unwrapGroupKey` desde su clave privada real (minúsculas,
+   * `toHex`) — el link quedaba gastado sin que ni el dueño real pudiera abrir
+   * el grant.
+   */
+  it('T-151 O3: Beto legítimo con su wrap en MAYÚSCULAS sí puede abrir el grant', async () => {
+    const { invite } = anaInvita();
+
+    usar('beto', BETO);
+    const identidadDeBeto = ensureIdentity().publicKey;
+    const wrapDeBeto = ensureWrapKeypair().publicKey;
+
+    const claimEnMayusculas: InviteClaim = {
+      kind: 'claim',
+      groupId: invite.groupId,
+      userId: BETO.id,
+      wrapPublicKey: wrapDeBeto.toUpperCase(),
+      identityPublicKey: identidadDeBeto,
+      displayName: 'Beto',
+      claimedAt: Date.now(),
+    };
+    await inyectar(invite, await sealClaim(invite.token, claimEnMayusculas), 'device-beto');
+
+    usar('ana', ANA);
+    await processInvite(invite, 'device-ana');
+
+    usar('beto', BETO);
+    const adoptados = await processInvite(invite, 'device-beto');
+    expect(adoptados).toEqual(['g1']);
+  });
+});
+
+describe('D2 (verifier T-151, ronda 1) · reintento del invitado nuevo si la primera entrega falla', () => {
+  /**
+   * `admit` suma al invitado a `memberIds` ANTES de mandar la entrega. Si el
+   * primer `sendEnvelope` falla (sin red), el invitado queda en `memberIds`
+   * sin estar pinneado en ningún lado. Antes de este fix, el reintento
+   * quedaba bloqueado para siempre por el chequeo de SEC-06 (D1): un invitado
+   * nuevo nunca pasa por el camino de contacto que lo pinnea.
+   */
+  it('mismo reclamante: si la primera entrega falla por red, el reintento con la MISMA wrap sí entrega la clave', async () => {
+    const { invite } = anaInvita();
+
+    usar('beto', BETO);
+    await publishClaim(invite, 'device-beto');
+
+    usar('ana', ANA);
+    relayMock.__estado.sinRed = true;
+    await processInvite(invite, 'device-ana'); // el grant no sale: sin red
+    relayMock.__estado.sinRed = false;
+
+    // Beto ya quedó sumado a memberIds aunque la entrega se perdió.
+    expect(useGroupStore.getState().getById('g1')!.memberIds).toContain(BETO.id);
+
+    await processInvite(invite, 'device-ana'); // reintento: mismo reclamo, misma wrap
+
+    usar('beto', BETO);
+    const adoptados = await processInvite(invite, 'device-beto');
+    expect(adoptados).toEqual(['g1']);
+  });
+
+  it('otro con el link: mismo userId pero OTRA wrap no es el mismo reclamante y se rechaza', async () => {
+    const { invite } = anaInvita();
+
+    usar('beto', BETO);
+    await publishClaim(invite, 'device-beto');
+
+    usar('ana', ANA);
+    relayMock.__estado.sinRed = true;
+    await processInvite(invite, 'device-ana'); // Beto queda en memberIds, claimedWrapKey = wrap de Beto
+    relayMock.__estado.sinRed = false;
+
+    // Alguien más arma un reclamo "como Beto" con OTRA wrap.
+    const claimOtraWrap: InviteClaim = {
+      kind: 'claim',
+      groupId: invite.groupId,
+      userId: BETO.id,
+      wrapPublicKey: generateWrapKeypair().publicKey,
+      identityPublicKey: generateIdentity().publicKey,
+      displayName: 'Beto',
+      claimedAt: Date.now(),
+    };
+    await inyectar(invite, await sealClaim(invite.token, claimOtraWrap), 'device-otro');
+
+    await processInvite(invite, 'device-ana');
+
+    // El buzón se relee entero (sin cursor): el reclamo LEGÍTIMO de Beto se
+    // reprocesa en la misma pasada y SÍ recibe su entrega (es el reintento
+    // real, D2). El reclamo AJENO con otra wrap no es "el mismo reclamante":
+    // Beto no está pinneado (nunca pasó por contacto), así que se rechaza
+    // igual que cualquier otro miembro no pinneado. Sólo debe salir UN grant,
+    // no dos.
+    const topic = await deriveInviteTopic(invite.token);
+    const sobres = relayMock.__buzones.get(topic) ?? [];
+    // 2 reclamos (Beto original + el ajeno) + 1 sola entrega de Ana.
+    expect(sobres).toHaveLength(3);
+    expect(sobres.filter(e => e.sender === 'device-ana')).toHaveLength(1);
+  });
+});
+
+describe('D3 (verifier T-151, ronda 1) · el rechazo por seguridad deja rastro', () => {
+  it('un reclamo a nombre de un miembro pinneado sin prueba de posesión queda en el diagnóstico', async () => {
+    const { invite } = anaInvitaConBeto();
+
+    usar('beto', BETO);
+    const identidadDeBeto = ensureIdentity().publicKey;
+    const wrapDeBeto = ensureWrapKeypair().publicKey;
+
+    usar('ana', ANA);
+    savePeer(BETO.id, { secret: 'sec-beto', identityPublicKey: identidadDeBeto, wrapPublicKey: wrapDeBeto });
+
+    const wrapDeMallory = generateWrapKeypair().publicKey;
+    const claimFalso: InviteClaim = {
+      kind: 'claim',
+      groupId: invite.groupId,
+      userId: BETO.id,
+      wrapPublicKey: wrapDeMallory,
+      identityPublicKey: identidadDeBeto,
+      displayName: 'Beto',
+      claimedAt: Date.now(),
+    };
+    await inyectar(invite, await sealClaim(invite.token, claimFalso), 'device-mallory');
+
+    await processInvite(invite, 'device-ana');
+
+    const entradas = listErrors();
+    expect(entradas.some(e => e.message.includes('admit_rechazado'))).toBe(true);
+    // Sin claves completas en el rastro.
+    expect(entradas.some(e => e.message.includes(wrapDeMallory))).toBe(false);
+    expect(entradas.some(e => e.message.includes(identidadDeBeto))).toBe(false);
+  });
+
+  it('un reclamo con userId de forma inválida queda en el diagnóstico', async () => {
+    const { invite } = anaInvita();
+
+    const claimInvalido: InviteClaim = {
+      kind: 'claim',
+      groupId: invite.groupId,
+      userId: '__proto__',
+      wrapPublicKey: generateWrapKeypair().publicKey,
+      identityPublicKey: generateIdentity().publicKey,
+      displayName: 'x',
+      claimedAt: Date.now(),
+    };
+    await inyectar(invite, await sealClaim(invite.token, claimInvalido), 'device-mallory');
+
+    await processInvite(invite, 'device-ana');
+
+    const entradas = listErrors();
+    expect(entradas.some(e => e.message.includes('openClaim_rechazado'))).toBe(true);
   });
 });

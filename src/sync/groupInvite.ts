@@ -3,8 +3,10 @@ import { hkdf } from '@noble/hashes/hkdf.js';
 import { sha256 } from '@noble/hashes/sha2.js';
 import * as Crypto from 'expo-crypto';
 import { enlaceCompacto, enlaceCompartible, rutaDeEnlace } from '@/src/utils/appLink';
+import { esIdDeCuenta } from '@/src/utils/idDeCuenta';
 import { codificarInvitacion, decodificarInvitacion, RE_UUID } from '@/src/utils/linkCompacto';
 import { esNombreSeguro, limpiarNombre } from '@/src/utils/nombreSeguro';
+import { recordError } from '@/src/services/errorLog';
 import { sealEnvelope, openEnvelope, toHex, fromHex } from './envelopeCrypto';
 
 /**
@@ -62,6 +64,24 @@ export type GroupInvite = {
    * persistida de quien invita — nunca se codifica en el link.
    */
   claimedBy?: string;
+  /**
+   * Wrap pública (X25519) con la que `claimedBy` reclamó por primera vez
+   * (T-151 · SEC-06). Ata el reintento al MISMO reclamante: si vuelve a
+   * verse el mismo `claimedBy` con esta misma wrap, es él reintentando —el
+   * envío anterior se perdió— y se re-entrega aunque ya figure como miembro.
+   * Con otra wrap, no es él: es alguien más con el link.
+   *
+   * Opcional, pero NO retrocompatible en el sentido de "se comporta como
+   * antes de T-151" (observación O2, verificador ronda 2): un canje hecho con
+   * un build viejo (sin este campo) cuya entrega falló, y cuyo reintento ya
+   * corre en un build con T-151, NO se re-entrega — cae al chequeo de lo
+   * pinneado (`getPeer`) y lo rechaza, porque un invitado nuevo nunca pasó por
+   * ahí. Antes de T-151 sí se re-entregaba (no había chequeo de miembro en
+   * `admit`). Es un caso residual, acotado por el TTL de 48hs de la
+   * invitación, y falla cerrado — la opción segura frente a re-entregar sin
+   * poder confirmar que es el mismo reclamante.
+   */
+  claimedWrapKey?: string;
 };
 
 export function createInvite(
@@ -233,7 +253,28 @@ export async function openClaim(token: string, sealed: string): Promise<InviteCl
   const msg = await open(token, sealed);
   if (msg === null || msg.kind !== 'claim') return null;
   if (!msg.groupId || !msg.userId || !msg.wrapPublicKey || !msg.identityPublicKey) return null;
-  return msg;
+  // T-151 (SEC-06): el `userId` entra al roster y a los repartos tal cual. La
+  // misma forma que exige un link de contacto (T-124): un id armado a mano
+  // (`__proto__`, NUL, `../x`) no calza.
+  if (!esIdDeCuenta(msg.userId)) {
+    // D3 (T-151): rechazo por seguridad con rastro — sin la clave completa,
+    // sólo el motivo, para poder diagnosticar sin filtrar datos sensibles.
+    recordError({ message: 'openClaim_rechazado: id_forma_invalida', fatal: false, screen: 'sync.invite' });
+    return null;
+  }
+  // O3 (T-151, ronda 2): normalizar UNA sola vez acá, y usar siempre este
+  // valor — para comparar contra lo pinneado, para envolver (`wrapGroupKey`)
+  // y para persistir (`claimedWrapKey`). Antes, `admit` sólo normalizaba para
+  // COMPARAR (`toLowerCase` ad hoc) pero envolvía con el hex crudo del claim:
+  // un wrap en mayúsculas pasaba la comparación pero quedaba envuelto hacia
+  // un `info` HKDF (`deriveWrapKey`) distinto del que deriva `unwrapGroupKey`
+  // desde la clave privada real (que siempre sale en minúsculas de `toHex`)
+  // — ni el dueño legítimo podía abrir el grant, y el link quedaba gastado.
+  return {
+    ...msg,
+    wrapPublicKey: msg.wrapPublicKey.toLowerCase(),
+    identityPublicKey: msg.identityPublicKey.toLowerCase(),
+  };
 }
 
 /**

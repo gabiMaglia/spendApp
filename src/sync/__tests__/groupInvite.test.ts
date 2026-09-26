@@ -23,7 +23,7 @@ const AHORA = Date.UTC(2026, 7, 17, 12);
 
 function claim(over: Partial<InviteClaim> = {}): InviteClaim {
   return {
-    kind: 'claim', groupId: 'g1', userId: 'u-ana',
+    kind: 'claim', groupId: 'g1', userId: 'u-ana-1',
     wrapPublicKey: 'aa'.repeat(32), identityPublicKey: 'bb'.repeat(32),
     displayName: 'Ana', claimedAt: AHORA, ...over,
   };
@@ -142,6 +142,16 @@ describe('reclamo sellado — el relay NO puede sustituir la clave del invitado'
     const incompleto = await sealClaim(inv.token, { kind: 'claim', groupId: 'g1' } as InviteClaim);
 
     expect(await openClaim(inv.token, incompleto)).toBeNull();
+  });
+
+  // T-151 (SEC-06): el userId del reclamo entra al roster y a los repartos
+  // tal cual. La misma forma que exige un link de contacto (T-124): un id
+  // armado a mano (`__proto__`, NUL, `../x`) no calza.
+  it('T-151: un reclamo con userId de forma inválida no abre', async () => {
+    const inv = createInvite('g1', 'x', 'aa'.repeat(32), AHORA);
+    const invalido = await sealClaim(inv.token, claim({ userId: '__proto__' }));
+
+    expect(await openClaim(inv.token, invalido)).toBeNull();
   });
 });
 
