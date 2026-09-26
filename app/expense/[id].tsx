@@ -39,7 +39,8 @@ import { emitirVoto } from '@/src/services/deletionVotes';
 import type { CategoryKind } from '@/src/constants/colors';
 import { syncedNow } from '@/src/utils/syncedClock';
 import { esYo } from '@/src/store/identityAlias';
-import { enDisputa } from '@/src/sync/autoriaTrust';
+import { enDisputa, autoresVerificados } from '@/src/sync/autoriaTrust';
+import { InlineWarningBanner } from '@/src/components/InlineWarningBanner';
 
 /** "2 días" / "5 horas" / "40 minutos": basta para saber si hay que apurarse. */
 function formatearRestante(ms: number): string {
@@ -135,7 +136,14 @@ export default function ExpenseDetailScreen() {
   // siquiera el del autor genuino (I-10). La opción de forzar se oculta acá,
   // y `resolvePendingDeletions` corta lo mismo del lado que corre solo
   // (`src/sync/forcedTrust.ts`, predicado único).
-  const puedeForzar = isCreator && !enDisputa(expense);
+  const disputada = enDisputa(expense);
+  const puedeForzar = isCreator && !disputada;
+  // T-170 · D-3 (decisión del PO): quién abrió la disputa, para mostrarlo.
+  // Sólo autores ATRIBUIBLES (`autoresVerificados`: firma que cierra, D9
+  // afuera del merge) y nunca el creador vigente contra sí mismo.
+  const otrosAutoresDisputa = disputada
+    ? autoresVerificados(expense).filter(id => id !== expense.createdById)
+    : [];
 
   // En un grupo de borrado LIBRE (elegido al crearlo) cualquier miembro borra
   // al instante, igual que Splitwise: la defensa no es impedir sino que quede
@@ -420,45 +428,40 @@ export default function ExpenseDetailScreen() {
           </View>
         ) : null}
 
+        {/* Autoría en disputa (T-170 · D-3, decisión del PO): decir QUIÉN la
+            abrió, no sólo ocultar "Forzar" en silencio. Sólo autores
+            ATRIBUIBLES — nunca una entrada sin verificar ni un id inyectado. */}
+        {otrosAutoresDisputa.length > 0 && (
+          <InlineWarningBanner
+            icon="warning-outline"
+            title={t('expense.authorship_disputed_title')}
+            body={t('expense.authorship_disputed_body', {
+              names: otrosAutoresDisputa.map(nombreDe).join(', '),
+            })}
+          />
+        )}
+
         {/* Estado de la solicitud de borrado. Decir QUIÉN lo pidió y CUÁNTO
             falta es lo que hace accionable el aviso: "pendiente" a secas no le
             dice a nadie si tiene que hacer algo ni cuándo. */}
         {ronda && !expense.isDeleted && (
-          <View style={[
-            styles.section, styles.warningSection,
-            frenada
-              ? { backgroundColor: c.bgGrouped, borderColor: c.hair }
-              : { backgroundColor: c.semantic.warningSoft, borderColor: c.semantic.warning },
-          ]}>
-            <Ionicons
-              name={frenada ? 'hand-left-outline' : 'time-outline'}
-              size={18}
-              color={frenada ? c.textSecondary : c.semantic.warning}
-            />
-            <View style={{ flex: 1 }}>
-              <Text style={[Typography.bodyM, {
-                color: frenada ? c.text : c.semantic.warning, fontWeight: '600',
-              }]}>
-                {tituloDeRonda}
-              </Text>
-              <Text style={[Typography.bodyS, {
-                color: frenada ? c.textSecondary : c.semantic.warning,
-                marginTop: 2, opacity: 0.9,
-              }]}>
-                {cuerpoDeRonda}
-              </Text>
-              {/* Quién pidió/objetó/restauró se muestra igual —el override del
-                  creador se honra SIEMPRE (R3)—; lo que agrega la marca es si
-                  esa firma cerró. Atribuir, no bloquear. */}
-              {votoDeLaRonda && isMarked(
-                marcaDeVoto[voteRefKey(expense.id, votoDeLaRonda)] ?? 'pendiente',
-              ) && (
-                <View style={{ marginTop: Spacing[2] }}>
-                  <TrustMark label={t('trust.vote')} size="sm" />
-                </View>
-              )}
-            </View>
-          </View>
+          <InlineWarningBanner
+            icon={frenada ? 'hand-left-outline' : 'time-outline'}
+            tone={frenada ? 'neutral' : 'warning'}
+            title={tituloDeRonda}
+            body={cuerpoDeRonda}
+          >
+            {/* Quién pidió/objetó/restauró se muestra igual —el override del
+                creador se honra SIEMPRE (R3)—; lo que agrega la marca es si
+                esa firma cerró. Atribuir, no bloquear. */}
+            {votoDeLaRonda && isMarked(
+              marcaDeVoto[voteRefKey(expense.id, votoDeLaRonda)] ?? 'pendiente',
+            ) && (
+              <View style={{ marginTop: Spacing[2] }}>
+                <TrustMark label={t('trust.vote')} size="sm" />
+              </View>
+            )}
+          </InlineWarningBanner>
         )}
 
         {/* Acciones. Objetar y retirar el pedido NO son lo mismo: objetar frena
@@ -536,6 +539,5 @@ const styles = StyleSheet.create({
   balanceCol:    { flex: 1, alignItems: 'center' },
   balanceDivider:{ width: 1, height: 32 },
   splitRow:      { flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
-  warningSection:{ flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
   notFound:  { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
 });
