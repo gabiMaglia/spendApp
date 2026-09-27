@@ -102,6 +102,8 @@ export default function PersonalScreen() {
         // del scroll mientras la lista pasa por debajo — 3 hijos directos
         // fijos (todo lo de arriba / el encabezado sticky / la lista), así
         // el índice no se rompe si algo cambia adentro del bloque de arriba.
+        // Con el Aero (header transparente) se mantiene: sin sticky el scroll
+        // de esta pantalla dejaba de responder en Android (visto 2026-09-26).
         stickyHeaderIndices={[1]}
       >
         <View>

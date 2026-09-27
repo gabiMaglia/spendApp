@@ -2,7 +2,7 @@ import React from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { FondoMarmol } from '@/src/components/FondoMarmol';
-import { useSkinTokens } from '@/src/skins/useSkin';
+import { useSkin } from '@/src/skins/useSkin';
 import { VidrioMarmol } from './VidrioMarmol';
 import { AERO_RADIO } from './headerAeroGeometria';
 
@@ -16,8 +16,11 @@ import { AERO_RADIO } from './headerAeroGeometria';
  * puntos antes del final, que es la zona del sistema (gestos / tres botones).
  */
 export function TabBarFondoAero({ inferior }: { inferior: number }) {
-  const skin = useSkinTokens();
+  const { skin, degradado } = useSkin();
   const c = skin.colors;
+  const sombra = degradado
+    ? { elevation: skin.elevation.e2.elevationFallback }
+    : { boxShadow: skin.elevation.e2.boxShadow };
   return (
     <View testID="tabbar-aero" style={[StyleSheet.absoluteFill, { backgroundColor: c.bg }]} pointerEvents="none">
       <View
@@ -30,6 +33,7 @@ export function TabBarFondoAero({ inferior }: { inferior: number }) {
             backgroundColor: c.surface,
             borderColor: c.hair,
           },
+          sombra,
         ]}
       >
         <FondoMarmol patron="franja" variante />

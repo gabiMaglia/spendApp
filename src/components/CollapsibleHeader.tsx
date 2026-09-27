@@ -62,7 +62,11 @@ export function useHeaderPadding(aire: number = Spacing[4]): number {
   // T-131: el scroll ya arranca debajo de la barra fija (`useLimiteContenido`), así que el
   // padding sólo cubre el bloque título que se colapsa.
   const soft = useSkinTokens().flags.soft;
-  return (soft ? RECORRIDO_AERO : TITLE_BLOCK_H) + aire;
+  const insets = useSafeAreaInsets();
+  // Aero (PO 2026-09-26, header transparente): el scroll arranca en el borde
+  // de arriba de la pantalla (ver `useLimiteContenido`), así que el padding
+  // cubre también la status bar y la barra.
+  return soft ? fondoBarraAero(insets.top) + RECORRIDO_AERO + aire : TITLE_BLOCK_H + aire;
 }
 
 /**
@@ -72,11 +76,12 @@ export function useHeaderPadding(aire: number = Spacing[4]): number {
  */
 export function useLimiteContenido(): { marginTop: number } {
   const insets = useSafeAreaInsets();
-  // Skin Aero (PO 2026-09-26): la barra es una tarjeta separada de la status
-  // bar; el contenido se corta justo en su borde de abajo (ni un punto más
-  // abajo: se leía como un «fondo fantasma»). Con el default, el de siempre.
+  // Skin Aero (PO 2026-09-26, header transparente): sin límite. El contenido
+  // sube por DETRÁS de las tarjetas del header (que lo tapan solo donde
+  // están) y se sigue viendo en los huecos hasta el borde de la pantalla.
+  // Con el default, el límite de siempre.
   const soft = useSkinTokens().flags.soft;
-  return { marginTop: soft ? fondoBarraAero(insets.top) : insets.top + HEADER_BAR_H };
+  return { marginTop: soft ? 0 : insets.top + HEADER_BAR_H };
 }
 
 /** Margen extra, en pt, del mármol más allá del alto expandido — colchón de seguridad para que nunca se vea un hueco. */
@@ -308,6 +313,7 @@ export function DetailHeader({
           style={[
             detail.tarjetaAero,
             { marginHorizontal: skin.space.inset, backgroundColor: c.surface, borderColor: c.hair },
+            { boxShadow: skin.elevation.e2.boxShadow },
           ]}
         >
           <FondoMarmol patron="franja" />
