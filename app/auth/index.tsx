@@ -259,6 +259,10 @@ export default function AuthScreen() {
           name:         u.name ?? u.givenName,
           email:        u.email,
           avatarUrl:    u.photo,
+          // T-188a: este login es LA MISMA PERSONA (idEstable), aunque el
+          // perfil guardado esté anonimizado por un borrado anterior — pisa
+          // el «Cuenta borrada».
+          deletedAt:    undefined,
         }));
 
         // La foto de Google se adopta como bytes propios UNA vez. A partir de
@@ -317,6 +321,8 @@ export default function AuthScreen() {
           authProvider: 'apple',
           name,
           email:        credential.email,
+          // T-188a: ídem Google — este login es la misma persona.
+          deletedAt:    undefined,
         }));
 
         void entrarAlDirectorio('apple', credential.identityToken, credential.user);

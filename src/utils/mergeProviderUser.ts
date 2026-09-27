@@ -13,6 +13,13 @@ export type ProviderProfile = {
   email?: string | null;
   avatarUrl?: string | null;
   avatar?: string | null;
+  /**
+   * T-188a: quien llama pasa `undefined` EXPLÍCITO acá para pisar un
+   * `deletedAt` de un perfil anonimizado (borrado de cuenta) al volver a
+   * entrar con el mismo proveedor. Omitir el campo no alcanza — ver el
+   * comentario en `mergeProviderUser`.
+   */
+  deletedAt?: number;
 };
 
 export const FALLBACK_USER_NAME = 'Usuario';
@@ -59,5 +66,11 @@ export function mergeProviderUser(
     createdAt:    prev?.createdAt ?? now,
     updatedAt:    now,
     isDeleted:    false,
+    // Clave SIEMPRE presente (aunque `undefined`), a propósito (T-188a): así
+    // `addOrUpdateUser`, que hace `{ ...previo, ...entrante }`, la pisa de
+    // verdad. Un perfil que llega a este merge está EN SESIÓN (alguien acaba
+    // de entrar), así que nunca debería seguir marcado `deletedAt` — es lo
+    // que borra el cartel "Cuenta borrada" al volver con el mismo proveedor.
+    deletedAt:    incoming.deletedAt,
   };
 }
