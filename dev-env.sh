@@ -1,5 +1,5 @@
 #!/bin/zsh
-# Entorno compartido de los scripts de dev de SplitP2P.
+# Entorno compartido de los scripts de dev de HushSplit.
 # No se ejecuta solo: lo sourcean start-dev / run-android / run-ios.
 #
 # POR QUE EXISTE EL EXPORT DE LANG:
@@ -33,7 +33,7 @@ metro_running() {
 
 titulo() {
   clear 2>/dev/null || true
-  echo "SplitP2P — $1"
+  echo "HushSplit — $1"
   echo "────────────────────────────────────────────────"
 }
 

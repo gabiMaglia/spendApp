@@ -5,7 +5,7 @@ import { expensePayers } from '@/src/algorithms/payers';
 /**
  * Export a CSV para abrir en Excel / Google Sheets.
  *
- * Complementa al backup `.splitp2p`, que es para RESTAURAR la app: este formato
+ * Complementa al backup `.hushsplit`, que es para RESTAURAR la app: este formato
  * es para que el usuario mire sus números afuera. Por eso los montos van
  * formateados por moneda (legibles) y además en crudo (menor unidad, para hacer
  * cuentas sin ambigüedad de redondeo).
@@ -97,5 +97,5 @@ export function personalToCsv(entries: PersonalEntry[]): string {
 }
 
 export function csvFileName(prefix: string, now: number = Date.now()): string {
-  return `splitp2p-${prefix}-${isoDate(now)}.csv`;
+  return `hushsplit-${prefix}-${isoDate(now)}.csv`;
 }

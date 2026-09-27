@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ---
 
-## Proyecto: SplitP2P — Clon de Splitwise Serverless
+## Proyecto: HushSplit (antes SplitP2P) — Clon de Splitwise Serverless
 
 App móvil de división de gastos (Expo / React Native) que funciona **sin backend propio**: toda la lógica corre en el dispositivo y el servidor es un **buzón tonto** que no puede abrir lo que guarda (ADR-003). Dos usuarios se sincronizan a través de ese buzón, con el sobre cifrado de punta a punta. **Ojo con la frase vieja «se sincronizan directamente entre sí»: era falsa** — el WebRTC que la sostenía nunca estuvo enchufado y se sacó en T-083. Ver `docs/ARCHITECTURE.md` para el diseño completo y `docs/FEATURES.md` para el roadmap de features.
 

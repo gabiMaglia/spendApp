@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-WpQRXnRWYptDtWzH1BxN1l2sJ0f8I7EVD8UiMv2lEmU='; style-src 'sha256-KCkMpeLMDZKpQyjwhkkrzJb8R51IFuCQfaZaZ6bYNgQ='; img-src 'none'; connect-src 'none'; form-action 'none'; base-uri 'none'">
-<title>Abrir en spendApp</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-A/xh0l7084XJNh1gjwdJTec+bsDgnaMuRTwM3CNg2/k='; style-src 'sha256-KCkMpeLMDZKpQyjwhkkrzJb8R51IFuCQfaZaZ6bYNgQ='; img-src 'none'; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<title>Abrir en HushSplit</title>
 <!--
   Página intermedia de los links que comparte la app (src/utils/appLink.ts).
 
@@ -65,7 +65,7 @@
 </head>
 <body>
 <main>
-  <p class="marca">spendApp</p>
+  <p class="marca">HushSplit</p>
 
   <section id="valido" hidden>
     <h1 id="titulo"></h1>
@@ -102,43 +102,43 @@
 
   var TEXTOS = {
     es: {
-      'contact/add': ['Te quieren agregar como contacto', 'Abrí el link en spendApp para agregar a esta persona.'],
-      'groups/join': ['Te invitaron a un grupo', 'Abrí el link en spendApp para unirte.'],
-      'contact/claim': ['Te invitan a agregarte como contacto', 'Abrí el link en spendApp para agregar a esta persona.'],
-      abrir: 'Abrir en spendApp',
-      descargar: 'Descargar spendApp',
-      ayudaIos: 'Si no se abre sola: mantené apretado el link y elegí "Abrir en spendApp", o abrilo desde Safari.',
-      nota: 'Tenés que tener spendApp instalada en este teléfono. Si el botón no hace nada, abrí este mail o mensaje desde el teléfono donde está la app.',
+      'contact/add': ['Te quieren agregar como contacto', 'Abrí el link en HushSplit para agregar a esta persona.'],
+      'groups/join': ['Te invitaron a un grupo', 'Abrí el link en HushSplit para unirte.'],
+      'contact/claim': ['Te invitan a agregarte como contacto', 'Abrí el link en HushSplit para agregar a esta persona.'],
+      abrir: 'Abrir en HushSplit',
+      descargar: 'Descargar HushSplit',
+      ayudaIos: 'Si no se abre sola: mantené apretado el link y elegí "Abrir en HushSplit", o abrilo desde Safari.',
+      nota: 'Tenés que tener HushSplit instalada en este teléfono. Si el botón no hace nada, abrí este mail o mensaje desde el teléfono donde está la app.',
       inicioTitulo: 'App para dividir gastos',
-      inicioCuerpo: 'Los links de contacto y de invitación a grupos que se comparten desde spendApp se abren desde acá.',
+      inicioCuerpo: 'Los links de contacto y de invitación a grupos que se comparten desde HushSplit se abren desde acá.',
       legales: ['Privacidad', 'Términos', 'Borrar cuenta'],
       invalidoTitulo: 'Este link está incompleto',
       invalidoCuerpo: 'Puede que se haya cortado al copiarlo. Pedile a quien te lo mandó que lo comparta de nuevo desde la app.'
     },
     en: {
-      'contact/add': ['Someone wants to add you as a contact', 'Open the link in spendApp to add this person.'],
-      'groups/join': ["You've been invited to a group", 'Open the link in spendApp to join.'],
-      'contact/claim': ["You've been invited to add a contact", 'Open the link in spendApp to add this person.'],
-      abrir: 'Open in spendApp',
-      descargar: 'Get spendApp',
-      ayudaIos: 'If it doesn\'t open by itself: press and hold the link and choose "Open in spendApp", or open it in Safari.',
-      nota: 'spendApp needs to be installed on this phone. If the button does nothing, open this email or message on the phone that has the app.',
+      'contact/add': ['Someone wants to add you as a contact', 'Open the link in HushSplit to add this person.'],
+      'groups/join': ["You've been invited to a group", 'Open the link in HushSplit to join.'],
+      'contact/claim': ["You've been invited to add a contact", 'Open the link in HushSplit to add this person.'],
+      abrir: 'Open in HushSplit',
+      descargar: 'Get HushSplit',
+      ayudaIos: 'If it doesn\'t open by itself: press and hold the link and choose "Open in HushSplit", or open it in Safari.',
+      nota: 'HushSplit needs to be installed on this phone. If the button does nothing, open this email or message on the phone that has the app.',
       inicioTitulo: 'An app to split expenses',
-      inicioCuerpo: 'Contact and group invitation links shared from spendApp open from here.',
+      inicioCuerpo: 'Contact and group invitation links shared from HushSplit open from here.',
       legales: ['Privacy', 'Terms', 'Delete account'],
       invalidoTitulo: 'This link is incomplete',
       invalidoCuerpo: 'It may have been cut off when copied. Ask the person who sent it to share it again from the app.'
     },
     pt: {
-      'contact/add': ['Querem adicionar você como contato', 'Abra o link no spendApp para adicionar esta pessoa.'],
-      'groups/join': ['Você foi convidado para um grupo', 'Abra o link no spendApp para entrar.'],
-      'contact/claim': ['Te convidaram para adicionar um contato', 'Abra o link no spendApp para adicionar esta pessoa.'],
-      abrir: 'Abrir no spendApp',
-      descargar: 'Baixar spendApp',
-      ayudaIos: 'Se não abrir sozinho: mantenha o link pressionado e escolha "Abrir no spendApp", ou abra no Safari.',
-      nota: 'O spendApp precisa estar instalado neste telefone. Se o botão não fizer nada, abra este e-mail ou mensagem no telefone que tem o app.',
+      'contact/add': ['Querem adicionar você como contato', 'Abra o link no HushSplit para adicionar esta pessoa.'],
+      'groups/join': ['Você foi convidado para um grupo', 'Abra o link no HushSplit para entrar.'],
+      'contact/claim': ['Te convidaram para adicionar um contato', 'Abra o link no HushSplit para adicionar esta pessoa.'],
+      abrir: 'Abrir no HushSplit',
+      descargar: 'Baixar HushSplit',
+      ayudaIos: 'Se não abrir sozinho: mantenha o link pressionado e escolha "Abrir no HushSplit", ou abra no Safari.',
+      nota: 'O HushSplit precisa estar instalado neste telefone. Se o botão não fizer nada, abra este e-mail ou mensagem no telefone que tem o app.',
       inicioTitulo: 'App para dividir despesas',
-      inicioCuerpo: 'Os links de contato e de convite para grupos compartilhados pelo spendApp abrem por aqui.',
+      inicioCuerpo: 'Os links de contato e de convite para grupos compartilhados pelo HushSplit abrem por aqui.',
       legales: ['Privacidade', 'Termos', 'Excluir conta'],
       invalidoTitulo: 'Este link está incompleto',
       invalidoCuerpo: 'Pode ter sido cortado ao copiar. Peça para quem enviou compartilhar de novo pelo app.'
@@ -176,7 +176,7 @@
         a.href = par[1] + '.' + lang + '.html';
       });
     document.getElementById('inicio').hidden = false;
-    document.title = 'spendApp';
+    document.title = 'HushSplit';
     return;
   }
 
@@ -202,7 +202,7 @@
     // T-097 · SEC M-4: en iOS cualquier app puede declarar `spendapp://` y recibir el
     // secreto del link. Acá NUNCA se usa el esquema. Con Universal Links la app abre sin
     // pasar por esta página; si igual se cargó (navegador interno, link pegado), el Smart
-    // App Banner le entrega la URL https completa a spendApp, sin esquema de por medio.
+    // App Banner le entrega la URL https completa a HushSplit, sin esquema de por medio.
     var meta = document.createElement('meta');
     meta.setAttribute('name', 'apple-itunes-app');
     meta.setAttribute('content', 'app-id=' + APP_STORE_ID + ', app-argument=' + window.location.href);

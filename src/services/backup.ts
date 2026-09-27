@@ -12,7 +12,7 @@ import { useCommentStore } from '@/src/store/commentStore';
 import { useAuthStore } from '@/src/store/authStore';
 
 /**
- * Backup completo `.splitp2p`: exporta TODOS los datos locales a un archivo JSON
+ * Backup completo `.hushsplit`: exporta TODOS los datos locales a un archivo JSON
  * versionado y los re-importa con semántica **RESTORE (reemplazo)**: importar
  * deja los datos EXACTAMENTE como en el archivo (revierte cambios, descarta lo
  * agregado después del export). Decisión PO 2026-07-21.
@@ -21,6 +21,7 @@ import { useAuthStore } from '@/src/store/authStore';
  * con el registro del usuario de sesión que venga en el backup.
  */
 
+/** Tag INTERNO del archivo; no es marca. Queda «splitp2p» a propósito: cambiarlo dejaría sin abrir los backups ya exportados. */
 export const BACKUP_FORMAT = 'splitp2p-backup' as const;
 export const BACKUP_VERSION = 1 as const;
 
@@ -64,7 +65,7 @@ export function serializeBackup(backup: BackupFile): string {
 const ARRAY_KEYS = ['groups', 'expenses', 'payments', 'users', 'personalEntries'] as const;
 
 /**
- * Parsea y VALIDA el contenido de un archivo `.splitp2p`. Lanza `Error` con
+ * Parsea y VALIDA el contenido de un archivo `.hushsplit`. Lanza `Error` con
  * mensaje claro si el JSON es inválido, el formato/versión no coincide, o falta
  * alguna colección. No aplica nada — solo devuelve el `BackupFile` validado.
  */
@@ -149,5 +150,5 @@ export function importBackup(raw: string): void {
 export function backupFileName(now: number = Date.now()): string {
   const d = new Date(now);
   const p = (n: number) => String(n).padStart(2, '0');
-  return `splitp2p-backup-${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}.splitp2p`;
+  return `hushsplit-backup-${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}.hushsplit`;
 }

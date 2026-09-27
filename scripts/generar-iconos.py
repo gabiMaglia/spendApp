@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Genera la iconografía de spendApp a partir de la marca del login.
+Genera la iconografía de HushSplit a partir de la marca del login.
 
 La fuente de verdad del dibujo es `src/components/AppLogoMark.tsx`: dos
 cuadrados redondeados superpuestos —petróleo arriba-izquierda, verde salvia

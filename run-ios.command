@@ -55,7 +55,7 @@ case "$op" in
   1)
     echo
     echo "En el iPhone:"
-    echo "  1. Abri la app 'spendApp' (el dev client)."
+    echo "  1. Abri la app 'HushSplit' (el dev client)."
     echo "  2. Deberia listar el Metro de esta Mac en la LAN → tocalo."
     echo "  3. Si no lo ve: 'Enter URL manually' y meté:"
     echo

@@ -326,7 +326,7 @@ WatermelonDB permite queries reactivas en tiempo real que actualizan la UI autom
 
 **DECISIÓN**: Backup cifrado exportable a iCloud Drive (iOS) / Google Drive (Android).
 
-- El usuario puede exportar un archivo `.splitp2p` cifrado con su clave de cifrado maestra (derivada del `userId`).
+- El usuario puede exportar un archivo `.hushsplit` cifrado con su clave de cifrado maestra (derivada del `userId`).
 - Para importar en un dispositivo nuevo, el usuario provee el archivo + su cuenta Google/Apple (para derivar la clave de descifrado).
 - Este backup incluye todos los grupos, gastos y claves de cifrado de grupos.
 - Disponible para todos los tiers (Free y Pro) — es un mecanismo de seguridad básico, no un diferenciador de plan.

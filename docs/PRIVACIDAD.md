@@ -1,4 +1,4 @@
-# Política de privacidad — spendApp
+# Política de privacidad — HushSplit
 
 > **BORRADOR TÉCNICO — no publicar sin revisar.**
 > Redactado el 2026-09-04 verificando el código, no de memoria: cada afirmación de acá se
@@ -19,7 +19,7 @@
 
 ## Lo corto
 
-spendApp funciona **en tu teléfono**. No tenemos una base de datos con tus gastos, ni con tu
+HushSplit funciona **en tu teléfono**. No tenemos una base de datos con tus gastos, ni con tu
 nombre, ni con tu mail. No podemos ver lo que cargás, ni queremos.
 
 Lo único que sale de tu teléfono son **paquetes cifrados** dirigidos a la gente de tus grupos, y

@@ -1,4 +1,4 @@
-# Features: SplitP2P
+# Features: HushSplit
 
 ## Modelo de monetización
 
@@ -54,7 +54,7 @@ Objetivo: la app funciona completamente offline para un solo usuario.
 - [ ] Balance global cross-group en dashboard
 - [ ] UI: Dashboard, lista de grupos, detalle de grupo, crear gasto, liquidar deuda
 - [ ] Monetización básica: AdMob rewarded ad a partir del 5to gasto del día
-- [ ] Backup a iCloud / Google Drive (exportar/importar `.splitp2p`)
+- [ ] Backup a iCloud / Google Drive (exportar/importar `.hushsplit`)
 
 ### Fase 2 — Sincronización P2P
 Objetivo: dos dispositivos se sincronizan correctamente.

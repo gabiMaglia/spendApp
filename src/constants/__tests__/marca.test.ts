@@ -44,10 +44,11 @@ describe('marca HushSplit — lo que se ve', () => {
     const conNombreViejo = readdirSync(web)
       .filter((f) => f.endsWith('.html'))
       .filter((f) => {
-        const sinDominioNiEsquema = readFileSync(join(web, f), 'utf8')
+        const sinDominioEsquemaNiId = readFileSync(join(web, f), 'utf8')
           .replace(/spendapp\.github\.io/g, '')
-          .replace(/scheme=spendapp|spendapp:/g, '');
-        return NOMBRES_VIEJOS.test(sinDominioNiEsquema);
+          .replace(/scheme=spendapp|spendapp:/g, '')
+          .replace(/com\.splitp2p\.app/g, '');
+        return NOMBRES_VIEJOS.test(sinDominioEsquemaNiId);
       });
     expect(conNombreViejo).toEqual([]);
   });

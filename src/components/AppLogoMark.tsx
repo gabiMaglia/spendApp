@@ -2,7 +2,7 @@ import React from 'react';
 import { StyleProp, Text, View, ViewStyle } from 'react-native';
 
 /**
- * La marca de spendApp: dos cuadrados redondeados superpuestos con una «S».
+ * La marca de HushSplit: dos cuadrados redondeados superpuestos con una «S».
  *
  * Vivía adentro de `app/auth/index.tsx`. Salió acá cuando el splash animado
  * necesitó la misma marca: duplicar la geometría en dos archivos garantiza que

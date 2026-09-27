@@ -156,5 +156,5 @@ export function serializeErrorLog(): string {
 export function diagnosticoFileName(): string {
   const d = new Date(ahora());
   const p = (n: number) => String(n).padStart(2, '0');
-  return `spendapp-diagnostico-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}.json`;
+  return `hushsplit-diagnostico-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}.json`;
 }

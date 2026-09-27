@@ -1,4 +1,4 @@
-# Términos de uso — spendApp
+# Términos de uso — HushSplit
 
 > **BORRADOR TÉCNICO — no publicar sin revisar.**
 > Redactado el 2026-09-04. Igual que la política de privacidad: describe lo que la app hace y lo
@@ -11,14 +11,14 @@
 
 ---
 
-## 1 · Qué es spendApp
+## 1 · Qué es HushSplit
 
 Una app para anotar y dividir gastos entre personas. **Funciona en tu teléfono**: no hay una
 cuenta en un servidor nuestro con tus datos, y nosotros no vemos lo que cargás.
 
 ## 2 · Es una herramienta de registro, no un medio de pago
 
-spendApp **no mueve dinero**. No procesa pagos, no transfiere, no cobra y no es intermediaria de
+HushSplit **no mueve dinero**. No procesa pagos, no transfiere, no cobra y no es intermediaria de
 ninguna operación. Cuando marcás una deuda como saldada, estás **anotando** que un pago ocurrió
 fuera de la app; nosotros no lo verificamos ni podemos hacerlo.
 
