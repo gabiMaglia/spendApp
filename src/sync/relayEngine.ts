@@ -1033,11 +1033,6 @@ export async function announceGroupToContacts(groupId: string): Promise<number> 
   let encolados = 0;
   for (const memberId of group.memberIds) {
     if (memberId === me.id) continue;
-    // T-180 (7.1 · B7): mismo criterio que `reenviarClavesDeGrupo` (B4) — a
-    // un bloqueado no se le reparte la clave por este canal directo. Sigue
-    // siendo miembro del grupo; lo que escriba en el topic del grupo le
-    // sigue llegando (fuera de alcance de este ticket).
-    if (isBlocked(memberId)) continue;
     encolados++;
     encolar({
       prioridad: 'alta',
