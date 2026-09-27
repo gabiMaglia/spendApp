@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
@@ -7,8 +7,12 @@ import { Colors } from '@/src/constants/colors';
 import { Typography } from '@/src/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Band, BandRow } from '@/src/components/Band';
+import { ActionButton } from '@/src/components/ActionButton';
+import { ButtonRack } from '@/src/components/ButtonRack';
 import { sinSesionDeSync } from '@/src/sync/sessionStatus';
 import { useLiveValue } from '@/src/hooks/useLiveValue';
+import { useAuthStore } from '@/src/store/authStore';
+import { reconectarCuentaInteractivo } from '@/src/sync/accountReconnect';
 
 /**
  * **T-147, enmienda del PO (2026-09-26).** Cuando el buzón SÍ está
@@ -27,23 +31,56 @@ import { useLiveValue } from '@/src/hooks/useLiveValue';
  * "Yo" volvía a renderizar cada 2s por otro efecto (`useLiveValue` en la
  * medición de errores). Acá se sondea con el mismo hook que ya usa el repo
  * para este problema exacto (ver su docblock).
+ *
+ * **Verifier R3-1 (ronda 3): el texto "se va a resolver solo" no es cierto
+ * para toda cuenta.** Para el invitado sí lo es (la anónima se reintenta
+ * sola con backoff). Para una cuenta (Google/Apple), `relaySession` también
+ * reintenta en silencio — pero SÓLO Google puede realmente lograrlo sin
+ * ayuda; Apple nunca tiene reconexión silenciosa, y un Google con el token
+ * revocado tampoco. Por eso una cuenta muestra un texto distinto y un botón
+ * «Reconectar» (`reconectarCuentaInteractivo`, abre el diálogo real del
+ * proveedor) — el invitado no lo necesita.
  */
 export function SinSesionDeSync({ sinSesion }: { sinSesion?: boolean } = {}) {
   const { t } = useTranslation();
   const c = Colors[useColorScheme() ?? 'light'];
   const enVivo = useLiveValue(sinSesionDeSync);
   const activo = sinSesion ?? enVivo;
+  const [reconectando, setReconectando] = useState(false);
   if (!activo) return null;
+
+  const proveedor = useAuthStore.getState().currentUser?.authProvider;
+  const esCuenta = proveedor === 'google' || proveedor === 'apple';
+
+  async function reconectar() {
+    setReconectando(true);
+    try { await reconectarCuentaInteractivo(); } finally { setReconectando(false); }
+  }
 
   return (
     <Band>
-      <BandRow last>
+      <BandRow last={!esCuenta}>
         <View style={{ flex: 1, gap: 2 }}>
           <Text style={[Typography.bodyL, { color: c.text }]}>{t('sync.no_session_title')}</Text>
-          <Text style={[Typography.caption, { color: c.textTertiary }]}>{t('sync.no_session_body')}</Text>
+          <Text style={[Typography.caption, { color: c.textTertiary }]}>
+            {t(esCuenta ? 'sync.no_session_account_body' : 'sync.no_session_body')}
+          </Text>
         </View>
         <Ionicons name="cloud-offline-outline" size={18} color={c.semantic.warning} />
       </BandRow>
+      {esCuenta && (
+        <BandRow last>
+          <ButtonRack placement="inline">
+            <ActionButton
+              label={t('sync.reconnect')}
+              action={() => { void reconectar(); }}
+              loading={reconectando}
+              variant="secondary"
+              full
+            />
+          </ButtonRack>
+        </BandRow>
+      )}
     </Band>
   );
 }
