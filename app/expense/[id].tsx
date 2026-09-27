@@ -155,6 +155,18 @@ export default function ExpenseDetailScreen() {
   // acuerdo sigue mandando la regla #2 y sólo el creador del gasto fuerza.
   const grupoDelGasto = groups.find(g => g.id === expense.groupId);
   const grupoArchivado = grupoDelGasto ? isArchivedFn(grupoDelGasto.id) : false;
+
+  // T-185: en un grupo `open` (Libre) cualquier miembro edita al instante,
+  // igual que borra — es el mismo modelo Splitwise. En `consensus` sigue
+  // siendo sólo del creador. Sin grupo resuelto se cae al comportamiento de
+  // siempre (el creador manda), misma razón que `borradoDirecto` arriba.
+  const puedeEditar = !expense.isDeleted && (
+    isCreator || (
+      grupoDelGasto !== undefined
+      && deletionModeOf(grupoDelGasto) === 'open'
+      && grupoDelGasto.memberIds.some(m => esYo(m))
+    )
+  );
   // Si el grupo no se puede resolver (todavía no sincronizó, dato a medias) se
   // cae al comportamiento de siempre —el creador manda— y NO al más
   // restrictivo: quitarle el override al creador por no encontrar el grupo
@@ -317,17 +329,25 @@ export default function ExpenseDetailScreen() {
       <DetailHeader
         title={t('expense.detail_title')}
         onBack={() => router.back()}
-        right={isCreator && !expense.isDeleted ? (
+        right={puedeEditar || (isCreator && !expense.isDeleted) ? (
           <View style={styles.headerRight}>
-            <Pressable
-              onPress={() => router.push(`/expense/new?expenseId=${expense.id}` as any)}
-              style={styles.iconBtn}
-            >
-              <Ionicons name="pencil-outline" size={20} color={c.brand.primary} />
-            </Pressable>
-            <Pressable onPress={handleRequestDelete} style={styles.iconBtn}>
-              <Ionicons name="trash-outline" size={20} color={c.semantic.negative} />
-            </Pressable>
+            {/* T-185: en `open`, cualquier miembro — no sólo el creador. El
+                borrado del creador (atajo rápido, distinto de la acción de
+                abajo que ven todos) sigue siendo sólo suyo. */}
+            {puedeEditar && (
+              <Pressable
+                testID="edit-expense-btn"
+                onPress={() => router.push(`/expense/new?expenseId=${expense.id}` as any)}
+                style={styles.iconBtn}
+              >
+                <Ionicons name="pencil-outline" size={20} color={c.brand.primary} />
+              </Pressable>
+            )}
+            {isCreator && !expense.isDeleted && (
+              <Pressable onPress={handleRequestDelete} style={styles.iconBtn}>
+                <Ionicons name="trash-outline" size={20} color={c.semantic.negative} />
+              </Pressable>
+            )}
           </View>
         ) : undefined}
       />
@@ -345,6 +365,14 @@ export default function ExpenseDetailScreen() {
           <Text style={[Typography.bodyS, { color: c.textTertiary, marginTop: 4 }]}>
             {dateStr}
           </Text>
+          {/* T-185: rastro de quién editó, sólo si NO fue el autor — un grupo
+              `open` deja que cualquiera edite, y esto es lo que lo hace visible
+              (Splitwise lo llama "editado por"). */}
+          {expense.editedById && expense.editedById !== expense.createdById && (
+            <Text style={[Typography.bodyS, { color: c.textTertiary, marginTop: 2 }]}>
+              {t('expense.edited_by', { name: nombreDe(expense.editedById) })}
+            </Text>
+          )}
           {/* Marcado, pero se muestra entero y suma al balance igual: es la
               invariante de R1. La marca informa, no esconde ni bloquea. */}
           {isMarked(marcaDeGasto ?? 'pendiente') && (

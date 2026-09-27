@@ -221,6 +221,7 @@
     "split_detail": "Divisão",
     "paid_label": "pagou",
     "note": "Nota",
+    "edited_by": "Editado por {{name}}",
     "delete_title": "Excluir gasto",
     "delete_body_creator": "Você pode pedir e dar 72 h para contestarem, ou excluir agora mesmo.",
     "delete_body_member": "Todos têm 72 h para contestar. Se ninguém contestar, é excluída sozinha.",

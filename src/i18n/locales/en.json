@@ -221,6 +221,7 @@
     "split_detail": "Split detail",
     "paid_label": "paid",
     "note": "Note",
+    "edited_by": "Edited by {{name}}",
     "delete_title": "Delete expense",
     "delete_body_creator": "You can request it and give everyone 72 h to object, or delete it right now.",
     "delete_body_member": "Everyone gets 72 h to object. If nobody does, it deletes itself.",

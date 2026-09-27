@@ -221,6 +221,7 @@
     "split_detail": "Desglose",
     "paid_label": "pagó",
     "note": "Nota",
+    "edited_by": "Editado por {{name}}",
     "delete_title": "Eliminar gasto",
     "delete_body_creator": "Podés pedirlo y darles 72 hs para objetar, o eliminarlo ahora mismo.",
     "delete_body_member": "Los demás tienen 72 hs para objetar. Si nadie lo hace, se elimina solo.",
