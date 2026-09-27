@@ -32,6 +32,10 @@ const gasto = (over: Partial<Expense> = {}): Expense => ({
 
 const grupo = (over: Partial<Group> = {}): Group => ({
   id: 'g1', name: 'Viaje', memberIds: ['ana', 'beto'], currency: 'ARS', deletionMode: 'consensus',
+  // T-182: `miembros` es la fuente de verdad de `memberIds` (derivado) — el
+  // roster ya no se ataca mandando un `memberIds` distinto (se ignora), sino
+  // un `miembros` con un `at` envenenado (ver el test de abajo).
+  miembros: { ana: { estado: 'in', at: 0 }, beto: { estado: 'in', at: 1 } },
   createdAt: 0, createdById: 'ana', deletionVotes: [], updatedAt: NOW - 10_000, isDeleted: false, ...over,
 } as Group);
 
@@ -51,8 +55,11 @@ it('un tombstone con updatedAt 9e15 que llega por applyDelta no borra el gasto',
   expect(useExpenseStore.getState().expenses[0]!.isDeleted).toBe(false);
 });
 
-it('una expulsión con updatedAt 9e15 que llega por applyDelta no saca a nadie', () => {
-  applyDelta(delta({ groups: [grupo({ memberIds: ['mallory'], updatedAt: 9e15 })] }), 'ana');
+it('una expulsión con `at` envenenado que llega por applyDelta no saca a nadie (T-182)', () => {
+  applyDelta(delta({ groups: [grupo({
+    miembros: { ana: { estado: 'in', at: 0 }, beto: { estado: 'out', at: 9e15 } },
+    updatedAt: 9e15,
+  })] }), 'ana');
   expect(useGroupStore.getState().groups[0]!.memberIds).toEqual(['ana', 'beto']);
 });
 

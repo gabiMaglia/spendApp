@@ -57,9 +57,13 @@ const relayMock = jest.requireMock('../relay') as {
   __reset: () => void;
 };
 
-function grupo(): Group {
+function grupo(memberIds: string[] = ['u1']): Group {
   return {
-    id: 'G', name: 'Grupo', memberIds: ['u1'], currency: 'USD',
+    id: 'G', name: 'Grupo', memberIds, currency: 'USD',
+    // T-182: `miembros` es la fuente de verdad de `memberIds` (derivado) —
+    // sin esto, `mergeGroups` (que corre adentro de drain/publish) recalcula
+    // memberIds desde un roster vacío y borra a todos los miembros.
+    miembros: Object.fromEntries(memberIds.map((uid, i) => [uid, { estado: 'in' as const, at: i }])),
     createdAt: 1, createdById: 'u1', deletionVotes: [],
     updatedAt: 1_000, isDeleted: false,
   } as Group;
@@ -302,7 +306,7 @@ describe('drainGroup aplica rebanadas y detecta manifiestos incompletos', () => 
    * nuevo digest) y verifica que la segunda vuelta sí trae los bytes nuevos.
    */
   it('si la foto de un usuario ya conocido CAMBIA, el siguiente drenaje trae y adopta los bytes nuevos', async () => {
-    useGroupStore.setState({ groups: [{ ...grupo(), memberIds: ['u1', 'u2'] }] } as never);
+    useGroupStore.setState({ groups: [grupo(['u1', 'u2'])] } as never);
     useExpenseStore.setState({ expenses: [gasto('e1')] } as never);
 
     const fotoVieja = 'foto-vieja-'.repeat(200);
@@ -354,7 +358,7 @@ describe('drainGroup aplica rebanadas y detecta manifiestos incompletos', () => 
   it('un avatarDigest declarado para un contacto que NO es miembro de este grupo no se fetch-ea ni se adopta', async () => {
     const fetchSpy = jest.spyOn(avatarTopic, 'fetchAvatarIfMissing').mockResolvedValue(undefined);
 
-    useGroupStore.setState({ groups: [{ ...grupo(), memberIds: ['u1', 'uAtt'] }] } as never);
+    useGroupStore.setState({ groups: [grupo(['u1', 'uAtt'])] } as never);
     useExpenseStore.setState({ expenses: [] } as never);
 
     // La víctima YA conoce a 'u3' (de otro grupo), con su foto real cacheada.
@@ -403,7 +407,7 @@ describe('drainGroup aplica rebanadas y detecta manifiestos incompletos', () => 
   it('Fix 2: un remitente que no es dueño de una foto no dispara su re-fetch en quien drena', async () => {
     const fetchSpy = jest.spyOn(avatarTopic, 'fetchAvatarIfMissing').mockResolvedValue(undefined);
 
-    useGroupStore.setState({ groups: [{ ...grupo(), memberIds: ['u1', 'uA', 'uB'] }] } as never);
+    useGroupStore.setState({ groups: [grupo(['u1', 'uA', 'uB'])] } as never);
     useExpenseStore.setState({ expenses: [] } as never);
 
     const fotoStaleDeA = 'foto-stale-de-A-cacheada-por-B'.repeat(30);
@@ -437,7 +441,7 @@ describe('drainGroup aplica rebanadas y detecta manifiestos incompletos', () => 
   it('un remitente con una copia MÁS VIEJA (LWW) no hace bajar de versión la foto ya correcta', async () => {
     const fetchSpy = jest.spyOn(avatarTopic, 'fetchAvatarIfMissing').mockResolvedValue(undefined);
 
-    useGroupStore.setState({ groups: [{ ...grupo(), memberIds: ['u1', 'uA', 'uB'] }] } as never);
+    useGroupStore.setState({ groups: [grupo(['u1', 'uA', 'uB'])] } as never);
     useExpenseStore.setState({ expenses: [] } as never);
 
     // uC (el que drena, 'u1' en este arnés) ya tiene la foto NUEVA de uA.

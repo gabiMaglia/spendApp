@@ -306,7 +306,11 @@ describe('D-6 · ningún registro cambia de bytes', () => {
      * invalidaría la firma de T-041 —`createdById` está adentro del núcleo
      * firmado—. La traducción es local y sólo al leer.
      */
-    const grupos = [{ id: 'g1', name: 'Asado', memberIds: [VIEJA, AJENO], createdById: VIEJA, updatedAt: 1 }];
+    const grupos = [{
+      id: 'g1', name: 'Asado', memberIds: [VIEJA, AJENO], createdById: VIEJA, updatedAt: 1,
+      // T-182: `miembros` es la fuente de verdad de `memberIds` (derivado).
+      miembros: { [VIEJA]: { estado: 'in', at: 0 }, [AJENO]: { estado: 'in', at: 1 } },
+    }];
     const gastos = [{
       id: 'e1', groupId: 'g1', paidById: VIEJA, createdById: VIEJA, updatedAt: 1,
       splits: [{ userId: VIEJA, amount: 10_000 }, { userId: AJENO, amount: 10_000 }],

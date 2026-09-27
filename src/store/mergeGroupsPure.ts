@@ -3,8 +3,12 @@ import { mergeDeletionMode } from '@/src/algorithms/deletionPolicy';
 import { rosterDe } from '@/src/algorithms/roster';
 import type { Group } from '@/src/types/models';
 
-function mismoRoster(a: readonly string[], b: readonly string[]): boolean {
-  return a.length === b.length && a.every((id, i) => id === b[i]);
+function mismoRoster(a: readonly string[] | undefined, b: readonly string[]): boolean {
+  // `a` puede venir `undefined`: un `Group` de antes de T-182 que nunca pasó
+  // por `addGroup`/`conAlta` (por ejemplo, un fixture de test que arma el
+  // registro a mano). Tratarlo como "distinto de cualquier roster no vacío"
+  // es lo correcto: hay algo que recalcular.
+  return !!a && a.length === b.length && a.every((id, i) => id === b[i]);
 }
 
 /**
