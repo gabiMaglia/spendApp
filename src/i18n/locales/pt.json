@@ -446,7 +446,7 @@
     "export": "Exportar dados",
     "import": "Importar dados",
     "export_warning_title": "Antes de exportar",
-    "export_warning_body": "O arquivo inclui dados das pessoas dos seus grupos (nomes, emails, despesas e comentários) e não é criptografado. Guarde-o em um lugar privado.",
+    "export_warning_body": "O arquivo inclui dados das pessoas dos seus grupos (nomes, emails, despesas e comentários) e as chaves dos seus grupos: quem o tiver pode lê-los. Não é criptografado — guarde-o como algo privado.",
     "export_warning_confirm": "Exportar",
     "export_error": "Não foi possível exportar os dados.",
     "import_confirm_title": "Importar dados",
@@ -455,7 +455,11 @@
     "import_error_title": "Falha ao importar",
     "error_invalid_json": "O arquivo não é um backup válido.",
     "error_invalid_format": "Formato de arquivo não reconhecido.",
-    "error_unsupported_version": "Versão de backup não suportada."
+    "error_unsupported_version": "Versão de backup não suportada.",
+    "no_keys": "Este arquivo não traz as chaves; peça um novo convite para cada grupo.",
+    "foreign_title": "Este backup não é seu",
+    "foreign_body": "É de outra conta. Você vai importar os dados dela, mas NÃO as chaves: não vai conseguir sincronizar com esses grupos.",
+    "foreign_confirm": "Importar mesmo assim"
   },
   "tabs": {
     "personal": "Pessoal",

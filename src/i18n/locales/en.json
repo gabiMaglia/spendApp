@@ -446,7 +446,7 @@
     "export": "Export data",
     "import": "Import data",
     "export_warning_title": "Before exporting",
-    "export_warning_body": "The file includes data about the people in your groups (names, emails, expenses and comments) and is not encrypted. Keep it somewhere private.",
+    "export_warning_body": "The file includes data about the people in your groups (names, emails, expenses and comments) and your groups' encryption keys: whoever has it can read them. It is not encrypted — keep it somewhere private.",
     "export_warning_confirm": "Export",
     "export_error": "Couldn’t export your data.",
     "import_confirm_title": "Import data",
@@ -455,7 +455,11 @@
     "import_error_title": "Import failed",
     "error_invalid_json": "The file is not a valid backup.",
     "error_invalid_format": "Unrecognized file format.",
-    "error_unsupported_version": "Unsupported backup version."
+    "error_unsupported_version": "Unsupported backup version.",
+    "no_keys": "This file doesn't have the keys; ask each group for a new invite.",
+    "foreign_title": "This backup isn't yours",
+    "foreign_body": "It belongs to another account. You'll import its data, but NOT its keys: you won't be able to sync with those groups.",
+    "foreign_confirm": "Import anyway"
   },
   "tabs": {
     "personal": "Personal",

@@ -49,6 +49,7 @@ import { compartirArchivoTemporal } from '@/src/services/compartirArchivoTempora
 import {
   buildBackup, serializeBackup, parseBackup, applyBackup, backupFileName,
 } from '@/src/services/backup';
+import { esYo } from '@/src/store/identityAlias';
 import { useColors } from '@/src/skins/useSkin';
 
 export default function UserScreen() {
@@ -207,30 +208,60 @@ export default function UserScreen() {
     });
   }
 
+  /** Tras aplicar el backup: T-188b · si el archivo no traía claves (v1, o un
+   * export viejo), avisa que hay que reinvitar a cada grupo para sincronizar. */
+  function avisarSinClavesSiHaceFalta(backup: ReturnType<typeof parseBackup>) {
+    if (!backup.groupKeys?.length) {
+      Alert.alert(t('backup.import_success'), t('backup.no_keys'));
+    } else {
+      Alert.alert(t('backup.import_success'));
+    }
+  }
+
+  function confirmarYAplicar(backup: ReturnType<typeof parseBackup>) {
+    Alert.alert(
+      t('backup.import_confirm_title'),
+      t('backup.import_confirm_body'),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('common.save'),
+          onPress: () => {
+            try {
+              applyBackup(backup);
+              avisarSinClavesSiHaceFalta(backup);
+            } catch {
+              Alert.alert(t('backup.import_error_title'));
+            }
+          },
+        },
+      ],
+    );
+  }
+
   async function handleImport() {
     try {
       const res = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
       if (res.canceled || !res.assets?.[0]) return;
       const raw = await new File(res.assets[0].uri).text();
       const backup = parseBackup(raw);
-      Alert.alert(
-        t('backup.import_confirm_title'),
-        t('backup.import_confirm_body'),
-        [
-          { text: t('common.cancel'), style: 'cancel' },
-          {
-            text: t('common.save'),
-            onPress: () => {
-              try {
-                applyBackup(backup);
-                Alert.alert(t('backup.import_success'));
-              } catch {
-                Alert.alert(t('backup.import_error_title'));
-              }
-            },
-          },
-        ],
-      );
+
+      // T-188b: un backup AJENO (ownerId de otra persona) importa los datos
+      // igual, pero SIN sus claves ni un alta mía a ningún grupo — hay que
+      // decírselo ANTES de que elija guardar, no después.
+      if (backup.ownerId !== undefined && !esYo(backup.ownerId)) {
+        Alert.alert(
+          t('backup.foreign_title'),
+          t('backup.foreign_body'),
+          [
+            { text: t('common.cancel'), style: 'cancel' },
+            { text: t('backup.foreign_confirm'), onPress: () => confirmarYAplicar(backup) },
+          ],
+        );
+        return;
+      }
+
+      confirmarYAplicar(backup);
     } catch (e: any) {
       const msg: string = typeof e?.message === 'string' ? e.message : '';
       const key = msg.startsWith('backup.') ? msg : 'backup.error_invalid_format';
