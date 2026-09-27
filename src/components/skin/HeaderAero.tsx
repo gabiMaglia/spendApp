@@ -12,6 +12,7 @@ import {
   opacidadTituloGrande, opacidadTituloGrandeSinMovimiento,
 } from '@/src/hooks/useHeaderColapsable';
 import { VidrioMarmol } from './VidrioMarmol';
+import { VeloHeader } from './VeloHeader';
 import {
   AERO_RADIO, AERO_TOPE, aireEntreTarjetas, altoTarjetaTitulo, radioEnfrentado,
   radioInferiorBarra, TITULO_AERO_H, unidas,
@@ -94,6 +95,9 @@ export function HeaderAero({
 
   return (
     <View testID="header-aero" style={[StyleSheet.absoluteFill, styles.capa]} pointerEvents="box-none">
+      {/* Velo esmerilado detrás de todo (PO 2026-09-26). */}
+      <VeloHeader progress={progress} fondoBarra={barraBottom} />
+
       {/* Tarjeta del título: debajo de la barra en el orden de dibujo, así al fundirse la barra queda encima. */}
       <Animated.View
         testID="header-aero-titulo"
