@@ -10,88 +10,211 @@
  * SOLA VEZ, justo antes de aplicar la primera página que trae sobres — nunca
  * si el buzón está vacío. `drainNow` la usa para tomar la foto perezosamente:
  * si nunca se llamó (buzón vacío), no hay foto y no se calculan avisos.
+ *
+ * **Verifier ciego (B2, rechazo de perf/ola-b): esta suite mockeaba
+ * `drainGroup` ENTERO** — la aserción de orden era tautológica, porque el
+ * propio mock decidía cuándo llamar a `antesDeAplicar`; no probaba nada del
+ * código real. Ahora corre con un buzón REAL en memoria (mismo patrón que
+ * `cederHiloEntreRebanadas.test.ts`) y `drainGroup`/`applyDelta` SIN mockear
+ * — sólo se espían con `jest.fn(actual.fn)` para poder medir orden y conteo
+ * sin cambiar el comportamiento.
  */
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
 
-jest.mock('../relaySync', () => ({
-  drainGroup: jest.fn(),
-  sigueSiendoLaClave: jest.fn(() => true),
-  publishToGroup: jest.fn(async () => ({ ok: true, seq: 1 })),
-}));
+jest.mock('../relay', () => {
+  const buzones = new Map<string, { seq: number; topic: string; payload: string; sender: string; compactable?: boolean; ckey?: string }[]>();
+  let seq = 0;
+  return {
+    __buzones: buzones,
+    __reset: () => { buzones.clear(); seq = 0; },
+    isRelayConfigured: () => true,
+    subscribeTopic: () => () => {},
+    sendEnvelope: async (topic: string, payload: string, sender: string, compactable = false, ckey?: string) => {
+      const lista = buzones.get(topic) ?? [];
+      lista.push({ seq: ++seq, topic, payload, sender, compactable, ckey });
+      buzones.set(topic, lista);
+      return { ok: true, seq };
+    },
+    fetchSince: async (topic: string, since: number, excludeSender?: string) => {
+      const lista = (buzones.get(topic) ?? []).filter(e => e.seq > since && e.sender !== excludeSender);
+      return { ok: true, envelopes: lista, cursor: lista.length ? lista[lista.length - 1]!.seq : since };
+    },
+    deleteMyEnvelopes: async () => ({ ok: true }),
+  };
+});
 
-/**
- * OJO: los mocks de acá abajo se DEFINEN antes de que `jest.mock` los use,
- * pero el factory de `jest.mock` se ejecuta al `require`-earse el módulo real
- * — que Babel hoistea ANTES de este `const` (import/require al tope del
- * archivo). Referenciar `mockSnapshot` DIRECTO como valor del factory
- * (`snapshot: mockSnapshot`) lo capturaría `undefined` en ese momento. Por eso
- * cada campo es una función-envoltorio: se crea en el momento del factory,
- * pero recién LEE `mockSnapshot`/`mockNoticesFor`/`mockAnnounce` cuando se
- * LLAMA — para entonces esos `const` ya están inicializados.
- */
-const mockSnapshot = jest.fn(() => ({
-  expenseIds: [], conBorradoAbierto: [], paymentIds: [], borrados: [], traspasosConocidos: {},
+// Diagnóstico de autoría fuera de banda: no relevante acá (mismo motivo que
+// en `relaySlicedDrain.test.ts`/`cederHiloEntreRebanadas.test.ts`).
+jest.mock('../authorHealth', () => ({
+  observeAuthor: jest.fn(async () => 'ok'),
+  RECHAZAR_AUTORES_NO_VERIFICADOS: false,
 }));
-const mockNoticesFor = jest.fn(() => [
-  { kind: 'expenses' as const, groupId: 'G', groupName: 'Grupo', count: 2 },
-]);
-jest.mock('@/src/services/syncNotices', () => ({
-  snapshot: (...args: unknown[]) => mockSnapshot(...(args as [])),
-  noticesFor: (...args: unknown[]) => mockNoticesFor(...(args as [])),
-}));
+jest.mock('../authorKeys', () => ({ refreshPendingAuthors: jest.fn(async () => {}) }));
 
-const mockAnnounce = jest.fn(async () => {});
-jest.mock('@/src/services/notifications', () => ({
-  announce: (...args: unknown[]) => mockAnnounce(...(args as [])),
-}));
+// `snapshot`/`noticesFor` reales, envueltos en `jest.fn` sólo para poder medir
+// cuántas veces y en qué orden se llaman — el comportamiento es el real.
+jest.mock('@/src/services/syncNotices', () => {
+  const actual = jest.requireActual('@/src/services/syncNotices') as typeof import('@/src/services/syncNotices');
+  return { ...actual, snapshot: jest.fn(actual.snapshot), noticesFor: jest.fn(actual.noticesFor) };
+});
+
+// `announce` sí se reemplaza (no hay permisos de notificación nativos en
+// test) — pero eso no toca nada de lo que esta suite mide.
+jest.mock('@/src/services/notifications', () => ({ announce: jest.fn(async () => {}) }));
+
+// `applyDelta` real, envuelto para poder ver CUÁNDO se llama respecto de
+// `snapshot` — la prueba de orden real que B2 pedía.
+jest.mock('../useSyncQR', () => {
+  const actual = jest.requireActual('../useSyncQR') as typeof import('../useSyncQR');
+  return { ...actual, applyDelta: jest.fn(actual.applyDelta) };
+});
 
 import { drainNow } from '../relayEngine';
-import { drainGroup, type DrainOptions } from '../relaySync';
-import { marcarPendienteDeDrenaje, limpiarPendienteDeDrenaje } from '../pendingDrain';
+import { publishToGroup, DRAIN_FETCH_LIMIT } from '../relaySync';
 import { useAuthStore } from '@/src/store/authStore';
+import { useGroupStore } from '@/src/store/groupStore';
+import { useExpenseStore } from '@/src/store/expenseStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
-import type { User } from '@/src/types/models';
+import { useUserStore } from '@/src/store/userStore';
+import { marcarPendienteDeDrenaje, limpiarPendienteDeDrenaje } from '../pendingDrain';
+import { deriveTopic, fromHex } from '../envelopeCrypto';
+import type { Group, Expense, User } from '@/src/types/models';
 
-const drainGroupMock = drainGroup as unknown as jest.Mock;
+const relayMock = jest.requireMock('../relay') as {
+  __buzones: Map<string, { seq: number; sender: string }[]>;
+  __reset: () => void;
+};
+const mockSnapshot = jest.requireMock('@/src/services/syncNotices').snapshot as jest.Mock;
+const mockNoticesFor = jest.requireMock('@/src/services/syncNotices').noticesFor as jest.Mock;
+const mockAnnounce = jest.requireMock('@/src/services/notifications').announce as jest.Mock;
+const mockApplyDelta = jest.requireMock('../useSyncQR').applyDelta as jest.Mock;
+
+function grupo(): Group {
+  return {
+    id: 'G', name: 'Grupo', memberIds: ['u1', 'u2'], currency: 'USD',
+    createdAt: 1, createdById: 'u1', deletionVotes: [],
+    updatedAt: 1_000, isDeleted: false,
+  } as Group;
+}
+
+let gastoSeq = 0;
+/** Gasto de OTRO usuario (u2) — es lo que hace que `noticesFor` real dispare
+ *  un aviso al drenarlo (la regla 1 de T-010: lo propio nunca se avisa). */
+function gastoDeOtro(): Expense {
+  gastoSeq += 1;
+  return {
+    id: `e${gastoSeq}`, groupId: 'G', description: `Gasto ${gastoSeq}`, amount: 10,
+    currency: 'USD', paidById: 'u2', splits: [{ userId: 'u2', amount: 10, isPaid: false }],
+    splitMode: 'equal', category: 'other', date: 1, createdAt: 1, createdById: 'u2',
+    deletionVotes: [], updatedAt: 1_000, isDeleted: false,
+  } as Expense;
+}
+
+/**
+ * Publica como si fuera OTRO dispositivo (u2): siembra un gasto suyo en el
+ * store, publica, y devuelve el store local a como estaba (vacío) — para que
+ * `drainNow`, corriendo después como u1, lo vea llegar como NUEVO. Mismo
+ * truco que `relayScope.test.ts` ("el receptor lo aplica sin perder lo
+ * suyo"): este proceso hace de las DOS puntas, pero cada una ve sólo lo que
+ * le corresponde.
+ */
+async function publicarGastoDeOtro(): Promise<void> {
+  const antes = useExpenseStore.getState().expenses;
+  useExpenseStore.setState({ expenses: [...antes, gastoDeOtro()] } as never);
+  const r = await publishToGroup('G', 'u2', 'device-remoto');
+  expect(r.ok).toBe(true);
+  useExpenseStore.setState({ expenses: antes } as never); // el receptor no lo tenía
+}
+
+async function topicDeG(): Promise<string> {
+  const rec = useGroupKeyStore.getState().getKey('G')!;
+  return deriveTopic(fromHex(rec.key), rec.epoch);
+}
 
 beforeEach(() => {
-  useAuthStore.setState({ currentUser: { id: 'u1' } as User });
+  relayMock.__reset();
+  useAuthStore.setState({ currentUser: { id: 'u1' } as User, user: { id: 'u1' } } as never);
   useGroupKeyStore.setState({ keys: [] });
   useGroupKeyStore.getState().ensureKey('G');
+  useGroupStore.setState({ groups: [grupo()] } as never);
+  useExpenseStore.setState({ expenses: [] } as never);
+  useUserStore.setState({ users: [{ id: 'u1', name: 'Uno' } as User] } as never);
   limpiarPendienteDeDrenaje('G');
   marcarPendienteDeDrenaje('G');
-  drainGroupMock.mockReset();
   mockSnapshot.mockClear();
   mockNoticesFor.mockClear();
   mockAnnounce.mockClear();
+  mockApplyDelta.mockClear();
 });
 
-it('S5: buzón sin sobres nuevos -> NO se calcula snapshot()', async () => {
-  // El drenaje real nunca llama a `antesDeAplicar` cuando `fetchSince` no
-  // trae nada que aplicar.
-  drainGroupMock.mockImplementation(async () => ({
-    ok: true, applied: 0, skipped: 0, cursor: 5, completo: true,
-  }));
+it('S5: buzón sin sobres nuevos -> NO se calcula snapshot() (drenaje real, buzón vacío)', async () => {
+  const aplicado = await drainNow('G');
 
-  await drainNow('G');
-
+  expect(aplicado).toBe(0);
   expect(mockSnapshot).not.toHaveBeenCalled();
+  expect(mockApplyDelta).not.toHaveBeenCalled();
   expect(mockAnnounce).not.toHaveBeenCalled();
 });
 
-it('S6: buzón con sobres -> snapshot() se calcula UNA vez, antes de aplicar, y los avisos salen igual que hoy', async () => {
-  const orden: string[] = [];
-  drainGroupMock.mockImplementation(async (_g: string, _u: string, _d: string, _since: number, opts?: DrainOptions & { antesDeAplicar?: () => void }) => {
-    orden.push('fetch');
-    opts?.antesDeAplicar?.();
-    orden.push('aplicar');
-    return { ok: true, applied: 2, skipped: 0, cursor: 9, completo: true };
-  });
+it('S6: buzón con sobres -> snapshot() se llama UNA vez, ANTES del primer applyDelta (drenaje real)', async () => {
+  // Otro usuario (u2) publica un gasto suyo en el buzón real del grupo.
+  await publicarGastoDeOtro();
 
-  await drainNow('G');
+  const aplicado = await drainNow('G');
 
+  expect(aplicado).toBeGreaterThan(0);
   expect(mockSnapshot).toHaveBeenCalledTimes(1);
-  expect(orden).toEqual(['fetch', 'aplicar']); // la foto se toma ANTES de aplicar, después de fetchear
+  expect(mockApplyDelta).toHaveBeenCalled();
+  // Orden real de invocación (no un mock que decide el orden él mismo): la
+  // foto tiene que haber corrido ANTES que la primera aplicación.
+  expect(mockSnapshot.mock.invocationCallOrder[0]!)
+    .toBeLessThan(mockApplyDelta.mock.invocationCallOrder[0]!);
   expect(mockNoticesFor).toHaveBeenCalledTimes(1);
-  expect(mockAnnounce).toHaveBeenCalledWith([{ kind: 'expenses', groupId: 'G', groupName: 'Grupo', count: 2 }]);
+  expect(mockAnnounce).toHaveBeenCalled();
+});
+
+/**
+ * S7 (tabla del plan): un usuario que ACTUALIZA — ya tiene un cursor
+ * persistido de una bajada anterior, no arranca de cero — drena igual que
+ * antes de este cambio: sólo lee lo nuevo desde su cursor, aplica y avisa.
+ */
+it('S7: usuario con cursor persistido viejo drena sólo lo nuevo, igual que siempre', async () => {
+  // Primera tanda: alguien publica y este dispositivo la drena entera.
+  await publicarGastoDeOtro();
+  const primeraBajada = await drainNow('G');
+  expect(primeraBajada).toBeGreaterThan(0);
+
+  const topic = await topicDeG();
+  const cursorTrasPrimera = (
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    require('../relayEngine') as typeof import('../relayEngine')
+  ).readCursor(topic);
+  expect(cursorTrasPrimera).toBeGreaterThan(0); // "cursor persistido viejo", no 0
+
+  mockSnapshot.mockClear();
+  mockApplyDelta.mockClear();
+  mockAnnounce.mockClear();
+
+  // Segunda tanda: más actividad remota, publicada DESPUÉS de que este
+  // dispositivo ya tenía su cursor viejo guardado.
+  await publicarGastoDeOtro();
+
+  const segundaBajada = await drainNow('G');
+
+  expect(segundaBajada).toBeGreaterThan(0); // drena lo nuevo, no se queda pegado
+  expect(mockSnapshot).toHaveBeenCalledTimes(1); // perezosa, pero SÍ se llama porque hay sobres
+  expect(mockApplyDelta).toHaveBeenCalled();
+  expect(mockAnnounce).toHaveBeenCalled(); // sigue avisando igual que siempre
+
+  const cursorTrasSegunda = (
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    require('../relayEngine') as typeof import('../relayEngine')
+  ).readCursor(topic);
+  expect(cursorTrasSegunda).toBeGreaterThan(cursorTrasPrimera); // avanzó, no se reprocesó desde 0
+});
+
+// Sanity de la propia página de fetch, para que el test no dependa de un
+// número mágico si `DRAIN_FETCH_LIMIT` cambia algún día.
+it('DRAIN_FETCH_LIMIT sigue siendo mayor que lo que este archivo publica por tanda', () => {
+  expect(DRAIN_FETCH_LIMIT).toBeGreaterThan(1);
 });
