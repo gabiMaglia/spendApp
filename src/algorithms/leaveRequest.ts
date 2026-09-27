@@ -12,9 +12,33 @@ import type { ApprovalEntry, Group, LeaveApproval, LeaveRequest } from '@/src/ty
  * único que necesita trato aparte son las **aprobaciones**: ver `mergeApprovals`.
  */
 
-/** Quiénes tienen que aprobar: todos los que quedan, no el que se va. */
-export function approversNeeded(group: Group, leavingUserId: string): string[] {
-  return group.memberIds.filter(id => id !== leavingUserId);
+/**
+ * Quiénes tienen que aprobar (T-181 · 8.4, repaso 2026-09-27): sólo los que
+ * figuran en el `plan` como `fromUserId` o `toUserId` — los que absorben o
+ * cobran algo del reparto —, nunca el que se va.
+ *
+ * Antes eran «todos los que quedan», y eso dejaba a quien se quiere ir
+ * atrapado para siempre si un miembro cualquiera —sin ningún rol en el
+ * reparto— había desinstalado la app: nadie podía arrancarle una aprobación
+ * a alguien que ni siquiera sabía que había un pedido.
+ *
+ * Filtrado por `memberIds` vigente (no por lo que el plan dice): alguien del
+ * plan que ya no es miembro del grupo no puede firmar nada —no tiene sesión
+ * ahí— y exigírselo trabaría el pedido para siempre por una razón distinta a
+ * la que esto vino a arreglar. Caso abierto: si ESO deja la lista vacía,
+ * `isApprovedByAll` sigue devolviendo `false` (nadie a quien pasarle el
+ * saldo cuenta como "no aprobado", nunca como "aprobado gratis") — anotado
+ * en el ticket, no resuelto acá.
+ */
+export function approversNeeded(
+  group: Group, leavingUserId: string, plan: LeaveRequest['plan'],
+): string[] {
+  const involucrados = new Set<string>();
+  for (const pago of plan) {
+    if (pago.fromUserId !== leavingUserId) involucrados.add(pago.fromUserId);
+    if (pago.toUserId !== leavingUserId) involucrados.add(pago.toUserId);
+  }
+  return group.memberIds.filter(id => involucrados.has(id));
 }
 
 /**
@@ -53,7 +77,7 @@ export function aprobadoresValidos(
 export function isApprovedByAll(
   group: Group, request: LeaveRequest, verifica?: VerificaAprobacion,
 ): boolean {
-  const necesarios = approversNeeded(group, request.userId);
+  const necesarios = approversNeeded(group, request.userId, request.plan);
   if (necesarios.length === 0) return false; // nadie a quien pasarle el saldo
 
   const aprobaron = aprobadoresValidos(request, verifica);
@@ -64,7 +88,7 @@ export function isApprovedByAll(
 export function approvalProgress(
   group: Group, request: LeaveRequest, verifica?: VerificaAprobacion,
 ): { got: number; need: number } {
-  const necesarios = approversNeeded(group, request.userId);
+  const necesarios = approversNeeded(group, request.userId, request.plan);
   const aprobaron = aprobadoresValidos(request, verifica);
   return {
     got: necesarios.filter(id => aprobaron.has(id)).length,

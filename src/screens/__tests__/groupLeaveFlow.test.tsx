@@ -52,14 +52,33 @@ describe('pedido de salida ajeno', () => {
   });
 
   // Aprobar a ciegas no es aprobar: hay que saber quién y cuántos faltan.
+  // T-181: el plan de `pedidoDeAna` sólo involucra a beto (ana→beto) — caro,
+  // ajena al reparto, ya no cuenta como necesaria. need pasa de 2 a 1.
   it('dice quién quiere salir y cuántos aprobaron', () => {
     const r = render(<GroupDetailScreen />);
 
     expect(r.getByText(/leave.pending_title/)).toBeTruthy();
-    expect(r.getByText(/"got":0,"need":2/)).toBeTruthy();
+    expect(r.getByText(/"got":0,"need":1/)).toBeTruthy();
   });
 
-  it('aprobar suma mi firma', () => {
+  // T-181: con el plan de `pedidoDeAna` (sólo ana→beto) la firma de beto
+  // ALCANZA y completa el pedido en el acto — es la fila L1 de la tabla, y no
+  // deja nada que inspeccionar en `leaveRequest` (se limpia al aplicarse, ver
+  // "la última aprobación aplica el reparto" más abajo). Para probar "mi firma
+  // se suma" sin que se complete de una, este caso usa un plan con DOS
+  // involucrados (beto y caro): la firma de beto queda registrada y el pedido
+  // sigue esperando a caro.
+  it('aprobar suma mi firma (con otro involucrado pendiente, el pedido no se completa todavía)', () => {
+    useGroupStore.setState({ groups: [grupo({
+      userId: 'ana',
+      plan: [
+        { fromUserId: 'ana', toUserId: 'beto', amount: 250_000, currency: 'ARS' },
+        { fromUserId: 'ana', toUserId: 'caro', amount: 250_000, currency: 'ARS' },
+      ],
+      requestedAt: 1_000,
+      approvedBy: [],
+    })] });
+
     const r = render(<GroupDetailScreen />);
     fireEvent.press(r.getByText('leave.approve'));
 

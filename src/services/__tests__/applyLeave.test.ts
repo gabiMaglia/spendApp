@@ -73,14 +73,36 @@ describe('aplicar una salida aprobada', () => {
 });
 
 describe('lo que NO se aplica', () => {
-  it('sin todas las aprobaciones no pasa nada', () => {
+  // T-181: `caro` sólo cuenta si el plan la involucra. Para que este caso siga
+  // probando "falta una aprobación", el plan tiene que repartir ENTRE beto Y
+  // caro — si caro quedara afuera del plan, como antes, ya no haría falta su
+  // aprobación y el pedido se aplicaría con la sola firma de beto.
+  it('sin todas las aprobaciones de los involucrados en el plan no pasa nada', () => {
     useGroupStore.setState({ groups: [grupo({
       memberIds: ['ana', 'beto', 'caro'],
-      leaveRequest: pedido({ approvedBy: ['beto'] }),
+      leaveRequest: pedido({
+        plan: [
+          { fromUserId: 'ana', toUserId: 'beto', amount: 250_000, currency: 'ARS' },
+          { fromUserId: 'ana', toUserId: 'caro', amount: 250_000, currency: 'ARS' },
+        ],
+        approvedBy: ['beto'], // caro, involucrada, todavía no aprobó
+      }),
     })] });
 
     expect(applyApprovedLeaves(AHORA)).toBe(0);
     expect(useGroupStore.getState().getById('g1')!.memberIds).toContain('ana');
+  });
+
+  // T-181: un miembro que NO está en el plan no bloquea nada — es la regla
+  // nueva, y es justo lo que arregla el ticket (alguien sin rol en el reparto
+  // ya no puede trabar la salida para siempre).
+  it('un miembro fuera del plan NO bloquea la salida', () => {
+    useGroupStore.setState({ groups: [grupo({
+      memberIds: ['ana', 'beto', 'caro'],
+      leaveRequest: pedido({ approvedBy: ['beto'] }), // plan de la fixture: sólo ana→beto
+    })] });
+
+    expect(applyApprovedLeaves(AHORA)).toBe(1);
   });
 
   it('un grupo sin pedido no se toca', () => {
