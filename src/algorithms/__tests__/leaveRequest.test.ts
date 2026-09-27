@@ -13,31 +13,61 @@ const pedido = (over: Partial<LeaveRequest> = {}): LeaveRequest => ({
   userId: 'ana', plan: [], requestedAt: 1_000, approvedBy: [], ...over,
 });
 
-describe('quiénes tienen que aprobar', () => {
-  it('todos los que quedan, no el que se va', () => {
-    expect(approversNeeded(grupo(['ana', 'beto', 'caro']), 'ana')).toEqual(['beto', 'caro']);
+/**
+ * T-181 (8.4, repaso 2026-09-27): `approversNeeded` pasaba de «todos los que
+ * quedan» a «los que figuran en el `plan` como `fromUserId`/`toUserId`,
+ * distintos del que se va». Antes, un miembro que había desinstalado la app
+ * dejaba trabado para siempre a quien quería irse: tenía que aprobar alguien
+ * que ni siquiera absorbía ni cobraba nada del reparto.
+ */
+const pago = (
+  fromUserId: string, toUserId: string, amount = 100,
+): LeaveRequest['plan'][number] => ({ fromUserId, toUserId, amount, currency: 'ARS' });
+
+describe('quiénes tienen que aprobar (T-181: sólo los del plan)', () => {
+  it('L1: un plan con un solo absorbente → sólo él es necesario', () => {
+    const g = grupo(['ana', 'beto', 'caro', 'dani']);
+    const plan = [pago('ana', 'beto')];
+    expect(approversNeeded(g, 'ana', plan)).toEqual(['beto']);
   });
 
-  it('faltando uno, no alcanza', () => {
-    const g = grupo(['ana', 'beto', 'caro']);
-    expect(isApprovedByAll(g, pedido({ approvedBy: ['beto'] }))).toBe(false);
-  });
-
-  it('con todos, sí', () => {
-    const g = grupo(['ana', 'beto', 'caro']);
-    expect(isApprovedByAll(g, pedido({ approvedBy: ['beto', 'caro'] }))).toBe(true);
-  });
-
-  // Sin nadie a quien pasarle el saldo, aprobar no significa nada.
-  it('si no queda nadie, nunca está aprobado', () => {
-    expect(isApprovedByAll(grupo(['ana']), pedido())).toBe(false);
-  });
-
-  it('el avance se cuenta sobre los necesarios, no sobre las firmas', () => {
-    const g = grupo(['ana', 'beto', 'caro']);
-    // Una firma de alguien que ya no está en el grupo no debería contar.
-    expect(approvalProgress(g, pedido({ approvedBy: ['beto', 'fantasma'] })))
+  it('L2: plan con dos absorbentes → los dos; el resto no cuenta, need=2', () => {
+    const g = grupo(['ana', 'beto', 'caro', 'dani']);
+    const plan = [pago('ana', 'beto', 50), pago('ana', 'caro', 50)];
+    expect(approversNeeded(g, 'ana', plan)).toEqual(['beto', 'caro']);
+    expect(approvalProgress(g, pedido({ plan, approvedBy: ['beto'] })))
       .toEqual({ got: 1, need: 2 });
+  });
+
+  it('L3: plan vacío → nadie necesario (el camino de saldo cero sale por leaveGroup directo, sin pedido — no cambia)', () => {
+    const g = grupo(['ana', 'beto', 'caro']);
+    expect(approversNeeded(g, 'ana', [])).toEqual([]);
+    expect(isApprovedByAll(g, pedido({ plan: [] }))).toBe(false); // sin cambios, documentado
+  });
+
+  it('L4: un absorbente del plan que ya no está en memberIds no se le exige', () => {
+    const g = grupo(['ana', 'caro']); // beto ya no está en el grupo
+    const plan = [pago('ana', 'beto')];
+    expect(approversNeeded(g, 'ana', plan)).toEqual([]);
+    // Caso abierto (anotado en el ticket, no resuelto acá): si nadie queda a
+    // quien exigirle, `isApprovedByAll` sigue devolviendo `false`
+    // (`necesarios.length === 0`) — el pedido queda trabado sin nadie que lo
+    // pueda aprobar. Documentado, no arreglado en T-181.
+    expect(isApprovedByAll(g, pedido({ plan, approvedBy: [] }))).toBe(false);
+  });
+
+  it('L5: una firma de alguien NO involucrado no cuenta ni estorba', () => {
+    const g = grupo(['ana', 'beto', 'caro', 'dani']);
+    const plan = [pago('ana', 'beto')];
+    expect(isApprovedByAll(g, pedido({ plan, approvedBy: ['dani'] }))).toBe(false);
+    expect(isApprovedByAll(g, pedido({ plan, approvedBy: ['dani', 'beto'] }))).toBe(true);
+  });
+
+  it('D no cuenta cuando el plan sólo involucra a B y C (mismo caso de L2, otro ángulo)', () => {
+    const g = grupo(['ana', 'beto', 'caro', 'dani']);
+    const plan = [pago('ana', 'beto', 50), pago('ana', 'caro', 50)];
+    expect(isApprovedByAll(g, pedido({ plan, approvedBy: ['beto', 'caro'] }))).toBe(true);
+    expect(approversNeeded(g, 'ana', plan)).not.toContain('dani');
   });
 });
 
