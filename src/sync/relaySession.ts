@@ -52,6 +52,110 @@ export function forceClearPersistedSession(): void {
   storage.clearAll();
 }
 
+/**
+ * **Verifier R4-1(b) (ronda 4): la serialización de `directoryAuth` no
+ * alcanzaba a `getSession`.** El PoC con auth-js real: durante un cambio de
+ * cuenta A→B con un `signOut` lento, `getSession()` seguía devolviendo la
+ * sesión de A (`anon=false`) mientras el `signOut` de A todavía estaba en
+ * vuelo — auth-js 2.109 no usa lock si no se le pasa uno (`relay.ts` no lo
+ * hace), así que nada impedía leerla a mitad de camino.
+ *
+ * La cola vive ACÁ (no en `directoryAuth`) para que TODA operación que
+ * toque la sesión —leerla (`hacerEnsure`) o escribirla
+ * (`signIntoDirectory`/`signOutOfDirectory`)— pase por el mismo FIFO: una
+ * lectura que llega mientras un `signOut` está en vuelo espera a que
+ * termine (y con él, a que el storage quede en su estado final) antes de
+ * mirar nada. `directoryAuth.ts` importa esto de acá (nunca al revés, para
+ * no armar un ciclo — `directoryAuth` ya importa `forceClearPersistedSession`
+ * de este mismo archivo).
+ */
+let operacionEnCurso: Promise<unknown> = Promise.resolve();
+let operacionesPendientes = 0;
+
+export function encolarOperacionDeSesion<T>(fn: () => Promise<T>): Promise<T> {
+  operacionesPendientes++;
+  const siguiente = operacionEnCurso.then(fn, fn);
+  // Nunca se propaga un rechazo por la cadena compartida: si `fn` tira, la
+  // PRÓXIMA operación encolada tiene que poder correr igual.
+  operacionEnCurso = siguiente.catch(() => undefined);
+  void siguiente.finally(() => { operacionesPendientes--; }).catch(() => undefined);
+  return siguiente;
+}
+
+/**
+ * **Verifier R4-3 (ronda 4): aviso falso justo después de un login exitoso.**
+ * `setUser` dispara `startRelay` ANTES de que `entrarAlDirectorio` llame a
+ * `signIntoDirectory` (`auth/index.tsx:302-309`) — `ensureRelaySession`
+ * puede leer "sin sesión" en esa ventana y reportarlo (`sessionStatus`),
+ * mostrando «Reconectar» durante unos segundos con un login que en realidad
+ * va a salir bien. `relayEngine` consulta esto antes de actualizar el
+ * estado visible: mientras haya CUALQUIER operación de sesión en vuelo, no
+ * se reporta nada (se deja el estado anterior).
+ */
+export function haySesionEnCurso(): boolean {
+  return operacionesPendientes > 0;
+}
+
+/**
+ * Verifier R4-1(a)/(c) (ronda 4): la sesión de Supabase se ATA al usuario
+ * activo de la app — nunca se publica, suscribe ni registra una clave con
+ * una sesión cuya identidad no sea la de `currentUser`.
+ *
+ * El `sub` de Google/Apple que usa `currentUser.id` no es necesariamente el
+ * `uid` interno de Supabase (son sistemas distintos, y una cuenta fusionada
+ * — T-042 — puede tener un `currentUser.id` que ni siquiera viene del
+ * último proveedor usado). En vez de decodificar el JWT y perseguir esa
+ * equivalencia, se recuerda LA PRIMERA VEZ qué `uid` de Supabase quedó
+ * válido para cada `currentUser.id`, acá en el mismo storage cifrado. Un
+ * `uid` distinto para el mismo usuario local — «Reconectar» con OTRA cuenta
+ * de Google (R4-1a), o un residuo de otra cuenta que nunca se limpió
+ * (R4-1c) — se rechaza: nunca se acepta como `identity`.
+ */
+const VINCULO_KEY = 'vinculo_uid_por_usuario';
+
+function leerVinculos(): Record<string, string> {
+  const raw = storage.getString(VINCULO_KEY);
+  if (!raw) return {};
+  try {
+    const v = JSON.parse(raw) as unknown;
+    return v && typeof v === 'object' ? (v as Record<string, string>) : {};
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * ¿El `uid` de Supabase de la sesión actual es el que le corresponde a
+ * `localUserId`? La primera vez que un usuario local tiene una sesión válida,
+ * se la recuerda; de ahí en más, un `uid` distinto es "otra cuenta".
+ */
+function vincularOValidar(localUserId: string, uid: string): 'ok' | 'otra_cuenta' {
+  const vinculos = leerVinculos();
+  const existente = vinculos[localUserId];
+  if (existente && existente !== uid) return 'otra_cuenta';
+  if (!existente) {
+    storage.set(VINCULO_KEY, JSON.stringify({ ...vinculos, [localUserId]: uid }));
+  }
+  return 'ok';
+}
+
+/** Sólo tests. */
+export function __resetVinculos(): void {
+  storage.delete(VINCULO_KEY);
+}
+
+/** Cierra la sesión LOCAL (auth-js + storage) sin importar si la red
+ *  responde — mismo criterio que R3-2(a): el borrado local nunca puede
+ *  depender de la red. */
+async function purgarSesionLocal(supabase: ClienteAuth): Promise<void> {
+  try {
+    await supabase.auth.signOut({ scope: 'local' });
+  } catch {
+    // sigue igual: se fuerza abajo
+  }
+  forceClearPersistedSession();
+}
+
 export type SessionKind = 'identity' | 'anonymous' | 'none';
 
 /** Tras un fallo (captcha o Auth), cuánto esperar antes de reintentar en vez de
@@ -81,6 +185,8 @@ export function __resetRelaySession(): void {
   ultimoFallo = 0;
   ultimoFalloReconexion = 0;
   enCurso = null;
+  operacionEnCurso = Promise.resolve();
+  operacionesPendientes = 0;
 }
 
 async function abrirSesion(): Promise<SessionKind> {
@@ -128,7 +234,26 @@ export function ensureRelaySession(): Promise<SessionKind> {
   return enCurso;
 }
 
-async function hacerEnsure(): Promise<SessionKind> {
+/**
+ * **Verifier R4-1(b): esta lectura pasa por la MISMA cola que
+ * `signIntoDirectory`/`signOutOfDirectory`** (`encolarOperacionDeSesion`) —
+ * si un cambio de cuenta A→B tiene un `signOut` de A todavía en vuelo, esta
+ * función espera a que termine (y el storage quede en su estado final)
+ * antes de mirar nada. Sin esto, el PoC del verificador mostraba
+ * `getSession()` devolviendo la sesión de A mientras B ya era el usuario
+ * activo — la app publicaría con el JWT equivocado.
+ */
+function hacerEnsure(): Promise<SessionKind> {
+  // El tope de tiempo va DENTRO de la cola (envolviendo la función que se
+  // encola, no la promesa ya encolada): si quedara afuera, una operación
+  // colgada seguiría bloqueando `operacionEnCurso` para siempre aunque ESTA
+  // llamada se rindiera a los `SESSION_TIMEOUT_MS` — cualquier operación
+  // siguiente (login, logout, otra lectura) quedaría esperando detrás de un
+  // colgado que nunca libera la cola.
+  return encolarOperacionDeSesion(() => withTimeout(hacerEnsureSinCola(), SESSION_TIMEOUT_MS, 'none' as SessionKind));
+}
+
+async function hacerEnsureSinCola(): Promise<SessionKind> {
   const supabase = getRelayClient();
   if (!supabase) return 'none';
 
@@ -138,16 +263,32 @@ async function hacerEnsure(): Promise<SessionKind> {
 
   if (data.session) {
     const esAnonimaEnStorage = Boolean(data.session.user.is_anonymous);
-    /**
-     * Verifier R3-2 (residual, ronda 3): una sesión ANÓNIMA en el storage NO
-     * puede servir para una cuenta — puede ser un residuo de cuando este
-     * aparato era invitado y un `signOut` local que no llegó a borrarla (el
-     * borrado forzado vive en `directoryAuth.signOutOfDirectory`, pero no
-     * siempre corrió antes de que esto se lea). Se descarta y se sigue de
-     * largo hacia la reconexión — nunca se la trata como válida para una
-     * cuenta.
-     */
-    if (!(esAnonimaEnStorage && !esInvitado)) {
+
+    if (esAnonimaEnStorage && !esInvitado) {
+      /**
+       * Verifier R4-1(c): antes se "descartaba" pero NUNCA se borraba —
+       * `releerTodo` seguía drenando y publicando con ese uid anónimo,
+       * porque el cliente real de `auth-js` (no esta función) sigue
+       * teniendo esa sesión cargada. Ahora se cierra de verdad
+       * (`purgarSesionLocal`) antes de seguir de largo hacia la reconexión.
+       */
+      await purgarSesionLocal(supabase);
+      // sigue abajo: sin sesión, intenta reconectar como corresponde.
+    } else if (!esAnonimaEnStorage && !esInvitado && user) {
+      /**
+       * Verifier R4-1(a): «Reconectar» pudo haber elegido OTRA cuenta de
+       * Google — el `idToken` que devuelve el selector no se comprueba
+       * contra la cuenta activa antes de `signInWithIdToken`
+       * (`accountReconnect.ts`), así que la sesión puede quedar con el uid
+       * de una cuenta distinta INDEFINIDAMENTE. Acá es donde se detecta:
+       * un `uid` que no coincide con el que ya se sabía de `currentUser.id`
+       * se rechaza — nunca se publica con él.
+       */
+      const veredicto = vincularOValidar(user.id, data.session.user.id);
+      if (veredicto === 'ok') return 'identity';
+      await purgarSesionLocal(supabase);
+      // sigue abajo: se purgó, intenta reconectar con la cuenta correcta.
+    } else {
       return esAnonimaEnStorage ? 'anonymous' : 'identity';
     }
   }
@@ -222,8 +363,36 @@ async function intentarReconexionSilenciosa(supabase: ClienteAuth, user: User): 
   const r = await requestReconnect(user.authProvider, 'silent');
   if (r.status !== 'ok') return false;
 
-  const { error } = await supabase.auth.signInWithIdToken({ provider: user.authProvider, token: r.idToken });
-  return !error;
+  const { data, error } = await supabase.auth.signInWithIdToken({ provider: user.authProvider, token: r.idToken });
+  if (error || !data?.session) return false;
+
+  // R4-1: la reconexión en silencio usa la ÚNICA cuenta ya logueada en el
+  // SDK nativo (no hay selector) — el mismatch es improbable, pero se
+  // valida igual por las dudas (defensa en profundidad, mismo criterio que
+  // la interactiva).
+  return vincularOValidar(user.id, data.session.user.id) === 'ok';
+}
+
+/**
+ * **Verifier R4-1(a):** validación después de una reconexión INTERACTIVA
+ * (botón «Reconectar», `accountReconnect.ts`) — el selector de cuentas de
+ * Google puede devolver una cuenta DISTINTA de la activa. Se llama recién
+ * DESPUÉS de que `signIntoDirectory` ya escribió la sesión: si no coincide,
+ * se cierra esa sesión (nunca queda pisando a la correcta) y se le avisa al
+ * usuario que eligió otra cuenta en vez de aceptarla en silencio.
+ */
+export async function validarIdentidadReconectada(localUserId: string): Promise<'ok' | 'otra_cuenta' | 'sin_sesion'> {
+  const supabase = getRelayClient();
+  if (!supabase) return 'sin_sesion';
+
+  return encolarOperacionDeSesion(async () => {
+    const { data } = await supabase.auth.getSession();
+    if (!data.session || data.session.user.is_anonymous) return 'sin_sesion';
+
+    const veredicto = vincularOValidar(localUserId, data.session.user.id);
+    if (veredicto === 'otra_cuenta') await purgarSesionLocal(supabase);
+    return veredicto;
+  });
 }
 
 /**

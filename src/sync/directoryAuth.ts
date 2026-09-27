@@ -1,5 +1,5 @@
 import { getRelayClient } from './relay';
-import { forceClearPersistedSession } from './relaySession';
+import { forceClearPersistedSession, encolarOperacionDeSesion } from './relaySession';
 
 /**
  * Sesión contra Supabase Auth, usada SÓLO para poder escribir en el directorio
@@ -16,23 +16,16 @@ import { forceClearPersistedSession } from './relaySession';
  * Todo lo de acá es **best effort**: si falla, la app funciona exactamente como
  * antes de que este archivo existiera.
  *
- * **Verifier R3-2 (ronda 3): logout y login quedan SERIALIZADOS.** Un
- * `signOut` lento (invitado que se desloguea) no puede terminar —y borrar el
- * storage— DESPUÉS de que un login que arrancó mientras tanto ya escribió la
- * sesión de cuenta. `encolarOperacion` hace que cada llamada espere a que la
- * anterior termine del todo (éxito o error) antes de empezar la suya: mismo
- * orden de llegada, mismo orden de efecto en el storage.
+ * **Verifier R3-2 (ronda 3) / R4-1(b) (ronda 4): logout y login quedan
+ * SERIALIZADOS — y con CUALQUIER lectura de sesión (`ensureRelaySession`).**
+ * Un `signOut` lento (invitado que se desloguea, o A→B) no puede terminar
+ * —y borrar el storage— DESPUÉS de que un login que arrancó mientras tanto
+ * ya escribió la sesión de cuenta, NI dejar que una lectura de
+ * `relaySession` lea la sesión vieja a mitad de camino. La cola vive en
+ * `relaySession.ts` (no acá) para que las lecturas también la respeten —
+ * ver su docblock.
  */
-
-let operacionEnCurso: Promise<unknown> = Promise.resolve();
-
-function encolarOperacion<T>(fn: () => Promise<T>): Promise<T> {
-  const siguiente = operacionEnCurso.then(fn, fn);
-  // Nunca se propaga un rechazo por la cadena compartida: si `fn` tira, la
-  // PRÓXIMA operación encolada tiene que poder correr igual.
-  operacionEnCurso = siguiente.catch(() => undefined);
-  return siguiente;
-}
+const encolarOperacion = encolarOperacionDeSesion;
 
 export type DirectorySignIn =
   | { ok: true }
