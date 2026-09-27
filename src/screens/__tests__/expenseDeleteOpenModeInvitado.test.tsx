@@ -52,6 +52,8 @@ describe('D1 · el invitado borra al instante en un grupo `open` recibido por sy
     resetStores();
     useGroupStore.setState({ groups: [{
       id: 'g1', name: 'Viaje', memberIds: ['ana', 'beto'], currency: 'ARS',
+      // T-182: `miembros` es la fuente de verdad de `memberIds` (derivado).
+      miembros: { ana: { estado: 'in', at: 0 }, beto: { estado: 'in', at: 1 } },
       deletionMode: 'open', createdAt: 0, createdById: 'ana', deletionVotes: [],
       updatedAt: 0, isDeleted: false,
     } as Group] });

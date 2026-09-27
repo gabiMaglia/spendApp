@@ -42,11 +42,16 @@ const gastoDeAna = (over: Partial<Expense> = {}): Expense => ({
   updatedAt: 0, isDeleted: false, ...over,
 });
 
-const grupo = (over: Partial<Group> = {}): Group => ({
-  id: 'g1', name: 'Asado', memberIds: [ANA, BETO], currency: 'ARS',
-  createdAt: 1_700_000_000_000, createdById: ANA, deletionVotes: [],
-  updatedAt: 0, isDeleted: false, ...over,
-});
+const grupo = (over: Partial<Group> = {}): Group => {
+  const memberIds = over.memberIds ?? [ANA, BETO];
+  return {
+    id: 'g1', name: 'Asado', memberIds, currency: 'ARS',
+    // T-182: `miembros` es la fuente de verdad de `memberIds` (derivado).
+    miembros: Object.fromEntries(memberIds.map((uid, i) => [uid, { estado: 'in' as const, at: i }])),
+    createdAt: 1_700_000_000_000, createdById: ANA, deletionVotes: [],
+    updatedAt: 0, isDeleted: false, ...over,
+  };
+};
 
 const elGasto = () => useExpenseStore.getState().expenses[0]!;
 
