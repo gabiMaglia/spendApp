@@ -14,37 +14,65 @@ import type { User } from '@/src/types/models';
  */
 
 const estado = {
-  cliente: true as boolean,
+  /** Cliente del DIRECTORIO (sesión de cuenta) — sólo lo usa `registerDeviceKey` (escritura). */
+  clienteDirectorio: true as boolean,
   sesion: true as boolean,
   errorUpsert: null as { code?: string; message: string } | null,
-  filas: [] as { public_key: string }[],
-  errorSelect: false,
   upserts: [] as unknown[],
   signIn: null as { message: string } | null,
+  /** Cliente del BUZÓN (sesión anónima) — lo usan las LECTURAS (`queryAccountKeys`,
+   *  fix del verificador: tras 011b `account_keys`/SELECT de `device_keys` sólo
+   *  aceptan `authenticated`, y la sesión de la instalación es la anónima, no la
+   *  del directorio, que no persiste nada). */
+  clienteBuzon: true as boolean,
+  filas: [] as { public_key: string }[],
+  errorSelect: false,
   /** null = la funcion existe. Un objeto = el error que devuelve Supabase. */
   errorRpc: null as { message: string } | null,
   /** true = ni siquiera existe el metodo (cliente viejo). */
   rpcExplota: false,
   filasRpc: [] as { public_key: string }[],
   rpcArgs: [] as unknown[],
+  /** El header con el que salió el último `rpc()` del cliente del buzón —
+   *  para comprobar que las lecturas viajan con el JWT de la sesión anónima,
+   *  no con la anon key pelada. */
+  headerAuthorizationBuzon: null as string | null,
 };
 
 jest.mock('../directoryClient', () => ({
-  getDirectoryClient: () => estado.cliente ? {
+  getDirectoryClient: () => estado.clienteDirectorio ? {
     auth: {
       getSession: async () => ({ data: { session: estado.sesion ? { user: {} } : null } }),
       signInWithIdToken: async () => ({ error: estado.signIn }),
       signOut: async () => ({}),
     },
+    from: () => ({
+      upsert: async (fila: unknown) => { estado.upserts.push(fila); return { error: estado.errorUpsert }; },
+    }),
+  } : null,
+}));
+
+// T-147 (D6): el real detecta "función ausente" por código/texto — el mock
+// usa la implementación real para no desincronizarse de `esFuncionAusente`.
+jest.mock('../relay', () => ({
+  esFuncionAusente: (e: { code?: string; message: string }) =>
+    e.code === 'PGRST202' || e.code === '42883'
+    || /could not find the function/i.test(e.message)
+    || /function .*does not exist/i.test(e.message),
+  // El cliente del BUZÓN (sesión anónima, rol `authenticated` tras 011b) —
+  // fix del verificador (§Simplificación): las LECTURAS del directorio
+  // (`account_keys`, el SELECT de respaldo) pasan por ACÁ, no por el cliente
+  // del directorio (que no persiste sesión y saldría con la anon key pelada).
+  getRelayClient: () => estado.clienteBuzon ? {
     rpc: async (nombre: string, args: unknown) => {
       if (estado.rpcExplota) throw new TypeError('rpc no existe');
       estado.rpcArgs.push([nombre, args]);
+      estado.headerAuthorizationBuzon = 'Bearer jwt-de-la-sesion-anonima';
       return estado.errorRpc
         ? { data: null, error: estado.errorRpc }
         : { data: estado.filasRpc, error: null };
     },
     from: () => ({
-      upsert: async (fila: unknown) => { estado.upserts.push(fila); return { error: estado.errorUpsert }; },
       select: () => ({
         eq: async () => estado.errorSelect
           ? { data: null, error: { message: 'boom' } }
@@ -54,24 +82,14 @@ jest.mock('../directoryClient', () => ({
   } : null,
 }));
 
-// T-147 (D6): el real detecta "función ausente" por código/texto — el mock
-// usa la implementación real para no desincronizarse de `esFuncionAusente`.
-// Vive en `relay.ts` (no en `directoryClient.ts`): es lógica del PROTOCOLO
-// RPC, no del cliente que la corre, y `deviceKeys.ts` la importa de ahí.
-jest.mock('../relay', () => ({
-  esFuncionAusente: (e: { code?: string; message: string }) =>
-    e.code === 'PGRST202' || e.code === '42883'
-    || /could not find the function/i.test(e.message)
-    || /function .*does not exist/i.test(e.message),
-}));
-
 beforeEach(() => {
   createSecureStorage('groupkeys').clearAll();
   useAuthStore.setState({ currentUser: { id: 'cuenta-ana' } as User });
   Object.assign(estado, {
-    cliente: true, sesion: true, errorUpsert: null,
+    clienteDirectorio: true, clienteBuzon: true, sesion: true, errorUpsert: null,
     filas: [], errorSelect: false, upserts: [], signIn: null,
     errorRpc: null, rpcExplota: false, filasRpc: [], rpcArgs: [],
+    headerAuthorizationBuzon: null,
   });
 });
 
@@ -100,7 +118,7 @@ describe('registrar la clave de este dispositivo', () => {
 
 describe('nada de esto puede romper la app', () => {
   it('sin relay configurado', async () => {
-    estado.cliente = false;
+    estado.clienteDirectorio = false;
     expect(await registerDeviceKey()).toMatchObject({ ok: false, reason: 'not_configured' });
   });
 
@@ -144,7 +162,7 @@ describe('leer las claves de una cuenta', () => {
   });
 
   it('sin relay configurado devuelve vacío', async () => {
-    estado.cliente = false;
+    estado.clienteBuzon = false;
     expect(await fetchAccountKeys('cuenta-ana')).toEqual([]);
   });
 
@@ -159,6 +177,29 @@ describe('leer las claves de una cuenta', () => {
     estado.filas = [{ public_key: 'zz' }];
     const r = await queryAccountKeys('cuenta-ana');
     expect(r).toEqual({ ok: false, keys: [] });
+  });
+
+  /**
+   * Verificador (§Simplificación, bloqueante): tras un arranque en frío el
+   * cliente del DIRECTORIO no tiene sesión (no persiste — `directoryClient.ts`).
+   * Si la lectura (`account_keys`) saliera por ese cliente, viajaría con la
+   * anon key pelada y 011b la rechaza (42501: sólo `authenticated`). La sesión
+   * que SÍ está siempre disponible es la del BUZÓN (anónima, rol
+   * `authenticated`) — las lecturas del directorio tienen que salir por ahí,
+   * como antes de T-147.
+   */
+  it('sale por la sesión del BUZÓN, no por la del directorio (arranque en frío, sin sesión de cuenta)', async () => {
+    estado.sesion = false; // "arranque en frío": el cliente del directorio no tiene sesión
+    estado.filasRpc = [{ public_key: 'aa' }];
+
+    expect(await fetchAccountKeys('cuenta-ana')).toEqual(['aa']);
+    expect(estado.headerAuthorizationBuzon).toBe('Bearer jwt-de-la-sesion-anonima');
+  });
+
+  it('si el cliente del buzón no está configurado, no hay lectura (nunca cae al del directorio)', async () => {
+    estado.clienteBuzon = false;
+    estado.filasRpc = [{ public_key: 'aa' }]; // si esto saliera por el directorio, lo vería igual
+    expect(await fetchAccountKeys('cuenta-ana')).toEqual([]);
   });
 });
 
@@ -248,7 +289,7 @@ describe('detectar al arrancar si mi clave falta', () => {
   });
 
   it('sin relay configurado tampoco', async () => {
-    estado.cliente = false;
+    estado.clienteBuzon = false;
     expect(await verifyMyKeyRegistered()).toBe('desconocido');
   });
 });
