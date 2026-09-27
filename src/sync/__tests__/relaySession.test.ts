@@ -16,7 +16,7 @@ import type { User } from '@/src/types/models';
 // puertas adentro después del reset — el `setState` de acá nunca lo vería.
 let useAuthStore: typeof import('@/src/store/authStore').useAuthStore;
 
-let sesion: { user: { is_anonymous?: boolean } } | null = null;
+let sesion: { user: { is_anonymous?: boolean; id?: string } } | null = null;
 let errorDeGetSession: { message: string } | null = null;
 let opciones: { auth?: Record<string, unknown> } = {};
 /**
@@ -37,8 +37,11 @@ const signInAnonymously = jest.fn(async () => {
  * `signInAnonymously` de arriba).
  */
 const signInWithIdToken = jest.fn(async (_args: { provider: string; token: string }) => {
-  sesion = { user: { is_anonymous: false } };
-  return { error: null as null | { message: string } };
+  // El `uid` por defecto coincide con el `id` local usado en `conCuenta()`
+  // (más abajo) — así los tests que NO están probando el mismatch de
+  // R4-1(a) siguen viendo una identidad válida "de la misma cuenta".
+  sesion = { user: { is_anonymous: false, id: 'uid-acc1' } };
+  return { data: { session: sesion }, error: null as null | { message: string } };
 });
 const signOut = jest.fn(async () => ({ error: null }));
 const startAutoRefresh = jest.fn();
@@ -395,6 +398,57 @@ describe('R3-1: una cuenta sin sesión guardada se reconecta (nunca anónima)', 
 
     expect(await S.ensureRelaySession()).toBe('identity');
     expect(signInWithIdToken).toHaveBeenCalled();
+  });
+});
+
+/**
+ * Verifier R4-1 (ronda 4): la sesión de Supabase se ATA al usuario activo —
+ * nunca se acepta como `identity` una sesión cuyo `uid` no coincida con el
+ * que ya se sabía de `currentUser.id`.
+ */
+describe('R4-1: la sesión se ata al usuario de la app', () => {
+  it('R4-1(c): un residuo anónimo para una cuenta se BORRA de verdad (signOut local), no sólo se ignora', async () => {
+    useAuthStore.setState({ currentUser: conCuenta('google') });
+    sesion = { user: { is_anonymous: true } };
+    mockReconnect = { status: 'not_available' };
+
+    expect(await S.ensureRelaySession()).toBe('none');
+
+    // No alcanza con "no usarla": tiene que haberse cerrado de verdad, para
+    // que ningún otro consumidor del cliente real (`drainAll`, `publishNow`)
+    // la siga viendo cargada.
+    expect(signOut).toHaveBeenCalledWith({ scope: 'local' });
+  });
+
+  it('R4-1(a): un uid distinto al ya vinculado para este usuario se rechaza (no "identity")', async () => {
+    useAuthStore.setState({ currentUser: conCuenta('google') });
+    // Primera sesión válida: se vincula 'uid-original' a este usuario.
+    sesion = { user: { is_anonymous: false, id: 'uid-original' } };
+    expect(await S.ensureRelaySession()).toBe('identity');
+
+    // «Reconectar» (u otro camino) dejó en el storage la sesión de OTRA
+    // cuenta de Google — mismo `currentUser`, `uid` distinto.
+    sesion = { user: { is_anonymous: false, id: 'uid-de-otra-cuenta' } };
+    signOut.mockClear();
+    mockReconnect = { status: 'not_available' };
+
+    expect(await S.ensureRelaySession()).toBe('none'); // NUNCA "identity" con el uid equivocado
+    expect(signOut).toHaveBeenCalledWith({ scope: 'local' }); // se cerró, no quedó pisando
+  });
+
+  it('validarIdentidadReconectada: acepta la primera vez, rechaza un uid distinto después', async () => {
+    sesion = { user: { is_anonymous: false, id: 'uid-A' } };
+    expect(await S.validarIdentidadReconectada('acc1')).toBe('ok');
+
+    sesion = { user: { is_anonymous: false, id: 'uid-C' } }; // «Reconectar» trajo otra cuenta
+    signOut.mockClear();
+    expect(await S.validarIdentidadReconectada('acc1')).toBe('otra_cuenta');
+    expect(signOut).toHaveBeenCalledWith({ scope: 'local' });
+  });
+
+  it('validarIdentidadReconectada: sin sesión (o anónima) devuelve sin_sesion', async () => {
+    sesion = null;
+    expect(await S.validarIdentidadReconectada('acc1')).toBe('sin_sesion');
   });
 });
 
