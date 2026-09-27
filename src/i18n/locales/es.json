@@ -96,7 +96,7 @@
     "privacy_tracking_title": "Cero tracking",
     "privacy_tracking_body": "Sin analytics de terceros. Sin venta de datos.",
     "understood": "Entendido",
-    "error_google": "No se pudo iniciar sesión con Google. Reintentá.",
+    "error_google_code": "No se pudo iniciar sesión con Google ({{code}}). Reintentá.",
     "error_apple": "No se pudo iniciar sesión con Apple. Intentá de nuevo.",
     "link_title": "¿Es tu cuenta?",
     "link_body": "Ya usás spendApp con {{account}}. ¿Querés entrar a esa cuenta y unir tus datos?",

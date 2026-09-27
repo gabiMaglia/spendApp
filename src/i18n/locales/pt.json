@@ -96,7 +96,7 @@
     "privacy_tracking_title": "Zero rastreamento",
     "privacy_tracking_body": "Sem analytics de terceiros. Sem venda de dados.",
     "understood": "Entendi",
-    "error_google": "Não foi possível entrar com o Google. Tente de novo.",
+    "error_google_code": "Não foi possível entrar com o Google ({{code}}). Tente de novo.",
     "error_apple": "Não foi possível entrar com a Apple. Tente de novo.",
     "link_title": "É a sua conta?",
     "link_body": "Você já usa o spendApp com {{account}}. Quer entrar nessa conta e juntar seus dados?",
