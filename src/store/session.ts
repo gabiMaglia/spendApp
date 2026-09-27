@@ -10,7 +10,7 @@ import { useCommentStore } from './commentStore';
 import { useGroupKeyStore } from './groupKeyStore';
 import { purgeMergedScopes } from './accountLink';
 import { migrarReplicadosUnaVez } from '@/src/services/runMigrateReplicated';
-import { startRelay } from '@/src/sync/relayEngine';
+import { startRelay, reiniciarSyncPorCambioDeCuenta } from '@/src/sync/relayEngine';
 import { materializeRecurring } from '@/src/services/materializeRecurring';
 import { estaBloqueado } from '@/src/algorithms/groupExpenseLimit';
 import { resolvePendingDeletions } from '@/src/services/resolveDeletions';
@@ -124,6 +124,11 @@ export function subscribeSessionRehydrate(): () => void {
     const nextId = state.currentUser?.id ?? null;
     if (nextId !== prevId) {
       prevId = nextId;
+      // T-147 (punto 4, simplificación): cambio de cuenta o logout — antes de
+      // rehidratar los datos de la cuenta nueva, se corta el motor de sync,
+      // se vacía todo lo diferido (cola + debounce de publish) y se fuerza
+      // una sesión anónima nueva para el buzón. Ver `reiniciarSyncPorCambioDeCuenta`.
+      reiniciarSyncPorCambioDeCuenta();
       rehydrateForActiveUser();
     }
   });

@@ -4,13 +4,20 @@ import * as path from 'path';
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
 
 /**
- * T-147 (R4-2, ronda 4): `anunciarMiTarjeta` ahora encola por `relayQueue` en
- * vez de mandar todo en un loop directo (ver el docblock de `relayEngine.ts`
- * — el PoC del verificador combinaba 13 tarjetas + 11 claves en el mismo
- * minuto de cuota, y las tarjetas sin ritmo empujaban a las claves a
- * agotarse). Por eso el mock es `announceContactResultado` (expone el
- * motivo, como `sendGroupKeyResultado`) y cada `await anunciarMiTarjeta()` de
- * este archivo va seguido de un drenaje de la cola con timers falsos.
+ * T-147 (R4-2, ronda 4; SIMPLIFICACIÓN 2026-09-27): `anunciarMiTarjeta`
+ * encola por `relayQueue` en vez de mandar todo en un loop directo (ver el
+ * docblock de `relayEngine.ts` — el PoC del verificador combinaba 13
+ * tarjetas + 11 claves en el mismo minuto de cuota, y las tarjetas sin ritmo
+ * empujaban a las claves a agotarse). Por eso el mock es
+ * `announceCardResultado` (expone el motivo, como `sendGroupKeyResultado`) y
+ * cada `await anunciarMiTarjeta()` de este archivo va seguido de un drenaje
+ * de la cola con timers falsos.
+ *
+ * `announceCardResultado` recibe la tarjeta YA ARMADA (punto 4 de la
+ * simplificación: se arma al ENCOLAR, no al ejecutar, para que un cambio de
+ * cuenta en el medio no la reemplace) — el mock ignora ese primer argumento y
+ * conserva la firma vieja de `mockAnnounce(secreto, deviceId)` para no tener
+ * que tocar las aserciones de todo el archivo.
  */
 type ResultadoAnuncio = { ok: true; seq: number } | { ok: false; reason: string };
 const mockAnnounce = jest.fn(async (_secreto: string, _deviceId: string): Promise<ResultadoAnuncio> => ({ ok: true, seq: 1 }));
@@ -22,7 +29,7 @@ const mockEnviadas: Record<string, string> = {};
 
 jest.mock('../contactChannel', () => ({
   ...jest.requireActual('../contactChannel'),
-  announceContactResultado: (...a: unknown[]) => mockAnnounce(...(a as [string, string])),
+  announceCardResultado: (_card: unknown, secreto: string, deviceId: string) => mockAnnounce(secreto, deviceId),
   listPeers: () => mockListPeers(),
   myContactCard: () => mockCard(),
   cardFingerprint: (c: { name: string }) => `fp:${c.name}`,
@@ -222,5 +229,28 @@ describe('anunciarMiTarjeta — no repite al pedo', () => {
     mockCard.mockReturnValue(null as never);
     await anunciarYDrenar();
     expect(mockAnnounce).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * T-147 (punto 4 de la simplificación): un cambio de cuenta entre el
+ * `encolar` y el `ejecutar` no puede hacer que la tarjeta de la cuenta
+ * ANTERIOR salga con la sesión de la cuenta NUEVA.
+ */
+describe('anunciarMiTarjeta — el dueño se fija al encolar', () => {
+  it('si la cuenta activa cambió antes de que el trabajo corra, se descarta sin mandar nada', async () => {
+    const { useAuthStore } = require('@/src/store/authStore') as typeof import('@/src/store/authStore');
+    useAuthStore.setState({ currentUser: { id: 'cuenta-A' } as never });
+    mockListPeers.mockReturnValue({ ana: { secret: 's-ana' } } as never);
+
+    await anunciarMiTarjeta(); // encola con owner = 'cuenta-A'
+    useAuthStore.setState({ currentUser: { id: 'cuenta-B' } as never }); // cambia ANTES de que corra
+
+    for (let i = 0; i < 5 && __colaLength() > 0; i++) {
+      await jest.advanceTimersByTimeAsync(QUEUE_INTERVAL_MS);
+    }
+
+    expect(mockAnnounce).not.toHaveBeenCalled();
+    useAuthStore.setState({ currentUser: null });
   });
 });

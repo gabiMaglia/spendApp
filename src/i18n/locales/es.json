@@ -395,9 +395,6 @@
   "sync": {
     "no_session_title": "Este teléfono no pudo conectarse",
     "no_session_body": "No está sincronizando con tus grupos. Se va a resolver solo apenas se restablezca la conexión.",
-    "no_session_account_body": "No está sincronizando con tus grupos. Estamos intentando reconectar tu cuenta; si no se resuelve solo, tocá Reconectar.",
-    "reconnect": "Reconectar",
-    "reconnect_wrong_account": "Elegiste otra cuenta. Volvé a tocar Reconectar y elegí la que ya usás en esta app.",
     "key_conflict": {
       "title_two": "Dos personas te mandaron claves distintas para \"{{group}}\"",
       "title_many": "Recibiste claves distintas para \"{{group}}\"",

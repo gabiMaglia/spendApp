@@ -11,7 +11,7 @@ import { useAuthStore } from '@/src/store/authStore';
 import { esYo } from '@/src/store/identityAlias';
 import { deriveTopic, fromHex } from './envelopeCrypto';
 import { subscribeTopic, isRelayConfigured } from './relay';
-import { ensureRelaySession, bindAuthRefreshToAppState, haySesionEnCurso } from './relaySession';
+import { ensureRelaySession, bindAuthRefreshToAppState, haySesionEnCurso, reabrirSesionAnonima } from './relaySession';
 import type { SessionKind } from './relaySession';
 import { setUltimaSesionConocida } from './sessionStatus';
 import { publishToGroup, drainGroup, sigueSiendoLaClave, type PublishResult } from './relaySync';
@@ -32,10 +32,10 @@ import { withTimeout } from '@/src/utils/withTimeout';
 const ANUNCIO_TIMEOUT_MS = 8_000;
 import {
   ensureContactSecret, deriveContactTopic, drainContacts, sendGroupKeyResultado,
-  announceContactResultado, listPeers, myContactCard, cardFingerprint,
+  announceCardResultado, listPeers, myContactCard, cardFingerprint,
   cardYaEnviada, marcarCardEnviada,
 } from './contactChannel';
-import { encolar } from './relayQueue';
+import { encolar, vaciarCola } from './relayQueue';
 
 /**
  * Motor del sync en tiempo real: publica lo que cambia y aplica lo que llega.
@@ -650,6 +650,11 @@ export async function anunciarMiTarjeta(): Promise<void> {
   const card = myContactCard();
   if (!card) return;
   const huella = cardFingerprint(card);
+  // T-147 (punto 4, simplificación): el DUEÑO de este trabajo se fija ACÁ, al
+  // encolar — igual que la tarjeta de arriba. Si la cuenta activa cambia
+  // antes de que el trabajo corra, se descarta sin mandar nada: la tarjeta
+  // de la cuenta anterior nunca sale con la sesión de la nueva.
+  const owner = useAuthStore.getState().currentUser?.id ?? null;
 
   for (const [userId, peer] of Object.entries(listPeers())) {
     if (!peer.secret) continue;
@@ -662,9 +667,10 @@ export async function anunciarMiTarjeta(): Promise<void> {
     encolar({
       prioridad: 'normal',
       ejecutar: async () => {
+        if ((useAuthStore.getState().currentUser?.id ?? null) !== owner) return 'descartar';
         try {
           const r = await withTimeout(
-            announceContactResultado(secret, deviceId()),
+            announceCardResultado(card, secret, deviceId()),
             ANUNCIO_TIMEOUT_MS,
             { ok: false, reason: 'network' } as const,
           );
@@ -774,6 +780,9 @@ export function __resetReenvioClaves(): void {
 async function reenviarClavesDeGrupo(adoptados: string[] = []): Promise<void> {
   const me = useAuthStore.getState().currentUser;
   if (!me) return;
+  // T-147 (punto 4, simplificación): mismo criterio que `anunciarMiTarjeta`
+  // — el dueño se fija al encolar, y se revalida al ejecutar.
+  const owner = me.id;
   marcarAdopciones(adoptados); // conserva la prioridad aunque el próximo arranque no los "adopte" de nuevo
   if (Date.now() - ultimoReenvioClaves < REENVIO_CLAVES_COOLDOWN_MS) return;
   ultimoReenvioClaves = Date.now();
@@ -790,6 +799,7 @@ async function reenviarClavesDeGrupo(adoptados: string[] = []): Promise<void> {
       encolar({
         prioridad,
         ejecutar: async () => {
+          if ((useAuthStore.getState().currentUser?.id ?? null) !== owner) return 'descartar';
           try {
             const r = await sendGroupKeyResultado(memberId, group, deviceId());
             if (r.ok) return 'hecho';
@@ -914,6 +924,7 @@ export async function announceGroupToContacts(groupId: string): Promise<number> 
   await publishNow(groupId);
 
   marcarAdopciones([groupId]); // conserva prioridad alta si esto se regenera en un próximo arranque
+  const owner = me.id; // T-147 (punto 4): mismo criterio que `reenviarClavesDeGrupo`.
 
   let encolados = 0;
   for (const memberId of group.memberIds) {
@@ -922,6 +933,7 @@ export async function announceGroupToContacts(groupId: string): Promise<number> 
     encolar({
       prioridad: 'alta',
       ejecutar: async () => {
+        if ((useAuthStore.getState().currentUser?.id ?? null) !== owner) return 'descartar';
         try {
           const r = await sendGroupKeyResultado(memberId, group, deviceId());
           if (r.ok) return 'hecho';
@@ -959,4 +971,36 @@ export function stopRelay(): void {
   // de cuenta, logout) dispararía después de que las suscripciones ya se
   // cerraron — contra un grupo que puede ya no ser el activo.
   cancelPendingDrains();
+}
+
+/**
+ * Cambio de cuenta / logout (T-147, punto 4 de la simplificación). Se llama
+ * ANTES de `rehydrateForActiveUser` (`src/store/session.ts`), y hace lo que
+ * el PO pidió como cinturón de seguridad — aunque el buzón use una sesión
+ * anónima que no "pertenece" a ninguna cuenta, ningún trabajo diferido de la
+ * cuenta anterior puede seguir saliendo con la sesión que quedó abierta:
+ *
+ *  1. Corta el motor (canales, polling, drenajes agendados).
+ *  2. Cancela los envíos de grupo debounced (`schedulePublish`) que todavía
+ *     no dispararon.
+ *  3. Vacía `relayQueue` (tarjetas y claves en cola, incluidas las que
+ *     esperan su ventana de cuota) — nada de lo encolado por la cuenta
+ *     anterior llega a ejecutarse.
+ *  4. Cierra la sesión anónima del buzón y fuerza el borrado de su storage:
+ *     la próxima `ensureRelaySession()` (la dispara `startRelay`, llamado
+ *     por `rehydrateForActiveUser` después de esto) abre una sesión nueva.
+ *
+ * Los pasos 1-3 son síncronos a propósito — nada quedan "en vuelo" cuando
+ * esta función retorna. El paso 4 es async, pero pasa por la MISMA cola que
+ * `ensureRelaySession()` (ver `relaySession.ts`): como `rehydrateForActiveUser`
+ * llama a `startRelay()` (que termina llamando a `ensureRelaySession()`) de
+ * inmediato después de esto, el orden de ENCOLADO ya garantiza que el
+ * reinicio de sesión corre antes que esa lectura, sin necesidad de esperarlo
+ * acá.
+ */
+export function reiniciarSyncPorCambioDeCuenta(): void {
+  stopRelay();
+  cancelPendingPublishes();
+  vaciarCola();
+  void reabrirSesionAnonima();
 }

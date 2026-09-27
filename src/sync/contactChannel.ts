@@ -183,7 +183,23 @@ export async function announceContactResultado(
   peerSecret: string,
   deviceId: string,
 ): Promise<SendResult | { ok: false; reason: 'no_data' }> {
-  const card = myContactCard();
+  return announceCardResultado(myContactCard(), peerSecret, deviceId);
+}
+
+/**
+ * Igual que `announceContactResultado`, pero con la tarjeta YA ARMADA —
+ * T-147 (punto 4 de la simplificación): un trabajo diferido de `relayQueue`
+ * (`anunciarMiTarjeta`) tiene que mandar la tarjeta de la cuenta que estaba
+ * activa AL ENCOLAR, no la que `myContactCard()` devolvería recién al
+ * ejecutarse (que puede ser de OTRA cuenta, si hubo un cambio de cuenta en
+ * el medio) — armarla adentro del trabajo diferido era exactamente el
+ * agujero que dejaba salir datos de la cuenta anterior con la sesión nueva.
+ */
+export async function announceCardResultado(
+  card: ContactCard | null,
+  peerSecret: string,
+  deviceId: string,
+): Promise<SendResult | { ok: false; reason: 'no_data' }> {
   if (!card || !peerSecret) return { ok: false, reason: 'no_data' };
 
   try {

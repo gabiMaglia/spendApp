@@ -395,9 +395,6 @@
   "sync": {
     "no_session_title": "This phone couldn't connect",
     "no_session_body": "It's not syncing with your groups. It'll fix itself once the connection is back.",
-    "no_session_account_body": "It's not syncing with your groups. We're trying to reconnect your account; if it doesn't resolve on its own, tap Reconnect.",
-    "reconnect": "Reconnect",
-    "reconnect_wrong_account": "You picked a different account. Tap Reconnect again and choose the one this app already uses.",
     "key_conflict": {
       "title_two": "Two people sent you different keys for \"{{group}}\"",
       "title_many": "You got different keys for \"{{group}}\"",

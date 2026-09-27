@@ -8,7 +8,7 @@ jest.mock('@/src/services/errorLog', () => ({ recordError: jest.fn() }));
 
 import {
   encolar, __resetRelayQueue, __colaLength, QUEUE_INTERVAL_MS,
-  MAX_INTENTOS_POR_TRABAJO, EJECUCION_TIMEOUT_MS, REINTENTO_CUOTA_MS,
+  MAX_INTENTOS_POR_TRABAJO, EJECUCION_TIMEOUT_MS, REINTENTO_CUOTA_MS, vaciarCola,
 } from '../relayQueue';
 import { recordError } from '@/src/services/errorLog';
 
@@ -242,5 +242,37 @@ describe.each([
     expect(regimen).toBeLessThanOrEqual(15);
     // eslint-disable-next-line no-console
     console.log(`[medición D4] ${grupos}×${miembros}: ${total} sobres, ~${segundos.toFixed(1)}s, ${porMinuto.toFixed(1)}/min (${regimen.toFixed(1)}/min en régimen)`);
+  });
+});
+
+/**
+ * T-147 (punto 4 de la simplificación) · `vaciarCola` es la versión de
+ * PRODUCCIÓN de `__resetRelayQueue` — la usa `relayEngine` al cambiar de
+ * cuenta o desloguearse, para que ningún trabajo de la cuenta anterior
+ * (tarjeta de contacto, clave de grupo) siga en la cola cuando la sesión
+ * nueva arranque.
+ */
+describe('vaciarCola (producción)', () => {
+  it('descarta lo encolado, lo en espera de cuota, y no sigue "corriendo" después', async () => {
+    const ejecutados: string[] = [];
+    encolar({ prioridad: 'normal', ejecutar: async () => { ejecutados.push('a'); return 'reintentar_cuota'; } });
+    await jest.advanceTimersByTimeAsync(0); // "a" corre y queda en espera de cuota
+    encolar({ prioridad: 'normal', ejecutar: async () => { ejecutados.push('b'); return 'hecho'; } });
+
+    vaciarCola();
+    expect(__colaLength()).toBe(0);
+
+    await jest.advanceTimersByTimeAsync(QUEUE_INTERVAL_MS * 20);
+    expect(ejecutados).toEqual(['a']); // "b" nunca corrió: se vació antes de su turno
+  });
+
+  it('un encolar() después de vaciarCola arranca un drenaje nuevo (no queda "corriendo" pegado)', async () => {
+    encolar({ prioridad: 'normal', ejecutar: async () => 'hecho' });
+    vaciarCola();
+
+    const ejecutados: string[] = [];
+    encolar({ prioridad: 'normal', ejecutar: async () => { ejecutados.push('c'); return 'hecho'; } });
+    await jest.advanceTimersByTimeAsync(0);
+    expect(ejecutados).toEqual(['c']);
   });
 });

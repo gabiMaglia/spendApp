@@ -192,14 +192,26 @@ async function tick(): Promise<void> {
   timer = setTimeout(() => { void tick(); }, QUEUE_INTERVAL_MS);
 }
 
-/** Sólo tests: vacía la cola y para el drenaje, sin dejar timers colgados
- *  entre archivos de test (el mismo cuidado que el resto del motor). */
-export function __resetRelayQueue(): void {
+/**
+ * Vacía la cola y para el drenaje — de PRODUCCIÓN (T-147, punto 4 de la
+ * simplificación): se llama al cambiar de cuenta o desloguearse, para que
+ * ningún trabajo encolado por la cuenta anterior (tarjeta de contacto, clave
+ * de grupo) pueda seguir saliendo con la sesión nueva. Nada que estuviera
+ * `corriendo` en ese instante se cancela (JS no puede) — su resultado se
+ * pierde en silencio, igual que cualquier timeout de la cola.
+ */
+export function vaciarCola(): void {
   alta = [];
   normal = [];
   enEspera = [];
   corriendo = false;
   if (timer) { clearTimeout(timer); timer = null; }
+}
+
+/** Sólo tests: mismo efecto que `vaciarCola`, sin dejar timers colgados
+ *  entre archivos de test (el mismo cuidado que el resto del motor). */
+export function __resetRelayQueue(): void {
+  vaciarCola();
 }
 
 export function __colaLength(): number {
