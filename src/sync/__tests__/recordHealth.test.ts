@@ -263,7 +263,9 @@ describe('el trinquete y lo que aporta a la lectura', () => {
     peerConClave(ANA.pub);
     observeRecord('expense', firmadoPor(ANA) as never);            // traba a ana
     observeRecord('expense', sinFirmar({ id: 'e-2' }) as never);   // ana, ya trabada
-    observeRecord('expense', sinFirmar({ id: 'e-3', createdById: 'zoe' }) as never);
+    // `editedById: undefined` — si no, hereda el `'ana'` del fixture EXPENSE y
+    // el autor efectivo seguiría siendo ana, no zoe (T-185, `authorOf`).
+    observeRecord('expense', sinFirmar({ id: 'e-3', createdById: 'zoe', editedById: undefined }) as never);
 
     expect(unverifiableBreakdown()).toEqual({ desconocido: 1, firma: 1 });
     expect(recordStats().no_verificable).toBe(2);

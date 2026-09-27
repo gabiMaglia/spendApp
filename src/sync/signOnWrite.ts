@@ -51,7 +51,21 @@ const CAMPO_AUTOR: Record<CoreKind, string> = {
   group: 'createdById',
 };
 
+/**
+ * **El firmante efectivo, no siempre `createdById`** (T-185).
+ *
+ * Un `Expense` puede traer `editedById` — quien reeditó por última vez, si no
+ * fue el autor. Ese es quien firmó el núcleo, así que la verificación (S6/S10)
+ * tiene que resolver la clave de ESE id, no la del autor original: verificar
+ * la firma de quien editó contra la clave de `createdById` daría `invalida`
+ * siempre, aunque la firma sea genuina. `createdById` nunca se toca (sigue
+ * siendo quién cargó el gasto) y queda como fallback cuando nadie reeditó.
+ */
 export function authorOf<K extends CoreKind>(kind: K, record: CoreRecord[K]): string | undefined {
+  if (kind === 'expense') {
+    const editor = (record as unknown as { editedById?: unknown }).editedById;
+    if (typeof editor === 'string' && editor !== '') return editor;
+  }
   const valor = (record as unknown as Record<string, unknown>)[CAMPO_AUTOR[kind]];
   return typeof valor === 'string' && valor !== '' ? valor : undefined;
 }
@@ -163,6 +177,15 @@ function nucleoCambio<K extends CoreKind>(
 ): boolean {
   return canonicalCore(kind, siguiente) !== canonicalCore(kind, previo);
 }
+
+/**
+ * Exportado para el gate de edición ajena en `consensus` (T-185,
+ * `expenseStore.ts`): el store necesita saber ANTES de decidir `editedById`
+ * si el patch toca el núcleo o es puramente colaborativo (un voto, un
+ * tombstone) — eso último sigue siendo libre para cualquier miembro en los
+ * dos modos, es la razón de ser del split `core`/`fuera`.
+ */
+export const coreChanged = nucleoCambio;
 
 /**
  * Al editar. `siguiente` es el registro ya con el patch y el `updatedAt` nuevo.

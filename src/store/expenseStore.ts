@@ -1,15 +1,18 @@
 import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
-import { readScoped, writeScopedLazy } from './userScope';
+import { readScoped, writeScopedLazy, activeUserId } from './userScope';
 import { siguienteUpdatedAt } from './relojDelMerge';
 import { mergeExpensesPure } from './mergeExpensesPure';
-import { signOnCreate, signOnEdit } from '@/src/sync/signOnWrite';
+import { signOnCreate, signOnEdit, coreChanged } from '@/src/sync/signOnWrite';
 import { schedulePublish } from '@/src/sync/relayEngine';
 import { migrateExpenseAmounts } from './moneyMigration';
 import type { Expense } from '@/src/types/models';
 import { syncedNow } from '@/src/utils/syncedClock';
 import { recordError } from '@/src/services/errorLog';
 import { enDisputa } from '@/src/sync/autoriaTrust';
+import { mismaPersona } from './identityAlias';
+import { useGroupStore } from './groupStore';
+import { deletionModeOf } from '@/src/algorithms/deletionPolicy';
 
 const storage = createSecureStorage('expenses');
 const KEY = 'data_v1';
@@ -59,9 +62,40 @@ export const useExpenseStore = create<ExpenseStoreState>((set, get) => ({
     if (!actual) return true;
 
     const ahora = syncedNow();
-    const firmado = signOnEdit('expense', actual, {
-      ...actual, ...patch, updatedAt: siguienteUpdatedAt(actual.updatedAt, ahora),
-    });
+    const conPatch = { ...actual, ...patch, updatedAt: siguienteUpdatedAt(actual.updatedAt, ahora) };
+
+    const yo = activeUserId();
+    const soyAutor = yo !== null && mismaPersona(actual.createdById, yo);
+    // ¿El patch toca el NÚCLEO (plata, descripción…) o es puramente
+    // colaborativo (un voto, un tombstone, sólo `updatedAt`)? Lo colaborativo
+    // sigue siendo libre para cualquier miembro en los DOS modos — es la razón
+    // de ser del split `core`/`fuera` (`recordCore.ts`) y de cómo ya funciona
+    // el borrado consensuado. `conPatch` todavía no lleva `editedById`: si se
+    // calculara con él ya puesto, decidir `editedById` se volvería un cambio
+    // de núcleo espurio (es un campo `'core'`) y esto nunca daría `false`.
+    const tocaElNucleo = coreChanged('expense', actual, conPatch);
+
+    // T-185: en `consensus` sólo el autor edita el NÚCLEO — regla #2, no falla
+    // técnica. Sin sesión activa (`yo === null`) no hay de dónde sacar "quién
+    // edita", y eso NO es "alguien ajeno": es la misma falta de información
+    // que `esMio`/`signOnEdit` ya tratan como "no es mío" sin bloquear la
+    // escritura (queda sin firmar). El bloqueo sólo dispara cuando SÍ sabemos
+    // que quien edita el núcleo no es el autor.
+    const grupo = useGroupStore.getState().getById(actual.groupId);
+    if (
+      tocaElNucleo && yo !== null && !soyAutor
+      && deletionModeOf({ deletionMode: grupo?.deletionMode }) === 'consensus'
+    ) {
+      return false;
+    }
+
+    // Autor edita (o el patch no tocó el núcleo): no queda rastro nuevo de
+    // "editado por". Otro miembro edita el núcleo (sólo posible en `open`, por
+    // el guard de arriba): el núcleo lo firma ÉL, y `editedById` lo declara.
+    const siguiente = tocaElNucleo
+      ? { ...conPatch, editedById: soyAutor ? undefined : (yo ?? undefined) }
+      : conPatch;
+    const firmado = signOnEdit('expense', actual, siguiente);
     if (firmado === null) {
       // T-152 · D2: el núcleo ya estaba firmado y la re-firma propia falló. No
       // se guarda sin firma (perdería en silencio contra la versión vieja);

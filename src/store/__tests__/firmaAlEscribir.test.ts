@@ -244,18 +244,27 @@ describe('un tercero tocando el registro', () => {
     expect(verifyCore('expense', despues, [MI_CLAVE])).toBe('valida');
   });
 
-  it('tocar el NÚCLEO ajeno NO re-firma: queda la firma de ana e invalida', () => {
+  /**
+   * T-185: este caso cambió de intención. Antes (sin `editedById`) la única
+   * defensa era dejar el núcleo TOCADO pero SIN re-firmar — detectable como
+   * `invalida`, pero ya guardado. Ahora el store lo BLOQUEA de raíz: sin
+   * grupo local (falta a `deletionMode`, cae a `consensus`, el más
+   * restrictivo — `deletionPolicy.ts`), Beto no es el autor y el patch toca
+   * el núcleo (`amount`), así que `updateExpense` devuelve `false` y no toca
+   * nada — nunca llega a producirse un núcleo corrupto. Ver
+   * `expenseStoreEdicionAjena.test.ts` (E1-E3) para el camino habilitado:
+   * grupo `open`, donde Beto SÍ edita y firma con `editedById`.
+   */
+  it('tocar el NÚCLEO ajeno en consensus (default sin grupo) se bloquea de raíz', () => {
     const antes = gastoDeAnaFirmado();
 
-    useExpenseStore.getState().updateExpense('e1', { amount: 1 });
+    const ok = useExpenseStore.getState().updateExpense('e1', { amount: 1 });
     const despues = elGasto();
 
-    // Beto no puede convertirse en autor por editar: la firma sigue siendo la
-    // de ana, y por eso el cambio queda detectable. Es la razón del ticket.
-    expect(despues.k).toBe(antes.k);
-    expect(despues.s).toBe(antes.s);
-    expect(despues.rev).toBe(antes.rev);
-    expect(verifyCore('expense', despues, [MI_CLAVE])).toBe('invalida');
+    expect(ok).toBe(false);
+    expect(despues).toBe(antes);
+    expect(despues.amount).toBe(antes.amount);
+    expect(verifyCore('expense', despues, [MI_CLAVE])).toBe('valida');
   });
 });
 

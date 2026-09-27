@@ -50,10 +50,14 @@ const cache = new WeakMap<Expense, readonly string[]>();
 function calcular(e: Expense, verificar: VerificadorDeNucleo): string[] {
   const autores = new Set<string>();
 
-  // El núcleo vigente cuenta como uno, si tiene firma y verifica.
-  if (typeof e.k === 'string' && e.k && typeof e.s === 'string' && e.s && e.createdById) {
-    if (verificar(e.createdById, e as unknown as NucleoDisputado) === 'valida') {
-      autores.add(e.createdById);
+  // El núcleo vigente cuenta como uno, si tiene firma y verifica — contra el
+  // firmante EFECTIVO (T-185): `editedById` si alguien reeditó, si no
+  // `createdById`. Es quien firmó de verdad; verificar contra `createdById`
+  // a secas haría fallar toda edición ajena legítima de un grupo `open`.
+  const firmanteEfectivo = e.editedById ?? e.createdById;
+  if (typeof e.k === 'string' && e.k && typeof e.s === 'string' && e.s && firmanteEfectivo) {
+    if (verificar(firmanteEfectivo, e as unknown as NucleoDisputado) === 'valida') {
+      autores.add(firmanteEfectivo);
     }
   }
 
