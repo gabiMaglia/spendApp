@@ -1,6 +1,11 @@
 import { mergeByIdLevels } from './mergeLevels';
 import { mergeDeletionMode } from '@/src/algorithms/deletionPolicy';
+import { rosterDe } from '@/src/algorithms/roster';
 import type { Group } from '@/src/types/models';
+
+function mismoRoster(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((id, i) => id === b[i]);
+}
 
 /**
  * Merge puro de grupos: por niveles, más la regla del modo de borrado.
@@ -25,6 +30,19 @@ export function mergeGroupsPure(current: Group[], incoming: Group[], now: number
     const local = antes.get(g.id);
     const remoto = incoming.find(x => x.id === g.id);
     const modo = mergeDeletionMode(antes.has(g.id), local?.deletionMode, remoto?.deletionMode);
-    return g.deletionMode === modo ? g : { ...g, deletionMode: modo };
+
+    // `memberIds` es DERIVADO de `miembros` (T-182): se recalcula acá, después
+    // de que `mergeByIdLevels` unió `miembros` por clave — nunca sale del
+    // `memberIds` publicado por ninguno de los dos lados (ver `roster.ts`).
+    const memberIds = rosterDe(g.miembros);
+
+    const cambioModo    = g.deletionMode !== modo;
+    const cambioRoster  = !mismoRoster(g.memberIds, memberIds);
+    if (!cambioModo && !cambioRoster) return g;
+
+    const salida = { ...g };
+    if (cambioModo)   salida.deletionMode = modo;
+    if (cambioRoster) salida.memberIds = memberIds;
+    return salida;
   });
 }

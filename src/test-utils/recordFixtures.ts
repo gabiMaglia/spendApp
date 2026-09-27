@@ -120,6 +120,7 @@ export const GROUP: Required<Group> = {
   isDeleted: false,
   name: 'Asado',
   memberIds: ['ana', 'beto'],
+  miembros: { ana: { estado: 'in', at: 1_000 }, beto: { estado: 'in', at: 2_000 } },
   currency: 'ARS',
   createdAt: 1_690_000_000_000,
   createdById: 'ana',

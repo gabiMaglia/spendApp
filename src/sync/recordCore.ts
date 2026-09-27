@@ -171,6 +171,10 @@ const GROUP_SLOTS: Record<keyof Group, CoreSlot> = {
 
   name: 'fuera',
   memberIds: 'fuera',
+  // T-182: roster por miembro, la fuente de verdad de `memberIds` (derivado).
+  // La escribe cualquier miembro por diseño, igual que `memberIds` — mismo
+  // motivo de la nota de arriba.
+  miembros: 'fuera',
   currency: 'fuera',
   deletionVotes: 'fuera',
   deletionMode: 'fuera',

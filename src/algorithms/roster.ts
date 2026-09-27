@@ -32,17 +32,29 @@ type Entrada = Miembros[string];
  * orden lleguen al mismo roster (R7).
  */
 export function unirMiembros(a: Miembros | undefined, b: Miembros | undefined, now: number): Miembros {
-  const out: Miembros = { ...(a ?? {}) };
+  // Los dos ausentes (fixture vieja sin `miembros`, cast `as Group`): no hay
+  // nada que unir. `undefined`, no `{}`, por la misma razón que `unirVotos`
+  // — inventar un objeto nuevo acá rompería la identidad de referencia que
+  // exige `mergeLevels.test.ts` cuando nada cambió.
+  if (a === undefined && b === undefined) return undefined as unknown as Miembros;
+  const base = a ?? {};
+  let out: Miembros | undefined; // sólo se crea si de verdad cambia algo
   for (const [userId, entrante] of Object.entries(b ?? {})) {
     if (envenenado(entrante.at, now)) continue;
-    const actual: Entrada | undefined = out[userId];
+    const actual: Entrada | undefined = base[userId];
     const ganaEntrante = !actual
       || envenenado(actual.at, now)
       || entrante.at > actual.at
       || (entrante.at === actual.at && canonical(entrante) > canonical(actual));
-    if (ganaEntrante) out[userId] = entrante;
+    if (ganaEntrante && (!actual || canonical(entrante) !== canonical(actual))) {
+      out = { ...(out ?? base), [userId]: entrante };
+    }
   }
-  return out;
+  // Misma referencia cuando nada cambió: sin esto, cada drenado del relay
+  // produce un `miembros` nuevo aunque el roster sea idéntico, y con él un
+  // re-render y una escritura a disco del grupo entero cada 20 s — la
+  // lección de `unirVotos` (arriba), no una micro-optimización.
+  return out ?? base;
 }
 
 /** Los `'in'` del roster, en orden estable por `at` y después por id. */

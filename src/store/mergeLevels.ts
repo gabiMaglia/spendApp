@@ -4,7 +4,8 @@ import { mergeDeletionVoteSets } from '@/src/sync/SyncEngine';
 import { mergeApprovals } from '@/src/algorithms/leaveRequest';
 import { envenenado } from './relojDelMerge';
 import { unirDisputa } from '@/src/algorithms/autoria';
-import type { DeletionVote, LeaveRequest, NucleoDisputado, SettlementConfirmation } from '@/src/types/models';
+import { unirMiembros } from '@/src/algorithms/roster';
+import type { DeletionVote, Group, LeaveRequest, NucleoDisputado, SettlementConfirmation } from '@/src/types/models';
 
 /**
  * **Merge por niveles** (T-041 · S7).
@@ -58,9 +59,11 @@ const CAMPOS_DE_FIRMA = ['k', 's'] as const;
  *
  * `cur`/`inc` (el registro completo de cada lado) sólo los necesita
  * `unirAutoria`, para comparar `createdById` — el resto de las uniones los
- * ignora.
+ * ignora. `now` sólo lo necesita `unirMiembrosDeGrupo` (T-182), para el tope
+ * de reloj (T-144) — una función con menos parámetros declarados sigue
+ * siendo asignable a este tipo, así que las demás no lo mencionan.
  */
-type Union = (local: unknown, remoto: unknown, cur: Registro, inc: Registro) => unknown;
+type Union = (local: unknown, remoto: unknown, cur: Registro, inc: Registro, now: number) => unknown;
 
 const unirVotos: Union = (local, remoto) => {
   const a = local as DeletionVote[] | undefined;
@@ -138,6 +141,16 @@ const unirAutoria: Union = (local, remoto, cur, inc) =>
     cur, inc);
 
 /**
+ * `miembros` (T-182): roster por miembro en vez de `memberIds` como lista
+ * entera. Colaborativo porque, igual que los votos y las aprobaciones, es
+ * un aporte de gente distinta — cada quien sólo escribe SU propia entrada
+ * (`conAlta`/`conBaja`). `memberIds` no se toca acá: lo recalcula
+ * `mergeGroupsPure` después de unir, igual que ya hace con `deletionMode`.
+ */
+const unirMiembrosDeGrupo: Union = (local, remoto, _cur, _inc, now) =>
+  unirMiembros(local as Group['miembros'] | undefined, remoto as Group['miembros'] | undefined, now);
+
+/**
  * Qué campos de cada entidad son colaborativos.
  *
  * Está escrito por entidad y no derivado de la clasificación de `recordCore`
@@ -151,7 +164,7 @@ const COLABORATIVOS: Record<CoreKind, readonly (readonly [string, Union])[]> = {
   payment: [['confirmations', unirAcuses]],
   comment: [],
   recurring: [],
-  group: [['deletionVotes', unirVotos], ['leaveRequest', unirAprobaciones]],
+  group: [['deletionVotes', unirVotos], ['leaveRequest', unirAprobaciones], ['miembros', unirMiembrosDeGrupo]],
 };
 
 /** `rev` ausente cuenta como 0: es todo lo que existe desde antes de T-041. */
@@ -292,7 +305,7 @@ export function mergeRecord<K extends CoreKind>(
   const cur = current as unknown as Registro;
   const inc = incoming as unknown as Registro;
   const colaborativos = COLABORATIVOS[kind]
-    .map(([campo, unir]) => [campo, unir(cur[campo], inc[campo], cur, inc)] as const);
+    .map(([campo, unir]) => [campo, unir(cur[campo], inc[campo], cur, inc, now)] as const);
 
   // Nada del entrante ganó nada: se devuelve el registro que ya estaba, con su
   // identidad intacta. Es el caso ABRUMADORAMENTE mayoritario —el sobre lleva
