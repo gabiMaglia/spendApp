@@ -31,8 +31,6 @@ interface Group extends SyncMeta {
   memberIds: string[];        // IDs de User
   currency: string;           // ISO 4217, ej: 'ARS', 'USD'
   createdAt: number;
-  // Borrado consensuado
-  deletionVotes: DeletionVote[];
 }
 
 interface Expense extends SyncMeta {
@@ -46,20 +44,16 @@ interface Expense extends SyncMeta {
   category: ExpenseCategory;
   date: number;               // timestamp del gasto (no del registro)
   createdById: string;
-  // Borrado consensuado
-  deletionVotes: DeletionVote[];
+  // Borrado libre (T-186): campos del "resto", sin firma — sólo para
+  // que Actividad muestre quién borró/restauró.
+  deletedById?: string;
+  restoredById?: string;
 }
 
 interface Split {
   userId: string;
   amount: number;             // cuánto debe este usuario de este gasto
   isPaid: boolean;
-}
-
-interface DeletionVote {
-  userId: string;
-  votedAt: number;
-  action: 'delete' | 'cancel';
 }
 
 type ExpenseCategory =
@@ -125,113 +119,16 @@ Con tombstones (`isDeleted: true`, `updatedAt` actualizado):
 
 ---
 
-## Borrado consensuado {#deletion-consensus}
+## Borrado y liquidación: libres, sin acuerdo (T-186)
 
-**DECISIÓN**: El creador del gasto puede forzar el borrado unilateralmente. Los demás miembros pueden objetar (voto `cancel`), pero no pueden bloquearlo permanentemente.
+**DECISIÓN (2026-09-27):** hasta T-186 existía un modo «con acuerdo» — ronda de 72hs para objetar un borrado, override firmado del creador, y acuse de recibo para liquidar. Se sacó de cuajo. Ahora hay un solo comportamiento, para las dos acciones:
 
-### Diferencia entre borrar y liquidar
+- **Borrar un gasto**: cualquier miembro del grupo lo borra al instante (`isDeleted: true` + `deletedById`, tombstone de siempre). Cualquier miembro lo restaura desde Actividad (`isDeleted: false` + `restoredById`). `deletedById`/`restoredById` son campos del nivel "resto" — LWW, sin firma, no una prueba — sólo para que Actividad muestre quién hizo qué.
+- **Liquidar una deuda**: cualquier miembro **declara** un `Payment` y cuenta para el balance al instante. No hay acuse de quien cobra ni estado `pendiente`/`rechazado` — `src/algorithms/settlementStatus.ts` se reduce a `pagosQueCuentan(payments, group)`, que sólo filtra por grupo y por tombstone.
 
-Estas son dos acciones completamente distintas con flujos separados:
+Lo que **no** cambió: la firma del núcleo (`recordCore`/`recordSign`), la disputa de autoría (`autoriaTrust`), el merge por niveles y `leaveRequest` con sus aprobaciones firmadas.
 
-| Acción | Qué hace | Necesita consenso |
-|---|---|---|
-| **Liquidar deuda** | Registra que el dinero se transfirió en la realidad. El gasto queda en el historial. | No — cualquier miembro lo puede hacer unilateralmente. |
-| **Borrar gasto** | Elimina el gasto del cálculo de balances, como si nunca hubiera existido. | Sí — con poder de veto parcial (ver abajo). |
-
-### Reglas del borrado
-
-1. Cuando alguien quiere borrar un gasto, emite un `DeletionVote { action: 'delete', userId, votedAt }`.
-2. Los demás miembros ven una notificación "X quiere borrar este gasto" y pueden votar `cancel`.
-3. **Si nadie objeta en 72 horas** (o el creador del gasto lo fuerza), el gasto se marca `isDeleted: true`.
-4. Si alguien vota `cancel`, el borrado se cancela y el creador recibe notificación.
-5. El **creador del gasto** (`createdById`) puede forzar el borrado inmediato independientemente de los otros votos.
-
-```typescript
-// src/sync/deletionConsensus.ts
-
-const DELETION_TIMEOUT_MS = 72 * 60 * 60 * 1000; // 72 horas
-
-export function resolveDeletionVotes(
-  expense: Expense,
-  currentUserId: string
-): boolean {
-  const latestVotes = new Map<string, DeletionVote>();
-  for (const vote of expense.deletionVotes) {
-    const existing = latestVotes.get(vote.userId);
-    if (!existing || vote.votedAt > existing.votedAt) {
-      latestVotes.set(vote.userId, vote);
-    }
-  }
-
-  // El creador puede forzar el borrado unilateralmente
-  const creatorVote = latestVotes.get(expense.createdById);
-  if (creatorVote?.action === 'delete' && creatorVote.userId === expense.createdById) {
-    // Verificar si marcó "forzar"
-    if ((creatorVote as any).forced === true) return true;
-  }
-
-  // Algún miembro objetó → no borrar
-  const hasCancelVote = Array.from(latestVotes.values()).some(v => v.action === 'cancel');
-  if (hasCancelVote) return false;
-
-  // Timeout: si hay voto de delete y pasaron 72hs sin objeciones
-  const deleteVotes = Array.from(latestVotes.values()).filter(v => v.action === 'delete');
-  if (deleteVotes.length > 0) {
-    const oldestDeleteVote = Math.min(...deleteVotes.map(v => v.votedAt));
-    return Date.now() - oldestDeleteVote > DELETION_TIMEOUT_MS;
-  }
-
-  return false;
-}
-```
-
-### Caso de conflicto offline simultáneo
-
-- Usuario A emite `delete` mientras está offline.
-- Usuario B emite `cancel` mientras está offline.
-- Al sincronizarse, `mergeData` fusiona los `deletionVotes` por `userId`, ganando el de mayor `votedAt`.
-- Si gana `cancel`, el borrado no procede (la objeción de B prevalece).
-- Si A es el creador y forzó el borrado, prevalece sobre cualquier otro voto.
-
----
-
-## Liquidación de deudas {#debt-settlement}
-
-Liquidar es un gasto especial de tipo `payment`:
-
-```typescript
-interface Payment extends SyncMeta {
-  groupId: string;
-  fromUserId: string;   // quien pagó
-  toUserId: string;     // quien recibió
-  amount: number;
-  currency: string;     // en qué moneda se hizo el pago
-  targetCurrency?: string; // si el pago fue en divisa diferente a la deuda
-  exchangeRate?: number;   // tipo de cambio usado (Pro)
-  date: number;
-  type: 'payment';      // distingue de Expense
-}
-```
-
-`Payment` es un tipo de `Expense` con `type: 'payment'` y `splits` pre-calculados que cancelan el balance entre dos usuarios. Cualquier miembro puede **declarar** que pagó.
-
-### El acuse de recibo (T-064, 2026-09-01)
-
-Esta sección decía «no necesita consenso para registrarse» y **eso ya no es cierto en un grupo `consensus`**. Declarar el pago no lo efectiviza: quien **cobra** tiene que acusar recibo.
-
-| Estado | Cuenta en el balance | Cómo se llega |
-|---|---|---|
-| `efectivo` | sí | grupo `open`, o lo declaró quien cobra, o hay acuse `confirm` |
-| `pendiente` | **sí** | lo declaró quien paga y todavía no hay acuse |
-| `rechazado` | **no** | quien cobra dijo que no lo recibió ⇒ la deuda vuelve |
-
-Que `pendiente` cuente es deliberado (D1): quien ya transfirió la plata **no puede quedar de deudor** mientras espera. Lo que no hace es mostrarse como cerrado — la fila lo dice, y quien cobra recibe el aviso `settlement_pending`.
-
-**No hay plazo automático** (D2). A diferencia del borrado consensuado, acá el silencio no consiente. La contracara es que un pago falso le borra la deuda al que lo declara hasta que el otro actúe, y por eso **el rechazo no es opcional**: es el único freno que existe.
-
-El acuse es un registro **firmado y colaborativo**, no un campo de estado: `SettlementConfirmation` con `k`/`s`, unido en el merge como los votos de borrado. Un `status` guardado sería LWW y cualquier peer lo pisaría republicando con `updatedAt` mayor — la trampa exacta de T-053. `paymentId` va adentro de la firma, o un "sí, lo recibí" de mil pesos valdría para uno de cien mil.
-
-Ver `engram/plans/T-064.md` para las tres decisiones del PO y `src/algorithms/settlementStatus.ts` para el derivador.
+El mapa completo de lo que se sacó, dónde vivía cada pieza y cómo volver a traer el modo «con acuerdo» si hiciera falta está en **`docs/CONSENSO-PENDIENTE.md`** — no se repite acá para no tener dos fuentes de verdad.
 
 ---
 

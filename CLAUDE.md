@@ -98,7 +98,7 @@ Toda pieza de UI que se use más de una vez — o que represente una unidad de U
 **Todo módulo de lógica y todo componente con comportamiento propio debe tener un test.**
 
 Qué se testea:
-- Lógica de negocio: `calculateBalances`, `simplifyDebts`, `mergeData`, `resolveDeletionVotes`, `buildSplits`, `requiresRewardedAd`, etc.
+- Lógica de negocio: `calculateBalances`, `simplifyDebts`, `mergeData`, `pagosQueCuentan`, `buildSplits`, `requiresRewardedAd`, etc.
 - Comportamiento de componentes: qué se renderiza según props, qué pasa al tocar un botón, qué muestra en estado vacío/error/loading.
 - Hooks con lógica: retorno correcto según estado, side effects.
 
@@ -185,8 +185,8 @@ Expo resuelve `.ios.tsx` / `.web.ts` automáticamente. Seguir ese patrón para c
 ## Reglas de negocio críticas
 
 1. **Tombstones obligatorios**: Nunca hacer DELETE físico. Siempre `isDeleted: true` + `updatedAt` actualizado.
-2. **Borrado consensuado con override del creador**: El creador del gasto puede forzar el borrado. Los demás tienen 72hs para objetar. Ver `docs/ARCHITECTURE.md#deletion-consensus`.
-3. **Borrar ≠ liquidar**: Son dos acciones con lógica distinta y **ninguna de las dos es libre en un grupo `consensus`**. Esta regla decía «liquidar una deuda no necesita consenso» hasta el 2026-09-01, y el PO la invirtió: en un grupo consensuado, quien COBRA tiene que acusar recibo antes de que el saldado se efectivice (T-064). El acuse va firmado y se une en el merge, como los votos de borrado — no es un campo de estado, porque un campo lo pisa el LWW (es la trampa de T-053). Mientras espera, la deuda **no figura ni viva ni saldada**: quien ya transfirió la plata no queda de deudor, y quien cobra tiene el aviso `settlement_pending` esperándolo. **No hay plazo automático**: el silencio no consiente, a diferencia del borrado. Por eso el RECHAZO es obligatorio y no opcional — es lo único que devuelve la deuda a la vida si el pago nunca existió. En un grupo `open` no cambia nada. Ver `engram/plans/T-064.md` y `docs/ARCHITECTURE.md#debt-settlement`.
+2. **Borrado libre, con tombstone y restauración**: cualquier miembro del grupo edita, borra y restaura cualquier gasto al instante (tombstone `isDeleted` + `deletedById`/`restoredById`, campos del "resto" sin firma). No hay ronda de 72hs, ni votos, ni override de creador: el modo «con acuerdo» se sacó de cuajo en **T-186**. Ver `docs/CONSENSO-PENDIENTE.md` (mapa de lo que se sacó y cómo volver a traerlo si hiciera falta).
+3. **Borrar ≠ liquidar, pero las dos son libres**: son dos acciones con lógica distinta, y desde T-186 ninguna de las dos pide acuerdo de nadie. Un saldado que declara quien paga cuenta al instante — no hay acuse de quien cobra (T-064, revertido) ni rechazo que lo devuelva a la deuda. Ver `docs/CONSENSO-PENDIENTE.md`.
 4. **Last-Write-Wins por `updatedAt`**: En conflictos de merge, gana el registro con mayor timestamp.
 5. **IDs generados en cliente**: Todos los `id` son UUIDs generados en el dispositivo, nunca en servidor.
 6. **Monetización por ads**: Primeros 4 gastos del día gratis. A partir del 5to, rewarded ad por cada gasto. Pro = sin ads + sin límite.

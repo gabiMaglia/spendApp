@@ -1,8 +1,10 @@
 # Modo «con acuerdo» (`consensus`): mapa para sacarlo y para volver a traerlo
 
-**Estado:** PENDIENTE PARA EL FUTURO. Decisión del PO del 2026-09-27: por ahora hay un solo tipo de grupo, el «libre» (`deletionMode: 'open'`, como Splitwise: cualquier miembro edita y borra al instante, y cualquiera restaura). El modo «con acuerdo» se saca de cuajo en **T-186** (`engram/03_backlog.md:1452`).
+**EXTRAÍDO en T-186** (Task 1 @ `851787c`, Task 2 @ `46d29e3`, rama `chore/sacar-consenso`). El código descripto en este documento ya no existe en el árbol — vive, entero, en el tag `consenso-antes-de-T-186`. Este documento queda como el mapa para retomar el modo (§8) si alguna vez hiciera falta; §1-§7 describen el estado ANTERIOR a la extracción, con archivo:línea leídos contra ese tag, no contra el HEAD actual.
+
+**Estado:** PENDIENTE PARA EL FUTURO. Decisión del PO del 2026-09-27: por ahora hay un solo tipo de grupo, el «libre» (cualquier miembro edita, borra y restaura al instante, como Splitwise). El modo «con acuerdo» se sacó de cuajo en **T-186** (`engram/03_backlog.md:1452`).
 **Autor:** nerv-arquitecto · 2026-09-27 · relevado sobre `dev` @ `dd86ae6`.
-**Sugerencia:** antes de empezar T-186, poner el tag `consenso-antes-de-T-186` sobre ese commit. Todo lo que figura acá con archivo:línea se lee en ese tag.
+**Tag de rescate:** `consenso-antes-de-T-186` — todo lo que figura acá con archivo:línea se lee ahí, no en el HEAD actual.
 
 Este documento sirve para dos cosas: es la **lista de extracción** para quien haga T-186 (§7) y es el **mapa para retomar el modo** sin tener que redescubrirlo (§8).
 

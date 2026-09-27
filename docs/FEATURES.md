@@ -61,7 +61,6 @@ Objetivo: dos dispositivos se sincronizan correctamente.
 
 - [ ] `SyncEngine` con `mergeData` (LWW) y tombstones
 - [ ] `buildDelta` para enviar solo cambios por grupo
-- [ ] `resolveDeletionVotes` con timeout de 72hs y override del creador
 - [ ] Token de invitación (base64url con groupId + clave AES)
 - [ ] `useP2PConnection` vía WebRTC (signaling: Google STUN + Open Relay TURN)
 - [ ] Handshake con `SyncHandshake` payload
@@ -90,27 +89,21 @@ Objetivo: sync sin necesidad de internet.
 
 ---
 
-## Reglas de UX para borrado consensuado
+## Reglas de UX para borrado y liquidación (T-186)
 
-**DECISIÓN**: El creador del gasto puede forzar el borrado. Los demás tienen 72hs para objetar.
+**DECISIÓN (2026-09-27):** el modo «con acuerdo» —ronda de 72hs, override del creador, acuse de recibo al liquidar— se sacó de cuajo. Ver `docs/CONSENSO-PENDIENTE.md` para el detalle completo y cómo volver a traerlo si hiciera falta.
 
-### Flujo para el creador del gasto
+### Borrar un gasto
 
-1. Toca "Eliminar gasto".
-2. Opciones:
-   - **"Solicitar eliminación"** → los demás tienen 72hs para objetar. Si no hay objeción, se borra.
-   - **"Forzar eliminación ahora"** → se borra inmediatamente sin esperar. Queda en el historial de actividad.
-3. El gasto queda visible pero marcado con badge "Eliminación pendiente" hasta que se resuelva.
+Cualquier miembro del grupo toca "Eliminar gasto" y se borra al instante — un solo diálogo de confirmación, sin pedir ni objetar. Queda en el historial de Actividad, marcado como borrado, con quien lo borró.
 
-### Flujo para miembros que no son el creador
+### Restaurar
 
-1. Ven el badge "Eliminación pendiente" en el gasto.
-2. Pueden tocar "Objetar" → agrega voto `cancel`, cancela el borrado y notifica al creador.
-3. Si no hacen nada en 72hs, el gasto se borra automáticamente.
+Cualquier miembro del grupo restaura un gasto borrado desde Actividad, en un toque. Queda registrado quién lo restauró.
 
-### Diferencia con liquidar una deuda
+### Liquidar una deuda
 
-Liquidar no tiene este flujo. Cualquier miembro puede registrar un pago sin aprobación de los demás. Ver `docs/ARCHITECTURE.md#debt-settlement`.
+Cualquier miembro puede registrar un pago sin aprobación de los demás, y cuenta para el balance al instante — no hay acuse de recibo que esperar. Ver `docs/ARCHITECTURE.md`.
 
 ---
 
@@ -159,7 +152,7 @@ export function incrementExpenseCount(userId: string): void {
 | Evento | Texto de la notificación |
 |---|---|
 | Gasto nuevo en un grupo mío | `"Ana agregó $1200 en 'Supermercado' — tu parte: $600"` |
-| Solicitud de borrado de gasto | `"Carlos quiere borrar 'Cena' ($800). Tenés 72hs para objetar."` |
+| Alguien restauró un gasto que yo tenía borrado | `"Carlos restauró 'Cena' ($800)."` |
 | Pago / liquidación registrada | `"Bob te marcó como pagado $500."` |
 | Invitación a un grupo nuevo | `"Laura te invitó al grupo 'Vacaciones 2025'."` |
 
