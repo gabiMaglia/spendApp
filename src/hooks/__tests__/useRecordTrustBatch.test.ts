@@ -148,3 +148,25 @@ describe('V4 — desmontar a mitad de la ráfaga no dispara más setState', () =
     expect(renders).toBe(rendersAntes);
   });
 });
+
+describe('Task 3 — el orden de la cola es el del feed (arriba primero)', () => {
+  /**
+   * `useActivityTrust`/`groups/[id]` arman el array ya ordenado —lo más
+   * nuevo primero, `selectors.ts` lo ordena por `_ts`/fecha antes de llegar
+   * acá— y la cola tiene que respetarlo: si reordenara, lo primero que ve el
+   * usuario podría terminar siendo lo ÚLTIMO en verificarse. No hay
+   * virtualización (T-154 queda para el PO), así que el único orden que
+   * puede prometerse es el que trae el array de entrada.
+   */
+  it('verifica en el mismo orden en que llegan las filas, sin reordenar', () => {
+    const gastos = Array.from({ length: 8 }, (_, i) => base({ id: `orden-${i}` }));
+
+    renderHook(() => useRecordTrust('expense', gastos));
+    nPasos(8);
+
+    const idsVerificados = checkRecordMock.mock.calls.map(([, record]) =>
+      (record as Expense).id);
+
+    expect(idsVerificados).toEqual(gastos.map(g => g.id));
+  });
+});
