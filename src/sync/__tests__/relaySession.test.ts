@@ -266,6 +266,7 @@ describe('T-147-b: sesión de CUENTA (Google/Apple) — sólo lee, nunca anónim
 
   it('con sesión de cuenta ya persistida (no anónima) → identity, sin tocar signInAnonymously ni el captcha', async () => {
     sesion = { user: { is_anonymous: false, id: 'acc1' } };
+    S.registrarDuenoDeSesionDeCuenta(); // T-175 (B2ii): un login real ya confirmó esta sesión
     expect(await S.ensureRelaySession(true)).toBe('identity');
     expect(signInAnonymously).not.toHaveBeenCalled();
     expect(mockRequestCaptchaToken).not.toHaveBeenCalled();
@@ -287,6 +288,7 @@ describe('T-147-b: sesión de CUENTA (Google/Apple) — sólo lee, nunca anónim
 
   it('permitirCaptcha no importa para una cuenta: false también lee identity si ya hay sesión', async () => {
     sesion = { user: { is_anonymous: false, id: 'acc1' } };
+    S.registrarDuenoDeSesionDeCuenta(); // T-175 (B2ii): un login real ya confirmó esta sesión
     expect(await S.ensureRelaySession(false)).toBe('identity');
   });
 

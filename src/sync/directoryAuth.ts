@@ -56,7 +56,11 @@ import { withTimeout } from '@/src/utils/withTimeout';
  * quedara afuera, la operación colgada seguiría bloqueando la cola aunque
  * ESTA llamada se rindiera. A propósito NO pausado por el captcha —
  * login/logout de CUENTA nunca lo tocan; ese pausado (`withNetworkTimeout`)
- * es sólo del camino de invitado.
+ * es sólo del camino de invitado. Este helper genérico ahora sólo lo usa
+ * `signOutOfDirectory` — `signIntoDirectory` (abajo) necesita quedarse con
+ * la promesa CRUDA para el fix B2i (obs verifier ronda 2, respuesta tardía
+ * que pisa otra sesión), así que arma su propio tope inline con la misma
+ * `withTimeout`/`SESSION_TIMEOUT_MS`.
  */
 function encolar<T>(fn: () => Promise<T>, alVencer: T): Promise<T> {
   const { encolarOperacionDeSesion, SESSION_TIMEOUT_MS } =
@@ -68,6 +72,40 @@ function encolar<T>(fn: () => Promise<T>, alVencer: T): Promise<T> {
 export type DirectorySignIn =
   | { ok: true }
   | { ok: false; reason: 'not_configured' | 'no_token' | 'rejected'; detail?: string };
+
+type ClienteAuth = NonNullable<ReturnType<typeof getRelayClient>>;
+
+/**
+ * T-175 (B2i, verifier ronda 2): cuando ESTA llamada vence, `withTimeout` deja
+ * de esperar la promesa ORIGINAL — pero no la cancela (JS no puede) y auth-js
+ * tampoco se entera de nuestro tope: en cuanto la red conteste, igual corre
+ * `_saveSession` y persiste esa respuesta tardía (`GoTrueClient.js:1685-1687`).
+ * Si para entonces ya entró otra cuenta, esa respuesta tardía de A LE PISA la
+ * sesión a B en silencio.
+ *
+ * Por eso se sigue mirando la promesa original después de vencida: si
+ * finalmente trae una sesión Y el `access_token` que trajo es EXACTAMENTE el
+ * que quedó persistido ahora mismo, se purga. Comparar antes de borrar es lo
+ * que evita tocar una sesión ajena — si B ya escribió la suya (un
+ * `access_token` distinto), esto no hace nada.
+ */
+function vigilarRespuestaTardia(
+  supabase: ClienteAuth,
+  crudo: ReturnType<ClienteAuth['auth']['signInWithIdToken']>,
+): void {
+  void crudo.then(async ({ data }) => {
+    const tokenTardio = data?.session?.access_token;
+    if (!tokenTardio) return;
+    const { data: actual } = await supabase.auth.getSession();
+    if (actual.session?.access_token === tokenTardio) {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { forceClearPersistedSession } = require('./relaySession') as typeof import('./relaySession');
+      forceClearPersistedSession();
+    }
+  }).catch(() => {
+    // La respuesta tardía rechazó: nada que persistir, nada que purgar.
+  });
+}
 
 export async function signIntoDirectory(
   provider: 'google' | 'apple',
@@ -81,18 +119,35 @@ export async function signIntoDirectory(
   // servidor: uno se arregla en el .env, el otro en el panel de Supabase.
   if (!idToken) return { ok: false, reason: 'no_token' };
 
-  return encolar(
-    async () => {
-      try {
-        const { error } = await supabase.auth.signInWithIdToken({ provider, token: idToken });
-        if (error) return { ok: false, reason: 'rejected', detail: error.message };
-        return { ok: true };
-      } catch (e) {
-        return { ok: false, reason: 'rejected', detail: String(e) };
-      }
-    },
-    { ok: false, reason: 'rejected', detail: 'timeout' },
-  );
+  const { encolarOperacionDeSesion, SESSION_TIMEOUT_MS, registrarDuenoDeSesionDeCuenta } =
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    require('./relaySession') as typeof import('./relaySession');
+
+  return encolarOperacionDeSesion(async () => {
+    // `crudo`, no envuelta en try/catch todavía: hace falta la promesa CRUDA
+    // (no la ya mapeada a `DirectorySignIn`) para poder seguir mirándola
+    // después de vencida (B2i, arriba).
+    const crudo = supabase.auth.signInWithIdToken({ provider, token: idToken });
+
+    const mapeado: Promise<DirectorySignIn> = crudo.then(
+      ({ error }) => (error ? { ok: false, reason: 'rejected', detail: error.message } : { ok: true }),
+      (e) => ({ ok: false, reason: 'rejected', detail: String(e) }),
+    );
+
+    const resultado = await withTimeout<DirectorySignIn | 'timeout'>(mapeado, SESSION_TIMEOUT_MS, 'timeout');
+
+    if (resultado === 'timeout') {
+      vigilarRespuestaTardia(supabase, crudo);
+      return { ok: false, reason: 'rejected', detail: 'timeout' };
+    }
+    // T-175 (B2ii): sólo acá hay una confirmación REAL de Supabase Auth
+    // detrás — se registra como dueña de la sesión persistida para que
+    // `ensureRelaySession` (`relaySession.ts`) pueda confirmarlo después,
+    // en vez de confiar ciegamente en cualquier sesión no anónima que
+    // encuentre.
+    if (resultado.ok) registrarDuenoDeSesionDeCuenta();
+    return resultado;
+  });
 }
 
 /**

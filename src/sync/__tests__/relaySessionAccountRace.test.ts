@@ -69,6 +69,7 @@ describe('B1: logout colgado (reabrirSesionAnonima) no bloquea la cola para siem
     jest.useFakeTimers();
     useAuthStore.setState({ currentUser: { id: 'A', authProvider: 'google' } as never });
     sesion = { user: { id: 'A', is_anonymous: false } };
+    S.registrarDuenoDeSesionDeCuenta(); // A ya había confirmado su sesión
 
     signOut.mockImplementationOnce(() => new Promise(() => {})); // logout de A: nunca contesta
 
@@ -77,15 +78,21 @@ describe('B1: logout colgado (reabrirSesionAnonima) no bloquea la cola para siem
 
     // B ya está activo cuando `startRelay` (llamado por
     // `rehydrateForActiveUser`) pide su propia lectura — encolada DETRÁS del
-    // logout colgado, en la MISMA cola (fix D1).
+    // logout colgado, en la MISMA cola (fix D1). B todavía NO se logueó
+    // (eso lo dispara `verify.tsx` después, vía `directoryAuth`) — lo único
+    // que importa acá es que la lectura no se quede colgada para siempre.
     useAuthStore.setState({ currentUser: { id: 'B', authProvider: 'apple' } as never });
-    sesion = { user: { id: 'B', is_anonymous: false } };
     const bEnsure = S.ensureRelaySession(true);
 
     await jest.advanceTimersByTimeAsync(S.SESSION_TIMEOUT_MS + 1);
 
     await reinicio; // el logout venció — no se quedó colgado para siempre
-    expect(await bEnsure).toBe('identity'); // B pudo leer su propia sesión
+    expect(await bEnsure).toBe('none'); // no colgó (B aún no logueó, pero LEYÓ)
+
+    // B se loguea de verdad — confirma su propia sesión (B2ii) y ahora sí lee identity.
+    sesion = { user: { id: 'B', is_anonymous: false } };
+    S.registrarDuenoDeSesionDeCuenta();
+    expect(await S.ensureRelaySession(true)).toBe('identity');
   });
 
   it('un logout SIN cuelgue no espera nada — usuario normal sin cambios', async () => {
@@ -110,6 +117,7 @@ describe('B2ii: defensa general — sesión guardada que no es de la cuenta acti
   it('sesión de la MISMA cuenta activa → identity, sin tocar nada (el camino feliz no se rompe)', async () => {
     useAuthStore.setState({ currentUser: { id: 'B', authProvider: 'apple' } as never });
     sesion = { user: { id: 'B', is_anonymous: false } };
+    S.registrarDuenoDeSesionDeCuenta(); // el login real de B ya confirmó esta sesión (B2ii)
 
     expect(await S.ensureRelaySession(true)).toBe('identity');
     expect(signOut).not.toHaveBeenCalled();

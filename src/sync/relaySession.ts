@@ -4,6 +4,7 @@ import { requestCaptchaToken, onCaptchaInteractiveChange } from './captchaBridge
 import { getRelayClient } from './relay';
 import { createSerialQueue } from '@/src/utils/serialQueue';
 import { useAuthStore } from '@/src/store/authStore';
+import { withTimeout } from '@/src/utils/withTimeout';
 
 /**
  * Sesión de Supabase del BUZÓN.
@@ -61,6 +62,41 @@ export function forceClearPersistedSession(): void {
 }
 
 /**
+ * T-175 (B2, verifier ronda 2): clave propia en el MISMO bucket `'sbauth'`
+ * que la sesión — se purga JUNTO con ella (una sola `storage.clearAll()`),
+ * nunca puede sobrevivir sin la sesión que describe.
+ *
+ * **Por qué esto y no `identityAlias.esYo()`, aunque el verifier pidió
+ * reusarlo textualmente:** `data.session.user.id` es el UUID INTERNO que
+ * genera Supabase Auth al resolver `signInWithIdToken` — no el `sub` del
+ * proveedor que usa `currentUser.id` (y por lo tanto `esYo`). Son dos
+ * espacios de id distintos; comparar uno contra el otro rompe el camino
+ * FELIZ (confirmado: `esYo(data.session.user.id)` reventaba `estadosDeSesionT147b.
+ * test.ts` fila 11 y `cuentaAuthorizationBuzon.test.ts`, los dos contra el
+ * contrato REAL de GoTrue). Para que `esYo` diera `true` ahí habría que
+ * REGISTRAR ese UUID como alias en `identityAlias.ts` — el módulo que
+ * ADR-008 blinda a propósito para que sólo una fusión de cuentas real
+ * (T-048) le sume identidades, porque `idCanonico`/`rosterCanonico` (que sí
+ * llegan a la aritmética de saldos) comparten ese mismo set. Usarlo acá
+ * como bookkeeping de sesión lo envenenaría para algo que no tiene nada que
+ * ver con fusionar cuentas.
+ */
+const DUENO_KEY = 'cuenta_dueno_de_sesion';
+
+/**
+ * Deja constancia de que la sesión de CUENTA persistida AHORA es de quien
+ * está activo. La llama `directoryAuth.signIntoDirectory` sólo tras un
+ * login que resolvió DE VERDAD (nunca en el timeout, nunca en un rechazo) —
+ * es la única vez que hay una confirmación real de Supabase Auth detrás:
+ * `ensureRelaySession` (abajo) nunca establece confianza nueva por sí sola,
+ * sólo la CONFIRMA contra lo que ya quedó registrado acá.
+ */
+export function registrarDuenoDeSesionDeCuenta(): void {
+  const uid = useAuthStore.getState().currentUser?.id;
+  if (uid) storage.set(DUENO_KEY, uid);
+}
+
+/**
  * FIFO de TODO lo que toca la sesión del cliente unificado del buzón: una
  * lectura (`ensureRelaySession`), un reinicio forzado (`reabrirSesionAnonima`,
  * cambio de cuenta/logout) y — T-147-b, fix D1 (verifier, ronda 2, rechazo
@@ -105,14 +141,28 @@ export function __resetRelaySession(): void {
   enCurso = null;
 }
 
-/** Cierra la sesión LOCAL (auth-js + storage) sin importar si la red
- *  responde. */
+/**
+ * Cierra la sesión LOCAL (auth-js + storage) sin importar si la red
+ * responde.
+ *
+ * **T-175 (B1, verifier ronda 2):** `signOut({ scope: 'local' })` sigue
+ * haciendo el viaje de red (ver comentario de `forceClearPersistedSession`
+ * arriba) — sin tope, un logout colgado bloqueaba esta MISMA cola (la
+ * comparte con `ensureRelaySession`/`encolarOperacionDeSesion`, fix D1) para
+ * siempre: `reabrirSesionAnonima` (llamada por
+ * `reiniciarSyncPorCambioDeCuenta` en cada cambio de cuenta) nunca
+ * terminaba, y la cuenta B que entraba después se quedaba sin poder leer su
+ * propia sesión. Se reusa `withTimeout` (T-138-bis) con la MISMA
+ * `SESSION_TIMEOUT_MS` — al vencer, `forceClearPersistedSession()` de abajo
+ * corre igual: no hace falta que la red haya contestado para vaciar el
+ * bucket a mano.
+ */
 async function purgarSesionLocal(supabase: ClienteAuth): Promise<void> {
-  try {
-    await supabase.auth.signOut({ scope: 'local' });
-  } catch {
-    // sigue igual: se fuerza abajo
-  }
+  await withTimeout(
+    supabase.auth.signOut({ scope: 'local' }).then(() => undefined, () => undefined),
+    SESSION_TIMEOUT_MS,
+    undefined,
+  );
   forceClearPersistedSession();
 }
 
@@ -330,6 +380,25 @@ async function hacerEnsureSinCola(permitirCaptcha: boolean, ignorarCooldown: boo
     }
 
     if (!data.session) return 'none';
+
+    /**
+     * T-175 (B2ii, verifier ronda 2): defensa general — la sesión guardada
+     * puede no ser de la cuenta activa. Pasa por ejemplo cuando un login
+     * de A vence acá (`SESSION_TIMEOUT_MS`) pero auth-js la deja persistida
+     * IGUAL cuando la respuesta de red llega tarde (`_saveSession` no sabe
+     * de nuestro tope) — si para entonces ya entró B, `getSession()` le
+     * devolvería el JWT de A disfrazado de `'identity'`. Se compara contra
+     * `DUENO_KEY` (ver el docblock de `registrarDuenoDeSesionDeCuenta`
+     * arriba — no `esYo`, y por qué) en vez de confiar ciegamente en
+     * `is_anonymous: false`. Si no coincide (o nunca se registró), se purga
+     * — nunca se deja un JWT ajeno persistido — y `verify.tsx` reconecta
+     * desde cero, igual que si nunca hubiera sesión.
+     */
+    if (storage.getString(DUENO_KEY) !== useAuthStore.getState().currentUser?.id) {
+      await purgarSesionLocal(supabase);
+      return 'none';
+    }
+
     return 'identity';
   }
 
