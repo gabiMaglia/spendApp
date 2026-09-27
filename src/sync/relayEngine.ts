@@ -11,7 +11,7 @@ import { useAuthStore } from '@/src/store/authStore';
 import { esYo } from '@/src/store/identityAlias';
 import { deriveTopic, fromHex } from './envelopeCrypto';
 import { subscribeTopic, isRelayConfigured } from './relay';
-import { ensureRelaySession, bindAuthRefreshToAppState } from './relaySession';
+import { ensureRelaySession, bindAuthRefreshToAppState, haySesionEnCurso } from './relaySession';
 import type { SessionKind } from './relaySession';
 import { setUltimaSesionConocida } from './sessionStatus';
 import { publishToGroup, drainGroup, sigueSiendoLaClave, type PublishResult } from './relaySync';
@@ -473,7 +473,16 @@ async function arrancarCadenaDeSync(): Promise<void> {
     // canal privado que se une sin JWT queda afuera sin ningún error visible
     // — el orden acá no es un detalle.
     kindAlArrancar = await ensureRelaySession();
-    setUltimaSesionConocida(kindAlArrancar);
+    // Verifier R4-3: `setUser` dispara este `startRelay` ANTES de que
+    // `entrarAlDirectorio` alcance a llamar a `signIntoDirectory`
+    // (`auth/index.tsx:302-309` para Google, `:300-309` para Apple) — la
+    // PRIMERA lectura de sesión de un login que en realidad va a salir bien
+    // casi siempre ve "todavía no hay nada" (`'none'`). Si en este instante
+    // hay OTRA operación de sesión en vuelo (el login, encolado detrás de
+    // esta misma lectura), no se reporta nada: se deja el estado visible
+    // anterior en vez de mostrar «Reconectar» sobre un login que está por
+    // resolverse solo.
+    if (!haySesionEnCurso()) setUltimaSesionConocida(kindAlArrancar);
   } else {
     kindAlArrancar = 'none';
   }
@@ -563,7 +572,9 @@ async function releerTodo(): Promise<void> {
     // resuscribir sólo los canales: vuelve a correr `arrancarCadenaDeSync`
     // de punta a punta.
     const kind = await ensureRelaySession();
-    setUltimaSesionConocida(kind);
+    // Verifier R4-3: mismo criterio que en `arrancarCadenaDeSync` — un poll
+    // que coincide con un login/logout en vuelo no pisa el estado visible.
+    if (!haySesionEnCurso()) setUltimaSesionConocida(kind);
     if (kind !== kindAlArrancar) {
       void startRelay();
       return;

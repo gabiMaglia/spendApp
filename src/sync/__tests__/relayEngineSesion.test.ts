@@ -14,6 +14,9 @@
 jest.mock('../relaySession', () => ({
   ensureRelaySession: jest.fn(async () => 'anonymous'),
   bindAuthRefreshToAppState: jest.fn(() => jest.fn()),
+  // R4-3: por defecto "sin operación en vuelo", así que este mock no cambia
+  // el comportamiento de ningún test viejo — sólo los nuevos de R4-3 lo tocan.
+  haySesionEnCurso: jest.fn(() => false),
 }));
 
 jest.mock('../relay', () => ({
