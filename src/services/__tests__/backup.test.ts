@@ -10,9 +10,17 @@ import { usePersonalStore } from '@/src/store/personalStore';
 import { useAuthStore } from '@/src/store/authStore';
 import { useRecurringStore } from '@/src/store/recurringStore';
 import { useCommentStore } from '@/src/store/commentStore';
+import { useGroupKeyStore, type GroupKeyRecord } from '@/src/store/groupKeyStore';
+import { rosterDe } from '@/src/algorithms/roster';
+import { recargarAlias } from '@/src/store/identityAlias';
+import { deriveTopic, fromHex } from '@/src/sync/envelopeCrypto';
 import type {
   Group, Expense, Payment, User, PersonalEntry, PersonalBudget,
 } from '@/src/types/models';
+
+jest.mock('@/src/sync/relayEngine', () => ({
+  schedulePublish: jest.fn(),
+}));
 
 // ── Factories mínimas pero completas (TS estricto) ──────────────────────────
 function group(id: string, updatedAt: number, over: Partial<Group> = {}): Group {
@@ -51,6 +59,10 @@ function entry(id: string, updatedAt: number, over: Partial<PersonalEntry> = {})
 }
 const emptyBudget: PersonalBudget = { currency: 'ARS', monthlyAmount: 0, includeOwedToMe: false };
 
+function miembros(...ids: string[]): Group['miembros'] {
+  return Object.fromEntries(ids.map((id, i) => [id, { estado: 'in' as const, at: i }]));
+}
+
 function resetStores() {
   useGroupStore.setState({ groups: [] });
   useExpenseStore.setState({ expenses: [] });
@@ -58,6 +70,8 @@ function resetStores() {
   useUserStore.setState({ users: [] });
   usePersonalStore.setState({ entries: [], budget: { ...emptyBudget } });
   useAuthStore.setState({ currentUser: null });
+  useGroupKeyStore.setState({ keys: [] });
+  recargarAlias();
 }
 
 beforeEach(resetStores);
@@ -228,5 +242,140 @@ describe('backup — plantillas recurrentes y comentarios (hallazgo del verifica
     delete (backup as any).comments;
 
     expect(() => applyBackup(backup)).not.toThrow();
+  });
+});
+
+describe('T-188b · el backup restaura la sesión completa (claves + roster)', () => {
+  const CLAVE_G1: GroupKeyRecord = { groupId: 'g1', key: 'aa'.repeat(32), epoch: 1 };
+
+  it('B1 · exportar: el archivo lleva groupKeys y ownerId = mi id', () => {
+    useAuthStore.setState({ currentUser: user('u1', 10) });
+    useGroupKeyStore.setState({ keys: [CLAVE_G1] });
+
+    const b = buildBackup();
+
+    expect(b.ownerId).toBe('u1');
+    expect(b.groupKeys).toEqual([CLAVE_G1]);
+    expect(b.version).toBe(2);
+  });
+
+  it('B2 · teléfono nuevo, mismo id (idEstable), importo mi backup: claves adoptadas, roster me incluye, se publica, la clave sirve para drenar (deriveTopic real)', async () => {
+    // "Teléfono nuevo": sesión con mi id activa, pero SIN la clave del grupo
+    // todavía (groupKeyStore vacío) y sin ser miembro local del grupo.
+    useAuthStore.setState({ currentUser: user('u1', 10) });
+
+    const backup: BackupFile = {
+      ...blank(),
+      ownerId: 'u1',
+      groups: [group('g1', 10, { miembros: miembros('u2'), memberIds: ['u2'] })],
+      expenses: [expense('e1', 10)],
+      groupKeys: [CLAVE_G1],
+    };
+
+    applyBackup(backup);
+
+    // claves adoptadas
+    expect(useGroupKeyStore.getState().getKey('g1')).toEqual(CLAVE_G1);
+
+    // roster me incluye (re-entrada por restauración)
+    const g = useGroupStore.getState().getById('g1')!;
+    expect(rosterDe(g.miembros)).toContain('u1');
+
+    // se publica el grupo al que reingresé
+    const { schedulePublish } = jest.requireMock('@/src/sync/relayEngine') as { schedulePublish: jest.Mock };
+    expect(schedulePublish).toHaveBeenCalledWith('g1', expect.anything());
+
+    // la clave restaurada sirve DE VERDAD para derivar el topic del relay
+    const stored = useGroupKeyStore.getState().getKey('g1')!;
+    const topic = await deriveTopic(fromHex(stored.key), stored.epoch);
+    expect(typeof topic).toBe('string');
+    expect(topic.length).toBeGreaterThan(0);
+  });
+
+  it('B3 · borré la cuenta (salí de los grupos saldados) y la recreé e importo el backup: vuelvo a estar "in" con el mismo id, con un `at` FRESCO (no el viejo del archivo)', () => {
+    useAuthStore.setState({ currentUser: user('u1', 10) });
+    // El backup NO me trae como miembro (mismo caso que B2): lo que importa acá
+    // es que la re-entrada gane sobre un `out` reciente de T-187 cuando esto se
+    // publique — y para eso el `at` tiene que ser NUEVO, no el que traía el
+    // archivo. Un backup viejo con un `at` de hace meses perdería el merge
+    // contra el `conBaja` que el borrado publicó.
+    const backup: BackupFile = {
+      ...blank(),
+      ownerId: 'u1',
+      groups: [group('g1', 10, { miembros: miembros('u2'), memberIds: ['u2'] })],
+      groupKeys: [CLAVE_G1],
+    };
+
+    const antes = Date.now();
+    applyBackup(backup);
+
+    const g = useGroupStore.getState().getById('g1')!;
+    expect(rosterDe(g.miembros)).toEqual(expect.arrayContaining(['u1', 'u2']));
+    expect(g.miembros['u1']!.estado).toBe('in');
+    expect(g.miembros['u1']!.at).toBeGreaterThanOrEqual(antes);
+  });
+
+  it('B4 · backup ajeno (confirmado): los datos se importan, las claves NO se adoptan, ningún conAlta', () => {
+    // Confirmado = el usuario ya vio el aviso de que no es su backup y decidió
+    // igual importarlo; `applyBackup` no pregunta, sólo decide por ownerId.
+    useAuthStore.setState({ currentUser: user('u1', 10) });
+
+    const backup: BackupFile = {
+      ...blank(),
+      ownerId: 'otra-persona',
+      groups: [group('g1', 10, { miembros: miembros('otra-persona'), memberIds: ['otra-persona'] })],
+      groupKeys: [CLAVE_G1],
+    };
+
+    applyBackup(backup);
+
+    // datos importados (RESTORE de siempre)
+    expect(useGroupStore.getState().getById('g1')).toBeDefined();
+    // claves NO adoptadas
+    expect(useGroupKeyStore.getState().getKey('g1')).toBeUndefined();
+    // sin conAlta: mi id no aparece en un roster que nunca lo tuvo
+    const g = useGroupStore.getState().getById('g1')!;
+    expect(rosterDe(g.miembros)).not.toContain('u1');
+
+    const { schedulePublish } = jest.requireMock('@/src/sync/relayEngine') as { schedulePublish: jest.Mock };
+    expect(schedulePublish).not.toHaveBeenCalled();
+  });
+
+  it('B5 · backup v1 (sin groupKeys): se importa igual, sin claves, sin re-alta', () => {
+    useAuthStore.setState({ currentUser: user('u1', 10) });
+
+    const v1: BackupFile = {
+      ...blank(), version: 1 as any, ownerId: 'u1',
+      groups: [group('g1', 10, { miembros: miembros('u2'), memberIds: ['u2'] })],
+    };
+    delete (v1 as any).groupKeys;
+
+    expect(() => applyBackup(v1)).not.toThrow();
+    expect(useGroupKeyStore.getState().getKey('g1')).toBeUndefined();
+    const g = useGroupStore.getState().getById('g1')!;
+    expect(rosterDe(g.miembros)).not.toContain('u1'); // sin claves no hay re-entrada posible
+  });
+
+  it('parseBackup acepta un archivo v1 (formato viejo, sin groupKeys ni ownerId)', () => {
+    const v1 = {
+      format: BACKUP_FORMAT, version: 1, exportedAt: 0,
+      groups: [], expenses: [], payments: [], users: [], personalEntries: [],
+      personalBudget: emptyBudget,
+    };
+    expect(() => parseBackup(JSON.stringify(v1))).not.toThrow();
+  });
+
+  it('B6 · adoptKeys no pisa una clave local con época mayor (comportamiento actual de adoptKeys)', () => {
+    useAuthStore.setState({ currentUser: user('u1', 10) });
+    const claveLocalMasNueva: GroupKeyRecord = { groupId: 'g1', key: 'bb'.repeat(32), epoch: 5 };
+    useGroupKeyStore.setState({ keys: [claveLocalMasNueva] });
+
+    applyBackup({
+      ...blank(), ownerId: 'u1',
+      groups: [group('g1', 10, { miembros: miembros('u1'), memberIds: ['u1'] })],
+      groupKeys: [CLAVE_G1], // epoch 1, menor
+    });
+
+    expect(useGroupKeyStore.getState().getKey('g1')).toEqual(claveLocalMasNueva);
   });
 });
