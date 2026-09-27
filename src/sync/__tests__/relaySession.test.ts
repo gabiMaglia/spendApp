@@ -191,6 +191,37 @@ describe('ensureRelaySession', () => {
   });
 });
 
+/**
+ * T-147 (fila 9c/9e de la retro): chequeo PURO — sin abrir nada, sin
+ * captcha, sin purgar residuos — para que la hidratación inicial pueda
+ * decidir si hace falta bloquear el paso a tabs con la pantalla de
+ * verificación (9c) o si ya hay sesión y no hace falta mostrar nada (9e).
+ */
+describe('haySesionAnonimaValida', () => {
+  it('con sesión anónima guardada, true — y no toca signInAnonymously', async () => {
+    sesion = { user: { is_anonymous: true } };
+    expect(await S.haySesionAnonimaValida()).toBe(true);
+    expect(signInAnonymously).not.toHaveBeenCalled();
+  });
+
+  it('sin sesión, false', async () => {
+    sesion = null;
+    expect(await S.haySesionAnonimaValida()).toBe(false);
+  });
+
+  it('con sesión de IDENTIDAD (residuo del diseño viejo, no anónima), false — no la purga, sólo mira', async () => {
+    sesion = { user: { is_anonymous: false, id: 'uid-de-una-cuenta' } };
+    expect(await S.haySesionAnonimaValida()).toBe(false);
+    expect(signOut).not.toHaveBeenCalled();
+  });
+
+  it('error de getSession (refresh transitorio): false — prefiere mostrar la verificación de más antes que saltarla', async () => {
+    sesion = null;
+    errorDeGetSession = { message: 'Failed to fetch' };
+    expect(await S.haySesionAnonimaValida()).toBe(false);
+  });
+});
+
 describe('refresco atado al ciclo de vida', () => {
   it('active → start, background → stop', () => {
     S.bindAuthRefreshToAppState();
