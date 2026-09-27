@@ -92,10 +92,15 @@ export default function NewGroupScreen() {
       (m, uid) => conAlta({ miembros: m } as Group, uid, ahora).miembros,
       {} as Group['miembros'],
     );
-    const nuevo = {
+    // `memberIds` se arma en el mismo literal (no en dos pasos): un `as Group`
+    // con `memberIds` ausente y `miembros` presente falla el chequeo de tipos
+    // ("neither type sufficiently overlaps") porque ya no comparten lo
+    // suficiente para que TS confíe en el cast.
+    const nuevo: Group = {
       id,
       name:          name.trim(),
       miembros:      miembrosIniciales,
+      memberIds:     rosterDe(miembrosIniciales),
       currency,
       createdAt:     Date.now(),
       createdById:   currentUser.id,
@@ -103,8 +108,7 @@ export default function NewGroupScreen() {
       deletionMode,
       updatedAt:     ahora,
       isDeleted:     false,
-    } as Group;
-    nuevo.memberIds = rosterDe(miembrosIniciales);
+    };
     // T-178 (6.4): el mismo predicado que hoy sólo corre al publicar/recibir
     // corre ACÁ antes de escribir — si no, el grupo queda huérfano en este
     // teléfono, sin viajar nunca y sin que nadie se entere.

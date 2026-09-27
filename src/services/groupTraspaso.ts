@@ -94,10 +94,14 @@ export function traspasarGrupo(grupoViejo: Group, description: string, createdBy
     (m, uid) => conAlta({ miembros: m } as Group, uid, ahora).miembros,
     {} as Group['miembros'],
   );
-  const grupoNuevo = {
+  // `memberIds` va en el mismo literal (no en dos pasos): un `as Group` con
+  // `memberIds` ausente y `miembros` presente falla el chequeo de tipos
+  // ("neither type sufficiently overlaps").
+  const grupoNuevo: Group = {
     id: uuidv4(),
     name: siguienteNombreDisponible(grupoViejo.name, nombresExistentes),
     miembros: miembrosNuevo,
+    memberIds: rosterDe(miembrosNuevo),
     currency: grupoViejo.currency,
     createdAt: ahora,
     updatedAt: ahora,
@@ -106,8 +110,7 @@ export function traspasarGrupo(grupoViejo: Group, description: string, createdBy
     deletionVotes: [],
     deletionMode: grupoViejo.deletionMode,
     defaultSplitMode: grupoViejo.defaultSplitMode,
-  } as Group;
-  grupoNuevo.memberIds = rosterDe(miembrosNuevo);
+  };
 
   const carryOvers = buildCarryOverExpenses(balances, grupoNuevo.id, descripcionAcotada, createdById);
 
