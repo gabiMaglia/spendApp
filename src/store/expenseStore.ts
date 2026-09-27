@@ -11,8 +11,6 @@ import { syncedNow } from '@/src/utils/syncedClock';
 import { recordError } from '@/src/services/errorLog';
 import { enDisputa } from '@/src/sync/autoriaTrust';
 import { mismaPersona } from './identityAlias';
-import { useGroupStore } from './groupStore';
-import { deletionModeOf } from '@/src/algorithms/deletionPolicy';
 
 const storage = createSecureStorage('expenses');
 const KEY = 'data_v1';
@@ -67,31 +65,18 @@ export const useExpenseStore = create<ExpenseStoreState>((set, get) => ({
     const yo = activeUserId();
     const soyAutor = yo !== null && mismaPersona(actual.createdById, yo);
     // ¿El patch toca el NÚCLEO (plata, descripción…) o es puramente
-    // colaborativo (un voto, un tombstone, sólo `updatedAt`)? Lo colaborativo
-    // sigue siendo libre para cualquier miembro en los DOS modos — es la razón
-    // de ser del split `core`/`fuera` (`recordCore.ts`) y de cómo ya funciona
-    // el borrado consensuado. `conPatch` todavía no lleva `editedById`: si se
-    // calculara con él ya puesto, decidir `editedById` se volvería un cambio
-    // de núcleo espurio (es un campo `'core'`) y esto nunca daría `false`.
+    // colaborativo (un voto, un tombstone, sólo `updatedAt`)? Sólo si toca el
+    // núcleo tiene sentido decidir `editedById` — si no, `conPatch` ya sirve
+    // tal cual. `conPatch` todavía no lleva `editedById`: si se calculara con
+    // él ya puesto, esto se volvería un cambio de núcleo espurio (es un campo
+    // `'core'`) aunque el patch no haya tocado nada más.
     const tocaElNucleo = coreChanged('expense', actual, conPatch);
 
-    // T-185: en `consensus` sólo el autor edita el NÚCLEO — regla #2, no falla
-    // técnica. Sin sesión activa (`yo === null`) no hay de dónde sacar "quién
-    // edita", y eso NO es "alguien ajeno": es la misma falta de información
-    // que `esMio`/`signOnEdit` ya tratan como "no es mío" sin bloquear la
-    // escritura (queda sin firmar). El bloqueo sólo dispara cuando SÍ sabemos
-    // que quien edita el núcleo no es el autor.
-    const grupo = useGroupStore.getState().getById(actual.groupId);
-    if (
-      tocaElNucleo && yo !== null && !soyAutor
-      && deletionModeOf({ deletionMode: grupo?.deletionMode }) === 'consensus'
-    ) {
-      return false;
-    }
-
-    // Autor edita (o el patch no tocó el núcleo): no queda rastro nuevo de
-    // "editado por". Otro miembro edita el núcleo (sólo posible en `open`, por
-    // el guard de arriba): el núcleo lo firma ÉL, y `editedById` lo declara.
+    // T-185 (decisión del PO, 2026-09-27: se cae el modo `consensus` de este
+    // ticket — vuelve en T-186): cualquier miembro edita el núcleo de
+    // cualquier gasto del grupo, sin gate. Autor edita (o el patch no tocó el
+    // núcleo): no queda rastro nuevo de "editado por". Otro miembro edita el
+    // núcleo: el núcleo lo firma ÉL, y `editedById` lo declara.
     const siguiente = tocaElNucleo
       ? { ...conPatch, editedById: soyAutor ? undefined : (yo ?? undefined) }
       : conPatch;

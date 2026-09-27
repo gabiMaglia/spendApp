@@ -140,32 +140,30 @@ describe('enDisputa / autoresVerificados (T-170 · D-2, verificación real)', ()
   });
 
   /**
-   * T-185 · E6. `calcular` tiene que verificar el núcleo VIGENTE contra el
-   * firmante EFECTIVO (`editedById ?? createdById`), no sólo contra
-   * `createdById` — si no, la firma real de quien editó jamás cerraría
-   * contra su propia clave.
-   *
-   * `createdById` NO cambia nunca en T-185 (a diferencia del escenario de
-   * Mallory de más arriba, que SÍ re-estampa `createdById`), así que el
-   * disparador de `unirDisputa` (`src/algorithms/autoria.ts`, compara
-   * `createdById` entre versiones) no captura sólo esto — ese archivo es de
-   * `mergeLevels.ts` y queda fuera del alcance de esta tarea. Por eso el
-   * núcleo original de Ana se arma a mano en `autoriaDisputada`, simulando
-   * el mismo resultado que ese archivo produciría si el disparador
-   * incluyera `editedById` (no es parte de este ticket).
+   * T-185. Un gasto editado por alguien que no es el autor es ahora el caso
+   * NORMAL (cualquier miembro edita, sin gate) — no un ataque. `calcular`
+   * tiene que verificar el núcleo VIGENTE contra el firmante EFECTIVO
+   * (`editedById ?? createdById`), no sólo contra `createdById`: si no, la
+   * firma real de quien editó jamás cerraría contra su propia clave, y ese
+   * editor legítimo desaparecería en silencio de `autoresVerificados` en
+   * cuanto el gasto entrara en CUALQUIER disputa por otro motivo (por ejemplo
+   * el escenario de Mallory de más arriba, sobre el mismo id).
    */
-  it('T-185 · E6: consensus — un editor foráneo firmado cuenta como disputa (firmante efectivo)', () => {
+  it('el firmante efectivo del vigente (editedById) cuenta, no createdById a secas', () => {
     rememberAuthorKey('ana', PUB_ANA);
     rememberAuthorKey('mallory', PUB_MALLORY);
 
-    const editadoPorMallory = { ...base, editedById: 'mallory', rev: NOW - 8_000, updatedAt: NOW - 8_000 };
+    // Beto editó el gasto de Ana (createdById sigue siendo 'ana') y lo firmó
+    // él. Acá se usa la clave de Mallory sólo para reusar los fixtures de
+    // arriba — lo que importa es que `editedById` ≠ `createdById` y que la
+    // firma es real.
+    const editado = { ...base, editedById: 'mallory', rev: NOW - 8_000, updatedAt: NOW - 8_000 };
     const vigente = {
-      ...editadoPorMallory,
-      ...signCore('expense', editadoPorMallory as never, PRIV_MALLORY),
-      autoriaDisputada: [{ ...deAna }],
+      ...editado,
+      ...signCore('expense', editado as never, PRIV_MALLORY),
     } as unknown as Expense;
 
-    expect(enDisputa(vigente)).toBe(true);
-    expect([...autoresVerificados(vigente)]).toEqual(['ana', 'mallory']);
+    expect(enDisputa(vigente)).toBe(false);
+    expect([...autoresVerificados(vigente)]).toEqual(['mallory']);
   });
 });

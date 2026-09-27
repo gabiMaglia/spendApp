@@ -179,11 +179,11 @@ function nucleoCambio<K extends CoreKind>(
 }
 
 /**
- * Exportado para el gate de edición ajena en `consensus` (T-185,
- * `expenseStore.ts`): el store necesita saber ANTES de decidir `editedById`
- * si el patch toca el núcleo o es puramente colaborativo (un voto, un
- * tombstone) — eso último sigue siendo libre para cualquier miembro en los
- * dos modos, es la razón de ser del split `core`/`fuera`.
+ * Exportado para `expenseStore.ts updateExpense` (T-185): el store necesita
+ * saber ANTES de decidir `editedById` si el patch toca el núcleo o es
+ * puramente colaborativo (un voto, un tombstone) — sólo un cambio de núcleo
+ * amerita marcar quién editó; lo demás es la razón de ser del split
+ * `core`/`fuera` y sigue siendo libre para cualquier miembro.
  */
 export const coreChanged = nucleoCambio;
 

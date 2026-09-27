@@ -245,25 +245,26 @@ describe('un tercero tocando el registro', () => {
   });
 
   /**
-   * T-185: este caso cambió de intención. Antes (sin `editedById`) la única
-   * defensa era dejar el núcleo TOCADO pero SIN re-firmar — detectable como
-   * `invalida`, pero ya guardado. Ahora el store lo BLOQUEA de raíz: sin
-   * grupo local (falta a `deletionMode`, cae a `consensus`, el más
-   * restrictivo — `deletionPolicy.ts`), Beto no es el autor y el patch toca
-   * el núcleo (`amount`), así que `updateExpense` devuelve `false` y no toca
-   * nada — nunca llega a producirse un núcleo corrupto. Ver
-   * `expenseStoreEdicionAjena.test.ts` (E1-E3) para el camino habilitado:
-   * grupo `open`, donde Beto SÍ edita y firma con `editedById`.
+   * T-185 (decisión del PO 2026-09-27: cualquier miembro edita, sin gate —
+   * el modo `consensus` de este ticket se cayó, vuelve en T-186). Este caso
+   * cambió de intención: antes (sin `editedById`) la única defensa era dejar
+   * el núcleo TOCADO pero SIN re-firmar — detectable como `invalida`, pero ya
+   * guardado, y Beto no podía "convertirse en autor". Ahora Beto SÍ edita el
+   * núcleo de un gasto ajeno, y lo declara: `editedById` pasa a ser suyo, el
+   * núcleo se re-firma con SU clave, y verifica.
    */
-  it('tocar el NÚCLEO ajeno en consensus (default sin grupo) se bloquea de raíz', () => {
+  it('editar el NÚCLEO ajeno re-firma con editedById — Beto no se convierte en autor, pero SÍ edita', () => {
     const antes = gastoDeAnaFirmado();
 
     const ok = useExpenseStore.getState().updateExpense('e1', { amount: 1 });
     const despues = elGasto();
 
-    expect(ok).toBe(false);
-    expect(despues).toBe(antes);
-    expect(despues.amount).toBe(antes.amount);
+    expect(ok).toBe(true);
+    expect(despues.amount).toBe(1);
+    expect(despues.createdById).toBe(YO);       // el autor no cambia nunca
+    expect(despues.editedById).toBe(OTRO);
+    expect(despues.rev!).toBeGreaterThan(antes.rev!);
+    expect(despues.s).not.toBe(antes.s);         // se re-firmó
     expect(verifyCore('expense', despues, [MI_CLAVE])).toBe('valida');
   });
 });

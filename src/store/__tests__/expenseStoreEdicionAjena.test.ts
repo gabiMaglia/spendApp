@@ -8,10 +8,12 @@ import { rememberAuthorKey, forgetAuthorKeys } from '@/src/sync/authorKeys';
 import type { Expense, Group, User } from '@/src/types/models';
 
 /**
- * T-185 · Task 1, tabla del plan (E1-E4): edición en modo `open` desde alguien
- * que no es el autor. `updateExpense` decide `editedById` y bloquea la edición
- * ajena en `consensus`; la verificación (`checkRecord`/`autoriaTrust`) usa el
- * firmante EFECTIVO (`editedById ?? createdById`).
+ * T-185 · Task 1, tabla del plan (E1, E3, E4): edición desde alguien que no
+ * es el autor. Decisión del PO 2026-09-27: se cae el modo `consensus` de este
+ * ticket (vuelve en T-186) — `updateExpense` deja editar a CUALQUIER miembro
+ * del grupo, sin gate; sólo decide `editedById`. La verificación
+ * (`checkRecord`/`autoriaTrust`) usa el firmante EFECTIVO
+ * (`editedById ?? createdById`).
  *
  * Identidades REALES: `ensureIdentity()` genera y persiste la clave del
  * dispositivo (Ed25519 de verdad, no hex de adorno) — la app soporta más de
@@ -77,22 +79,6 @@ describe('E1 · open: B edita el gasto de A', () => {
     rememberAuthorKey(BETO, MI_CLAVE);
     expect(checkRecord('expense', editado)).toBe('valida');
     expect(enDisputa(editado)).toBe(false);
-  });
-});
-
-describe('E2 · consensus: B intenta editar el gasto de A', () => {
-  it('updateExpense devuelve false y no toca nada', () => {
-    useGroupStore.setState({ groups: [grupo({ deletionMode: 'consensus' })] });
-    comoUsuario(ANA);
-    useExpenseStore.getState().addExpense(gastoDeAna());
-    const antes = elGasto();
-
-    comoUsuario(BETO);
-    const ok = useExpenseStore.getState().updateExpense('e1', { amount: 999 });
-
-    expect(ok).toBe(false);
-    expect(elGasto()).toBe(antes);
-    expect(elGasto().amount).toBe(12_345);
   });
 });
 
