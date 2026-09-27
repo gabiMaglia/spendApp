@@ -19,6 +19,19 @@
  * OTRA cuenta, `ensureRelaySession` devolvía `'identity'` igual: sólo
  * miraba `is_anonymous`, nunca A QUIÉN pertenecía la sesión. Acá se prueba
  * la defensa reactiva, sin depender de cómo llegó el JWT ajeno.
+ *
+ * **B2ii bis (verifier ronda 3, RECHAZO — el marcador no ataba la SESIÓN).**
+ * La primera versión de `registrarDuenoDeSesionDeCuenta` guardaba sólo el
+ * `uid` de la app (`currentUser.id`), nunca A QUÉ `session.user.id` de
+ * Supabase pertenecía. Con B logueado de verdad (marcador = B) y DESPUÉS
+ * una respuesta tardía de A que pisó el storage SIN pasar por el purgado de
+ * B2i (p.ej. porque B2i no llegó a correr, o cualquier otro camino que deje
+ * un JWT ajeno persistido), `ensureRelaySession` comparaba
+ * `marcador === currentUser.id` — B == B, TRUE — y devolvía `'identity'`
+ * con el JWT de A igual: el caso que motivó B2 desde el principio. El
+ * marcador ahora ata el PAR `{ cuenta, sesion }` — el `user.id` de Supabase
+ * que ESE login confirmó — y `ensureRelaySession` exige que coincidan los
+ * DOS, no sólo la cuenta.
  */
 process.env.EXPO_PUBLIC_SUPABASE_URL = 'https://prueba.local';
 process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = 'anon-de-prueba';
@@ -69,7 +82,7 @@ describe('B1: logout colgado (reabrirSesionAnonima) no bloquea la cola para siem
     jest.useFakeTimers();
     useAuthStore.setState({ currentUser: { id: 'A', authProvider: 'google' } as never });
     sesion = { user: { id: 'A', is_anonymous: false } };
-    S.registrarDuenoDeSesionDeCuenta(); // A ya había confirmado su sesión
+    S.registrarDuenoDeSesionDeCuenta('A'); // A ya había confirmado su sesión (user.id 'A')
 
     signOut.mockImplementationOnce(() => new Promise(() => {})); // logout de A: nunca contesta
 
@@ -91,7 +104,7 @@ describe('B1: logout colgado (reabrirSesionAnonima) no bloquea la cola para siem
 
     // B se loguea de verdad — confirma su propia sesión (B2ii) y ahora sí lee identity.
     sesion = { user: { id: 'B', is_anonymous: false } };
-    S.registrarDuenoDeSesionDeCuenta();
+    S.registrarDuenoDeSesionDeCuenta('B');
     expect(await S.ensureRelaySession(true)).toBe('identity');
   });
 
@@ -117,9 +130,32 @@ describe('B2ii: defensa general — sesión guardada que no es de la cuenta acti
   it('sesión de la MISMA cuenta activa → identity, sin tocar nada (el camino feliz no se rompe)', async () => {
     useAuthStore.setState({ currentUser: { id: 'B', authProvider: 'apple' } as never });
     sesion = { user: { id: 'B', is_anonymous: false } };
-    S.registrarDuenoDeSesionDeCuenta(); // el login real de B ya confirmó esta sesión (B2ii)
+    S.registrarDuenoDeSesionDeCuenta('B'); // el login real de B ya confirmó esta sesión (B2ii)
 
     expect(await S.ensureRelaySession(true)).toBe('identity');
     expect(signOut).not.toHaveBeenCalled();
+  });
+
+  /**
+   * B2ii bis (verifier ronda 3): el caso que originó B2 desde el principio
+   * — B confirmado de verdad, y DESPUÉS una sesión de OTRO `user.id` (p.ej.
+   * A, llegada tarde) pisa el storage SIN pasar por el purgado de B2i. El
+   * marcador viejo (sólo `cuenta`) no lo detectaba porque `currentUser`
+   * seguía siendo B — hacía falta atar también A QUÉ sesión pertenecía.
+   */
+  it('marcador de cuenta correcta pero sesión de OTRO user.id (sin pasar por B2i) → purga + none, NUNCA identity', async () => {
+    useAuthStore.setState({ currentUser: { id: 'B', authProvider: 'apple' } as never });
+    sesion = { user: { id: 'B', is_anonymous: false } };
+    S.registrarDuenoDeSesionDeCuenta('B'); // B confirmó SU sesión (user.id 'B')
+
+    // El storage queda con la sesión de OTRO user.id (p.ej. una respuesta
+    // tardía de A que B2i no llegó a interceptar) — currentUser sigue
+    // siendo B, así que el marcador viejo (sólo `cuenta`) lo aceptaría igual.
+    sesion = { user: { id: 'A', is_anonymous: false } };
+
+    const kind = await S.ensureRelaySession(true);
+
+    expect(kind).toBe('none'); // nunca 'identity' con una sesión que el marcador no confirmó
+    expect(signOut).toHaveBeenCalledWith({ scope: 'local' });
   });
 });
