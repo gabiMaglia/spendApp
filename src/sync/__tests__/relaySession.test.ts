@@ -296,6 +296,33 @@ describe('D2 (ruling): la anónima sólo existe para el invitado', () => {
     expect(await S.ensureRelaySession()).toBe('identity');
     expect(signInAnonymously).not.toHaveBeenCalled();
   });
+
+  /**
+   * Fila 3 de la tabla de estados («Apple nuevo») — declarada hueco en la
+   * ronda 3 y ahora con test dedicado. Mismo orden real que el de Google
+   * arriba (`setUser` antes de que `entrarAlDirectorio` llame a
+   * `signInWithIdToken`, `auth/index.tsx:300-309`), pero para un usuario
+   * Apple que NUNCA tuvo cuenta en este dispositivo: no hay `uid` vinculado
+   * todavía (`vincularOValidar` lo aprende recién en esta misma corrida), y
+   * Apple —a diferencia de Google— no tiene reconexión silenciosa si esta
+   * primera identidad no llega a persistirse.
+   */
+  it('Fila 3 (Apple nuevo): orden real del login — primera vuelta "none", la siguiente ya ve la identidad y queda vinculada', async () => {
+    useAuthStore.setState({ currentUser: conCuenta('apple') }); // auth/index.tsx:302, setUser ya con authProvider puesto
+    sesion = null; // entrarAlDirectorio (:309) todavía no llamó a signInWithIdToken
+    expect(await S.ensureRelaySession()).toBe('none');
+    expect(signInAnonymously).not.toHaveBeenCalled(); // Apple tampoco abre anónima mientras espera
+
+    sesion = { user: { is_anonymous: false, id: 'uid-apple-nuevo' } }; // signInWithIdToken terminó, auth-js persistió
+    expect(await S.ensureRelaySession()).toBe('identity');
+    expect(signInAnonymously).not.toHaveBeenCalled();
+
+    // Queda vinculado: una sesión de OTRA cuenta para este mismo usuario local
+    // ya no puede colarse como identity (misma garantía que Google, R4-1a).
+    sesion = { user: { is_anonymous: false, id: 'uid-de-otra-cuenta-apple' } };
+    mockReconnect = { status: 'not_available' }; // Apple: sin reconexión silenciosa
+    expect(await S.ensureRelaySession()).toBe('none');
+  });
 });
 
 /**
