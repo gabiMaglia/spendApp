@@ -29,6 +29,21 @@ function utf8(s: string): Uint8Array {
 }
 
 /**
+ * Verifier R3-3(a): `wrapPublicKey` es una clave pública x25519 — 32 bytes,
+ * 64 caracteres hex. `fromHex` (`hexBytes.ts`) NO valida nada: un string
+ * corto o con caracteres no-hex produce un `Uint8Array` de largo distinto
+ * (o con bytes `NaN`), y recién explota más tarde, dentro de
+ * `x25519.getSharedSecret` (`wrapGroupKey`), con un `RangeError` — el PoC del
+ * verifier lo reprodujo así. Un contacto puede envenenar esto mandando
+ * cualquier string en `wrapPublicKey` de su tarjeta; validar ACÁ, al
+ * guardarla, es la primera barrera (la segunda es el `try/catch` de
+ * `sendGroupKeyResultado`).
+ */
+export function esWrapPublicKeyValida(hex: unknown): hex is string {
+  return typeof hex === 'string' && /^[0-9a-f]{64}$/i.test(hex);
+}
+
+/**
  * Buzón de contactos: lo que hace que agregar a alguien quede en LOS DOS
  * teléfonos.
  *
@@ -216,38 +231,50 @@ export async function sendGroupKeyResultado(
   peerUserId: string,
   group: { id: string; name: string },
   deviceId: string,
-): Promise<SendResult | { ok: false; reason: 'no_data' }> {
+): Promise<SendResult | { ok: false; reason: 'no_data' | 'invalid_key'; detail?: string }> {
   const me = useAuthStore.getState().currentUser;
   const peer = getPeer(peerUserId);
   const record = useGroupKeyStore.getState().getKey(group.id);
   if (!me || !peer?.secret || !peer.wrapPublicKey || !record) return { ok: false, reason: 'no_data' };
 
-  const wrap = ensureWrapKeypair();
-  const identity = ensureIdentity();
-
-  const datos = {
-    groupId: group.id,
-    groupName: group.name,
-    fromUserId: me.id,
-    forUserId: peerUserId,
-    wrappedKey: wrapGroupKey(record.key, peer.wrapPublicKey, wrap.privateKey),
-    senderWrapPublicKey: wrap.publicKey,
-    senderIdentity: identity.publicKey,
-    epoch: record.epoch,
-    sentAt: Date.now(),
-  };
-
-  const drop: GroupKeyDrop = {
-    ...datos,
-    kind: 'group_key',
-    signature: toHex(ed25519.sign(utf8(dropPayload(datos)), fromHex(identity.privateKey))),
-  };
-
+  /**
+   * Verifier R3-3(a): antes, armar `drop` (incluido `wrapGroupKey`) corría
+   * FUERA de este `try`. Una `wrapPublicKey` corrupta que se coló al guardar
+   * el contacto (`savePeerFromCard` ya la valida, ver `esWrapPublicKeyValida`
+   * más abajo — esto es la segunda barrera) hacía tirar `x25519` con un
+   * `RangeError` sin capturar. `relayQueue` trata CUALQUIER excepción como
+   * `'reintentar'` — para un error permanente como éste (la clave nunca deja
+   * de estar corrupta sola), eso era reintentar para siempre (PoC: 901 veces
+   * en 1h, bloqueando a los trabajos sanos detrás). Envuelto acá, se
+   * distingue como `'invalid_key'`, que el llamador trata como descartable.
+   */
   try {
+    const wrap = ensureWrapKeypair();
+    const identity = ensureIdentity();
+
+    const datos = {
+      groupId: group.id,
+      groupName: group.name,
+      fromUserId: me.id,
+      forUserId: peerUserId,
+      wrappedKey: wrapGroupKey(record.key, peer.wrapPublicKey, wrap.privateKey),
+      senderWrapPublicKey: wrap.publicKey,
+      senderIdentity: identity.publicKey,
+      epoch: record.epoch,
+      sentAt: Date.now(),
+    };
+
+    const drop: GroupKeyDrop = {
+      ...datos,
+      kind: 'group_key',
+      signature: toHex(ed25519.sign(utf8(dropPayload(datos)), fromHex(identity.privateKey))),
+    };
+
     const topic = await deriveContactTopic(peer.secret);
     const sealed = sealEnvelope(await contactKey(peer.secret), JSON.stringify(drop));
     return await sendEnvelope(topic, sealed, deviceId);
   } catch (e) {
+    if (e instanceof RangeError) return { ok: false, reason: 'invalid_key', detail: String(e) };
     return { ok: false, reason: 'network', detail: String(e) };
   }
 }
@@ -447,11 +474,15 @@ export async function drainContacts(
       // No hay ping-pong: sólo se responde cuando la tarjeta trae algo que no
       // teníamos, así que a la segunda vuelta ya nadie responde.
       const previo = getPeer(msg.userId);
-      const esNuevo = Boolean(msg.wrapPublicKey) && !previo?.wrapPublicKey;
+      // R3-3(a): una `wrapPublicKey` inválida NUNCA se guarda — se trata
+      // como si la tarjeta no la trajera. Sin esto, quedaría persistida y
+      // envenenaría cada intento futuro de mandarle la clave de un grupo.
+      const wrapPublicKeyValida = esWrapPublicKeyValida(msg.wrapPublicKey) ? msg.wrapPublicKey : undefined;
+      const esNuevo = Boolean(wrapPublicKeyValida) && !previo?.wrapPublicKey;
 
       savePeerFromCard(msg.userId, {
         secret: msg.contactSecret,
-        wrapPublicKey: msg.wrapPublicKey,
+        wrapPublicKey: wrapPublicKeyValida,
         identityPublicKey: msg.identityPublicKey,
       });
       if (esNuevo) responder.push(msg.contactSecret);
