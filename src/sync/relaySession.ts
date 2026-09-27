@@ -3,26 +3,32 @@ import { createSecureStorage } from '@/src/utils/secureStorage';
 import { requestCaptchaToken, onCaptchaInteractiveChange } from './captchaBridge';
 import { getRelayClient } from './relay';
 import { createSerialQueue } from '@/src/utils/serialQueue';
+import { useAuthStore } from '@/src/store/authStore';
 
 /**
- * Sesión de Supabase del BUZÓN (T-147, SIMPLIFICACIÓN aprobada por el PO,
- * 2026-09-27 — reemplaza el diseño anterior de "sesión atada a la cuenta").
+ * Sesión de Supabase del BUZÓN.
  *
- * El buzón (ADR-003) es un buzón TONTO: no necesita saber de qué CUENTA es
- * cada sobre — el acceso es por topic derivado de una clave que sólo
- * conocen quienes están en ese grupo/contacto, y el contenido va cifrado E2E.
- * Lo único que el servidor necesita del cliente es "un aparato real, con
- * cuota" — eso lo resuelve una sesión ANÓNIMA con Turnstile, **una por
- * instalación**, sea invitado o cuenta.
+ * **T-147-b (2026-09-27, `engram/plans/T-147.md`, sellado por el PO)
+ * ENMIENDA a la SIMPLIFICACIÓN del mismo día:** el captcha vuelve a ser
+ * SÓLO PARA INVITADOS (P-3 original) — verificado contra producción,
+ * `grant_type=id_token` sin captcha rechaza con «Bad ID token» (no aplica a
+ * cuentas) y el signup anónimo sin captcha rechaza con `captcha_failed` (sí
+ * aplica a invitados). Dos caminos, no uno:
  *
- * El login de Google/Apple sigue existiendo, pero SEPARADO: sólo sirve para
- * el directorio de claves (`directoryAuth.ts` + `directoryClient.ts`, ADR-004)
- * y corre en su propio cliente de Supabase, con su propio storage. El buzón
- * NUNCA usa ese JWT — ni falta que le haga.
+ *  - **Cuenta (Google/Apple):** el buzón usa la sesión de CUENTA que dejó
+ *    `signInWithIdToken` en el login (`directoryAuth.ts`, unificado con este
+ *    mismo cliente — ya NO hay un `directoryClient.ts` aparte). Este módulo,
+ *    para cuentas, SÓLO LEE esa sesión — nunca `signInAnonymously`, nunca
+ *    pide captcha. La reconexión (Google silencioso, Apple interactivo, el
+ *    rechazo de "otra cuenta") vive enteramente en `app/auth/verify.tsx`.
+ *  - **Invitado:** sin cambios — sesión ANÓNIMA con Turnstile, una por
+ *    instalación (el buzón, ADR-003, es tonto: no necesita saber de qué
+ *    cuenta es cada sobre, sólo "un aparato real, con cuota").
  *
- * **Costo aceptado por el PO:** la cuota del buzón es por INSTALACIÓN, no por
- * cuenta (dos cuentas en el mismo teléfono comparten la misma sesión
- * anónima y su cuota); el captcha frena la creación masiva de instalaciones.
+ * **Costo aceptado por el PO:** la cuota del INVITADO es por instalación
+ * (dos sesiones de invitado en el mismo teléfono compartirían cuota si
+ * volvieran a coexistir); el captcha frena la creación masiva de
+ * instalaciones de invitado.
  */
 
 /** Adaptador de storage para `auth-js`: mismo cifrado at-rest que el resto de
@@ -55,10 +61,20 @@ export function forceClearPersistedSession(): void {
 }
 
 /**
- * FIFO propio de la sesión del buzón: una lectura (`ensureRelaySession`) y un
- * reinicio forzado (`reabrirSesionAnonima`, cambio de cuenta/logout) no
- * pueden pisarse — el segundo tiene que esperar a que el primero termine (y
- * viceversa) para que nadie mire el storage a mitad de camino.
+ * FIFO de TODO lo que toca la sesión del cliente unificado del buzón: una
+ * lectura (`ensureRelaySession`), un reinicio forzado (`reabrirSesionAnonima`,
+ * cambio de cuenta/logout) y — T-147-b, fix D1 (verifier, ronda 2, rechazo
+ * bloqueante) — el login/logout de CUENTA (`directoryAuth.ts`). Antes del
+ * fix, `directoryAuth.ts` tenía su PROPIA cola: `app/auth/index.tsx` dispara
+ * el login (`entrarAlDirectorio` → `signIntoDirectory`) SIN `await` justo
+ * después de `setUser`, y `verify.tsx` (o `startRelay`) lee la sesión casi
+ * en el mismo instante — con colas separadas, esa lectura no esperaba nada
+ * del login en vuelo y leía 'none' sobre un login que en realidad iba a
+ * salir bien ("No se pudo confirmar tu acceso" después de un login
+ * correcto). Una cola COMPARTIDA hace que la lectura quede detrás del login
+ * ya encolado, y de paso deja a `haySesionEnCurso()` (abajo) ver también el
+ * login en vuelo — sin eso, el guard R4-3 de `relayEngine.ts` no podía
+ * distinguir "sin sesión todavía" de "login resolviéndose solo".
  */
 const cola = createSerialQueue();
 
@@ -69,6 +85,18 @@ const cola = createSerialQueue();
  */
 export function haySesionEnCurso(): boolean {
   return cola.pendientes() > 0;
+}
+
+/**
+ * Encola una operación sobre la sesión del cliente unificado del buzón, en
+ * la MISMA cola que `ensureRelaySession`/`reabrirSesionAnonima` — fix D1.
+ * La usa `directoryAuth.ts` para el login/logout de CUENTA (`signIntoDirectory`
+ * / `signOutOfDirectory`): ese mismo cliente es el que lee `relaySession.ts`
+ * para una cuenta, así que las dos operaciones tienen que serializarse entre
+ * sí, no correr en colas que no se enteran una de la otra.
+ */
+export function encolarOperacionDeSesion<T>(fn: () => Promise<T>): Promise<T> {
+  return cola.run(fn);
 }
 
 /** Sólo tests. */
@@ -88,7 +116,13 @@ async function purgarSesionLocal(supabase: ClienteAuth): Promise<void> {
   forceClearPersistedSession();
 }
 
-export type SessionKind = 'anonymous' | 'none';
+/** `'identity'` (T-147-b, cuenta) se suma a los dos que ya había. */
+export type SessionKind = 'identity' | 'anonymous' | 'none';
+
+/** `true` sólo para Google/Apple — nunca para invitado ni sin usuario. */
+function esCuenta(provider: string | undefined): boolean {
+  return provider === 'google' || provider === 'apple';
+}
 
 /** Tras un fallo (captcha o Auth), cuánto esperar antes de reintentar en vez de
  *  pedir un token nuevo en cada llamada — un servidor caído no debe convertirse
@@ -241,6 +275,13 @@ function hacerEnsure(permitirCaptcha: boolean, ignorarCooldown: boolean): Promis
  * sesión del buzón) o si ya la tiene (9e: arranque en frío con sesión
  * persistida — la pantalla no debe aparecer nunca).
  *
+ * **T-147-b (fila 11 de la tabla nueva):** "sesión persistida" ahora
+ * significa cosas distintas según quién sea — para una CUENTA es una sesión
+ * CON identidad (`is_anonymous: false`); para un invitado, sigue siendo la
+ * anónima de siempre. El nombre quedó de la versión vieja (sólo invitados);
+ * la firma no cambió porque nadie de afuera necesita saber cuál de las dos
+ * validó.
+ *
  * Un error de `getSession()` (refresh transitorio) se trata como "no
  * validada": es preferible mostrar la verificación de más (peor caso, un
  * paso extra) que saltarla sobre un estado incierto.
@@ -250,12 +291,47 @@ export async function haySesionAnonimaValida(): Promise<boolean> {
   if (!supabase) return true; // relay no configurado: nada que verificar
   const { data, error } = await supabase.auth.getSession();
   if (error) return false;
-  return Boolean(data.session?.user.is_anonymous);
+  if (!data.session) return false;
+  return esCuenta(useAuthStore.getState().currentUser?.authProvider)
+    ? !data.session.user.is_anonymous
+    : Boolean(data.session.user.is_anonymous);
 }
 
 async function hacerEnsureSinCola(permitirCaptcha: boolean, ignorarCooldown: boolean): Promise<SessionKind> {
   const supabase = getRelayClient();
   if (!supabase) return 'none';
+
+  const cuenta = esCuenta(useAuthStore.getState().currentUser?.authProvider);
+
+  if (cuenta) {
+    // T-147-b: una CUENTA sólo LEE acá. Nunca `signInAnonymously`, nunca
+    // pide captcha — eso lo prohibía "Bad ID token" contra producción para
+    // el login de cuenta, y la reconexión (Google silencioso / Apple
+    // interactivo / rechazo de otra cuenta) vive enteramente en
+    // `verify.tsx`.
+    const { data, error } = await supabase.auth.getSession();
+    if (error) return 'none';
+
+    if (data.session?.user.is_anonymous) {
+      /**
+       * Fix D2 (verifier, ronda 2, rechazo bloqueante): una cuenta puede
+       * tener una sesión ANÓNIMA residual — heredada del `main` actual
+       * (donde TODOS usaban anónima, sin excepción) o de un invitado→cuenta
+       * a medio terminar. Nunca cuenta como `identity`, pero tampoco puede
+       * quedarse guardada: si no se purga, el cliente unificado del buzón
+       * (`getRelayClient()`) sigue teniendo esa sesión persistida y el
+       * fondo (`relayEngine.ts`) le seguiría mandando el JWT anónimo al
+       * servidor bajo el nombre de una cuenta — viola "cuenta: nunca
+       * anónima". Se purga acá mismo, como el residuo de IDENTIDAD que ya
+       * purgaba la rama de invitado (abajo), sólo que al revés.
+       */
+      await purgarSesionLocal(supabase);
+      return 'none';
+    }
+
+    if (!data.session) return 'none';
+    return 'identity';
+  }
 
   const { data, error } = await supabase.auth.getSession();
 
@@ -292,16 +368,21 @@ async function hacerEnsureSinCola(permitirCaptcha: boolean, ignorarCooldown: boo
 type ClienteAuth = NonNullable<ReturnType<typeof getRelayClient>>;
 
 /**
- * Cambio de cuenta / logout (T-147, punto 4 de la simplificación): la sesión
- * anónima del buzón se cierra y se fuerza el borrado de su storage, para que
- * la PRÓXIMA `ensureRelaySession()` abra una nueva (con su propio captcha).
+ * Cambio de cuenta / logout: la sesión del buzón (sea de identidad o
+ * anónima) se cierra y se fuerza el borrado de su storage, para que la
+ * PRÓXIMA `ensureRelaySession()` decida desde cero según quién sea el
+ * usuario nuevo (T-147-b: invitado → anónima con captcha; cuenta → nada
+ * hasta que `verify.tsx` reconecte).
  *
- * No es que la sesión anónima "pertenezca" a una cuenta —no le pertenece a
- * ninguna, es de la instalación— pero es el cinturón de seguridad que el PO
- * pidió: ningún trabajo diferido de la cuenta anterior puede seguir
- * saliendo con la sesión que ya estaba abierta cuando se encoló, porque esa
- * sesión deja de existir. Pasa por la MISMA cola que `ensureRelaySession`
- * para que un `ensure` que ya estaba en vuelo no se pise con este reinicio.
+ * El nombre quedó de la SIMPLIFICACIÓN (cuando la única sesión posible era
+ * la anónima); sigue siendo el gesto correcto para las DOS ramas de
+ * T-147-b — purgar y dejar que el próximo `ensureRelaySession` reabra lo que
+ * corresponda — así que no hizo falta tocar la lógica, sólo este
+ * comentario. Es el cinturón de seguridad que el PO pidió: ningún trabajo
+ * diferido de la cuenta anterior puede seguir saliendo con la sesión que ya
+ * estaba abierta cuando se encoló, porque esa sesión deja de existir. Pasa
+ * por la MISMA cola que `ensureRelaySession` para que un `ensure` que ya
+ * estaba en vuelo no se pise con este reinicio.
  */
 export function reabrirSesionAnonima(): Promise<void> {
   return cola.run(async () => {

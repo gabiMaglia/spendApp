@@ -748,6 +748,8 @@
     "verify_title": "Confirming your access",
     "verify_body": "A quick step to protect your groups' sync.",
     "verify_failed": "Couldn't confirm your access. Check your connection and try again.",
-    "skip": "Continue without verifying"
+    "skip": "Continue without verifying",
+    "relogin": "Sign in again",
+    "other_account": "That's a different account than the one active on this device. Sign in with the right account."
   }
 }

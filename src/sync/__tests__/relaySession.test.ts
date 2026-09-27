@@ -1,13 +1,16 @@
 /**
- * T-147 (SIMPLIFICACIÓN, aprobación del PO 2026-09-27) · sesión ANÓNIMA del
- * buzón, siempre presente, una por instalación.
+ * T-147 (SIMPLIFICACIÓN 2026-09-27, ENMENDADA por T-147-b 2026-09-27 ·
+ * `engram/plans/T-147.md`, sellada por el PO) · sesión del buzón.
  *
- * Reemplaza el diseño anterior (sesión "atada a la cuenta", vínculo por uid,
- * reconexión de Google/Apple para el buzón): el buzón no necesita saber de
- * qué cuenta es cada sobre, así que ya no hay ningún camino de `identity`
- * acá — sólo `'anonymous' | 'none'`. El login de Google/Apple sigue
- * existiendo, pero vive en `directoryAuth.ts`/`directoryClient.ts`, con su
- * propio cliente y storage: este archivo no lo conoce.
+ * La SIMPLIFICACIÓN original decía "sesión anónima para todos, sin
+ * excepción". T-147-b la reemplaza EN ESTE PUNTO: el captcha (P-3 original)
+ * vuelve a ser sólo para invitados, así que el buzón vuelve a tener DOS
+ * caminos — `'identity'` para cuentas Google/Apple (lee la sesión que dejó
+ * `signInWithIdToken` del login; nunca `signInAnonymously`, nunca captcha) y
+ * `'anonymous'` para invitados (sin cambios: sesión anónima + captcha). La
+ * RECONEXIÓN (Google silencioso / Apple interactivo / rechazo de otra
+ * cuenta) vive SÓLO en `app/auth/verify.tsx` — este módulo, para cuentas,
+ * sólo LEE.
  *
  * ⚠️ Configura credenciales de relay en `process.env` y las borra en el
  * `afterAll` — si quedaran puestas, otro suite del mismo worker levanta el
@@ -69,6 +72,7 @@ jest.mock('../captchaBridge', () => ({
 let appStateCb: (s: string) => void = () => {};
 
 let S: typeof import('../relaySession');
+let useAuthStore: typeof import('@/src/store/authStore').useAuthStore;
 
 afterAll(() => {
   delete process.env.EXPO_PUBLIC_SUPABASE_URL;
@@ -98,6 +102,12 @@ beforeEach(() => {
 
   S = require('../relaySession');
   S.__resetRelaySession();
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  useAuthStore = (require('@/src/store/authStore') as typeof import('@/src/store/authStore')).useAuthStore;
+  // Todos los tests de este archivo (salvo el describe de T-147-b de abajo)
+  // hablan del camino de INVITADO — default explícito para no depender del
+  // estado inicial del store.
+  useAuthStore.setState({ currentUser: { id: 'g1', authProvider: 'guest' } as never });
 });
 
 describe('el cliente persiste la sesión', () => {
@@ -242,6 +252,52 @@ describe('ensureRelaySession', () => {
 });
 
 /**
+ * T-147-b (`engram/plans/T-147.md`, sellado por el PO 2026-09-27): el
+ * captcha vuelve a ser SÓLO para invitados. Una cuenta (Google/Apple) nunca
+ * pasa por `signInAnonymously` ni por `requestCaptchaToken` — este módulo,
+ * para cuentas, SÓLO lee la sesión que dejó `signInWithIdToken` en el login
+ * (unificado con `directoryAuth.ts`, Task 2). La reconexión vive en
+ * `verify.tsx` (Task 3), no acá.
+ */
+describe('T-147-b: sesión de CUENTA (Google/Apple) — sólo lee, nunca anónima ni captcha', () => {
+  beforeEach(() => {
+    useAuthStore.setState({ currentUser: { id: 'acc1', authProvider: 'google' } as never });
+  });
+
+  it('con sesión de cuenta ya persistida (no anónima) → identity, sin tocar signInAnonymously ni el captcha', async () => {
+    sesion = { user: { is_anonymous: false, id: 'acc1' } };
+    expect(await S.ensureRelaySession(true)).toBe('identity');
+    expect(signInAnonymously).not.toHaveBeenCalled();
+    expect(mockRequestCaptchaToken).not.toHaveBeenCalled();
+  });
+
+  it('sin sesión → none, sin abrir ninguna ni pedir captcha (la reconexión no vive acá)', async () => {
+    sesion = null;
+    mockCaptcha = { status: 'ok', token: 'tok-que-nunca-debería-pedirse' };
+    expect(await S.ensureRelaySession(true)).toBe('none');
+    expect(signInAnonymously).not.toHaveBeenCalled();
+    expect(mockRequestCaptchaToken).not.toHaveBeenCalled();
+  });
+
+  it('con una sesión ANÓNIMA residual (invitado→cuenta a medio terminar) → none, no la confunde con identity', async () => {
+    sesion = { user: { is_anonymous: true } };
+    expect(await S.ensureRelaySession(true)).toBe('none');
+    expect(signInAnonymously).not.toHaveBeenCalled();
+  });
+
+  it('permitirCaptcha no importa para una cuenta: false también lee identity si ya hay sesión', async () => {
+    sesion = { user: { is_anonymous: false, id: 'acc1' } };
+    expect(await S.ensureRelaySession(false)).toBe('identity');
+  });
+
+  it('un error de getSession (refresh transitorio) → none, nunca abre nada', async () => {
+    errorDeGetSession = { message: 'Failed to fetch' };
+    expect(await S.ensureRelaySession(true)).toBe('none');
+    expect(signInAnonymously).not.toHaveBeenCalled();
+  });
+});
+
+/**
  * T-147 (fila 9c/9e de la retro): chequeo PURO — sin abrir nada, sin
  * captcha, sin purgar residuos — para que la hidratación inicial pueda
  * decidir si hace falta bloquear el paso a tabs con la pantalla de
@@ -269,6 +325,33 @@ describe('haySesionAnonimaValida', () => {
     sesion = null;
     errorDeGetSession = { message: 'Failed to fetch' };
     expect(await S.haySesionAnonimaValida()).toBe(false);
+  });
+
+  /**
+   * T-147-b, fila 11 («arranque en frío con sesión persistida — cuenta o
+   * invitado — sin pantalla»): para una CUENTA, "válida" es lo contrario que
+   * para un invitado — acá SÍ hay identidad, y una anónima residual NO
+   * cuenta.
+   */
+  describe('para una CUENTA (fila 11)', () => {
+    beforeEach(() => {
+      useAuthStore.setState({ currentUser: { id: 'acc1', authProvider: 'apple' } as never });
+    });
+
+    it('con sesión de cuenta persistida (no anónima), true — arranque en frío sin pantalla', async () => {
+      sesion = { user: { is_anonymous: false, id: 'acc1' } };
+      expect(await S.haySesionAnonimaValida()).toBe(true);
+    });
+
+    it('con una sesión ANÓNIMA residual, false — no sirve para una cuenta', async () => {
+      sesion = { user: { is_anonymous: true } };
+      expect(await S.haySesionAnonimaValida()).toBe(false);
+    });
+
+    it('sin sesión, false', async () => {
+      sesion = null;
+      expect(await S.haySesionAnonimaValida()).toBe(false);
+    });
   });
 });
 

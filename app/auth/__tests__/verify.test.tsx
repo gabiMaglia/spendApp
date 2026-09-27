@@ -13,6 +13,16 @@ jest.mock('@/src/sync/relaySession', () => ({
   ensureRelaySession: (p?: boolean, o?: { ignorarCooldown?: boolean }) => mockEnsureRelaySession(p, o),
 }));
 
+// T-147-b: la reconexión de cuenta (Google silencioso / botón interactivo)
+// tiene su propio comportamiento cubierto por `accountEntry.test.ts` — acá
+// sólo importa CÓMO reacciona la pantalla a cada resultado.
+const mockReconectarGoogleSilencioso = jest.fn();
+const mockReconectarInteractivo = jest.fn();
+jest.mock('@/src/sync/accountEntry', () => ({
+  reconectarGoogleSilencioso: () => mockReconectarGoogleSilencioso(),
+  reconectarInteractivo: (p: string) => mockReconectarInteractivo(p),
+}));
+
 // `TurnstileWidget` (montado inline por esta pantalla) importa
 // `react-native-webview`, que exige un módulo nativo inexistente en Jest —
 // alcanza con un stub mínimo, ya que sin `EXPO_PUBLIC_TURNSTILE_SITEKEY` el
@@ -28,11 +38,16 @@ import { render, act, fireEvent } from '@testing-library/react-native';
 import VerifyScreen from '../verify';
 import { useEntryGateStore, __resetEntryGate } from '@/src/store/entryGateStore';
 import { sinSesionDeSync, __resetSessionStatus } from '@/src/sync/sessionStatus';
+import { useAuthStore } from '@/src/store/authStore';
+import type { User } from '@/src/types/models';
 
 beforeEach(() => {
   __resetEntryGate();
   __resetSessionStatus();
   mockEnsureRelaySession.mockReset();
+  mockReconectarGoogleSilencioso.mockReset();
+  mockReconectarInteractivo.mockReset();
+  useAuthStore.setState({ currentUser: null });
 });
 
 it('camino feliz: sesión OK → marca el gate "lista", sin mostrar ningún error', async () => {
@@ -92,6 +107,101 @@ describe('fila 9f: seguir sin verificar', () => {
     await act(async () => {});
     expect(getByText('captcha.verify_failed')).toBeTruthy();
 
+    await act(async () => { fireEvent.press(getByText('captcha.skip')); });
+
+    expect(useEntryGateStore.getState().estado).toBe('lista');
+    expect(sinSesionDeSync()).toBe(true);
+  });
+});
+
+/**
+ * T-147-b (`engram/plans/T-147.md`, sellado por el PO 2026-09-27): modo
+ * CUENTA — nunca captcha, nunca anónima. Filas 2-6 de la tabla.
+ */
+describe('modo CUENTA (Google/Apple)', () => {
+  it('fila 2/3: si ensureRelaySession ya lee "identity" (el login la dejó lista), marca el gate sin reconectar nada', async () => {
+    useAuthStore.setState({ currentUser: { id: 'acc1', authProvider: 'google' } as User });
+    mockEnsureRelaySession.mockResolvedValue('identity');
+
+    render(<VerifyScreen />);
+    await act(async () => {});
+
+    expect(useEntryGateStore.getState().estado).toBe('lista');
+    expect(mockReconectarGoogleSilencioso).not.toHaveBeenCalled();
+    expect(mockReconectarInteractivo).not.toHaveBeenCalled();
+  });
+
+  it('fila 4: Google sin sesión intenta reconectar SOLO (silencioso), sin mostrar ningún botón si sale bien', async () => {
+    useAuthStore.setState({ currentUser: { id: 'acc1', authProvider: 'google' } as User });
+    mockEnsureRelaySession.mockResolvedValueOnce('none').mockResolvedValueOnce('identity');
+    mockReconectarGoogleSilencioso.mockResolvedValue({ status: 'ok' });
+
+    const { queryByText } = render(<VerifyScreen />);
+    await act(async () => {});
+
+    expect(mockReconectarGoogleSilencioso).toHaveBeenCalled();
+    expect(useEntryGateStore.getState().estado).toBe('lista');
+    expect(queryByText('captcha.relogin')).toBeNull();
+  });
+
+  it('fila 4 (fallback): si el silencioso de Google no alcanza, muestra "Volvé a iniciar sesión" — nunca captcha ni anónima', async () => {
+    useAuthStore.setState({ currentUser: { id: 'acc1', authProvider: 'google' } as User });
+    mockEnsureRelaySession.mockResolvedValue('none');
+    mockReconectarGoogleSilencioso.mockResolvedValue({ status: 'failed', reason: 'no_credential' });
+
+    const { getByText, queryByTestId } = render(<VerifyScreen />);
+    await act(async () => {});
+
+    expect(getByText('captcha.relogin')).toBeTruthy();
+    expect(queryByTestId('turnstile-container')).toBeNull(); // nunca el widget de invitado
+    expect(useEntryGateStore.getState().estado).not.toBe('lista');
+  });
+
+  it('fila 5: Apple nunca intenta un silencioso — va directo al botón "Volvé a iniciar sesión"', async () => {
+    useAuthStore.setState({ currentUser: { id: 'acc1', authProvider: 'apple' } as User });
+    mockEnsureRelaySession.mockResolvedValue('none');
+
+    const { getByText } = render(<VerifyScreen />);
+    await act(async () => {});
+
+    expect(mockReconectarGoogleSilencioso).not.toHaveBeenCalled();
+    expect(getByText('captcha.relogin')).toBeTruthy();
+  });
+
+  it('fila 5: tocar "Volvé a iniciar sesión" corre el flujo interactivo y, si sale bien, marca el gate', async () => {
+    useAuthStore.setState({ currentUser: { id: 'acc1', authProvider: 'apple' } as User });
+    mockEnsureRelaySession.mockResolvedValueOnce('none').mockResolvedValueOnce('identity');
+    mockReconectarInteractivo.mockResolvedValue({ status: 'ok' });
+
+    const { getByText } = render(<VerifyScreen />);
+    await act(async () => {});
+
+    await act(async () => { fireEvent.press(getByText('captcha.relogin')); });
+
+    expect(mockReconectarInteractivo).toHaveBeenCalledWith('apple');
+    expect(useEntryGateStore.getState().estado).toBe('lista');
+  });
+
+  it('fila 6: si la reconexión trae OTRA cuenta, muestra el rechazo — nada se guarda, el botón sigue disponible', async () => {
+    useAuthStore.setState({ currentUser: { id: 'acc1', authProvider: 'apple' } as User });
+    mockEnsureRelaySession.mockResolvedValue('none');
+    mockReconectarInteractivo.mockResolvedValue({ status: 'other_account' });
+
+    const { getByText } = render(<VerifyScreen />);
+    await act(async () => {});
+    await act(async () => { fireEvent.press(getByText('captcha.relogin')); });
+
+    expect(getByText('captcha.other_account')).toBeTruthy();
+    expect(useEntryGateStore.getState().estado).not.toBe('lista');
+    expect(getByText('captcha.relogin')).toBeTruthy(); // puede volver a intentar
+  });
+
+  it('"Seguir sin verificar" también está disponible en modo cuenta', async () => {
+    useAuthStore.setState({ currentUser: { id: 'acc1', authProvider: 'apple' } as User });
+    mockEnsureRelaySession.mockResolvedValue('none');
+
+    const { getByText } = render(<VerifyScreen />);
+    await act(async () => {});
     await act(async () => { fireEvent.press(getByText('captcha.skip')); });
 
     expect(useEntryGateStore.getState().estado).toBe('lista');
