@@ -1,4 +1,5 @@
-import { esFuncionAusente, getRelayClient } from './relay';
+import { esFuncionAusente } from './relay';
+import { getDirectoryClient } from './directoryClient';
 import { ensureIdentity } from '@/src/store/identityStore';
 import { useAuthStore } from '@/src/store/authStore';
 
@@ -38,7 +39,7 @@ export type RegisterResult =
  * antes de que esto existiera.
  */
 export async function registerDeviceKey(): Promise<RegisterResult> {
-  const supabase = getRelayClient();
+  const supabase = getDirectoryClient();
   if (!supabase) return { ok: false, reason: 'not_configured' };
 
   const accountId = useAuthStore.getState().currentUser?.id;
@@ -93,7 +94,7 @@ export async function fetchAccountKeys(accountId: string): Promise<string[]> {
 export type KeysQuery = { ok: boolean; keys: string[] };
 
 export async function queryAccountKeys(accountId: string): Promise<KeysQuery> {
-  const supabase = getRelayClient();
+  const supabase = getDirectoryClient();
   if (!supabase || !accountId) return { ok: false, keys: [] };
 
   const filas = (data: unknown): string[] =>

@@ -1,5 +1,5 @@
-import { getRelayClient } from './relay';
-import { forceClearPersistedSession, encolarOperacionDeSesion } from './relaySession';
+import { getDirectoryClient } from './directoryClient';
+import { createSerialQueue } from '@/src/utils/serialQueue';
 
 /**
  * Sesión contra Supabase Auth, usada SÓLO para poder escribir en el directorio
@@ -16,16 +16,15 @@ import { forceClearPersistedSession, encolarOperacionDeSesion } from './relaySes
  * Todo lo de acá es **best effort**: si falla, la app funciona exactamente como
  * antes de que este archivo existiera.
  *
- * **Verifier R3-2 (ronda 3) / R4-1(b) (ronda 4): logout y login quedan
- * SERIALIZADOS — y con CUALQUIER lectura de sesión (`ensureRelaySession`).**
- * Un `signOut` lento (invitado que se desloguea, o A→B) no puede terminar
- * —y borrar el storage— DESPUÉS de que un login que arrancó mientras tanto
- * ya escribió la sesión de cuenta, NI dejar que una lectura de
- * `relaySession` lea la sesión vieja a mitad de camino. La cola vive en
- * `relaySession.ts` (no acá) para que las lecturas también la respeten —
- * ver su docblock.
+ * **T-147 (SIMPLIFICACIÓN 2026-09-27):** este login corre en su PROPIO
+ * cliente de Supabase (`directoryClient.ts`), separado del que usa el buzón
+ * (`relay.ts`). Ya no hace falta compartir una cola con `relaySession` — las
+ * dos sesiones viven en storages distintos y no pueden pisarse entre sí. Lo
+ * que SÍ sigue haciendo falta es serializar el login y el logout DEL
+ * DIRECTORIO entre sí (un logout lento no puede terminar después de que el
+ * login siguiente ya escribió su sesión) — de ahí la cola propia.
  */
-const encolarOperacion = encolarOperacionDeSesion;
+const cola = createSerialQueue();
 
 export type DirectorySignIn =
   | { ok: true }
@@ -35,7 +34,7 @@ export async function signIntoDirectory(
   provider: 'google' | 'apple',
   idToken: string | null | undefined,
 ): Promise<DirectorySignIn> {
-  const supabase = getRelayClient();
+  const supabase = getDirectoryClient();
   if (!supabase) return { ok: false, reason: 'not_configured' };
 
   // Sin `webClientId` configurado, el SDK de Google no devuelve `idToken`. Es
@@ -43,7 +42,7 @@ export async function signIntoDirectory(
   // servidor: uno se arregla en el .env, el otro en el panel de Supabase.
   if (!idToken) return { ok: false, reason: 'no_token' };
 
-  return encolarOperacion(async () => {
+  return cola.run(async () => {
     try {
       const { error } = await supabase.auth.signInWithIdToken({ provider, token: idToken });
       if (error) return { ok: false, reason: 'rejected', detail: error.message };
@@ -57,32 +56,23 @@ export async function signIntoDirectory(
 /**
  * Cierra la sesión del directorio. Se llama al desloguearse de la app.
  *
- * **`scope: 'local'` (T-147 H2).** El default de `signOut()` es
- * `scope: 'global'`: revoca el refresh token en TODOS los dispositivos. Con la
- * sesión persistida (D1) esto pasa de ser un detalle a doler de verdad —
- * desloguearse en un teléfono cerraría también la sesión de Google del otro.
- * `local` sólo tira la sesión de este aparato; la próxima operación del buzón
- * abre una anónima nueva (I5, ninguna pérdida de datos).
- *
- * **Verifier R3-2(a): un `signOut` que falla por red NO borra el storage.**
- * `_signOut` de auth-js hace un viaje de red incluso para `scope: 'local'`, y
- * si ese viaje falla con algo que no sea 404/401/403/sesión-ausente, devuelve
- * el error ANTES de llegar a `_removeSession()` — la sesión vieja (anónima,
- * de otra cuenta) queda pegada para siempre, con o sin red. El borrado LOCAL
- * es justo lo que `scope: 'local'` promete, así que ante cualquier error se
- * fuerza (`forceClearPersistedSession`, vacía el bucket `'sbauth'`, exclusivo
- * de la sesión de Supabase).
+ * `scope: 'local'`: el default de `signOut()` es `scope: 'global'` y
+ * revocaría el refresh token en TODOS los dispositivos — con la sesión
+ * persistida esto doleria de verdad, pero acá ni siquiera aplica porque el
+ * cliente del directorio NO persiste sesión (`persistSession: false`,
+ * `directoryClient.ts`): igual se pide `'local'` por las dudas de que auth-js
+ * tenga algo en memoria para esta instancia.
  */
 export async function signOutOfDirectory(): Promise<void> {
-  const supabase = getRelayClient();
+  const supabase = getDirectoryClient();
   if (!supabase) return;
 
-  await encolarOperacion(async () => {
+  await cola.run(async () => {
     try {
-      const { error } = await supabase.auth.signOut({ scope: 'local' });
-      if (error) forceClearPersistedSession();
+      await supabase.auth.signOut({ scope: 'local' });
     } catch {
-      forceClearPersistedSession();
+      // Sin sesión persistida no hay nada que forzar: el próximo login del
+      // directorio abre una sesión nueva sin importar cómo terminó ésta.
     }
   });
 }

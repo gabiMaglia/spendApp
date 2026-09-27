@@ -29,8 +29,8 @@ const estado = {
   rpcArgs: [] as unknown[],
 };
 
-jest.mock('../relay', () => ({
-  getRelayClient: () => estado.cliente ? {
+jest.mock('../directoryClient', () => ({
+  getDirectoryClient: () => estado.cliente ? {
     auth: {
       getSession: async () => ({ data: { session: estado.sesion ? { user: {} } : null } }),
       signInWithIdToken: async () => ({ error: estado.signIn }),
@@ -52,9 +52,13 @@ jest.mock('../relay', () => ({
       }),
     }),
   } : null,
-  isRelayConfigured: () => estado.cliente,
-  // T-147 (D6): el real detecta "función ausente" por código/texto — el mock
-  // usa la implementación real para no desincronizarse de `esFuncionAusente`.
+}));
+
+// T-147 (D6): el real detecta "función ausente" por código/texto — el mock
+// usa la implementación real para no desincronizarse de `esFuncionAusente`.
+// Vive en `relay.ts` (no en `directoryClient.ts`): es lógica del PROTOCOLO
+// RPC, no del cliente que la corre, y `deviceKeys.ts` la importa de ahí.
+jest.mock('../relay', () => ({
   esFuncionAusente: (e: { code?: string; message: string }) =>
     e.code === 'PGRST202' || e.code === '42883'
     || /could not find the function/i.test(e.message)
