@@ -192,8 +192,9 @@ export function __resetRelaySession(): void {
  * seguido de un `getSession()` en la vuelta siguiente) puede quedar
  * ESPERANDO A auth-js internamente otros ~20s más si esa `getSession()`
  * cae detrás de un `signOut` que auth-js todavía no terminó de procesar
- * (el lock interno de `GoTrueClient` serializa sus propias operaciones,
- * aparte de nuestra cola). Dos topes de 20s en cadena, no uno.
+ * (medido en test con `GoTrueClient` real; el mecanismo interno de
+ * auth-js que produce esa espera NO está confirmado — 2.109 corre sin lock
+ * salvo que se le pase uno). Dos topes de 20s en cadena, no uno.
  */
 async function purgarSesionLocal(supabase: ClienteAuth): Promise<void> {
   await withTimeout(
