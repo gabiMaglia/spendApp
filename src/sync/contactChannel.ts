@@ -14,7 +14,6 @@ import { syncedNow } from '@/src/utils/syncedClock';
 import {
   claveLocalVinoDeContacto, estado, marcarAdoptada, ofertasDe, registrarOferta,
 } from './groupKeyOffers';
-import { isBlocked } from './blockedPeers';
 
 /** Bytes UTF-8 de un texto: `Buffer` no existe en React Native. */
 function utf8(s: string): Uint8Array {
@@ -482,10 +481,6 @@ export async function drainContacts(
 
     if (msg.kind === 'contact') {
       if (msg.userId === me.id) continue;
-      // T-180 (7.1): un bloqueado no me entrega nada — ni tarjeta ni claves.
-      // No se guarda nada de esta tarjeta y no hay aviso: el cursor avanza
-      // igual, como si el sobre no existiera.
-      if (isBlocked(msg.userId)) continue;
       useUserStore.getState().addOrUpdateUser({
         id: msg.userId,
         name: msg.name,

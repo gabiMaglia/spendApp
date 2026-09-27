@@ -608,13 +608,6 @@
     "contacts_count": "Friends ({{count}})",
     "qr_note": "Contacts are added by scanning a QR code: identity travels between devices, there's no user server."
   },
-  "contacts": {
-    "block": "Block",
-    "unblock": "Unblock",
-    "blocked_badge": "Blocked",
-    "block_confirm_title": "Block {{name}}",
-    "block_confirm_body": "You won't receive their card or group keys through this channel anymore. If you're in the same group, what they post there still reaches you."
-  },
   "recurrence": {
     "label": "REPEAT",
     "once": "Once",

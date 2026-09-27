@@ -600,37 +600,3 @@ describe('T-096 · el link de contacto también se fusiona', () => {
     expect(readContactInvites(GOOGLE).map(i => i.token)).toEqual(['cc'.repeat(32)]);
   });
 });
-
-describe('T-180 (7.1) · la lista de bloqueados se UNE al enlazar cuentas', () => {
-  const usr = () => createSecureStorage('users');
-  const BLOCKED = 'blocked_peers_v1';
-
-  const writeBlocked = (uid: string, ids: string[]) =>
-    usr().set(`${BLOCKED}::u:${uid}`, JSON.stringify(ids));
-  const readBlocked = (uid: string): string[] => {
-    const raw = usr().getString(`${BLOCKED}::u:${uid}`);
-    return raw ? (JSON.parse(raw) as string[]) : [];
-  };
-
-  beforeEach(() => { usr().clearAll(); });
-
-  it('los bloqueados del origen llegan al destino', () => {
-    writeBlocked(APPLE, ['mallory']);
-    mergeAccounts(APPLE, GOOGLE);
-    expect(readBlocked(GOOGLE)).toEqual(['mallory']);
-  });
-
-  it('se unen los de las dos cuentas, sin perder ninguno', () => {
-    writeBlocked(APPLE, ['ana']);
-    writeBlocked(GOOGLE, ['beto']);
-    mergeAccounts(APPLE, GOOGLE);
-    expect(readBlocked(GOOGLE).sort()).toEqual(['ana', 'beto']);
-  });
-
-  it('un id ya bloqueado en el destino no se duplica', () => {
-    writeBlocked(APPLE, ['ana']);
-    writeBlocked(GOOGLE, ['ana']);
-    mergeAccounts(APPLE, GOOGLE);
-    expect(readBlocked(GOOGLE)).toEqual(['ana']);
-  });
-});

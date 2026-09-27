@@ -36,7 +36,6 @@ import {
   cardYaEnviada, marcarCardEnviada,
 } from './contactChannel';
 import { encolar, vaciarCola } from './relayQueue';
-import { isBlocked } from './blockedPeers';
 
 /**
  * Motor del sync en tiempo real: publica lo que cambia y aplica lo que llega.
@@ -756,8 +755,6 @@ export async function anunciarMiTarjeta(): Promise<void> {
 
   for (const [userId, peer] of Object.entries(listPeers())) {
     if (!peer.secret) continue;
-    // T-180 (7.1 · B4): a un bloqueado no se le reparte la tarjeta.
-    if (isBlocked(userId)) continue;
     // Ya tiene esta versión: no se le manda nada. Es lo que hace que el costo
     // converja a CERO cuando no cambió nada, en vez de un sobre por contacto
     // por arranque para siempre.
@@ -896,10 +893,6 @@ async function reenviarClavesDeGrupo(adoptados: string[] = []): Promise<void> {
     const prioridad = prioridadAlta.has(groupId) ? 'alta' : 'normal';
     for (const memberId of group.memberIds) {
       if (memberId === me.id) continue;
-      // T-180 (7.1 · B4): a un bloqueado no se le reenvía la clave por este
-      // canal directo. Sigue siendo miembro del grupo — lo que escriba en el
-      // topic del grupo le sigue llegando (fuera de alcance de este ticket).
-      if (isBlocked(memberId)) continue;
       encolar({
         prioridad,
         ejecutar: async () => {
