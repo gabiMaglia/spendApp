@@ -2,6 +2,7 @@ import { createSecureStorage, SECURE_IDS } from '@/src/utils/secureStorage';
 import { createStorage } from '@/src/utils/createStorage';
 import { DEVICE_PREFS, SCOPED_PLAIN } from '@/src/constants/storageBuckets';
 import { useAuthStore } from './authStore';
+import { discardScopedWrites } from './userScope';
 
 /**
  * Borra TODAS las cuentas y sus datos de este dispositivo.
@@ -20,6 +21,12 @@ export type WipeReport = {
 };
 
 export function wipeAllAccounts(): WipeReport {
+  // ANTES de vaciar los buckets (T-156): una escritura diferida pendiente que
+  // se vaciara después del `clearAll` resucitaría datos que el usuario acaba
+  // de borrar — el mismo riesgo que la prenda del buzón en `deleteAccount.ts`,
+  // en la dirección local.
+  discardScopedWrites();
+
   for (const id of SECURE_IDS) {
     createSecureStorage(id).clearAll();
   }

@@ -85,10 +85,15 @@ export default function NewExpenseScreen() {
   const c = useColors();
 
   const { currentUser, isPro } = useAuthStore();
-  const { requiresRewardedAd, superoElTope, getDailyCount, incrementCount } = useTierStore();
-  const { addExpense, updateExpense } = useExpenseStore();
-  const { addEntry: addPersonalEntry, updateReplicatedEntry } = usePersonalStore();
-  const { getUserName } = useUserStore();
+  const requiresRewardedAd = useTierStore(s => s.requiresRewardedAd);
+  const superoElTope = useTierStore(s => s.superoElTope);
+  const getDailyCount = useTierStore(s => s.getDailyCount);
+  const incrementCount = useTierStore(s => s.incrementCount);
+  const addExpense = useExpenseStore(s => s.addExpense);
+  const updateExpense = useExpenseStore(s => s.updateExpense);
+  const addPersonalEntry = usePersonalStore(s => s.addEntry);
+  const updateReplicatedEntry = usePersonalStore(s => s.updateReplicatedEntry);
+  const getUserName = useUserStore(s => s.getUserName);
   const allGroups = useGroupStore(s => s.groups);
   const groups = useMemo(() => allGroups.filter(g => !g.isDeleted), [allGroups]);
 

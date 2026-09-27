@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
-import { readScoped, writeScoped } from './userScope';
+import { readScoped, writeScopedLazy } from './userScope';
 import { mergeByIdLevels } from './mergeLevels';
 import { siguienteUpdatedAt } from './relojDelMerge';
 import { signOnCreate, signOnEdit } from '@/src/sync/signOnWrite';
@@ -33,7 +33,7 @@ interface PaymentStoreState {
 }
 
 function persist(payments: Payment[]) {
-  writeScoped(storage, KEY, JSON.stringify(payments));
+  writeScopedLazy(storage, KEY, () => JSON.stringify(payments));
 }
 
 export const usePaymentStore = create<PaymentStoreState>((set, get) => ({

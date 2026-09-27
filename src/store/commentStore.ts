@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
-import { readScoped, writeScoped } from './userScope';
+import { readScoped, writeScopedLazy } from './userScope';
 import { mergeByIdLevels } from './mergeLevels';
 import { siguienteUpdatedAt } from './relojDelMerge';
 import { signOnCreate } from '@/src/sync/signOnWrite';
@@ -36,7 +36,7 @@ interface CommentStoreState {
 }
 
 function persist(comments: ExpenseComment[]) {
-  writeScoped(storage, KEY, JSON.stringify(comments));
+  writeScopedLazy(storage, KEY, () => JSON.stringify(comments));
 }
 
 export const useCommentStore = create<CommentStoreState>((set, get) => ({

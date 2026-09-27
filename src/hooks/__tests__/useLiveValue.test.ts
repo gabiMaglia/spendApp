@@ -39,4 +39,23 @@ describe('useLiveValue', () => {
     act(() => { jest.advanceTimersByTime(1000); });
     expect(read.mock.calls.length).toBe(llamadas);
   });
+
+  // T-155: un `read()` que arma un objeto NUEVO con el mismo contenido en
+  // cada sondeo (p. ej. `{ ok: authorStats() }`) no puede disparar un render
+  // de React por cada intervalo — el valor no cambió, sólo cambió la
+  // referencia.
+  it('no re-renderiza si el objeto es nuevo pero igual en contenido', () => {
+    let renders = 0;
+    const read = () => ({ a: 1, b: 'x' }); // objeto NUEVO en cada llamada
+    const { result } = renderHook(() => {
+      renders++;
+      return useLiveValue(read, 100);
+    });
+
+    const rendersIniciales = renders;
+    act(() => { jest.advanceTimersByTime(300); }); // 3 intervalos
+
+    expect(renders).toBe(rendersIniciales); // ningún render de más
+    expect(result.current).toEqual({ a: 1, b: 'x' });
+  });
 });

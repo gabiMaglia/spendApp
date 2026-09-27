@@ -60,7 +60,7 @@ export default function ExpenseDetailScreen() {
   const { currentUser } = useAuthStore();
   const expense = useExpenseStore(s => s.expenses.find(e => e.id === id));
   const updateExpense = useExpenseStore(s => s.updateExpense);
-  const { getUserName } = useUserStore();
+  const getUserName = useUserStore(s => s.getUserName);
   // OJO: NO seleccionar `st.forExpense(id)` acá. Ese método arma un array
   // nuevo en cada llamada, y zustand compara por identidad: cada render produce
   // una referencia distinta, React la ve como "cambió" y vuelve a renderizar,

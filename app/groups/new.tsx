@@ -37,7 +37,7 @@ export default function NewGroupScreen() {
   const { currentUser } = useAuthStore();
   const { addGroup } = useGroupStore();
   const ensureKey = useGroupKeyStore(st => st.ensureKey);
-  const { users } = useUserStore();
+  const users = useUserStore(s => s.users);
 
   const [name, setName] = useState('');
   const [currency, setCurrency] = useState<CurrencyCode>('ARS');

@@ -356,7 +356,7 @@ export function useActivityFeed(currentUserId: string): ActivityKind[] {
   const expenses      = useExpenseStore(s => s.expenses);
   const payments      = usePaymentStore(s => s.payments);
   const personalEntries = usePersonalStore(s => s.entries);
-  const { getUserName } = useUserStore();
+  const getUserName = useUserStore(s => s.getUserName);
 
   return useMemo(() => {
     // Solo grupos donde participa el usuario

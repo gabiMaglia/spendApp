@@ -57,7 +57,7 @@ export default function SettleNewScreen() {
 
   const { currentUser } = useAuthStore();
   const { addPayment } = usePaymentStore();
-  const { getUserName } = useUserStore();
+  const getUserName = useUserStore(s => s.getUserName);
   const allGroups   = useGroupStore(s => s.groups);
   const allExpenses = useExpenseStore(s => s.expenses);
   const allPayments = usePaymentStore(s => s.payments);

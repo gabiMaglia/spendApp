@@ -82,7 +82,8 @@ export default function GroupDetailScreen() {
   const allExpenses  = useExpenseStore(s => s.expenses);
 
   const allPayments = usePaymentStore(s => s.payments);
-  const { getUserName, addOrUpdateUser } = useUserStore();
+  const getUserName = useUserStore(s => s.getUserName);
+  const addOrUpdateUser = useUserStore(s => s.addOrUpdateUser);
   const allUsers = useUserStore(s => s.users);
 
   const [inviteVisible, setInviteVisible] = useState(false);

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
-import { readScoped, writeScoped } from './userScope';
+import { readScoped, writeScopedLazy } from './userScope';
 import { mergeByIdLevels } from './mergeLevels';
 import { siguienteUpdatedAt } from './relojDelMerge';
 import { signOnCreate, signOnEdit } from '@/src/sync/signOnWrite';
@@ -26,7 +26,7 @@ interface RecurringStoreState {
 }
 
 function persist(recurring: RecurringExpense[]) {
-  writeScoped(storage, KEY, JSON.stringify(recurring));
+  writeScopedLazy(storage, KEY, () => JSON.stringify(recurring));
 }
 
 export const useRecurringStore = create<RecurringStoreState>((set, get) => ({

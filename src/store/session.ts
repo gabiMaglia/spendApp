@@ -1,4 +1,5 @@
 import { useAuthStore } from './authStore';
+import { flushScopedWrites } from './userScope';
 import { useGroupStore } from './groupStore';
 import { useArchiveStore } from './archiveStore';
 import { useExpenseStore } from './expenseStore';
@@ -32,6 +33,14 @@ import { olvidarFallosDeAplicacion } from '@/src/sync/drainFailures';
 // activo. Con usuario nulo (deslogueado), cada hydrate lee un scope vacío y deja
 // el store limpio → ninguna cuenta ve los datos de otra.
 export function rehydrateForActiveUser(): void {
+  // T-156: cualquier escritura diferida que haya quedado pendiente (de la
+  // cuenta SALIENTE — la clave lleva su uid, capturado al programar, así que
+  // esto nunca escribe bajo la cuenta nueva) se vacía YA, antes de hidratar.
+  // Sin esto, esa escritura sigue viva en memoria entre cuentas — el mismo
+  // hueco de la filtración 4 (T-055), sólo que acá no hay nada que leer mal,
+  // hay una escritura que podría quedar pendiente más de la cuenta.
+  flushScopedWrites();
+
   useGroupStore.getState().hydrate();
   useArchiveStore.getState().hydrate();
   useExpenseStore.getState().hydrate();

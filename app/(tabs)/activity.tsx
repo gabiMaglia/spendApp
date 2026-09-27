@@ -27,12 +27,15 @@ export default function ActivityScreen() {
   const limiteContenido = useLimiteContenido();
   const c = useColors();
   const { currentUser } = useAuthStore();
-  const { getUserName } = useUserStore();
+  const getUserName = useUserStore(s => s.getUserName);
   const { scrollHandler, progress, contenidoMinimo, alMedirScroll } = useHeaderColapsable();
 
   const restaurar = useRestoreExpense(currentUser);
   const feed = useActivityFeed(currentUser?.id ?? '');
-  const ahora = syncedNow();
+  // T-155: redondeado al minuto — nada acá corre a precisión de ms (rondas de
+  // borrado de 72hs, agrupación por día) y así el valor queda estable dentro
+  // del mismo minuto, en vez de invalidar la memoización de cada render.
+  const ahora = Math.floor(syncedNow() / 60_000) * 60_000;
 
   const { query, setQuery, activeFilter, setActiveFilter, allGroupNames, filteredFeed } = useActivityFilter(feed);
   const { sections, todayNewCount } = useActivitySections(filteredFeed);
