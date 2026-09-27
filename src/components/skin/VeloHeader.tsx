@@ -4,6 +4,7 @@ import Animated, { useAnimatedStyle, type SharedValue } from 'react-native-reani
 import { requireOptionalNativeModule } from 'expo-modules-core';
 
 import { useSkin } from '@/src/skins/useSkin';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import { conAlfa } from '@/src/skins/color';
 import { RECORRIDO_AERO } from './headerAeroGeometria';
 
@@ -45,6 +46,7 @@ export function VeloHeader({
   fondoBarra: number;
 }) {
   const { skin, degradado } = useSkin();
+  const oscuro = (useColorScheme() ?? 'light') === 'dark';
   const estilo = useAnimatedStyle(() => ({
     height: altoVelo(fondoBarra, RECORRIDO_AERO * (1 - Math.min(1, Math.max(0, progress.value)))),
   }));
@@ -56,7 +58,7 @@ export function VeloHeader({
         <BlurNativo
           style={StyleSheet.absoluteFill}
           intensity={90}
-          tint="default"
+          tint={oscuro ? 'dark' : 'light'}
           experimentalBlurMethod="dimezisBlurView"
         />
       ) : null}
