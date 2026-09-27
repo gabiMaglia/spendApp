@@ -20,6 +20,7 @@ import { withTimeout } from '@/src/utils/withTimeout';
 import { recordError } from '@/src/services/errorLog';
 import { announceInviteFull, announceJoinStalled, resolveJoinStalled } from '@/src/services/notifications';
 import { admiteUnMiembroMas } from './topes';
+import { conAlta } from '@/src/algorithms/roster';
 import {
   claveLocalVinoDeContacto, idDeOfertaDeInvitacion, olvidarOfertas, registrarOferta,
 } from './groupKeyOffers';
@@ -303,7 +304,7 @@ async function admit(
 
   if (!group.memberIds.includes(claim.userId)) {
     useGroupStore.getState().updateGroup(group.id, {
-      memberIds: [...group.memberIds, claim.userId],
+      miembros: conAlta(group, claim.userId, syncedNow()).miembros,
     });
   }
 

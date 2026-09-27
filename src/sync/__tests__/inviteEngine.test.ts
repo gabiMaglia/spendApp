@@ -93,6 +93,10 @@ function usuario(id: string, name: string): User {
 function grupo(memberIds: string[]): Group {
   return {
     id: 'g1', name: 'Viaje', memberIds, currency: 'ARS',
+    // T-182: `miembros` es la fuente de verdad de `memberIds` (derivado) —
+    // sin esto, `conAlta` (que admit() usa para sumar al invitado) no ve a
+    // los miembros ya existentes y los pierde del roster.
+    miembros: Object.fromEntries(memberIds.map((uid, i) => [uid, { estado: 'in' as const, at: i }])),
     createdAt: 0, createdById: ANA.id, deletionVotes: [],
     updatedAt: 1_000, isDeleted: false,
   } as Group;
