@@ -184,6 +184,16 @@ export function __resetRelaySession(): void {
  * `SESSION_TIMEOUT_MS` — al vencer, `forceClearPersistedSession()` de abajo
  * corre igual: no hace falta que la red haya contestado para vaciar el
  * bucket a mano.
+ *
+ * **Tope EFECTIVO real, para quien mida esto en campo:** no son
+ * `SESSION_TIMEOUT_MS` (20s), son ~40s. Este `withTimeout` corta el
+ * `signOut` a los 20s, pero la llamada que lo encadena (p.ej. la rama
+ * anónima residual de `hacerEnsureSinCola`, `await purgarSesionLocal(...)`
+ * seguido de un `getSession()` en la vuelta siguiente) puede quedar
+ * ESPERANDO A auth-js internamente otros ~20s más si esa `getSession()`
+ * cae detrás de un `signOut` que auth-js todavía no terminó de procesar
+ * (el lock interno de `GoTrueClient` serializa sus propias operaciones,
+ * aparte de nuestra cola). Dos topes de 20s en cadena, no uno.
  */
 async function purgarSesionLocal(supabase: ClienteAuth): Promise<void> {
   await withTimeout(
@@ -363,6 +373,25 @@ function hacerEnsure(permitirCaptcha: boolean, ignorarCooldown: boolean): Promis
  * Un error de `getSession()` (refresh transitorio) se trata como "no
  * validada": es preferible mostrar la verificación de más (peor caso, un
  * paso extra) que saltarla sobre un estado incierto.
+ *
+ * **T-175 (verifier ronda 3, bloqueante): para CUENTA no alcanza con
+ * `!is_anonymous`.** Antes de este fix, una sesión de cuenta persistida
+ * pero SIN el marcador de dueño (`DUENO_KEY` — p.ej. instalación de un
+ * build previo a B2, o cualquier residuo que `ensureRelaySession` todavía
+ * no llegó a purgar) hacía que este chequeo devolviera `true`: el gate de
+ * arranque (`src/store/session.ts:182-188`) daba por buena la sesión y
+ * dejaba pasar SIN mostrar `verify.tsx` — pero el siguiente
+ * `ensureRelaySession` (rama cuenta, `:438-440`) SÍ exige el marcador, lo
+ * encuentra ausente, purga y devuelve `'none'`. Resultado reproducido:
+ * gate en `true`, `ensureRelaySession` en `'none'`, sin sesión — y como
+ * `verify.tsx` nunca se mostró, ni el silencioso de Google ni el botón de
+ * Apple llegan a correr para arreglarlo solos.
+ *
+ * Se compara contra el MISMO marcador que usa `ensureRelaySession`
+ * (`leerDuenoDeSesion`) — lectura PURA, sin `purgarSesionLocal`: esta
+ * función sigue prometiendo "nunca purga un residuo" (fila 9c/9e de
+ * arriba); el residuo lo limpia `ensureRelaySession` cuando corra de
+ * verdad, no este chequeo de sólo-lectura.
  */
 export async function haySesionAnonimaValida(): Promise<boolean> {
   const supabase = getRelayClient();
@@ -370,9 +399,15 @@ export async function haySesionAnonimaValida(): Promise<boolean> {
   const { data, error } = await supabase.auth.getSession();
   if (error) return false;
   if (!data.session) return false;
-  return esCuenta(useAuthStore.getState().currentUser?.authProvider)
-    ? !data.session.user.is_anonymous
-    : Boolean(data.session.user.is_anonymous);
+
+  if (esCuenta(useAuthStore.getState().currentUser?.authProvider)) {
+    if (data.session.user.is_anonymous) return false;
+    const marcador = leerDuenoDeSesion();
+    const uidActivo = useAuthStore.getState().currentUser?.id;
+    return marcador?.cuenta === uidActivo && marcador?.sesion === data.session.user.id;
+  }
+
+  return Boolean(data.session.user.is_anonymous);
 }
 
 async function hacerEnsureSinCola(permitirCaptcha: boolean, ignorarCooldown: boolean): Promise<SessionKind> {
