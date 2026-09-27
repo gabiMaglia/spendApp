@@ -2,11 +2,12 @@ import { ed25519 } from '@noble/curves/ed25519.js';
 import {
   verifiedCore, cachedVerdict, rememberVerdict, verdictCacheSize,
   clearVerdictCache, reloadVerdictCache, VERDICT_CACHE_KEY, VERDICT_CACHE_MAX,
+  __verdictCacheStorageForTests,
 } from '../verdictCache';
 import { signCore } from '../recordSign';
 import { toHex } from '../hexBytes';
 import { createSecureStorage } from '@/src/utils/secureStorage';
-import { readScoped, writeScoped } from '@/src/store/userScope';
+import { readScoped, writeScoped, flushScopedWrites, SCOPED_WRITE_DELAY_MS } from '@/src/store/userScope';
 import { useAuthStore } from '@/src/store/authStore';
 import type { User } from '@/src/types/models';
 import { EXPENSE } from '@/src/test-utils/recordFixtures';
@@ -18,6 +19,20 @@ import { EXPENSE } from '@/src/test-utils/recordFixtures';
  * corrompe, un registro inválido pasa. Tiene que reconstruirse sola y fallar
  * hacia `no_verificable`, NUNCA hacia `valida`.
  */
+
+/** El espía delega en el real: acá se firma y se verifica de verdad. */
+jest.mock('@noble/curves/ed25519.js', () => {
+  const real = jest.requireActual('@noble/curves/ed25519.js');
+  return {
+    ...real,
+    ed25519: {
+      ...real.ed25519,
+      verify: jest.fn((...args: unknown[]) => real.ed25519.verify(...args)),
+    },
+  };
+});
+
+const espia = ed25519.verify as unknown as jest.Mock;
 
 const storage = createSecureStorage('users');
 
@@ -31,6 +46,7 @@ const firmado = { ...EXPENSE, ...signCore('expense', EXPENSE as never, PRIV) };
 beforeEach(() => {
   useAuthStore.setState({ currentUser: { id: 'yo' } as User });
   clearVerdictCache();
+  espia.mockClear();
 });
 
 describe('memoriza el veredicto en vez de repetir la curva', () => {
@@ -163,6 +179,9 @@ describe('fail-closed: ante cualquier duda, nunca `valida`', () => {
     ['un número', 1],
   ])('entrada con %s se descarta, no se lee como `valida`', (_caso, valor) => {
     rememberVerdict('expense', firmado as never, 'valida');
+    // El guardado quedó DIFERIDO (T-153): se vacía antes de leerlo crudo,
+    // igual que haría cualquier lector real vía `readScoped`.
+    flushScopedWrites();
     const bruto = JSON.parse(readScoped(storage, VERDICT_CACHE_KEY)!) as { e: [string, unknown][] };
     bruto.e = bruto.e.map(([clave]) => [clave, valor]);
     writeScoped(storage, VERDICT_CACHE_KEY, JSON.stringify(bruto));
@@ -206,5 +225,96 @@ describe('persistencia y límites', () => {
     useAuthStore.setState({ currentUser: { id: 'yo' } as User });
     reloadVerdictCache();
     expect(cachedVerdict('expense', firmado as never)).toBe('valida');
+  });
+
+  /**
+   * V2 de T-153. Actividad verifica ≥300 registros por visita y el techo
+   * viejo (256) hacía que el LRU expulsara entradas dentro de la MISMA
+   * ráfaga de la primera visita — así que la segunda visita volvía a
+   * verificar lo que la primera acababa de cachear. Con 2000 de techo, 300
+   * entradas quedan todas adentro.
+   */
+  it('V2: con el techo nuevo, 300 registros no se expulsan entre sí', () => {
+    for (let i = 0; i < 300; i++) {
+      rememberVerdict('expense', { ...firmado, id: `v2-${i}` } as never, 'valida');
+    }
+    expect(verdictCacheSize()).toBe(300);
+    expect(cachedVerdict('expense', { ...firmado, id: 'v2-0' } as never)).toBe('valida');
+    expect(cachedVerdict('expense', { ...firmado, id: 'v2-299' } as never)).toBe('valida');
+  });
+
+  /**
+   * V2, fila completa de la tabla (obs del verifier): remontar con los MISMOS
+   * 300 no debe tocar la curva ni una vez — es la garantía de D8 (`useRecordTrust`
+   * la ejerce por fila visible; acá se prueba directo contra `verifiedCore`,
+   * que es lo único que sabe si `ed25519.verify` corrió).
+   */
+  it('V2: remontar con los mismos 300 hace 0 llamadas a la curva', () => {
+    const gastos300 = Array.from({ length: 300 }, (_, i) => {
+      const r = { ...EXPENSE, id: `v2r-${i}` };
+      return { ...r, ...signCore('expense', r as never, PRIV) };
+    });
+
+    for (const g of gastos300) expect(verifiedCore('expense', g as never, [PUB])).toBe('valida');
+    expect(espia).toHaveBeenCalledTimes(300);
+
+    // "Remontar" = soltar memoria y releer de disco, como hace `session.ts`
+    // al cambiar de cuenta o al reabrir la app.
+    reloadVerdictCache();
+    espia.mockClear();
+
+    for (const g of gastos300) expect(verifiedCore('expense', g as never, [PUB])).toBe('valida');
+    expect(espia).not.toHaveBeenCalled();
+  });
+});
+
+describe('guardado diferido (V5, T-153)', () => {
+  /**
+   * `guardar()` re-serializaba la caché entera en CADA veredicto nuevo. Con
+   * una ráfaga de N veredictos (import, primera visita a Actividad) eso es N
+   * `JSON.stringify` de una caché que va creciendo, en el hilo de JS. Se
+   * agrupa con el mismo escritor diferido que ya usan los stores de datos
+   * (T-156, `writeScopedLazy`): sólo se serializa una vez, al vaciar.
+   */
+  it('V5: 20 veredictos nuevos seguidos hacen 1 sola escritura a storage', () => {
+    jest.useFakeTimers();
+    // El proxy que este archivo crea con `createSecureStorage('users')` NO es
+    // el mismo objeto que usa `verdictCache.ts` internamente (cada llamada
+    // construye un proxy nuevo); el escritor diferido indexa lo pendiente por
+    // identidad de ese objeto, así que hay que espiar el real.
+    const setSpy = jest.spyOn(__verdictCacheStorageForTests(), 'set');
+
+    for (let i = 0; i < 20; i++) {
+      rememberVerdict('expense', { ...firmado, id: `v5-${i}` } as never, 'valida');
+    }
+    expect(setSpy).not.toHaveBeenCalled();
+
+    jest.advanceTimersByTime(SCOPED_WRITE_DELAY_MS);
+    expect(setSpy).toHaveBeenCalledTimes(1);
+
+    setSpy.mockRestore();
+    jest.useRealTimers();
+  });
+});
+
+describe('compatibilidad con lo ya persistido (V7, T-153)', () => {
+  /**
+   * Un usuario que ACTUALIZA trae en disco una caché de hasta 256 entradas,
+   * escrita por la versión vieja (techo 256, escritura síncrona). El formato
+   * (`{ e: [...] }`) no cambió, así que tiene que leerse igual con el código
+   * nuevo.
+   */
+  it('V7: una caché vieja de 256 entradas se lee igual con el techo y el guardado nuevos', () => {
+    for (let i = 0; i < 256; i++) {
+      rememberVerdict('expense', { ...firmado, id: `v7-${i}` } as never, 'valida');
+    }
+
+    // Sin avanzar timers: si `reloadVerdictCache` no viera lo que el
+    // guardado diferido todavía tiene pendiente, este reload leería un disco
+    // desactualizado. `readScoped` vacía lo pendiente antes de leer (T-156).
+    reloadVerdictCache();
+    expect(verdictCacheSize()).toBe(256);
+    expect(cachedVerdict('expense', { ...firmado, id: 'v7-0' } as never)).toBe('valida');
+    expect(cachedVerdict('expense', { ...firmado, id: 'v7-255' } as never)).toBe('valida');
   });
 });
