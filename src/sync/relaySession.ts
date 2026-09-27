@@ -1,9 +1,8 @@
 import { AppState } from 'react-native';
 import { createSecureStorage } from '@/src/utils/secureStorage';
-import { requestCaptchaToken } from './captchaBridge';
+import { requestCaptchaToken, onCaptchaInteractiveChange } from './captchaBridge';
 import { getRelayClient } from './relay';
 import { createSerialQueue } from '@/src/utils/serialQueue';
-import { withTimeout } from '@/src/utils/withTimeout';
 
 /**
  * Sesión de Supabase del BUZÓN (T-147, SIMPLIFICACIÓN aprobada por el PO,
@@ -140,9 +139,11 @@ async function abrirSesion(permitirCaptcha: boolean): Promise<SessionKind> {
  *
  * Sin tope, una red que nunca contesta dejaría `enCurso` colgado para
  * siempre — y como es compartida, CADA lectura futura heredaría la misma
- * promesa colgada. `withTimeout` envuelve la promesa CACHEADA (no la
- * interna): al vencer el tope, `enCurso` se resuelve (a `'none'`) y se
- * libera, así que la vuelta siguiente puede reintentar sola.
+ * promesa colgada. El tope vive DENTRO de `hacerEnsure` (`withNetworkTimeout`,
+ * ver abajo): al vencer, `enCurso` se resuelve (a `'none'`) y se libera, así
+ * que la vuelta siguiente puede reintentar sola. Ya no hace falta un segundo
+ * `withTimeout` acá afuera — duplicaría el mismo tope y, peor, uno que NO
+ * sabe pausarse durante la espera humana del captcha interactivo.
  *
  * BUG (T-147 post-merge): el cartel de captcha aparecía "en cualquier
  * momento" porque el reintento de fondo (poll de `relayEngine`) llamaba a
@@ -154,9 +155,60 @@ async function abrirSesion(permitirCaptcha: boolean): Promise<SessionKind> {
  */
 export function ensureRelaySession(permitirCaptcha: boolean = true): Promise<SessionKind> {
   if (enCurso) return enCurso;
-  const promesa = withTimeout(hacerEnsure(permitirCaptcha), SESSION_TIMEOUT_MS, 'none' as SessionKind);
+  const promesa = hacerEnsure(permitirCaptcha);
   enCurso = promesa.finally(() => { enCurso = null; });
   return enCurso;
+}
+
+/**
+ * Igual que `withTimeout`, pero el tope de RED se PAUSA mientras el widget
+ * de Turnstile está en modo interactivo (BUG "no se pudo confirmar tu
+ * acceso" — evidencia de campo del PO): esa espera es HUMANA, la decide la
+ * persona (el propio widget tiene su aviso "atascado" + Reintentar, no hace
+ * falta un segundo tope acá encima). Al salir de interactivo el tope
+ * arranca de cero para lo que quede (p.ej. `signInAnonymously`).
+ */
+function withNetworkTimeout<T>(fn: () => Promise<T>, ms: number, fallback: T): Promise<T> {
+  return new Promise<T>(resolve => {
+    let resuelto = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const desarmar = () => { if (timer) { clearTimeout(timer); timer = null; } };
+    const armar = () => {
+      desarmar();
+      timer = setTimeout(() => {
+        if (resuelto) return;
+        resuelto = true;
+        desuscribir();
+        resolve(fallback);
+      }, ms);
+    };
+
+    const desuscribir = onCaptchaInteractiveChange(activo => {
+      if (resuelto) return;
+      if (activo) desarmar();
+      else armar();
+    });
+
+    armar();
+
+    fn().then(
+      v => {
+        if (resuelto) return;
+        resuelto = true;
+        desarmar();
+        desuscribir();
+        resolve(v);
+      },
+      () => {
+        if (resuelto) return;
+        resuelto = true;
+        desarmar();
+        desuscribir();
+        resolve(fallback);
+      },
+    );
+  });
 }
 
 /**
@@ -166,7 +218,7 @@ export function ensureRelaySession(permitirCaptcha: boolean = true): Promise<Ses
  * rindiera a los `SESSION_TIMEOUT_MS`.
  */
 function hacerEnsure(permitirCaptcha: boolean): Promise<SessionKind> {
-  return cola.run(() => withTimeout(hacerEnsureSinCola(permitirCaptcha), SESSION_TIMEOUT_MS, 'none' as SessionKind));
+  return cola.run(() => withNetworkTimeout(() => hacerEnsureSinCola(permitirCaptcha), SESSION_TIMEOUT_MS, 'none' as SessionKind));
 }
 
 /**

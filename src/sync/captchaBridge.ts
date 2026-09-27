@@ -35,3 +35,27 @@ export async function requestCaptchaToken(): Promise<CaptchaOutcome> {
   if (!provider) return { status: 'failed', reason: 'no_host' };
   return provider();
 }
+
+/**
+ * T-147 (fix "no se pudo confirmar tu acceso", causa raíz confirmada con
+ * systematic-debugging): `relaySession` tiene un tope de tiempo para la
+ * parte de RED (`SESSION_TIMEOUT_MS`), pero la espera del captcha
+ * INTERACTIVO —Cloudflare pidió intervención humana— la decide la persona,
+ * sin tope (el propio widget ya tiene su aviso "atascado" + Reintentar). El
+ * widget avisa acá cuándo entra y sale de ese modo; `relaySession` se
+ * suscribe para pausar su reloj de red mientras tanto.
+ */
+export type InteractiveListener = (activo: boolean) => void;
+
+let interactiveListeners: InteractiveListener[] = [];
+
+/** Llamado únicamente por el widget de Turnstile. */
+export function setCaptchaInteractive(activo: boolean): void {
+  interactiveListeners.forEach(l => l(activo));
+}
+
+/** Devuelve la función para desuscribirse. */
+export function onCaptchaInteractiveChange(listener: InteractiveListener): () => void {
+  interactiveListeners.push(listener);
+  return () => { interactiveListeners = interactiveListeners.filter(l => l !== listener); };
+}
