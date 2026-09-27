@@ -31,7 +31,7 @@ import { withTimeout } from '@/src/utils/withTimeout';
 /** T-138-bis: ver `anunciarMiTarjeta`. */
 const ANUNCIO_TIMEOUT_MS = 8_000;
 import {
-  ensureContactSecret, deriveContactTopic, drainContacts, sendGroupKey, sendGroupKeyResultado,
+  ensureContactSecret, deriveContactTopic, drainContacts, sendGroupKeyResultado,
   announceContact, listPeers, myContactCard, cardFingerprint,
   cardYaEnviada, marcarCardEnviada,
 } from './contactChannel';
@@ -687,24 +687,74 @@ export async function anunciarMiTarjeta(): Promise<void> {
 const REENVIO_CLAVES_COOLDOWN_MS = 5 * 60_000;
 let ultimoReenvioClaves = 0;
 
+/**
+ * **Verifier R3-3(c): la prioridad `alta` sobrevive a matar la app.**
+ * `relayQueue` vive sólo en memoria — lo pendiente se regenera solo en el
+ * próximo arranque en frío (aceptado), pero ese arranque nuevo sólo conoce
+ * los `adoptados` de ESE momento: un grupo adoptado hace 2 minutos, cuya
+ * clave no llegó a salir porque la app se cerró antes, perdía la prioridad
+ * al regenerarse — pasaba a competir en la cola `normal` como cualquier
+ * reenvío de rutina. Se persiste qué grupos siguen "recién adoptados" (TTL
+ * generoso: no hace falta borrar apenas se entrega, sólo que no quede
+ * marcado para siempre) en el mismo bucket cifrado que ya guarda los
+ * cursores — nada nuevo que journalear.
+ */
+const ADOPCION_ALTA_PRIORIDAD_TTL_MS = 24 * 60 * 60_000;
+const ADOPCION_ALTA_PRIORIDAD_KEY = 'adopciones_alta_prioridad';
+
+function leerAdopcionesRecientes(): Record<string, number> {
+  const raw = storage.getString(ADOPCION_ALTA_PRIORIDAD_KEY);
+  if (!raw) return {};
+  try {
+    const v = JSON.parse(raw) as unknown;
+    return v && typeof v === 'object' ? (v as Record<string, number>) : {};
+  } catch {
+    return {};
+  }
+}
+
+/** Marca uno o más grupos como "recién adoptados" — prioridad alta hasta que
+ *  venza el TTL, sobreviva o no un reinicio del proceso. */
+function marcarAdopciones(ids: string[]): void {
+  if (ids.length === 0) return;
+  const actuales = leerAdopcionesRecientes();
+  const ahora = Date.now();
+  for (const id of ids) actuales[id] = ahora;
+  storage.set(ADOPCION_ALTA_PRIORIDAD_KEY, JSON.stringify(actuales));
+}
+
+/** Grupos con prioridad alta vigente — poda perezosamente los vencidos. */
+function gruposConPrioridadAlta(): Set<string> {
+  const actuales = leerAdopcionesRecientes();
+  const ahora = Date.now();
+  const entradas = Object.entries(actuales);
+  const vigentes = entradas.filter(([, t]) => ahora - t < ADOPCION_ALTA_PRIORIDAD_TTL_MS);
+  if (vigentes.length !== entradas.length) {
+    storage.set(ADOPCION_ALTA_PRIORIDAD_KEY, JSON.stringify(Object.fromEntries(vigentes)));
+  }
+  return new Set(vigentes.map(([id]) => id));
+}
+
 /** Sólo tests. */
 export function __resetReenvioClaves(): void {
   ultimoReenvioClaves = 0;
+  storage.delete(ADOPCION_ALTA_PRIORIDAD_KEY);
 }
 
 async function reenviarClavesDeGrupo(adoptados: string[] = []): Promise<void> {
   const me = useAuthStore.getState().currentUser;
   if (!me) return;
+  marcarAdopciones(adoptados); // conserva la prioridad aunque el próximo arranque no los "adopte" de nuevo
   if (Date.now() - ultimoReenvioClaves < REENVIO_CLAVES_COOLDOWN_MS) return;
   ultimoReenvioClaves = Date.now();
 
-  const adoptadosSet = new Set(adoptados);
+  const prioridadAlta = gruposConPrioridadAlta();
   const ids = syncableGroupIds();
   for (const groupId of ids) {
     const group = useGroupStore.getState().getById(groupId);
     if (!group) continue;
 
-    const prioridad = adoptadosSet.has(groupId) ? 'alta' : 'normal';
+    const prioridad = prioridadAlta.has(groupId) ? 'alta' : 'normal';
     for (const memberId of group.memberIds) {
       if (memberId === me.id) continue;
       encolar({
@@ -798,6 +848,15 @@ export async function drainContactsNow(): Promise<number> {
  * Es lo que hace que crear un grupo con alguien que escaneaste alcance: le
  * llega solo, sin links ni un segundo escaneo. A los que no son contactos no se
  * les puede mandar nada — para esos queda el link de invitación.
+ *
+ * **Verifier R3-3 (ronda 3, mitad abierta de D4-bis): pasa por `relayQueue`,
+ * con prioridad `alta`.** Antes mandaba todo en un loop directo — la clave
+ * del DUEÑO a un miembro nuevo es exactamente el caso que la prioridad alta
+ * de la cola existe para cubrir, y un `rate_limited` (cuota compartida con
+ * un `reenviarClavesDeGrupo` corriendo al mismo tiempo) se perdía sin
+ * reintento. Como el envío ahora es diferido, el número que devuelve es
+ * cuántos se ENCOLARON, no cuántos ya salieron — ningún llamador actual
+ * espera este valor (todos usan `void announceGroupToContacts(...)`).
  */
 export async function announceGroupToContacts(groupId: string): Promise<number> {
   const me = useAuthStore.getState().currentUser;
@@ -820,15 +879,27 @@ export async function announceGroupToContacts(groupId: string): Promise<number> 
   if (estaPendienteDeDrenaje(groupId)) return 0;
   await publishNow(groupId);
 
-  let enviados = 0;
+  marcarAdopciones([groupId]); // conserva prioridad alta si esto se regenera en un próximo arranque
+
+  let encolados = 0;
   for (const memberId of group.memberIds) {
     if (memberId === me.id) continue;
-    try {
-      if (await sendGroupKey(memberId, group, deviceId())) enviados++;
-    } catch { /* un contacto que falla no debe impedir los demás */ }
+    encolados++;
+    encolar({
+      prioridad: 'alta',
+      ejecutar: async () => {
+        try {
+          const r = await sendGroupKeyResultado(memberId, group, deviceId());
+          if (r.ok) return 'hecho';
+          return (r.reason === 'rate_limited' || r.reason === 'network') ? 'reintentar' : 'descartar';
+        } catch {
+          return 'reintentar';
+        }
+      },
+    });
   }
 
-  return enviados;
+  return encolados;
 }
 
 async function onInviteNews(invite: GroupInvite): Promise<void> {

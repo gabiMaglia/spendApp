@@ -52,7 +52,7 @@ jest.mock('../contactChannel', () => ({
 }));
 jest.mock('../contactInviteEngine', () => ({ processAllContactInvites: jest.fn(async () => false) }));
 
-import { startRelay, stopRelay, POLL_INTERVAL_MS, __resetReenvioClaves } from '../relayEngine';
+import { startRelay, stopRelay, POLL_INTERVAL_MS, __resetReenvioClaves, announceGroupToContacts } from '../relayEngine';
 import { sinSesionDeSync, __resetSessionStatus } from '../sessionStatus';
 import { recordPublish, publishFailures, clearPublishFailures } from '../publishHealth';
 import { __resetRelayQueue, QUEUE_INTERVAL_MS } from '../relayQueue';
@@ -287,6 +287,56 @@ describe('D4 ronda 2: reenviarClavesDeGrupo pasa por la cola', () => {
     expect(orden[0]).toBe('ADOPTADO');
     expect(orden).toContain('G');
   });
+
+  /**
+   * Verifier R3-3(c): `relayQueue` vive sólo en memoria — matar la app pierde
+   * lo encolado, y el próximo arranque lo regenera. Pero ESE arranque nuevo
+   * ya no tiene el grupo en `adoptados` (la invitación no se vuelve a
+   * "adoptar", ya se adoptó la vez pasada) — sin persistir la marca, la
+   * prioridad se perdería justo para el caso que más importa: un miembro
+   * nuevo cuya clave no llegó a salir antes de que la app se cerrara.
+   */
+  it('la prioridad alta sobrevive a un reinicio (no depende de que `adoptados` la repita)', async () => {
+    sembrarGrupoConOtroMiembro(); // "G": rutina
+    useGroupStore.setState({
+      groups: [
+        ...useGroupStore.getState().groups,
+        {
+          id: 'ADOPTADO', name: 'Nuevo', memberIds: ['u1', 'u3'], currency: 'USD', createdAt: 0, createdById: 'u1',
+          deletionVotes: [], updatedAt: 1_000, isDeleted: false,
+        } as Group,
+      ],
+    });
+    useGroupKeyStore.getState().ensureKey('ADOPTADO');
+    const { processAllInvites } = jest.requireMock('../inviteEngine') as { processAllInvites: jest.Mock };
+    processAllInvites.mockResolvedValueOnce(['ADOPTADO']); // sólo la PRIMERA vez
+
+    // Primer arranque: adopta el grupo (encolado, pero la app "se cierra"
+    // antes de que la cola llegue a drenarlo — no se avanza el timer).
+    await startRelay();
+    stopRelay();
+    __resetRelayQueue(); // la cola vive en memoria: un proceso nuevo la pierde
+
+    // Segundo arranque ("reinicio"): `adoptados` viene vacío (la invitación
+    // ya se consumió), y el cooldown de `reenviarClavesDeGrupo` está vencido
+    // (simula el tiempo que pasó reinstalando/reabriendo).
+    processAllInvites.mockResolvedValueOnce([]);
+    const ahora = jest.spyOn(Date, 'now').mockReturnValue(Date.now() + 10 * 60_000);
+
+    const orden: string[] = [];
+    mockSendGroupKeyResultado.mockImplementation(async (_peer: string, group: { id: string }) => {
+      orden.push(group.id);
+      return { ok: true, seq: 1 };
+    });
+
+    await startRelay();
+    await jest.advanceTimersByTimeAsync(0);
+    await jest.advanceTimersByTimeAsync(QUEUE_INTERVAL_MS);
+
+    expect(orden[0]).toBe('ADOPTADO'); // conservó la prioridad alta, aunque `adoptados` vino vacío
+    expect(orden).toContain('G');
+    ahora.mockRestore();
+  });
 });
 
 /**
@@ -308,4 +358,41 @@ it('D4: un rate_limited se reintenta solo, sin que el usuario haga nada', async 
   await jest.advanceTimersByTimeAsync(0);
 
   expect(publishFailures().map(f => f.groupId)).not.toContain('G');
+});
+
+/**
+ * Verifier R3-3(d): la mitad de D4-bis que seguía abierta — la clave del
+ * DUEÑO a un miembro nuevo (`announceGroupToContacts`, disparado al crear un
+ * grupo o agregar un miembro) mandaba todo en un loop directo con
+ * `sendGroupKey` booleano: un `rate_limited` se perdía sin reintento, y
+ * competía por la cuota sin ningún ritmo contra lo que `reenviarClavesDeGrupo`
+ * mandara al mismo tiempo. Ahora pasa por la misma cola, con prioridad alta
+ * (es EXACTAMENTE el caso "miembro nuevo").
+ */
+describe('R3-3(d): announceGroupToContacts pasa por la cola con prioridad alta', () => {
+  it('encola (no manda directo) la clave para cada miembro ajeno', async () => {
+    sembrarGrupoConOtroMiembro();
+
+    const encolados = await announceGroupToContacts('G');
+
+    expect(encolados).toBe(1); // u2, único miembro ajeno
+    expect(mockSendGroupKeyResultado).not.toHaveBeenCalled(); // todavía no drenó
+
+    await jest.advanceTimersByTimeAsync(0);
+    expect(mockSendGroupKeyResultado).toHaveBeenCalledWith('u2', expect.objectContaining({ id: 'G' }), expect.any(String));
+  });
+
+  it('un rate_limited no se pierde: la cola lo reintenta', async () => {
+    sembrarGrupoConOtroMiembro();
+    mockSendGroupKeyResultado
+      .mockResolvedValueOnce({ ok: false, reason: 'rate_limited' })
+      .mockResolvedValue({ ok: true, seq: 1 });
+
+    await announceGroupToContacts('G');
+    await jest.advanceTimersByTimeAsync(0);
+    expect(mockSendGroupKeyResultado).toHaveBeenCalledTimes(1);
+
+    await jest.advanceTimersByTimeAsync(QUEUE_INTERVAL_MS);
+    expect(mockSendGroupKeyResultado).toHaveBeenCalledTimes(2);
+  });
 });
