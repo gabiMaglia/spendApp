@@ -172,7 +172,7 @@ const invitado = (id = 'g1'): { id: string; authProvider: 'guest' } => ({ id, au
 async function cambiarCuenta(next: { id: string } | null): Promise<void> {
   useAuthStore.setState({ currentUser: next as never });
   relayEngine.reiniciarSyncPorCambioDeCuenta();
-  await relayEngine.startRelay();
+  await relayEngine.startRelay(true); // entrada real: la ÚNICA que permite captcha (session.ts)
 }
 
 function uidGuardado(): string | null {
@@ -186,13 +186,13 @@ describe('fila 1 · actualiza (cuenta o invitado, sin sesión del buzón guardad
     useAuthStore.setState({ currentUser: cuenta() as never }); // versión vieja: currentUser ya seteado, sin sesión del buzón
     mockCaptcha = { status: 'ok', token: 'tok-1' };
 
-    expect(await relaySession.ensureRelaySession()).toBe('anonymous');
+    expect(await relaySession.ensureRelaySession(true)).toBe('anonymous');
     expect(uidGuardado()).toMatch(/^anon-/);
 
     // Segunda lectura: NO vuelve a pedir captcha (la sesión ya está abierta).
     const { requestCaptchaToken } = require('../captchaBridge');
     (requestCaptchaToken as jest.Mock).mockClear();
-    expect(await relaySession.ensureRelaySession()).toBe('anonymous');
+    expect(await relaySession.ensureRelaySession(true)).toBe('anonymous');
     expect(requestCaptchaToken).not.toHaveBeenCalled();
   });
 });
@@ -261,7 +261,7 @@ describe('fila 7 · sin red / captcha fallido', () => {
     useAuthStore.setState({ currentUser: invitado() as never });
     mockCaptcha = { status: 'failed', reason: 'timeout' };
 
-    const kind = await relaySession.ensureRelaySession();
+    const kind = await relaySession.ensureRelaySession(true); // entrada real (invitado)
     if (!relaySession.haySesionEnCurso()) sessionStatus.setUltimaSesionConocida(kind);
 
     expect(kind).toBe('none');
@@ -272,7 +272,7 @@ describe('fila 7 · sin red / captcha fallido', () => {
     const ahora = jest.spyOn(Date, 'now').mockReturnValue(Date.now() + relaySession.SESSION_RETRY_MS + 1);
     mockCaptcha = { status: 'ok', token: 'tok-recuperado' };
 
-    const kind2 = await relaySession.ensureRelaySession();
+    const kind2 = await relaySession.ensureRelaySession(true); // reintento manual desde la misma pantalla de entrada
     if (!relaySession.haySesionEnCurso()) sessionStatus.setUltimaSesionConocida(kind2);
 
     expect(kind2).toBe('anonymous');

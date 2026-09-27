@@ -107,7 +107,13 @@ export function rehydrateForActiveUser(): void {
   // Sync en tiempo real de la cuenta activa: se suscribe a los grupos con clave
   // y drena lo que quedó encolado mientras la app estuvo cerrada. Va acá y no
   // en el arranque global porque los grupos y sus claves son POR CUENTA.
-  void startRelay();
+  //
+  // `startRelay(true)` — BUG (T-147 post-merge): éste es el ÚNICO llamador que
+  // corre exactamente en un momento de entrada (hidratación inicial con
+  // sesión persistida, login real, cambio de cuenta) — el único que el PO
+  // autorizó a mostrar captcha. Cualquier otro `startRelay()` en el resto del
+  // código usa el default seguro (`false`).
+  void startRelay(true);
 
   // El usuario logueado debe estar en SUS propios contactos. Se hace acá (no en
   // authStore.setUser) para que corra DESPUÉS de que el scope ya cambió al nuevo
