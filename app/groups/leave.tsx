@@ -46,7 +46,7 @@ export default function LeaveGroupScreen() {
   const currentUser = useAuthStore(s => s.currentUser);
   const group = useGroupStore(s => s.groups.find(g => g.id === id));
   const requestLeave = useGroupStore(s => s.requestLeave);
-  const { getUserName } = useUserStore();
+  const getUserName = useUserStore(s => s.getUserName);
 
   const balances = useGroupBalance(id ?? '', currentUser?.id ?? '');
 

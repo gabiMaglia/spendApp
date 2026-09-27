@@ -28,7 +28,8 @@ import { useColors } from '@/src/skins/useSkin';
 export function BudgetSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const c = useColors();
   const { t } = useTranslation();
-  const { budget, setBudget } = usePersonalStore();
+  const budget = usePersonalStore(s => s.budget);
+  const setBudget = usePersonalStore(s => s.setBudget);
 
   const [includeOwedToMe, setIncludeOwedToMe] = useState(budget.includeOwedToMe);
   const [budgetCurrency] = useState<CurrencyCode>(budget.currency);

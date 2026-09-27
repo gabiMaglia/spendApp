@@ -144,7 +144,7 @@ export default function UserScreen() {
   const monedasEnUso = useCurrenciesInUse();
   const fxCache      = readCache();
 
-  const { budget } = usePersonalStore();
+  const budget = usePersonalStore(s => s.budget);
   const [showBudgetSheet, setShowBudgetSheet] = useState(false);
 
   const { themeChoice, setThemeChoice } = useThemeStore();

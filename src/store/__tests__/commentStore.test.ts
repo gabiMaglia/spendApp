@@ -1,6 +1,7 @@
 import { useCommentStore } from '../commentStore';
 import { useAuthStore } from '../authStore';
 import { createSecureStorage } from '@/src/utils/secureStorage';
+import { discardScopedWrites } from '../userScope';
 import type { ExpenseComment, User } from '@/src/types/models';
 
 const USER_A = { id: 'ua' } as User;
@@ -20,6 +21,11 @@ function setActive(u: User | null) {
 
 describe('commentStore', () => {
   beforeEach(() => {
+    // T-156: `persist` ahora escribe diferido. Una escritura que un test
+    // anterior dejó pendiente (sin vaciar) sobrevive al `clearAll()` de acá
+    // — y `hydrate()`/`readScoped()` la vaciaría DESPUÉS de que el test de
+    // abajo escribe un storage corrupto a mano, pisándolo.
+    discardScopedWrites();
     createSecureStorage('comments').clearAll();
     setActive(USER_A);
     useCommentStore.setState({ comments: [], isLoading: false });

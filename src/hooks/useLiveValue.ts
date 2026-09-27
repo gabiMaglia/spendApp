@@ -15,14 +15,31 @@ import { useEffect, useState } from 'react';
  * Si algún día estos contadores se muestran en la UI real, ahí sí conviene un
  * store y no esto.
  */
+/** Igualdad por CONTENIDO, no por referencia — son valores chicos de diagnóstico. */
+function iguales<T>(a: T, b: T): boolean {
+  if (a === b) return true;
+  try {
+    return JSON.stringify(a) === JSON.stringify(b);
+  } catch {
+    return false; // no comparable → tratar como distinto, nunca esconder un cambio real
+  }
+}
+
 export function useLiveValue<T>(read: () => T, intervalMs = 2000): T {
   const [valor, setValor] = useState<T>(read);
 
   useEffect(() => {
+    // T-155: `read()` suele armar un objeto NUEVO en cada llamada aunque el
+    // contenido no cambió (p. ej. `{ ok: authorStats() }`) — sin comparar por
+    // contenido, cada intervalo dispara un render de React de balde.
+    const actualizar = () => {
+      const next = read();
+      setValor(prev => (iguales(prev, next) ? prev : next));
+    };
     // Una lectura inmediata además del intervalo: si el valor cambió entre el
     // primer render y el efecto, no hay que esperar un ciclo para verlo.
-    setValor(read());
-    const id = setInterval(() => setValor(read()), intervalMs);
+    actualizar();
+    const id = setInterval(actualizar, intervalMs);
     return () => clearInterval(id);
     // `read` se recrea en cada render de quien llama; depender de ella
     // reiniciaría el intervalo constantemente.

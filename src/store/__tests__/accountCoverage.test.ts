@@ -62,7 +62,10 @@ type Modulo = { id: string; enMemoria: boolean };
 function modulosScopeados(): Modulo[] {
   return fuentes()
     .map(ruta => ({ ruta, src: readFileSync(ruta, 'utf8') }))
-    .filter(({ src }) => /\bwriteScoped(Bool)?\s*\(/.test(src))
+    // T-156: `writeScopedLazy` agrupa escrituras (escritor diferido) y es la
+    // misma clase de escritura scopeada que `writeScoped`/`writeScopedBool` —
+    // sin este sufijo el escaneo deja de ver a los 8 stores que migraron.
+    .filter(({ src }) => /\bwriteScoped(Bool|Lazy)?\s*\(/.test(src))
     .map(({ ruta, src }) => ({
       id: idDeModulo(ruta),
       enMemoria:

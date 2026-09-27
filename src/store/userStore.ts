@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
-import { readScoped, writeScoped } from './userScope';
+import { readScoped, writeScopedLazy } from './userScope';
 import { mergeUsersPure } from './mergeUsersPure';
 import i18n from '@/src/i18n';
 import { preservarAvatar } from './userAvatar';
@@ -21,7 +21,7 @@ interface UserStoreState {
 }
 
 function persist(users: User[]) {
-  writeScoped(storage, KEY, JSON.stringify(users));
+  writeScopedLazy(storage, KEY, () => JSON.stringify(users));
 }
 
 export const useUserStore = create<UserStoreState>((set, get) => ({

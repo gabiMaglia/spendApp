@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
-import { readScoped, writeScoped } from './userScope';
+import { readScoped, writeScopedLazy } from './userScope';
 import { siguienteUpdatedAt } from './relojDelMerge';
 import { mergeExpensesPure } from './mergeExpensesPure';
 import { signOnCreate, signOnEdit } from '@/src/sync/signOnWrite';
@@ -33,7 +33,7 @@ interface ExpenseStoreState {
 }
 
 function persist(expenses: Expense[]) {
-  writeScoped(storage, KEY, JSON.stringify(expenses));
+  writeScopedLazy(storage, KEY, () => JSON.stringify(expenses));
 }
 
 export const useExpenseStore = create<ExpenseStoreState>((set, get) => ({
