@@ -397,6 +397,7 @@
     "no_session_body": "Não está sincronizando com seus grupos. Vai se resolver sozinho assim que a conexão voltar.",
     "no_session_account_body": "Não está sincronizando com seus grupos. Estamos tentando reconectar sua conta; se não se resolver sozinho, toque em Reconectar.",
     "reconnect": "Reconectar",
+    "reconnect_wrong_account": "Você escolheu outra conta. Toque em Reconectar de novo e escolha a que este app já usa.",
     "key_conflict": {
       "title_two": "Duas pessoas te enviaram chaves diferentes para \"{{group}}\"",
       "title_many": "Você recebeu chaves diferentes para \"{{group}}\"",

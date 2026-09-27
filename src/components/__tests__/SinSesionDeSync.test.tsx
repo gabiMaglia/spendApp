@@ -13,7 +13,7 @@ import type { User } from '@/src/types/models';
 const mockReconectar = reconectarCuentaInteractivo as jest.Mock;
 
 beforeEach(() => {
-  mockReconectar.mockReset().mockResolvedValue(true);
+  mockReconectar.mockReset().mockResolvedValue('ok');
   useAuthStore.setState({ currentUser: { id: 'g1', authProvider: 'guest' } as User });
 });
 
@@ -83,6 +83,24 @@ describe('SinSesionDeSync (T-147, enmienda PO)', () => {
       await act(async () => { fireEvent.press(getByText('sync.reconnect')); });
 
       expect(mockReconectar).toHaveBeenCalled();
+    });
+
+    /**
+     * Verifier R4-1(a) (ronda 4): el selector de Google puede volver con OTRA
+     * cuenta. `accountReconnect.ts` ahora lo distingue (`'otra_cuenta'`); acá
+     * se comprueba que el aviso llega hasta el usuario en vez de quedar
+     * silencioso — es la mitad "UI" del fix, la otra mitad ya está testeada
+     * en `accountReconnect.test.ts`.
+     */
+    it('si eligió otra cuenta, avisa en vez de quedarse callado', async () => {
+      useAuthStore.setState({ currentUser: { id: 'acc1', authProvider: 'google' } as User });
+      mockReconectar.mockResolvedValue('otra_cuenta');
+      const { getByText, queryByText } = render(<SinSesionDeSync sinSesion />);
+
+      expect(queryByText('sync.reconnect_wrong_account')).toBeNull();
+      await act(async () => { fireEvent.press(getByText('sync.reconnect')); });
+
+      expect(getByText('sync.reconnect_wrong_account')).toBeTruthy();
     });
   });
 });
