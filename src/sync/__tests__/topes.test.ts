@@ -39,6 +39,34 @@ describe('excesoDe — qué tope viola un registro (ronda 2: sólo bytes + miemb
     })).toBe('memberIds');
   });
 
+  /**
+   * R8 (T-182): `miembros` es el roster real — historial de altas/bajas por
+   * clave, no la lista viva — y por eso su tope es el DOBLE de
+   * `MAX_MIEMBROS`: un grupo activo con mucha rotación (gente que entra y
+   * sale) acumula más entradas en `miembros` que en `memberIds` sin que eso
+   * sea, por sí solo, un ataque.
+   */
+  it('roster (`miembros`) por encima de 2×MAX_MIEMBROS es exceso, para un registro vivo', () => {
+    const miembros = Object.fromEntries(
+      Array.from({ length: 2 * MAX_MIEMBROS + 1 }, (_, i) => [`u${i}`, { estado: 'in', at: i }]),
+    );
+    expect(excesoDe({ id: 'g1', isDeleted: false, miembros })).toBe('miembros');
+  });
+
+  it('un roster de exactamente 2×MAX_MIEMBROS todavía entra', () => {
+    const miembros = Object.fromEntries(
+      Array.from({ length: 2 * MAX_MIEMBROS }, (_, i) => [`u${i}`, { estado: 'in', at: i }]),
+    );
+    expect(excesoDe({ id: 'g1', isDeleted: false, miembros })).toBeNull();
+  });
+
+  it('un tombstone con `miembros` gigante queda exento, igual que con `memberIds`', () => {
+    const miembros = Object.fromEntries(
+      Array.from({ length: 2 * MAX_MIEMBROS + 1 }, (_, i) => [`u${i}`, { estado: 'out', at: i }]),
+    );
+    expect(excesoDe({ id: 'g1', isDeleted: true, miembros })).toBeNull();
+  });
+
   it('un registro que pesa más que el tope duro, aunque cada campo sea razonable', () => {
     const splits = Array.from({ length: 6_000 }, (_, i) => ({ userId: `usuario-${i}`, amount: 1, isPaid: false }));
     expect(excesoDe({ id: 'e1', description: 'Cena', splits })).toBe('bytes');
