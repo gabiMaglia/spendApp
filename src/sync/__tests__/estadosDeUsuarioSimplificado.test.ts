@@ -122,7 +122,13 @@ jest.mock('../contactInviteEngine', () => ({ processAllContactInvites: jest.fn(a
 jest.mock('../deviceKeys', () => ({ verifyMyKeyRegistered: jest.fn(async () => 'desconocido') }));
 
 let mockCaptcha: import('../captchaBridge').CaptchaOutcome = { status: 'not_required' };
-jest.mock('../captchaBridge', () => ({ requestCaptchaToken: jest.fn(async () => mockCaptcha) }));
+jest.mock('../captchaBridge', () => ({
+  requestCaptchaToken: jest.fn(async () => mockCaptcha),
+  // T-147 (fix "no se pudo confirmar tu acceso"): relaySession se suscribe
+  // acá para pausar su tope de red durante el captcha interactivo — este
+  // suite no ejercita ese camino, alcanza con un no-op que desuscribe.
+  onCaptchaInteractiveChange: jest.fn(() => () => {}),
+}));
 
 let relaySession: typeof import('../relaySession');
 let relayEngine: typeof import('../relayEngine');

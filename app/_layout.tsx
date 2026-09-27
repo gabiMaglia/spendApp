@@ -25,7 +25,6 @@ import { installNotificationHandler } from '@/src/services/notifications';
 import { installGlobalErrorHandler } from '@/src/services/globalErrorHandler';
 import { ErrorBoundary } from '@/src/components/ErrorBoundary';
 import { exportarDiagnostico } from '@/src/services/exportDiagnostico';
-import { CaptchaHost } from '@/src/components/CaptchaHost';
 import { useEntryGateStore } from '@/src/store/entryGateStore';
 import { decidirNavegacionAuthGuard } from '@/src/navigation/authGuardDecision';
 
@@ -195,14 +194,13 @@ export default function RootLayout() {
       <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
       {!splashListo && <AnimatedSplash onDone={() => setSplashListo(true)} />}
       {/*
-        T-147 (P-3): host del captcha de Turnstile — montado UNA sola vez,
-        para que `ensureRelaySession` siempre tenga a quién pedirle un token
-        cuando hace falta abrir sesión anónima. Va ÚLTIMO (después del
-        `Stack` y del splash): ya no usa `Modal` (bug del cartel en blanco /
-        WebView remontado — ver `CaptchaHost.tsx`), así que necesita pintarse
-        arriba de todo por orden de hermanos, no por una capa nativa aparte.
+        T-147 (rediseño, evidencia de campo del PO): ya NO hay host global del
+        captcha acá. El widget (`TurnstileWidget`) se monta INLINE, únicamente
+        dentro de `app/auth/verify.tsx` — la única pantalla donde el captcha
+        puede aparecer. Sin host global, el sync de fondo nunca tiene a quién
+        pedirle un token (ya lo garantizaba `permitirCaptcha=false`, ahora
+        también por construcción: no existe fuera de esa pantalla).
       */}
-      <CaptchaHost />
     </ThemeProvider>
     </SafeAreaProvider>
     </GestureHandlerRootView>

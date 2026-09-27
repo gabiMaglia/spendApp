@@ -41,7 +41,26 @@ jest.mock('@supabase/supabase-js', () => ({
 }));
 
 let mockCaptcha: import('../captchaBridge').CaptchaOutcome = { status: 'not_required' };
-jest.mock('../captchaBridge', () => ({ requestCaptchaToken: jest.fn(async () => mockCaptcha) }));
+const mockRequestCaptchaToken = jest.fn(async () => mockCaptcha);
+
+/**
+ * T-147 (fix "no se pudo confirmar tu acceso"): sustituto de prueba del
+ * puente real — permite simular, desde el test, que el widget de Turnstile
+ * avisó "interactivo" sin levantar React ni WebView.
+ */
+let mockInteractiveListeners: Array<(activo: boolean) => void> = [];
+const mockOnCaptchaInteractiveChange = jest.fn((cb: (activo: boolean) => void) => {
+  mockInteractiveListeners.push(cb);
+  return () => { mockInteractiveListeners = mockInteractiveListeners.filter(l => l !== cb); };
+});
+function emitirCaptchaInteractivo(activo: boolean) {
+  mockInteractiveListeners.forEach(l => l(activo));
+}
+
+jest.mock('../captchaBridge', () => ({
+  requestCaptchaToken: mockRequestCaptchaToken,
+  onCaptchaInteractiveChange: mockOnCaptchaInteractiveChange,
+}));
 
 /**
  * No se reemplaza el módulo `react-native` entero: alcanza con espiar
@@ -65,6 +84,10 @@ beforeEach(() => {
   signOut.mockClear();
   startAutoRefresh.mockClear();
   stopAutoRefresh.mockClear();
+  mockRequestCaptchaToken.mockClear();
+  mockRequestCaptchaToken.mockImplementation(async () => mockCaptcha);
+  mockOnCaptchaInteractiveChange.mockClear();
+  mockInteractiveListeners = [];
 
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const RN = require('react-native') as typeof import('react-native');
@@ -127,6 +150,33 @@ describe('ensureRelaySession', () => {
     expect(signInAnonymously).toHaveBeenCalledTimes(1);
     ahora.mockReturnValue(1_000_000 + S.SESSION_RETRY_MS + 1);
     expect(await S.ensureRelaySession()).toBe('anonymous');
+    expect(signInAnonymously).toHaveBeenCalledTimes(2);
+    ahora.mockRestore();
+  });
+
+  /**
+   * T-147 (fix "Reintentar no funciona" — systematic-debugging, evidencia de
+   * campo del PO): el botón "Reintentar" de `verify.tsx` llamaba de nuevo a
+   * `ensureRelaySession(true)`, pero `SESSION_RETRY_MS` (120s) seguía
+   * bloqueando en silencio cualquier intento nuevo dentro de esa ventana —
+   * el botón parecía no hacer nada. Ese cooldown frena al REINTENTO DE FONDO
+   * (poll de `relayEngine`), no a una acción explícita de la persona:
+   * `{ ignorarCooldown: true }` es la vía para que un Reintentar tocado a
+   * mano nunca se coma en silencio.
+   */
+  it('Reintentar explícito ({ ignorarCooldown: true }) no respeta SESSION_RETRY_MS', async () => {
+    const ahora = jest.spyOn(Date, 'now').mockReturnValue(1_000_000);
+    mockCaptcha = { status: 'ok', token: 'tok' };
+    signInAnonymously.mockResolvedValueOnce({ data: { session: null } as never, error: { message: 'rate limit' } });
+    expect(await S.ensureRelaySession()).toBe('none'); // primer intento falla, arma el cooldown
+
+    // Sin avanzar el reloj (seguimos dentro de SESSION_RETRY_MS): un
+    // ensureRelaySession() normal seguiría cayendo a 'none'...
+    expect(await S.ensureRelaySession()).toBe('none');
+    expect(signInAnonymously).toHaveBeenCalledTimes(1);
+
+    // ...pero el Reintentar EXPLÍCITO de la persona sí vuelve a intentar.
+    expect(await S.ensureRelaySession(true, { ignorarCooldown: true })).toBe('anonymous');
     expect(signInAnonymously).toHaveBeenCalledTimes(2);
     ahora.mockRestore();
   });
@@ -259,6 +309,55 @@ describe('D2 (ronda 2): tope de tiempo, nunca cuelga', () => {
     signInAnonymously.mockClear();
     await S.ensureRelaySession();
     expect(signInAnonymously).toHaveBeenCalledTimes(1);
+    jest.useRealTimers();
+  });
+});
+
+/**
+ * T-147 (fix "no se pudo confirmar tu acceso" — evidencia de campo del PO,
+ * causa raíz confirmada con systematic-debugging): `SESSION_TIMEOUT_MS`
+ * envolvía TODO, incluida la espera humana del captcha interactivo. Con la
+ * casilla fuera de vista (había que scrollear), la persona tardaba más de
+ * 20s → `'none'` → `verify_failed`, aunque el captcha se hubiera resuelto
+ * bien igual. El tope de red ahora se PAUSA mientras `CaptchaHost` avisa
+ * "interactivo" (la persona decide cuánto tarda, con su propio aviso
+ * "atascado" + Reintentar) y sigue aplicando de lleno a todo lo demás.
+ */
+describe('T-147: el tope de red se pausa mientras el captcha está interactivo', () => {
+  it('captcha interactivo resuelto a los 45s simulados → sesión anonymous (no cae a los 20s)', async () => {
+    jest.useFakeTimers();
+    let resolverCaptcha: ((v: import('../captchaBridge').CaptchaOutcome) => void) | null = null;
+    mockRequestCaptchaToken.mockImplementationOnce(() => new Promise(resolve => { resolverCaptcha = resolve; }));
+
+    const p = S.ensureRelaySession();
+    // deja correr los awaits previos (getSession) hasta que se pida el captcha
+    await jest.advanceTimersByTimeAsync(0);
+    await jest.advanceTimersByTimeAsync(0);
+    expect(mockOnCaptchaInteractiveChange).toHaveBeenCalled();
+
+    emitirCaptchaInteractivo(true); // Cloudflare pidió interacción: se pausa el tope
+
+    await jest.advanceTimersByTimeAsync(45_000); // muy por encima de SESSION_TIMEOUT_MS
+    expect(resolverCaptcha).not.toBeNull();
+
+    resolverCaptcha!({ status: 'ok', token: 'tok-tarde' });
+    emitirCaptchaInteractivo(false);
+    await jest.advanceTimersByTimeAsync(0);
+
+    expect(await p).toBe('anonymous');
+    expect(signInAnonymously).toHaveBeenCalledWith({ options: { captchaToken: 'tok-tarde' } });
+    jest.useRealTimers();
+  });
+
+  it('sin pasar nunca por interactivo, la red colgada sigue cayendo a none a los 20s', async () => {
+    jest.useFakeTimers();
+    mockCaptcha = { status: 'ok', token: 'tok' };
+    signInAnonymously.mockImplementationOnce(() => new Promise(() => {})); // se cuelga
+
+    const p = S.ensureRelaySession();
+    await jest.advanceTimersByTimeAsync(S.SESSION_TIMEOUT_MS + 1);
+
+    expect(await p).toBe('none');
     jest.useRealTimers();
   });
 });

@@ -743,9 +743,6 @@
     "web": "Ver esta informação na web"
   },
   "captcha": {
-    "title": "Confirme que você não é um robô",
-    "body": "É um passo rápido para proteger a sincronização dos seus grupos.",
-    "cancel": "Agora não",
     "stuck": "Não foi possível verificar. Tente novamente.",
     "retry": "Tentar novamente",
     "verify_title": "Confirmando seu acesso",

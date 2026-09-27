@@ -1,19 +1,18 @@
 import React from 'react';
-import { BackHandler } from 'react-native';
 import { render, act, fireEvent } from '@testing-library/react-native';
-import { CaptchaHost, CAPTCHA_INTERACTIVE_STUCK_MS } from '../CaptchaHost';
+import { TurnstileWidget, CAPTCHA_INTERACTIVE_STUCK_MS } from '../TurnstileWidget';
 import * as bridge from '@/src/sync/captchaBridge';
 
 let mockUltimoOnMessage: ((e: { nativeEvent: { data: string } }) => void) | null = null;
-let mockUltimoStyle: unknown = null;
+let mockUltimoProps: { style?: unknown; scalesPageToFit?: boolean } | null = null;
 let mockMontajes = 0;
 jest.mock('react-native-webview', () => {
   const { View } = require('react-native');
   const { useEffect } = require('react');
   return {
-    WebView: (p: { onMessage: typeof mockUltimoOnMessage; style: unknown }) => {
+    WebView: (p: { onMessage: typeof mockUltimoOnMessage; style: unknown; scalesPageToFit?: boolean }) => {
       mockUltimoOnMessage = p.onMessage;
-      mockUltimoStyle = p.style;
+      mockUltimoProps = p;
       // eslint-disable-next-line react-hooks/rules-of-hooks
       useEffect(() => { mockMontajes++; }, []);
       return <View testID="turnstile-webview" />;
@@ -32,10 +31,9 @@ beforeEach(() => {
   process.env.EXPO_PUBLIC_TURNSTILE_SITEKEY = 'site';
   process.env.EXPO_PUBLIC_TURNSTILE_HOSTNAME = 'x.supabase.co';
   mockUltimoOnMessage = null;
-  mockUltimoStyle = null;
+  mockUltimoProps = null;
   mockMontajes = 0;
   mockRecordError.mockClear();
-  jest.spyOn(BackHandler, 'addEventListener').mockImplementation(() => ({ remove: jest.fn() }));
 });
 
 afterEach(() => {
@@ -47,31 +45,41 @@ afterAll(() => {
 });
 
 function montar() {
-  return render(<CaptchaHost />);
+  return render(<TurnstileWidget />);
 }
 
 const enviar = (m: object) => act(() => { mockUltimoOnMessage!({ nativeEvent: { data: JSON.stringify(m) } }); });
+
+function flatten(style: unknown) {
+  return Array.isArray(style) ? Object.assign({}, ...style.filter(Boolean)) : style;
+}
 
 it('sin host montado → failed/no_host', async () => {
   await expect(bridge.requestCaptchaToken()).resolves.toEqual({ status: 'failed', reason: 'no_host' });
 });
 
-it('token silencioso → ok, sin mostrar la hoja', async () => {
-  const { queryByText } = montar();
+it('token silencioso → ok, sin haber mostrado nada, y no queda nada montado', async () => {
+  const { getByTestId, queryByTestId } = montar();
   const p = bridge.requestCaptchaToken();
   await act(async () => {});
+  // Antes de resolver (modo "esperando"): colapsado, invisible.
+  const estilo = flatten(getByTestId('turnstile-container').props.style) as { opacity?: number };
+  expect(estilo.opacity).toBe(0);
+
   await enviar({ type: 'token', token: 'T1' });
   await expect(p).resolves.toEqual({ status: 'ok', token: 'T1' });
-  expect(queryByText('captcha.title')).toBeNull();
+  // Resuelto: vuelve a 'idle', no queda nada en el árbol.
+  expect(queryByTestId('turnstile-container')).toBeNull();
 });
 
-it('si pide interacción muestra la hoja y no vence a los 15 s', async () => {
+it('si pide interacción se agranda y no vence a los 15 s', async () => {
   jest.useFakeTimers();
-  const { getByText } = montar();
+  const { getByTestId } = montar();
   const p = bridge.requestCaptchaToken();
   await act(async () => {});
   await enviar({ type: 'interactive' });
-  expect(getByText('captcha.title')).toBeTruthy();
+  const estilo = flatten(getByTestId('turnstile-container').props.style) as { opacity?: number };
+  expect(estilo.opacity).not.toBe(0);
   act(() => { jest.advanceTimersByTime(60_000); });
   await enviar({ type: 'token', token: 'T2' });
   await expect(p).resolves.toEqual({ status: 'ok', token: 'T2' });
@@ -95,81 +103,6 @@ it('error del widget → failed/error', async () => {
   await expect(p).resolves.toEqual({ status: 'failed', reason: 'error' });
 });
 
-it('cerrar la hoja → failed/dismissed', async () => {
-  const { getByText } = montar();
-  const p = bridge.requestCaptchaToken();
-  await act(async () => {});
-  await enviar({ type: 'interactive' });
-  await act(async () => { fireEvent.press(getByText('captcha.cancel')); });
-  await expect(p).resolves.toEqual({ status: 'failed', reason: 'dismissed' });
-});
-
-/**
- * Verifier D5: el botón atrás de Android tiene que cerrar la hoja como
- * "Ahora no" — sin esto no hay forma de salir salvo tocar el botón. Con el
- * `Modal` de RN se lograba con `onRequestClose`; al sacarlo (ver bug de
- * abajo) el mismo comportamiento pasa a un listener de `BackHandler` propio,
- * activo sólo mientras la hoja está interactiva.
- */
-it('el botón atrás de Android cierra como "Ahora no"', async () => {
-  const { getByText } = montar();
-  const p = bridge.requestCaptchaToken();
-  await act(async () => {});
-  await enviar({ type: 'interactive' });
-  expect(getByText('captcha.title')).toBeTruthy();
-
-  const llamada = (BackHandler.addEventListener as jest.Mock).mock.calls
-    .find(([evento]) => evento === 'hardwareBackPress');
-  expect(llamada).toBeTruthy();
-  await act(async () => { llamada![1](); });
-  await expect(p).resolves.toEqual({ status: 'failed', reason: 'dismissed' });
-});
-
-/**
- * BUG (evidencia de campo del PO, Cloudflare Turnstile Analytics: 51
- * desafíos EMITIDOS, 0 resueltos, WebView Android): la hoja se veía en
- * blanco con sólo el botón "Ahora no" — el widget nunca se veía ni
- * respondía. Causa raíz confirmada leyendo el código: el `WebView` viajaba
- * SIEMPRE con `style={styles.oculto}` (1×1, `opacity: 0`), sin importar el
- * estado — el contenedor que lo envolvía cambiaba de tamaño, pero el
- * `WebView` de adentro seguía invisible e intocable.
- */
-it('en estado interactivo, el WebView es visible (sin opacity:0 ni 1×1)', async () => {
-  montar();
-  const p = bridge.requestCaptchaToken();
-  await act(async () => {});
-  await enviar({ type: 'interactive' });
-
-  const estilo = (Array.isArray(mockUltimoStyle) ? Object.assign({}, ...mockUltimoStyle.filter(Boolean)) : mockUltimoStyle) as {
-    opacity?: number; width?: number; height?: number;
-  };
-  expect(estilo.opacity).not.toBe(0);
-  expect(estilo.width === 1 && estilo.height === 1).toBe(false);
-  await enviar({ type: 'token', token: 'irrelevante' });
-  await p;
-});
-
-/**
- * BUG (misma evidencia de campo): además de invisible, el `WebView` cambiaba
- * de posición en el árbol al pasar de "esperando" (una `View` suelta) a
- * "interactivo" (adentro de un `Modal` nuevo) — React lo desmontaba y volvía
- * a montar, y Turnstile emitía un desafío NUEVO cada vez (coincide con los
- * 51 emitidos). El fix mantiene UNA sola instancia, en la misma posición del
- * árbol, durante toda la verificación.
- */
-it('el WebView no se remonta al pasar de "esperando" a "interactivo"', async () => {
-  montar();
-  const p = bridge.requestCaptchaToken();
-  await act(async () => {}); // estado 'esperando': ya montado una vez
-  expect(mockMontajes).toBe(1);
-
-  await enviar({ type: 'interactive' }); // pasa a 'interactivo'
-  expect(mockMontajes).toBe(1); // misma instancia — no se desmontó ni se re-montó
-
-  await enviar({ type: 'token', token: 'irrelevante' });
-  await p;
-});
-
 it('al desmontar deja de atender', async () => {
   const { unmount } = montar();
   unmount();
@@ -177,10 +110,23 @@ it('al desmontar deja de atender', async () => {
 });
 
 /**
- * Diagnóstico (pedido del orquestador tras la evidencia de campo): sin poder
- * ver el render real en el teléfono del PO, cada callback de Turnstile queda
- * anotado en `errorLog` (local, sin red, sin datos sensibles — sólo el tipo
- * de evento) para que un futuro reporte pueda decir QUÉ pasó.
+ * T-147 (rediseño): Android hace zoom al contenido para "hacerlo caber" en
+ * el viewport (`scalesPageToFit` default `true`) — con `size:'flexible'` eso
+ * deformaba el widget a un tamaño gigante en vez de su tamaño natural.
+ */
+it('desactiva scalesPageToFit (Android) para no deformar el tamaño natural del widget', async () => {
+  montar();
+  const p = bridge.requestCaptchaToken();
+  await act(async () => {});
+  expect(mockUltimoProps?.scalesPageToFit).toBe(false);
+  await enviar({ type: 'token', token: 'T' });
+  await p;
+});
+
+/**
+ * Diagnóstico: cada callback de Turnstile queda anotado en `errorLog` (local,
+ * sin red, sin datos sensibles) para que un futuro reporte pueda decir QUÉ
+ * pasó.
  */
 describe('diagnóstico: cada callback de Turnstile queda anotado (sin datos sensibles)', () => {
   it('token', async () => {
@@ -219,7 +165,7 @@ describe('diagnóstico: cada callback de Turnstile queda anotado (sin datos sens
  * responde en N s → mensaje + Reintentar". Si Cloudflare ya pidió
  * interacción (`interactive`) pero nunca llega ni un `token` ni un `error`
  * ni un `expired` — el widget se ve pero no responde, o no llegó a
- * dibujarse — la persona no puede quedarse mirando un botón "Ahora no" para
+ * dibujarse — la persona no puede quedarse mirando la casilla vacía para
  * siempre: a los `CAPTCHA_INTERACTIVE_STUCK_MS` se muestra el aviso y un
  * "Reintentar" que recarga el WebView (remonta, a propósito) SIN resolver
  * la promesa — la verificación sigue en la MISMA pantalla.
@@ -260,5 +206,110 @@ describe('BUG: widget atascado en modo interactivo → mensaje + Reintentar', ()
     await enviar({ type: 'token', token: 'T-al-fin' });
     await expect(p).resolves.toEqual({ status: 'ok', token: 'T-al-fin' });
     jest.useRealTimers();
+  });
+});
+
+/**
+ * T-147 ajuste alto: en Android un desafío de Turnstile puede medir más que
+ * la casilla fija original y se corta. El HTML informa su alto real; el
+ * contenedor lo toma (con piso y techo), sin remontar el WebView.
+ */
+describe('alto dinámico según lo que informa el widget', () => {
+  it('toma el alto informado por el widget', async () => {
+    const { getByTestId } = montar();
+    const p = bridge.requestCaptchaToken();
+    await act(async () => {});
+    await enviar({ type: 'interactive' });
+    await enviar({ type: 'height', height: 250 });
+
+    const estilo = flatten(getByTestId('turnstile-container').props.style) as { height?: number };
+    expect(estilo.height).toBe(250);
+
+    await enviar({ type: 'token', token: 'irrelevante' });
+    await p;
+  });
+
+  it('nunca baja del piso mínimo (70)', async () => {
+    const { getByTestId } = montar();
+    const p = bridge.requestCaptchaToken();
+    await act(async () => {});
+    await enviar({ type: 'interactive' });
+    await enviar({ type: 'height', height: 20 });
+
+    const estilo = flatten(getByTestId('turnstile-container').props.style) as { height?: number };
+    expect(estilo.height).toBe(70);
+
+    await enviar({ type: 'token', token: 'irrelevante' });
+    await p;
+  });
+
+  it('nunca supera el techo razonable', async () => {
+    const { getByTestId } = montar();
+    const p = bridge.requestCaptchaToken();
+    await act(async () => {});
+    await enviar({ type: 'interactive' });
+    await enviar({ type: 'height', height: 550 });
+
+    const estilo = flatten(getByTestId('turnstile-container').props.style) as { height?: number };
+    expect(estilo.height).toBeLessThanOrEqual(400);
+
+    await enviar({ type: 'token', token: 'irrelevante' });
+    await p;
+  });
+
+  it('cambiar de alto no remonta el WebView', async () => {
+    montar();
+    const p = bridge.requestCaptchaToken();
+    await act(async () => {});
+    await enviar({ type: 'interactive' });
+    expect(mockMontajes).toBe(1);
+
+    await enviar({ type: 'height', height: 200 });
+    await enviar({ type: 'height', height: 90 });
+    expect(mockMontajes).toBe(1);
+
+    await enviar({ type: 'token', token: 'irrelevante' });
+    await p;
+  });
+});
+
+/**
+ * T-147 (fix "no se pudo confirmar tu acceso"): el widget avisa por el
+ * puente cuándo entra y sale de modo interactivo, para que `relaySession`
+ * pause su tope de red mientras la persona resuelve el desafío a su ritmo.
+ */
+describe('avisa por el puente cuándo entra/sale de interactivo', () => {
+  it('interactivo=true al agrandarse, false al resolverse', async () => {
+    const eventos: boolean[] = [];
+    const off = bridge.onCaptchaInteractiveChange(activo => eventos.push(activo));
+
+    montar();
+    const p = bridge.requestCaptchaToken();
+    await act(async () => {});
+    expect(eventos).toEqual([]);
+
+    await enviar({ type: 'interactive' });
+    expect(eventos).toEqual([true]);
+
+    await enviar({ type: 'token', token: 'T' });
+    await p;
+    expect(eventos).toEqual([true, false]);
+    off();
+  });
+
+  it('si se desmonta a mitad de un desafío interactivo, también avisa false', async () => {
+    const eventos: boolean[] = [];
+    const off = bridge.onCaptchaInteractiveChange(activo => eventos.push(activo));
+
+    const { unmount } = montar();
+    const p = bridge.requestCaptchaToken();
+    await act(async () => {});
+    await enviar({ type: 'interactive' });
+    expect(eventos).toEqual([true]);
+
+    unmount();
+    expect(eventos).toEqual([true, false]);
+    off();
+    void p; // queda sin resolver a propósito: nadie la espera tras desmontar
   });
 });
