@@ -261,7 +261,24 @@ export interface LeaveRequest {
 
 export interface Group extends SyncMeta, CoreSigned {
   name: string;
+  /**
+   * Derivado de `miembros` (T-182): `rosterDe(miembros)`, los `'in'`. NADIE
+   * lo escribe a mano — se recalcula en el merge (`mergeGroupsPure`) y al
+   * escribir (`conAlta`/`conBaja`, `src/algorithms/roster.ts`). Sigue
+   * existiendo para que todos los lectores actuales (balances, splits,
+   * listas) queden iguales.
+   */
   memberIds: string[];
+  /**
+   * Roster por miembro (T-182): reemplaza a `memberIds` como fuente de
+   * verdad de quién está adentro. Se une POR CLAVE (gana el `at` mayor,
+   * tope de reloj T-144) — no por lista entera como `memberIds` antes, que
+   * podía "revivir" a quien ya salió si un tercero, sin ver la salida,
+   * republicaba una lista vieja con `updatedAt` más nuevo por otro motivo
+   * (renombrar, agregar a otro). Sin compatibilidad hacia atrás: todo grupo
+   * nace con `miembros`.
+   */
+  miembros: Record<string, { estado: 'in' | 'out'; at: number }>;
   currency: CurrencyCode;
   createdAt: number;
   createdById: string;
