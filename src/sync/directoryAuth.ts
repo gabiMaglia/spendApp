@@ -42,10 +42,55 @@ import { getRelayClient } from './relay';
  * un ciclo (`relaySession.ts` → `authStore.ts` → `directoryAuth.ts`); sólo
  * hace falta en tiempo de ejecución, nunca al cargar el módulo.
  */
-function encolar<T>(fn: () => Promise<T>): Promise<T> {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { encolarOperacionDeSesion } = require('./relaySession') as typeof import('./relaySession');
-  return encolarOperacionDeSesion(fn);
+function encolar<T>(fn: () => Promise<T>, alVencer: () => T): Promise<T> {
+  const { encolarOperacionDeSesion, SESSION_TIMEOUT_MS } =
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    require('./relaySession') as typeof import('./relaySession');
+  return encolarOperacionDeSesion(() => withTimeout(fn, SESSION_TIMEOUT_MS, alVencer));
+}
+
+/**
+ * T-175 (obs verifier T-147-b ronda 2): tope de red generico para lo que se
+ * encola en directoryAuth -- signInWithIdToken/signOut corrian sin ninguno.
+ * El tope de SESSION_TIMEOUT_MS que ya existia vive DENTRO de hacerEnsure
+ * (relaySession.ts), envolviendo lo que ensureRelaySession encola -- nunca
+ * alcanza a lo que YA estaba encolado ADELANTE en la MISMA cola (fix D1).
+ * Un fetch colgado aca bloqueaba la cola para siempre y verify.tsx quedaba
+ * en spinner sin salida.
+ *
+ * A proposito NO pausado por el captcha (login/logout de CUENTA nunca lo
+ * tocan -- ese pausado es solo del camino de invitado,
+ * withNetworkTimeout en relaySession.ts). El tope envuelve la funcion ANTES
+ * de encolarla, no la promesa ya encolada: si quedara afuera, la operacion
+ * colgada seguiria bloqueando la cola aunque ESTA llamada se rindiera.
+ *
+ * Al vencer, resuelve con alVencer() en vez de rechazar: fn ya es best
+ * effort y quien llama espera un resultado, no una excepcion.
+ */
+function withTimeout<T>(fn: () => Promise<T>, ms: number, alVencer: () => T): Promise<T> {
+  return new Promise<T>(resolve => {
+    let resuelto = false;
+    const timer = setTimeout(() => {
+      if (resuelto) return;
+      resuelto = true;
+      resolve(alVencer());
+    }, ms);
+
+    fn().then(
+      v => {
+        if (resuelto) return;
+        resuelto = true;
+        clearTimeout(timer);
+        resolve(v);
+      },
+      () => {
+        if (resuelto) return;
+        resuelto = true;
+        clearTimeout(timer);
+        resolve(alVencer());
+      },
+    );
+  });
 }
 
 export type DirectorySignIn =
@@ -64,15 +109,18 @@ export async function signIntoDirectory(
   // servidor: uno se arregla en el .env, el otro en el panel de Supabase.
   if (!idToken) return { ok: false, reason: 'no_token' };
 
-  return encolar(async () => {
-    try {
-      const { error } = await supabase.auth.signInWithIdToken({ provider, token: idToken });
-      if (error) return { ok: false, reason: 'rejected', detail: error.message };
-      return { ok: true };
-    } catch (e) {
-      return { ok: false, reason: 'rejected', detail: String(e) };
-    }
-  });
+  return encolar(
+    async () => {
+      try {
+        const { error } = await supabase.auth.signInWithIdToken({ provider, token: idToken });
+        if (error) return { ok: false, reason: 'rejected', detail: error.message };
+        return { ok: true };
+      } catch (e) {
+        return { ok: false, reason: 'rejected', detail: String(e) };
+      }
+    },
+    () => ({ ok: false, reason: 'rejected', detail: 'timeout' }),
+  );
 }
 
 /**
@@ -91,12 +139,22 @@ export async function signOutOfDirectory(): Promise<void> {
   const supabase = getRelayClient();
   if (!supabase) return;
 
-  await encolar(async () => {
-    try {
-      await supabase.auth.signOut({ scope: 'local' });
-    } catch {
-      // Sin sesión persistida no hay nada que forzar: el próximo login del
-      // directorio abre una sesión nueva sin importar cómo terminó ésta.
-    }
-  });
+  await encolar(
+    async () => {
+      try {
+        await supabase.auth.signOut({ scope: 'local' });
+      } catch {
+        // Sin sesion persistida no hay nada que forzar: el proximo login del
+        // directorio abre una sesion nueva sin importar como termino esta.
+      }
+    },
+    () => {
+      // T-175: vencio sin contestar -- purgamos el storage LOCAL a mano
+      // (sin otro viaje de red que tambien podria colgarse) para que el JWT
+      // viejo no quede pegado esperando una respuesta que nunca llega.
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { forceClearPersistedSession } = require('./relaySession') as typeof import('./relaySession');
+      forceClearPersistedSession();
+    },
+  );
 }

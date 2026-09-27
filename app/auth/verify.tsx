@@ -9,7 +9,7 @@ import { useColors } from '@/src/skins/useSkin';
 import { ActionButton } from '@/src/components/ActionButton';
 import { ButtonRack } from '@/src/components/ButtonRack';
 import { TurnstileWidget } from '@/src/components/TurnstileWidget';
-import { ensureRelaySession } from '@/src/sync/relaySession';
+import { ensureRelaySession, haySesionEnCurso } from '@/src/sync/relaySession';
 import { reconectarGoogleSilencioso, reconectarInteractivo } from '@/src/sync/accountEntry';
 import { setUltimaSesionConocida } from '@/src/sync/sessionStatus';
 import { useEntryGateStore } from '@/src/store/entryGateStore';
@@ -90,6 +90,19 @@ export default function VerifyScreen() {
     setVerificando(true);
 
     let kind = await ensureRelaySession(true);
+    if (kind !== 'identity' && haySesionEnCurso()) {
+      // T-175 (obs 2, verifier T-147-b ronda 2): el single-flight de
+      // `ensureRelaySession` (`if (enCurso) return enCurso`) puede devolver
+      // acá una lectura ANTERIOR al login real — si esta pantalla llamó
+      // mientras esa lectura ya estaba en vuelo (p.ej. el poll de fondo de
+      // `relayEngine`), y el login (`entrarAlDirectorio`, disparado sin
+      // `await` justo después de `setUser`) se encoló DETRÁS en la MISMA
+      // cola, la lectura compartida resuelve sin haber esperado nada del
+      // login. Si la cola TODAVÍA tiene algo en vuelo cuando llega el
+      // resultado, se relee: sin `enCurso` propio, esta segunda lectura
+      // queda ENCOLADA detrás de lo que falte (FIFO) y sí lo espera.
+      kind = await ensureRelaySession(true);
+    }
     if (kind !== 'identity' && provider === 'google') {
       const r = await reconectarGoogleSilencioso();
       if (r.status === 'ok') kind = await ensureRelaySession(true);
