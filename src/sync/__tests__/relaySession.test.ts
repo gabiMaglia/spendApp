@@ -340,9 +340,35 @@ describe('haySesionAnonimaValida', () => {
       useAuthStore.setState({ currentUser: { id: 'acc1', authProvider: 'apple' } as never });
     });
 
-    it('con sesión de cuenta persistida (no anónima), true — arranque en frío sin pantalla', async () => {
+    it('con sesión de cuenta persistida (no anónima) Y el marcador de dueño registrado, true — arranque en frío sin pantalla', async () => {
       sesion = { user: { is_anonymous: false, id: 'acc1' } };
+      S.registrarDuenoDeSesionDeCuenta('acc1'); // T-175 (verifier ronda 4): un login real ya la confirmó
       expect(await S.haySesionAnonimaValida()).toBe(true);
+    });
+
+    /**
+     * T-175 (verifier ronda 4, BLOQUEANTE): antes de este fix, esta función
+     * sólo miraba `!is_anonymous` — una sesión de cuenta persistida SIN el
+     * marcador (p.ej. una instalación de un build previo a B2, o cualquier
+     * residuo que `ensureRelaySession` todavía no llegó a purgar) daba
+     * `true` igual. El gate de arranque (`src/store/session.ts:182-188`)
+     * confiaba en eso y dejaba pasar SIN mostrar `verify.tsx` — pero el
+     * siguiente `ensureRelaySession` (que SÍ exige el marcador) purgaba y
+     * devolvía `'none'`, sin que `verify.tsx` hubiera corrido nunca la
+     * reconexión (Google silencioso / botón de Apple). Reproducido: gate en
+     * `true`, `ensureRelaySession` en `'none'`, sin sesión.
+     */
+    it('con sesión de cuenta persistida pero SIN el marcador de dueño (build previo a B2), false — no debe saltear verify', async () => {
+      sesion = { user: { is_anonymous: false, id: 'acc1' } };
+      // Nunca se llamó `registrarDuenoDeSesionDeCuenta`: residuo de una
+      // instalación anterior a este fix, o de un login que nunca confirmó.
+      expect(await S.haySesionAnonimaValida()).toBe(false);
+    });
+
+    it('con el marcador de OTRA sesión (user.id distinto), false — no confunde una sesión ajena con la propia', async () => {
+      sesion = { user: { is_anonymous: false, id: 'acc1' } };
+      S.registrarDuenoDeSesionDeCuenta('otro-user-id-de-supabase');
+      expect(await S.haySesionAnonimaValida()).toBe(false);
     });
 
     it('con una sesión ANÓNIMA residual, false — no sirve para una cuenta', async () => {
