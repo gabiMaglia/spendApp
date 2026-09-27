@@ -6,6 +6,7 @@ import { readJournal, writeJournal, clearJournal, type DeleteJournal } from '@/s
 import { deleteMyEnvelopes } from '@/src/sync/relay';
 import { olvidarCursor } from '@/src/sync/relayEngine';
 import { destruirIdentidadDelAparato } from '@/src/store/identityStore';
+import { discardScopedWrites } from '@/src/store/userScope';
 import { clearErrors } from './errorLog';
 import { anonymizeSelf } from './anonymizeSelf';
 import { topicsDeLaCuenta } from './deleteTopics';
@@ -208,6 +209,9 @@ function guardar(diario: DeleteJournal): void {
 
 /** El barrido local. Todo lo que lleva el id de la cuenta, de todos los buckets. */
 function borrarLoLocal(accountId: string): void {
+  // 0 · escrituras diferidas (T-156) ANTES que nada: una que vaciara después
+  //     del barrido resucitaría el dato que se acaba de borrar.
+  intentar(() => discardScopedWrites());
   // 1 · lo que lleva el sufijo `::u:` — la misma función que usa la purga de
   //     fusiones, no una copia (T-057).
   intentar(() => barrerScope(accountId));

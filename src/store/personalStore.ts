@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
-import { readScoped, writeScoped } from './userScope';
+import { readScoped, writeScopedLazy } from './userScope';
 import { mergePersonalPure } from './mergePersonalPure';
 import { migratePersonalBudgetAmount, migratePersonalEntryAmounts } from './moneyMigration';
 import type { PersonalEntry, PersonalBudget } from '@/src/types/models';
@@ -34,13 +34,13 @@ interface PersonalStoreState {
 }
 
 function persistEntries(entries: PersonalEntry[]) {
-  writeScoped(storage, ENTRIES_KEY, JSON.stringify(entries));
+  writeScopedLazy(storage, ENTRIES_KEY, () => JSON.stringify(entries));
 }
 function persistBudget(budget: PersonalBudget) {
-  writeScoped(storage, BUDGET_KEY, JSON.stringify(budget));
+  writeScopedLazy(storage, BUDGET_KEY, () => JSON.stringify(budget));
 }
 function persistLastSeen(month: string) {
-  writeScoped(storage, LAST_SEEN_KEY, month);
+  writeScopedLazy(storage, LAST_SEEN_KEY, () => month);
 }
 
 /** "YYYY-MM" del timestamp dado, en hora local. */

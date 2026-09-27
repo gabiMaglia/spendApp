@@ -18,6 +18,7 @@ import { AnimatedSplash } from '@/src/components/AnimatedSplash';
 import { useAuthStore } from '@/src/store/authStore';
 import { useThemeStore } from '@/src/store/themeStore';
 import { rehydrateForActiveUser, subscribeSessionRehydrate } from '@/src/store/session';
+import { registrarVaciadoEnBackground } from '@/src/store/flushOnBackground';
 import { resumePendingDeletion } from '@/src/services/deleteAccount';
 import { tomarEnlacePendiente } from '@/src/utils/enlacePendiente';
 import { useEnlacesEntrantes } from '@/src/hooks/useEnlacesEntrantes';
@@ -77,7 +78,11 @@ function AuthGuard() {
 
     // Re-hidrata al cambiar de cuenta (login / logout / switch de usuario).
     const unsub = subscribeSessionRehydrate();
-    return () => { active = false; unsub(); };
+    // Vacía YA las escrituras diferidas (T-156) al dejar el primer plano —
+    // fila U2 de la tabla: sin esto, una escritura programada hace menos de
+    // 300ms antes de minimizar la app se podía perder.
+    const unsubBackground = registrarVaciadoEnBackground();
+    return () => { active = false; unsub(); unsubBackground(); };
   }, []);
 
   const entryGate = useEntryGateStore(s => s.estado);

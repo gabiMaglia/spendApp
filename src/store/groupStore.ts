@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
-import { readScoped, writeScoped } from './userScope';
+import { readScoped, writeScopedLazy } from './userScope';
 import { siguienteUpdatedAt } from './relojDelMerge';
 import { mergeGroupsPure } from './mergeGroupsPure';
 import { signOnCreate, signOnEdit } from '@/src/sync/signOnWrite';
@@ -45,7 +45,7 @@ interface GroupStoreState {
 }
 
 function persist(groups: Group[]) {
-  writeScoped(storage, KEY, JSON.stringify(groups));
+  writeScopedLazy(storage, KEY, () => JSON.stringify(groups));
 }
 
 export const useGroupStore = create<GroupStoreState>((set, get) => ({

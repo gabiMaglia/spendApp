@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import { createSecureStorage } from '@/src/utils/secureStorage';
-import { readScoped, writeScoped } from './userScope';
+import { readScoped, writeScopedLazy } from './userScope';
 import type { Notice } from '@/src/services/syncNotices';
 
 /**
@@ -63,8 +63,14 @@ export function contarSinLeer(items: readonly StoredNotice[]): number {
 
 export function createNoticeInboxStore() {
   return create<NoticeInboxState>((set, get) => {
+    // El try/catch queda DENTRO del serialize, que ahora corre perezoso al
+    // vaciar (no en cada `persist(items)`): sigue siendo cierto que un fallo
+    // acá no puede tirar la bandeja abajo, sólo que ese fallo ahora ocurre
+    // ~300ms después en vez de en el momento del `persist`.
     const persist = (items: StoredNotice[]) => {
-      try { writeScoped(storage, KEY, JSON.stringify(items)); } catch { /* sin persistir se sigue */ }
+      writeScopedLazy(storage, KEY, () => {
+        try { return JSON.stringify(items); } catch { return JSON.stringify([]); }
+      });
     };
 
     return {

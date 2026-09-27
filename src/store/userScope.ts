@@ -73,6 +73,10 @@ export function writeScopedLazy(storage: SimpleStorage, base: string, serialize:
   if (previo) clearTimeout(previo.timer);
 
   const timer = setTimeout(() => vaciar(storage, key), SCOPED_WRITE_DELAY_MS);
+  // `unref` no existe en el timer de React Native (número, no `Timeout`) —
+  // por eso opcional. En Jest/Node evita que un timer de 300ms colgado (un
+  // test que no vació ni avanzó los fake timers) mantenga vivo el proceso.
+  (timer as unknown as { unref?: () => void }).unref?.();
   mapa.set(key, { storage, key, serialize, timer });
 }
 
