@@ -552,6 +552,15 @@ async function arrancarCadenaDeSync(permitirCaptcha: boolean): Promise<void> {
       // no puede disparar un drenaje inmediato con ADR-007 en juego.
       // T-158a: además del aviso, se registra el estado del canal privado —
       // es lo que decide el intervalo del próximo poll (`intervaloDePoll`).
+      //
+      // Observación del verificador ciego: se siembra `false` ACÁ, antes de
+      // que `onStatus` dispare por primera vez — un canal recién suscripto
+      // que todavía no confirmó nada (mudo, nunca llegó `SUBSCRIBED` ni
+      // `CHANNEL_ERROR`) tiene que contar como "no confirmado", nunca quedar
+      // AUSENTE del mapa: ausente es indistinguible de "no hay canales", y con
+      // otro canal ya en `true`, `intervaloDePoll` prometía 90s sin que este
+      // hubiera confirmado nada.
+      estadoCanales.set(topic, false);
       const off = subscribeTopic(topic, () => { scheduleDrain(groupId); }, (ok) => {
         estadoCanales.set(topic, ok);
       });
@@ -583,14 +592,34 @@ let poll: ReturnType<typeof setTimeout> | null = null;
 let appStateSub: { remove: () => void } | null = null;
 
 /**
+ * Verifier ciego (rechazo de perf/ola-b), B1: token de generación de la
+ * cadena de poll. `stopPolling`/`startPolling` lo incrementan; cada vuelta de
+ * la cadena captura el que estaba vigente al agendarse y sólo reprograma la
+ * siguiente si SIGUE siendo el vigente.
+ *
+ * Hace falta porque `clearTimeout` no alcanza: si un poll YA disparó
+ * (`releerTodo()` está corriendo, por ejemplo colgado en `ensureRelaySession`)
+ * y recién ENTONCES se llama `stopPolling` (o `startPolling`, que empieza
+ * llamando a `stopPolling`), `clearTimeout` no tiene nada que cancelar — el
+ * timer ya se consumió. Sin este token, el `.finally` de esa vuelta en curso
+ * reprogramaba SIEMPRE la siguiente, dejando una cadena viva después del stop
+ * o, si hubo un reinicio de por medio, DOS cadenas corriendo en paralelo.
+ */
+let generacionPoll = 0;
+
+/**
  * Agenda la próxima relectura. Ya no es un `setInterval` de intervalo fijo
  * (T-158a): es una cadena de `setTimeout` que recalcula `intervaloDePoll()`
  * en cada vuelta, así que el espaciado a 90s/20s reacciona al estado de los
  * canales que haya AHORA MISMO, no al que había cuando arrancó el poll.
  */
-function programarProximoPoll(): void {
+function programarProximoPoll(generacion: number): void {
   poll = setTimeout(() => {
-    void releerTodo().finally(() => { programarProximoPoll(); });
+    void releerTodo().finally(() => {
+      // B1: si `stopPolling`/`startPolling` corrieron mientras `releerTodo()`
+      // estaba en vuelo, esta cadena ya es vieja — no reprograma.
+      if (generacion === generacionPoll) programarProximoPoll(generacion);
+    });
   }, intervaloDePoll());
 }
 
@@ -602,9 +631,9 @@ function programarProximoPoll(): void {
  * día, que es exactamente cuando el usuario está mirando.
  */
 function startPolling(): void {
-  stopPolling();
+  stopPolling(); // bumps `generacionPoll`: invalida cualquier cadena vieja en vuelo
 
-  programarProximoPoll();
+  programarProximoPoll(generacionPoll);
 
   appStateSub = AppState.addEventListener('change', estado => {
     if (estado === 'active') void releerTodo();
@@ -617,6 +646,7 @@ function startPolling(): void {
 }
 
 function stopPolling(): void {
+  generacionPoll++; // B1: invalida la cadena vigente, corra o no ahora mismo
   if (poll) { clearTimeout(poll); poll = null; }
   if (appStateSub) { appStateSub.remove(); appStateSub = null; }
   if (soltarRefresh) { soltarRefresh(); soltarRefresh = null; }
