@@ -98,12 +98,33 @@ export type KeysQuery = { ok: boolean; keys: string[] };
 
 /**
  * Las LECTURAS del directorio salen por el cliente del BUZÓN (`getRelayClient`)
- * — la policy de SELECT de `account_keys`/`device_keys` es pública, no exige
- * sesión de cuenta, así que un invitado (sesión anónima) o una cuenta sin
- * reconectar todavía pueden preguntar igual. **T-147-b (Task 2):** desde que
- * se unificaron los clientes, esto ya es el MISMO cliente que usa
- * `registerDeviceKey` (arriba) para escribir — no queda ninguna razón por la
- * que las dos operaciones tuvieran que salir por clientes distintos.
+ * — **T-147-b (Task 2):** desde que se unificaron los clientes, esto ya es
+ * el MISMO cliente que usa `registerDeviceKey` (arriba) para escribir — no
+ * queda ninguna razón por la que las dos operaciones tuvieran que salir por
+ * clientes distintos.
+ *
+ * **Obs 3 (verifier, ronda 2) — precisión sobre "pública", citando el SQL
+ * real:** ANTES de 011a, `device_keys_read` es `for select using (true)`
+ * (`supabase/003_device_keys.sql:51-53`, sin `to`: rol PUBLIC) y
+ * `account_keys(text)` está `grant`eada a `anon, authenticated`
+ * (`supabase/005_claves_por_owner.sql:50`) — ahí sí, cualquiera con la anon
+ * key pelada, sin sesión de ningún tipo. **011b (el corte) cierra las dos:**
+ * `drop policy device_keys_read` + `revoke select ... from anon`
+ * (`supabase/011b_relay_rls_corte.sql:69,83`) y
+ * `revoke execute ... account_keys(text) ... from public, anon` +
+ * `grant ... to authenticated` (`:86-96`). Post-011b, leer el directorio SÍ
+ * exige una sesión — cualquier sesión firmada (anónima o de cuenta le basta,
+ * Supabase les da el rol Postgres `authenticated` por igual), nunca la anon
+ * key sola. La lectura sigue funcionando igual en la práctica porque
+ * `getRelayClient()` es el cliente PERSISTIDO — para cuando esto se llama
+ * casi siempre ya tiene alguna sesión (`relayEngine.ts` la garantiza antes
+ * de sincronizar) — pero un llamado que corriera ANTES de la primera
+ * `ensureRelaySession()` (sin sesión todavía) fallaría con 42501 en un
+ * servidor con 011b corrida. No se agregó una espera explícita acá: es el
+ * mismo comportamiento "no pude preguntar → `desconocido`, nunca `falta`"
+ * que ya maneja `verifyMyKeyRegistered` (abajo), y forzar una sesión primero
+ * convertiría esta lectura, deliberadamente sin efectos secundarios, en una
+ * que sí los tiene.
  */
 export async function queryAccountKeys(accountId: string): Promise<KeysQuery> {
   const supabase = getRelayClient();
@@ -178,9 +199,12 @@ export function myKeyPresence(): KeyPresence {
  * pantalla que se lo diga. Al encender el rechazo de la fase B, esa persona
  * dejaría de sincronizar sin entender por qué.
  *
- * Leer el directorio NO necesita sesión —la política de select es abierta—
- * así que esto se puede hacer en cada arranque, incluso antes de que
- * `verify.tsx` (T-147-b) termine de reconectar la sesión de cuenta.
+ * Leer el directorio no depende de haber reconectado ya (Obs 3: post-011b
+ * exige ALGUNA sesión firmada, pero no necesariamente la de cuenta — la
+ * anónima de una instalación que todavía no reconectó también sirve, ver el
+ * docblock de `queryAccountKeys`), así que esto se puede hacer en cada
+ * arranque, incluso antes de que `verify.tsx` (T-147-b) termine de
+ * reconectar la sesión de cuenta.
  *
  * Sólo DETECTA. Registrar necesita un `id_token` fresco, y pedirlo en silencio
  * al arrancar sería un login encubierto: la decisión de reloguearse es del
