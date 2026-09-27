@@ -9,6 +9,7 @@
     "ios": "LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 expo run:ios --no-bundler",
     "ios:eas": "eas build --profile development --platform ios",
     "ios:deploy": "eas build --platform ios --profile production --auto-submit --non-interactive",
+    "android:build": "eas build --platform android --profile production --local",
     "devices": "${ANDROID_HOME:-$HOME/Library/Android/sdk}/platform-tools/adb devices",
     "reset-project": "node ./scripts/reset-project.js",
     "eas-build-post-install": "node scripts/verificar-env-build.js",
