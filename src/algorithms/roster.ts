@@ -57,9 +57,17 @@ export function unirMiembros(a: Miembros | undefined, b: Miembros | undefined, n
   return out ?? base;
 }
 
-/** Los `'in'` del roster, en orden estable por `at` y después por id. */
-export function rosterDe(miembros: Miembros): string[] {
-  return Object.entries(miembros)
+/**
+ * Los `'in'` del roster, en orden estable por `at` y después por id.
+ *
+ * Tolera `miembros` ausente (grupo anterior a T-182 que nunca pasó por un
+ * merge ni un `conAlta`/`conBaja`): da lista vacía en vez de reventar. Sigue
+ * siendo cierto que "todo grupo nace con `miembros`" — esto es sólo la
+ * defensa de última línea para un dato que ya estaba mal antes de este
+ * campo existir.
+ */
+export function rosterDe(miembros: Miembros | undefined): string[] {
+  return Object.entries(miembros ?? {})
     .filter(([, entrada]) => entrada.estado === 'in')
     .sort(([idA, entradaA], [idB, entradaB]) =>
       entradaA.at - entradaB.at || (idA < idB ? -1 : idA > idB ? 1 : 0))

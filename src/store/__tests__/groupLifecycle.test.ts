@@ -7,8 +7,11 @@ const ADMIN = 'ua';
 const MIEMBRO = 'ub';
 
 function group(over: Partial<Group> = {}): Group {
+  const memberIds = over.memberIds ?? [ADMIN, MIEMBRO];
   return {
-    id: 'g1', name: 'Viaje', memberIds: [ADMIN, MIEMBRO], currency: 'ARS',
+    id: 'g1', name: 'Viaje', memberIds, currency: 'ARS',
+    // T-182: `miembros` es la fuente de verdad de `memberIds` (derivado).
+    miembros: Object.fromEntries(memberIds.map((uid, i) => [uid, { estado: 'in' as const, at: i }])),
     createdAt: 0, createdById: ADMIN, deletionVotes: [],
     updatedAt: 1_000, isDeleted: false, ...over,
   } as Group;

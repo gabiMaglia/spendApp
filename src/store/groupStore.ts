@@ -12,6 +12,7 @@ import { signLeaveApproval } from '@/src/sync/leaveApprovalSign';
 import { yaAprobo } from '@/src/algorithms/leaveRequest';
 import type { LeaveApproval } from '@/src/types/models';
 import { recordError } from '@/src/services/errorLog';
+import { conBaja, rosterDe } from '@/src/algorithms/roster';
 
 const storage = createSecureStorage('groups');
 const KEY = 'data_v1';
@@ -69,9 +70,27 @@ export const useGroupStore = create<GroupStoreState>((set, get) => ({
     const actual = get().groups.find(g => g.id === id);
     if (!actual) return true;
 
+    // `memberIds` es derivado de `miembros` (T-182) — nadie lo escribe
+    // directo, ni siquiera por acá. En dev es un error de programación (se
+    // tira para que se note en el momento); en prod se ignora ese campo del
+    // patch antes que dejar un grupo con un `memberIds` que no salió de
+    // `conAlta`/`conBaja` y que el próximo merge va a pisar igual.
+    if ('memberIds' in patch) {
+      if (__DEV__) {
+        throw new Error(
+          'updateGroup: memberIds es derivado de miembros — usar conAlta/conBaja (src/algorithms/roster.ts)',
+        );
+      }
+      const { memberIds: _ignorado, ...resto } = patch;
+      patch = resto;
+    }
+
     const ahora = syncedNow();
+    const patchConRoster = patch.miembros !== undefined
+      ? { ...patch, memberIds: rosterDe(patch.miembros) }
+      : patch;
     const firmado = signOnEdit('group', actual, {
-      ...actual, ...patch, updatedAt: siguienteUpdatedAt(actual.updatedAt, ahora),
+      ...actual, ...patchConRoster, updatedAt: siguienteUpdatedAt(actual.updatedAt, ahora),
     });
     if (firmado === null) {
       // T-152 · D2 (hoy inalcanzable: el núcleo del grupo no incluye nada que
@@ -106,7 +125,8 @@ export const useGroupStore = create<GroupStoreState>((set, get) => ({
   },
 
   /**
-   * Salir del grupo = sacarme de `memberIds`. El grupo sigue vivo para el resto.
+   * Salir del grupo = darme de baja en `miembros` (T-182; `memberIds` sale
+   * derivado de ahí). El grupo sigue vivo para el resto.
    *
    * NO se borran mis gastos: las deudas que generé siguen existiendo y los que
    * quedan tienen que poder verlas para saldar cuentas. Irse no es lo mismo que
@@ -116,7 +136,7 @@ export const useGroupStore = create<GroupStoreState>((set, get) => ({
     const ahora = syncedNow();
     const groups = get().groups.map(g =>
       g.id === id
-        ? { ...g, memberIds: g.memberIds.filter(m => m !== userId), updatedAt: siguienteUpdatedAt(g.updatedAt, ahora) }
+        ? { ...conBaja(g, userId, ahora), updatedAt: siguienteUpdatedAt(g.updatedAt, ahora) }
         : g,
     );
     persist(groups);
