@@ -33,6 +33,15 @@ function legacyFlagKey(base: string): string {
 // La clave del mapa incluye la identidad del `storage`: varios stores repiten
 // el mismo `base` ('data_v1') pero en buckets MMKV distintos — sin esto, dos
 // pendientes de stores distintos con el mismo `base` se pisarían entre sí.
+//
+// Ventana residual: el paso a background/inactive y un merge de cuentas
+// vacían lo pendiente explícitamente (ver `flushOnBackground.ts` y
+// `accountLink.ts#mergeAccounts`), pero si el SO mata el proceso SIN pasar
+// por ninguno de los dos —un kill duro, no un backgrounding normal— esa
+// escritura nunca llega a vaciarse. Lo que se puede perder en ese caso son,
+// como mucho, los últimos ~300ms de ediciones (un `SCOPED_WRITE_DELAY_MS` de
+// margen), nunca más que eso: cada escritura nueva reinicia su propio timer,
+// pero ninguna espera más que este valor desde la última.
 export const SCOPED_WRITE_DELAY_MS = 300;
 
 type Pendiente = {

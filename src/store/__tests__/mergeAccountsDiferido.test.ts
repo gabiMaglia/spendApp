@@ -37,7 +37,7 @@ describe('mergeAccounts no pierde una escritura diferida reciente', () => {
       .forEach(b => createSecureStorage(b as any).clearAll());
     useAuthStore.setState({ currentUser: { id: APPLE } as User, isPro: false, isLoading: false });
     useExpenseStore.setState({ expenses: [], isLoading: false });
-    usePersonalStore.setState({ entries: [], isLoading: false });
+    usePersonalStore.setState({ entries: [] });
   });
 
   afterEach(() => {

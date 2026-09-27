@@ -9,6 +9,7 @@ import { mergeGroupsPure } from './mergeGroupsPure';
 import { mergeUsersPure } from './mergeUsersPure';
 import { mergePersonalPure } from './mergePersonalPure';
 import { K_INVITES, K_PENDING, K_CONTACT_INVITES, K_CONTACT_PENDING } from './identityStore';
+import { flushScopedWrites } from './userScope';
 import type { User } from '@/src/types/models';
 import type { GroupInvite } from '@/src/sync/groupInvite';
 import type { ContactInvite } from '@/src/sync/contactInvite';
@@ -155,6 +156,15 @@ const kContactPending = ranura('groupkeys', K_CONTACT_PENDING);
  * sincronizar, no un LWW genérico (T-149) — y no borra el origen.
  */
 export function mergeAccounts(fromAccountId: string, toAccountId: string): MergeReport {
+  // T-156 (bloqueante QA): esta función y todo lo que llama de acá para
+  // abajo (`mergeAccountData`, `mergePersonal`, `mergeNotices`, ninguna
+  // exportada aparte de ésta) leen MMKV crudo con `storage.getString`. Una
+  // escritura reciente todavía en el debounce de `writeScopedLazy` no está en
+  // disco — sin vaciarla ACÁ, antes de leer nada, un link que ocurre a menos
+  // de 300ms de un `addExpense`/`addEntry` la deja invisible en la cuenta
+  // destino.
+  flushScopedWrites();
+
   const now = syncedNow();
   const stores: StoreAFusionar[] = MERGEABLE_STORES.map(
     ([name, regla]) => [createSecureStorage(name), DATA_KEY, regla],
