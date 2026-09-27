@@ -13,6 +13,17 @@ describe('turnstileHtml', () => {
   it('usa tamaño flexible para que un desafío alto en Android no se corte', () => {
     expect(turnstileHtml('k')).toContain("size: 'flexible'");
   });
+  /**
+   * T-147 (rediseño, evidencia de campo del PO): el widget se veía "gigante"
+   * (zoom de Android) — sin `maximum-scale`/`user-scalable=no`, el WebView
+   * puede reescalar la página al medir su contenido, agrandando la casilla
+   * en vez de dejarla a tamaño natural.
+   */
+  it('fija el viewport (sin zoom) para que el widget no se vea gigante en Android', () => {
+    const html = turnstileHtml('k');
+    expect(html).toMatch(/<meta name="viewport" content="[^"]*maximum-scale=1[^"]*"/);
+    expect(html).toMatch(/<meta name="viewport" content="[^"]*user-scalable=no[^"]*"/);
+  });
 });
 
 describe('parseTurnstileMessage', () => {
