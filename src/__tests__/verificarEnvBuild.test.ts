@@ -69,9 +69,10 @@ describe('verificar-env-build', () => {
     const auth = readFileSync(join(__dirname, '..', '..', 'app', 'auth', 'index.tsx'), 'utf8');
     // T-147: las de Turnstile las lee el puente del captcha, no `relay.ts`.
     const captchaBridge = readFileSync(join(__dirname, '..', 'sync', 'captchaBridge.ts'), 'utf8');
-    const captchaHost = readFileSync(join(__dirname, '..', 'components', 'CaptchaHost.tsx'), 'utf8');
+    // T-147 (rediseño): CaptchaHost se reemplazó por TurnstileWidget (inline en verify.tsx).
+    const turnstileWidget = readFileSync(join(__dirname, '..', 'components', 'TurnstileWidget.tsx'), 'utf8');
     const usadas = new Set(
-      [...(relay + auth + captchaBridge + captchaHost).matchAll(/process\.env\.(EXPO_PUBLIC_[A-Z0-9_]+)/g)].map(m => m[1]),
+      [...(relay + auth + captchaBridge + turnstileWidget).matchAll(/process\.env\.(EXPO_PUBLIC_[A-Z0-9_]+)/g)].map(m => m[1]),
     );
     expect([...usadas].sort()).toEqual([...REQUERIDAS].sort());
   });

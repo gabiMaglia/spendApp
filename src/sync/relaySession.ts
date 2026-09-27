@@ -152,10 +152,20 @@ async function abrirSesion(permitirCaptcha: boolean): Promise<SessionKind> {
  * entrada) es el freno: en `false`, si no hay sesión no se intenta abrir
  * ninguna — nunca se pide un token, nunca se muestra nada. El aviso
  * `SinSesionDeSync` ya existente es quien avisa en pantalla, no un modal.
+ *
+ * `opciones.ignorarCooldown` (fix "Reintentar no funciona" — evidencia de
+ * campo del PO): `SESSION_RETRY_MS` frena el REINTENTO DE FONDO después de
+ * un fallo, para no golpear el servidor una vez por poll. Un "Reintentar"
+ * tocado a mano en `verify.tsx` no es ese reintento de fondo — es la persona
+ * pidiendo, explícitamente, que se lo intente DE NUEVO ya — así que ignora
+ * ese cooldown en vez de comerse el toque en silencio.
  */
-export function ensureRelaySession(permitirCaptcha: boolean = true): Promise<SessionKind> {
+export function ensureRelaySession(
+  permitirCaptcha: boolean = true,
+  opciones?: { ignorarCooldown?: boolean },
+): Promise<SessionKind> {
   if (enCurso) return enCurso;
-  const promesa = hacerEnsure(permitirCaptcha);
+  const promesa = hacerEnsure(permitirCaptcha, opciones?.ignorarCooldown ?? false);
   enCurso = promesa.finally(() => { enCurso = null; });
   return enCurso;
 }
@@ -217,8 +227,10 @@ function withNetworkTimeout<T>(fn: () => Promise<T>, ms: number, fallback: T): P
  * colgado seguiría bloqueando la cola para siempre aunque ESTA llamada se
  * rindiera a los `SESSION_TIMEOUT_MS`.
  */
-function hacerEnsure(permitirCaptcha: boolean): Promise<SessionKind> {
-  return cola.run(() => withNetworkTimeout(() => hacerEnsureSinCola(permitirCaptcha), SESSION_TIMEOUT_MS, 'none' as SessionKind));
+function hacerEnsure(permitirCaptcha: boolean, ignorarCooldown: boolean): Promise<SessionKind> {
+  return cola.run(() => withNetworkTimeout(
+    () => hacerEnsureSinCola(permitirCaptcha, ignorarCooldown), SESSION_TIMEOUT_MS, 'none' as SessionKind,
+  ));
 }
 
 /**
@@ -241,7 +253,7 @@ export async function haySesionAnonimaValida(): Promise<boolean> {
   return Boolean(data.session?.user.is_anonymous);
 }
 
-async function hacerEnsureSinCola(permitirCaptcha: boolean): Promise<SessionKind> {
+async function hacerEnsureSinCola(permitirCaptcha: boolean, ignorarCooldown: boolean): Promise<SessionKind> {
   const supabase = getRelayClient();
   if (!supabase) return 'none';
 
@@ -269,7 +281,7 @@ async function hacerEnsureSinCola(permitirCaptcha: boolean): Promise<SessionKind
     return 'none';
   }
 
-  if (ultimoFallo && Date.now() - ultimoFallo < SESSION_RETRY_MS) return 'none';
+  if (!ignorarCooldown && ultimoFallo && Date.now() - ultimoFallo < SESSION_RETRY_MS) return 'none';
 
   // Acá SÍ es seguro abrir una anónima: `getSession()` contestó sin error y
   // sin sesión (primer arranque, logout explícito que borró el storage, o el
