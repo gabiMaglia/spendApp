@@ -1,4 +1,5 @@
 import { getRelayClient } from './relay';
+import { forceClearPersistedSession } from './relaySession';
 
 /**
  * Sesión contra Supabase Auth, usada SÓLO para poder escribir en el directorio
@@ -14,7 +15,24 @@ import { getRelayClient } from './relay';
  *
  * Todo lo de acá es **best effort**: si falla, la app funciona exactamente como
  * antes de que este archivo existiera.
+ *
+ * **Verifier R3-2 (ronda 3): logout y login quedan SERIALIZADOS.** Un
+ * `signOut` lento (invitado que se desloguea) no puede terminar —y borrar el
+ * storage— DESPUÉS de que un login que arrancó mientras tanto ya escribió la
+ * sesión de cuenta. `encolarOperacion` hace que cada llamada espere a que la
+ * anterior termine del todo (éxito o error) antes de empezar la suya: mismo
+ * orden de llegada, mismo orden de efecto en el storage.
  */
+
+let operacionEnCurso: Promise<unknown> = Promise.resolve();
+
+function encolarOperacion<T>(fn: () => Promise<T>): Promise<T> {
+  const siguiente = operacionEnCurso.then(fn, fn);
+  // Nunca se propaga un rechazo por la cadena compartida: si `fn` tira, la
+  // PRÓXIMA operación encolada tiene que poder correr igual.
+  operacionEnCurso = siguiente.catch(() => undefined);
+  return siguiente;
+}
 
 export type DirectorySignIn =
   | { ok: true }
@@ -32,17 +50,15 @@ export async function signIntoDirectory(
   // servidor: uno se arregla en el .env, el otro en el panel de Supabase.
   if (!idToken) return { ok: false, reason: 'no_token' };
 
-  try {
-    // T-147 (D2, ruling ronda 2): ya no hace falta marcar "login en vuelo" —
-    // `ensureRelaySession` directamente nunca abre una anónima para una
-    // cuenta (`relaySession.ts`), así que no hay ninguna carrera que evitar
-    // acá. `signInWithIdToken` persiste la sesión de identidad sola.
-    const { error } = await supabase.auth.signInWithIdToken({ provider, token: idToken });
-    if (error) return { ok: false, reason: 'rejected', detail: error.message };
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, reason: 'rejected', detail: String(e) };
-  }
+  return encolarOperacion(async () => {
+    try {
+      const { error } = await supabase.auth.signInWithIdToken({ provider, token: idToken });
+      if (error) return { ok: false, reason: 'rejected', detail: error.message };
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, reason: 'rejected', detail: String(e) };
+    }
+  });
 }
 
 /**
@@ -54,9 +70,26 @@ export async function signIntoDirectory(
  * desloguearse en un teléfono cerraría también la sesión de Google del otro.
  * `local` sólo tira la sesión de este aparato; la próxima operación del buzón
  * abre una anónima nueva (I5, ninguna pérdida de datos).
+ *
+ * **Verifier R3-2(a): un `signOut` que falla por red NO borra el storage.**
+ * `_signOut` de auth-js hace un viaje de red incluso para `scope: 'local'`, y
+ * si ese viaje falla con algo que no sea 404/401/403/sesión-ausente, devuelve
+ * el error ANTES de llegar a `_removeSession()` — la sesión vieja (anónima,
+ * de otra cuenta) queda pegada para siempre, con o sin red. El borrado LOCAL
+ * es justo lo que `scope: 'local'` promete, así que ante cualquier error se
+ * fuerza (`forceClearPersistedSession`, vacía el bucket `'sbauth'`, exclusivo
+ * de la sesión de Supabase).
  */
 export async function signOutOfDirectory(): Promise<void> {
   const supabase = getRelayClient();
   if (!supabase) return;
-  try { await supabase.auth.signOut({ scope: 'local' }); } catch { /* no bloquea el logout local */ }
+
+  await encolarOperacion(async () => {
+    try {
+      const { error } = await supabase.auth.signOut({ scope: 'local' });
+      if (error) forceClearPersistedSession();
+    } catch {
+      forceClearPersistedSession();
+    }
+  });
 }
