@@ -67,8 +67,8 @@ describe('el núcleo de cada entidad', () => {
   it('Expense: plata, autoría y contenido del autor', () => {
     expect([...coreFieldsOf('expense')].sort()).toEqual([
       'amount', 'category', 'createdAt', 'createdById', 'currency', 'date',
-      'description', 'groupId', 'id', 'note', 'paidById', 'payers', 'rev',
-      'splitMode', 'splits',
+      'description', 'editedById', 'groupId', 'id', 'note', 'paidById', 'payers',
+      'rev', 'splitMode', 'splits',
     ]);
   });
 
@@ -212,5 +212,18 @@ describe('coreOf ignora lo que no clasificó como núcleo', () => {
     expect(FIXTURES.map(f => f.kind).sort())
       .toEqual(['comment', 'expense', 'group', 'payment', 'recurring']);
     expect([COMMENT.id, GROUP.id, RECURRING.id]).toHaveLength(3);
+  });
+
+  /**
+   * T-185 · E5. `editedById` es `'core'`: dos núcleos que sólo difieren en
+   * quién editó tienen que firmar distinto — si no, la caché de veredictos
+   * (`verdictCache.ts`, cuya clave es `canonicalCore + k + s`) le heredaría a
+   * una edición ajena el veredicto de la original.
+   */
+  it('E5: editedById adentro del núcleo — cambia el canónico', () => {
+    const sinEditar = { ...EXPENSE, editedById: undefined };
+    const editadoPorOtro = { ...EXPENSE, editedById: 'beto' };
+    expect(canonicalCore('expense', editadoPorOtro as never))
+      .not.toBe(canonicalCore('expense', sinEditar as never));
   });
 });
