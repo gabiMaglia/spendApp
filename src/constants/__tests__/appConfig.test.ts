@@ -85,7 +85,16 @@ describe('app.json — metadatos iOS (T-123)', () => {
     }
   });
 
-  it('ITSAppUsesNonExemptEncryption en true (DEC-01, ratifica ADR-010: self-classification por cifrado propio)', () => {
-    expect(app.expo.ios.infoPlist?.ITSAppUsesNonExemptEncryption).toBe(true);
+  /**
+   * En `false` desde 2026-09-27 (enmienda a ADR-010). Con `true` y sin
+   * `ITSEncryptionExportComplianceCode`, App Store Connect rechaza el build
+   * (ITMS-90592). Al responder el cuestionario de ASC — algoritmos estándar
+   * además del SO, no disponible en Francia — Apple contestó que no hace falta
+   * documentación y que se declare la clave en NO. Es la respuesta literal de
+   * Apple para esta app, no una exención inventada acá.
+   */
+  it('ITSAppUsesNonExemptEncryption en false (ASC 2026-09-27: estándar sin Francia no exige documentación)', () => {
+    expect(app.expo.ios.infoPlist?.ITSAppUsesNonExemptEncryption).toBe(false);
+    expect(app.expo.ios.infoPlist?.ITSEncryptionExportComplianceCode).toBeUndefined();
   });
 });
