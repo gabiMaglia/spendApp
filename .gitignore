@@ -78,3 +78,8 @@ play-service-account.json
 google-service-account*.json
 /credentials.json
 .worktrees/
+
+# Arnés de integración de Supabase local (T-147)
+tools/supabase-int/int.env
+tools/supabase-int/supabase/.temp/
+tools/supabase-int/supabase/.branches/
