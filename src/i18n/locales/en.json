@@ -745,6 +745,8 @@
   "captcha": {
     "title": "Confirm you're not a robot",
     "body": "A quick step to protect your groups' sync.",
-    "cancel": "Not now"
+    "cancel": "Not now",
+    "stuck": "Couldn't verify. Try again.",
+    "retry": "Retry"
   }
 }

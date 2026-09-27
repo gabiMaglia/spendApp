@@ -1,7 +1,7 @@
 import React from 'react';
 import { BackHandler } from 'react-native';
 import { render, act, fireEvent } from '@testing-library/react-native';
-import { CaptchaHost } from '../CaptchaHost';
+import { CaptchaHost, CAPTCHA_INTERACTIVE_STUCK_MS } from '../CaptchaHost';
 import * as bridge from '@/src/sync/captchaBridge';
 
 let mockUltimoOnMessage: ((e: { nativeEvent: { data: string } }) => void) | null = null;
@@ -22,6 +22,9 @@ jest.mock('react-native-webview', () => {
 });
 jest.mock('react-i18next', () => ({ useTranslation: () => ({ t: (k: string) => k }) }));
 
+const mockRecordError = jest.fn();
+jest.mock('@/src/services/errorLog', () => ({ recordError: (e: unknown) => mockRecordError(e) }));
+
 const ORIGINAL_SITEKEY = process.env.EXPO_PUBLIC_TURNSTILE_SITEKEY;
 const ORIGINAL_HOSTNAME = process.env.EXPO_PUBLIC_TURNSTILE_HOSTNAME;
 
@@ -31,6 +34,7 @@ beforeEach(() => {
   mockUltimoOnMessage = null;
   mockUltimoStyle = null;
   mockMontajes = 0;
+  mockRecordError.mockClear();
   jest.spyOn(BackHandler, 'addEventListener').mockImplementation(() => ({ remove: jest.fn() }));
 });
 
@@ -170,4 +174,91 @@ it('al desmontar deja de atender', async () => {
   const { unmount } = montar();
   unmount();
   await expect(bridge.requestCaptchaToken()).resolves.toEqual({ status: 'failed', reason: 'no_host' });
+});
+
+/**
+ * Diagnóstico (pedido del orquestador tras la evidencia de campo): sin poder
+ * ver el render real en el teléfono del PO, cada callback de Turnstile queda
+ * anotado en `errorLog` (local, sin red, sin datos sensibles — sólo el tipo
+ * de evento) para que un futuro reporte pueda decir QUÉ pasó.
+ */
+describe('diagnóstico: cada callback de Turnstile queda anotado (sin datos sensibles)', () => {
+  it('token', async () => {
+    montar();
+    const p = bridge.requestCaptchaToken();
+    await act(async () => {});
+    await enviar({ type: 'token', token: 'T-secreto' });
+    await p;
+    expect(mockRecordError).toHaveBeenCalledWith(expect.objectContaining({ screen: 'captcha', fatal: false }));
+    const mensajes = mockRecordError.mock.calls.map(([e]) => JSON.stringify(e));
+    expect(mensajes.join(' ')).not.toContain('T-secreto'); // nunca el token
+  });
+
+  it('error', async () => {
+    montar();
+    const p = bridge.requestCaptchaToken();
+    await act(async () => {});
+    await enviar({ type: 'error', code: '300030' });
+    await p;
+    expect(mockRecordError).toHaveBeenCalledWith(expect.objectContaining({ screen: 'captcha', fatal: false }));
+  });
+
+  it('interactive', async () => {
+    montar();
+    const p = bridge.requestCaptchaToken();
+    await act(async () => {});
+    await enviar({ type: 'interactive' });
+    expect(mockRecordError).toHaveBeenCalledWith(expect.objectContaining({ screen: 'captcha', fatal: false }));
+    await enviar({ type: 'token', token: 'T' });
+    await p;
+  });
+});
+
+/**
+ * BUG (fila de la retro pedida por el orquestador): "widget no se ve / no
+ * responde en N s → mensaje + Reintentar". Si Cloudflare ya pidió
+ * interacción (`interactive`) pero nunca llega ni un `token` ni un `error`
+ * ni un `expired` — el widget se ve pero no responde, o no llegó a
+ * dibujarse — la persona no puede quedarse mirando un botón "Ahora no" para
+ * siempre: a los `CAPTCHA_INTERACTIVE_STUCK_MS` se muestra el aviso y un
+ * "Reintentar" que recarga el WebView (remonta, a propósito) SIN resolver
+ * la promesa — la verificación sigue en la MISMA pantalla.
+ */
+describe('BUG: widget atascado en modo interactivo → mensaje + Reintentar', () => {
+  it('tras el tope sin respuesta, muestra el aviso y el botón Reintentar', async () => {
+    jest.useFakeTimers();
+    const { getByText } = montar();
+    const p = bridge.requestCaptchaToken();
+    await act(async () => {});
+    await enviar({ type: 'interactive' });
+
+    await act(async () => { jest.advanceTimersByTime(CAPTCHA_INTERACTIVE_STUCK_MS + 1); });
+
+    expect(getByText('captcha.stuck')).toBeTruthy();
+    expect(getByText('captcha.retry')).toBeTruthy();
+
+    await enviar({ type: 'token', token: 'T-tarde' });
+    await p;
+    jest.useRealTimers();
+  });
+
+  it('Reintentar recarga el WebView (remonta) sin resolver la promesa todavía', async () => {
+    jest.useFakeTimers();
+    const { getByText } = montar();
+    const p = bridge.requestCaptchaToken();
+    await act(async () => {});
+    await enviar({ type: 'interactive' });
+    await act(async () => { jest.advanceTimersByTime(CAPTCHA_INTERACTIVE_STUCK_MS + 1); });
+
+    let resuelto = false;
+    void p.then(() => { resuelto = true; });
+
+    await act(async () => { fireEvent.press(getByText('captcha.retry')); });
+    expect(resuelto).toBe(false); // sigue esperando, en la misma pantalla
+    expect(mockMontajes).toBe(2); // el WebView se recargó (remount a propósito)
+
+    await enviar({ type: 'token', token: 'T-al-fin' });
+    await expect(p).resolves.toEqual({ status: 'ok', token: 'T-al-fin' });
+    jest.useRealTimers();
+  });
 });
