@@ -140,12 +140,18 @@ export async function signIntoDirectory(
       vigilarRespuestaTardia(supabase, crudo);
       return { ok: false, reason: 'rejected', detail: 'timeout' };
     }
-    // T-175 (B2ii): sólo acá hay una confirmación REAL de Supabase Auth
-    // detrás — se registra como dueña de la sesión persistida para que
-    // `ensureRelaySession` (`relaySession.ts`) pueda confirmarlo después,
-    // en vez de confiar ciegamente en cualquier sesión no anónima que
-    // encuentre.
-    if (resultado.ok) registrarDuenoDeSesionDeCuenta();
+    // T-175 (B2ii, ronda 3): sólo acá hay una confirmación REAL de Supabase
+    // Auth detrás — se registra el PAR {cuenta, sesion} para que
+    // `ensureRelaySession` (`relaySession.ts`) pueda confirmar después no
+    // sólo QUIÉN está activo sino A QUÉ `session.user.id` puntual
+    // corresponde, en vez de confiar en cualquier sesión no anónima que
+    // encuentre con la cuenta correcta. `crudo` ya resolvió (es lo que
+    // `mapeado` esperó para saber que no hubo error) — releerlo acá sólo
+    // devuelve el mismo valor ya resuelto, sin pegarle a la red de nuevo.
+    if (resultado.ok) {
+      const { data } = await crudo;
+      if (data?.session) registrarDuenoDeSesionDeCuenta(data.session.user.id);
+    }
     return resultado;
   });
 }

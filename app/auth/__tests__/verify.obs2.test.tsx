@@ -43,7 +43,10 @@ const getSession = jest.fn(async () => {
 });
 const signInWithIdToken = jest.fn(async () => {
   sesion = { user: { is_anonymous: false, id: 'acc1' } }; // el login deja la sesión de identidad
-  return { error: null };
+  // T-175 (B2ii bis): `data.session` real — `signIntoDirectory` lo usa para
+  // registrar el marcador de dueño (`registrarDuenoDeSesionDeCuenta`), que
+  // `ensureRelaySession` exige después para confiar en la sesión.
+  return { data: { session: sesion }, error: null };
 });
 const mockCliente = {
   auth: {

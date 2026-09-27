@@ -83,17 +83,45 @@ export function forceClearPersistedSession(): void {
  */
 const DUENO_KEY = 'cuenta_dueno_de_sesion';
 
+type MarcadorDueno = { cuenta: string; sesion: string };
+
 /**
- * Deja constancia de que la sesión de CUENTA persistida AHORA es de quien
- * está activo. La llama `directoryAuth.signIntoDirectory` sólo tras un
- * login que resolvió DE VERDAD (nunca en el timeout, nunca en un rechazo) —
- * es la única vez que hay una confirmación real de Supabase Auth detrás:
- * `ensureRelaySession` (abajo) nunca establece confianza nueva por sí sola,
- * sólo la CONFIRMA contra lo que ya quedó registrado acá.
+ * Deja constancia de QUÉ CUENTA confirmó QUÉ SESIÓN de Supabase.
+ *
+ * **T-175 (B2ii bis, verifier ronda 3, rechazo):** la primera versión sólo
+ * guardaba `currentUser.id` — nunca a qué `session.user.id` de Supabase
+ * pertenecía. Con B logueado de verdad (marcador = 'B') y DESPUÉS una
+ * sesión de OTRO `user.id` (p.ej. A, llegada tarde sin pasar por el
+ * purgado de B2i) pisando el storage, la comparación vieja
+ * (`marcador === currentUser.id`) daba B == B — TRUE — y devolvía
+ * `'identity'` con el JWT ajeno igual: exactamente el caso que motivó B2
+ * desde el principio. Guardar el PAR y exigir que coincidan los DOS
+ * (`ensureRelaySession`, abajo) es lo que lo cierra: un `user.id` que el
+ * marcador no confirmó nunca pasa, sin importar si la cuenta activa es la
+ * correcta.
+ *
+ * La llama `directoryAuth.signIntoDirectory` sólo tras un login que
+ * resolvió DE VERDAD (nunca en el timeout, nunca en un rechazo) — es la
+ * única vez que hay una confirmación real de Supabase Auth detrás:
+ * `ensureRelaySession` nunca establece confianza nueva por sí sola, sólo la
+ * CONFIRMA contra lo que ya quedó registrado acá.
  */
-export function registrarDuenoDeSesionDeCuenta(): void {
+export function registrarDuenoDeSesionDeCuenta(sessionUserId: string): void {
   const uid = useAuthStore.getState().currentUser?.id;
-  if (uid) storage.set(DUENO_KEY, uid);
+  if (uid) storage.set(DUENO_KEY, JSON.stringify({ cuenta: uid, sesion: sessionUserId } satisfies MarcadorDueno));
+}
+
+/** Lee el marcador de dueño. Dato corrupto o ausente se trata como "sin
+ *  marcador" — nunca se inventa una confirmación que no está. */
+function leerDuenoDeSesion(): MarcadorDueno | null {
+  const raw = storage.getString(DUENO_KEY);
+  if (!raw) return null;
+  try {
+    const v = JSON.parse(raw) as Partial<MarcadorDueno>;
+    return typeof v.cuenta === 'string' && typeof v.sesion === 'string' ? (v as MarcadorDueno) : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -382,19 +410,31 @@ async function hacerEnsureSinCola(permitirCaptcha: boolean, ignorarCooldown: boo
     if (!data.session) return 'none';
 
     /**
-     * T-175 (B2ii, verifier ronda 2): defensa general — la sesión guardada
-     * puede no ser de la cuenta activa. Pasa por ejemplo cuando un login
-     * de A vence acá (`SESSION_TIMEOUT_MS`) pero auth-js la deja persistida
-     * IGUAL cuando la respuesta de red llega tarde (`_saveSession` no sabe
-     * de nuestro tope) — si para entonces ya entró B, `getSession()` le
-     * devolvería el JWT de A disfrazado de `'identity'`. Se compara contra
-     * `DUENO_KEY` (ver el docblock de `registrarDuenoDeSesionDeCuenta`
-     * arriba — no `esYo`, y por qué) en vez de confiar ciegamente en
-     * `is_anonymous: false`. Si no coincide (o nunca se registró), se purga
-     * — nunca se deja un JWT ajeno persistido — y `verify.tsx` reconecta
-     * desde cero, igual que si nunca hubiera sesión.
+     * T-175 (B2ii, verifier ronda 2 y 3): defensa general — la sesión
+     * guardada puede no ser de la cuenta activa. Pasa por ejemplo cuando un
+     * login de A vence acá (`SESSION_TIMEOUT_MS`) pero auth-js la deja
+     * persistida IGUAL cuando la respuesta de red llega tarde
+     * (`_saveSession` no sabe de nuestro tope) — si para entonces ya entró
+     * B, `getSession()` le devolvería el JWT de A disfrazado de
+     * `'identity'`. Se compara contra `DUENO_KEY` (ver el docblock de
+     * `registrarDuenoDeSesionDeCuenta` arriba — no `esYo`, y por qué) en
+     * vez de confiar ciegamente en `is_anonymous: false`.
+     *
+     * **Ronda 3:** no alcanza con que la CUENTA coincida — hace falta que
+     * el marcador haya confirmado ESTA sesión puntual
+     * (`data.session.user.id`). Si sólo se comparara la cuenta, B logueado
+     * de verdad (marcador = B) seguido de una sesión de OTRO `user.id`
+     * pisando el storage (p.ej. A, llegada tarde, sin pasar por el purgado
+     * de B2i) pasaría igual — `currentUser` sigue siendo B, así que
+     * "cuenta == cuenta" da TRUE aunque la SESIÓN sea ajena.
+     *
+     * Si no coincide (o nunca se registró), se purga — nunca se deja un
+     * JWT ajeno persistido — y `verify.tsx` reconecta desde cero, igual que
+     * si nunca hubiera sesión.
      */
-    if (storage.getString(DUENO_KEY) !== useAuthStore.getState().currentUser?.id) {
+    const marcador = leerDuenoDeSesion();
+    const uidActivo = useAuthStore.getState().currentUser?.id;
+    if (!marcador || marcador.cuenta !== uidActivo || marcador.sesion !== data.session.user.id) {
       await purgarSesionLocal(supabase);
       return 'none';
     }
