@@ -1,6 +1,5 @@
 import type { CurrencyCode } from '@/src/constants/currencies';
 import type { Expense, Group, Payment } from '@/src/types/models';
-import { requiereConfirmacion } from '@/src/algorithms/settlementStatus';
 // Sólo el tipo: `publishHealth` no puede entrar al grafo de módulos de acá.
 import type { BlockingReason } from '@/src/sync/publishHealth';
 import { mismaPersona } from '@/src/store/identityAlias';
@@ -46,21 +45,6 @@ export type Notice =
    * sería contarle al usuario algo que acaba de hacer.
    */
   | { kind: 'settled'; groupId: string; groupName: string; amount: number; currency: CurrencyCode }
-  /**
-   * Alguien dice que me pagó y **falta que yo lo confirme** (T-064).
-   *
-   * Es el mismo evento que `settled` visto desde el otro lado del mostrador, y
-   * por eso son excluyentes: en un grupo consensuado, quien cobra recibe ESTE
-   * aviso —que pide una acción— y no el otro, que sólo informa. Mandar los dos
-   * por un solo pago sería contarle dos veces lo mismo y dejarle sin saber cuál
-   * atender.
-   *
-   * Es el único aviso de la bandeja que pide hacer algo, y sin él D2 del plan
-   * —el pendiente no vence nunca— deja al saldado esperando a alguien que no se
-   * enteró de que lo esperan.
-   */
-  | { kind: 'settlement_pending'; groupId: string; groupName: string; paymentId: string;
-      amount: number; currency: CurrencyCode }
   /**
    * Este grupo dejó de sincronizar por algo que NO se arregla esperando
    * (T-058). El banner del detalle del grupo ya lo dice, pero es contextual: si
@@ -126,11 +110,11 @@ export type Notice =
 /**
  * ¿Este aviso pide que el usuario HAGA algo, o sólo informa? (T-062)
  *
- * Sólo `settlement_pending` y `sync_down` tienen algo que el usuario deba
- * resolver; el resto es historia. Switch exhaustivo A PROPÓSITO, sin
- * `default`: el tipo de retorno obliga a cubrir todos los casos, así que
- * agregar un `kind` a `Notice` sin decidir acá no compila (mismo patrón que
- * `claveDeFalloDeSync` en `sync/useSyncFailure.ts`).
+ * Sólo `sync_down` tiene algo que el usuario deba resolver de por sí; el
+ * resto es historia. Switch exhaustivo A PROPÓSITO, sin `default`: el tipo de
+ * retorno obliga a cubrir todos los casos, así que agregar un `kind` a
+ * `Notice` sin decidir acá no compila (mismo patrón que `claveDeFalloDeSync`
+ * en `sync/useSyncFailure.ts`).
  *
  * Es la cuarta vez que este repo necesita esta clasificación — T-055, T-057,
  * T-060 y la clasificación por descarte de T-063 — y todas las anteriores
@@ -138,7 +122,6 @@ export type Notice =
  */
 export function esAccionable(kind: Notice['kind']): boolean {
   switch (kind) {
-    case 'settlement_pending':
     case 'sync_down':
     // Accionable aunque lo que hay que hacer esté FUERA de la app: si se
     // clasificara como historia, el usuario no arreglaría nunca la hora y
@@ -316,31 +299,9 @@ export function noticesFor(
    * avisa en las DOS direcciones —me pagaron, o registraron que yo pagué—
    * porque en ambas alguien tocó mi saldo sin que yo estuviera mirando.
    *
-   * **G5 / T-170 · D-3.** Un pago «mío» (`createdById === yo`) cuyo núcleo NO
-   * verifica `valida` contra mis claves conocidas es exactamente el forjado
-   * de H3: el deudor lo declaró con `createdById = toUserId`, firmado con SU
-   * clave, no la mía. Sin la excepción de la segunda cláusula, el filtro lo
-   * descartaba ANTES de mirar `requiereConfirmacion`, y el acreedor nunca
-   * veía el `settlement_pending` que le toca (T-170.4).
-   *
-   * **Esto no mira "quién firmó" en abstracto — mira el VEREDICTO contra las
-   * claves conocidas de `yo`** (`requiereConfirmacion` → `nucleoDe` →
-   * `checkRecord` → `conPropiaSoloParaValida`). Desde T-170 · D-2,
-   * `checkRecord` SUMA un segundo intento con la pública de ESTE aparato
-   * cuando el registro dice ser mío, y ese intento sólo puede MEJORAR el
-   * veredicto hacia `valida` (`src/sync/authorKeys.ts`, `clavePropia`) — así
-   * que un pago que YO firmé EN ESTE MISMO APARATO ya no depende del
-   * directorio para verse `valida` (antes daba `no_verificable` y me mandaba
-   * `settlement_pending` por un pago que acababa de cargar yo mismo).
-   *
-   * **Lo que SIGUE dependiendo del directorio, y el dictamen D-2 lo nombraba
-   * así** (residual, ronda de retorno 3): un pago mío firmado desde OTRO
-   * aparato de la misma cuenta, o de antes de una reinstalación. Ahí la
-   * pública propia de ESTE aparato no es la que firmó, así que el segundo
-   * intento no mejora nada y el veredicto sigue siendo el de siempre —
-   * `no_verificable` hasta que el directorio resuelva esa otra clave (nunca
-   * un `invalida` nuevo: `conPropiaSoloParaValida` sólo puede sumar, nunca
-   * degradar).
+   * T-186 sacó el acuse (T-064): ya no hay `settlement_pending` ni
+   * `requiereConfirmacion` — todo saldo ajeno que me involucra es `settled`,
+   * sin la rama que antes distinguía quién cobra en un grupo `consensus`.
    */
   const conocidos_pagos = new Set(before.paymentIds);
   const saldos: Notice[] = paymentsAfter
@@ -348,30 +309,15 @@ export function noticesFor(
       !p.isDeleted &&
       !conocidos_pagos.has(p.id) &&
       mios.has(p.groupId) &&
-      (!esMio(p.createdById) || (esMio(p.toUserId) && requiereConfirmacion(p, groups.find(g => g.id === p.groupId)))) &&
+      !esMio(p.createdById) &&
       (esMio(p.fromUserId) || esMio(p.toUserId)))
-    .map((p): Notice => {
-      // En un grupo consensuado, quien COBRA no recibe un aviso informativo:
-      // recibe el que le pide confirmar. Ver `settlement_pending`.
-      const grupo = groups.find(g => g.id === p.groupId);
-      if (esMio(p.toUserId) && requiereConfirmacion(p, grupo)) {
-        return {
-          kind: 'settlement_pending' as const,
-          groupId: p.groupId,
-          groupName: nombre(p.groupId),
-          paymentId: p.id,
-          amount: p.amount,
-          currency: p.currency,
-        };
-      }
-      return {
-        kind: 'settled' as const,
-        groupId: p.groupId,
-        groupName: nombre(p.groupId),
-        amount: p.amount,
-        currency: p.currency,
-      };
-    });
+    .map((p): Notice => ({
+      kind: 'settled' as const,
+      groupId: p.groupId,
+      groupName: nombre(p.groupId),
+      amount: p.amount,
+      currency: p.currency,
+    }));
 
   const traspasos: Notice[] = [];
   for (const g of groups) {

@@ -27,21 +27,19 @@ jest.mock('@/src/sync/relayEngine', () => ({ schedulePublish: jest.fn(), deviceI
 const YO = 'ana';
 const grupo = (over: Partial<Group> = {}): Group => ({
   id: 'g1', name: 'Viaje', memberIds: ['ana', 'beto'], currency: 'ARS',
-  createdAt: 0, createdById: 'ana', deletionVotes: [], updatedAt: 0, isDeleted: false, ...over,
+  createdAt: 0, createdById: 'ana', updatedAt: 0, isDeleted: false, ...over,
 } as Group);
 
 const gastoPersonal = (over: Partial<Expense> = {}): Expense => ({
   id: 'p1', groupId: '', description: 'Café', amount: 5_000, currency: 'ARS',
   paidById: 'ana', splits: [{ userId: 'ana', amount: 5_000 }],
-  splitMode: 'equal', category: 'other', date: 5_000, createdAt: 0, createdById: 'ana',
-  deletionVotes: [], updatedAt: 0, isDeleted: false, ...over,
+  splitMode: 'equal', category: 'other', date: 5_000, createdAt: 0, createdById: 'ana', updatedAt: 0, isDeleted: false, ...over,
 } as Expense);
 
 const gastoDeGrupo = (over: Partial<Expense> = {}): Expense => ({
   id: 'e1', groupId: 'g1', description: 'Nafta', amount: 1_000_000, currency: 'ARS',
   paidById: 'ana', splits: [{ userId: 'ana', amount: 500_000 }, { userId: 'beto', amount: 500_000 }],
-  splitMode: 'equal', category: 'transport', date: 5_000, createdAt: 0, createdById: 'ana',
-  deletionVotes: [], updatedAt: 0, isDeleted: false, ...over,
+  splitMode: 'equal', category: 'transport', date: 5_000, createdAt: 0, createdById: 'ana', updatedAt: 0, isDeleted: false, ...over,
 } as Expense);
 
 function feed(): ReturnType<typeof useActivityFeed> {

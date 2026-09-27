@@ -11,7 +11,7 @@ jest.mock('@/src/sync/relayEngine', () => ({ schedulePublish: jest.fn(), deviceI
 const base = {
   id: 'e1', groupId: 'g1', description: 'Cena', amount: 1000, currency: 'ARS',
   paidById: 'a', splits: [], splitMode: 'equal', category: 'food',
-  date: 1, createdAt: 1, createdById: 'a', deletionVotes: [],
+  date: 1, createdAt: 1, createdById: 'a',
   updatedAt: 1_000, isDeleted: false,
 } as unknown as Expense;
 

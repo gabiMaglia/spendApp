@@ -48,22 +48,14 @@ const sinFirma = (r: Registro): Registro => {
 };
 
 /** Tres versiones del mismo id que compiten en los tres niveles a la vez. */
-function versiones(kind: CoreKind, base: Registro): Registro[] {
-  const votos = (t: number) => ({
-    deletionVotes: [{ userId: `u${t}`, votedAt: t, action: 'delete' as const }],
-  });
-  const tieneVotos = 'deletionVotes' in base;
-
+function versiones(_kind: CoreKind, base: Registro): Registro[] {
   return [
-    { ...sinFirma(base), rev: 100, updatedAt: 10, isDeleted: false,
-      ...(tieneVotos ? votos(100) : {}) },
+    { ...sinFirma(base), rev: 100, updatedAt: 10, isDeleted: false },
     // Núcleo más nuevo, `updatedAt` más viejo: los dos niveles tiran para
     // lados distintos, que es donde un merge de un solo nivel se equivoca.
-    { ...sinFirma(base), rev: 300, updatedAt: 5, isDeleted: false, createdAt: 7,
-      ...(tieneVotos ? votos(300) : {}) },
+    { ...sinFirma(base), rev: 300, updatedAt: 5, isDeleted: false, createdAt: 7 },
     // Sin `rev`: un peer que no actualizó, compitiendo contra los dos.
-    { ...sinFirma(base), updatedAt: 30, isDeleted: true, createdAt: 9,
-      ...(tieneVotos ? votos(50) : {}) },
+    { ...sinFirma(base), updatedAt: 30, isDeleted: true, createdAt: 9 },
   ];
 }
 
@@ -286,52 +278,5 @@ describe('mergeRecord no muta lo que recibe', () => {
     const antes = canonical(local);
     mergeRecord('expense', local as never, { ...local, rev: 9, updatedAt: 9 } as never, NOW);
     expect(canonical(local)).toBe(antes);
-  });
-});
-
-/**
- * Los acuses de recibo de un saldado (T-064) son colaborativos: dos personas
- * los escriben en teléfonos distintos y el merge no puede elegir uno.
- */
-describe('los acuses de un saldado se unen', () => {
-  const pago = (confirmations: unknown[], updatedAt = 1_000) => ({
-    id: 'p1', groupId: 'g1', fromUserId: 'ana', toUserId: 'beto',
-    amount: 500_000, currency: 'ARS', date: 0, createdAt: 0,
-    createdById: 'ana', rev: 1, updatedAt, isDeleted: false,
-    confirmations,
-  });
-
-  const merge = (a: ReturnType<typeof pago>, b: ReturnType<typeof pago>) =>
-    mergeRecord('payment', a as never, b as never, NOW) as unknown as
-      { confirmations: { userId: string }[] };
-
-  const acuse = (userId: string, confirmedAt: number, action = 'confirm') =>
-    ({ userId, confirmedAt, action });
-
-  it('no se pierde el aporte del otro teléfono', () => {
-    const unido = merge(pago([acuse('beto', 1_000)]), pago([acuse('caro', 2_000)]));
-    expect(unido.confirmations.map(c => c.userId).sort()).toEqual(['beto', 'caro']);
-  });
-
-  // El mismo acuse llega por dos caminos: el sobre lo republica cualquiera.
-  it('el mismo acuse repetido no se duplica', () => {
-    const unido = merge(pago([acuse('beto', 1_000)]), pago([acuse('beto', 1_000)]));
-    expect(unido.confirmations).toHaveLength(1);
-  });
-
-  // Un `updatedAt` mayor NO puede borrar un acuse: si pudiera, el que paga
-  // republica el pago y le vuela el rechazo al que cobra. Es T-053 otra vez.
-  it('un registro más nuevo sin acuses no borra los que ya había', () => {
-    const local  = pago([acuse('beto', 1_000, 'reject')]);
-    const unido  = merge(local, pago([], 9_999));
-    expect(unido.confirmations).toHaveLength(1);
-  });
-
-  // Sin esto, cada drenado del relay produce un array nuevo por cada pago y con
-  // él un re-render y una escritura a disco, cada 20 segundos.
-  it('sin cambios devuelve la MISMA referencia', () => {
-    const local = pago([acuse('beto', 1_000)]);
-    const unido = merge(local, pago([acuse('beto', 1_000)]));
-    expect(unido.confirmations).toBe(local.confirmations);
   });
 });

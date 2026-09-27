@@ -10,7 +10,7 @@ const NOW = 1_790_000_000_000;
 
 const base = (miembros: Group['miembros'] = {}): Group => ({
   id: 'g1', name: 'Viaje', memberIds: [], miembros, currency: 'ARS',
-  createdAt: 0, createdById: 'ana', deletionVotes: [], updatedAt: 0, isDeleted: false,
+  createdAt: 0, createdById: 'ana', updatedAt: 0, isDeleted: false,
 } as Group);
 
 describe('R1 · crear grupo {A,B,C}', () => {

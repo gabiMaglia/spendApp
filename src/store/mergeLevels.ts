@@ -4,7 +4,7 @@ import { mergeApprovals } from '@/src/algorithms/leaveRequest';
 import { envenenado } from './relojDelMerge';
 import { unirDisputa } from '@/src/algorithms/autoria';
 import { unirMiembros } from '@/src/algorithms/roster';
-import type { Group, LeaveRequest, NucleoDisputado, SettlementConfirmation } from '@/src/types/models';
+import type { Group, LeaveRequest, NucleoDisputado } from '@/src/types/models';
 
 /**
  * **Merge por niveles** (T-041 · S7).
@@ -23,9 +23,8 @@ import type { Group, LeaveRequest, NucleoDisputado, SettlementConfirmation } fro
  *    con firma y uno sin firma gana el que la trae (T-152); si no, gana el de
  *    `rev` mayor, que sólo sube el autor y va ADENTRO de la firma. Subirlo sin
  *    la privada del autor rompe la firma; ése es todo el mecanismo.
- * 2. **Colaborativo** — `leaveRequest.approvedBy`, `miembros`, `autoriaDisputada`
- *    y (por ahora) `confirmations` del acuse de saldado. Son aportes de gente
- *    distinta: no se eligen, se unen.
+ * 2. **Colaborativo** — `leaveRequest.approvedBy`, `miembros` y
+ *    `autoriaDisputada`. Son aportes de gente distinta: no se eligen, se unen.
  * 3. **El resto** — `updatedAt`, `isDeleted`, el nombre del grupo, el URI local
  *    del recibo. Sigue siendo LWW por `updatedAt`, exactamente como hoy, con el
  *    tope de reloj de T-144: un `updatedAt` más de `TOLERANCIA_RELOJ_MS` en el
@@ -65,36 +64,6 @@ const CAMPOS_DE_FIRMA = ['k', 's'] as const;
  */
 type Union = (local: unknown, remoto: unknown, cur: Registro, inc: Registro, now: number) => unknown;
 
-/**
- * Los acuses de recibo de un saldado (T-064).
- *
- * Se unen por contenido canónico, igual que los votos: son aportes de personas
- * distintas y elegir uno perdería el de alguien. **No se colapsa por usuario
- * acá**: cuál manda lo decide `estadoDelSaldado`, que ordena por `confirmedAt`
- * y sabe que sólo cuenta el acuse de quien cobra. Un merge que ya eligiera
- * estaría decidiendo con menos información que la que tiene el derivador.
- */
-const unirAcuses: Union = (local, remoto) => {
-  const a = local as SettlementConfirmation[] | undefined;
-  const b = remoto as SettlementConfirmation[] | undefined;
-  if (a === undefined && b === undefined) return undefined;
-
-  const porContenido = new Map<string, SettlementConfirmation>();
-  for (const c of [...(a ?? []), ...(b ?? [])]) porContenido.set(canonical(c), c);
-
-  const unido = [...porContenido]
-    .sort(([ka, ca], [kb, cb]) =>
-      ca.confirmedAt - cb.confirmedAt || (ka < kb ? -1 : ka > kb ? 1 : 0))
-    .map(([, c]) => c);
-
-  // Misma referencia cuando no cambió nada: sin esto cada drenado del relay
-  // produce un array nuevo por cada pago, y con él un re-render y una escritura
-  // a disco cada 20 segundos. Es la lección de `unirVotos`, no una micro-opt.
-  if (a !== undefined && a.length === unido.length
-      && a.every((c, i) => canonical(c) === canonical(unido[i]))) return a;
-  return unido;
-};
-
 const unirAprobaciones: Union = (local, remoto) => {
   const a = local as LeaveRequest | undefined;
   const unido = mergeApprovals(a, remoto as LeaveRequest | undefined);
@@ -126,10 +95,10 @@ const unirAutoria: Union = (local, remoto, cur, inc) =>
 
 /**
  * `miembros` (T-182): roster por miembro en vez de `memberIds` como lista
- * entera. Colaborativo porque, igual que los votos y las aprobaciones, es
- * un aporte de gente distinta — cada quien sólo escribe SU propia entrada
+ * entera. Colaborativo porque, igual que las aprobaciones, es un aporte de
+ * gente distinta — cada quien sólo escribe SU propia entrada
  * (`conAlta`/`conBaja`). `memberIds` no se toca acá: lo recalcula
- * `mergeGroupsPure` después de unir, igual que ya hace con `deletionMode`.
+ * `mergeGroupsPure` después de unir.
  */
 const unirMiembrosDeGrupo: Union = (local, remoto, _cur, _inc, now) =>
   unirMiembros(local as Group['miembros'] | undefined, remoto as Group['miembros'] | undefined, now);
@@ -145,7 +114,7 @@ const unirMiembrosDeGrupo: Union = (local, remoto, _cur, _inc, now) =>
  */
 const COLABORATIVOS: Record<CoreKind, readonly (readonly [string, Union])[]> = {
   expense: [['autoriaDisputada', unirAutoria]],
-  payment: [['confirmations', unirAcuses]],
+  payment: [],
   comment: [],
   recurring: [],
   group: [['leaveRequest', unirAprobaciones], ['miembros', unirMiembrosDeGrupo]],

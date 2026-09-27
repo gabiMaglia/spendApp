@@ -34,7 +34,7 @@ const meta = { updatedAt: 1_000, isDeleted: false };
 function grupo(): Group {
   return {
     id: 'G', name: 'Asado', memberIds: ['yo', 'beto'], currency: 'ARS',
-    createdAt: 0, createdById: 'beto', deletionVotes: [], ...meta,
+    createdAt: 0, createdById: 'beto', ...meta,
   } as unknown as Group;
 }
 
@@ -42,7 +42,7 @@ function gasto(over: Partial<Expense> = {}): Expense {
   return {
     id: 'e1', groupId: 'G', description: 'Carne', amount: 20_000, currency: 'ARS',
     paidById: 'beto', splitMode: 'equal', splits: [], category: 'food', date: 0,
-    createdAt: 0, createdById: 'beto', deletionVotes: [], ...meta, ...over,
+    createdAt: 0, createdById: 'beto', ...meta, ...over,
   } as unknown as Expense;
 }
 

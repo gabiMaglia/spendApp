@@ -22,7 +22,7 @@ const YO = 'ana';
 
 const grupo = (over: Partial<Group> = {}): Group => ({
   id: 'g1', name: 'Viaje', memberIds: ['ana', 'beto'], currency: 'ARS',
-  createdAt: 0, createdById: 'ana', deletionVotes: [], updatedAt: 0, isDeleted: false, ...over,
+  createdAt: 0, createdById: 'ana', updatedAt: 0, isDeleted: false, ...over,
 } as Group);
 
 /** Ana puso 10.000 a medias ⇒ Beto le debe 5.000. */
@@ -31,7 +31,7 @@ const gasto = (over: Partial<Expense> = {}): Expense => ({
   paidById: 'ana', splitMode: 'equal',
   splits: [{ userId: 'ana', amount: 500_000 }, { userId: 'beto', amount: 500_000 }],
   memberIds: ['ana', 'beto'], category: 'transport', date: 0, createdAt: 0,
-  createdById: 'ana', deletionVotes: [], updatedAt: 0, isDeleted: false, ...over,
+  createdById: 'ana', updatedAt: 0, isDeleted: false, ...over,
 } as Expense);
 
 /** Renderiza un hook y devuelve su resultado. */

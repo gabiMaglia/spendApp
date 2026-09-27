@@ -26,9 +26,9 @@ import { envenenado } from '@/src/store/relojDelMerge';
  *    declarar autoría ajena — justo lo que el ticket existe para detectar.
  * 2. **Editar re-firma; que un tercero toque el registro, no.** El núcleo lo
  *    reescribe únicamente su autor. Lo colaborativo (`updatedAt`, `isDeleted`,
- *    `deletionVotes`, …) está AFUERA de la firma a propósito, así que un voto de
- *    borrado de un tercero deja la firma del autor intacta y válida. Si eso se
- *    rompiera, el borrado consensuado se caería el primer día.
+ *    `deletedById`, …) está AFUERA de la firma a propósito, así que un tercero
+ *    que borra deja la firma del autor intacta y válida. Si eso se rompiera,
+ *    cualquier borrado invalidaría al autor honesto.
  * 3. **La firma no puede romper la creación.** Si no hay identidad, o el módulo
  *    no está en el build, el registro se guarda igual **sin** firma y queda
  *    `no_verificable`. Nunca se le bloquea al usuario cargar plata por un

@@ -196,16 +196,13 @@ const CASOS: CasoDeStore[] = [
     },
   },
   {
-    // rev/confirmations discriminan mergeByIdLevels (núcleo por rev + acuses
-    // unidos) de un LWW bare (T-149 · mutante payments): el destino tiene rev
-    // MAYOR y un acuse propio, la absorbida rev menor pero updatedAt más
-    // nuevo. Por niveles el núcleo (amount) del destino sobrevive y el acuse
-    // no se pierde; con LWW puro ganaría la absorbida entera —justo el
-    // defecto de TEC-03 que esta fila tiene que cazar.
+    // rev discrimina mergeByIdLevels (núcleo por rev) de un LWW bare (T-149 ·
+    // mutante payments): el destino tiene rev MAYOR, la absorbida rev menor
+    // pero updatedAt más nuevo. Por niveles el núcleo (amount) del destino
+    // sobrevive; con LWW puro ganaría la absorbida entera —justo el defecto
+    // de TEC-03 que esta fila tiene que cazar.
     bucket: 'payments',
-    seedCurrent: (o) => pago({
-      rev: 7, confirmations: [{ userId: 'beto', confirmedAt: NOW - 20_000, action: 'confirm' }], ...o,
-    }) as unknown as Syncable,
+    seedCurrent: (o) => pago({ rev: 7, ...o }) as unknown as Syncable,
     seedIncoming: (o) => pago({ updatedAt: NOW - 1000, rev: 3, amount: 900, ...o }) as unknown as Syncable,
     viaStore: (current, incoming, now) => {
       usePaymentStore.setState({ payments: current as unknown as Payment[] });

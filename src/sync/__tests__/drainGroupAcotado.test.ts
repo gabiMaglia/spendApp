@@ -114,13 +114,13 @@ describe('S3-A1 — drainGroup no adopta claves ajenas ni inyecta personal/regis
     useAuthStore.setState({ currentUser: { id: 'publisher' } as User });
     useGroupStore.setState({ groups: [
       { id: 'A', name: 'Asado', memberIds: ['publisher', VICTIM], currency: 'ARS',
-        createdAt: 0, createdById: 'publisher', deletionVotes: [],
+        createdAt: 0, createdById: 'publisher',
         updatedAt: 1_000, isDeleted: false } as any,
     ]});
     useExpenseStore.setState({ expenses: [
       { id: 'histA', groupId: 'A', description: 'Carne', amount: 20_000, currency: 'ARS',
         paidById: 'publisher', splitMode: 'equal', splits: [], category: 'food', date: 0,
-        createdAt: 0, createdById: 'publisher', deletionVotes: [],
+        createdAt: 0, createdById: 'publisher',
         updatedAt: 1_000, isDeleted: false } as any,
     ]});
     usePaymentStore.setState({ payments: [] });
@@ -177,12 +177,12 @@ describe('S3-A1 — drainGroup no adopta claves ajenas ni inyecta personal/regis
     // grupo (B), y un perfil conocido (bob) que NO es miembro local de A.
     useGroupStore.setState({ groups: [
       { id: 'A', name: 'Asado', memberIds: [VICTIM, 'mallory'], currency: 'ARS',
-        createdAt: 0, createdById: VICTIM, deletionVotes: [], updatedAt: 1_000, isDeleted: false } as any,
+        createdAt: 0, createdById: VICTIM, updatedAt: 1_000, isDeleted: false } as any,
     ]});
     useExpenseStore.setState({ expenses: [
       { id: 'eB', groupId: 'B', description: 'de B', amount: 1, currency: 'ARS',
         paidById: VICTIM, splitMode: 'equal', splits: [], category: 'food', date: 0,
-        createdAt: 0, createdById: VICTIM, deletionVotes: [], updatedAt: 1_000, isDeleted: false } as any,
+        createdAt: 0, createdById: VICTIM, updatedAt: 1_000, isDeleted: false } as any,
     ]});
     useCommentStore.setState({ comments: [
       { id: 'cB', expenseId: 'eB', authorId: VICTIM, text: 'original', createdAt: 0,
@@ -193,7 +193,7 @@ describe('S3-A1 — drainGroup no adopta claves ajenas ni inyecta personal/regis
     const delta = {
       version: 1 as const, featureVersion: 2, fromUserId: 'mallory', timestamp: Date.now(),
       groups: [{ id: 'A', name: 'Asado', memberIds: [VICTIM, 'mallory', 'bob'], currency: 'ARS',
-        createdAt: 0, createdById: 'mallory', deletionVotes: [], updatedAt: 999_999, isDeleted: false }],
+        createdAt: 0, createdById: 'mallory', updatedAt: 999_999, isDeleted: false }],
       // (a) robar+borrar el gasto de B declarando groupId propio.
       expenses: [{
         id: 'eB', groupId: 'A', rev: 999, isDeleted: true, description: 'robado',

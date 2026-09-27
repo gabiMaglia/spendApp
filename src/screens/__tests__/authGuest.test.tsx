@@ -54,7 +54,7 @@ jest.mock('@/src/store/miPerfil', () => ({ actualizarMiPerfil: jest.fn() }));
 const grupo = (id: string, memberIds: string[]): Group => ({
   id, name: 'Viaje', memberIds, currency: 'ARS',
   miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
-  createdAt: 0, createdById: memberIds[0], deletionVotes: [], updatedAt: 0, isDeleted: false,
+  createdAt: 0, createdById: memberIds[0], updatedAt: 0, isDeleted: false,
 } as Group);
 
 beforeEach(() => {

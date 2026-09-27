@@ -95,7 +95,7 @@ function grupo(): Group {
   return {
     id: 'G', name: 'Grupo', memberIds: MIEMBROS, currency: 'USD',
     miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
-    createdAt: 1, createdById: 'u1', deletionVotes: [],
+    createdAt: 1, createdById: 'u1',
     updatedAt: 1_000, isDeleted: false,
   } as Group;
 }
@@ -124,7 +124,6 @@ function gastoDeOchoMiembros(id: string, miembros: string[]): Expense {
     date: 1,
     createdAt: 1,
     createdById: miembros[0],
-    deletionVotes: [],
     updatedAt: 1_000,
     isDeleted: false,
   } as Expense;

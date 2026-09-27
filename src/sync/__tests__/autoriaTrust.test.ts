@@ -27,7 +27,6 @@ const base = {
   id: 'e1', groupId: 'g1', description: 'Cena', amount: 10_000, currency: 'ARS', paidById: 'ana',
   createdById: 'ana', splits: [], splitMode: 'equal', category: 'food', date: NOW - 10_000,
   createdAt: NOW - 10_000, updatedAt: NOW - 10_000, isDeleted: false, rev: NOW - 10_000,
-  deletionVotes: [],
 } as unknown as Expense;
 
 const deAna = { ...base, ...signCore('expense', base as never, PRIV_ANA) } as Expense;

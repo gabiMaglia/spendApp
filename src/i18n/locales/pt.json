@@ -270,13 +270,6 @@
     "settle_one": "Quitar com uma pessoa",
     "split_note": "Não dá para todos: divide-se igualmente"
   },
-  "settlement": {
-    "did_you_receive": "Você recebeu esse dinheiro?",
-    "confirm": "Sim, recebi",
-    "reject": "Não recebi",
-    "waiting": "Aguardando a confirmação de {{name}}",
-    "rejected": "{{name}} diz que não recebeu"
-  },
   "activity": {
     "title": "Atividade",
     "filter_all": "Todos",
@@ -658,7 +651,6 @@
     "inbox_open": "Ver notificações",
     "inbox_gone": "Isso já não está disponível",
     "settled": "{{name}} registrou uma quitação de {{amount}}",
-    "settlement_pending": "Alguém diz que te pagou {{amount}}. Confirme se você recebeu.",
     "sync_down_title": "«{{group}}» parou de sincronizar",
     "clock_off_title": "A hora do seu telefone está errada",
     "clock_off_body": "As datas das suas despesas podem aparecer trocadas. Confira a data e a hora do telefone; seus dados estão bem.",

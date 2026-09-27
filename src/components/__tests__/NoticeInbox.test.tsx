@@ -13,12 +13,11 @@ const item = (id: string, readAt: number | null, notice: Notice = NOTICE_GASTOS)
   id, readAt, createdAt: 1_000, notice,
 });
 
-// Los dos kinds accionables (T-062, T-186: `settlement_pending`/`sync_down` —
-// `deletion` se sacó con el modo «con acuerdo») y uno informativo, para armar
-// los escenarios de las pestañas.
+// Los dos kinds accionables (T-062, T-186: `sync_down`/`group_key_conflict` —
+// `deletion` y `settlement_pending` se sacaron con el modo «con acuerdo» y el
+// acuse) y uno informativo, para armar los escenarios de las pestañas.
 const pendiente: Notice = {
-  kind: 'settlement_pending', groupId: 'g1', groupName: 'Asado',
-  paymentId: 'p1', amount: 500, currency: 'ARS',
+  kind: 'group_key_conflict', groupId: 'g1', groupName: 'Asado', senderIds: ['beto'],
 };
 const caido: Notice = { kind: 'sync_down', groupId: 'g1', groupName: 'Asado', reason: 'too_large' };
 const restaurado: Notice = { kind: 'restored', groupId: 'g1', groupName: 'Asado', description: 'Vino' };
@@ -121,7 +120,7 @@ describe('NoticeInboxSheet', () => {
       expect(queryByText(/tab_action_count/)).toBeNull();
     });
 
-    it('tocar Acción filtra a settlement_pending/sync_down y deja leídos y sin leer', () => {
+    it('tocar Acción filtra a los accionables y deja leídos y sin leer', () => {
       const items = [
         item('a', null, NOTICE_GASTOS), // informativo: afuera
         item('b', null, pendiente),

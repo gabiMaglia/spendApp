@@ -15,8 +15,7 @@ const grupo = (over: Partial<Group> = {}): Group => {
   return {
     id: 'g1', name: 'Asado', memberIds, currency: 'ARS',
     miembros: Object.fromEntries(memberIds.map((uid, i) => [uid, { estado: 'in' as const, at: i }])),
-    createdAt: 0, createdById: 'ana', deletionVotes: [], updatedAt: 0, isDeleted: false,
-    deletionMode: 'consensus',
+    createdAt: 0, createdById: 'ana', updatedAt: 0, isDeleted: false,
     ...over,
   } as Group;
 };
@@ -25,8 +24,7 @@ const gasto = (over: Partial<Expense> = {}): Expense => ({
   id: 'e1', groupId: 'g1', description: 'Cena', amount: 1_000_000, currency: 'ARS',
   paidById: 'ana', splitMode: 'equal',
   splits: [{ userId: 'ana', amount: 500_000 }, { userId: 'beto', amount: 500_000 }],
-  category: 'food', date: 0, createdAt: 0, createdById: 'ana',
-  deletionVotes: [], updatedAt: 0, isDeleted: false, ...over,
+  category: 'food', date: 0, createdAt: 0, createdById: 'ana', updatedAt: 0, isDeleted: false, ...over,
 } as Expense);
 
 function reset() {
@@ -68,13 +66,13 @@ describe('E2 · el creador expulsa a alguien que DEBE 100', () => {
     expect(pagos[0]!.id).toBe(`expel:g1:beto:${AHORA}:0`);
   });
 
-  it('el pago derivado no pide acuse (settlementStatus): cuenta efectivo directo', () => {
+  it('el pago derivado cuenta para el balance (T-186: sin acuse)', () => {
     expulsar('g1', 'beto', AHORA);
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { estadoDelSaldado } = require('@/src/algorithms/settlementStatus');
-    const pago = usePaymentStore.getState().payments[0]!;
+    const { pagosQueCuentan } = require('@/src/algorithms/settlementStatus');
+    const pagos = usePaymentStore.getState().payments;
     const g = useGroupStore.getState().getById('g1')!;
-    expect(estadoDelSaldado(pago, g)).toBe('efectivo');
+    expect(pagosQueCuentan(pagos, g)).toHaveLength(1);
   });
 });
 

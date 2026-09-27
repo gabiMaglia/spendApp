@@ -1015,12 +1015,12 @@ describe('T-136 · claves distintas para el mismo grupo', () => {
 
   const GRUPO_FALSO = {
     id: 'g1', name: 'Viaje', memberIds: [ANA.id, MALLORY.id], currency: 'ARS',
-    createdAt: 0, createdById: MALLORY.id, deletionVotes: [], updatedAt: 1, isDeleted: false,
+    createdAt: 0, createdById: MALLORY.id, updatedAt: 1, isDeleted: false,
   } as never;
   const GASTO_FALSO = {
     id: 'e-falso', groupId: 'g1', description: 'cargado sobre la clave falsa', amount: 1, currency: 'ARS',
     paidById: ANA.id, splitMode: 'equal', splits: [], category: 'other', date: 0,
-    createdAt: 0, createdById: ANA.id, deletionVotes: [], updatedAt: 1, isDeleted: false,
+    createdAt: 0, createdById: ANA.id, updatedAt: 1, isDeleted: false,
   } as never;
 
   it('criterio 1 · dos lotes y elección de Beto: clave real con su época, nada del grupo falso, pendiente de drenaje', async () => {

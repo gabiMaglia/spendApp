@@ -270,13 +270,6 @@
     "settle_one": "Settle with one person",
     "split_note": "Not enough for everyone: split evenly"
   },
-  "settlement": {
-    "did_you_receive": "Did you receive this money?",
-    "confirm": "Yes, I got it",
-    "reject": "I didn't get it",
-    "waiting": "Waiting for {{name}} to confirm",
-    "rejected": "{{name}} says they never got it"
-  },
   "activity": {
     "title": "Activity",
     "filter_all": "All",
@@ -658,7 +651,6 @@
     "inbox_open": "View notifications",
     "inbox_gone": "That's no longer available",
     "settled": "{{name}} recorded a settlement of {{amount}}",
-    "settlement_pending": "Someone says they paid you {{amount}}. Confirm whether you received it.",
     "sync_down_title": "«{{group}}» stopped syncing",
     "clock_off_title": "Your phone's clock is wrong",
     "clock_off_body": "Your expense dates may look shifted. Check the phone's date and time; your data is fine.",

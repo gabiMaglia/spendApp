@@ -16,7 +16,7 @@ function group(over: Partial<Group> = {}): Group {
   return {
     id: 'g1', name: 'Viaje', memberIds: [ADMIN, MIEMBRO],
     miembros: { [ADMIN]: { estado: 'in', at: 0 }, [MIEMBRO]: { estado: 'in', at: 1 } },
-    currency: 'ARS', createdAt: 0, createdById: ADMIN, deletionVotes: [],
+    currency: 'ARS', createdAt: 0, createdById: ADMIN,
     updatedAt: 1_000, isDeleted: false, ...over,
   } as Group;
 }

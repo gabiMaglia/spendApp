@@ -46,7 +46,7 @@ function sembrar(miembros: number, gastos: number, conFotos: boolean) {
 
   useGroupStore.setState({ groups: [{
     id: 'G', name: 'Viaje a Bariloche', memberIds: ids, currency: 'ARS',
-    createdAt: 0, createdById: yo, deletionVotes: [], ...meta, ...FIRMA, rev: 1,
+    createdAt: 0, createdById: yo, ...meta, ...FIRMA, rev: 1,
   }] as never });
 
   useExpenseStore.setState({ expenses: Array.from({ length: gastos }, (_, i) => ({
@@ -55,8 +55,7 @@ function sembrar(miembros: number, gastos: number, conFotos: boolean) {
     amount: 123_456, currency: 'ARS', paidById: ids[i % miembros],
     splits: ids.map(uid => ({ userId: uid, amount: Math.round(123_456 / miembros), isPaid: false })),
     splitMode: 'equal', category: 'food', date: 1_700_000_000_000,
-    createdAt: 1_700_000_000_000, createdById: ids[i % miembros],
-    deletionVotes: [], ...meta, ...FIRMA, rev: 1,
+    createdAt: 1_700_000_000_000, createdById: ids[i % miembros], ...meta, ...FIRMA, rev: 1,
   })) as never });
 
   usePaymentStore.setState({ payments: [] });

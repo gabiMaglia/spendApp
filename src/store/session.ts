@@ -21,7 +21,6 @@ import { useSettingsStore } from './settingsStore';
 import { useNoticeInboxStore } from './noticeInboxStore';
 import { reloadVerdictCache } from '@/src/sync/verdictCache';
 import { reloadAuthorKeys } from '@/src/sync/authorKeys';
-import { __resetSettlementTrust } from '@/src/sync/settlementTrust';
 import { reloadRatchet } from '@/src/sync/ratchet';
 import { reloadRecordHealth } from '@/src/sync/recordHealth';
 import { reloadAuthorHealth } from '@/src/sync/authorHealth';
@@ -72,9 +71,6 @@ export function rehydrateForActiveUser(): void {
   reloadRatchet();
   reloadRecordHealth();
   reloadAuthorHealth();
-  // La caché de acuses de saldado (T-145) es por cuenta como la de veredictos:
-  // al cambiar de cuenta cambian las claves conocidas.
-  __resetSettlementTrust();
   // Los intentos de drenaje (T-146) son por topic, y los topics son por
   // cuenta: mismo hueco que los de arriba si no se sueltan acá.
   olvidarFallosDeAplicacion();

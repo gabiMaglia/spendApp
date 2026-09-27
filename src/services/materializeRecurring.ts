@@ -85,7 +85,6 @@ export function materializeRecurring(
           date:        at,
           createdAt:   at,
           createdById: t.createdById,
-          deletionVotes: [],
           updatedAt:   derivedUpdatedAt(at),
           isDeleted:   false,
         } as Expense);

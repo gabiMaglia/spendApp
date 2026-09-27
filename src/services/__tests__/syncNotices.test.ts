@@ -274,12 +274,11 @@ describe('avisos de saldo', () => {
 });
 
 describe('esAccionable (T-062)', () => {
-  it('settlement_pending, sync_down, clock_off y group_key_conflict piden acción; el resto informa', () => {
+  it('sync_down, clock_off, group_key_conflict y join_claim_stalled piden acción; el resto informa', () => {
     // `Record<Notice['kind'], boolean>` en vez de dos ejemplos sueltos: si se
     // agrega un `kind` a `Notice` sin decidir acá, este objeto deja de
     // compilar — la exhaustividad la garantiza el tipo, no el `expect` de abajo.
     const clasificacion: Record<Notice['kind'], boolean> = {
-      settlement_pending: esAccionable('settlement_pending'),
       sync_down: esAccionable('sync_down'),
       clock_off: esAccionable('clock_off'),
       group_key_conflict: esAccionable('group_key_conflict'),
@@ -296,7 +295,7 @@ describe('esAccionable (T-062)', () => {
       // `clock_off` es accionable aunque lo que hay que hacer esté FUERA de la
       // app: clasificarlo como historia dejaría al usuario viendo fechas mal
       // para siempre sin saber por qué.
-      settlement_pending: true, sync_down: true, clock_off: true,
+      sync_down: true, clock_off: true,
       // T-136: leerlo no lo resuelve — hay que elegir una clave.
       group_key_conflict: true,
       // T-172 (ítem 2): mismo criterio que `clock_off` — hay algo que hacer,

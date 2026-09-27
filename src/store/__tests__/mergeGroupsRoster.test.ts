@@ -4,14 +4,13 @@ import type { Group } from '@/src/types/models';
 /**
  * T-182 (simplificado) — integración: `mergeGroupsPure` une `miembros` POR
  * CLAVE (`unirMiembros`, colaborativo en `mergeLevels.ts`) y recalcula
- * `memberIds = rosterDe(miembros)` después, igual que ya hace con
- * `deletionMode`.
+ * `memberIds = rosterDe(miembros)` después.
  */
 const NOW = 1_790_000_000_000;
 
 const grupo = (over: Partial<Group> = {}): Group => ({
   id: 'g1', name: 'Viaje', memberIds: [], miembros: {}, currency: 'ARS',
-  createdAt: 0, createdById: 'ana', deletionVotes: [], updatedAt: 0, isDeleted: false,
+  createdAt: 0, createdById: 'ana', updatedAt: 0, isDeleted: false,
   ...over,
 } as Group);
 

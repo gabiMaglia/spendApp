@@ -34,11 +34,11 @@ const meta = { updatedAt: 1, isDeleted: false };
 
 const grupo = (id: string) => ({
   id, name: 'Viaje', memberIds: ['ana', 'u-mallory'], currency: 'ARS',
-  createdAt: 0, createdById: 'u-mallory', deletionVotes: [], ...meta,
+  createdAt: 0, createdById: 'u-mallory', ...meta,
 }) as never;
 const gasto = (id: string, groupId: string) => ({
   id, groupId, description: id, amount: 1, currency: 'ARS', paidById: 'ana', splitMode: 'equal',
-  splits: [], category: 'other', date: 0, createdAt: 0, createdById: 'ana', deletionVotes: [], ...meta,
+  splits: [], category: 'other', date: 0, createdAt: 0, createdById: 'ana', ...meta,
 }) as never;
 
 const oferta = (fromUserId: string, key: string, epoch: number): KeyOffer => ({

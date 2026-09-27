@@ -15,14 +15,14 @@ import type { Expense, Group, Payment } from '@/src/types/models';
 
 const grupo = (over: Partial<Group> = {}): Group => ({
   id: 'g1', name: 'Asado', memberIds: ['yo', 'beto', 'caro'], currency: 'ARS',
-  createdAt: 0, createdById: 'yo', deletionVotes: [], updatedAt: 0, isDeleted: false,
+  createdAt: 0, createdById: 'yo', updatedAt: 0, isDeleted: false,
   ...over,
 } as Group);
 
 const gasto = (over: Partial<Expense> = {}): Expense => ({
   id: 'e1', groupId: 'g1', description: 'Carne', amount: 1000, currency: 'ARS',
   paidById: 'yo', splits: [{ userId: 'yo', amount: 500, isPaid: false }, { userId: 'beto', amount: 500, isPaid: false }],
-  createdById: 'yo', createdAt: 0, updatedAt: 0, isDeleted: false, deletionVotes: [],
+  createdById: 'yo', createdAt: 0, updatedAt: 0, isDeleted: false,
   ...over,
 } as Expense);
 

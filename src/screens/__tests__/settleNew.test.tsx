@@ -30,7 +30,7 @@ const grupo = (): Group => ({
   // de la lista.
   id: 'g1', name: 'Viaje', memberIds: ['beto', 'ana'], currency: 'ARS',
   miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
-  createdAt: 0, createdById: 'beto', deletionVotes: [], updatedAt: 0, isDeleted: false,
+  createdAt: 0, createdById: 'beto', updatedAt: 0, isDeleted: false,
 } as Group);
 
 /** Beto pone 10.000 y se reparte en partes iguales ⇒ Ana le debe 5.000. */
@@ -39,7 +39,7 @@ const gasto = (over: Partial<Expense> = {}): Expense => ({
   paidById: 'beto', splitMode: 'equal',
   splits: [{ userId: 'ana', amount: 500_000 }, { userId: 'beto', amount: 500_000 }],
   memberIds: ['beto', 'ana'], category: 'transport', date: 0, createdAt: 0,
-  createdById: 'beto', deletionVotes: [], updatedAt: 0, isDeleted: false, ...over,
+  createdById: 'beto', updatedAt: 0, isDeleted: false, ...over,
 } as Expense);
 
 beforeEach(() => {

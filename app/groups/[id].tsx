@@ -34,11 +34,9 @@ import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { BottomSheet, SheetOption, SheetOptionAvatar } from '@/src/components/Sheet';
 import { Fab, FabRow } from '@/src/components/Fab';
 import { TrustMark } from '@/src/components/TrustMark';
-import { SettlementAcuse } from '@/src/components/SettlementAcuse';
 import { yaAprobo } from '@/src/algorithms/leaveRequest';
 import { verifyLeaveApproval } from '@/src/sync/leaveApprovalSign';
 import { authorKeysFor } from '@/src/sync/authorKeys';
-import { useSaldadoAcuse } from '@/src/hooks/useSaldadoAcuse';
 import { useRecordTrust } from '@/src/hooks/useRecordTrust';
 import { isMarked, type TrustState } from '@/src/algorithms/recordTrust';
 import { canLeaveGroup } from '@/src/algorithms/canLeaveGroup';
@@ -153,9 +151,8 @@ export default function GroupDetailScreen() {
 
   // T-104: el botón «Saldar deuda» necesita DEUDA VIVA, no solo gastos
   // cargados. `useGroupBalance` ya corre `calculateBalancesByCurrency` +
-  // `pagosQueCuentan` y descarta las monedas en cero (T-064 incluido: un
-  // saldado pendiente de acuse ya cuenta como pagado ahí adentro), así que
-  // alcanza con mirar si queda algún saldo — en cualquier moneda.
+  // `pagosQueCuentan` y descarta las monedas en cero, así que alcanza con
+  // mirar si queda algún saldo — en cualquier moneda.
   //
   // T-113 (PO): sólo si YO debo — saldo negativo en alguna moneda. Si me deben, el pago
   // lo registra quien paga; el botón no aparece para el acreedor.
@@ -763,25 +760,15 @@ function PaymentRow({
   const { t } = useTranslation();
   const c = useColors();
 
-  const acuse     = useSaldadoAcuse(payment, currentUserId);
   const fromName  = mismaPersona(payment.fromUserId, currentUserId) ? t('common.you') : getUserName(payment.fromUserId);
   const toName    = mismaPersona(payment.toUserId, currentUserId)   ? t('common.you') : getUserName(payment.toUserId);
   const dateLabel = new Date(payment.date).toLocaleDateString(i18n.language, { day: 'numeric', month: 'short' });
 
-  // T-064: sin acuse, el saldado NO se pinta como cerrado.
-  const cerrado  = acuse.estado === 'efectivo';
-  const negativo = acuse.estado === 'rechazado';
-  const tono     = negativo ? c.semantic.negative : cerrado ? c.semantic.positive : c.textTertiary;
-  const colorDelMonto = negativo ? c.semantic.negative : cerrado ? c.semantic.positive : c.textSecondary;
-
+  // T-186: sin acuse, un saldado declarado cuenta al instante.
   return (
     <BandRow last={last}>
-      <View style={[styles.rowIcon, { backgroundColor: cerrado ? c.semantic.positiveSoft : c.hair2 }]}>
-        <Ionicons
-          name={negativo ? 'close-circle-outline' : cerrado ? 'checkmark-circle-outline' : 'time-outline'}
-          size={17}
-          color={tono}
-        />
+      <View style={[styles.rowIcon, { backgroundColor: c.semantic.positiveSoft }]}>
+        <Ionicons name="checkmark-circle-outline" size={17} color={c.semantic.positive} />
       </View>
       <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
         <Text style={[Typography.bodyL, { color: c.text }]} numberOfLines={1}>
@@ -791,16 +778,8 @@ function PaymentRow({
           {t('group_detail.payment_label')} · {dateLabel}
         </Text>
         {isMarked(trust ?? 'pendiente') && <TrustMark label={t('trust.badge')} size="sm" />}
-        <SettlementAcuse
-          testID={`acuse-${payment.id}`}
-          estado={acuse.estado}
-          meToca={acuse.meToca}
-          nombreDeQuienCobra={toName}
-          onConfirmar={acuse.confirmar}
-          onRechazar={acuse.rechazar}
-        />
       </View>
-      <Text style={[Typography.amountS, { color: colorDelMonto }]}>
+      <Text style={[Typography.amountS, { color: c.semantic.positive }]}>
         {formatMoney(payment.amount, payment.currency)}
       </Text>
     </BandRow>

@@ -11,7 +11,7 @@ const A = { id: 'userA' } as const;
 const gasto = (i: number): Expense => ({
   id: `e${i}`, groupId: '', description: 'Cena', amount: 1000, currency: 'ARS',
   paidById: 'userA', splitMode: 'equal', splits: [], memberIds: ['userA'],
-  category: 'food', date: 0, createdAt: 0, createdById: 'userA', deletionVotes: [],
+  category: 'food', date: 0, createdAt: 0, createdById: 'userA',
   updatedAt: 0, isDeleted: false,
 } as unknown as Expense);
 

@@ -10,14 +10,13 @@ import { mergeByIdLWW, type Syncable } from './lww';
  * superar eso. Esto volvía falsa la premisa «reversible» que T-091 declaró
  * como parte del riesgo aceptado (`src/store/userStore.ts:70-77`).
  *
- * Mismo criterio que `enElFuturo` para los votos de borrado
- * (`src/sync/voteCore.ts:65-67`): un `updatedAt` más de `TOLERANCIA_RELOJ_MS`
- * por delante de `now` no pudo haber pasado todavía, así que:
+ * Mismo criterio que `envenenado` en `src/store/relojDelMerge.ts`: un
+ * `updatedAt` más de `TOLERANCIA_RELOJ_MS` por delante de `now` no pudo haber
+ * pasado todavía, así que:
  *
  *  1. Un ENTRANTE futuro no gana — ni reemplaza a uno local, ni se agrega si
  *     el id era nuevo. No se descarta como dato (nadie lo persiste, pero
- *     tampoco es un error): simplemente pierde el desempate por fecha, como
- *     el voto no aplicado.
+ *     tampoco es un error): simplemente pierde el desempate por fecha.
  *  2. Un LOCAL que ya quedó en el futuro (vandalizado antes de este fix)
  *     pierde contra CUALQUIER entrante no futuro, aunque el `updatedAt` del
  *     entrante sea numéricamente MENOR — es la parte que sanea lo ya

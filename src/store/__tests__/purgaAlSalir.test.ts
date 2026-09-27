@@ -38,8 +38,8 @@ jest.mock('@/src/sync/relayEngine', () => ({
  */
 const YO: User = { id: 'yo', name: 'Yo' } as User;
 const meta = { updatedAt: 1, isDeleted: false };
-const g = (id: string) => ({ id, name: id, memberIds: ['yo'], currency: 'ARS', createdAt: 0, createdById: 'yo', deletionVotes: [], ...meta }) as never;
-const e = (id: string, groupId: string) => ({ id, groupId, description: id, amount: 1, currency: 'ARS', paidById: 'yo', splitMode: 'equal', splits: [], category: 'other', date: 0, createdAt: 0, createdById: 'yo', deletionVotes: [], ...meta }) as never;
+const g = (id: string) => ({ id, name: id, memberIds: ['yo'], currency: 'ARS', createdAt: 0, createdById: 'yo', ...meta }) as never;
+const e = (id: string, groupId: string) => ({ id, groupId, description: id, amount: 1, currency: 'ARS', paidById: 'yo', splitMode: 'equal', splits: [], category: 'other', date: 0, createdAt: 0, createdById: 'yo', ...meta }) as never;
 
 beforeEach(() => {
   ['groups', 'expenses', 'payments', 'users', 'recurring', 'comments', 'groupkeys'].forEach(

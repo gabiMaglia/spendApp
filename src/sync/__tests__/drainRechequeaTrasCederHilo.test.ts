@@ -91,7 +91,7 @@ function grupo(): Group {
   return {
     id: 'G', name: 'Grupo', memberIds: ['u1', 'u2'], currency: 'USD',
     miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
-    createdAt: 1, createdById: 'u1', deletionVotes: [],
+    createdAt: 1, createdById: 'u1',
     updatedAt: 1_000, isDeleted: false,
   } as Group;
 }
@@ -102,7 +102,7 @@ function gastos(): Expense[] {
   return [0, 1].map(i => ({
     id: `e${i}`, groupId: 'G', description: `Gasto ${i}`, amount: 10, currency: 'USD',
     paidById: 'u2', splits: [{ userId: 'u2', amount: 10, isPaid: false }], splitMode: 'equal',
-    category: 'other', date: 1, createdAt: 1, createdById: 'u2', deletionVotes: [],
+    category: 'other', date: 1, createdAt: 1, createdById: 'u2',
     updatedAt: 1_000, isDeleted: false,
   } as Expense));
 }

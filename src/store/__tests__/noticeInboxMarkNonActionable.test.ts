@@ -7,9 +7,9 @@ import type { User } from '@/src/types/models';
 /**
  * T-119 (PO 2026-09-13): «abrir la campana marca como leídas todas las
  * notificaciones SIN acción». Las accionables (`esAccionable`, ya definido en
- * `syncNotices.ts` — T-186: `settlement_pending`, `sync_down`; `deletion` se
- * sacó con el modo «con acuerdo») siguen pendientes hasta resolverse: abrir
- * la bandeja NO las apaga.
+ * `syncNotices.ts` — T-186: `sync_down`, `group_key_conflict`, etc.;
+ * `deletion` y `settlement_pending` se sacaron con el modo «con acuerdo» y el
+ * acuse) siguen pendientes hasta resolverse: abrir la bandeja NO las apaga.
  *
  * `markReadWhere` es el mecanismo genérico; el predicado de "sin acción" es
  * `!esAccionable(item.notice.kind)`, la MISMA clasificación que ya usa
@@ -18,9 +18,8 @@ import type { User } from '@/src/types/models';
 
 const gasto = (g = 'g1'): Notice => ({ kind: 'expenses', groupId: g, groupName: 'Asado', count: 2 });
 const caido = (): Notice => ({ kind: 'sync_down', groupId: 'g1', groupName: 'Asado', reason: 'too_large' });
-const saldoPendiente = (): Notice => ({
-  kind: 'settlement_pending', groupId: 'g1', groupName: 'Asado', paymentId: 'p1',
-  amount: 1000, currency: 'ARS',
+const conflicto = (): Notice => ({
+  kind: 'group_key_conflict', groupId: 'g1', groupName: 'Asado', senderIds: ['beto'],
 });
 
 const T0 = Date.UTC(2026, 7, 29, 12);
@@ -33,14 +32,14 @@ beforeEach(() => {
 describe('markReadWhere — abrir la campana no toca las accionables', () => {
   it('marca leídas las que NO requieren acción, deja pendientes las que sí', () => {
     const s = createNoticeInboxStore();
-    s.getState().record([gasto(), caido(), saldoPendiente()], T0);
+    s.getState().record([gasto(), caido(), conflicto()], T0);
 
     s.getState().markReadWhere(item => !esAccionable(item.notice.kind), T0 + 10);
 
     const porKind = Object.fromEntries(s.getState().items.map(i => [i.notice.kind, i]));
     expect(porKind.expenses.readAt).toBe(T0 + 10);
     expect(porKind.sync_down.readAt).toBeNull();
-    expect(porKind.settlement_pending.readAt).toBeNull();
+    expect(porKind.group_key_conflict.readAt).toBeNull();
   });
 
   it('el contador de sin-leer sólo baja lo que se marcó', () => {

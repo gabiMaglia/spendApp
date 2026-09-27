@@ -63,8 +63,7 @@ const meta = { updatedAt: 9_000, isDeleted: false };
 const gasto = (extra: Record<string, unknown> = {}) => ({
   id: 'e-1', groupId: 'g-1', description: 'Cena', amount: 10_000, currency: 'ARS',
   paidById: 'ana', splits: [{ userId: 'ana', amount: 5_000 }, { userId: YO, amount: 5_000 }],
-  splitMode: 'equal', category: 'food', date: 1, createdAt: 1, createdById: 'ana',
-  deletionVotes: [], rev: 1_000, ...meta, ...extra,
+  splitMode: 'equal', category: 'food', date: 1, createdAt: 1, createdById: 'ana', rev: 1_000, ...meta, ...extra,
 });
 
 function delta(parcial: Partial<SyncDelta> = {}): SyncDelta {
@@ -169,7 +168,7 @@ describe('la invariante de S6: NADA deja de aplicarse por no verificar', () => {
   it('las cinco entidades firmables siguen entrando enteras', () => {
     applyDelta(delta({
       groups: [{ id: 'g-1', name: 'Asado', memberIds: ['ana', YO], currency: 'ARS',
-                 createdAt: 0, createdById: 'ana', deletionVotes: [], ...meta } as never],
+                 createdAt: 0, createdById: 'ana', ...meta } as never],
       expenses: [gasto() as never],
       payments: [{ id: 'p-1', groupId: 'g-1', fromUserId: YO, toUserId: 'ana',
                    amount: 5_000, currency: 'ARS', date: 1, createdAt: 1,

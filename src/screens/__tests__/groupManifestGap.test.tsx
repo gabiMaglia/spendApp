@@ -43,7 +43,7 @@ jest.mock('@/src/sync/useSyncFailure', () => ({
 
 const grupo = (over: Partial<Group> = {}): Group => ({
   id: 'g1', name: 'Asado', memberIds: ['ana', 'beto'], currency: 'ARS',
-  createdAt: 0, createdById: 'ana', deletionVotes: [], updatedAt: 0, isDeleted: false, ...over,
+  createdAt: 0, createdById: 'ana', updatedAt: 0, isDeleted: false, ...over,
 } as Group);
 
 beforeEach(() => {

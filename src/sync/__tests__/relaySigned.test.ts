@@ -47,13 +47,13 @@ const meta = { updatedAt: 1_000, isDeleted: false };
 const grupo = (): Group => ({
   id: 'G', name: 'Asado', memberIds: ['ana', 'beto'], currency: 'ARS',
   miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
-  createdAt: 0, createdById: 'ana', deletionVotes: [], ...meta,
+  createdAt: 0, createdById: 'ana', ...meta,
 } as Group);
 
 const gasto = (id: string, desc: string): Expense => ({
   id, groupId: 'G', description: desc, amount: 1000, currency: 'ARS',
   paidById: 'ana', splitMode: 'equal', splits: [], category: 'food', date: 0,
-  createdAt: 0, createdById: 'ana', deletionVotes: [], ...meta,
+  createdAt: 0, createdById: 'ana', ...meta,
 } as Expense);
 
 async function topicDelGrupo(): Promise<string> {

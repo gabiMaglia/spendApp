@@ -40,8 +40,8 @@ const verificadorReal: VerificadorDeNucleo = (autorId, nucleo) =>
 /**
  * Memoizado por REFERENCIA del gasto: `mergeRecord` garantiza la misma
  * referencia cuando nada cambió (I-2), así que repetir la pregunta sobre el
- * mismo objeto —un re-render, una segunda pasada de `resolvePendingDeletions`—
- * no vuelve a pagar la curva (~4 ms por firma). Sólo se cachea con el
+ * mismo objeto —un re-render, una segunda pasada del arranque— no vuelve a
+ * pagar la curva (~4 ms por firma). Sólo se cachea con el
  * verificador de PRODUCCIÓN: un test que inyecta el suyo no debe heredar el
  * resultado de otro.
  */
@@ -99,9 +99,9 @@ export function autoresVerificados(
 }
 
 /**
- * ¿Hay disputa de autoría de verdad? Ningún `forced` inmediato vale mientras
- * esto sea `true` (I-10) — ni siquiera el del autor genuino: es el predicado
- * único que usa `src/sync/forcedTrust.ts` y la UI (`app/expense/[id].tsx`).
+ * ¿Hay disputa de autoría de verdad? Usada por el banner de disputa en la UI
+ * (`app/expense/[id].tsx`) — T-186 sacó el `forced` del creador junto con el
+ * modo «con acuerdo», así que esta ya no gatea ningún borrado.
  */
 export function enDisputa(e: Expense, verificar: VerificadorDeNucleo = verificadorReal): boolean {
   return autoresVerificados(e, verificar).length > 1;

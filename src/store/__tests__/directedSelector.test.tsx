@@ -17,7 +17,7 @@ jest.mock('@/src/sync/relayEngine', () => ({ schedulePublish: jest.fn(), deviceI
 const grupo = (id: string): Group => ({
   id, name: id, memberIds: ['yo', 'beto'], currency: 'ARS',
   miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
-  createdAt: 0, createdById: 'yo', deletionVotes: [], updatedAt: 0, isDeleted: false,
+  createdAt: 0, createdById: 'yo', updatedAt: 0, isDeleted: false,
 } as Group);
 
 /** Un gasto de 10.000 pagado por `pagador`, dividido en partes iguales. */
@@ -25,8 +25,7 @@ const gasto = (id: string, groupId: string, pagador: string): Expense => ({
   id, groupId, description: id, amount: 1_000_000, currency: 'ARS',
   paidById: pagador,
   splits: [{ userId: 'yo', amount: 500_000, isPaid: false }, { userId: 'beto', amount: 500_000, isPaid: false }],
-  splitMode: 'equal', category: 'food', date: 0, createdAt: 0, createdById: pagador,
-  deletionVotes: [], updatedAt: 0, isDeleted: false,
+  splitMode: 'equal', category: 'food', date: 0, createdAt: 0, createdById: pagador, updatedAt: 0, isDeleted: false,
 } as Expense);
 
 function leer<T>(hook: () => T): T {

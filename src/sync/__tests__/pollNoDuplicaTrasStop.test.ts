@@ -66,8 +66,7 @@ function sembrarUnGrupoConClave(): void {
   useGroupStore.setState({
     groups: [{
       id: 'G', name: 'Grupo', memberIds: ['u1'], currency: 'USD', createdAt: 0, createdById: 'u1',
-      miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
-      deletionVotes: [], updatedAt: 1_000, isDeleted: false,
+      miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster) updatedAt: 1_000, isDeleted: false,
     } as Group],
     isLoading: false,
   });

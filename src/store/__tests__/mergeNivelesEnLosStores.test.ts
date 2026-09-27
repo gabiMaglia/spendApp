@@ -108,9 +108,8 @@ describe('el ataque que motiva `rev`: re-estampar un núcleo viejo', () => {
 
 describe('una disputa de autoría de un tercero no pisa el núcleo del autor', () => {
   // `autoriaDisputada` (T-170) es el campo colaborativo que le queda a
-  // `Expense` tras T-186 (se sacó `deletionVotes`) — mismo rol que tenía acá:
-  // un aporte de un tercero que la unión no puede perder aunque su lado no
-  // gane el núcleo por `rev`.
+  // `Expense`: un aporte de un tercero que la unión no puede perder aunque su
+  // lado no gane el núcleo por `rev`.
   const nucleoCompetidor = {
     id: 'e1', groupId: 'g1', description: 'Cena', amount: 1, currency: 'ARS' as const,
     paidById: 'beto', payers: [], splits: [], splitMode: 'equal' as const, category: 'food' as const,

@@ -64,12 +64,12 @@ it('un drenaje del topic viejo que vuelve después de elegir no aplica nada ni l
     version: 1 as const, featureVersion: 99, fromUserId: 'u-mallory', timestamp: Date.now(),
     groups: [{
       id: 'g1', name: 'Viaje', memberIds: ['ana', 'u-mallory'], currency: 'ARS', createdAt: 0,
-      createdById: 'u-mallory', deletionVotes: [], updatedAt: Date.now(), isDeleted: false,
+      createdById: 'u-mallory', updatedAt: Date.now(), isDeleted: false,
     }],
     expenses: [{
       id: 'e-atacante', groupId: 'g1', description: 'inyectado', amount: 100, currency: 'ARS',
       paidById: 'ana', splitMode: 'equal', splits: [], category: 'other', date: 0,
-      createdAt: Date.now(), createdById: 'u-mallory', deletionVotes: [], updatedAt: Date.now(), isDeleted: false,
+      createdAt: Date.now(), createdById: 'u-mallory', updatedAt: Date.now(), isDeleted: false,
     }],
     payments: [], users: [], recurring: [], comments: [],
   };

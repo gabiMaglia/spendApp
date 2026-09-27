@@ -108,7 +108,7 @@ describe('el núcleo de cada entidad', () => {
   });
 
   it.each(FIXTURES)('$kind: lo colaborativo queda afuera', ({ kind, record }) => {
-    const fuera = ['updatedAt', 'isDeleted', 'deletionVotes', 'leaveRequest', 'receiptImageUri', 'k', 's'];
+    const fuera = ['updatedAt', 'isDeleted', 'deletedById', 'leaveRequest', 'receiptImageUri', 'k', 's'];
     for (const campo of fuera) {
       if (campo in record) expect(coreFieldsOf(kind)).not.toContain(campo);
     }

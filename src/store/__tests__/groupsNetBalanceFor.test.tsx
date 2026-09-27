@@ -21,7 +21,7 @@ const YO = 'ana';
 
 const grupo = (over: Partial<Group> = {}): Group => ({
   id: 'g1', name: 'Viaje', memberIds: ['ana', 'beto'], currency: 'ARS',
-  createdAt: 0, createdById: 'ana', deletionVotes: [], updatedAt: 0, isDeleted: false, ...over,
+  createdAt: 0, createdById: 'ana', updatedAt: 0, isDeleted: false, ...over,
 } as Group);
 
 const gasto = (over: Partial<Expense> = {}): Expense => ({
@@ -32,7 +32,7 @@ const gasto = (over: Partial<Expense> = {}): Expense => ({
     { userId: 'beto', amount: 500_000, isPaid: false },
   ],
   memberIds: ['ana', 'beto'], category: 'transport', date: 0, createdAt: 0,
-  createdById: 'ana', deletionVotes: [], updatedAt: 0, isDeleted: false, ...over,
+  createdById: 'ana', updatedAt: 0, isDeleted: false, ...over,
 } as Expense);
 
 function usar<T>(hook: () => T): T {

@@ -15,7 +15,7 @@ const gasto = (over: Partial<Expense> = {}): Expense => ({
   paidById: 'ua', splitMode: 'equal',
   splits: [{ userId: 'ua', amount: 10000, isPaid: false }],
   category: 'food', date: 0, createdAt: 0,
-  createdById: 'ub', deletionVotes: [], updatedAt: 0, isDeleted: true, ...over,
+  createdById: 'ub', updatedAt: 0, isDeleted: true, ...over,
 } as Expense);
 
 const user = (id: string): User => ({ id, name: id } as User);

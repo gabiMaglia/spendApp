@@ -28,16 +28,14 @@ const BETO = { id: 'beto', name: 'Beto', isDeleted: false } as User;
 const grupo = (memberIds = ['ana', 'beto']): Group => ({
   id: 'g1', name: 'Asado', memberIds, currency: 'ARS',
   miembros: Object.fromEntries(memberIds.map((uid, i) => [uid, { estado: 'in' as const, at: i }])),
-  createdAt: 0, createdById: 'ana', deletionVotes: [], updatedAt: 0, isDeleted: false,
-  deletionMode: 'consensus',
+  createdAt: 0, createdById: 'ana', updatedAt: 0, isDeleted: false,
 } as Group);
 
 const gasto = (over: Partial<Expense> = {}): Expense => ({
   id: 'e1', groupId: 'g1', description: 'Cena', amount: 1_000_000, currency: 'ARS',
   paidById: 'ana', splitMode: 'equal',
   splits: [{ userId: 'ana', amount: 500_000 }, { userId: 'beto', amount: 500_000 }],
-  category: 'food', date: 0, createdAt: 0, createdById: 'ana',
-  deletionVotes: [], updatedAt: 0, isDeleted: false, ...over,
+  category: 'food', date: 0, createdAt: 0, createdById: 'ana', updatedAt: 0, isDeleted: false, ...over,
 } as Expense);
 
 beforeEach(() => {

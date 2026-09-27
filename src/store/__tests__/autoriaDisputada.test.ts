@@ -25,8 +25,7 @@ const NOW = 1_800_000_000_000;
 const deAna = {
   id: 'e1', groupId: 'g1', description: 'Cena', amount: 10_000, currency: 'ARS', paidById: 'ana',
   createdById: 'ana', splits: [], splitMode: 'equal', category: 'food', date: NOW - 10_000,
-  createdAt: NOW - 10_000, updatedAt: NOW - 10_000, isDeleted: false, rev: NOW - 10_000,
-  deletionVotes: [], k: 'aa'.repeat(32), s: 'bb'.repeat(64),
+  createdAt: NOW - 10_000, updatedAt: NOW - 10_000, isDeleted: false, rev: NOW - 10_000, k: 'aa'.repeat(32), s: 'bb'.repeat(64),
 } as unknown as Expense;
 const deMallory = { ...deAna, createdById: 'mallory', amount: 1, rev: NOW - 9_000,
   updatedAt: NOW - 9_000, k: 'cc'.repeat(32), s: 'dd'.repeat(64) } as Expense;
@@ -106,7 +105,6 @@ const anaSinFirmar = {
   id: 'e2', groupId: 'g1', description: 'Cena', amount: 10_000, currency: 'ARS', paidById: 'ana',
   createdById: 'ana', splits: [], splitMode: 'equal', category: 'food', date: NOW - 10_000,
   createdAt: NOW - 10_000, updatedAt: NOW - 10_000, isDeleted: false, rev: NOW - 10_000,
-  deletionVotes: [],
 } as unknown as Expense;
 const anaFirmada = { ...anaSinFirmar, ...signCore('expense', anaSinFirmar as never, PRIV_ANA) } as Expense;
 const malloryFirmada = {

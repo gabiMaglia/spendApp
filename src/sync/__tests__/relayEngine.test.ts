@@ -47,7 +47,7 @@ jest.mock('../contactInviteEngine', () => ({
 const ME = 'ua';
 const group = (over: Partial<Group> = {}): Group => ({
   id: 'g1', name: 'Viaje', memberIds: [ME], currency: 'ARS',
-  createdAt: 0, createdById: ME, deletionVotes: [],
+  createdAt: 0, createdById: ME,
   updatedAt: 1_000, isDeleted: false, ...over,
 } as Group);
 

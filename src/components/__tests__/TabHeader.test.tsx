@@ -83,8 +83,9 @@ describe('el header trae siempre lo mismo', () => {
 
 /**
  * **T-119 (PO 2026-09-13): abrir la campana marca leídas las que NO piden
- * acción.** Las accionables (`deletion`, `settlement_pending`, `sync_down`)
- * siguen pendientes hasta resolverse — sólo mirarlas no alcanza.
+ * acción.** Las accionables (T-186: `sync_down`, `group_key_conflict`, etc. —
+ * `deletion` y `settlement_pending` se sacaron con el modo «con acuerdo» y el
+ * acuse) siguen pendientes hasta resolverse — sólo mirarlas no alcanza.
  */
 describe('abrir la campana marca leídas las que no piden acción (T-119)', () => {
   const SIN_ACCION = {
@@ -93,10 +94,7 @@ describe('abrir la campana marca leídas las que no piden acción (T-119)', () =
   };
   const CON_ACCION = {
     id: 'n2', createdAt: 2, readAt: null,
-    notice: {
-      kind: 'settlement_pending' as const, groupId: 'g1', groupName: 'Asado',
-      paymentId: 'p1', amount: 500, currency: 'ARS' as const,
-    },
+    notice: { kind: 'sync_down' as const, groupId: 'g1', groupName: 'Asado', reason: 'too_large' as const },
   };
 
   beforeEach(() => {

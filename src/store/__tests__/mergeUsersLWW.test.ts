@@ -13,10 +13,10 @@ import type { User } from '@/src/types/models';
  * jamás va a tener un timestamp mayor a `9e15`. Esto invalidaba la premisa
  * «reversible» de T-091 (`src/store/userStore.ts:70-77`).
  *
- * Mismo criterio que `enElFuturo` de los votos de borrado
- * (`src/sync/voteCore.ts:65-67`): un `updatedAt` más de `TOLERANCIA_RELOJ_MS`
- * por delante de `now` no pudo haber pasado todavía, así que no puede ganar
- * como "más nuevo". No se descarta el registro — sólo deja de ganar por fecha.
+ * Mismo criterio que `envenenado` de `src/store/relojDelMerge.ts`: un
+ * `updatedAt` más de `TOLERANCIA_RELOJ_MS` por delante de `now` no pudo haber
+ * pasado todavía, así que no puede ganar como "más nuevo". No se descarta el
+ * registro — sólo deja de ganar por fecha.
  */
 const NOW = 1_700_000_000_000;
 

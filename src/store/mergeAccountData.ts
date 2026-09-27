@@ -30,7 +30,7 @@ import type { Syncable } from './lww';
  * **Ronda 1 del verificador (D1/D2/D3).** «Cada store declara su regla» no
  * alcanzaba cuando la regla era sólo un `CoreKind`: el sync de varios stores
  * hace más que el merge desnudo (`expenseStore.mergeExpenses` preserva el
- * recibo, `groupStore.mergeGroups` preserva el `deletionMode`, `userStore.
+ * recibo, `groupStore.mergeGroups` deriva el roster, `userStore.
  * mergeUsers` preserva el avatar), y una fusión con `mergeByIdLevels`/
  * `mergeUsersLWW` a secas se saltea esos pasos. Por eso `ReglaDeFusion` acepta
  * también la función PURA que cada store exporta (`mergeExpensesPure`,

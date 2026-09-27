@@ -208,8 +208,8 @@ export function reloadVerdictCache(): void {
 }
 
 /**
- * Sólo para tests (mismo patrón que `__resetAuthorSources`/`__resetSettlementTrust`
- * en otros módulos de sync): el `storage` real que usa este módulo, para poder
+ * Sólo para tests (mismo patrón que `__resetAuthorSources` en otros módulos
+ * de sync): el `storage` real que usa este módulo, para poder
  * espiar `.set` directamente. `createSecureStorage(id)` construye un proxy
  * NUEVO en cada llamada — el mismo id resuelve al mismo backing store, pero
  * dos proxies son dos objetos distintos, y el escritor diferido (T-156)

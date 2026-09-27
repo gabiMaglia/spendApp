@@ -30,21 +30,19 @@ const AHORA = 1_800_000_000_000;
 const grupo: Group = {
   id: 'g1', name: 'Asado', memberIds: ['ana'], currency: 'ARS',
   miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
-  createdAt: 0, createdById: 'ana', deletionVotes: [], updatedAt: 0, isDeleted: false,
+  createdAt: 0, createdById: 'ana', updatedAt: 0, isDeleted: false,
 } as Group;
 
 const gastoDeGrupo = {
   id: 'e1', groupId: 'g1', description: 'Carne', amount: 100_000, currency: 'ARS',
   paidById: 'ana', splitMode: 'equal', splits: [{ userId: 'ana', amount: 100_000, isPaid: true }],
-  category: 'food', date: AHORA, createdAt: AHORA, createdById: 'ana',
-  deletionVotes: [], updatedAt: AHORA, isDeleted: false,
+  category: 'food', date: AHORA, createdAt: AHORA, createdById: 'ana', updatedAt: AHORA, isDeleted: false,
 } as Expense;
 
 const gastoPersonal = {
   id: 'p1', groupId: '', description: 'Café', amount: 5_000, currency: 'ARS',
   paidById: 'ana', splitMode: 'equal', splits: [{ userId: 'ana', amount: 5_000, isPaid: true }],
-  category: 'other', date: AHORA, createdAt: AHORA, createdById: 'ana',
-  deletionVotes: [], updatedAt: AHORA, isDeleted: false,
+  category: 'other', date: AHORA, createdAt: AHORA, createdById: 'ana', updatedAt: AHORA, isDeleted: false,
 } as Expense;
 
 beforeEach(() => {

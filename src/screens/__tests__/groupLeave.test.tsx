@@ -32,7 +32,7 @@ const BETO = { id: 'beto', name: 'Beto', isDeleted: false } as User;
 const grupo = (memberIds = ['ana', 'beto']): Group => ({
   id: 'g1', name: 'Asado', memberIds, currency: 'ARS',
   miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
-  createdAt: 0, createdById: 'beto', deletionVotes: [], updatedAt: 0, isDeleted: false,
+  createdAt: 0, createdById: 'beto', updatedAt: 0, isDeleted: false,
 } as Group);
 
 /** Beto puso 10.000 a medias ⇒ Ana le debe 5.000. */
@@ -41,8 +41,7 @@ const gastoConDeuda = (): Expense => ({
   paidById: 'beto', splitMode: 'equal',
   splits: [{ userId: 'ana', amount: 500_000, isPaid: false },
            { userId: 'beto', amount: 500_000, isPaid: false }],
-  category: 'food', date: 0, createdAt: 0, createdById: 'beto',
-  deletionVotes: [], updatedAt: 0, isDeleted: false,
+  category: 'food', date: 0, createdAt: 0, createdById: 'beto', updatedAt: 0, isDeleted: false,
 } as Expense);
 
 beforeEach(() => {

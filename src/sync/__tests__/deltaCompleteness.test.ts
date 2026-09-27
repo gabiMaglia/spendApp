@@ -34,7 +34,7 @@ const ENTITIES = [
   },
   {
     name: 'gastos',
-    seed: () => useExpenseStore.setState({ expenses: [{ ...meta('e1'), groupId: 'g1', description: 'Cena', amount: 100, currency: 'ARS', paidById: ME, splits: [], splitMode: 'equal', category: 'food', date: 0, createdAt: 0, createdById: ME, deletionVotes: [] } as any] }),
+    seed: () => useExpenseStore.setState({ expenses: [{ ...meta('e1'), groupId: 'g1', description: 'Cena', amount: 100, currency: 'ARS', paidById: ME, splits: [], splitMode: 'equal', category: 'food', date: 0, createdAt: 0, createdById: ME, } as any] }),
     read: () => useExpenseStore.getState().expenses.map(x => x.id),
   },
   {

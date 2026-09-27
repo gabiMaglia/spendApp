@@ -27,16 +27,16 @@ const NOW = 1_790_000_000_000;
 const gasto = (over: Partial<Expense> = {}): Expense => ({
   id: 'e1', groupId: 'g1', description: 'Cena', amount: 1000, currency: 'ARS',
   paidById: 'ana', splits: [], splitMode: 'equal', category: 'food', date: 0,
-  createdAt: 0, createdById: 'ana', deletionVotes: [], updatedAt: NOW - 10_000, isDeleted: false, ...over,
+  createdAt: 0, createdById: 'ana', updatedAt: NOW - 10_000, isDeleted: false, ...over,
 } as Expense);
 
 const grupo = (over: Partial<Group> = {}): Group => ({
-  id: 'g1', name: 'Viaje', memberIds: ['ana', 'beto'], currency: 'ARS', deletionMode: 'consensus',
+  id: 'g1', name: 'Viaje', memberIds: ['ana', 'beto'], currency: 'ARS',
   // T-182: `miembros` es la fuente de verdad de `memberIds` (derivado) — el
   // roster ya no se ataca mandando un `memberIds` distinto (se ignora), sino
   // un `miembros` con un `at` envenenado (ver el test de abajo).
   miembros: { ana: { estado: 'in', at: 0 }, beto: { estado: 'in', at: 1 } },
-  createdAt: 0, createdById: 'ana', deletionVotes: [], updatedAt: NOW - 10_000, isDeleted: false, ...over,
+  createdAt: 0, createdById: 'ana', updatedAt: NOW - 10_000, isDeleted: false, ...over,
 } as Group);
 
 const delta = (parte: Partial<SyncDelta>): SyncDelta => ({

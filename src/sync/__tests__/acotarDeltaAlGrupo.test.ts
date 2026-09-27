@@ -17,20 +17,20 @@ function deltaBase(): SyncDelta {
     timestamp: 0,
     groups: [
       { id: 'A', name: 'A', memberIds: ['victim', 'mallory'], currency: 'ARS',
-        createdAt: 0, createdById: 'victim', deletionVotes: [], ...meta } as any,
+        createdAt: 0, createdById: 'victim', ...meta } as any,
     ],
     expenses: [
       { id: 'eA', groupId: 'A', description: 'del grupo', amount: 10, currency: 'ARS',
         paidById: 'victim', splitMode: 'equal', splits: [], category: 'food', date: 0,
-        createdAt: 0, createdById: 'victim', deletionVotes: [], ...meta } as any,
+        createdAt: 0, createdById: 'victim', ...meta } as any,
       // Registro cruzado / de otro grupo — no debe sobrevivir al recorte.
       { id: 'eB', groupId: 'B', description: 'de otro grupo', amount: 20, currency: 'ARS',
         paidById: 'victim', splitMode: 'equal', splits: [], category: 'food', date: 0,
-        createdAt: 0, createdById: 'victim', deletionVotes: [], ...meta } as any,
+        createdAt: 0, createdById: 'victim', ...meta } as any,
       // El vector T-116: groupId '' se cuela a la pestaña Personal si no se filtra.
       { id: 'ePersonal', groupId: '', description: 'inyectado', amount: 30, currency: 'ARS',
         paidById: 'victim', splitMode: 'equal', splits: [], category: 'food', date: 0,
-        createdAt: 0, createdById: 'mallory', deletionVotes: [], ...meta } as any,
+        createdAt: 0, createdById: 'mallory', ...meta } as any,
     ],
     payments: [
       { id: 'pA', groupId: 'A', fromUserId: 'mallory', toUserId: 'victim', amount: 5,
@@ -128,7 +128,7 @@ describe('acotarDeltaAlGrupo — el receptor sólo aplica lo del grupo del topic
   it('un usuario YA CONOCIDO localmente y miembro LOCAL de A pasa', () => {
     useGroupStore.setState({ groups: [
       { id: 'A', name: 'A', memberIds: ['victim', 'mallory', 'local-only'], currency: 'ARS',
-        createdAt: 0, createdById: 'victim', deletionVotes: [], ...meta } as any,
+        createdAt: 0, createdById: 'victim', ...meta } as any,
     ]});
     useUserStore.setState({ users: [{ id: 'local-only', name: 'Local' } as any] });
     const delta = deltaBase();
@@ -176,14 +176,14 @@ describe('ronda 2 — el filtro no confía en lo que declara el registro entrant
     useExpenseStore.setState({ expenses: [
       { id: 'eB', groupId: 'B', description: 'de B', amount: 1, currency: 'ARS',
         paidById: 'victim', splitMode: 'equal', splits: [], category: 'food', date: 0,
-        createdAt: 0, createdById: 'victim', deletionVotes: [], ...meta } as any,
+        createdAt: 0, createdById: 'victim', ...meta } as any,
     ]});
 
     const delta = deltaBase();
     delta.expenses = [{
       id: 'eB', groupId: 'A', rev: 999, isDeleted: true, description: 'robado',
       amount: 1, currency: 'ARS', paidById: 'mallory', splitMode: 'equal', splits: [],
-      category: 'food', date: 0, createdAt: 0, createdById: 'mallory', deletionVotes: [],
+      category: 'food', date: 0, createdAt: 0, createdById: 'mallory',
       updatedAt: 999_999,
     } as any];
 
@@ -244,7 +244,7 @@ describe('ronda 2 — el filtro no confía en lo que declara el registro entrant
     useExpenseStore.setState({ expenses: [
       { id: 'eB', groupId: 'B', description: 'de B', amount: 1, currency: 'ARS',
         paidById: 'victim', splitMode: 'equal', splits: [], category: 'food', date: 0,
-        createdAt: 0, createdById: 'victim', deletionVotes: [], ...meta } as any,
+        createdAt: 0, createdById: 'victim', ...meta } as any,
     ]});
     useCommentStore.setState({ comments: [
       { id: 'cB', expenseId: 'eB', authorId: 'victim', text: 'original', createdAt: 0, ...meta } as any,
@@ -267,7 +267,7 @@ describe('ronda 2 — el filtro no confía en lo que declara el registro entrant
 
     const delta = deltaBase();
     delta.groups = [{ id: 'A', name: 'A', memberIds: ['victim', 'mallory', 'bob'], currency: 'ARS',
-      createdAt: 0, createdById: 'mallory', deletionVotes: [], updatedAt: 999_999, isDeleted: false } as any];
+      createdAt: 0, createdById: 'mallory', updatedAt: 999_999, isDeleted: false } as any];
     delta.users = [{ id: 'bob', name: 'BOB HACKEADO', email: 'evil@x' } as any];
 
     const r = acotarDeltaAlGrupo(delta, 'A');
@@ -282,7 +282,7 @@ describe('ronda 2 — el filtro no confía en lo que declara el registro entrant
     // Contraste con el caso anterior: acá no hay perfil previo que pisar.
     const delta = deltaBase();
     delta.groups = [{ id: 'A', name: 'A', memberIds: ['victim', 'mallory', 'carol'], currency: 'ARS',
-      createdAt: 0, createdById: 'mallory', deletionVotes: [], updatedAt: 999_999, isDeleted: false } as any];
+      createdAt: 0, createdById: 'mallory', updatedAt: 999_999, isDeleted: false } as any];
     delta.users.push({ id: 'carol', name: 'Carol' } as any);
 
     const r = acotarDeltaAlGrupo(delta, 'A');

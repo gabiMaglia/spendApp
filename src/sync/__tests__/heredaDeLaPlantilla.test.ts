@@ -36,8 +36,7 @@ const materializado = (t: RecurringExpense, at = VENC): Expense => ({
   groupId: t.groupId, description: t.description, amount: t.amount,
   currency: t.currency, paidById: t.paidById, splitMode: t.splitMode,
   splits: buildSplits(t.amount, t.memberIds, t.splitMode, t.splitValues),
-  category: t.category, date: at, createdAt: at, createdById: t.createdById,
-  deletionVotes: [], updatedAt: at, isDeleted: false,
+  category: t.category, date: at, createdAt: at, createdById: t.createdById, updatedAt: at, isDeleted: false,
 } as Expense);
 
 beforeEach(() => {

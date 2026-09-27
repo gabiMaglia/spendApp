@@ -17,7 +17,7 @@ const ANA = { id: 'ana', name: 'Ana' } as User;
 const grupo = (id: string, name: string): Group => ({
   id, name, memberIds: ['ana'], currency: 'ARS',
   miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
-  createdAt: 0, createdById: 'ana', deletionVotes: [], updatedAt: 0, isDeleted: false,
+  createdAt: 0, createdById: 'ana', updatedAt: 0, isDeleted: false,
 } as Group);
 
 beforeEach(() => {
@@ -139,7 +139,7 @@ describe('"total total" al pie — cambia con la pestaña', () => {
   const conDosMiembros = (id: string): Group => ({
     id, name: id, memberIds: ['ana', 'beto'], currency: 'ARS',
     miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
-    createdAt: 0, createdById: 'ana', deletionVotes: [], updatedAt: 0, isDeleted: false,
+    createdAt: 0, createdById: 'ana', updatedAt: 0, isDeleted: false,
   } as Group);
 
   /** Ana pagó 10.000 a medias ⇒ Beto le debe 5.000 (Ana en positivo). */
@@ -151,7 +151,7 @@ describe('"total total" al pie — cambia con la pestaña', () => {
       { userId: 'beto', amount: 500_000, isPaid: false },
     ],
     memberIds: ['ana', 'beto'], category: 'other', date: 0, createdAt: 0,
-    createdById: 'ana', deletionVotes: [], updatedAt: 0, isDeleted: false,
+    createdById: 'ana', updatedAt: 0, isDeleted: false,
   } as Expense);
 
   /** Beto pagó 20.000 a medias ⇒ Ana le debe 10.000 (Ana en negativo). */
@@ -163,7 +163,7 @@ describe('"total total" al pie — cambia con la pestaña', () => {
       { userId: 'beto', amount: 1_000_000, isPaid: true },
     ],
     memberIds: ['ana', 'beto'], category: 'other', date: 0, createdAt: 0,
-    createdById: 'ana', deletionVotes: [], updatedAt: 0, isDeleted: false,
+    createdById: 'ana', updatedAt: 0, isDeleted: false,
   } as Expense);
 
   it('neta los grupos activos visibles, y cambia al pasar a archivados', () => {

@@ -83,13 +83,13 @@ function sembrar(): void {
     groups.push({
       id: groupId, name: `Grupo ${g}`, memberIds: [YO], currency: 'ARS',
       miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
-      createdAt: 0, createdById: YO, deletionVotes: [], ...meta,
+      createdAt: 0, createdById: YO, ...meta,
     } as Group);
     for (let i = 0; i < GASTOS_POR_GRUPO; i++) {
       expenses.push({
         id: `e${g}_${i}`, groupId, description: `Gasto ${g}-${i}`, amount: 100,
         currency: 'ARS', paidById: YO, splitMode: 'equal', splits: [], category: 'food',
-        date: 0, createdAt: 0, createdById: YO, deletionVotes: [], receiptImageUri: 'file:///r.jpg',
+        date: 0, createdAt: 0, createdById: YO, receiptImageUri: 'file:///r.jpg',
         ...meta,
       } as unknown as Expense);
     }

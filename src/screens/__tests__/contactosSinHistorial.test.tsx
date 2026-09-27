@@ -30,14 +30,14 @@ const CARO = { id: 'caro', name: 'Caro', isDeleted: false } as User;
 
 const GRUPO = {
   id: 'g1', name: 'Asado', memberIds: ['yo', 'beto'], currency: 'ARS',
-  createdAt: 0, createdById: 'yo', deletionVotes: [], updatedAt: 0, isDeleted: false,
+  createdAt: 0, createdById: 'yo', updatedAt: 0, isDeleted: false,
 } as unknown as Group;
 
 /** Yo pagué 1000 a medias con Beto, y Beto me devolvió 500: quedamos a mano. */
 const GASTO = {
   id: 'e1', groupId: 'g1', description: 'Carne', amount: 1000, currency: 'ARS', paidById: 'yo',
   splits: [{ userId: 'yo', amount: 500, isPaid: false }, { userId: 'beto', amount: 500, isPaid: false }],
-  createdById: 'yo', createdAt: 0, updatedAt: 0, isDeleted: false, deletionVotes: [],
+  createdById: 'yo', createdAt: 0, updatedAt: 0, isDeleted: false,
 } as unknown as Expense;
 const PAGO = {
   id: 'p1', groupId: 'g1', fromUserId: 'beto', toUserId: 'yo', amount: 500, currency: 'ARS',

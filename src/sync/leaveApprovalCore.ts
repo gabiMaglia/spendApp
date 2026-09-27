@@ -4,9 +4,10 @@ import type { ApprovalEntry, LeaveApproval } from '@/src/types/models';
 /**
  * **El enunciado de una aprobación de salida** (T-065).
  *
- * Mismo criterio que `voteCore` y `settlementCore`: se firma **cada aprobación
- * por separado**, nunca el conjunto. El conjunto se une entre teléfonos y una
- * firma sobre algo que crece se invalida cada vez que crece.
+ * Mismo criterio que otros enunciados firmados por separado (T-186 sacó los
+ * de borrado y acuse): se firma **cada aprobación por separado**, nunca el
+ * conjunto. El conjunto se une entre teléfonos y una firma sobre algo que
+ * crece se invalida cada vez que crece.
  *
  * **Este archivo no toca criptografía a propósito.** Lo importa
  * `leaveRequest.ts`, que lo usan pantallas y el arranque; firmar y verificar

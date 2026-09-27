@@ -425,7 +425,6 @@ export default function NewExpenseScreen() {
         createdById:     currentUser.id,
         note:            note || undefined,
         receiptImageUri: receiptUri,
-        deletionVotes:   [],
         updatedAt:       syncedNow(),
         isDeleted:       false,
       };

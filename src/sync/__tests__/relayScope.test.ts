@@ -34,18 +34,18 @@ function sembrar() {
 
   useGroupStore.setState({ groups: [
     { id: 'G', name: 'Asado', memberIds: [YO, 'beto'], currency: 'ARS',
-      createdAt: 0, createdById: YO, deletionVotes: [], ...meta } as any,
+      createdAt: 0, createdById: YO, ...meta } as any,
     { id: 'H', name: 'Terapia de pareja', memberIds: [YO, 'pareja'], currency: 'ARS',
-      createdAt: 0, createdById: YO, deletionVotes: [], ...meta } as any,
+      createdAt: 0, createdById: YO, ...meta } as any,
   ]});
 
   useExpenseStore.setState({ expenses: [
     { id: 'eG', groupId: 'G', description: 'Carne', amount: 20_000, currency: 'ARS',
       paidById: YO, splitMode: 'equal', splits: [], category: 'food', date: 0,
-      createdAt: 0, createdById: YO, deletionVotes: [], ...meta } as any,
+      createdAt: 0, createdById: YO, ...meta } as any,
     { id: 'eH', groupId: 'H', description: 'Sesion de enero', amount: 90_000, currency: 'ARS',
       paidById: YO, splitMode: 'equal', splits: [], category: 'health', date: 0,
-      createdAt: 0, createdById: YO, deletionVotes: [], ...meta } as any,
+      createdAt: 0, createdById: YO, ...meta } as any,
   ]});
 
   usePaymentStore.setState({ payments: [
@@ -166,7 +166,7 @@ describe('pero sí lleva todo lo del grupo', () => {
     useExpenseStore.setState({ expenses: [
       { id: 'suyo', groupId: 'Z', description: 'Propio', amount: 1, currency: 'ARS',
         paidById: 'beto', splitMode: 'equal', splits: [], category: 'other', date: 0,
-        createdAt: 0, createdById: 'beto', deletionVotes: [], ...meta } as any,
+        createdAt: 0, createdById: 'beto', ...meta } as any,
     ]});
 
     applyDelta(payload, 'beto');

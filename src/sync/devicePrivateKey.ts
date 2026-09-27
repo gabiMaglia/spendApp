@@ -8,9 +8,8 @@
  * fallaría en el arranque. Es el mismo patrón que `src/services/avatar.ts` y la
  * misma razón por la que `src/sync/hexBytes.ts` no importa nada.
  *
- * Vive suelto porque lo usan los dos lados de la firma al escribir: el núcleo
- * de un registro (`signOnWrite.ts`, S5) y los votos de borrado
- * (`src/services/deletionVotes.ts`, S8).
+ * Vive suelto porque lo usa el núcleo de un registro al escribir
+ * (`signOnWrite.ts`, S5).
  *
  * `null` cuando no se pudo, nunca una excepción: acá arriba hay un usuario
  * guardando plata, y no se le bloquea nada por un problema de criptografía.

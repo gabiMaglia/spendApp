@@ -21,8 +21,8 @@ const gastoDeAna = {
 
 const grupo = {
   id: 'g1', name: 'Viaje', memberIds: ['ana', 'beto', 'mallory'], createdById: 'ana',
-  createdAt: NOW - 5000, updatedAt: NOW - 5000, isDeleted: false, deletionMode: 'consensus',
-  currency: 'ARS', deletionVotes: [],
+  createdAt: NOW - 5000, updatedAt: NOW - 5000, isDeleted: false,
+  currency: 'ARS',
 } as unknown as Group;
 
 describe('SEC-B · un tombstone con updatedAt del futuro', () => {

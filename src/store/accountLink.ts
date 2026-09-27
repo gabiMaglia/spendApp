@@ -752,7 +752,7 @@ function mergeProfiles(fromAccountId: string, toAccountId: string): void {
  * mismo basename en carpetas distintas compartirían declaración sin que se note.
  */
 export const COBERTURA_FUSION: Record<string, string> = {
-  'store/groupStore':     'fusionado (MERGEABLE_STORES · groups/data_v1 · regla: mergeGroupsPure, la misma función que mergeGroups — por niveles + deletionMode preservado)',
+  'store/groupStore':     'fusionado (MERGEABLE_STORES · groups/data_v1 · regla: mergeGroupsPure, la misma función que mergeGroups — por niveles + roster derivado)',
   'store/expenseStore':   'fusionado (MERGEABLE_STORES · expenses/data_v1 · regla: mergeExpensesPure, la misma función que mergeExpenses — por niveles + recibo preservado)',
   'store/paymentStore':   'fusionado (MERGEABLE_STORES · payments/data_v1 · regla: por niveles, mergeByIdLevels desnudo — igual que mergePayments)',
   'store/userStore':      'fusionado (MERGEABLE_STORES · users/data_v1 · regla: mergeUsersPure, la misma función que mergeUsers — LWW con tope + avatar preservado)',

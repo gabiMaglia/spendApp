@@ -38,13 +38,12 @@ const relayMock = jest.requireMock('../relay') as { __reset: () => void; __buzon
 
 const grupo = (): Group => ({
   id: 'G', name: 'Grupo', memberIds: ['u1'], currency: 'USD', createdAt: 1, createdById: 'u1',
-  miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
-  deletionVotes: [], updatedAt: 1_000, isDeleted: false,
+  miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster) updatedAt: 1_000, isDeleted: false,
 } as Group);
 const gasto = (id: string): Expense => ({
   id, groupId: 'G', description: 'x'.repeat(2_000), amount: 10, currency: 'USD', paidById: 'u1',
   splits: [{ userId: 'u1', amount: 10, isPaid: false }], splitMode: 'equal', category: 'other',
-  date: 1, createdAt: 1, createdById: 'u1', deletionVotes: [], updatedAt: 1_000, isDeleted: false,
+  date: 1, createdAt: 1, createdById: 'u1', updatedAt: 1_000, isDeleted: false,
 } as Expense);
 
 function ckeysPublicadas(): Set<string> {

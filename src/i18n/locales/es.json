@@ -270,13 +270,6 @@
     "settle_one": "Saldar a una persona",
     "split_note": "No alcanza para todos: se reparte parejo"
   },
-  "settlement": {
-    "did_you_receive": "¿Recibiste esta plata?",
-    "confirm": "Sí, la recibí",
-    "reject": "No la recibí",
-    "waiting": "Esperando que {{name}} confirme",
-    "rejected": "{{name}} dice que no lo recibió"
-  },
   "activity": {
     "title": "Actividad",
     "filter_all": "Todos",
@@ -658,7 +651,6 @@
     "inbox_open": "Ver notificaciones",
     "inbox_gone": "Eso ya no está disponible",
     "settled": "{{name}} registró un saldo de {{amount}}",
-    "settlement_pending": "Alguien dice que te pagó {{amount}}. Confirmá si lo recibiste.",
     "sync_down_title": "«{{group}}» dejó de sincronizar",
     "clock_off_title": "La hora de tu teléfono está mal",
     "clock_off_body": "Las fechas de tus gastos pueden verse cambiadas. Revisá la fecha y hora del teléfono; tus datos están bien.",

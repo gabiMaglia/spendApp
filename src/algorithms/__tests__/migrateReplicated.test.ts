@@ -7,8 +7,7 @@ const gasto = (id: string, pagador: string, total = 1_000_000): Expense => ({
   id, groupId: 'g1', description: id, amount: total, currency: 'ARS',
   paidById: pagador,
   splits: [{ userId: YO, amount: total / 2, isPaid: false }, { userId: 'beto', amount: total / 2, isPaid: false }],
-  splitMode: 'equal', category: 'food', date: 0, createdAt: 0, createdById: pagador,
-  deletionVotes: [], updatedAt: 0, isDeleted: false,
+  splitMode: 'equal', category: 'food', date: 0, createdAt: 0, createdById: pagador, updatedAt: 0, isDeleted: false,
 } as Expense);
 
 const replica = (id: string, sourceId: string, amount: number): PersonalEntry => ({

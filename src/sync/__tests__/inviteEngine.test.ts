@@ -97,7 +97,7 @@ function grupo(memberIds: string[]): Group {
     // sin esto, `conAlta` (que admit() usa para sumar al invitado) no ve a
     // los miembros ya existentes y los pierde del roster.
     miembros: Object.fromEntries(memberIds.map((uid, i) => [uid, { estado: 'in' as const, at: i }])),
-    createdAt: 0, createdById: ANA.id, deletionVotes: [],
+    createdAt: 0, createdById: ANA.id,
     updatedAt: 1_000, isDeleted: false,
   } as Group;
 }

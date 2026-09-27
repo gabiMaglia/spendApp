@@ -45,7 +45,7 @@ const checkRecordMock = checkRecord as jest.Mock;
 const base = (over: Partial<Expense> = {}): Expense => ({
   id: 'e-1', groupId: 'g-1', description: 'Cena', amount: 10_000, currency: 'ARS',
   paidById: 'ana', splits: [{ userId: 'ana', amount: 10_000 }], splitMode: 'equal',
-  category: 'food', date: 1, createdAt: 1, createdById: 'ana', deletionVotes: [],
+  category: 'food', date: 1, createdAt: 1, createdById: 'ana',
   rev: 1_000, updatedAt: 9_000, isDeleted: false, ...over,
 } as Expense);
 

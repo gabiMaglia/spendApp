@@ -14,8 +14,7 @@ function expense(over: Partial<Expense> = {}): Expense {
     id: 'e1', groupId: 'g1', description: 'Cena', amount: 10000, currency: 'ARS',
     paidById: 'ua', splitMode: 'equal',
     splits: [{ userId: 'ua', amount: 5000, isPaid: false }, { userId: 'ub', amount: 5000, isPaid: false }],
-    category: 'food', date: DAY, createdAt: DAY, createdById: 'ua',
-    deletionVotes: [], updatedAt: DAY, isDeleted: false,
+    category: 'food', date: DAY, createdAt: DAY, createdById: 'ua', updatedAt: DAY, isDeleted: false,
     ...over,
   } as Expense;
 }

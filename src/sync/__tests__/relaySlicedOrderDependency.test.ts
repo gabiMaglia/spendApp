@@ -61,7 +61,7 @@ function grupo(): Group {
   return {
     id: 'A', name: 'Asado', memberIds: [PUBLISHER, NEW_MEMBER], currency: 'ARS',
     miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
-    createdAt: 0, createdById: PUBLISHER, deletionVotes: [],
+    createdAt: 0, createdById: PUBLISHER,
     updatedAt: 1_000, isDeleted: false,
   } as Group;
 }
@@ -70,8 +70,7 @@ function gasto(): Expense {
   return {
     id: 'e1', groupId: 'A', description: 'Carne', amount: 20_000, currency: 'ARS',
     paidById: PUBLISHER, splits: [{ userId: PUBLISHER, amount: 20_000, isPaid: false }],
-    splitMode: 'equal', category: 'food', date: 0, createdAt: 0, createdById: PUBLISHER,
-    deletionVotes: [], updatedAt: 1_000, isDeleted: false,
+    splitMode: 'equal', category: 'food', date: 0, createdAt: 0, createdById: PUBLISHER, updatedAt: 1_000, isDeleted: false,
   } as Expense;
 }
 

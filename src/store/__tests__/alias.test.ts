@@ -43,7 +43,7 @@ function gasto(o: Partial<Expense> & Pick<Expense, 'paidById' | 'amount' | 'spli
   return {
     id: 'e1', groupId: 'g1', description: 'Asado', currency: 'ARS',
     splitMode: 'equal', category: 'other', date: 0, createdAt: 0,
-    createdById: o.paidById, deletionVotes: [], updatedAt: 0, isDeleted: false,
+    createdById: o.paidById, updatedAt: 0, isDeleted: false,
     ...o,
   } as Expense;
 }

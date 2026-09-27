@@ -13,10 +13,10 @@
  */
 
 /**
- * Cuánto puede adelantarse una estampa (`updatedAt`, `votedAt`, ...) antes de
- * dejar de ser creíble (T-059). Mudada acá desde `voteCore.ts` en T-186: es
- * general al reloj del merge, no algo propio de los votos de borrado del modo
- * «con acuerdo».
+ * Cuánto puede adelantarse una estampa (`updatedAt`, ...) antes de dejar de
+ * ser creíble (T-059). Mudada acá desde el módulo de firmas del borrado con
+ * acuerdo en T-186 (extraído, ver docs/CONSENSO-PENDIENTE.md): es general al
+ * reloj del merge, no algo propio de ese modo.
  *
  * Entre dos relojes ya corregidos contra el relay (ADR-005) el desfase es de
  * milisegundos, así que este margen existe para el ruido de red y para el peer

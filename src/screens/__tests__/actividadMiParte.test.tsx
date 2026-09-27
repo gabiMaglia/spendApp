@@ -35,7 +35,7 @@ const AHORA = 1_800_000_000_000;
 const grupo: Group = {
   id: 'g1', name: 'Asado', memberIds: ['ana', 'beto'], currency: 'ARS',
   miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
-  createdAt: 0, createdById: 'ana', deletionVotes: [], updatedAt: 0, isDeleted: false,
+  createdAt: 0, createdById: 'ana', updatedAt: 0, isDeleted: false,
 } as Group;
 
 beforeEach(() => {
@@ -54,8 +54,7 @@ describe('Actividad — mi parte de cada gasto de grupo', () => {
         { userId: 'ana', amount: 100_000, isPaid: true },
         { userId: 'beto', amount: 100_000, isPaid: false },
       ],
-      category: 'food', date: AHORA, createdAt: AHORA, createdById: 'ana',
-      deletionVotes: [], updatedAt: AHORA, isDeleted: false,
+      category: 'food', date: AHORA, createdAt: AHORA, createdById: 'ana', updatedAt: AHORA, isDeleted: false,
     } as Expense;
     useExpenseStore.setState({ expenses: [gasto] });
 
@@ -73,8 +72,7 @@ describe('Actividad — mi parte de cada gasto de grupo', () => {
         { userId: 'ana', amount: 100_000, isPaid: false },
         { userId: 'beto', amount: 100_000, isPaid: true },
       ],
-      category: 'food', date: AHORA, createdAt: AHORA, createdById: 'ana',
-      deletionVotes: [], updatedAt: AHORA, isDeleted: false,
+      category: 'food', date: AHORA, createdAt: AHORA, createdById: 'ana', updatedAt: AHORA, isDeleted: false,
     } as Expense;
     useExpenseStore.setState({ expenses: [gasto] });
 
@@ -87,8 +85,7 @@ describe('Actividad — mi parte de cada gasto de grupo', () => {
     const gastoPersonal = {
       id: 'p1', groupId: '', description: 'Café', amount: 5_000, currency: 'ARS',
       paidById: 'ana', splitMode: 'equal', splits: [{ userId: 'ana', amount: 5_000, isPaid: true }],
-      category: 'other', date: AHORA, createdAt: AHORA, createdById: 'ana',
-      deletionVotes: [], updatedAt: AHORA, isDeleted: false,
+      category: 'other', date: AHORA, createdAt: AHORA, createdById: 'ana', updatedAt: AHORA, isDeleted: false,
     } as Expense;
     useExpenseStore.setState({ expenses: [gastoPersonal] });
 
@@ -105,8 +102,7 @@ describe('Actividad — mi parte de cada gasto de grupo', () => {
         { userId: 'ana', amount: 200_000, isPaid: true },
         { userId: 'beto', amount: 0, isPaid: true },
       ],
-      category: 'food', date: AHORA, createdAt: AHORA, createdById: 'ana',
-      deletionVotes: [], updatedAt: AHORA, isDeleted: false,
+      category: 'food', date: AHORA, createdAt: AHORA, createdById: 'ana', updatedAt: AHORA, isDeleted: false,
     } as Expense;
     useExpenseStore.setState({ expenses: [gasto] });
 

@@ -34,7 +34,7 @@ const grupo = (memberIds = ['ana']): Group => ({
   id: 'g1', name: 'Asado', memberIds, currency: 'ARS',
   // T-182: `miembros` es la fuente de verdad de `memberIds` (derivado).
   miembros: Object.fromEntries(memberIds.map((uid, i) => [uid, { estado: 'in' as const, at: i }])),
-  createdAt: 0, createdById: 'ana', deletionVotes: [], updatedAt: 0, isDeleted: false,
+  createdAt: 0, createdById: 'ana', updatedAt: 0, isDeleted: false,
 } as Group);
 
 beforeEach(() => {
@@ -133,7 +133,7 @@ describe('tope de miembros al agregar (T-150 ronda 2, D4)', () => {
       id: 'g1', name: 'Asado',
       memberIds: Array.from({ length: MAX_MIEMBROS }, (_, i) => `u${i}`),
       miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
-      currency: 'ARS', createdAt: 0, createdById: 'u0', deletionVotes: [],
+      currency: 'ARS', createdAt: 0, createdById: 'u0',
       updatedAt: 0, isDeleted: false,
     } as Group;
   }

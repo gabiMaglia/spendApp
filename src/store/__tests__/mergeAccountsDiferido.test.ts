@@ -12,7 +12,7 @@ const GOOGLE = 'google:11887766';
 const gasto = (over: Partial<Expense> = {}): Expense => ({
   id: 'e-nuevo', groupId: '', description: 'Cena', amount: 1000, currency: 'ARS',
   paidById: APPLE, splitMode: 'equal', splits: [], memberIds: [APPLE],
-  category: 'food', date: 0, createdAt: 0, createdById: APPLE, deletionVotes: [],
+  category: 'food', date: 0, createdAt: 0, createdById: APPLE,
   updatedAt: 0, isDeleted: false, ...over,
 } as unknown as Expense);
 

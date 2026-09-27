@@ -64,7 +64,7 @@ function grupo(memberIds: string[] = ['u1']): Group {
     // sin esto, `mergeGroups` (que corre adentro de drain/publish) recalcula
     // memberIds desde un roster vacío y borra a todos los miembros.
     miembros: Object.fromEntries(memberIds.map((uid, i) => [uid, { estado: 'in' as const, at: i }])),
-    createdAt: 1, createdById: 'u1', deletionVotes: [],
+    createdAt: 1, createdById: 'u1',
     updatedAt: 1_000, isDeleted: false,
   } as Group;
 }
@@ -77,7 +77,7 @@ function gasto(id: string): Expense {
   return {
     id, groupId: 'G', description: 'Cena', relleno: 'x'.repeat(2_000), amount: 10, currency: 'USD',
     paidById: 'u1', splits: [{ userId: 'u1', amount: 10, isPaid: false }], splitMode: 'equal',
-    category: 'other', date: 1, createdAt: 1, createdById: 'u1', deletionVotes: [],
+    category: 'other', date: 1, createdAt: 1, createdById: 'u1',
     updatedAt: 1_000, isDeleted: false,
   } as Expense;
 }

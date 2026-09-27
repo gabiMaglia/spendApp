@@ -28,7 +28,7 @@ const pago = (over: Partial<Payment> = {}): Payment => ({
 const gasto = (over: Partial<Expense> = {}): Expense => ({
   id: 'e1', groupId: 'g1', description: 'Cena', amount: 1000, currency: 'ARS',
   paidById: 'ua', splitMode: 'equal', splits: [], memberIds: ['ua'],
-  category: 'food', date: 0, createdAt: 0, createdById: 'ua', deletionVotes: [],
+  category: 'food', date: 0, createdAt: 0, createdById: 'ua',
   updatedAt: 0, isDeleted: false, ...over,
 } as Expense);
 

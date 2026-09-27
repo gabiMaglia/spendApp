@@ -33,7 +33,7 @@ const pedidoDeAna = (approvedBy: string[] = []): LeaveRequest => ({
 const grupo = (leaveRequest?: LeaveRequest, memberIds = ['ana', 'beto', 'caro']): Group => ({
   id: 'g1', name: 'Asado', memberIds, currency: 'ARS', createdAt: 0,
   miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
-  createdById: 'beto', deletionVotes: [], updatedAt: 0, isDeleted: false, leaveRequest,
+  createdById: 'beto', updatedAt: 0, isDeleted: false, leaveRequest,
 } as Group);
 
 beforeEach(() => {
