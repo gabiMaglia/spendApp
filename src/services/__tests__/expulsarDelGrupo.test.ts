@@ -117,7 +117,7 @@ describe('E6 · Z expulsado con saldo en DOS monedas', () => {
       expenses: [
         gasto({ id: 'e1', currency: 'ARS' }), // beto debe 500.000 ARS
         gasto({ id: 'e2', currency: 'USD', paidById: 'beto', splits: [
-          { userId: 'ana', amount: 20_000 }, { userId: 'beto', amount: 20_000 },
+          { userId: 'ana', amount: 20_000, isPaid: false }, { userId: 'beto', amount: 20_000, isPaid: false },
         ] }), // ana le debe 20.000 USD a beto
       ],
     });
