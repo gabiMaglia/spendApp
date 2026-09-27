@@ -22,11 +22,16 @@ const pedido = (over: Partial<LeaveRequest> = {}): LeaveRequest => ({
   ...over,
 });
 
-const grupo = (over: Partial<Group> = {}): Group => ({
-  id: 'g1', name: 'Asado', memberIds: ['ana', 'beto'], currency: 'ARS',
-  createdAt: 0, createdById: 'ana', deletionVotes: [], updatedAt: 0, isDeleted: false,
-  leaveRequest: pedido(), ...over,
-} as Group);
+const grupo = (over: Partial<Group> = {}): Group => {
+  const memberIds = over.memberIds ?? ['ana', 'beto'];
+  return {
+    id: 'g1', name: 'Asado', memberIds, currency: 'ARS',
+    // T-182: `miembros` es la fuente de verdad de `memberIds` (derivado).
+    miembros: Object.fromEntries(memberIds.map((uid, i) => [uid, { estado: 'in' as const, at: i }])),
+    createdAt: 0, createdById: 'ana', deletionVotes: [], updatedAt: 0, isDeleted: false,
+    leaveRequest: pedido(), ...over,
+  } as Group;
+};
 
 beforeEach(() => {
   createSecureStorage('groups').clearAll();

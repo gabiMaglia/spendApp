@@ -8,6 +8,7 @@ import { authorKeysFor } from '@/src/sync/authorKeys';
 import { verifyLeaveApproval } from '@/src/sync/leaveApprovalSign';
 import type { Group, LeaveRequest } from '@/src/types/models';
 import { syncedNow } from '@/src/utils/syncedClock';
+import { conBaja } from '@/src/algorithms/roster';
 
 /**
  * Aplica los pedidos de salida que ya juntaron todas las aprobaciones.
@@ -107,7 +108,7 @@ export function applyApprovedLeaves(now: number = syncedNow()): number {
     // duplicaría los pagos.
     store.updateGroup(group.id, {
       leaveRequest: undefined,
-      memberIds: group.memberIds.filter(id => id !== req.userId),
+      miembros: conBaja(group, req.userId, now).miembros,
     });
 
     /**
