@@ -177,6 +177,76 @@ it('al desmontar deja de atender', async () => {
 });
 
 /**
+ * T-147 ajuste alto: en Android un desafío de Turnstile puede medir más que
+ * la casilla fija de 70px y se corta. El HTML informa su alto real vía
+ * `postMessage`; el contenedor lo toma (con piso y techo), sin remontar el
+ * WebView — la instancia tiene que sobrevivir al cambio de alto igual que
+ * sobrevive al paso 'esperando' → 'interactivo'.
+ */
+describe('alto dinámico según lo que informa el widget', () => {
+  function flatten(style: unknown) {
+    return Array.isArray(style) ? Object.assign({}, ...style.filter(Boolean)) : style;
+  }
+
+  it('toma el alto informado por el widget', async () => {
+    const { getByTestId } = montar();
+    const p = bridge.requestCaptchaToken();
+    await act(async () => {});
+    await enviar({ type: 'interactive' });
+    await enviar({ type: 'height', height: 250 });
+
+    const estilo = flatten(getByTestId('turnstile-container').props.style) as { height?: number };
+    expect(estilo.height).toBe(250);
+
+    await enviar({ type: 'token', token: 'irrelevante' });
+    await p;
+  });
+
+  it('nunca baja del piso mínimo (70)', async () => {
+    const { getByTestId } = montar();
+    const p = bridge.requestCaptchaToken();
+    await act(async () => {});
+    await enviar({ type: 'interactive' });
+    await enviar({ type: 'height', height: 20 });
+
+    const estilo = flatten(getByTestId('turnstile-container').props.style) as { height?: number };
+    expect(estilo.height).toBe(70);
+
+    await enviar({ type: 'token', token: 'irrelevante' });
+    await p;
+  });
+
+  it('nunca supera el techo razonable', async () => {
+    const { getByTestId } = montar();
+    const p = bridge.requestCaptchaToken();
+    await act(async () => {});
+    await enviar({ type: 'interactive' });
+    await enviar({ type: 'height', height: 550 });
+
+    const estilo = flatten(getByTestId('turnstile-container').props.style) as { height?: number };
+    expect(estilo.height).toBeLessThanOrEqual(400);
+
+    await enviar({ type: 'token', token: 'irrelevante' });
+    await p;
+  });
+
+  it('cambiar de alto no remonta el WebView', async () => {
+    montar();
+    const p = bridge.requestCaptchaToken();
+    await act(async () => {});
+    await enviar({ type: 'interactive' });
+    expect(mockMontajes).toBe(1);
+
+    await enviar({ type: 'height', height: 200 });
+    await enviar({ type: 'height', height: 90 });
+    expect(mockMontajes).toBe(1);
+
+    await enviar({ type: 'token', token: 'irrelevante' });
+    await p;
+  });
+});
+
+/**
  * Diagnóstico (pedido del orquestador tras la evidencia de campo): sin poder
  * ver el render real en el teléfono del PO, cada callback de Turnstile queda
  * anotado en `errorLog` (local, sin red, sin datos sensibles — sólo el tipo

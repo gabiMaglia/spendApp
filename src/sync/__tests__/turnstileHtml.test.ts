@@ -10,6 +10,9 @@ describe('turnstileHtml', () => {
   it('pide aparecer sólo si hace falta interacción', () => {
     expect(turnstileHtml('k')).toContain("appearance: 'interaction-only'");
   });
+  it('usa tamaño flexible para que un desafío alto en Android no se corte', () => {
+    expect(turnstileHtml('k')).toContain("size: 'flexible'");
+  });
 });
 
 describe('parseTurnstileMessage', () => {
@@ -18,7 +21,19 @@ describe('parseTurnstileMessage', () => {
     ['{"type":"error","code":"110200"}', { type: 'error', code: '110200' }],
     ['{"type":"expired"}', { type: 'expired' }],
     ['{"type":"interactive"}', { type: 'interactive' }],
+    ['{"type":"height","height":120}', { type: 'height', height: 120 }],
+    ['{"type":"height","height":0}', { type: 'height', height: 0 }],
+    ['{"type":"height","height":600}', { type: 'height', height: 600 }],
   ])('%s', (raw, esperado) => expect(parseTurnstileMessage(raw)).toEqual(esperado));
-  it.each(['', 'no-json', '{"type":"token"}', '{"type":"otro"}', '{"type":"token","token":5}'])('inválido: %s', raw =>
-    expect(parseTurnstileMessage(raw)).toBeNull());
+  it.each([
+    '',
+    'no-json',
+    '{"type":"token"}',
+    '{"type":"otro"}',
+    '{"type":"token","token":5}',
+    '{"type":"height"}',
+    '{"type":"height","height":"120"}',
+    '{"type":"height","height":-1}',
+    '{"type":"height","height":601}',
+  ])('inválido: %s', raw => expect(parseTurnstileMessage(raw)).toBeNull());
 });
