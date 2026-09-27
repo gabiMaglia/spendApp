@@ -329,16 +329,21 @@ async function hacerEnsureSinCola(permitirCaptcha: boolean, ignorarCooldown: boo
 type ClienteAuth = NonNullable<ReturnType<typeof getRelayClient>>;
 
 /**
- * Cambio de cuenta / logout (T-147, punto 4 de la simplificación): la sesión
- * anónima del buzón se cierra y se fuerza el borrado de su storage, para que
- * la PRÓXIMA `ensureRelaySession()` abra una nueva (con su propio captcha).
+ * Cambio de cuenta / logout: la sesión del buzón (sea de identidad o
+ * anónima) se cierra y se fuerza el borrado de su storage, para que la
+ * PRÓXIMA `ensureRelaySession()` decida desde cero según quién sea el
+ * usuario nuevo (T-147-b: invitado → anónima con captcha; cuenta → nada
+ * hasta que `verify.tsx` reconecte).
  *
- * No es que la sesión anónima "pertenezca" a una cuenta —no le pertenece a
- * ninguna, es de la instalación— pero es el cinturón de seguridad que el PO
- * pidió: ningún trabajo diferido de la cuenta anterior puede seguir
- * saliendo con la sesión que ya estaba abierta cuando se encoló, porque esa
- * sesión deja de existir. Pasa por la MISMA cola que `ensureRelaySession`
- * para que un `ensure` que ya estaba en vuelo no se pise con este reinicio.
+ * El nombre quedó de la SIMPLIFICACIÓN (cuando la única sesión posible era
+ * la anónima); sigue siendo el gesto correcto para las DOS ramas de
+ * T-147-b — purgar y dejar que el próximo `ensureRelaySession` reabra lo que
+ * corresponda — así que no hizo falta tocar la lógica, sólo este
+ * comentario. Es el cinturón de seguridad que el PO pidió: ningún trabajo
+ * diferido de la cuenta anterior puede seguir saliendo con la sesión que ya
+ * estaba abierta cuando se encoló, porque esa sesión deja de existir. Pasa
+ * por la MISMA cola que `ensureRelaySession` para que un `ensure` que ya
+ * estaba en vuelo no se pise con este reinicio.
  */
 export function reabrirSesionAnonima(): Promise<void> {
   return cola.run(async () => {

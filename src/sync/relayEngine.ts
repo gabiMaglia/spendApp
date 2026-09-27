@@ -984,11 +984,12 @@ export function stopRelay(): void {
 }
 
 /**
- * Cambio de cuenta / logout (T-147, punto 4 de la simplificación). Se llama
- * ANTES de `rehydrateForActiveUser` (`src/store/session.ts`), y hace lo que
- * el PO pidió como cinturón de seguridad — aunque el buzón use una sesión
- * anónima que no "pertenece" a ninguna cuenta, ningún trabajo diferido de la
- * cuenta anterior puede seguir saliendo con la sesión que quedó abierta:
+ * Cambio de cuenta / logout. Se llama ANTES de `rehydrateForActiveUser`
+ * (`src/store/session.ts`), y hace lo que el PO pidió como cinturón de
+ * seguridad — sea cual sea el TIPO de sesión que tenía el buzón (T-147-b:
+ * de identidad para una cuenta, anónima para un invitado), ningún trabajo
+ * diferido de la cuenta anterior puede seguir saliendo con la sesión que
+ * quedó abierta:
  *
  *  1. Corta el motor (canales, polling, drenajes agendados).
  *  2. Cancela los envíos de grupo debounced (`schedulePublish`) que todavía
@@ -996,9 +997,11 @@ export function stopRelay(): void {
  *  3. Vacía `relayQueue` (tarjetas y claves en cola, incluidas las que
  *     esperan su ventana de cuota) — nada de lo encolado por la cuenta
  *     anterior llega a ejecutarse.
- *  4. Cierra la sesión anónima del buzón y fuerza el borrado de su storage:
- *     la próxima `ensureRelaySession()` (la dispara `startRelay`, llamado
- *     por `rehydrateForActiveUser` después de esto) abre una sesión nueva.
+ *  4. Cierra la sesión del buzón (la que hubiera) y fuerza el borrado de su
+ *     storage: la próxima `ensureRelaySession()` (la dispara `startRelay`,
+ *     llamado por `rehydrateForActiveUser` después de esto) decide desde
+ *     cero según el usuario NUEVO — filas 7 (invitado → cuenta) y 8 (cambio
+ *     de cuenta A→B) de la tabla de T-147-b.
  *
  * Los pasos 1-3 son síncronos a propósito — nada quedan "en vuelo" cuando
  * esta función retorna. El paso 4 es async, pero pasa por la MISMA cola que
