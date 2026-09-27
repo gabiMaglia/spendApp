@@ -154,6 +154,33 @@ describe('ensureRelaySession', () => {
     ahora.mockRestore();
   });
 
+  /**
+   * T-147 (fix "Reintentar no funciona" — systematic-debugging, evidencia de
+   * campo del PO): el botón "Reintentar" de `verify.tsx` llamaba de nuevo a
+   * `ensureRelaySession(true)`, pero `SESSION_RETRY_MS` (120s) seguía
+   * bloqueando en silencio cualquier intento nuevo dentro de esa ventana —
+   * el botón parecía no hacer nada. Ese cooldown frena al REINTENTO DE FONDO
+   * (poll de `relayEngine`), no a una acción explícita de la persona:
+   * `{ ignorarCooldown: true }` es la vía para que un Reintentar tocado a
+   * mano nunca se coma en silencio.
+   */
+  it('Reintentar explícito ({ ignorarCooldown: true }) no respeta SESSION_RETRY_MS', async () => {
+    const ahora = jest.spyOn(Date, 'now').mockReturnValue(1_000_000);
+    mockCaptcha = { status: 'ok', token: 'tok' };
+    signInAnonymously.mockResolvedValueOnce({ data: { session: null } as never, error: { message: 'rate limit' } });
+    expect(await S.ensureRelaySession()).toBe('none'); // primer intento falla, arma el cooldown
+
+    // Sin avanzar el reloj (seguimos dentro de SESSION_RETRY_MS): un
+    // ensureRelaySession() normal seguiría cayendo a 'none'...
+    expect(await S.ensureRelaySession()).toBe('none');
+    expect(signInAnonymously).toHaveBeenCalledTimes(1);
+
+    // ...pero el Reintentar EXPLÍCITO de la persona sí vuelve a intentar.
+    expect(await S.ensureRelaySession(true, { ignorarCooldown: true })).toBe('anonymous');
+    expect(signInAnonymously).toHaveBeenCalledTimes(2);
+    ahora.mockRestore();
+  });
+
   it('dos llamadas concurrentes abren UNA sola sesión', async () => {
     await Promise.all([S.ensureRelaySession(), S.ensureRelaySession()]);
     expect(signInAnonymously).toHaveBeenCalledTimes(1);
