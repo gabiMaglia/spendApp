@@ -74,8 +74,9 @@ export default function PersonalScreen() {
   const personalStat = { label: t('personal.summary_personal'), value: formatMoney(totalExpense, cur) };
   const gruposGastoStat = { label: t('personal.summary_groups'), value: formatMoney(totalGroup, cur) };
 
+  // Sin 'bottom': la tab bar ya reserva el inset del sistema (_layout.tsx); contarlo acá dejaba una franja muerta entre el contenido y la barra.
   return (
-    <SafeAreaView edges={['bottom']} style={[styles.safe, { backgroundColor: c.bg }]}>
+    <SafeAreaView edges={[]} style={[styles.safe, { backgroundColor: c.bg }]}>
       <Animated.ScrollView
         style={limiteContenido}
         onLayout={alMedirScroll}

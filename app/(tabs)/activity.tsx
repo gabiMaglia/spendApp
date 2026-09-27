@@ -41,8 +41,9 @@ export default function ActivityScreen() {
   const { sections, todayNewCount } = useActivitySections(filteredFeed);
   const trustFor = useActivityTrust(filteredFeed, ahora);
 
+  // Sin 'bottom': la tab bar ya reserva el inset del sistema (_layout.tsx); contarlo acá dejaba una franja muerta entre el contenido y la barra.
   return (
-    <SafeAreaView edges={['bottom']} style={[styles.safe, { backgroundColor: c.bg }]}>
+    <SafeAreaView edges={[]} style={[styles.safe, { backgroundColor: c.bg }]}>
       <Animated.ScrollView
         style={limiteContenido}
         onLayout={alMedirScroll}
