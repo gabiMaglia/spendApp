@@ -1,5 +1,4 @@
 import { getRelayClient } from './relay';
-import { createSerialQueue } from '@/src/utils/serialQueue';
 
 /**
  * Sesión de CUENTA contra Supabase Auth — abre la que usan el buzón Y el
@@ -25,12 +24,29 @@ import { createSerialQueue } from '@/src/utils/serialQueue';
  * SIMPLIFICACIÓN del mismo día había separado los dos clientes para que el
  * buzón nunca llevara un JWT de cuenta; T-147-b invierte esa premisa a
  * propósito: ahora SÍ tiene que llevarlo, porque el captcha (que exige la
- * anónima) dejó de aplicar a las cuentas. Sigue haciendo falta serializar el
- * login y el logout DEL DIRECTORIO entre sí (un logout lento no puede
- * terminar después de que el login siguiente ya escribió su sesión) — de
- * ahí la cola propia, sin cambios.
+ * anónima) dejó de aplicar a las cuentas.
+ *
+ * **Fix D1 (verifier, ronda 2, rechazo bloqueante):** el login/logout ya NO
+ * usa una cola propia — usa `encolarOperacionDeSesion` de `relaySession.ts`,
+ * la MISMA cola que `ensureRelaySession`/`reabrirSesionAnonima`. Antes,
+ * `app/auth/index.tsx` disparaba el login (`entrarAlDirectorio` →
+ * `signIntoDirectory`) SIN `await` justo después de `setUser`, y
+ * `verify.tsx` leía la sesión casi en el mismo instante — con colas
+ * separadas, esa lectura no esperaba nada del login en vuelo y devolvía
+ * `'none'` sobre un login que en realidad iba a salir bien ("No se pudo
+ * confirmar tu acceso" después de loguearse correctamente). Compartir la
+ * cola también deja a `haySesionEnCurso()` ver el login en vuelo — sin eso,
+ * el guard R4-3 de `relayEngine.ts` no podía distinguir "sin sesión
+ * todavía" de "login resolviéndose solo". Import PEREZOSO (mismo patrón que
+ * `relay.ts` → `relaySession.ts`): un `import` estático acá arriba armaría
+ * un ciclo (`relaySession.ts` → `authStore.ts` → `directoryAuth.ts`); sólo
+ * hace falta en tiempo de ejecución, nunca al cargar el módulo.
  */
-const cola = createSerialQueue();
+function encolar<T>(fn: () => Promise<T>): Promise<T> {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { encolarOperacionDeSesion } = require('./relaySession') as typeof import('./relaySession');
+  return encolarOperacionDeSesion(fn);
+}
 
 export type DirectorySignIn =
   | { ok: true }
@@ -48,7 +64,7 @@ export async function signIntoDirectory(
   // servidor: uno se arregla en el .env, el otro en el panel de Supabase.
   if (!idToken) return { ok: false, reason: 'no_token' };
 
-  return cola.run(async () => {
+  return encolar(async () => {
     try {
       const { error } = await supabase.auth.signInWithIdToken({ provider, token: idToken });
       if (error) return { ok: false, reason: 'rejected', detail: error.message };
@@ -67,14 +83,15 @@ export async function signIntoDirectory(
  * PERSISTIDA del buzón (T-147-b) esto sí importa de verdad. Best effort y
  * redundante a propósito con `reiniciarSyncPorCambioDeCuenta`
  * (`relayEngine.ts`, que además fuerza el borrado del storage): las dos
- * corren sobre el mismo cliente, así que da lo mismo cuál de las dos gana
- * la carrera — ninguna dejaría un JWT de cuenta vivo.
+ * corren sobre el mismo cliente y ahora también sobre la MISMA cola (fix
+ * D1), así que quedan serializadas entre sí sin importar cuál se dispara
+ * primero — ninguna deja un JWT de cuenta vivo.
  */
 export async function signOutOfDirectory(): Promise<void> {
   const supabase = getRelayClient();
   if (!supabase) return;
 
-  await cola.run(async () => {
+  await encolar(async () => {
     try {
       await supabase.auth.signOut({ scope: 'local' });
     } catch {

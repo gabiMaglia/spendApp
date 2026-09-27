@@ -61,10 +61,20 @@ export function forceClearPersistedSession(): void {
 }
 
 /**
- * FIFO propio de la sesión del buzón: una lectura (`ensureRelaySession`) y un
- * reinicio forzado (`reabrirSesionAnonima`, cambio de cuenta/logout) no
- * pueden pisarse — el segundo tiene que esperar a que el primero termine (y
- * viceversa) para que nadie mire el storage a mitad de camino.
+ * FIFO de TODO lo que toca la sesión del cliente unificado del buzón: una
+ * lectura (`ensureRelaySession`), un reinicio forzado (`reabrirSesionAnonima`,
+ * cambio de cuenta/logout) y — T-147-b, fix D1 (verifier, ronda 2, rechazo
+ * bloqueante) — el login/logout de CUENTA (`directoryAuth.ts`). Antes del
+ * fix, `directoryAuth.ts` tenía su PROPIA cola: `app/auth/index.tsx` dispara
+ * el login (`entrarAlDirectorio` → `signIntoDirectory`) SIN `await` justo
+ * después de `setUser`, y `verify.tsx` (o `startRelay`) lee la sesión casi
+ * en el mismo instante — con colas separadas, esa lectura no esperaba nada
+ * del login en vuelo y leía 'none' sobre un login que en realidad iba a
+ * salir bien ("No se pudo confirmar tu acceso" después de un login
+ * correcto). Una cola COMPARTIDA hace que la lectura quede detrás del login
+ * ya encolado, y de paso deja a `haySesionEnCurso()` (abajo) ver también el
+ * login en vuelo — sin eso, el guard R4-3 de `relayEngine.ts` no podía
+ * distinguir "sin sesión todavía" de "login resolviéndose solo".
  */
 const cola = createSerialQueue();
 
@@ -75,6 +85,18 @@ const cola = createSerialQueue();
  */
 export function haySesionEnCurso(): boolean {
   return cola.pendientes() > 0;
+}
+
+/**
+ * Encola una operación sobre la sesión del cliente unificado del buzón, en
+ * la MISMA cola que `ensureRelaySession`/`reabrirSesionAnonima` — fix D1.
+ * La usa `directoryAuth.ts` para el login/logout de CUENTA (`signIntoDirectory`
+ * / `signOutOfDirectory`): ese mismo cliente es el que lee `relaySession.ts`
+ * para una cuenta, así que las dos operaciones tienen que serializarse entre
+ * sí, no correr en colas que no se enteran una de la otra.
+ */
+export function encolarOperacionDeSesion<T>(fn: () => Promise<T>): Promise<T> {
+  return cola.run(fn);
 }
 
 /** Sólo tests. */
@@ -286,11 +308,28 @@ async function hacerEnsureSinCola(permitirCaptcha: boolean, ignorarCooldown: boo
     // pide captcha — eso lo prohibía "Bad ID token" contra producción para
     // el login de cuenta, y la reconexión (Google silencioso / Apple
     // interactivo / rechazo de otra cuenta) vive enteramente en
-    // `verify.tsx`. Una sesión ANÓNIMA residual (p.ej. invitado→cuenta
-    // todavía sin terminar el login) NO cuenta como válida acá — se lee
-    // 'none' y `verify.tsx` decide qué hacer, nunca este módulo solo.
+    // `verify.tsx`.
     const { data, error } = await supabase.auth.getSession();
-    if (error || !data.session || data.session.user.is_anonymous) return 'none';
+    if (error) return 'none';
+
+    if (data.session?.user.is_anonymous) {
+      /**
+       * Fix D2 (verifier, ronda 2, rechazo bloqueante): una cuenta puede
+       * tener una sesión ANÓNIMA residual — heredada del `main` actual
+       * (donde TODOS usaban anónima, sin excepción) o de un invitado→cuenta
+       * a medio terminar. Nunca cuenta como `identity`, pero tampoco puede
+       * quedarse guardada: si no se purga, el cliente unificado del buzón
+       * (`getRelayClient()`) sigue teniendo esa sesión persistida y el
+       * fondo (`relayEngine.ts`) le seguiría mandando el JWT anónimo al
+       * servidor bajo el nombre de una cuenta — viola "cuenta: nunca
+       * anónima". Se purga acá mismo, como el residuo de IDENTIDAD que ya
+       * purgaba la rama de invitado (abajo), sólo que al revés.
+       */
+      await purgarSesionLocal(supabase);
+      return 'none';
+    }
+
+    if (!data.session) return 'none';
     return 'identity';
   }
 
