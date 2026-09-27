@@ -113,15 +113,31 @@ function useVeredictos(trabajos: readonly Trabajo[]): Readonly<Record<string, Re
     timer = setTimeout(paso, 0);
 
     /**
-     * Alcanza con cortar el temporizador. Acá hubo además una bandera
-     * `cancelado` que `paso()` consultaba, y era **inalcanzable**: JS es de un
-     * solo hilo, así que un `paso` ya empezado no se puede interrumpir a la
-     * mitad, y el que todavía no arrancó lo mata el `clearTimeout`. Ninguna
-     * mutación podía tumbarla porque no había forma de que valiera `true` en un
-     * momento observable — o sea, código que nadie podía verificar. Se borró.
+     * Cortar el temporizador alcanza para que la cola no siga trabajando.
+     * Acá hubo además una bandera `cancelado` que `paso()` consultaba, y era
+     * **inalcanzable**: JS es de un solo hilo, así que un `paso` ya empezado
+     * no se puede interrumpir a la mitad, y el que todavía no arrancó lo mata
+     * el `clearTimeout`. Ninguna mutación podía tumbarla porque no había forma
+     * de que valiera `true` en un momento observable — o sea, código que nadie
+     * podía verificar. Se borró.
+     *
+     * **Pero el buffer sin volcar SÍ hay que rescatarlo** (rechazo del
+     * verifier, B1). Esta limpieza corre en DOS casos y hay que acertar los
+     * dos: cuando `clave` cambia (llegó/salió un registro — el drenaje normal
+     * de Actividad cada 20 s) y cuando el componente se desmonta de verdad.
+     * `hechos` ya marcó estas firmas como hechas ANTES de que `paso()` las
+     * metiera en el buffer (para no volver a encolarlas si la lista se repite
+     * sin ceder el hilo entre medio), así que si esta limpieza tirara el
+     * buffer sin volcarlo, el efecto siguiente las filtraría por `hechos` y
+     * jamás las volvería a poner en cola: quedarían `pendiente` para siempre
+     * pese a que la curva YA corrió. Volcar acá cubre el caso de cambio de
+     * clave (el efecto nuevo arranca con el estado ya al día) y es inofensivo
+     * en el de desmontaje de verdad: React ignora el `setState` de un
+     * componente que ya no existe.
      */
     return () => {
       if (timer) clearTimeout(timer);
+      volcar();
     };
     // `trabajos` se recrea en cada render; lo que identifica al conjunto es `clave`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
