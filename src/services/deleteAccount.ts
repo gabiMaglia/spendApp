@@ -1,4 +1,7 @@
 import { useAuthStore, forgetAccount } from '@/src/store/authStore';
+import { useGroupStore } from '@/src/store/groupStore';
+import { useExpenseStore } from '@/src/store/expenseStore';
+import { usePaymentStore } from '@/src/store/paymentStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { barrerScope, olvidarFusionesDe } from '@/src/store/accountLink';
 import { purgeUser } from '@/src/store/tierStore';
@@ -10,6 +13,7 @@ import { discardScopedWrites } from '@/src/store/userScope';
 import { clearErrors } from './errorLog';
 import { anonymizeSelf } from './anonymizeSelf';
 import { topicsDeLaCuenta } from './deleteTopics';
+import { gruposParaSalir } from './salidasAlBorrar';
 
 /**
  * Borrado de cuenta (T-074). Requisito duro de las dos tiendas.
@@ -96,6 +100,22 @@ export async function deleteAccount(opts: Opciones = {}): Promise<DeleteOutcome>
   // Va ANTES de purgar: publicar después volvería a llenar el buzón recién
   // vaciado. Best-effort — si no hay red, el aviso no sale y el borrado sigue.
   try {
+    // T-187 (decisión PO 2026-09-27): salgo primero de los grupos donde no
+    // debo ni me deben — es una llamada LOCAL y sincrónica (conBaja), así que
+    // corre siempre, con o sin red. `publicarGrupos` de abajo, que SÍ depende
+    // de la red, publica el roster ya actualizado. Donde queda saldo abierto
+    // en alguna moneda sigo como miembro: el grupo necesita seguir viendo esa
+    // deuda (regla #3, borrar ≠ liquidar).
+    const gruposASalir = gruposParaSalir(
+      accountId,
+      useGroupStore.getState().groups,
+      useExpenseStore.getState().expenses,
+      usePaymentStore.getState().payments,
+    );
+    for (const id of gruposASalir) {
+      useGroupStore.getState().leaveGroup(id, accountId);
+    }
+
     anonymizeSelf(opts.nombreAnonimo ?? 'Cuenta borrada');
     await conTimeout(publicarGrupos(gruposDelScope), opts.timeoutMs ?? TIMEOUT_PURGA_MS);
   } catch { /* el aviso es best-effort, por definición */ }

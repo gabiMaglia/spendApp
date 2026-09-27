@@ -685,7 +685,7 @@
     "what_2": "Your profile, your preferences and your keys.",
     "what_3": "The link between your Google and Apple accounts, if you had made one.",
     "kept_title": "This can't be deleted, and it matters that you know",
-    "kept_1": "The expenses already on the phones of the people in your groups. They are the other side of other people's debts: deleting them would break their balances. They will keep seeing them.",
+    "kept_1": "You automatically leave the groups where you don't owe and aren't owed anything. In the ones where you had a balance, the group keeps seeing it under your name as \"Deleted account\".",
     "kept_2": "We remove from the mailbox the packets this phone left there. Any left by another install expire on their own after 30 days.",
     "no_server": "Your account doesn't exist on any server of ours: we don't have your email or any way to know who you are. That's why there's nothing we can delete for you.",
     "debts": "If you had open debts, deleting your account doesn't cancel them: the group still sees what was owed. Your expenses are the other side of other people's balances.",
