@@ -1,9 +1,17 @@
-import { buildDelta, applyDelta, type SyncDelta } from './useSyncQR';
+import { applyDelta, DELTA_FEATURE_VERSION, type SyncDelta } from './useSyncQR';
+import { sinAvatarUrl, sinCamposLocales } from './soloLocal';
 import { acotarDeltaAlGrupo } from './acotarDeltaAlGrupo';
 import { sealEnvelope, openEnvelope, deriveTopic, type GroupKey } from './envelopeCrypto';
 import { sendEnvelope, fetchSince, deleteMyEnvelopes, type DeleteResult } from './relay';
 import { groupKeyBytes, useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { ensureIdentity } from '@/src/store/identityStore';
+import { useAuthStore } from '@/src/store/authStore';
+import { useGroupStore } from '@/src/store/groupStore';
+import { useExpenseStore } from '@/src/store/expenseStore';
+import { usePaymentStore } from '@/src/store/paymentStore';
+import { useUserStore } from '@/src/store/userStore';
+import { useRecurringStore } from '@/src/store/recurringStore';
+import { useCommentStore } from '@/src/store/commentStore';
 import { signEnvelope, verifyEnvelope } from './envelopeSign';
 import { observeAuthor, RECHAZAR_AUTORES_NO_VERIFICADOS } from './authorHealth';
 import { refreshPendingAuthors } from './authorKeys';
@@ -12,9 +20,9 @@ import { buildManifest, digestOfJson, isManifest, looksLikeManifest, type SliceM
 import { recordManifestCheck } from './manifestHealth';
 import { recordSlicePublished } from './sliceRenewal';
 import { publishAvatarIfOwn, fetchAvatarIfMissing } from './avatarTopic';
-import { useUserStore } from '@/src/store/userStore';
 import { registrarFalloDeAplicacion, agotoReintentos } from './drainFailures';
 import { recordError } from '@/src/services/errorLog';
+import { cederHilo } from './cederHilo';
 
 /**
  * Sync por el relay: arma el sobre cifrado, lo publica y aplica lo que llega.
@@ -50,41 +58,53 @@ import { recordError } from '@/src/services/errorLog';
  * obliga a decidir. Para que agregar una entidad nueva no se olvide EN SILENCIO,
  * `relayScope.test.ts` compara las claves del delta contra esta lista y falla si
  * aparece una que nadie clasificó.
+ *
+ * **T-157a: se filtra ANTES de limpiar campos, nunca al revés.** Antes esto
+ * llamaba a `buildDelta` — que corre `sinCamposLocales`/`sinAvatarUrl` sobre
+ * el DISPOSITIVO ENTERO— y recién después filtraba por `groupId`. Con 1000
+ * gastos en 10 grupos, publicar UNO solo (100 gastos) transformaba y tiraba
+ * los otros 900 en cada publicación. Acá se arma cada campo leyendo el store
+ * directo y filtrando primero: `sinCamposLocales`/`sinAvatarUrl` sólo ven la
+ * porción que ya va a viajar. El resultado es exactamente el mismo —ninguno
+ * de los dos filtros depende de qué otros registros haya alrededor— sólo
+ * cambia CUÁNTO trabajo se hace para llegar ahí (`relayScopeFiltraPrimero.test.ts`
+ * compara byte a byte contra la implementación vieja).
  */
 export function buildGroupPayload(groupId: string, currentUserId: string): SyncDelta {
-  const completo = buildDelta(currentUserId);
-
-  const delGrupo = completo.groups.filter(g => g.id === groupId);
+  const delGrupo = useGroupStore.getState().groups.filter(g => g.id === groupId);
   const miembros = new Set(delGrupo[0]?.memberIds ?? []);
 
-  const expenses = completo.expenses.filter(e => e.groupId === groupId);
+  const expenses = sinCamposLocales(
+    useExpenseStore.getState().expenses.filter(e => e.groupId === groupId),
+  );
   const idsDeGastos = new Set(expenses.map(e => e.id));
 
   return {
-    version: completo.version,
-    featureVersion: completo.featureVersion,
-    fromUserId: completo.fromUserId,
-    timestamp: completo.timestamp,
+    version: 1,
+    featureVersion: DELTA_FEATURE_VERSION,
+    fromUserId: currentUserId,
+    timestamp: Date.now(),
 
     groups: delGrupo,
     expenses,
-    payments: completo.payments.filter(p => p.groupId === groupId),
+    payments: usePaymentStore.getState().payments.filter(p => p.groupId === groupId),
     // Los perfiles de los miembros SÍ hacen falta: sin ellos el otro ve ids en
     // vez de nombres. Los de gente ajena al grupo, no.
     //
     // El email SÍ se saca (T-093 ronda 2 / R-2, hallazgo del verificador ciego):
-    // `completo.users` trae el registro ENTERO de cada uno —incluido el propio,
-    // que `session.ts` persiste con el mail real de OAuth al loguear— y filtrar
+    // el registro ENTERO de cada usuario —incluido el propio, que `session.ts`
+    // persiste con el mail real de OAuth al loguear— trae el mail, y filtrar
     // por `miembros` sólo decide QUÉ FILAS viajan, nunca qué CAMPOS. El mail
     // viajaba tal cual a cualquiera que compartiera el grupo, y ningún receptor
     // lo lee (sólo se muestra `currentUser.email`, la cuenta propia, en
     // `user.tsx`/`debug/identity.tsx`; nunca el de otro usuario). Es lo que
     // `plans/T-077.md` ya declaraba cierto ("Mail: NO recolectado") sin serlo:
     // esto lo hace cierto, no cambia la fila de Data Safety.
-    users: completo.users.filter(u => miembros.has(u.id)).map(u => ({ ...u, email: '' })),
-    recurring: (completo.recurring ?? []).filter(r => r.groupId === groupId),
+    users: sinAvatarUrl(useUserStore.getState().users.filter(u => miembros.has(u.id)))
+      .map(u => ({ ...u, email: '' })),
+    recurring: useRecurringStore.getState().recurring.filter(r => r.groupId === groupId),
     // Un comentario no sabe de qué grupo es: cuelga del gasto.
-    comments: (completo.comments ?? []).filter(c => idsDeGastos.has(c.expenseId)),
+    comments: useCommentStore.getState().comments.filter(c => idsDeGastos.has(c.expenseId)),
 
     // `personal` NO viaja: son movimientos sin grupo, de nadie más que su dueño.
     // `groupKeys` tampoco: si el relay pudiera entregar claves podría
@@ -297,7 +317,13 @@ export async function publishToGroup(
   // saber que ya llegó todo, y es el último en el orden de envío — por eso su
   // `seq` es el que tiene sentido devolver en `PublishResult`.
   let ultimoSeq: number | undefined;
-  for (const pieza of piezas) {
+  for (let i = 0; i < piezas.length; i++) {
+    // T-157b: cede el hilo ENTRE piezas, nunca antes de la primera — sellar/
+    // firmar cada rebanada es trabajo síncrono, y una publicación grande
+    // encadena varias seguidas sin darle al event loop chance de atender un
+    // tap o un render de por medio.
+    if (i > 0) await cederHilo();
+    const pieza = piezas[i]!;
     const sealed = sealEnvelope(key, pieza.json);
 
     // La firma va POR FUERA del cifrado: autentica quién lo mandó sin exponer
@@ -410,7 +436,19 @@ export const DRAIN_FETCH_LIMIT = 200;
 export const DRAIN_MAX_PAGES = 25;
 
 /** Sólo tests: páginas chicas para ejercitar la paginación sin 200 sobres. */
-export type DrainOptions = { pageLimit?: number; maxPages?: number };
+export type DrainOptions = {
+  pageLimit?: number;
+  maxPages?: number;
+  /**
+   * T-158b: se invoca UNA sola vez, justo antes de aplicar la primera página
+   * que trae rebanadas de datos — nunca si el buzón está vacío (ninguna
+   * página trajo nada que aplicar). Existe para que `drainNow` pueda tomar su
+   * "foto previa" (`snapshot`, T-010) de forma perezosa: calcularla es
+   * trabajo sobre potencialmente miles de gastos, y la inmensa mayoría de las
+   * vueltas de poll no traen un solo sobre nuevo.
+   */
+  antesDeAplicar?: () => void;
+};
 
 export async function drainGroup(
   groupId: string,
@@ -421,6 +459,15 @@ export async function drainGroup(
 ): Promise<DrainResult> {
   const pageLimit = opts.pageLimit ?? DRAIN_FETCH_LIMIT;
   const maxPages = opts.maxPages ?? DRAIN_MAX_PAGES;
+
+  // Verifier ciego (B3): foto de la SESIÓN ACTIVA al arrancar — no se compara
+  // contra `currentUserId` (ese es el id de atribución del merge, que un
+  // llamador puede legítimamente pasar distinto de la sesión activa, p. ej.
+  // para aplicar en nombre de otro id en un test o en un camino de fusión de
+  // cuentas) sino contra sí misma más abajo, justo antes de aplicar: lo que
+  // importa es si la sesión CAMBIÓ durante el drenaje, no si coincide con
+  // este parámetro puntual.
+  const sesionAlArrancar = useAuthStore.getState().currentUser?.id ?? null;
 
   const key = groupKeyBytes(groupId);
   if (!key) return { ok: false, reason: 'no_key' };
@@ -439,6 +486,7 @@ export async function drainGroup(
   // página y sus rebanadas en otra.
   const recibidasPorRemitente = new Map<string, Map<string, string>>();
   const manifiestos: { sender: string; manifest: SliceManifest }[] = [];
+  let seLlamoAntesDeAplicar = false;
 
   for (let pagina = 0; pagina < maxPages; pagina++) {
     const r = await fetchSince(topic, cursor, deviceId, pageLimit);
@@ -469,7 +517,22 @@ export async function drainGroup(
     //     esa garantía; paginar no la toca porque `seq` es global al topic.
     const rebanadas: { seq: number; ckey?: string; sender: string; delta: SyncDelta; senderKey: string; json: string }[] = [];
 
-    for (const envelope of r.envelopes) {
+    for (let i = 0; i < r.envelopes.length; i++) {
+      // T-157b: cede el hilo ENTRE aperturas, nunca antes de la primera —
+      // sólo en esta pasada (colección: verificar firma + descifrar). La
+      // pasada de APLICACIÓN (abajo) no llama a `cederHilo()` ENTRE piezas
+      // —eso sí rompería el orden load-bearing de `SLICED_FIELDS`, que exige
+      // que `groups`/`expenses` de la MISMA publicación ya estén aplicados
+      // antes de `users`/`comments`—, pero **no es código síncrono de punta a
+      // punta**: verifier ciego (B3), corrección sobre una afirmación falsa
+      // de una revisión anterior. `observeAuthor` (abajo) es una llamada real
+      // con su propio `await`, y `fetchAvatarIfMissing` (más abajo, dentro
+      // del mismo bloque) también. Por eso el rechequeo de `sigueSiendoLaClave`
+      // y del usuario activo, justo antes de `antesDeAplicar`, no es
+      // paranoia: el hueco que abre `cederHilo()` acá arriba es el mismo tipo
+      // de ventana que esos otros `await`, sólo que más ancha.
+      if (i > 0) await cederHilo();
+      const envelope = r.envelopes[i]!;
       // 1. Firma. Descarta lo ajeno ANTES de gastar una operación de cifrado.
       const firmado = verifyEnvelope(envelope.payload);
       if (firmado === null) { skipped++; continue; }
@@ -525,6 +588,33 @@ export async function drainGroup(
         }
         mapa.set(envelope.ckey, plain);
       }
+    }
+
+    // Verifier ciego (B3): rechequeo justo antes de aplicar. El chequeo de
+    // `sigueSiendoLaClave` de más arriba corrió ANTES de abrir un solo sobre
+    // de esta página — pero la pasada de colección que acaba de terminar
+    // cedió el hilo varias veces (`cederHilo`, T-157b), y en ese hueco puede
+    // haber pasado un logout, un wipe de cuenta o un cambio de clave de
+    // grupo. Aplicar la caché que se armó ANTES de eso, sobre stores que
+    // mientras tanto se vaciaron, resucita datos de la cuenta anterior en la
+    // cuenta nueva. Si algo cambió, esta página se aborta ENTERA — no se
+    // aplica nada de ella ni se mueve el cursor (mismo criterio que el
+    // chequeo de arriba): la próxima vuelta, ya con el contexto correcto,
+    // la vuelve a pedir desde `sinceSeq`.
+    if (rebanadas.length > 0) {
+      const sesionSigueSiendoLaMisma = (useAuthStore.getState().currentUser?.id ?? null) === sesionAlArrancar;
+      if (!sesionSigueSiendoLaMisma || !sigueSiendoLaClave(groupId, record)) {
+        return { ok: false, reason: 'key_changed' };
+      }
+    }
+
+    // T-158b: la foto previa se toma UNA sola vez, recién acá — después del
+    // fetch de esta página, antes de aplicar la primera rebanada de datos que
+    // trajo. Una página que sólo trae manifiestos (o sobres que no abrieron)
+    // no dispara nada: no hay nada que aplicar todavía.
+    if (!seLlamoAntesDeAplicar && rebanadas.length > 0) {
+      opts.antesDeAplicar?.();
+      seLlamoAntesDeAplicar = true;
     }
 
     for (const { seq, delta, senderKey } of rebanadas) {

@@ -451,14 +451,23 @@ export async function fetchSince(
  * en un ticket de limpieza posterior a 011b (los servidores sin 011a todavía
  * lo necesitan).
  */
-export function subscribeTopic(topic: string, onNews: () => void): () => void {
+/**
+ * `onStatus` (T-158a, DEC-04): avisa si el canal PRIVADO —el que sobrevive a
+ * 011b— está `SUBSCRIBED` (`true`) o no (`CHANNEL_ERROR`/`TIMED_OUT`/`CLOSED`,
+ * `false`). El motor lo usa para decidir cada cuánto vale la pena releer por
+ * cursor: con el socket sano, el aviso realtime ya cubre casi todo y el poll
+ * de respaldo puede espaciarse; caído, hay que volver a la cadencia corta de
+ * siempre. El canal PÚBLICO (`postgres_changes`, de compatibilidad con
+ * servidores sin 011a) no se reporta acá — ver el JSDoc de arriba.
+ */
+export function subscribeTopic(topic: string, onNews: () => void, onStatus?: (ok: boolean) => void): () => void {
   const supabase = getRelayClient();
   if (!supabase) return () => {};
 
   const privado = supabase
     .channel(`envelopes:${topic}`, { config: { private: true } })
     .on('broadcast', { event: 'news' }, () => onNews())
-    .subscribe();
+    .subscribe((status) => { onStatus?.(status === 'SUBSCRIBED'); });
 
   const publico = supabase
     .channel(`envelopes-pgc:${topic}`)

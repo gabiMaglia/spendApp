@@ -68,10 +68,37 @@ const CURSOR_PREFIX = 'cursor::';
  * gasto que NUNCA aparecía hasta reiniciar. Esto es lo que hace cierto el
  * invariante que ya estaba escrito.
  *
- * 20s es barato —una query indexada por grupo— y es el orden de magnitud que
- * la gente tolera esperando ver un gasto que acaba de cargar el otro.
+ * **T-158a (DEC-04): el intervalo pasó a ser adaptativo.** Con el canal
+ * PRIVADO de todos los grupos `SUBSCRIBED`, el aviso realtime ya cubre casi
+ * todo y el poll de respaldo puede espaciarse a `POLL_OK_MS` — sigue
+ * existiendo por si el aviso se pierde, pero pierde uno de cada tanto es
+ * barato. En cuanto algún canal cae (`CHANNEL_ERROR`/`TIMED_OUT`/`CLOSED`) o
+ * todavía no hay ninguno suscripto (arranque, invitado sin grupos), se vuelve
+ * a la cadencia corta de siempre — es la única señal con la que el poll
+ * puede saber que el aviso realtime dejó de ser confiable.
  */
-export const POLL_INTERVAL_MS = 20_000;
+export const POLL_OK_MS = 90_000;
+export const POLL_CAIDO_MS = 20_000;
+/** Compat: quien importaba el intervalo de siempre sigue viendo el mismo número —
+ *  era, y sigue siendo, el de "canal caído" (el conservador). */
+export const POLL_INTERVAL_MS = POLL_CAIDO_MS;
+
+/**
+ * Estado del canal PRIVADO de cada topic de GRUPO suscripto (T-158a). Sólo los
+ * de grupo entran acá — los de invitación/contacto no participan de esta
+ * decisión, y por eso un invitado sin grupos todavía cae en `POLL_CAIDO_MS`
+ * (S3): no hay ningún canal de grupo del que decir "está sano".
+ */
+const estadoCanales = new Map<string, boolean>();
+
+/** Próximo intervalo de poll, recalculado en cada vuelta (DEC-04). */
+export function intervaloDePoll(): number {
+  if (estadoCanales.size === 0) return POLL_CAIDO_MS;
+  for (const ok of estadoCanales.values()) {
+    if (!ok) return POLL_CAIDO_MS;
+  }
+  return POLL_OK_MS;
+}
 
 /** Ventana de agrupación: suficiente para juntar una edición, imperceptible. */
 export const PUBLISH_DEBOUNCE_MS = 1_500;
@@ -232,16 +259,26 @@ export async function drainNow(groupId: string): Promise<number> {
 
   // Foto previa: es lo que distingue "llegó recién" de "ya estaba". Sin esto
   // cada relectura por cursor volvería a avisar lo mismo.
-  const antes = snapshot(
-    useExpenseStore.getState().expenses,
-    syncedNow(),
-    useGroupStore.getState().groups,
-    usePaymentStore.getState().payments,
-  );
+  //
+  // T-158b: se toma PEREZOSAMENTE — sólo si `drainGroup` de verdad encuentra
+  // algo que aplicar (`opts.antesDeAplicar`). Calcularla es trabajo de JS
+  // sobre potencialmente miles de gastos, y la inmensa mayoría de las vueltas
+  // de poll en un grupo tranquilo no traen un solo sobre nuevo — tirarla a la
+  // basura en esos casos es puro desperdicio.
+  let antes: Snapshot | undefined;
 
   try {
     const topic = await deriveTopic(fromHex(record.key), record.epoch);
-    const r = await drainGroup(groupId, userId, deviceId(), readCursor(topic));
+    const r = await drainGroup(groupId, userId, deviceId(), readCursor(topic), {
+      antesDeAplicar: () => {
+        antes = snapshot(
+          useExpenseStore.getState().expenses,
+          syncedNow(),
+          useGroupStore.getState().groups,
+          usePaymentStore.getState().payments,
+        );
+      },
+    });
     if (!r.ok) return 0;
 
     // T-136 · D-1: si la clave cambió desde la foto de entrada (el usuario
@@ -275,7 +312,10 @@ export async function drainNow(groupId: string): Promise<number> {
 
     // T-010. Va DESPUÉS de resolver borrados: una ronda que acaba de vencer ya
     // no es un pedido pendiente y no tiene por qué avisarse.
-    if (r.applied > 0) void avisarDeLoNuevo(antes, userId);
+    // `antes` siempre está seteado acá: `r.applied > 0` sólo es posible si
+    // `drainGroup` aplicó al menos una rebanada, y eso no pasa sin haber
+    // llamado antes a `antesDeAplicar` (ver el comentario en `relaySync.ts`).
+    if (r.applied > 0 && antes) void avisarDeLoNuevo(antes, userId);
 
     return r.applied;
   } catch {
@@ -510,7 +550,21 @@ async function arrancarCadenaDeSync(permitirCaptcha: boolean): Promise<void> {
       // Fix 1: agendado con debounce (no `drainNow` directo) — ver
       // `scheduleDrain` para por qué un aviso realtime por sobre individual
       // no puede disparar un drenaje inmediato con ADR-007 en juego.
-      unsubs.push(subscribeTopic(topic, () => { scheduleDrain(groupId); }));
+      // T-158a: además del aviso, se registra el estado del canal privado —
+      // es lo que decide el intervalo del próximo poll (`intervaloDePoll`).
+      //
+      // Observación del verificador ciego: se siembra `false` ACÁ, antes de
+      // que `onStatus` dispare por primera vez — un canal recién suscripto
+      // que todavía no confirmó nada (mudo, nunca llegó `SUBSCRIBED` ni
+      // `CHANNEL_ERROR`) tiene que contar como "no confirmado", nunca quedar
+      // AUSENTE del mapa: ausente es indistinguible de "no hay canales", y con
+      // otro canal ya en `true`, `intervaloDePoll` prometía 90s sin que este
+      // hubiera confirmado nada.
+      estadoCanales.set(topic, false);
+      const off = subscribeTopic(topic, () => { scheduleDrain(groupId); }, (ok) => {
+        estadoCanales.set(topic, ok);
+      });
+      unsubs.push(() => { off(); estadoCanales.delete(topic); });
     } catch { /* un grupo que falla no debe impedir los demás */ }
   }
 
@@ -534,20 +588,52 @@ async function arrancarCadenaDeSync(permitirCaptcha: boolean): Promise<void> {
 
 // --- relectura periódica ------------------------------------------------------
 
-let poll: ReturnType<typeof setInterval> | null = null;
+let poll: ReturnType<typeof setTimeout> | null = null;
 let appStateSub: { remove: () => void } | null = null;
 
 /**
- * Relee todo cada `POLL_INTERVAL_MS` y también al volver del background.
+ * Verifier ciego (rechazo de perf/ola-b), B1: token de generación de la
+ * cadena de poll. `stopPolling`/`startPolling` lo incrementan; cada vuelta de
+ * la cadena captura el que estaba vigente al agendarse y sólo reprograma la
+ * siguiente si SIGUE siendo el vigente.
+ *
+ * Hace falta porque `clearTimeout` no alcanza: si un poll YA disparó
+ * (`releerTodo()` está corriendo, por ejemplo colgado en `ensureRelaySession`)
+ * y recién ENTONCES se llama `stopPolling` (o `startPolling`, que empieza
+ * llamando a `stopPolling`), `clearTimeout` no tiene nada que cancelar — el
+ * timer ya se consumió. Sin este token, el `.finally` de esa vuelta en curso
+ * reprogramaba SIEMPRE la siguiente, dejando una cadena viva después del stop
+ * o, si hubo un reinicio de por medio, DOS cadenas corriendo en paralelo.
+ */
+let generacionPoll = 0;
+
+/**
+ * Agenda la próxima relectura. Ya no es un `setInterval` de intervalo fijo
+ * (T-158a): es una cadena de `setTimeout` que recalcula `intervaloDePoll()`
+ * en cada vuelta, así que el espaciado a 90s/20s reacciona al estado de los
+ * canales que haya AHORA MISMO, no al que había cuando arrancó el poll.
+ */
+function programarProximoPoll(generacion: number): void {
+  poll = setTimeout(() => {
+    void releerTodo().finally(() => {
+      // B1: si `stopPolling`/`startPolling` corrieron mientras `releerTodo()`
+      // estaba en vuelo, esta cadena ya es vieja — no reprograma.
+      if (generacion === generacionPoll) programarProximoPoll(generacion);
+    });
+  }, intervaloDePoll());
+}
+
+/**
+ * Relee todo cada `intervaloDePoll()` y también al volver del background.
  *
  * Lo segundo importa tanto como lo primero: en background el websocket se cae y
  * los avisos de ese rato no llegan nunca. Volver a la app tiene que ponerte al
  * día, que es exactamente cuando el usuario está mirando.
  */
 function startPolling(): void {
-  stopPolling();
+  stopPolling(); // bumps `generacionPoll`: invalida cualquier cadena vieja en vuelo
 
-  poll = setInterval(() => { void releerTodo(); }, POLL_INTERVAL_MS);
+  programarProximoPoll(generacionPoll);
 
   appStateSub = AppState.addEventListener('change', estado => {
     if (estado === 'active') void releerTodo();
@@ -560,7 +646,8 @@ function startPolling(): void {
 }
 
 function stopPolling(): void {
-  if (poll) { clearInterval(poll); poll = null; }
+  generacionPoll++; // B1: invalida la cadena vigente, corra o no ahora mismo
+  if (poll) { clearTimeout(poll); poll = null; }
   if (appStateSub) { appStateSub.remove(); appStateSub = null; }
   if (soltarRefresh) { soltarRefresh(); soltarRefresh = null; }
 }
