@@ -1,32 +1,15 @@
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet } from 'react-native';
 import Animated, { useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
-import { requireOptionalNativeModule } from 'expo-modules-core';
 
-import { useSkin } from '@/src/skins/useSkin';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { conAlfa } from '@/src/skins/color';
+import { useSkinTokens } from '@/src/skins/useSkin';
 import { RECORRIDO_AERO } from './headerAeroGeometria';
 
 /** Cuánto baja el velo por debajo del borde del header (PO 2026-09-26). */
 export const VELO_DEBAJO = 2;
-/** Opacidad del tinte del velo (PO: «overlay al 30%»). */
+/** Opacidad del velo (PO: «overlay al 30%»). */
 export const VELO_OPACIDAD = 0.3;
-/** `intensity` de `expo-blur` que da ~30% de tinte en Android (ver comentario abajo). */
-export const INTENSIDAD_CLARO = Math.round((VELO_OPACIDAD / 0.78) * 100);
-export const INTENSIDAD_OSCURO = Math.round((VELO_OPACIDAD / 0.69) * 100);
-
-/**
- * `expo-blur` es nativo: si el dev client instalado todavía no lo trae, se
- * requiere solo cuando el módulo existe. Sin él, queda el tinte al 30% sin
- * blur (en vez de tumbar la pantalla con un error rojo).
- */
-function blurDisponible(): React.ComponentType<Record<string, unknown>> | null {
-  if (!requireOptionalNativeModule('ExpoBlurView')) return null;
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  return require('expo-blur').BlurView;
-}
-const BlurNativo = blurDisponible();
 
 /** Alto del velo: del borde de arriba de la pantalla hasta 2pt debajo del header. */
 export function altoVelo(fondoBarra: number, altoTituloYAire: number): number {
@@ -35,12 +18,15 @@ export function altoVelo(fondoBarra: number, altoTituloYAire: number): number {
 }
 
 /**
- * **Velo esmerilado detrás del header Aero** (PO 2026-09-26): desde el borde
- * superior hasta 2pt debajo del header, tinte del fondo al 30% con blur
- * fuerte. El contenido que sube se ve esmerilado en los huecos alrededor de
- * las tarjetas; su borde de abajo acompaña al colapso.
+ * **Velo detrás del header Aero** (PO 2026-09-26): desde el borde superior
+ * hasta 2pt debajo del header, el color del fondo al 30%. El contenido que
+ * sube se sigue viendo, atenuado, en los huecos alrededor de las tarjetas;
+ * su borde de abajo acompaña al colapso.
  *
- * Degradado (gama baja / reducir animaciones): sin blur, solo el tinte.
+ * **Sin blur nativo, a propósito.** Se probó `expo-blur` (`dimezisBlurView`):
+ * en Android tapa en vez de dejar ver (suma su propio tinte) y en Android 11
+ * (Moto E40 del PO) usa RenderScript, que crashea con radio > 25. Un blur de
+ * verdad en Android solo es confiable desde Android 12 (RenderEffect).
  */
 export function VeloHeader({
   progress, fondoBarra,
@@ -48,38 +34,20 @@ export function VeloHeader({
   progress: SharedValue<number>;
   fondoBarra: number;
 }) {
-  const { skin, degradado } = useSkin();
-  const oscuro = (useColorScheme() ?? 'light') === 'dark';
+  const skin = useSkinTokens();
   const estilo = useAnimatedStyle(() => ({
     height: altoVelo(fondoBarra, RECORRIDO_AERO * (1 - Math.min(1, Math.max(0, progress.value)))),
   }));
-  const tinte = conAlfa(skin.colors.bg, VELO_OPACIDAD);
-  const conBlur = !!BlurNativo && !degradado;
 
   return (
-    <Animated.View testID="velo-header" pointerEvents="none" style={[styles.velo, estilo]}>
-      {conBlur ? (
-        <BlurNativo
-          style={StyleSheet.absoluteFill}
-          // En Android el tinte de `expo-blur` sale de `intensity`
-          // (alfa = intensity × factor del tinte: 0.78 light, 0.69 dark —
-          // `TintStyle.kt`). Con 90 quedaba ~70% opaco y tapaba lo de atrás.
-          // Estos valores dan ~30% de tinte (lo que pidió el PO) y, con
-          // `blurReductionFactor` 1, el radio del blur es el mismo número:
-          // fuerte, sin volver opaco el velo.
-          intensity={oscuro ? INTENSIDAD_OSCURO : INTENSIDAD_CLARO}
-          blurReductionFactor={1}
-          tint={oscuro ? 'dark' : 'light'}
-          experimentalBlurMethod="dimezisBlurView"
-        />
-      ) : (
-        // Sin blur (dev client sin el módulo, gama baja o reducir animaciones): solo el tinte.
-        <View style={[StyleSheet.absoluteFill, { backgroundColor: tinte }]} />
-      )}
-    </Animated.View>
+    <Animated.View
+      testID="velo-header"
+      pointerEvents="none"
+      style={[styles.velo, { backgroundColor: conAlfa(skin.colors.bg, VELO_OPACIDAD) }, estilo]}
+    />
   );
 }
 
 const styles = StyleSheet.create({
-  velo: { position: 'absolute', top: 0, left: 0, right: 0, overflow: 'hidden' },
+  velo: { position: 'absolute', top: 0, left: 0, right: 0 },
 });
