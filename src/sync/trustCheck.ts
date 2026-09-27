@@ -1,6 +1,6 @@
 import { verifiedCore } from './verdictCache';
 import { verifyVote } from './voteSign';
-import { authorKeysFor } from './authorKeys';
+import { conPropiaSoloParaValida } from './authorKeys';
 import { authorOf } from './signOnWrite';
 import { derivedOriginOf } from './derivedRecords';
 import type { CoreKind, CoreRecord } from './recordCore';
@@ -70,7 +70,13 @@ export function checkRecord<K extends CoreKind>(
   const authorId = authorOf(kind, record);
   if (!authorId) return 'no_verificable';
 
-  return verifiedCore(kind, record, authorKeysFor(authorId, k));
+  // T-170 · D-2: la propia (autoría PROPIA, `esYo(authorId)`) sólo puede
+  // MEJORAR este veredicto hacia `valida` — nunca degradarlo hacia
+  // `invalida` (residual de la ronda de retorno 2, `authorKeys.ts`,
+  // `conPropiaSoloParaValida`).
+  return conPropiaSoloParaValida(
+    authorId, k, keys => verifiedCore(kind, record, keys), v => v === 'valida',
+  );
 }
 
 /**
@@ -114,5 +120,9 @@ function veredictoHeredadoDeLaPlantilla(
 }
 
 export function checkVote(expenseId: string, vote: DeletionVote): CoreVerdict {
-  return verifyVote(expenseId, vote, authorKeysFor(vote.userId, vote.k));
+  // T-170 · D-2: mismo criterio que `checkRecord` — la propia sólo mejora
+  // hacia `valida` un `forced`/voto MÍO, nunca lo degrada.
+  return conPropiaSoloParaValida(
+    vote.userId, vote.k, keys => verifyVote(expenseId, vote, keys), v => v === 'valida',
+  );
 }

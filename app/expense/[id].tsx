@@ -38,6 +38,8 @@ import type { CategoryKind } from '@/src/constants/colors';
 import { syncedNow } from '@/src/utils/syncedClock';
 import { esYo } from '@/src/store/identityAlias';
 import { useColors } from '@/src/skins/useSkin';
+import { enDisputa, autoresVerificados } from '@/src/sync/autoriaTrust';
+import { InlineWarningBanner } from '@/src/components/InlineWarningBanner';
 
 /** "2 días" / "5 horas" / "40 minutos": basta para saber si hay que apurarse. */
 function formatearRestante(ms: number): string {
@@ -128,6 +130,23 @@ export default function ExpenseDetailScreen() {
   }
 
   const isCreator = esYo(expense.createdById);
+  // T-170 · D-1: con autoría en disputa, ningún `forced` es inmediato — ni
+  // siquiera el del autor genuino (I-10). La opción de forzar se oculta acá,
+  // y `resolvePendingDeletions` corta lo mismo del lado que corre solo
+  // (`src/sync/forcedTrust.ts`, predicado único).
+  const disputada = enDisputa(expense);
+  const puedeForzar = isCreator && !disputada;
+  // T-170 · D-3 (decisión del PO): quién abrió la disputa, para mostrarlo.
+  // TODOS los autores ATRIBUIBLES (`autoresVerificados`: firma que cierra,
+  // D9 afuera del merge) — SIN filtrar por `expense.createdById` vigente.
+  //
+  // Filtrar por el vigente era el defecto de la ronda 3 del verificador: el
+  // núcleo sigue ganando por `rev` (R4), así que Mallory puede re-estampar
+  // con un `rev` mayor y CONVERTIRSE en el creador vigente. Un filtro contra
+  // ese id escondía justo a la atacante y dejaba sólo al autor genuino en la
+  // lista — lo opuesto de lo que el PO pidió («mostrar quién abrió la
+  // disputa»).
+  const autoresDeLaDisputa = disputada ? [...autoresVerificados(expense)] : [];
 
   // En un grupo de borrado LIBRE (elegido al crearlo) cualquier miembro borra
   // al instante, igual que Splitwise: la defensa no es impedir sino que quede
@@ -219,9 +238,10 @@ export default function ExpenseDetailScreen() {
       return;
     }
 
-    // El creador elige: pedirlo y esperar, o forzarlo. Los demás sólo pueden
-    // pedirlo (regla de negocio #2).
-    const opciones = isCreator
+    // El creador elige: pedirlo y esperar, o forzarlo. Los demás —y un
+    // creador con la autoría en disputa (T-170 · D-1)— sólo pueden pedirlo
+    // (regla de negocio #2).
+    const opciones = puedeForzar
       ? [
           { text: t('common.cancel'), style: 'cancel' as const },
           { text: t('expense.delete_request'), onPress: pedirBorrado },
@@ -234,7 +254,7 @@ export default function ExpenseDetailScreen() {
 
     Alert.alert(
       t('expense.delete_title'),
-      isCreator ? t('expense.delete_body_creator') : t('expense.delete_body_member'),
+      puedeForzar ? t('expense.delete_body_creator') : t('expense.delete_body_member'),
       opciones,
     );
   }
@@ -411,45 +431,40 @@ export default function ExpenseDetailScreen() {
           </View>
         ) : null}
 
+        {/* Autoría en disputa (T-170 · D-3, decisión del PO): decir QUIÉN la
+            abrió, no sólo ocultar "Forzar" en silencio. Sólo autores
+            ATRIBUIBLES — nunca una entrada sin verificar ni un id inyectado. */}
+        {autoresDeLaDisputa.length > 0 && (
+          <InlineWarningBanner
+            icon="warning-outline"
+            title={t('expense.authorship_disputed_title')}
+            body={t('expense.authorship_disputed_body', {
+              names: autoresDeLaDisputa.map(nombreDe).join(', '),
+            })}
+          />
+        )}
+
         {/* Estado de la solicitud de borrado. Decir QUIÉN lo pidió y CUÁNTO
             falta es lo que hace accionable el aviso: "pendiente" a secas no le
             dice a nadie si tiene que hacer algo ni cuándo. */}
         {ronda && !expense.isDeleted && (
-          <View style={[
-            styles.section, styles.warningSection,
-            frenada
-              ? { backgroundColor: c.bgGrouped, borderColor: c.hair }
-              : { backgroundColor: c.semantic.warningSoft, borderColor: c.semantic.warning },
-          ]}>
-            <Ionicons
-              name={frenada ? 'hand-left-outline' : 'time-outline'}
-              size={18}
-              color={frenada ? c.textSecondary : c.semantic.warning}
-            />
-            <View style={{ flex: 1 }}>
-              <Text style={[Typography.bodyM, {
-                color: frenada ? c.text : c.semantic.warning, fontWeight: '600',
-              }]}>
-                {tituloDeRonda}
-              </Text>
-              <Text style={[Typography.bodyS, {
-                color: frenada ? c.textSecondary : c.semantic.warning,
-                marginTop: 2, opacity: 0.9,
-              }]}>
-                {cuerpoDeRonda}
-              </Text>
-              {/* Quién pidió/objetó/restauró se muestra igual —el override del
-                  creador se honra SIEMPRE (R3)—; lo que agrega la marca es si
-                  esa firma cerró. Atribuir, no bloquear. */}
-              {votoDeLaRonda && isMarked(
-                marcaDeVoto[voteRefKey(expense.id, votoDeLaRonda)] ?? 'pendiente',
-              ) && (
-                <View style={{ marginTop: Spacing[2] }}>
-                  <TrustMark label={t('trust.vote')} size="sm" />
-                </View>
-              )}
-            </View>
-          </View>
+          <InlineWarningBanner
+            icon={frenada ? 'hand-left-outline' : 'time-outline'}
+            tone={frenada ? 'neutral' : 'warning'}
+            title={tituloDeRonda}
+            body={cuerpoDeRonda}
+          >
+            {/* Quién pidió/objetó/restauró se muestra igual —el override del
+                creador se honra SIEMPRE (R3)—; lo que agrega la marca es si
+                esa firma cerró. Atribuir, no bloquear. */}
+            {votoDeLaRonda && isMarked(
+              marcaDeVoto[voteRefKey(expense.id, votoDeLaRonda)] ?? 'pendiente',
+            ) && (
+              <View style={{ marginTop: Spacing[2] }}>
+                <TrustMark label={t('trust.vote')} size="sm" />
+              </View>
+            )}
+          </InlineWarningBanner>
         )}
 
         {/* Acciones. Objetar y retirar el pedido NO son lo mismo: objetar frena
@@ -527,6 +542,5 @@ const styles = StyleSheet.create({
   balanceCol:    { flex: 1, alignItems: 'center' },
   balanceDivider:{ width: 1, height: 32 },
   splitRow:      { flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
-  warningSection:{ flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
   notFound:  { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
 });

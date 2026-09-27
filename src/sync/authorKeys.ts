@@ -206,12 +206,97 @@ function claveDelPeer(authorId: string): string | null {
   }
 }
 
+type ModuloAlias = { esYo(id: string | null | undefined): boolean };
+type ModuloIdentidad = { ensureIdentity(): { publicKey: string } };
+let modAlias: ModuloAlias | null | undefined;
+let modIdentidad: ModuloIdentidad | null | undefined;
+
+function cargarAlias(): ModuloAlias | null {
+  if (modAlias !== undefined) return modAlias;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    modAlias = require('@/src/store/identityAlias') as ModuloAlias;
+  } catch {
+    modAlias = null;
+  }
+  return modAlias;
+}
+
+function cargarIdentidad(): ModuloIdentidad | null {
+  if (modIdentidad !== undefined) return modIdentidad;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    modIdentidad = require('@/src/store/identityStore') as ModuloIdentidad;
+  } catch {
+    modIdentidad = null;
+  }
+  return modIdentidad;
+}
+
+/**
+ * **La pública de ESTE aparato/cuenta, cuando el autor sos VOS MISMO** (D-2,
+ * dictamen del verificador — ronda de retorno 2).
+ *
+ * **NO entra a `resolveAuthorKeys`** (ronda de retorno 3, residual: es BUG,
+ * no decisión del PO). La primera versión de este fix la sumaba ahí, al
+ * mismo array que decide "hay clave conocida ⇒ o coincide (`valida`) o no
+ * (`invalida`)". Con eso, un registro MÍO firmado en OTRO aparato de la
+ * misma cuenta (o antes de reinstalar) — sin que el directorio hubiera
+ * aportado nada — pasaba de `no_verificable` a **`invalida`**: la propia,
+ * sola, alcanzaba para que "hay al menos una clave conocida" fuera cierto, y
+ * como esa clave no coincidía con la del otro aparato, el gate de
+ * `verifyCore`/`verifyVote`/`checkSettlement` (`authorKeys.length===0` vs
+ * `!authorKeys.includes(k)`) devolvía una acusación que el directorio NUNCA
+ * hizo. Mismo agujero en `settlementTrust.checkSettlement`: un `reject` mío
+ * hecho desde el otro aparato quedaba ignorado justo cuando la regla de
+ * negocio 3 más lo necesita.
+ *
+ * **La propia sólo puede SUMAR `valida`, nunca producir `invalida`.** Por
+ * eso se resuelve APARTE, y quien la usa (`conPropiaSoloParaValida`, acá
+ * abajo) la prueba en un segundo intento, INDEPENDIENTE del primero, y sólo
+ * adopta ese segundo resultado si es exactamente `valida`. Cualquier otra
+ * cosa —incluida una `invalida` de la propia sola, que sólo diría "esto no
+ * lo firmé YO con ESTE aparato", nada sobre si es fraudulento— se descarta y
+ * queda el veredicto de siempre (peer + directorio, sin la propia).
+ *
+ * **Guardia obligatoria: `esYo(authorId)`.** Sin ella, cualquiera podría
+ * validar un registro a nombre de OTRO con su propia firma — es la clase de
+ * ataque exacta que este archivo existe para impedir (ver el comentario de
+ * arriba sobre por qué esto no es un acumulador TOFU). La pública propia
+ * SÓLO cuenta cuando el registro dice ser mío.
+ *
+ * Carga perezosa por el mismo motivo que `cargarPeers`/`cargarDirectorio`:
+ * `identityStore` arrastra `expo-crypto` (nativo), y este archivo lo importa
+ * el camino síncrono del merge/delta.
+ */
+function clavePropia(authorId: string): string | null {
+  const alias = cargarAlias();
+  if (!alias) return null;
+  try {
+    if (!alias.esYo(authorId)) return null;
+  } catch {
+    return null;
+  }
+
+  const identidad = cargarIdentidad();
+  if (!identidad) return null;
+  try {
+    const k = identidad.ensureIdentity().publicKey;
+    return k && ES_PUBLICA.test(k) ? k : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Las públicas con las que puede haber firmado este autor. **Síncrona y sin
  * red**: es lo que va a llamar el merge, y `applyDelta` es síncrono (§3).
  *
  * Se recorren TODAS las fuentes. Ninguna corta a la siguiente, ni siquiera
- * cuando contesta.
+ * cuando contesta. **La propia NO es una de estas fuentes** (ver el
+ * comentario de `clavePropia`): mezclarla acá contaminaría a TODO consumidor
+ * de esta función —`checkSettlement`, `recordHealth.observeRecord`,
+ * `applyLeave`— que nunca pidió el fix de D-2 y no lo necesita.
  */
 export function resolveAuthorKeys(authorId: string): readonly string[] {
   if (!authorId) return [];
@@ -225,6 +310,41 @@ export function resolveAuthorKeys(authorId: string): readonly string[] {
   for (const k of knownAuthorKeys(authorId)) sumar(k);
 
   return union;
+}
+
+/**
+ * **El único punto donde la propia puede intervenir en una verificación**
+ * (D-2, ronda de retorno 3).
+ *
+ * Corre `verificar` dos veces, nunca combinando las fuentes en un solo
+ * array: primero con `authorKeysFor` (peer + directorio, como siempre); si
+ * eso ya da `valida`, listo. Si no, un SEGUNDO intento sólo con la propia
+ * (si `esYo(authorId)`) — y ese segundo intento sólo puede ADOPTARSE si es
+ * exactamente `valida`. Cualquier otro resultado del segundo intento se
+ * descarta: el veredicto que queda es el del primero, intacto.
+ *
+ * Usan esto los tres consumidores que de verdad necesitan la propia:
+ * `checkRecord`/`checkVote` (`trustCheck.ts`, para el atajo D-3 y el
+ * `forced` propio) y `autoriaTrust.ts`. `checkSettlement`,
+ * `recordHealth.observeRecord` y `applyLeave` siguen llamando
+ * `authorKeysFor` directo, sin este wrapper, y por lo tanto sin cambio de
+ * comportamiento por D-2 — no lo pidieron y el residual de esta ronda es
+ * justamente que no lo necesitan.
+ */
+export function conPropiaSoloParaValida<V>(
+  authorId: string,
+  presentedKey: string | undefined,
+  verificar: (keys: readonly string[]) => V,
+  esValida: (v: V) => boolean,
+): V {
+  const base = verificar(authorKeysFor(authorId, presentedKey));
+  if (esValida(base)) return base;
+
+  const propia = clavePropia(authorId);
+  if (!propia || (presentedKey !== undefined && propia !== presentedKey)) return base;
+
+  const conPropia = verificar([propia]);
+  return esValida(conPropia) ? conPropia : base;
 }
 
 /**
