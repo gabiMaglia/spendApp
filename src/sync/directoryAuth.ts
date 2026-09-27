@@ -1,4 +1,5 @@
 import { getRelayClient } from './relay';
+import { withTimeout } from '@/src/utils/withTimeout';
 
 /**
  * Sesión de CUENTA contra Supabase Auth — abre la que usan el buzón Y el
@@ -41,16 +42,70 @@ import { getRelayClient } from './relay';
  * `relay.ts` → `relaySession.ts`): un `import` estático acá arriba armaría
  * un ciclo (`relaySession.ts` → `authStore.ts` → `directoryAuth.ts`); sólo
  * hace falta en tiempo de ejecución, nunca al cargar el módulo.
+ *
+ * **T-175 (obs verifier T-147-b ronda 2):** `signInWithIdToken`/`signOut`
+ * corrían acá SIN tope de tiempo. El tope de `SESSION_TIMEOUT_MS` que ya
+ * existía vive DENTRO de `hacerEnsure` (`relaySession.ts`), envolviendo lo
+ * que `ensureRelaySession` encola — nunca alcanza a lo que YA estaba
+ * encolado ADELANTE en la MISMA cola (fix D1). Un fetch colgado acá
+ * bloqueaba la cola para siempre y `verify.tsx` quedaba en spinner sin
+ * salida. Se reusa `withTimeout` (`src/utils/withTimeout.ts`, T-138-bis —
+ * el mismo corte que ya usa `doStartRelay`) en vez de escribir otra copia,
+ * y la MISMA `SESSION_TIMEOUT_MS`: un solo presupuesto de red para toda la
+ * cola. Se aplica ANTES de encolar, no a la promesa ya encolada: si
+ * quedara afuera, la operación colgada seguiría bloqueando la cola aunque
+ * ESTA llamada se rindiera. A propósito NO pausado por el captcha —
+ * login/logout de CUENTA nunca lo tocan; ese pausado (`withNetworkTimeout`)
+ * es sólo del camino de invitado. Este helper genérico ahora sólo lo usa
+ * `signOutOfDirectory` — `signIntoDirectory` (abajo) necesita quedarse con
+ * la promesa CRUDA para el fix B2i (obs verifier ronda 2, respuesta tardía
+ * que pisa otra sesión), así que arma su propio tope inline con la misma
+ * `withTimeout`/`SESSION_TIMEOUT_MS`.
  */
-function encolar<T>(fn: () => Promise<T>): Promise<T> {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { encolarOperacionDeSesion } = require('./relaySession') as typeof import('./relaySession');
-  return encolarOperacionDeSesion(fn);
+function encolar<T>(fn: () => Promise<T>, alVencer: T): Promise<T> {
+  const { encolarOperacionDeSesion, SESSION_TIMEOUT_MS } =
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    require('./relaySession') as typeof import('./relaySession');
+  return encolarOperacionDeSesion(() => withTimeout(fn(), SESSION_TIMEOUT_MS, alVencer));
 }
 
 export type DirectorySignIn =
   | { ok: true }
   | { ok: false; reason: 'not_configured' | 'no_token' | 'rejected'; detail?: string };
+
+type ClienteAuth = NonNullable<ReturnType<typeof getRelayClient>>;
+
+/**
+ * T-175 (B2i, verifier ronda 2): cuando ESTA llamada vence, `withTimeout` deja
+ * de esperar la promesa ORIGINAL — pero no la cancela (JS no puede) y auth-js
+ * tampoco se entera de nuestro tope: en cuanto la red conteste, igual corre
+ * `_saveSession` y persiste esa respuesta tardía (`GoTrueClient.js:1685-1687`).
+ * Si para entonces ya entró otra cuenta, esa respuesta tardía de A LE PISA la
+ * sesión a B en silencio.
+ *
+ * Por eso se sigue mirando la promesa original después de vencida: si
+ * finalmente trae una sesión Y el `access_token` que trajo es EXACTAMENTE el
+ * que quedó persistido ahora mismo, se purga. Comparar antes de borrar es lo
+ * que evita tocar una sesión ajena — si B ya escribió la suya (un
+ * `access_token` distinto), esto no hace nada.
+ */
+function vigilarRespuestaTardia(
+  supabase: ClienteAuth,
+  crudo: ReturnType<ClienteAuth['auth']['signInWithIdToken']>,
+): void {
+  void crudo.then(async ({ data }) => {
+    const tokenTardio = data?.session?.access_token;
+    if (!tokenTardio) return;
+    const { data: actual } = await supabase.auth.getSession();
+    if (actual.session?.access_token === tokenTardio) {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { forceClearPersistedSession } = require('./relaySession') as typeof import('./relaySession');
+      forceClearPersistedSession();
+    }
+  }).catch(() => {
+    // La respuesta tardía rechazó: nada que persistir, nada que purgar.
+  });
+}
 
 export async function signIntoDirectory(
   provider: 'google' | 'apple',
@@ -64,14 +119,40 @@ export async function signIntoDirectory(
   // servidor: uno se arregla en el .env, el otro en el panel de Supabase.
   if (!idToken) return { ok: false, reason: 'no_token' };
 
-  return encolar(async () => {
-    try {
-      const { error } = await supabase.auth.signInWithIdToken({ provider, token: idToken });
-      if (error) return { ok: false, reason: 'rejected', detail: error.message };
-      return { ok: true };
-    } catch (e) {
-      return { ok: false, reason: 'rejected', detail: String(e) };
+  const { encolarOperacionDeSesion, SESSION_TIMEOUT_MS, registrarDuenoDeSesionDeCuenta } =
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    require('./relaySession') as typeof import('./relaySession');
+
+  return encolarOperacionDeSesion(async () => {
+    // `crudo`, no envuelta en try/catch todavía: hace falta la promesa CRUDA
+    // (no la ya mapeada a `DirectorySignIn`) para poder seguir mirándola
+    // después de vencida (B2i, arriba).
+    const crudo = supabase.auth.signInWithIdToken({ provider, token: idToken });
+
+    const mapeado: Promise<DirectorySignIn> = crudo.then(
+      ({ error }) => (error ? { ok: false, reason: 'rejected', detail: error.message } : { ok: true }),
+      (e) => ({ ok: false, reason: 'rejected', detail: String(e) }),
+    );
+
+    const resultado = await withTimeout<DirectorySignIn | 'timeout'>(mapeado, SESSION_TIMEOUT_MS, 'timeout');
+
+    if (resultado === 'timeout') {
+      vigilarRespuestaTardia(supabase, crudo);
+      return { ok: false, reason: 'rejected', detail: 'timeout' };
     }
+    // T-175 (B2ii, ronda 3): sólo acá hay una confirmación REAL de Supabase
+    // Auth detrás — se registra el PAR {cuenta, sesion} para que
+    // `ensureRelaySession` (`relaySession.ts`) pueda confirmar después no
+    // sólo QUIÉN está activo sino A QUÉ `session.user.id` puntual
+    // corresponde, en vez de confiar en cualquier sesión no anónima que
+    // encuentre con la cuenta correcta. `crudo` ya resolvió (es lo que
+    // `mapeado` esperó para saber que no hubo error) — releerlo acá sólo
+    // devuelve el mismo valor ya resuelto, sin pegarle a la red de nuevo.
+    if (resultado.ok) {
+      const { data } = await crudo;
+      if (data?.session) registrarDuenoDeSesionDeCuenta(data.session.user.id);
+    }
+    return resultado;
   });
 }
 
@@ -86,17 +167,31 @@ export async function signIntoDirectory(
  * corren sobre el mismo cliente y ahora también sobre la MISMA cola (fix
  * D1), así que quedan serializadas entre sí sin importar cuál se dispara
  * primero — ninguna deja un JWT de cuenta vivo.
+ *
+ * **T-175:** si el `signOut` de red vence sin contestar, el fallback de
+ * `encolar` no puede purgar el storage por sí solo (es un valor estático,
+ * no una función) — acá se detecta el vencimiento por el sentinel
+ * `'timeout'` y se purga DESPUÉS, con `forceClearPersistedSession` (sin
+ * otro viaje de red que también podría colgarse), para que el JWT viejo no
+ * quede pegado esperando una respuesta que nunca llega.
  */
 export async function signOutOfDirectory(): Promise<void> {
   const supabase = getRelayClient();
   if (!supabase) return;
 
-  await encolar(async () => {
+  const resultado = await encolar(async (): Promise<'ok' | 'timeout'> => {
     try {
       await supabase.auth.signOut({ scope: 'local' });
     } catch {
       // Sin sesión persistida no hay nada que forzar: el próximo login del
       // directorio abre una sesión nueva sin importar cómo terminó ésta.
     }
-  });
+    return 'ok';
+  }, 'timeout');
+
+  if (resultado === 'timeout') {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { forceClearPersistedSession } = require('./relaySession') as typeof import('./relaySession');
+    forceClearPersistedSession();
+  }
 }

@@ -9,8 +9,14 @@
  * este archivo se queda enfocado en la reacción de la pantalla.
  */
 const mockEnsureRelaySession = jest.fn();
+// T-175 (obs 2): `haySesionEnCurso` por defecto en `false` — estos tests no
+// ejercitan la relectura de la cola (cubierta en `verify.obs2.test.tsx`
+// contra el camino REAL, no mockeado); acá sólo importa que exista para que
+// `verify.tsx` no explote al importar el módulo mockeado.
+const mockHaySesionEnCurso = jest.fn(() => false);
 jest.mock('@/src/sync/relaySession', () => ({
   ensureRelaySession: (p?: boolean, o?: { ignorarCooldown?: boolean }) => mockEnsureRelaySession(p, o),
+  haySesionEnCurso: () => mockHaySesionEnCurso(),
 }));
 
 // T-147-b: la reconexión de cuenta (Google silencioso / botón interactivo)
