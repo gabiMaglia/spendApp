@@ -11,10 +11,21 @@ import { ActionButton } from './ActionButton';
 import { ButtonRack } from './ButtonRack';
 import { registerCaptchaProvider, type CaptchaOutcome } from '@/src/sync/captchaBridge';
 import { turnstileHtml, parseTurnstileMessage } from '@/src/sync/turnstileHtml';
+import { recordError } from '@/src/services/errorLog';
 
 /** Sin respuesta en este tiempo y SIN que Cloudflare haya pedido interacción,
  *  se da por fallado — un widget colgado no puede trabar el sync para siempre. */
 export const CAPTCHA_SILENT_TIMEOUT_MS = 15_000;
+
+/**
+ * BUG (retro pedida por el orquestador tras la evidencia de campo del PO):
+ * "widget no se ve / no responde en N s → mensaje + Reintentar". Una vez que
+ * Cloudflare pidió interacción, la persona ya no tiene ningún reloj corriendo
+ * (a propósito: se le deja el tiempo que necesite) — pero si el widget nunca
+ * llega a dibujarse o a responder, quedarse mirando sólo el botón "Ahora no"
+ * para siempre es peor que avisar y ofrecer recargarlo.
+ */
+export const CAPTCHA_INTERACTIVE_STUCK_MS = 25_000;
 
 type Estado = 'idle' | 'esperando' | 'interactivo';
 
@@ -35,13 +46,38 @@ export function CaptchaHost() {
   const c = Colors[scheme];
 
   const [estado, setEstado] = useState<Estado>('idle');
+  const [atascado, setAtascado] = useState(false);
+  const [webviewKey, setWebviewKey] = useState(0);
   const resolverRef = useRef<((r: CaptchaOutcome) => void) | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const atascadoTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const limpiarAtascado = () => {
+    if (atascadoTimeoutRef.current) { clearTimeout(atascadoTimeoutRef.current); atascadoTimeoutRef.current = null; }
+  };
+
+  /** Arranca (o reinicia) el tope de "widget atascado" — sólo corre en modo
+   *  interactivo, nunca compite con `CAPTCHA_SILENT_TIMEOUT_MS`. */
+  const armarAtascado = () => {
+    limpiarAtascado();
+    atascadoTimeoutRef.current = setTimeout(() => setAtascado(true), CAPTCHA_INTERACTIVE_STUCK_MS);
+  };
 
   const limpiar = () => {
     if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
+    limpiarAtascado();
     resolverRef.current = null;
+    setAtascado(false);
     setEstado('idle');
+  };
+
+  /** "Reintentar" (fila de la retro): recarga el WebView (remonta, a
+   *  propósito) SIN resolver la promesa — la verificación sigue en la MISMA
+   *  pantalla, no se rinde como "Ahora no". */
+  const reintentar = () => {
+    setAtascado(false);
+    setWebviewKey(k => k + 1);
+    armarAtascado();
   };
 
   const resolver = (r: CaptchaOutcome) => {
@@ -92,6 +128,10 @@ export function CaptchaHost() {
   const onMessage = (e: WebViewMessageEvent) => {
     const msg = parseTurnstileMessage(e.nativeEvent.data);
     if (!msg) return;
+    // Diagnóstico local (sin red, sin datos sensibles — nunca el token):
+    // sin poder ver el render real en el teléfono de quien reporta un bug,
+    // esto deja registrado QUÉ callback disparó Turnstile.
+    recordError({ message: `captcha:${msg.type}`, fatal: false, screen: 'captcha' });
     switch (msg.type) {
       case 'token':
         resolver({ status: 'ok', token: msg.token });
@@ -101,9 +141,11 @@ export function CaptchaHost() {
         return;
       case 'interactive':
         // Deja de correr el reloj: a partir de acá la espera la decide la
-        // persona (cerrar la hoja, o resolver el desafío visible).
+        // persona (cerrar la hoja, o resolver el desafío visible). Arranca
+        // el tope de "atascado" — distinto del silencioso de arriba.
         if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
         setEstado('interactivo');
+        armarAtascado();
         return;
       case 'expired':
         // El widget se re-arma solo; no hay nada que hacer desde acá.
@@ -146,10 +188,14 @@ export function CaptchaHost() {
           <>
             <Text style={[styles.titulo, { color: c.text }]}>{t('captcha.title')}</Text>
             <Text style={[styles.cuerpo, { color: c.textSecondary }]}>{t('captcha.body')}</Text>
+            {atascado && (
+              <Text style={[styles.cuerpo, { color: c.textSecondary }]}>{t('captcha.stuck')}</Text>
+            )}
           </>
         )}
         <View style={interactivo ? styles.webviewInteractivo : styles.oculto}>
           <WebView
+            key={webviewKey}
             testID="turnstile-webview"
             source={{ html: turnstileHtml(siteKey), baseUrl: hostname ? `https://${hostname}` : undefined }}
             onMessage={onMessage}
@@ -159,6 +205,9 @@ export function CaptchaHost() {
         </View>
         {interactivo && (
           <ButtonRack>
+            {atascado && (
+              <ActionButton label={t('captcha.retry')} action={reintentar} variant="secondary" full />
+            )}
             <ActionButton label={t('captcha.cancel')} action={() => resolver({ status: 'failed', reason: 'dismissed' })} variant="ghost" full />
           </ButtonRack>
         )}
