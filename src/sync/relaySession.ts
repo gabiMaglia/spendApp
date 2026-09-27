@@ -4,6 +4,7 @@ import { requestCaptchaToken, onCaptchaInteractiveChange } from './captchaBridge
 import { getRelayClient } from './relay';
 import { createSerialQueue } from '@/src/utils/serialQueue';
 import { useAuthStore } from '@/src/store/authStore';
+import { withTimeout } from '@/src/utils/withTimeout';
 
 /**
  * Sesión de Supabase del BUZÓN.
@@ -61,6 +62,69 @@ export function forceClearPersistedSession(): void {
 }
 
 /**
+ * T-175 (B2, verifier ronda 2): clave propia en el MISMO bucket `'sbauth'`
+ * que la sesión — se purga JUNTO con ella (una sola `storage.clearAll()`),
+ * nunca puede sobrevivir sin la sesión que describe.
+ *
+ * **Por qué esto y no `identityAlias.esYo()`, aunque el verifier pidió
+ * reusarlo textualmente:** `data.session.user.id` es el UUID INTERNO que
+ * genera Supabase Auth al resolver `signInWithIdToken` — no el `sub` del
+ * proveedor que usa `currentUser.id` (y por lo tanto `esYo`). Son dos
+ * espacios de id distintos; comparar uno contra el otro rompe el camino
+ * FELIZ (confirmado: `esYo(data.session.user.id)` reventaba `estadosDeSesionT147b.
+ * test.ts` fila 11 y `cuentaAuthorizationBuzon.test.ts`, los dos contra el
+ * contrato REAL de GoTrue). Para que `esYo` diera `true` ahí habría que
+ * REGISTRAR ese UUID como alias en `identityAlias.ts` — el módulo que
+ * ADR-008 blinda a propósito para que sólo una fusión de cuentas real
+ * (T-048) le sume identidades, porque `idCanonico`/`rosterCanonico` (que sí
+ * llegan a la aritmética de saldos) comparten ese mismo set. Usarlo acá
+ * como bookkeeping de sesión lo envenenaría para algo que no tiene nada que
+ * ver con fusionar cuentas.
+ */
+const DUENO_KEY = 'cuenta_dueno_de_sesion';
+
+type MarcadorDueno = { cuenta: string; sesion: string };
+
+/**
+ * Deja constancia de QUÉ CUENTA confirmó QUÉ SESIÓN de Supabase.
+ *
+ * **T-175 (B2ii bis, verifier ronda 3, rechazo):** la primera versión sólo
+ * guardaba `currentUser.id` — nunca a qué `session.user.id` de Supabase
+ * pertenecía. Con B logueado de verdad (marcador = 'B') y DESPUÉS una
+ * sesión de OTRO `user.id` (p.ej. A, llegada tarde sin pasar por el
+ * purgado de B2i) pisando el storage, la comparación vieja
+ * (`marcador === currentUser.id`) daba B == B — TRUE — y devolvía
+ * `'identity'` con el JWT ajeno igual: exactamente el caso que motivó B2
+ * desde el principio. Guardar el PAR y exigir que coincidan los DOS
+ * (`ensureRelaySession`, abajo) es lo que lo cierra: un `user.id` que el
+ * marcador no confirmó nunca pasa, sin importar si la cuenta activa es la
+ * correcta.
+ *
+ * La llama `directoryAuth.signIntoDirectory` sólo tras un login que
+ * resolvió DE VERDAD (nunca en el timeout, nunca en un rechazo) — es la
+ * única vez que hay una confirmación real de Supabase Auth detrás:
+ * `ensureRelaySession` nunca establece confianza nueva por sí sola, sólo la
+ * CONFIRMA contra lo que ya quedó registrado acá.
+ */
+export function registrarDuenoDeSesionDeCuenta(sessionUserId: string): void {
+  const uid = useAuthStore.getState().currentUser?.id;
+  if (uid) storage.set(DUENO_KEY, JSON.stringify({ cuenta: uid, sesion: sessionUserId } satisfies MarcadorDueno));
+}
+
+/** Lee el marcador de dueño. Dato corrupto o ausente se trata como "sin
+ *  marcador" — nunca se inventa una confirmación que no está. */
+function leerDuenoDeSesion(): MarcadorDueno | null {
+  const raw = storage.getString(DUENO_KEY);
+  if (!raw) return null;
+  try {
+    const v = JSON.parse(raw) as Partial<MarcadorDueno>;
+    return typeof v.cuenta === 'string' && typeof v.sesion === 'string' ? (v as MarcadorDueno) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * FIFO de TODO lo que toca la sesión del cliente unificado del buzón: una
  * lectura (`ensureRelaySession`), un reinicio forzado (`reabrirSesionAnonima`,
  * cambio de cuenta/logout) y — T-147-b, fix D1 (verifier, ronda 2, rechazo
@@ -105,14 +169,39 @@ export function __resetRelaySession(): void {
   enCurso = null;
 }
 
-/** Cierra la sesión LOCAL (auth-js + storage) sin importar si la red
- *  responde. */
+/**
+ * Cierra la sesión LOCAL (auth-js + storage) sin importar si la red
+ * responde.
+ *
+ * **T-175 (B1, verifier ronda 2):** `signOut({ scope: 'local' })` sigue
+ * haciendo el viaje de red (ver comentario de `forceClearPersistedSession`
+ * arriba) — sin tope, un logout colgado bloqueaba esta MISMA cola (la
+ * comparte con `ensureRelaySession`/`encolarOperacionDeSesion`, fix D1) para
+ * siempre: `reabrirSesionAnonima` (llamada por
+ * `reiniciarSyncPorCambioDeCuenta` en cada cambio de cuenta) nunca
+ * terminaba, y la cuenta B que entraba después se quedaba sin poder leer su
+ * propia sesión. Se reusa `withTimeout` (T-138-bis) con la MISMA
+ * `SESSION_TIMEOUT_MS` — al vencer, `forceClearPersistedSession()` de abajo
+ * corre igual: no hace falta que la red haya contestado para vaciar el
+ * bucket a mano.
+ *
+ * **Tope EFECTIVO real, para quien mida esto en campo:** no son
+ * `SESSION_TIMEOUT_MS` (20s), son ~40s. Este `withTimeout` corta el
+ * `signOut` a los 20s, pero la llamada que lo encadena (p.ej. la rama
+ * anónima residual de `hacerEnsureSinCola`, `await purgarSesionLocal(...)`
+ * seguido de un `getSession()` en la vuelta siguiente) puede quedar
+ * ESPERANDO A auth-js internamente otros ~20s más si esa `getSession()`
+ * cae detrás de un `signOut` que auth-js todavía no terminó de procesar
+ * (medido en test con `GoTrueClient` real; el mecanismo interno de
+ * auth-js que produce esa espera NO está confirmado — 2.109 corre sin lock
+ * salvo que se le pase uno). Dos topes de 20s en cadena, no uno.
+ */
 async function purgarSesionLocal(supabase: ClienteAuth): Promise<void> {
-  try {
-    await supabase.auth.signOut({ scope: 'local' });
-  } catch {
-    // sigue igual: se fuerza abajo
-  }
+  await withTimeout(
+    supabase.auth.signOut({ scope: 'local' }).then(() => undefined, () => undefined),
+    SESSION_TIMEOUT_MS,
+    undefined,
+  );
   forceClearPersistedSession();
 }
 
@@ -285,6 +374,25 @@ function hacerEnsure(permitirCaptcha: boolean, ignorarCooldown: boolean): Promis
  * Un error de `getSession()` (refresh transitorio) se trata como "no
  * validada": es preferible mostrar la verificación de más (peor caso, un
  * paso extra) que saltarla sobre un estado incierto.
+ *
+ * **T-175 (verifier ronda 3, bloqueante): para CUENTA no alcanza con
+ * `!is_anonymous`.** Antes de este fix, una sesión de cuenta persistida
+ * pero SIN el marcador de dueño (`DUENO_KEY` — p.ej. instalación de un
+ * build previo a B2, o cualquier residuo que `ensureRelaySession` todavía
+ * no llegó a purgar) hacía que este chequeo devolviera `true`: el gate de
+ * arranque (`src/store/session.ts:182-188`) daba por buena la sesión y
+ * dejaba pasar SIN mostrar `verify.tsx` — pero el siguiente
+ * `ensureRelaySession` (rama cuenta, `:438-440`) SÍ exige el marcador, lo
+ * encuentra ausente, purga y devuelve `'none'`. Resultado reproducido:
+ * gate en `true`, `ensureRelaySession` en `'none'`, sin sesión — y como
+ * `verify.tsx` nunca se mostró, ni el silencioso de Google ni el botón de
+ * Apple llegan a correr para arreglarlo solos.
+ *
+ * Se compara contra el MISMO marcador que usa `ensureRelaySession`
+ * (`leerDuenoDeSesion`) — lectura PURA, sin `purgarSesionLocal`: esta
+ * función sigue prometiendo "nunca purga un residuo" (fila 9c/9e de
+ * arriba); el residuo lo limpia `ensureRelaySession` cuando corra de
+ * verdad, no este chequeo de sólo-lectura.
  */
 export async function haySesionAnonimaValida(): Promise<boolean> {
   const supabase = getRelayClient();
@@ -292,9 +400,15 @@ export async function haySesionAnonimaValida(): Promise<boolean> {
   const { data, error } = await supabase.auth.getSession();
   if (error) return false;
   if (!data.session) return false;
-  return esCuenta(useAuthStore.getState().currentUser?.authProvider)
-    ? !data.session.user.is_anonymous
-    : Boolean(data.session.user.is_anonymous);
+
+  if (esCuenta(useAuthStore.getState().currentUser?.authProvider)) {
+    if (data.session.user.is_anonymous) return false;
+    const marcador = leerDuenoDeSesion();
+    const uidActivo = useAuthStore.getState().currentUser?.id;
+    return marcador?.cuenta === uidActivo && marcador?.sesion === data.session.user.id;
+  }
+
+  return Boolean(data.session.user.is_anonymous);
 }
 
 async function hacerEnsureSinCola(permitirCaptcha: boolean, ignorarCooldown: boolean): Promise<SessionKind> {
@@ -330,6 +444,37 @@ async function hacerEnsureSinCola(permitirCaptcha: boolean, ignorarCooldown: boo
     }
 
     if (!data.session) return 'none';
+
+    /**
+     * T-175 (B2ii, verifier ronda 2 y 3): defensa general — la sesión
+     * guardada puede no ser de la cuenta activa. Pasa por ejemplo cuando un
+     * login de A vence acá (`SESSION_TIMEOUT_MS`) pero auth-js la deja
+     * persistida IGUAL cuando la respuesta de red llega tarde
+     * (`_saveSession` no sabe de nuestro tope) — si para entonces ya entró
+     * B, `getSession()` le devolvería el JWT de A disfrazado de
+     * `'identity'`. Se compara contra `DUENO_KEY` (ver el docblock de
+     * `registrarDuenoDeSesionDeCuenta` arriba — no `esYo`, y por qué) en
+     * vez de confiar ciegamente en `is_anonymous: false`.
+     *
+     * **Ronda 3:** no alcanza con que la CUENTA coincida — hace falta que
+     * el marcador haya confirmado ESTA sesión puntual
+     * (`data.session.user.id`). Si sólo se comparara la cuenta, B logueado
+     * de verdad (marcador = B) seguido de una sesión de OTRO `user.id`
+     * pisando el storage (p.ej. A, llegada tarde, sin pasar por el purgado
+     * de B2i) pasaría igual — `currentUser` sigue siendo B, así que
+     * "cuenta == cuenta" da TRUE aunque la SESIÓN sea ajena.
+     *
+     * Si no coincide (o nunca se registró), se purga — nunca se deja un
+     * JWT ajeno persistido — y `verify.tsx` reconecta desde cero, igual que
+     * si nunca hubiera sesión.
+     */
+    const marcador = leerDuenoDeSesion();
+    const uidActivo = useAuthStore.getState().currentUser?.id;
+    if (!marcador || marcador.cuenta !== uidActivo || marcador.sesion !== data.session.user.id) {
+      await purgarSesionLocal(supabase);
+      return 'none';
+    }
+
     return 'identity';
   }
 
