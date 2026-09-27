@@ -1,10 +1,9 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '@/src/constants/colors';
 import { Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useColors } from '@/src/skins/useSkin';
 
 /**
  * Banda de aviso inline en un detalle (banda, no tarjeta: hairline arriba y
@@ -26,8 +25,7 @@ export function InlineWarningBanner({
   tone?: 'warning' | 'neutral';
   children?: React.ReactNode;
 }) {
-  const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
   const esWarning = tone === 'warning';
 
   return (
