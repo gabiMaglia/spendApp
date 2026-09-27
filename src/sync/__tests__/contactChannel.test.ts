@@ -1,7 +1,7 @@
 import {
   ensureContactSecret, myContactCard, announceContact, drainContacts,
   deriveContactTopic, savePeer, peerSecret, listPeers, sendGroupKey, sendGroupKeyResultado,
-  getPeer, peersIncompletos, hasConflictingPinnedKeys,
+  getPeer, peersIncompletos, hasConflictingPinnedKeys, esWrapPublicKeyValida,
 } from '../contactChannel';
 import { ofertasDe, registrarOferta, idDeOfertaDeInvitacion } from '../groupKeyOffers';
 import { avisarConflictosDelDrenaje } from '../keyConflictNotice';
@@ -412,6 +412,25 @@ describe('crear un grupo con un contacto: le llega solo', () => {
     espia.mockRestore();
   });
 
+  /**
+   * T-147 (R3-3(a), ronda 3): una `wrapPublicKey` corrupta hacía tirar
+   * `wrapGroupKey` (x25519) con un `RangeError` sin capturar — `relayQueue`
+   * ve cualquier excepción como "reintentar", así que era reintentar para
+   * siempre (PoC del verifier: 901 veces en 1h, bloqueando la cola entera).
+   * Este test guarda el peer DIRECTO por `savePeer` (sin pasar por
+   * `drainContacts`, que ya filtra esto — es la primera barrera) para
+   * probar la SEGUNDA: aunque una corrupta se cuele igual, no puede tirar.
+   */
+  it('D4 R3-3(a): una wrapPublicKey corrupta da invalid_key, no revienta ni queda "reintentar" para siempre', async () => {
+    usar(ANA);
+    useGroupKeyStore.getState().ensureKey('g1');
+    savePeer(BETO.id, { secret: 'sec-beto', wrapPublicKey: 'no-es-hex-valido' });
+
+    const r = await sendGroupKeyResultado(BETO.id, { id: 'g1', name: 'Viaje' }, 'dev-ana');
+
+    expect(r).toMatchObject({ ok: false, reason: 'invalid_key' });
+  });
+
   it('sin la clave del grupo no hay nada que entregar', async () => {
     await yaSonContactos();
     usar(ANA);
@@ -604,6 +623,22 @@ describe('claves de grupo: lo que NO se acepta', () => {
     useGroupKeyStore.getState().ensureKey('g1');
 
     expect(await sendGroupKey(BETO.id, { id: 'g1', name: 'Viaje' }, 'dev-ana')).toBe(false);
+  });
+});
+
+describe('R3-3(a): esWrapPublicKeyValida', () => {
+  it('acepta 64 hex (32 bytes, x25519)', () => {
+    expect(esWrapPublicKeyValida('a'.repeat(64))).toBe(true);
+    expect(esWrapPublicKeyValida('AB'.repeat(32))).toBe(true);
+  });
+
+  it('rechaza largo incorrecto, caracteres no-hex, o algo que no sea string', () => {
+    expect(esWrapPublicKeyValida('a'.repeat(63))).toBe(false);
+    expect(esWrapPublicKeyValida('a'.repeat(65))).toBe(false);
+    expect(esWrapPublicKeyValida('z'.repeat(64))).toBe(false);
+    expect(esWrapPublicKeyValida('')).toBe(false);
+    expect(esWrapPublicKeyValida(undefined)).toBe(false);
+    expect(esWrapPublicKeyValida(123)).toBe(false);
   });
 });
 
