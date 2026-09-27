@@ -93,6 +93,19 @@ describe('la clave de caché', () => {
     expect(verifiedCore('expense', falsificado as never, [PUB])).toBe('invalida');
   });
 
+  /**
+   * T-185 · E5. `editedById` es `'core'` (`recordCore.ts`): dos núcleos que
+   * sólo difieren en quién editó tienen que tener claves de caché DISTINTAS,
+   * por la misma razón que el test de arriba — si compartieran clave, una
+   * edición ajena heredaría el `valida` de la versión sin editar.
+   */
+  it('E5: editedById cambia la clave de caché — no hereda el veredicto de la versión sin editar', () => {
+    expect(verifiedCore('expense', firmado as never, [PUB])).toBe('valida');
+
+    const editadoPorOtro = { ...firmado, editedById: 'otro' };
+    expect(cachedVerdict('expense', editadoPorOtro as never)).toBeUndefined();
+  });
+
   it.each(['splits', 'createdById', 'paidById', 'currency', 'date'])(
     'cubre `%s` igual que el monto', (campo) => {
       expect(verifiedCore('expense', firmado as never, [PUB])).toBe('valida');

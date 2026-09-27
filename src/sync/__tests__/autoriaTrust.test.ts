@@ -138,4 +138,34 @@ describe('enDisputa / autoresVerificados (T-170 · D-2, verificación real)', ()
     expect(autoresVerificados(replay)).toEqual(['ana']);
     expect(enDisputa(replay)).toBe(false);
   });
+
+  /**
+   * T-185 · E6. `calcular` tiene que verificar el núcleo VIGENTE contra el
+   * firmante EFECTIVO (`editedById ?? createdById`), no sólo contra
+   * `createdById` — si no, la firma real de quien editó jamás cerraría
+   * contra su propia clave.
+   *
+   * `createdById` NO cambia nunca en T-185 (a diferencia del escenario de
+   * Mallory de más arriba, que SÍ re-estampa `createdById`), así que el
+   * disparador de `unirDisputa` (`src/algorithms/autoria.ts`, compara
+   * `createdById` entre versiones) no captura sólo esto — ese archivo es de
+   * `mergeLevels.ts` y queda fuera del alcance de esta tarea. Por eso el
+   * núcleo original de Ana se arma a mano en `autoriaDisputada`, simulando
+   * el mismo resultado que ese archivo produciría si el disparador
+   * incluyera `editedById` (no es parte de este ticket).
+   */
+  it('T-185 · E6: consensus — un editor foráneo firmado cuenta como disputa (firmante efectivo)', () => {
+    rememberAuthorKey('ana', PUB_ANA);
+    rememberAuthorKey('mallory', PUB_MALLORY);
+
+    const editadoPorMallory = { ...base, editedById: 'mallory', rev: NOW - 8_000, updatedAt: NOW - 8_000 };
+    const vigente = {
+      ...editadoPorMallory,
+      ...signCore('expense', editadoPorMallory as never, PRIV_MALLORY),
+      autoriaDisputada: [{ ...deAna }],
+    } as unknown as Expense;
+
+    expect(enDisputa(vigente)).toBe(true);
+    expect([...autoresVerificados(vigente)]).toEqual(['ana', 'mallory']);
+  });
 });
