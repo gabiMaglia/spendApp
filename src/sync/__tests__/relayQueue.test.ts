@@ -4,10 +4,19 @@
  * `QUEUE_INTERVAL_MS` separa cada envío real, así que la cola NUNCA puede
  * mandar más rápido que eso, sea cual sea la cantidad de trabajos encolados.
  */
-import { encolar, __resetRelayQueue, __colaLength, QUEUE_INTERVAL_MS } from '../relayQueue';
+jest.mock('@/src/services/errorLog', () => ({ recordError: jest.fn() }));
+
+import {
+  encolar, __resetRelayQueue, __colaLength, QUEUE_INTERVAL_MS,
+  MAX_INTENTOS_POR_TRABAJO, EJECUCION_TIMEOUT_MS,
+} from '../relayQueue';
+import { recordError } from '@/src/services/errorLog';
+
+const mockRecordError = recordError as jest.Mock;
 
 beforeEach(() => {
   __resetRelayQueue();
+  mockRecordError.mockClear();
   jest.useFakeTimers();
 });
 afterEach(() => {
@@ -84,6 +93,57 @@ it('una excepción en el trabajo cuenta como "reintentar", nunca se pierde', asy
 
   expect(veces).toBe(2);
   expect(__colaLength()).toBe(0);
+});
+
+/**
+ * Verifier R3-3(a) (ronda 3): un trabajo que SIEMPRE falla (PoC real: una
+ * `wrapPublicKey` inválida hace tirar `wrapGroupKey` con `RangeError`,
+ * "envenenando" el reenvío de ese contacto) no puede bloquear la cola para
+ * siempre. 901 reintentos en 1h del PoC — el resto de la cola (los otros 10
+ * trabajos) no avanzó NADA. El tope por trabajo lo descarta con un rastro en
+ * el diagnóstico (`errorLog`) y la cola sigue con el resto.
+ */
+describe('R3-3(a): tope de reintentos por trabajo', () => {
+  it('un trabajo envenenado (siempre "reintentar") se descarta tras MAX_INTENTOS_POR_TRABAJO, con rastro', async () => {
+    let intentosEnvenenado = 0;
+    encolar({ prioridad: 'normal', ejecutar: async () => { intentosEnvenenado++; return 'reintentar'; } });
+    const sano = jest.fn(async () => 'hecho' as const);
+    encolar({ prioridad: 'normal', ejecutar: sano });
+
+    // El envenenado va primero (FIFO), así que bloquea al sano hasta que se
+    // agote — exactamente el "bloqueo en cabeza" del PoC.
+    for (let i = 0; i < MAX_INTENTOS_POR_TRABAJO + 2; i++) {
+      await jest.advanceTimersByTimeAsync(QUEUE_INTERVAL_MS);
+    }
+
+    expect(intentosEnvenenado).toBe(MAX_INTENTOS_POR_TRABAJO); // no 901
+    expect(mockRecordError).toHaveBeenCalledWith(expect.objectContaining({ fatal: false }));
+    expect(sano).toHaveBeenCalled(); // la cola SIGUIÓ con el resto
+    expect(__colaLength()).toBe(0);
+  });
+});
+
+/**
+ * Verifier R3-3(a), hallazgo hostil: `ejecutar` sin `withTimeout` (regla
+ * T-138-bis) — un envío colgado dejaba `corriendo=true` para siempre y los
+ * `encolar` siguientes nunca arrancaban (PoC: 0 hechos en 1h).
+ */
+describe('R3-3(b): tope de tiempo por envío', () => {
+  it('un trabajo que nunca resuelve vence a EJECUCION_TIMEOUT_MS y se trata como "reintentar"', async () => {
+    encolar({ prioridad: 'normal', ejecutar: () => new Promise(() => {}) }); // se cuelga
+    const sano = jest.fn(async () => 'hecho' as const);
+    encolar({ prioridad: 'normal', ejecutar: sano });
+
+    await jest.advanceTimersByTimeAsync(0);
+    await jest.advanceTimersByTimeAsync(EJECUCION_TIMEOUT_MS);
+    // El colgado vuelve al frente (reintentar) — hay que dejarlo agotar su
+    // tope de intentos para que la cola llegue al trabajo sano.
+    for (let i = 0; i < MAX_INTENTOS_POR_TRABAJO; i++) {
+      await jest.advanceTimersByTimeAsync(QUEUE_INTERVAL_MS + EJECUCION_TIMEOUT_MS);
+    }
+
+    expect(sano).toHaveBeenCalled();
+  });
 });
 
 /**
