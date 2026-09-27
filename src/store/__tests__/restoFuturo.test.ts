@@ -1,5 +1,5 @@
 import { mergeRecord, mergeByIdLevels } from '../mergeLevels';
-import { TOLERANCIA_RELOJ_MS } from '@/src/sync/voteCore';
+import { TOLERANCIA_RELOJ_MS } from '@/src/store/relojDelMerge';
 import type { Expense, Group } from '@/src/types/models';
 
 /**

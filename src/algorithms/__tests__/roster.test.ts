@@ -1,5 +1,5 @@
 import { unirMiembros, rosterDe, conAlta, conBaja } from '../roster';
-import { TOLERANCIA_RELOJ_MS } from '@/src/sync/voteCore';
+import { TOLERANCIA_RELOJ_MS } from '@/src/store/relojDelMerge';
 import type { Group } from '@/src/types/models';
 
 /**

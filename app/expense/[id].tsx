@@ -228,6 +228,9 @@ export default function ExpenseDetailScreen() {
     updateExpense(expense.id, {
       deletionVotes: emitirVoto(expense, currentUser.id, 'force', syncedNow()),
       isDeleted: true,
+      // T-186 (Task 0): etiqueta LWW sin firma para que Actividad muestre
+      // quién borró, sin depender del voto (que se va con el modo consenso).
+      deletedById: currentUser.id,
     });
     // Cascada: si no, los comentarios quedan huérfanos apuntando a un gasto
     // inexistente y viajando en cada sync.

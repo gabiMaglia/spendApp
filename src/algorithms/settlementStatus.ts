@@ -1,6 +1,6 @@
 import { checkSettlement } from '@/src/sync/settlementTrust';
 import { checkRecord } from '@/src/sync/trustCheck';
-import { TOLERANCIA_RELOJ_MS } from '@/src/sync/voteCore';
+import { TOLERANCIA_RELOJ_MS } from '@/src/store/relojDelMerge';
 import { syncedNow } from '@/src/utils/syncedClock';
 import type { CoreVerdict } from '@/src/sync/recordSign';
 import type { RecordVerdict } from '@/src/sync/recordHealth';

@@ -378,6 +378,14 @@ export interface Expense extends SyncMeta, CoreSigned {
   receiptImageUri?: string;
   deletionVotes: DeletionVote[];
   /**
+   * Quién borró / restauró por última vez (T-186, opción B). Campo del nivel
+   * «resto»: LWW, sin firma, falsificable por cualquier co-miembro — es una
+   * etiqueta para Actividad, no una prueba. Lo escriben `app/expense/[id].tsx`
+   * (al borrar) y `useRestoreExpense` (al restaurar); cada uno limpia el otro.
+   */
+  deletedById?: string;
+  restoredById?: string;
+  /**
    * Núcleos competidores en disputa (T-170 · D-2, enmienda de disputa firmada
    * — ronda 2). La escribe el merge, no el usuario: es una unión colaborativa
    * (`src/algorithms/autoria.ts`, `unirDisputa`) de las versiones del núcleo

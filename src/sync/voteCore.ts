@@ -1,4 +1,5 @@
 import { canonical } from '@/src/store/lww';
+import { TOLERANCIA_RELOJ_MS } from '@/src/store/relojDelMerge';
 import type { DeletionVote } from '@/src/types/models';
 
 /**
@@ -38,20 +39,6 @@ export function accionDe(vote: DeletionVote): DeletionAction {
   if (vote.action === 'withdraw') return 'withdraw';
   return vote.intent === 'restore' ? 'restore' : 'object';
 }
-
-/**
- * Cuánto puede adelantarse un `votedAt` antes de dejar de ser creíble (T-059).
- *
- * Entre dos relojes ya corregidos contra el relay (ADR-005) el desfase es de
- * milisegundos, así que este margen existe para el ruido de red y para el peer
- * que todavía no habló con el relay — no para tapar un reloj mal puesto.
- *
- * Cinco minutos es el mismo orden de magnitud con el que `syncedClock` decide
- * avisarle al usuario que su hora está mal, pero el número se escribe acá y no
- * se importa de allá: `syncedClock` abre MMKV, y meter un módulo nativo en el
- * grafo del merge es justo lo que D9 no permite.
- */
-export const TOLERANCIA_RELOJ_MS = 5 * 60 * 1000;
 
 /**
  * ¿Este voto dice haberse emitido después de *ahora*?

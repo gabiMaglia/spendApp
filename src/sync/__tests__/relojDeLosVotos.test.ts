@@ -1,7 +1,8 @@
 import {
   mergeDeletionVoteSets, mergeDeletionVotes, resolveDeletionVotes, DELETION_TIMEOUT_MS,
 } from '../SyncEngine';
-import { rondaVigente, TOLERANCIA_RELOJ_MS } from '../voteCore';
+import { rondaVigente } from '../voteCore';
+import { TOLERANCIA_RELOJ_MS } from '@/src/store/relojDelMerge';
 import { deletionRound, hasObjected, hasRequested } from '@/src/algorithms/deletionRound';
 import { emitirVoto } from '@/src/services/deletionVotes';
 import type { DeletionVote, Expense } from '@/src/types/models';

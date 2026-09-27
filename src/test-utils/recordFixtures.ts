@@ -40,6 +40,9 @@ export const EXPENSE: Required<Expense> = {
   note: 'con propina',
   receiptImageUri: 'file:///local/recibo.jpg',
   deletionVotes: [{ userId: 'beto', votedAt: 4_000, action: 'delete' }],
+  // T-186 (Task 0): etiquetas LWW sin firma de quién borró/restauró.
+  deletedById: 'beto',
+  restoredById: 'ana',
   // T-170 · D-2 (ronda 2): ya no es un `string[]` de ids sueltos — cada
   // entrada es el núcleo COMPETIDOR completo, con su firma (`k`/`s`), tal
   // como lo captura `unirDisputa` (`src/algorithms/autoria.ts`). No hace

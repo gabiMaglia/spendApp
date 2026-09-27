@@ -1,6 +1,6 @@
 import { ed25519 } from '@noble/curves/ed25519.js';
 import { estadoDelSaldado, saldadosPendientes, pagosQueCuentan, type ContextoDeAcuse } from '../settlementStatus';
-import { TOLERANCIA_RELOJ_MS } from '@/src/sync/voteCore';
+import { TOLERANCIA_RELOJ_MS } from '@/src/store/relojDelMerge';
 import { signSettlement } from '@/src/sync/settlementSign';
 import {
   rememberAuthorKey, forgetAuthorKeys, refreshPendingAuthors, __resetAuthorSources,

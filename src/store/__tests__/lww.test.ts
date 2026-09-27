@@ -1,5 +1,5 @@
 import { mergeByIdLWW, incomingWins } from '../lww';
-import { TOLERANCIA_RELOJ_MS } from '@/src/sync/voteCore';
+import { TOLERANCIA_RELOJ_MS } from '@/src/store/relojDelMerge';
 
 const NOW = 1_700_000_000_000;
 

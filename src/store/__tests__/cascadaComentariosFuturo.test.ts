@@ -1,6 +1,6 @@
 import { useCommentStore } from '../commentStore';
 import { syncedNow } from '@/src/utils/syncedClock';
-import { TOLERANCIA_RELOJ_MS } from '@/src/sync/voteCore';
+import { TOLERANCIA_RELOJ_MS } from '@/src/store/relojDelMerge';
 import type { ExpenseComment } from '@/src/types/models';
 
 /**

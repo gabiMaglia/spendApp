@@ -19,6 +19,9 @@ export function useRestoreExpense(currentUser: User | null): (expenseId: string)
     updateExpense(expenseId, {
       isDeleted: false,
       deletionVotes: emitirVoto(gasto, currentUser.id, 'restore', syncedNow()),
+      // T-186 (Task 0): etiqueta LWW sin firma para que Actividad muestre
+      // quién restauró, sin depender del voto (que se va con el modo consenso).
+      restoredById: currentUser.id,
     });
   }, [currentUser, updateExpense]);
 }

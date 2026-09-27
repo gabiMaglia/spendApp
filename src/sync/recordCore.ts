@@ -83,6 +83,8 @@ const EXPENSE_SLOTS: Record<keyof Expense, CoreSlot> = {
   updatedAt: 'fuera',       // lo bumpea cualquiera que vote un borrado
   isDeleted: 'fuera',       // tombstone: lo escriben terceros
   deletionVotes: 'fuera',   // unión de aportes de gente distinta
+  deletedById: 'fuera',     // T-186: etiqueta LWW de quién borró, sin firma
+  restoredById: 'fuera',    // T-186: etiqueta LWW de quién restauró, sin firma
   receiptImageUri: 'fuera', // URI local del aparato, no un dato compartido
   autoriaDisputada: 'fuera', // T-170: unión de disputas, la escribe el merge
   k: 'fuera',

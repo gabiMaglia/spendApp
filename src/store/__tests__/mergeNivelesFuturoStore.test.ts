@@ -2,7 +2,7 @@ import { useExpenseStore } from '../expenseStore';
 import { useGroupStore } from '../groupStore';
 import { applyDelta, type SyncDelta } from '@/src/sync/useSyncQR';
 import { syncedNow } from '@/src/utils/syncedClock';
-import { TOLERANCIA_RELOJ_MS } from '@/src/sync/voteCore';
+import { TOLERANCIA_RELOJ_MS } from '@/src/store/relojDelMerge';
 import type { Expense, Group } from '@/src/types/models';
 
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));

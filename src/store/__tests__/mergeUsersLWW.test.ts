@@ -1,6 +1,6 @@
 import { mergeUsersLWW } from '../mergeUsersLWW';
 import { incomingWins } from '../lww';
-import { TOLERANCIA_RELOJ_MS } from '@/src/sync/voteCore';
+import { TOLERANCIA_RELOJ_MS } from '@/src/store/relojDelMerge';
 import type { User } from '@/src/types/models';
 
 /**

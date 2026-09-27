@@ -206,6 +206,45 @@ describe('borrado consensuado', () => {
   });
 });
 
+// T-186 · Task 0: el borrado deja quién borró (`deletedById`), campo del
+// «resto» sin firma — la base de la atribución en Actividad cuando se saque
+// el voto de borrado. Coexiste todavía con los votos.
+describe('T-186 · Task 0: deletedById', () => {
+  function grupoLibre(over: Partial<Group> = {}): Group {
+    return {
+      id: 'g1', name: 'Viaje', memberIds: ['ua', 'ub'], currency: 'ARS',
+      miembros: {}, deletionMode: 'open',
+      createdAt: 1_000, updatedAt: 1_000, isDeleted: false,
+      createdById: 'ua', deletionVotes: [],
+      ...over,
+    };
+  }
+
+  beforeEach(() => {
+    useUserStore.setState({ users: [
+      { id: 'ua', name: 'Ana' } as User,
+      { id: 'ub', name: 'Beto' } as User,
+    ]});
+    useGroupStore.setState({ groups: [grupoLibre()] });
+    jest.spyOn(Alert, 'alert').mockImplementation((_t, _m, botones) => {
+      (botones as { onPress?: () => void }[] | undefined)?.find(b => b.onPress)?.onPress?.();
+    });
+  });
+
+  afterEach(() => { jest.restoreAllMocks(); });
+
+  it('al borrar en un grupo libre, queda deletedById = quien borró', () => {
+    useExpenseStore.setState({ expenses: [gasto({ createdById: 'ub' })] });
+
+    const { getByText } = render(<ExpenseDetailScreen />);
+    fireEvent.press(getByText('expense.delete_expense'));
+
+    const g = useExpenseStore.getState().expenses[0]!;
+    expect(g.isDeleted).toBe(true);
+    expect(g.deletedById).toBe('ua');
+  });
+});
+
 /**
  * T-170 · D-1: la opción de forzar el borrado tiene que desaparecer cuando la
  * autoría está en disputa DE VERDAD (firma que verifica, no un id inyectado —

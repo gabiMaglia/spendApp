@@ -1,5 +1,3 @@
-import { TOLERANCIA_RELOJ_MS } from '@/src/sync/voteCore';
-
 /**
  * **El reloj del merge** (T-144, SEC-02; generaliza T-137/ADR-012).
  *
@@ -13,6 +11,18 @@ import { TOLERANCIA_RELOJ_MS } from '@/src/sync/voteCore';
  * Es un módulo puro sin `syncedClock` (abre almacenamiento nativo): `now` se
  * inyecta siempre.
  */
+
+/**
+ * Cuánto puede adelantarse una estampa (`updatedAt`, `votedAt`, ...) antes de
+ * dejar de ser creíble (T-059). Mudada acá desde `voteCore.ts` en T-186: es
+ * general al reloj del merge, no algo propio de los votos de borrado del modo
+ * «con acuerdo».
+ *
+ * Entre dos relojes ya corregidos contra el relay (ADR-005) el desfase es de
+ * milisegundos, así que este margen existe para el ruido de red y para el peer
+ * que todavía no habló con el relay — no para tapar un reloj mal puesto.
+ */
+export const TOLERANCIA_RELOJ_MS = 5 * 60 * 1000;
 
 /** ¿Este `updatedAt` no pudo haber pasado todavía, o ni siquiera es una fecha? */
 export function envenenado(updatedAt: unknown, now: number): boolean {
