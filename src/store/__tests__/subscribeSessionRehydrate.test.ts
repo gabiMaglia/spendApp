@@ -34,33 +34,38 @@ const mockReinicio = jest.requireMock('@/src/sync/relayEngine').reiniciarSyncPor
 
 const user = (id: string): User => ({ id, authProvider: 'google' } as User);
 
+let unsub: () => void = () => {};
+
 beforeEach(() => {
   mockReinicio.mockClear();
   useAuthStore.setState({ currentUser: null });
+});
+
+afterEach(() => {
+  unsub(); // nunca deja un listener de un test filtrando al siguiente
+  unsub = () => {};
 });
 
 describe('arranque en frío con sesión persistida', () => {
   it('la PRIMERA carga de un usuario ya persistido no cuenta como cambio de cuenta', () => {
     // Simula la suscripción síncrona ANTES de `hydrate()`, con el default
     // (`currentUser: null`) — como pasa de verdad en `app/_layout.tsx`.
-    const unsub = subscribeSessionRehydrate();
+    unsub = subscribeSessionRehydrate();
 
     // `hydrate()` carga la sesión persistida (el mismo usuario de siempre).
     useAuthStore.setState({ currentUser: user('acc-de-siempre') });
 
     expect(mockReinicio).not.toHaveBeenCalled();
-    unsub();
   });
 
   it('sin usuario persistido (reinstalación limpia), tampoco cuenta como cambio', () => {
-    const unsub = subscribeSessionRehydrate();
+    unsub = subscribeSessionRehydrate();
     useAuthStore.setState({ currentUser: null }); // `hydrate()` no encontró nada
     expect(mockReinicio).not.toHaveBeenCalled();
-    unsub();
   });
 
   it('un cambio REAL después de la hidratación inicial sí dispara el reinicio', () => {
-    const unsub = subscribeSessionRehydrate();
+    unsub = subscribeSessionRehydrate();
     useAuthStore.setState({ currentUser: user('acc-A') }); // hidratación inicial: no cuenta
 
     useAuthStore.setState({ currentUser: user('acc-B') }); // cambio real A→B
@@ -68,15 +73,13 @@ describe('arranque en frío con sesión persistida', () => {
 
     useAuthStore.setState({ currentUser: null }); // logout: también cuenta
     expect(mockReinicio).toHaveBeenCalledTimes(2);
-    unsub();
   });
 
   it('login real inmediatamente después de un arranque sin usuario también dispara el reinicio', () => {
-    const unsub = subscribeSessionRehydrate();
+    unsub = subscribeSessionRehydrate();
     useAuthStore.setState({ currentUser: null }); // hidratación inicial: sin usuario, no cuenta
 
     useAuthStore.setState({ currentUser: user('acc-nueva') }); // login real
     expect(mockReinicio).toHaveBeenCalledTimes(1);
-    unsub();
   });
 });

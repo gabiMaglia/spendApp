@@ -120,7 +120,30 @@ export function rehydrateForActiveUser(): void {
 // switch). Devuelve el unsubscribe. Se engancha una vez en el root layout.
 export function subscribeSessionRehydrate(): () => void {
   let prevId = useAuthStore.getState().currentUser?.id ?? null;
+  /**
+   * Verificador (§Simplificación, R1): esta función se suscribe ANTES de que
+   * `hydrate()` cargue la sesión persistida (`app/_layout.tsx`: la
+   * suscripción es síncrona, `hydrate()` corre después, adentro del IIFE
+   * async que espera `bootstrapSecureStorage`). Con `prevId` fijado en ese
+   * momento —siempre `null`, el default de `authStore` antes de hidratar—,
+   * la PRIMERA vez que `hydrate()` carga a un usuario que YA estaba
+   * persistido, `nextId !== prevId` se leía como un cambio de cuenta real:
+   * cortaba el motor, vaciaba la cola y forzaba una sesión anónima NUEVA del
+   * buzón (captcha de nuevo) en cada arranque en frío, aunque fuera el mismo
+   * usuario de siempre.
+   *
+   * La primera vez que este listener corre —cualquiera sea el cambio— es
+   * SIEMPRE esa hidratación inicial: nada más puede escribir `currentUser`
+   * antes (el guard de `isLoading` no deja llegar a ninguna pantalla que
+   * loguee o desloguee hasta que `hydrate()` termine). Por eso nunca cuenta
+   * como cambio de cuenta — se marca antes de mirar `nextId`, no después,
+   * para que un arranque SIN usuario persistido (`null → null`, que ni
+   * siquiera entra al `if` de abajo) también consuma la marca.
+   */
+  let hidratacionInicialPendiente = true;
   return useAuthStore.subscribe((state) => {
+    const esHidratacionInicial = hidratacionInicialPendiente;
+    hidratacionInicialPendiente = false;
     const nextId = state.currentUser?.id ?? null;
     if (nextId !== prevId) {
       prevId = nextId;
@@ -128,7 +151,9 @@ export function subscribeSessionRehydrate(): () => void {
       // rehidratar los datos de la cuenta nueva, se corta el motor de sync,
       // se vacía todo lo diferido (cola + debounce de publish) y se fuerza
       // una sesión anónima nueva para el buzón. Ver `reiniciarSyncPorCambioDeCuenta`.
-      reiniciarSyncPorCambioDeCuenta();
+      // Nunca en la hidratación inicial (arriba) — ahí no hubo ningún cambio
+      // de cuenta, sólo se está terminando de cargar la sesión persistida.
+      if (!esHidratacionInicial) reiniciarSyncPorCambioDeCuenta();
       rehydrateForActiveUser();
     }
   });
