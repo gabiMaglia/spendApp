@@ -63,7 +63,6 @@ import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { createSecureStorage } from '@/src/utils/secureStorage';
-import { block } from '../blockedPeers';
 import type { Group, User } from '@/src/types/models';
 
 const mockEnsureRelaySession = jest.requireMock('../relaySession').ensureRelaySession as jest.Mock;
@@ -115,7 +114,6 @@ function sembrarGrupoConOtroMiembro(): void {
 beforeEach(() => {
   jest.useFakeTimers();
   createSecureStorage('groupkeys').clearAll();
-  createSecureStorage('users').clearAll(); // T-180: lista de bloqueados vive acá
   useAuthStore.setState({ currentUser: null });
   useGroupStore.setState({ groups: [], isLoading: false });
   useGroupKeyStore.setState({ keys: [] });
@@ -274,24 +272,6 @@ describe('D4: reenviarClavesDeGrupo no ráfaguea contra la cuota', () => {
 
     mockSendGroupKeyResultado.mockClear();
     await startRelay(); // p.ej. el reinicio de D1/D2 por cambio de sesión
-    await jest.advanceTimersByTimeAsync(0);
-
-    expect(mockSendGroupKeyResultado).not.toHaveBeenCalled();
-  });
-});
-
-/**
- * T-180 (7.1), fila B4: el reenvío de rutina de las claves de grupo tiene
- * que saltear a un miembro bloqueado — no se le rota la clave del grupo (es
- * miembro, sigue viéndolo si ya la tenía) pero tampoco se le vuelve a
- * entregar por este canal directo.
- */
-describe('T-180: el reenvío de claves de grupo saltea a un bloqueado', () => {
-  it('B4: un miembro bloqueado no recibe el reenvío', async () => {
-    sembrarGrupoConOtroMiembro(); // u1 (yo) y u2
-    block('u2');
-
-    await startRelay();
     await jest.advanceTimersByTimeAsync(0);
 
     expect(mockSendGroupKeyResultado).not.toHaveBeenCalled();

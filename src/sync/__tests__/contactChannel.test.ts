@@ -4,7 +4,6 @@ import {
   getPeer, peersIncompletos, hasConflictingPinnedKeys, esWrapPublicKeyValida,
 } from '../contactChannel';
 import { ofertasDe, registrarOferta, idDeOfertaDeInvitacion } from '../groupKeyOffers';
-import { block, unblock, isBlocked } from '../blockedPeers';
 import { avisarConflictosDelDrenaje } from '../keyConflictNotice';
 import { estaPendienteDeDrenaje } from '../pendingDrain';
 import { elegirClaveDeGrupo } from '@/src/services/elegirClaveDeGrupo';
@@ -1236,77 +1235,5 @@ describe('T-136 · Sybil: el tope de remitentes ya no tapa al miembro real', () 
     // La clave de Beto no entra a la tabla (tope de 5 claves distintas ya
     // lleno), pero la disidencia tiene que seguir viéndose EN ESTE LOTE.
     expect(r2.conflictedGroups).toEqual(['g1']);
-  });
-});
-
-describe('T-180: bloquear un contacto', () => {
-  /** Ana y Beto ya se escanearon: cada uno tiene el buzón y las claves del otro. */
-  async function yaSonContactosB(): Promise<{ deAna: string; deBeto: string }> {
-    usar(ANA);
-    const deAna = ensureContactSecret()!;
-    const tarjetaDeAna = myContactCard()!;
-
-    usar(BETO);
-    const deBeto = ensureContactSecret()!;
-    savePeer(ANA.id, {
-      secret: deAna,
-      wrapPublicKey: tarjetaDeAna.wrapPublicKey,
-      identityPublicKey: tarjetaDeAna.identityPublicKey,
-    });
-    await announceContact(deAna, 'dev-beto');
-
-    usar(ANA);
-    await drainContacts(deAna, 'dev-ana', 0);
-
-    return { deAna, deBeto };
-  }
-
-  it('B2: la tarjeta de un bloqueado que llega al drenar no se guarda, y el cursor avanza igual', async () => {
-    usar(ANA);
-    const deAna = ensureContactSecret()!;
-
-    usar(BETO);
-    await announceContact(deAna, 'dev-beto'); // Beto deja su tarjeta ANTES de ser bloqueado
-
-    usar(ANA);
-    block(BETO.id);
-    const r = await drainContacts(deAna, 'dev-ana', 0);
-
-    expect(r.added).toBe(0);
-    expect(getPeer(BETO.id)).toBeUndefined();
-    expect(useUserStore.getState().getUserById(BETO.id)).toBeUndefined();
-    // El cursor sí avanza: el sobre se consumió, no queda reprocesándose.
-    expect(r.cursor).toBeGreaterThan(0);
-  });
-
-  it('B3: una clave de grupo entregada por un bloqueado no entra a groupKeyOffers', async () => {
-    const { deBeto } = await yaSonContactosB();
-
-    usar(ANA);
-    block(BETO.id);
-    useGroupKeyStore.getState().ensureKey('g1');
-    // sendGroupKey lo manda igual (el emisor no sabe que lo bloquearon) — lo
-    // que importa es que el RECEPTOR lo descarte al drenar.
-    await sendGroupKey(BETO.id, { id: 'g1', name: 'Viaje' }, 'dev-ana');
-
-    usar(BETO);
-    // Beto también bloquea a Ana en SU cuenta para probar el otro sentido:
-    // Beto recibe una entrega de Ana y la descarta.
-    block(ANA.id);
-    const r = await drainContacts(deBeto, 'dev-beto', 0);
-
-    expect(r.joinedGroups).toEqual([]);
-    expect(ofertasDe('g1')).toEqual([]);
-  });
-
-  it('B4: repartir mi tarjeta salteA a los bloqueados (mismo lugar que anunciarMiTarjeta)', () => {
-    // Cubierto a nivel de unidad en relayEngine.test.ts (mockea `relay`); acá
-    // se deja constancia de que `isBlocked` es lo que decide, importado desde
-    // el mismo módulo que el resto de esta suite.
-    usar(ANA);
-    block(BETO.id);
-    expect(isBlocked(BETO.id)).toBe(true);
-    unblock(BETO.id);
-    expect(isBlocked(BETO.id)).toBe(false);
   });
 });

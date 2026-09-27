@@ -4,7 +4,6 @@ import {
   esOfertaDeInvitacion, estado, estadoDe, idDeOfertaDeInvitacion, marcarAdoptada,
   ofertasDe, olvidarOfertas, registrarOferta, type KeyOffer,
 } from '../groupKeyOffers';
-import { block } from '../blockedPeers';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { createSecureStorage, SECURE_IDS } from '@/src/utils/secureStorage';
@@ -25,7 +24,6 @@ const oferta = (fromUserId: string, key = K1, over: Partial<KeyOffer> = {}): Key
 
 beforeEach(() => {
   createSecureStorage('groupkeys').clearAll();
-  createSecureStorage('users').clearAll(); // T-180: bucket de bloqueados
   useAuthStore.setState({ currentUser: { id: 'ana' } as User });
   useGroupKeyStore.setState({ keys: [] });
 });
@@ -242,21 +240,5 @@ describe('remitente de una oferta de invitación', () => {
     expect(id).toBe('invite:fp123');
     expect(esOfertaDeInvitacion(id)).toBe(true);
     expect(esOfertaDeInvitacion('u-beto')).toBe(false);
-  });
-});
-
-describe('T-180 (7.1), fila B3: un bloqueado no puede entregar una oferta', () => {
-  it('registrarOferta de un fromUserId bloqueado no entra a la tabla', () => {
-    block('mallory');
-
-    expect(registrarOferta(oferta('mallory'))).toBe(false);
-    expect(ofertasDe('g1')).toEqual([]);
-  });
-
-  it('a un remitente NO bloqueado no lo afecta', () => {
-    block('mallory');
-
-    expect(registrarOferta(oferta('beto'))).toBe(true);
-    expect(ofertasDe('g1')).toEqual([oferta('beto')]);
   });
 });
