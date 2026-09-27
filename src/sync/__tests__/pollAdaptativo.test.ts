@@ -76,6 +76,25 @@ function sembrarUnGrupoConClave(): void {
   useGroupKeyStore.getState().ensureKey('G');
 }
 
+function sembrarDosGruposConClave(): void {
+  useAuthStore.setState({ currentUser: { id: 'u1' } as User });
+  useGroupStore.setState({
+    groups: [
+      {
+        id: 'G1', name: 'Grupo 1', memberIds: ['u1'], currency: 'USD', createdAt: 0, createdById: 'u1',
+        deletionVotes: [], updatedAt: 1_000, isDeleted: false,
+      } as Group,
+      {
+        id: 'G2', name: 'Grupo 2', memberIds: ['u1'], currency: 'USD', createdAt: 0, createdById: 'u1',
+        deletionVotes: [], updatedAt: 1_000, isDeleted: false,
+      } as Group,
+    ],
+    isLoading: false,
+  });
+  useGroupKeyStore.getState().ensureKey('G1');
+  useGroupKeyStore.getState().ensureKey('G2');
+}
+
 beforeEach(() => {
   jest.useFakeTimers();
   createSecureStorage('groupkeys').clearAll();
@@ -173,5 +192,26 @@ describe('T-158a: poll adaptativo según estado de canales Realtime (DEC-04)', (
     await jest.advanceTimersByTimeAsync(0);
 
     expect(mockEnsureRelaySession.mock.calls.length).toBeGreaterThan(n);
+  });
+
+  /**
+   * Observación del verificador ciego (rechazo de perf/ola-b): un topic recién
+   * suscripto tiene que contar como "no confirmado todavía" desde el instante
+   * en que se suscribe — no sólo desde que `onStatus` lo confirma. Sin
+   * sembrar `false` al suscribir, un canal MUDO (nunca llegó a disparar
+   * `onStatus`, ni `true` ni `false`) queda AUSENTE del mapa, y con otro canal
+   * ya confirmado en `true`, `intervaloDePoll` lo leía como "todo lo que hay
+   * está OK" y prometía 90s sin que ese segundo canal hubiera confirmado nada.
+   */
+  it('un canal recién suscripto que todavía no confirmó nada (mudo) no permite 90s aunque otro ya esté SUBSCRIBED', async () => {
+    sembrarDosGruposConClave();
+    await startRelay();
+    expect(estados.size).toBe(2);
+
+    // Sólo UNO de los dos confirma — el otro queda mudo, sin `onStatus` nunca.
+    const [primero] = [...estados.values()];
+    primero!(true);
+
+    expect(intervaloDePoll()).toBe(POLL_CAIDO_MS);
   });
 });
