@@ -25,6 +25,7 @@ import {
 import { createContactInvite, contactInviteToLink } from '@/src/sync/contactInvite';
 import { ensureContactSecret, announceContact, savePeer, hasConflictingPinnedKeys } from '@/src/sync/contactChannel';
 import { deviceId } from '@/src/sync/relayEngine';
+import { withTimeout } from '@/src/utils/withTimeout';
 import { ensureIdentity, ensureWrapKeypair, saveContactInvite } from '@/src/store/identityStore';
 import { useTranslation } from 'react-i18next';
 import { syncedNow } from '@/src/utils/syncedClock';
@@ -33,6 +34,10 @@ import { shortFingerprint } from '@/src/utils/keyFingerprint';
 import { useColors } from '@/src/skins/useSkin';
 
 type Mode = 'my_qr' | 'scan';
+
+/** Mismo valor que `ANUNCIO_TIMEOUT_MS` en `relayEngine.ts`: no colgar el cartel
+ * si la red no contesta nunca (T-138-bis). */
+const ANUNCIO_TIMEOUT_MS = 8_000;
 
 /**
  * Vuelve a Contactos. Si la pantalla se abrió por deep link no hay a dónde volver, y
@@ -147,37 +152,31 @@ export default function AddContactScreen() {
     });
 
     // Le dejo mi tarjeta en su buzón: con esto el contacto queda en LOS DOS
-    // teléfonos con un solo escaneo. Va sin await — que el alta local no dependa
-    // de la red — y si falla, lo peor que pasa es lo que pasaba antes.
-    const mutuo = Boolean(contact.secret);
+    // teléfonos con un solo escaneo. El alta LOCAL no espera a la red — si falla,
+    // lo peor que pasa es lo que pasaba antes — pero el CARTEL sí espera el
+    // resultado real (BUG «contacto por QR queda de un solo lado»,
+    // engram/qa/BUG-qr-contacto.md): antes se asumía éxito mutuo con sólo mirar
+    // si el código traía secreto, sin mirar si `announceContact` (el envío al
+    // buzón del otro) salió bien. Con la build sin relay configurado o sin red
+    // justo en ese momento, el otro aparato nunca se enteraba y el cartel decía
+    // igual "quedaron conectados los dos".
+    const tieneSecreto = Boolean(contact.secret);
     if (contact.secret) {
       savePeer(contact.id, {
         secret: contact.secret,
         wrapPublicKey: contact.wrapPublicKey,
         identityPublicKey: contact.identityPublicKey,
       });
-      void announceContact(contact.secret, deviceId());
     }
     /**
      * **El alta cierra la pantalla en el acto** (PO, 2026-09-12), y el cartel aparece ya
      * sobre Contactos. Antes cerraba el «OK» del cartel, y en Android tocar fuera lo
      * descarta sin llamar a `onPress`: quedabas en la cámara, con el escaneo trabado.
-     *
-     * Con secreto en el código el alta es MUTUA: un escaneo y listo. Sin él (códigos
-     * viejos) sigue siendo de una sola dirección, y ahí la app dice la verdad en vez de
-     * dejar al usuario creyendo que están conectados los dos.
+     * Esto no cambia con el fix: el cierre sigue sin depender de la red.
      */
     volverAContactos();
-    if (mutuo) {
-      Alert.alert(
-        t('contact.added_title'),
-        t('contact.added_both_body', { name: contact.name }),
-        [{ text: 'OK' }],
-      );
-      return;
-    }
 
-    Alert.alert(
+    const cartelUnaDireccion = () => Alert.alert(
       t('contact.added_title'),
       t('contact.added_half_body', { name: contact.name }),
       [
@@ -186,6 +185,34 @@ export default function AddContactScreen() {
         { text: t('contact.show_my_code'), onPress: () => router.push('/contact/add') },
       ],
     );
+
+    // Código viejo sin secreto: nunca fue mutuo, no hay nada que anunciar ni que esperar.
+    if (!tieneSecreto) {
+      cartelUnaDireccion();
+      return;
+    }
+
+    /**
+     * El código trae secreto (alta MUTUA en potencia): el cartel espera el resultado
+     * REAL de `announceContact`, con el mismo timeout que usa el reintento automático
+     * (`ANUNCIO_TIMEOUT_MS` en `relayEngine.ts`) para no dejar la promesa colgada si la
+     * red no contesta nunca. Si falla —sin relay configurado, sin red en el momento del
+     * QR— NO queda a medias para siempre: `anunciarMiTarjeta` (relayEngine, corre en
+     * cada sync) reintenta solo, porque este código nunca marca la tarjeta como
+     * enviada — eso lo hace únicamente `marcarCardEnviada`, que vive allá.
+     */
+    void withTimeout(announceContact(contact.secret!, deviceId()), ANUNCIO_TIMEOUT_MS, false)
+      .then((anuncioOk) => {
+        if (anuncioOk) {
+          Alert.alert(
+            t('contact.added_title'),
+            t('contact.added_both_body', { name: contact.name }),
+            [{ text: 'OK' }],
+          );
+          return;
+        }
+        cartelUnaDireccion();
+      });
     // `currentUser` no aparece en el cuerpo pero la dependencia es REAL: `esYo` lee la
     // sesión activa, así que cambiar de cuenta tiene que recalcular esto.
     // eslint-disable-next-line react-hooks/exhaustive-deps
