@@ -90,6 +90,7 @@ const cederHiloMock = jest.requireMock('../cederHilo') as { __resetPrimeraVez: (
 function grupo(): Group {
   return {
     id: 'G', name: 'Grupo', memberIds: ['u1', 'u2'], currency: 'USD',
+    miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
     createdAt: 1, createdById: 'u1', deletionVotes: [],
     updatedAt: 1_000, isDeleted: false,
   } as Group;

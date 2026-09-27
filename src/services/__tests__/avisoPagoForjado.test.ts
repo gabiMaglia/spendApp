@@ -5,6 +5,7 @@ import type { Group, Payment } from '@/src/types/models';
 
 const NOW = 1_800_000_000_000;
 const g = { id: 'g1', name: 'Viaje', memberIds: ['ana', 'beto'], currency: 'ARS',
+miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
   deletionMode: 'consensus', createdAt: 0, createdById: 'ana', deletionVotes: [],
   updatedAt: 0, isDeleted: false } as Group;
 const forjado = { id: 'p1', groupId: 'g1', fromUserId: 'ana', toUserId: 'beto', createdById: 'beto',

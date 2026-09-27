@@ -65,6 +65,7 @@ const fetchSinceMock = relayMock.fetchSince;
 
 const grupo = (): Group => ({
   id: 'G', name: 'Grupo', memberIds: ['u1', 'u2'], currency: 'USD', createdAt: 1, createdById: 'u1',
+  miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
   deletionVotes: [], updatedAt: 1_000, isDeleted: false,
 } as Group);
 

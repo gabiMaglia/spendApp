@@ -18,6 +18,7 @@ import type {
 function group(id: string, updatedAt: number, over: Partial<Group> = {}): Group {
   return {
     id, updatedAt, isDeleted: false, name: `G-${id}`, memberIds: ['u1'],
+    miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
     currency: 'ARS', createdAt: 0, createdById: 'u1', deletionVotes: [], ...over,
   };
 }
@@ -184,6 +185,7 @@ describe('backup — plantillas recurrentes y comentarios (hallazgo del verifica
   const recurring = [{
     id: 'r1', groupId: 'g1', description: 'Alquiler', amount: 1000, currency: 'ARS' as const,
     paidById: 'ua', splitMode: 'equal' as const, memberIds: ['ua'], category: 'home' as const,
+    miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
     rule: { frequency: 'monthly' as const, startDate: 0 }, lastMaterializedAt: null,
     isActive: true, createdAt: 0, createdById: 'ua', updatedAt: 1_000, isDeleted: false,
   }];

@@ -31,6 +31,7 @@ const BETO = { id: 'beto', name: 'Beto', isDeleted: false } as User;
 /** Ana NO es la creadora: el creador ve "eliminar", los demás ven "salir". */
 const grupo = (memberIds = ['ana', 'beto']): Group => ({
   id: 'g1', name: 'Asado', memberIds, currency: 'ARS',
+  miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
   createdAt: 0, createdById: 'beto', deletionVotes: [], updatedAt: 0, isDeleted: false,
 } as Group);
 

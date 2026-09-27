@@ -94,6 +94,7 @@ const MIEMBROS = ['u1', 'u2', 'u3', 'u4', 'u5', 'u6', 'u7', 'u8'];
 function grupo(): Group {
   return {
     id: 'G', name: 'Grupo', memberIds: MIEMBROS, currency: 'USD',
+    miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
     createdAt: 1, createdById: 'u1', deletionVotes: [],
     updatedAt: 1_000, isDeleted: false,
   } as Group;

@@ -53,6 +53,7 @@ describe('indicador de cantidad de grupos junto al ingreso', () => {
   function grupo(id: string, memberIds: string[]): Group {
     return {
       id, name: id, memberIds, currency: 'ARS',
+      miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
       createdAt: 1_000, updatedAt: 1_000, isDeleted: false,
       createdById: memberIds[0], deletionVotes: [],
     };
@@ -105,6 +106,7 @@ describe('la caja de deudas', () => {
   it('cuando hay deuda propia, muestra el disponible tras saldar — sin repetir "debés"', () => {
     useGroupStore.setState({ groups: [{
       id: 'g1', name: 'Asado', memberIds: ['ana', 'beto'], currency: 'ARS',
+      miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
       createdAt: 0, createdById: 'beto', deletionVotes: [], updatedAt: 0, isDeleted: false,
     } as never] });
     useUserStore.setState({ users: [ANA, { id: 'beto', name: 'Beto' } as User] });
@@ -132,6 +134,7 @@ describe('la caja de deudas', () => {
   it('si pagar la deuda te deja en negativo, el monto lleva el signo "-"', () => {
     useGroupStore.setState({ groups: [{
       id: 'g1', name: 'Asado', memberIds: ['ana', 'beto'], currency: 'ARS',
+      miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
       createdAt: 0, createdById: 'beto', deletionVotes: [], updatedAt: 0, isDeleted: false,
     } as never] });
     useUserStore.setState({ users: [ANA, { id: 'beto', name: 'Beto' } as User] });
@@ -162,10 +165,12 @@ describe('la caja de deudas', () => {
       groups: [
         {
           id: 'g1', name: 'Asado', memberIds: ['ana', 'beto'], currency: 'ARS',
+          miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
           createdAt: 0, createdById: 'beto', deletionVotes: [], updatedAt: 0, isDeleted: false,
         },
         {
           id: 'g2', name: 'Viaje', memberIds: ['ana', 'carla'], currency: 'ARS',
+          miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
           createdAt: 0, createdById: 'ana', deletionVotes: [], updatedAt: 0, isDeleted: false,
         },
       ] as never,

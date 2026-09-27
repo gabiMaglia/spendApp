@@ -132,6 +132,7 @@ describe('tope de miembros al agregar (T-150 ronda 2, D4)', () => {
     return {
       id: 'g1', name: 'Asado',
       memberIds: Array.from({ length: MAX_MIEMBROS }, (_, i) => `u${i}`),
+      miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
       currency: 'ARS', createdAt: 0, createdById: 'u0', deletionVotes: [],
       updatedAt: 0, isDeleted: false,
     } as Group;

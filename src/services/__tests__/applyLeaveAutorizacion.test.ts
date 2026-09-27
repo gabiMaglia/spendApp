@@ -34,6 +34,7 @@ const pedido = (approvedBy: LeaveRequest['approvedBy']): LeaveRequest =>
 
 const grupo = (req: LeaveRequest): Group => ({
   id: 'g1', name: 'Viaje', memberIds: ['ana', 'beto', 'caro'], currency: 'ARS',
+  miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
   createdAt: 0, createdById: 'ana', deletionVotes: [], updatedAt: 0, isDeleted: false,
   leaveRequest: req,
 } as Group);

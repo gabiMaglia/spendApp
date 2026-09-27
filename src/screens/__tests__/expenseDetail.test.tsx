@@ -269,6 +269,7 @@ describe('grupo archivado: solo lectura (revisión final, Important #5b)', () =>
   function grupo(over: Partial<Group> = {}): Group {
     return {
       id: 'g1', name: 'Viaje', memberIds: ['ua', 'ub'], currency: 'ARS',
+      miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
       createdAt: 1_000, updatedAt: 1_000, isDeleted: false,
       createdById: 'ua', deletionVotes: [],
       ...over,

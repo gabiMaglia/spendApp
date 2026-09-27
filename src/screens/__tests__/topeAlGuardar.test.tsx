@@ -38,6 +38,7 @@ jest.mock('@/src/sync/relayEngine', () => ({
 const USER = { id: 'ua', name: 'Ana' } as User;
 const GROUP: Group = {
   id: 'g1', name: 'Viaje', memberIds: ['ua', 'ub'], currency: 'ARS',
+  miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
   createdAt: 0, createdById: 'ua', deletionVotes: [], updatedAt: 0, isDeleted: false,
 };
 const NOTA_GIGANTE = 'x'.repeat(300_000);

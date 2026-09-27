@@ -12,6 +12,8 @@ function makeGroup(over: Partial<Group> & Pick<Group, 'id' | 'memberIds'>): Grou
     deletionVotes: [],
     updatedAt: 0,
     isDeleted: false,
+    // T-182: placeholder de tipo (fixture no ejercita el roster).
+    miembros: Object.fromEntries(over.memberIds.map((uid, i) => [uid, { estado: 'in' as const, at: i }])),
     ...over,
   };
 }

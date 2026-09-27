@@ -29,6 +29,7 @@ const grupo = (): Group => ({
   // A propósito Beto primero: el que paga tiene que ser YO, no el primero
   // de la lista.
   id: 'g1', name: 'Viaje', memberIds: ['beto', 'ana'], currency: 'ARS',
+  miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
   createdAt: 0, createdById: 'beto', deletionVotes: [], updatedAt: 0, isDeleted: false,
 } as Group);
 

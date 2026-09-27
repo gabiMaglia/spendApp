@@ -292,6 +292,7 @@ describe('NoticeInboxSheet', () => {
   describe('group_replaced: el nombre del grupo nuevo se resuelve en vivo', () => {
     const grupo = (over: Partial<Group> = {}): Group => ({
       id: 'g-nuevo', name: 'Viaje (2)', memberIds: ['ana', 'beto'], currency: 'ARS',
+      miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
       createdAt: 0, updatedAt: 0, isDeleted: false, createdById: 'ana', deletionVotes: [],
       ...over,
     });

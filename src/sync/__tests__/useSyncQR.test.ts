@@ -8,6 +8,7 @@ import type { Group, User } from '@/src/types/models';
 
 const grp = (over: Partial<Group> & Pick<Group, 'id'>): Group => ({
   name: 'G', memberIds: ['me'], currency: 'ARS', createdAt: 0, createdById: 'me',
+  miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
   deletionVotes: [], updatedAt: 100, isDeleted: false, ...over,
 });
 const usr = (id: string, over: Partial<User> = {}): User => ({

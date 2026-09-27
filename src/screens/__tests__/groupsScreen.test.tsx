@@ -16,6 +16,7 @@ const ANA = { id: 'ana', name: 'Ana' } as User;
 
 const grupo = (id: string, name: string): Group => ({
   id, name, memberIds: ['ana'], currency: 'ARS',
+  miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
   createdAt: 0, createdById: 'ana', deletionVotes: [], updatedAt: 0, isDeleted: false,
 } as Group);
 
@@ -137,6 +138,7 @@ describe('el encabezado no se mueve al cambiar de pestaña', () => {
 describe('"total total" al pie — cambia con la pestaña', () => {
   const conDosMiembros = (id: string): Group => ({
     id, name: id, memberIds: ['ana', 'beto'], currency: 'ARS',
+    miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
     createdAt: 0, createdById: 'ana', deletionVotes: [], updatedAt: 0, isDeleted: false,
   } as Group);
 

@@ -19,6 +19,7 @@ const ANA = { id: 'ana', name: 'Ana' } as User;
 function grupo(id: string): Group {
   return {
     id, name: id, memberIds: ['ana', 'beto'], currency: 'ARS',
+    miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
     createdAt: 1_000, updatedAt: 1_000, isDeleted: false,
     createdById: 'ana', deletionVotes: [],
   } as Group;

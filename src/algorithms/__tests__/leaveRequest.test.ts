@@ -6,6 +6,7 @@ jest.mock('@/src/sync/relayEngine', () => ({ schedulePublish: jest.fn(), deviceI
 
 const grupo = (memberIds: string[], leaveRequest?: LeaveRequest): Group => ({
   id: 'g1', name: 'Asado', memberIds, currency: 'ARS', createdAt: 0,
+  miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
   createdById: 'ana', deletionVotes: [], updatedAt: 0, isDeleted: false, leaveRequest,
 } as Group);
 

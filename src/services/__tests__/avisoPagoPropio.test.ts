@@ -20,6 +20,7 @@ import type { Group, Payment, User } from '@/src/types/models';
 const NOW = 1_800_000_000_000;
 const g: Group = {
   id: 'g1', name: 'Viaje', memberIds: ['ana', 'beto'], currency: 'ARS',
+  miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
   deletionMode: 'consensus', createdAt: 0, createdById: 'ana', deletionVotes: [],
   updatedAt: 0, isDeleted: false,
 };

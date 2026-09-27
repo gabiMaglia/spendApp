@@ -15,6 +15,7 @@ const START = 1_000_000_000_000;
 function grupo(over: Partial<Group> = {}): Group {
   return {
     id: 'g1', name: 'Depto', memberIds: ['ana', 'beto'], currency: 'ARS',
+    miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
     createdAt: 1, updatedAt: 1, isDeleted: false, createdById: 'ana', deletionVotes: [],
     ...over,
   };

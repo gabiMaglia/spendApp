@@ -60,6 +60,7 @@ const NEW_MEMBER = 'newmember';
 function grupo(): Group {
   return {
     id: 'A', name: 'Asado', memberIds: [PUBLISHER, NEW_MEMBER], currency: 'ARS',
+    miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
     createdAt: 0, createdById: PUBLISHER, deletionVotes: [],
     updatedAt: 1_000, isDeleted: false,
   } as Group;

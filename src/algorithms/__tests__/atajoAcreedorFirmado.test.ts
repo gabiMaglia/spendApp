@@ -17,6 +17,7 @@ const pagoDelAcreedor = (over: Partial<Payment> = {}): Payment => ({
 } as Payment);
 const grupo = (mode: 'consensus' | 'open' = 'consensus'): Group => ({
   id: 'g1', name: 'Viaje', memberIds: ['ana', 'beto'], currency: 'ARS', deletionMode: mode,
+  miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
   createdAt: 0, createdById: 'ana', deletionVotes: [], updatedAt: 0, isDeleted: false,
 } as Group);
 const ctx = (nucleo: RecordVerdict): ContextoDeAcuse =>

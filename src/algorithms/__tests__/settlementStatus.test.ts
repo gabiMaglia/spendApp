@@ -15,6 +15,7 @@ const pago = (over: Partial<Payment> = {}): Payment => ({
 
 const grupo = (mode: 'consensus' | 'open' = 'consensus'): Group => ({
   id: 'g1', name: 'Viaje', memberIds: ['ana', 'beto'], currency: 'ARS',
+  miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
   deletionMode: mode, createdAt: 0, createdById: 'ana',
   deletionVotes: [], updatedAt: 0, isDeleted: false,
 } as Group);

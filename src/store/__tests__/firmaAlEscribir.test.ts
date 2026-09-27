@@ -97,6 +97,7 @@ const plantilla = (over: Partial<RecurringExpense> = {}): RecurringExpense => ({
 
 const grupo = (over: Partial<Group> = {}): Group => ({
   id: 'g1', name: 'Asado', memberIds: [YO, OTRO], currency: 'ARS',
+  miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
   createdAt: 1_700_000_000_000, createdById: YO, deletionVotes: [],
   updatedAt: 0, isDeleted: false, ...over,
 });

@@ -46,6 +46,7 @@ const meta = { updatedAt: 1_000, isDeleted: false };
 
 const grupo = (): Group => ({
   id: 'G', name: 'Asado', memberIds: ['ana', 'beto'], currency: 'ARS',
+  miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
   createdAt: 0, createdById: 'ana', deletionVotes: [], ...meta,
 } as Group);
 

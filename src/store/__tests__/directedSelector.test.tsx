@@ -16,6 +16,7 @@ jest.mock('@/src/sync/relayEngine', () => ({ schedulePublish: jest.fn(), deviceI
 
 const grupo = (id: string): Group => ({
   id, name: id, memberIds: ['yo', 'beto'], currency: 'ARS',
+  miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
   createdAt: 0, createdById: 'yo', deletionVotes: [], updatedAt: 0, isDeleted: false,
 } as Group);
 
