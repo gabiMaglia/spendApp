@@ -47,6 +47,9 @@ export function SinSesionDeSync({ sinSesion }: { sinSesion?: boolean } = {}) {
   const enVivo = useLiveValue(sinSesionDeSync);
   const activo = sinSesion ?? enVivo;
   const [reconectando, setReconectando] = useState(false);
+  // Verifier R4-1(a): el selector de cuentas puede volver con una distinta de
+  // la activa — hay que avisarle al usuario, no aceptarla en silencio.
+  const [otraCuenta, setOtraCuenta] = useState(false);
   if (!activo) return null;
 
   const proveedor = useAuthStore.getState().currentUser?.authProvider;
@@ -54,7 +57,13 @@ export function SinSesionDeSync({ sinSesion }: { sinSesion?: boolean } = {}) {
 
   async function reconectar() {
     setReconectando(true);
-    try { await reconectarCuentaInteractivo(); } finally { setReconectando(false); }
+    setOtraCuenta(false);
+    try {
+      const resultado = await reconectarCuentaInteractivo();
+      if (resultado === 'otra_cuenta') setOtraCuenta(true);
+    } finally {
+      setReconectando(false);
+    }
   }
 
   return (
@@ -68,6 +77,13 @@ export function SinSesionDeSync({ sinSesion }: { sinSesion?: boolean } = {}) {
         </View>
         <Ionicons name="cloud-offline-outline" size={18} color={c.semantic.warning} />
       </BandRow>
+      {esCuenta && otraCuenta && (
+        <BandRow>
+          <Text style={[Typography.caption, { color: c.semantic.warning, flex: 1 }]}>
+            {t('sync.reconnect_wrong_account')}
+          </Text>
+        </BandRow>
+      )}
       {esCuenta && (
         <BandRow last>
           <ButtonRack placement="inline">
