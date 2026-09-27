@@ -32,6 +32,8 @@ const BETO = { id: 'beto', name: 'Beto', isDeleted: false } as User;
 
 const grupo = (memberIds = ['ana']): Group => ({
   id: 'g1', name: 'Asado', memberIds, currency: 'ARS',
+  // T-182: `miembros` es la fuente de verdad de `memberIds` (derivado).
+  miembros: Object.fromEntries(memberIds.map((uid, i) => [uid, { estado: 'in' as const, at: i }])),
   createdAt: 0, createdById: 'ana', deletionVotes: [], updatedAt: 0, isDeleted: false,
 } as Group);
 

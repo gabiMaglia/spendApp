@@ -52,6 +52,7 @@ import i18n from '@/src/i18n';
 import { syncedNow } from '@/src/utils/syncedClock';
 import { salirDelGrupo } from '@/src/services/salirDelGrupo';
 import { esYo, mismaPersona } from '@/src/store/identityAlias';
+import { conAlta } from '@/src/algorithms/roster';
 import { useColors } from '@/src/skins/useSkin';
 
 type TimelineItem =
@@ -110,17 +111,17 @@ export default function GroupDetailScreen() {
       Alert.alert(t('group_detail.member_limit_title'), t('group_detail.member_limit_body', { max: MAX_MIEMBROS }));
       return;
     }
-    const memberIds = [...group.memberIds, userId];
+    const conAltaResult = conAlta(group, userId, syncedNow());
     // T-178 (6.4): mismo gate, defensa en profundidad además del tope de
     // arriba (que ya cubre `memberIds`; esto cubre bytes de cualquier otro
     // campo que el grupo traiga acumulado).
-    const motivo = motivoDeExceso({ ...group, memberIds });
+    const motivo = motivoDeExceso(conAltaResult);
     if (motivo) {
       Alert.alert(t('sync.record_too_big_title'), t(motivo));
       return;
     }
     hapticSuccess();
-    updateGroup(group.id, { memberIds });
+    updateGroup(group.id, { miembros: conAltaResult.miembros });
     ensureKey(group.id);
     void announceGroupToContacts(group.id);
     setInviteVisible(false);
@@ -256,15 +257,15 @@ export default function GroupDetailScreen() {
       isDeleted:    false,
       createdAt:    Date.now(),
     };
-    const memberIds = [...group.memberIds, newUser.id];
-    const motivo = motivoDeExceso({ ...group, memberIds });
+    const conAltaResult = conAlta(group, newUser.id, syncedNow());
+    const motivo = motivoDeExceso(conAltaResult);
     if (motivo) {
       Alert.alert(t('sync.record_too_big_title'), t(motivo));
       return;
     }
 
     addOrUpdateUser(newUser);
-    updateGroup(group.id, { memberIds });
+    updateGroup(group.id, { miembros: conAltaResult.miembros });
     ensureKey(group.id);
     void announceGroupToContacts(group.id);
     hapticSuccess();
