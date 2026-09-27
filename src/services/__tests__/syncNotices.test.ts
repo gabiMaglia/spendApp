@@ -291,12 +291,26 @@ describe('está enchufado al sync', () => {
   const path: typeof import('path') = require('path');
   const motor = fs.readFileSync(path.join(__dirname, '../../sync/relayEngine.ts'), 'utf8');
 
-  it('drainNow saca la foto previa ANTES de bajar', () => {
+  /**
+   * T-158b: la foto ya NO se saca antes de llamar a `drainGroup` — se saca
+   * PEREZOSAMENTE, adentro del callback `antesDeAplicar` que `drainGroup`
+   * invoca por su cuenta sólo si encontró algo que aplicar (nunca con el
+   * buzón vacío). Por eso ahora `drainGroup(` aparece ANTES que `snapshot(`
+   * en el texto — es la llamada que lo envuelve — y lo que hay que probar es
+   * que `snapshot(` cuelga de `antesDeAplicar`, no de la línea antigua.
+   */
+  it('drainNow saca la foto previa perezosamente, dentro de antesDeAplicar', () => {
     const fn = motor.slice(motor.indexOf('export async function drainNow'));
-    const foto = fn.indexOf('snapshot(');
     const bajada = fn.indexOf('drainGroup(');
+    const callback = fn.indexOf('antesDeAplicar:');
+    const foto = fn.indexOf('snapshot(');
+    expect(bajada).toBeGreaterThan(-1);
+    expect(callback).toBeGreaterThan(-1);
     expect(foto).toBeGreaterThan(-1);
-    expect(foto).toBeLessThan(bajada);
+    // `antesDeAplicar` se pasa DENTRO de la llamada a `drainGroup`, y `snapshot`
+    // cuelga DENTRO de ese callback — no antes de que exista la llamada.
+    expect(bajada).toBeLessThan(callback);
+    expect(callback).toBeLessThan(foto);
   });
 
   it('drainNow avisa de lo que llegó', () => {
