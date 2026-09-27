@@ -136,12 +136,6 @@ export default function RootLayout() {
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <AuthGuard />
       {/*
-        T-147 (P-3): host del captcha de Turnstile — vive junto al Stack,
-        montado UNA sola vez, para que `ensureRelaySession` siempre tenga a
-        quién pedirle un token cuando hace falta abrir sesión anónima.
-      */}
-      <CaptchaHost />
-      {/*
         Envuelve al Stack y no a la app entera: adentro del ThemeProvider la
         pantalla de recuperación puede leer el tema, y `AuthGuard` —que no
         dibuja nada— queda afuera para que un error de render no se lleve la
@@ -182,6 +176,15 @@ export default function RootLayout() {
       </ErrorBoundary>
       <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
       {!splashListo && <AnimatedSplash onDone={() => setSplashListo(true)} />}
+      {/*
+        T-147 (P-3): host del captcha de Turnstile — montado UNA sola vez,
+        para que `ensureRelaySession` siempre tenga a quién pedirle un token
+        cuando hace falta abrir sesión anónima. Va ÚLTIMO (después del
+        `Stack` y del splash): ya no usa `Modal` (bug del cartel en blanco /
+        WebView remontado — ver `CaptchaHost.tsx`), así que necesita pintarse
+        arriba de todo por orden de hermanos, no por una capa nativa aparte.
+      */}
+      <CaptchaHost />
     </ThemeProvider>
     </SafeAreaProvider>
     </GestureHandlerRootView>

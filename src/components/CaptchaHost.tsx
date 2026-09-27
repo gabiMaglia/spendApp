@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Modal, StyleSheet, Text, View } from 'react-native';
+import { BackHandler, StyleSheet, Text, View } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import { useTranslation } from 'react-i18next';
 
@@ -69,6 +69,22 @@ export function CaptchaHost() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /**
+   * Botón atrás de Android (Verifier D5): reemplaza el `onRequestClose` del
+   * `Modal` viejo — se saca el `Modal` (ver bug de abajo) y el mismo cierre
+   * ("Ahora no") pasa a un listener propio, activo sólo mientras la hoja
+   * está interactiva.
+   */
+  useEffect(() => {
+    if (estado !== 'interactivo') return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      resolver({ status: 'failed', reason: 'dismissed' });
+      return true;
+    });
+    return () => sub.remove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [estado]);
+
   const siteKey = process.env.EXPO_PUBLIC_TURNSTILE_SITEKEY;
   const hostname = process.env.EXPO_PUBLIC_TURNSTILE_HOSTNAME;
   if (!siteKey) return null;
@@ -97,49 +113,69 @@ export function CaptchaHost() {
 
   if (estado === 'idle') return null;
 
-  const webview = (
-    <WebView
-      testID="turnstile-webview"
-      source={{ html: turnstileHtml(siteKey), baseUrl: hostname ? `https://${hostname}` : undefined }}
-      onMessage={onMessage}
-      style={styles.oculto}
-      javaScriptEnabled
-    />
-  );
+  const interactivo = estado === 'interactivo';
 
-  if (estado === 'esperando') {
-    // Invisible: 1×1, fuera de la vista, mientras Turnstile intenta resolver solo.
-    return <View style={styles.oculto} pointerEvents="none">{webview}</View>;
-  }
-
+  /**
+   * BUG (evidencia de campo del PO — Cloudflare Turnstile Analytics: 51
+   * desafíos EMITIDOS, 0 resueltos, WebView Android; el cartel se veía en
+   * blanco con sólo el botón "Ahora no"). Dos causas, una sola raíz: usar un
+   * `Modal` de RN sólo para el estado interactivo obligaba a dos subárboles
+   * DISTINTOS ('esperando': una `View` suelta; 'interactivo': dentro de un
+   * `Modal` nuevo) — React desmontaba y volvía a montar el `WebView` al
+   * cruzar de uno a otro (Turnstile arrancaba un desafío nuevo cada vez), y
+   * ADEMÁS el `WebView` seguía cargando `style={styles.oculto}` (1×1,
+   * `opacity: 0`) SIN IMPORTAR el estado — invisible e intocable aunque el
+   * contenedor de afuera sí creciera.
+   *
+   * El fix: UNA sola `View` raíz, montada siempre que `estado !== 'idle'`
+   * (nunca dos ramas de `return` distintas) — el `WebView` vive en la MISMA
+   * posición del árbol durante toda la verificación, y sólo cambia el estilo
+   * del CONTENEDOR (oculto ↔ visible); nunca se re-parenta. Reemplaza al
+   * `Modal` por un velo absoluto propio — se pierde el "por encima de todo"
+   * nativo de `Modal`, así que `CaptchaHost` tiene que montarse último en
+   * `_layout.tsx` para pintar arriba del `Stack`.
+   */
   return (
-    <Modal
-      visible
-      transparent
-      animationType="fade"
-      // Verifier D5: sin esto, el botón atrás de Android no hace NADA con el
-      // modal abierto — la única salida quedaba en el botón "Ahora no". Se
-      // trata igual que cerrar la hoja: `failed/dismissed`, nunca un error.
-      onRequestClose={() => resolver({ status: 'failed', reason: 'dismissed' })}
+    <View
+      testID="captcha-overlay"
+      pointerEvents={interactivo ? 'auto' : 'none'}
+      style={[styles.velo, interactivo && { backgroundColor: 'rgba(12, 16, 14, 0.5)' }]}
     >
-      <View style={[styles.velo, { backgroundColor: 'rgba(12, 16, 14, 0.5)' }]}>
-        <View style={[styles.hoja, { backgroundColor: c.surface }]}>
-          <Text style={[styles.titulo, { color: c.text }]}>{t('captcha.title')}</Text>
-          <Text style={[styles.cuerpo, { color: c.textSecondary }]}>{t('captcha.body')}</Text>
-          <View style={styles.webviewInteractivo}>{webview}</View>
+      <View style={[styles.hoja, interactivo ? { backgroundColor: c.surface } : styles.hojaOculta]}>
+        {interactivo && (
+          <>
+            <Text style={[styles.titulo, { color: c.text }]}>{t('captcha.title')}</Text>
+            <Text style={[styles.cuerpo, { color: c.textSecondary }]}>{t('captcha.body')}</Text>
+          </>
+        )}
+        <View style={interactivo ? styles.webviewInteractivo : styles.oculto}>
+          <WebView
+            testID="turnstile-webview"
+            source={{ html: turnstileHtml(siteKey), baseUrl: hostname ? `https://${hostname}` : undefined }}
+            onMessage={onMessage}
+            style={styles.webviewFill}
+            javaScriptEnabled
+          />
+        </View>
+        {interactivo && (
           <ButtonRack>
             <ActionButton label={t('captcha.cancel')} action={() => resolver({ status: 'failed', reason: 'dismissed' })} variant="ghost" full />
           </ButtonRack>
-        </View>
+        )}
       </View>
-    </Modal>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   oculto: { position: 'absolute', width: 1, height: 1, opacity: 0 },
-  velo: { flex: 1, justifyContent: 'flex-end' },
+  // El WebView en sí NUNCA lleva `oculto`/`opacity:0` — es el contenedor de
+  // arriba el que achica o agranda; así el propio `WebView` nunca cambia de
+  // estilo entre estados, sólo el espacio que se le da.
+  webviewFill: { flex: 1 },
+  velo: { ...StyleSheet.absoluteFillObject, justifyContent: 'flex-end' },
   hoja: { borderTopLeftRadius: Radius.lg, borderTopRightRadius: Radius.lg, padding: Spacing[4] },
+  hojaOculta: { position: 'absolute', width: 1, height: 1, opacity: 0, padding: 0 },
   titulo: { ...Typography.h3, marginBottom: Spacing[1] },
   cuerpo: { ...Typography.bodyM, marginBottom: Spacing[4] },
   webviewInteractivo: { height: 70, marginBottom: Spacing[3] },

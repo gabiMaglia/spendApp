@@ -31,6 +31,11 @@ beforeEach(() => {
   mockUltimoOnMessage = null;
   mockUltimoStyle = null;
   mockMontajes = 0;
+  jest.spyOn(BackHandler, 'addEventListener').mockImplementation(() => ({ remove: jest.fn() }));
+});
+
+afterEach(() => {
+  jest.restoreAllMocks();
 });
 afterAll(() => {
   process.env.EXPO_PUBLIC_TURNSTILE_SITEKEY = ORIGINAL_SITEKEY;
