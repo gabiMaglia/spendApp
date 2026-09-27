@@ -22,8 +22,11 @@ jest.mock('@/src/services/notifications', () => ({
 }));
 
 function grupo(over: Partial<Group> = {}): Group {
+  const memberIds = over.memberIds ?? ['ana', 'beto'];
   return {
-    id: 'g-viejo', name: 'Viaje', memberIds: ['ana', 'beto'], currency: 'ARS',
+    id: 'g-viejo', name: 'Viaje', memberIds, currency: 'ARS',
+    // T-182: `miembros` es la fuente de verdad de `memberIds` (derivado).
+    miembros: Object.fromEntries(memberIds.map((uid, i) => [uid, { estado: 'in' as const, at: i }])),
     createdAt: 1_000, updatedAt: 1_000, isDeleted: false,
     createdById: 'ana', deletionVotes: [],
     ...over,

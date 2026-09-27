@@ -13,6 +13,7 @@ import { syncedNow } from '@/src/utils/syncedClock';
 import { pagosQueCuentan } from '@/src/algorithms/settlementStatus';
 import { truncar, MAX_TEXTO_CORTO } from '@/src/sync/topes';
 import { announceRecurringTraspasoBlocked } from './notifications';
+import { conAlta, rosterDe } from '@/src/algorithms/roster';
 
 /**
  * Siguiente nombre disponible para un traspaso repetido (Important #5a,
@@ -84,12 +85,19 @@ export function traspasarGrupo(grupoViejo: Group, description: string, createdBy
   const nombresExistentes = useGroupStore.getState().groups
     .filter(g => !g.isDeleted)
     .map(g => g.name);
-  const grupoNuevo: Group = {
+  // El roster del grupo nuevo son ALTAS NUEVAS a `ahora`, no una copia del
+  // historial de `miembros` del viejo (T-182): a quien traspasa no le
+  // interesa arrastrar bajas viejas, sólo quién está vivo HOY en el grupo
+  // que se cierra. `memberIds` (derivado) sale de ahí, nunca de una copia
+  // directa del array del viejo.
+  const miembrosNuevo = grupoViejo.memberIds.reduce(
+    (m, uid) => conAlta({ miembros: m } as Group, uid, ahora).miembros,
+    {} as Group['miembros'],
+  );
+  const grupoNuevo = {
     id: uuidv4(),
     name: siguienteNombreDisponible(grupoViejo.name, nombresExistentes),
-    // Copia, no referencia: el array del grupo viejo no puede seguir mutando
-    // por debajo del nuevo (o viceversa) sólo porque comparten `memberIds`.
-    memberIds: [...grupoViejo.memberIds],
+    miembros: miembrosNuevo,
     currency: grupoViejo.currency,
     createdAt: ahora,
     updatedAt: ahora,
@@ -98,7 +106,8 @@ export function traspasarGrupo(grupoViejo: Group, description: string, createdBy
     deletionVotes: [],
     deletionMode: grupoViejo.deletionMode,
     defaultSplitMode: grupoViejo.defaultSplitMode,
-  };
+  } as Group;
+  grupoNuevo.memberIds = rosterDe(miembrosNuevo);
 
   const carryOvers = buildCarryOverExpenses(balances, grupoNuevo.id, descripcionAcotada, createdById);
 
