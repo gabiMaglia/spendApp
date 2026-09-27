@@ -99,6 +99,31 @@ describe('mergeProviderUser', () => {
     });
   });
 
+  describe('A5 (T-188a) · volver a entrar borra el "Cuenta borrada" (deletedAt)', () => {
+    // Clave AUSENTE en el objeto no pisa la previa (`addOrUpdateUser` hace
+    // `{...previo, ...entrante}`): por eso acá `deletedAt` va EXPLÍCITO en
+    // `undefined`, no simplemente omitido — es la única forma en que la clave
+    // presente-pero-undefined gana el spread posterior.
+    it('un perfil anonimizado (deletedAt puesto) se limpia al volver a entrar', () => {
+      const anonimizado = storedUser({ name: 'Cuenta borrada', deletedAt: 5_000 });
+
+      const u = mergeProviderUser(anonimizado, {
+        id: APPLE_ID, authProvider: 'apple', deletedAt: undefined,
+      }, 9_000);
+
+      expect(u.deletedAt).toBeUndefined();
+      expect('deletedAt' in u).toBe(true); // presente-y-undefined, no ausente
+    });
+
+    it('sin perfil previo, deletedAt sale undefined (primer login nunca está borrado)', () => {
+      const u = mergeProviderUser(null, {
+        id: APPLE_ID, authProvider: 'apple', deletedAt: undefined,
+      }, 9_000);
+
+      expect(u.deletedAt).toBeUndefined();
+    });
+  });
+
   describe('cuenta distinta', () => {
     it('NO arrastra datos de otra cuenta cuando el id no coincide', () => {
       const u = mergeProviderUser(storedUser(), {
