@@ -11,7 +11,7 @@ import { SCOPED_PLAIN } from '@/src/constants/storageBuckets';
 // IDs de storage con datos sensibles (financieros / de identidad) que se cifran
 // at-rest. El resto (theme/lang/settings/tier) queda en claro por lectura
 // síncrona al importar y baja sensibilidad.
-export const SECURE_IDS = ['groups', 'expenses', 'payments', 'personal', 'users', 'auth', 'recurring', 'comments', 'groupkeys', 'notices', 'sbauth'] as const;
+export const SECURE_IDS = ['groups', 'expenses', 'payments', 'personal', 'users', 'auth', 'recurring', 'comments', 'groupkeys', 'notices', 'sbauth', 'sbdir'] as const;
 export type SecureId = typeof SECURE_IDS[number];
 
 // Instancias cifradas ya construidas por el bootstrap (una por id).

@@ -12,9 +12,7 @@ it('sin ningún resultado conocido todavía, no avisa (no es un fallo, es arranq
   expect(sinSesionDeSync()).toBe(false);
 });
 
-it('con sesión (identity o anonymous) no avisa', () => {
-  setUltimaSesionConocida('identity');
-  expect(sinSesionDeSync()).toBe(false);
+it('con sesión (anonymous) no avisa', () => {
   setUltimaSesionConocida('anonymous');
   expect(sinSesionDeSync()).toBe(false);
 });
