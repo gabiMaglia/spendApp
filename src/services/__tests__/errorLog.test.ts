@@ -105,6 +105,6 @@ describe('el archivo que se exporta', () => {
   });
 
   it('el nombre del archivo lleva fecha, así dos exportaciones no se pisan', () => {
-    expect(diagnosticoFileName()).toMatch(/^spendapp-diagnostico-\d{8}-\d{4}\.json$/);
+    expect(diagnosticoFileName()).toMatch(/^hushsplit-diagnostico-\d{8}-\d{4}\.json$/);
   });
 });

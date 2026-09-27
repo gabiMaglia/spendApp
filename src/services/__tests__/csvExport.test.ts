@@ -135,7 +135,7 @@ describe('personalToCsv', () => {
 
 describe('csvFileName', () => {
   it('incluye prefijo y fecha', () => {
-    expect(csvFileName('gastos', DAY)).toBe('splitp2p-gastos-2026-08-16.csv');
+    expect(csvFileName('gastos', DAY)).toBe('hushsplit-gastos-2026-08-16.csv');
   });
 });
 

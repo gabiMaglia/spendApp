@@ -165,9 +165,9 @@ describe('round-trip export → import', () => {
 });
 
 describe('backupFileName', () => {
-  it('genera nombre con fecha y extensión .splitp2p', () => {
+  it('genera nombre con fecha y extensión .hushsplit', () => {
     const name = backupFileName(new Date(2026, 6, 21).getTime()); // jul (mes 6) 2026
-    expect(name).toBe('splitp2p-backup-2026-07-21.splitp2p');
+    expect(name).toBe('hushsplit-backup-2026-07-21.hushsplit');
   });
 });
 

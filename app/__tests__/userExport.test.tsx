@@ -57,7 +57,7 @@ describe('exportar respaldo desde "Yo" (T-124 · SEC L-F)', () => {
     await confirmar.onPress?.();
 
     expect(mockCompartir).toHaveBeenCalledWith(
-      expect.stringContaining('splitp2p-backup'),
+      expect.stringContaining('hushsplit-backup'),
       expect.any(String),
       'backup.export',
     );

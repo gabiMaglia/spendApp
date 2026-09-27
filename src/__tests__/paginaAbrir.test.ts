@@ -150,14 +150,14 @@ describe('docs/web/abrir.html en iOS (T-097 · SEC M-4)', () => {
   it('iPhone: el botón lleva a la App Store y la nota explica cómo abrirla', () => {
     const { elementos } = ejecutarPagina({ userAgent: UA_IPHONE, hash: '#cABC_-' });
     expect(elementos.abrir.href).toBe(`https://apps.apple.com/app/id${APP_STORE_ID}`);
-    expect(elementos.abrir.textContent).toBe('Descargar spendApp');
-    expect(elementos.nota.textContent).toBe('Si no se abre sola: mantené apretado el link y elegí "Abrir en spendApp", o abrilo desde Safari.');
+    expect(elementos.abrir.textContent).toBe('Descargar HushSplit');
+    expect(elementos.nota.textContent).toBe('Si no se abre sola: mantené apretado el link y elegí "Abrir en HushSplit", o abrilo desde Safari.');
     expect(elementos.valido.hidden).toBe(false);
   });
 
   it.each([
-    ['en', 'Get spendApp', 'If it doesn\'t open by itself: press and hold the link and choose "Open in spendApp", or open it in Safari.'],
-    ['pt', 'Baixar spendApp', 'Se não abrir sozinho: mantenha o link pressionado e escolha "Abrir no spendApp", ou abra no Safari.'],
+    ['en', 'Get HushSplit', 'If it doesn\'t open by itself: press and hold the link and choose "Open in HushSplit", or open it in Safari.'],
+    ['pt', 'Baixar HushSplit', 'Se não abrir sozinho: mantenha o link pressionado e escolha "Abrir no HushSplit", ou abra no Safari.'],
   ])('iPhone en %s: textos traducidos', (language, boton, nota) => {
     const { elementos } = ejecutarPagina({ userAgent: UA_IPHONE, hash: '#cABC_-', language });
     expect(elementos.abrir.textContent).toBe(boton);
