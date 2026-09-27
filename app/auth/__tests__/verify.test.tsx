@@ -1,13 +1,27 @@
 /**
- * T-147 (fila 9d/9f de la retro, decisión del PO 2026-09-27): la pantalla de
- * verificación bloqueante. Reutiliza `ensureRelaySession(true)` (mismo
- * camino que ya prueba `relaySession.test.ts` — acá sólo se prueba CÓMO
- * reacciona la pantalla al resultado, no la sesión en sí) y el `CaptchaHost`
- * global sigue siendo el único que muestra el WebView — esta pantalla no
- * duplica ningún JSX de captcha.
+ * T-147 (fila 9d/9f de la retro, decisión del PO 2026-09-27; rediseño
+ * posterior por evidencia de campo): la pantalla de verificación bloqueante.
+ * Reutiliza `ensureRelaySession` (mismo camino que ya prueba
+ * `relaySession.test.ts` — acá sólo se prueba CÓMO reacciona la pantalla al
+ * resultado, no la sesión en sí). `TurnstileWidget` se mockea acá NO por su
+ * propio comportamiento (`TurnstileWidget.test.tsx` ya lo cubre) sino porque,
+ * sin `EXPO_PUBLIC_TURNSTILE_SITEKEY`, no renderiza nada de todos modos —
+ * este archivo se queda enfocado en la reacción de la pantalla.
  */
 const mockEnsureRelaySession = jest.fn();
-jest.mock('@/src/sync/relaySession', () => ({ ensureRelaySession: (p?: boolean) => mockEnsureRelaySession(p) }));
+jest.mock('@/src/sync/relaySession', () => ({
+  ensureRelaySession: (p?: boolean, o?: { ignorarCooldown?: boolean }) => mockEnsureRelaySession(p, o),
+}));
+
+// `TurnstileWidget` (montado inline por esta pantalla) importa
+// `react-native-webview`, que exige un módulo nativo inexistente en Jest —
+// alcanza con un stub mínimo, ya que sin `EXPO_PUBLIC_TURNSTILE_SITEKEY` el
+// widget no renderiza nada de todos modos (comportamiento propio cubierto
+// por `TurnstileWidget.test.tsx`).
+jest.mock('react-native-webview', () => {
+  const { View } = require('react-native');
+  return { WebView: (p: object) => <View testID="turnstile-webview" {...p} /> };
+});
 
 import React from 'react';
 import { render, act, fireEvent } from '@testing-library/react-native';
@@ -26,7 +40,7 @@ it('camino feliz: sesión OK → marca el gate "lista", sin mostrar ningún erro
   const { queryByText } = render(<VerifyScreen />);
   await act(async () => {});
 
-  expect(mockEnsureRelaySession).toHaveBeenCalledWith(true);
+  expect(mockEnsureRelaySession).toHaveBeenCalledWith(true, { ignorarCooldown: false });
   expect(useEntryGateStore.getState().estado).toBe('lista');
   expect(queryByText('captcha.verify_failed')).toBeNull();
   expect(sinSesionDeSync()).toBe(false);
@@ -48,16 +62,20 @@ describe('fila 9d: falla al entrar → mensaje + Reintentar en la misma pantalla
     expect(useEntryGateStore.getState().estado).not.toBe('lista'); // no deja pasar a tabs
   });
 
-  it('"Reintentar" vuelve a pedir la sesión, y si ahora sale bien, marca el gate "lista"', async () => {
+  it('"Reintentar" vuelve a pedir la sesión (ignorando el cooldown), y si ahora sale bien, marca el gate "lista"', async () => {
     mockEnsureRelaySession.mockResolvedValueOnce('none').mockResolvedValueOnce('anonymous');
     const { getByText } = render(<VerifyScreen />);
     await act(async () => {});
     expect(getByText('captcha.verify_failed')).toBeTruthy();
+    expect(mockEnsureRelaySession).toHaveBeenNthCalledWith(1, true, { ignorarCooldown: false });
 
     await act(async () => { fireEvent.press(getByText('captcha.retry')); });
 
     expect(mockEnsureRelaySession).toHaveBeenCalledTimes(2);
-    expect(mockEnsureRelaySession).toHaveBeenNthCalledWith(2, true);
+    // Fix "Reintentar no funciona" (evidencia de campo del PO): un toque
+    // explícito de Reintentar tiene que ignorar SESSION_RETRY_MS, o el botón
+    // parece no hacer nada dentro de la ventana de cooldown.
+    expect(mockEnsureRelaySession).toHaveBeenNthCalledWith(2, true, { ignorarCooldown: true });
     expect(useEntryGateStore.getState().estado).toBe('lista');
   });
 });
