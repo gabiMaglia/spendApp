@@ -745,6 +745,12 @@
   "captcha": {
     "title": "Confirmá que no sos un robot",
     "body": "Es un paso rápido para proteger el sync de tus grupos.",
-    "cancel": "Ahora no"
+    "cancel": "Ahora no",
+    "stuck": "No se pudo verificar. Probá de nuevo.",
+    "retry": "Reintentar",
+    "verify_title": "Confirmando tu acceso",
+    "verify_body": "Un paso rápido para proteger el sync de tus grupos.",
+    "verify_failed": "No se pudo confirmar tu acceso. Revisá tu conexión y probá de nuevo.",
+    "skip": "Seguir sin verificar"
   }
 }

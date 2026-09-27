@@ -11,6 +11,8 @@ import { useGroupKeyStore } from './groupKeyStore';
 import { purgeMergedScopes } from './accountLink';
 import { migrarReplicadosUnaVez } from '@/src/services/runMigrateReplicated';
 import { startRelay, reiniciarSyncPorCambioDeCuenta } from '@/src/sync/relayEngine';
+import { haySesionAnonimaValida } from '@/src/sync/relaySession';
+import { useEntryGateStore } from './entryGateStore';
 import { materializeRecurring } from '@/src/services/materializeRecurring';
 import { estaBloqueado } from '@/src/algorithms/groupExpenseLimit';
 import { resolvePendingDeletions } from '@/src/services/resolveDeletions';
@@ -107,7 +109,13 @@ export function rehydrateForActiveUser(): void {
   // Sync en tiempo real de la cuenta activa: se suscribe a los grupos con clave
   // y drena lo que quedó encolado mientras la app estuvo cerrada. Va acá y no
   // en el arranque global porque los grupos y sus claves son POR CUENTA.
-  void startRelay();
+  //
+  // `startRelay(true)` — BUG (T-147 post-merge): éste es el ÚNICO llamador que
+  // corre exactamente en un momento de entrada (hidratación inicial con
+  // sesión persistida, login real, cambio de cuenta) — el único que el PO
+  // autorizó a mostrar captcha. Cualquier otro `startRelay()` en el resto del
+  // código usa el default seguro (`false`).
+  void startRelay(true);
 
   // El usuario logueado debe estar en SUS propios contactos. Se hace acá (no en
   // authStore.setUser) para que corra DESPUÉS de que el scope ya cambió al nuevo
@@ -155,6 +163,36 @@ export function subscribeSessionRehydrate(): () => void {
       // de cuenta, sólo se está terminando de cargar la sesión persistida.
       if (!esHidratacionInicial) reiniciarSyncPorCambioDeCuenta();
       rehydrateForActiveUser();
+
+      /**
+       * T-147 (fila 9c/9e, decisión del PO 2026-09-27): sólo la hidratación
+       * inicial —con usuario— necesita este chequeo. Un cambio de cuenta
+       * REAL (login/invitado/switch) ya pidió la verificación desde donde
+       * el usuario lo disparó (`app/auth/index.tsx`), ANTES de `setUser` —
+       * y además acaba de purgar la sesión del buzón anterior dos líneas
+       * arriba, así que un chequeo acá siempre daría "no hay sesión" de
+       * balde.
+       *
+       * `chequear()` se marca YA, en el mismo tick síncrono que
+       * `currentUser` — antes de que `AuthGuard` llegue a decidir a dónde
+       * navegar — para que nunca haya un instante en el que el gate diga
+       * "ninguna" (que `AuthGuard` lee como "andá a tabs") mientras el
+       * chequeo real (asincrónico, `getSession()`) todavía no contestó.
+       */
+      if (esHidratacionInicial && nextId) {
+        useEntryGateStore.getState().chequear();
+        void haySesionAnonimaValida()
+          .then(yaValida => {
+            if (yaValida) useEntryGateStore.getState().marcarLista();
+            else useEntryGateStore.getState().pedirVerificacion();
+          })
+          // Un rechazo inesperado (no debería pasar: `haySesionAnonimaValida`
+          // ya atrapa el error de `getSession()`) no puede dejar el gate
+          // pegado en 'chequeando' para siempre — eso trabaría a quien
+          // ACTUALIZA en la pantalla de login sin salida. Peor caso: una
+          // verificación de más.
+          .catch(() => useEntryGateStore.getState().pedirVerificacion());
+      }
     }
   });
 }

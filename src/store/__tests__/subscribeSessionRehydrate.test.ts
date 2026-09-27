@@ -25,12 +25,18 @@ jest.mock('@/src/sync/relayEngine', () => ({
   cancelPendingPublishes: jest.fn(),
   reiniciarSyncPorCambioDeCuenta: jest.fn(),
 }));
+jest.mock('@/src/sync/relaySession', () => ({
+  haySesionAnonimaValida: jest.fn(async () => true),
+}));
 
 import { useAuthStore } from '../authStore';
 import { subscribeSessionRehydrate } from '../session';
+import { useEntryGateStore, __resetEntryGate } from '../entryGateStore';
 import type { User } from '@/src/types/models';
 
 const mockReinicio = jest.requireMock('@/src/sync/relayEngine').reiniciarSyncPorCambioDeCuenta as jest.Mock;
+const mockStartRelay = jest.requireMock('@/src/sync/relayEngine').startRelay as jest.Mock;
+const mockHaySesion = jest.requireMock('@/src/sync/relaySession').haySesionAnonimaValida as jest.Mock;
 
 const user = (id: string): User => ({ id, authProvider: 'google' } as User);
 
@@ -38,6 +44,9 @@ let unsub: () => void = () => {};
 
 beforeEach(() => {
   mockReinicio.mockClear();
+  mockStartRelay.mockClear();
+  mockHaySesion.mockReset().mockResolvedValue(true);
+  __resetEntryGate();
   useAuthStore.setState({ currentUser: null });
 });
 
@@ -81,5 +90,95 @@ describe('arranque en frío con sesión persistida', () => {
 
     useAuthStore.setState({ currentUser: user('acc-nueva') }); // login real
     expect(mockReinicio).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * BUG (T-147 post-merge): el captcha tiene que ser exclusivo de la entrada
+ * (T-147, decisión del PO). `rehydrateForActiveUser` es el único llamador de
+ * `startRelay` que corre exactamente en los momentos de entrada (hidratación
+ * inicial con sesión persistida, login real, cambio de cuenta) — así que es
+ * el único que debe permitir captcha.
+ */
+describe('BUG: el captcha sólo en la entrada', () => {
+  it('la hidratación inicial (arranque en frío con sesión persistida) llama a startRelay(true)', () => {
+    unsub = subscribeSessionRehydrate();
+    useAuthStore.setState({ currentUser: user('acc-de-siempre') });
+
+    expect(mockStartRelay).toHaveBeenCalledWith(true);
+  });
+
+  it('un cambio real de cuenta también llama a startRelay(true)', () => {
+    unsub = subscribeSessionRehydrate();
+    useAuthStore.setState({ currentUser: user('acc-A') }); // hidratación inicial
+    mockStartRelay.mockClear();
+
+    useAuthStore.setState({ currentUser: user('acc-B') }); // cambio real
+    expect(mockStartRelay).toHaveBeenCalledWith(true);
+  });
+});
+
+/**
+ * T-147 (fila 9c/9e, decisión del PO 2026-09-27): la hidratación inicial es
+ * el ÚNICO momento en el que hace falta un chequeo previo (peek, sin abrir
+ * nada) para decidir si la pantalla de verificación bloqueante debe
+ * aparecer. Un cambio de cuenta REAL (login/invitado/switch) no necesita
+ * este chequeo: ya pide la verificación desde donde el usuario la disparó
+ * (`app/auth/index.tsx`), antes de `setUser` — la sesión del buzón anterior
+ * además se acaba de purgar (`reiniciarSyncPorCambioDeCuenta`), así que un
+ * "peek" ahí siempre daría `false`.
+ */
+describe('T-147 fila 9c/9e: la verificación bloqueante sólo aparece si hace falta', () => {
+  it('fila 9e: hidratación inicial CON sesión del buzón ya válida → gate termina en "lista" (la pantalla nunca aparece)', async () => {
+    mockHaySesion.mockResolvedValue(true);
+    unsub = subscribeSessionRehydrate();
+    useAuthStore.setState({ currentUser: user('acc-de-siempre') });
+
+    // Mientras el chequeo corre (antes de que el await interno resuelva), el
+    // gate ya está en "chequeando" — nunca "pendiente" de entrada: si
+    // pasara por 'pendiente' antes de tener la respuesta real, `AuthGuard`
+    // mostraría la pantalla de más, aunque sea por un instante.
+    expect(useEntryGateStore.getState().estado).toBe('chequeando');
+
+    await Promise.resolve(); await Promise.resolve();
+    expect(useEntryGateStore.getState().estado).toBe('lista');
+  });
+
+  it('fila 9c: hidratación inicial SIN sesión del buzón (usuario que actualiza) → gate termina en "pendiente"', async () => {
+    mockHaySesion.mockResolvedValue(false);
+    unsub = subscribeSessionRehydrate();
+    useAuthStore.setState({ currentUser: user('acc-que-actualiza') });
+
+    await Promise.resolve(); await Promise.resolve();
+    expect(useEntryGateStore.getState().estado).toBe('pendiente');
+  });
+
+  it('hidratación inicial SIN usuario (reinstalación limpia): no chequea nada, el gate se queda en "ninguna"', async () => {
+    unsub = subscribeSessionRehydrate();
+    useAuthStore.setState({ currentUser: null });
+
+    await Promise.resolve();
+    expect(mockHaySesion).not.toHaveBeenCalled();
+    expect(useEntryGateStore.getState().estado).toBe('ninguna');
+  });
+
+  it('si el chequeo rechaza (falla inesperada), el gate no queda pegado en "chequeando" — pasa a "pendiente"', async () => {
+    mockHaySesion.mockRejectedValue(new Error('boom'));
+    unsub = subscribeSessionRehydrate();
+    useAuthStore.setState({ currentUser: user('acc-que-actualiza') });
+
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+    expect(useEntryGateStore.getState().estado).toBe('pendiente');
+  });
+
+  it('un cambio de cuenta REAL (no hidratación inicial) no dispara el chequeo — el gate ya lo pidió quien disparó el cambio', async () => {
+    unsub = subscribeSessionRehydrate();
+    useAuthStore.setState({ currentUser: user('acc-A') }); // hidratación inicial
+    await Promise.resolve(); await Promise.resolve();
+    mockHaySesion.mockClear();
+
+    useAuthStore.setState({ currentUser: user('acc-B') }); // cambio real
+    await Promise.resolve();
+    expect(mockHaySesion).not.toHaveBeenCalled();
   });
 });

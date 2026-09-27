@@ -745,6 +745,12 @@
   "captcha": {
     "title": "Confirm you're not a robot",
     "body": "A quick step to protect your groups' sync.",
-    "cancel": "Not now"
+    "cancel": "Not now",
+    "stuck": "Couldn't verify. Try again.",
+    "retry": "Retry",
+    "verify_title": "Confirming your access",
+    "verify_body": "A quick step to protect your groups' sync.",
+    "verify_failed": "Couldn't confirm your access. Check your connection and try again.",
+    "skip": "Continue without verifying"
   }
 }

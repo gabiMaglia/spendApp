@@ -17,6 +17,7 @@ import { Typography } from '@/src/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { adoptarAvatarDelProveedor } from '@/src/services/avatar';
 import { useAuthStore } from '@/src/store/authStore';
+import { useEntryGateStore } from '@/src/store/entryGateStore';
 import { mergeAccounts } from '@/src/store/accountLink';
 import { actualizarMiPerfil } from '@/src/store/miPerfil';
 import { mergeProviderUser } from '@/src/utils/mergeProviderUser';
@@ -146,6 +147,11 @@ export default function AuthScreen() {
   function entrarComoInvitado() {
     const id = uuidv4();
     recordGuestAccount(id);
+    // T-147 (fila 9a, decisión del PO 2026-09-27): pide la verificación
+    // bloqueante ANTES de `setUser` — `AuthGuard` la lee en el mismo tick en
+    // que `currentUser` deja de ser `null`, así que nunca hay un instante en
+    // el que pudiera mandar directo a tabs sin haber pedido nada.
+    useEntryGateStore.getState().pedirVerificacion();
     setUser({
       id,
       name:         t('auth.guest_name'),
@@ -245,6 +251,8 @@ export default function AuthScreen() {
       // Mismo mail ⇒ misma cuenta, entre con Google o con Apple.
       accountIdFor(u.id, u.email, (accountId) => {
         ofrecerFusionDeInvitado(accountId, u.email);
+        // T-147 (fila 9b): igual que en `entrarComoInvitado`, antes de `setUser`.
+        useEntryGateStore.getState().pedirVerificacion();
         setUser(mergeProviderUser(getStoredProfile(accountId), {
           id:           accountId,
           authProvider: 'google',
@@ -302,6 +310,8 @@ export default function AuthScreen() {
 
       accountIdFor(credential.user, credential.email, (accountId) => {
         ofrecerFusionDeInvitado(accountId, credential.email ?? name);
+        // T-147 (fila 9b): igual que en `entrarComoInvitado`, antes de `setUser`.
+        useEntryGateStore.getState().pedirVerificacion();
         setUser(mergeProviderUser(getStoredProfile(accountId), {
           id:           accountId,
           authProvider: 'apple',

@@ -106,7 +106,8 @@ let enCurso: Promise<SessionKind> | null = null;
  */
 export const SESSION_TIMEOUT_MS = 20_000;
 
-async function abrirSesion(): Promise<SessionKind> {
+async function abrirSesion(permitirCaptcha: boolean): Promise<SessionKind> {
+  if (!permitirCaptcha) return 'none';
   const supabase = getRelayClient();
   if (!supabase) return 'none';
 
@@ -142,10 +143,18 @@ async function abrirSesion(): Promise<SessionKind> {
  * promesa colgada. `withTimeout` envuelve la promesa CACHEADA (no la
  * interna): al vencer el tope, `enCurso` se resuelve (a `'none'`) y se
  * libera, así que la vuelta siguiente puede reintentar sola.
+ *
+ * BUG (T-147 post-merge): el cartel de captcha aparecía "en cualquier
+ * momento" porque el reintento de fondo (poll de `relayEngine`) llamaba a
+ * esta misma función sin distinguirse de la entrada real. `permitirCaptcha`
+ * (default `true`, para no romper a quien ya la llamaba así desde la
+ * entrada) es el freno: en `false`, si no hay sesión no se intenta abrir
+ * ninguna — nunca se pide un token, nunca se muestra nada. El aviso
+ * `SinSesionDeSync` ya existente es quien avisa en pantalla, no un modal.
  */
-export function ensureRelaySession(): Promise<SessionKind> {
+export function ensureRelaySession(permitirCaptcha: boolean = true): Promise<SessionKind> {
   if (enCurso) return enCurso;
-  const promesa = withTimeout(hacerEnsure(), SESSION_TIMEOUT_MS, 'none' as SessionKind);
+  const promesa = withTimeout(hacerEnsure(permitirCaptcha), SESSION_TIMEOUT_MS, 'none' as SessionKind);
   enCurso = promesa.finally(() => { enCurso = null; });
   return enCurso;
 }
@@ -156,11 +165,31 @@ export function ensureRelaySession(): Promise<SessionKind> {
  * colgado seguiría bloqueando la cola para siempre aunque ESTA llamada se
  * rindiera a los `SESSION_TIMEOUT_MS`.
  */
-function hacerEnsure(): Promise<SessionKind> {
-  return cola.run(() => withTimeout(hacerEnsureSinCola(), SESSION_TIMEOUT_MS, 'none' as SessionKind));
+function hacerEnsure(permitirCaptcha: boolean): Promise<SessionKind> {
+  return cola.run(() => withTimeout(hacerEnsureSinCola(permitirCaptcha), SESSION_TIMEOUT_MS, 'none' as SessionKind));
 }
 
-async function hacerEnsureSinCola(): Promise<SessionKind> {
+/**
+ * T-147 (fila 9c/9e de la retro, decisión del PO 2026-09-27): chequeo PURO
+ * — nunca abre nada, nunca pide captcha, nunca purga un residuo — para que
+ * la hidratación inicial pueda decidir SIN efectos secundarios si hace
+ * falta bloquear el paso a tabs con la pantalla de verificación (9c: no hay
+ * sesión del buzón) o si ya la tiene (9e: arranque en frío con sesión
+ * persistida — la pantalla no debe aparecer nunca).
+ *
+ * Un error de `getSession()` (refresh transitorio) se trata como "no
+ * validada": es preferible mostrar la verificación de más (peor caso, un
+ * paso extra) que saltarla sobre un estado incierto.
+ */
+export async function haySesionAnonimaValida(): Promise<boolean> {
+  const supabase = getRelayClient();
+  if (!supabase) return true; // relay no configurado: nada que verificar
+  const { data, error } = await supabase.auth.getSession();
+  if (error) return false;
+  return Boolean(data.session?.user.is_anonymous);
+}
+
+async function hacerEnsureSinCola(permitirCaptcha: boolean): Promise<SessionKind> {
   const supabase = getRelayClient();
   if (!supabase) return 'none';
 
@@ -193,7 +222,7 @@ async function hacerEnsureSinCola(): Promise<SessionKind> {
   // Acá SÍ es seguro abrir una anónima: `getSession()` contestó sin error y
   // sin sesión (primer arranque, logout explícito que borró el storage, o el
   // residuo de identidad de arriba que se acaba de purgar).
-  return abrirSesion();
+  return abrirSesion(permitirCaptcha);
 }
 
 type ClienteAuth = NonNullable<ReturnType<typeof getRelayClient>>;

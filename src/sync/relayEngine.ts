@@ -412,9 +412,17 @@ let unsubs: (() => void)[] = [];
  */
 let arrancando: Promise<void> | null = null;
 
-export function startRelay(): Promise<void> {
+/**
+ * `permitirCaptcha` (default `false`, BUG T-147 post-merge): sólo la entrada
+ * real (`session.ts::rehydrateForActiveUser`, que corre exactamente en la
+ * hidratación inicial y en cada cambio de cuenta) debe poder mostrar el
+ * captcha. Todos los demás llamadores (join de grupo, alta de contacto,
+ * adopción de clave, y el reinicio que hace el propio poll cuando la sesión
+ * cambió) arrancan con el default seguro.
+ */
+export function startRelay(permitirCaptcha: boolean = false): Promise<void> {
   if (arrancando) return arrancando;
-  arrancando = doStartRelay().finally(() => { arrancando = null; });
+  arrancando = doStartRelay(permitirCaptcha).finally(() => { arrancando = null; });
   return arrancando;
 }
 
@@ -444,15 +452,15 @@ const STARTUP_TIMEOUT_MS = 20_000;
 let kindAlArrancar: SessionKind = 'none';
 let soltarRefresh: (() => void) | null = null;
 
-async function doStartRelay(): Promise<void> {
+async function doStartRelay(permitirCaptcha: boolean): Promise<void> {
   stopRelay();
   if (!isRelayConfigured()) return;
 
-  await withTimeout(arrancarCadenaDeSync(), STARTUP_TIMEOUT_MS, undefined);
+  await withTimeout(arrancarCadenaDeSync(permitirCaptcha), STARTUP_TIMEOUT_MS, undefined);
   startPolling();
 }
 
-async function arrancarCadenaDeSync(): Promise<void> {
+async function arrancarCadenaDeSync(permitirCaptcha: boolean): Promise<void> {
   /**
    * Verifier D5: sin usuario activo (pantalla de login, antes de elegir
    * Google/Apple/invitado) no hay ningún GRUPO que sincronizar todavía
@@ -472,7 +480,7 @@ async function arrancarCadenaDeSync(): Promise<void> {
     // T-147 (D1): la sesión se garantiza ANTES de cualquier suscripción. Un
     // canal privado que se une sin JWT queda afuera sin ningún error visible
     // — el orden acá no es un detalle.
-    kindAlArrancar = await ensureRelaySession();
+    kindAlArrancar = await ensureRelaySession(permitirCaptcha);
     // Verifier R4-3: `setUser` dispara este `startRelay` ANTES de que
     // `entrarAlDirectorio` alcance a llamar a `signIntoDirectory`
     // (`auth/index.tsx:302-309` para Google, `:300-309` para Apple) — la
@@ -571,7 +579,9 @@ async function releerTodo(): Promise<void> {
     // Reiniciar TODA la cadena es más simple y más seguro que intentar
     // resuscribir sólo los canales: vuelve a correr `arrancarCadenaDeSync`
     // de punta a punta.
-    const kind = await ensureRelaySession();
+    // BUG (T-147 post-merge): el poll NUNCA puede mostrar captcha — es
+    // exactamente lo que hacía saltar el cartel "en cualquier momento".
+    const kind = await ensureRelaySession(false);
     // Verifier R4-3: mismo criterio que en `arrancarCadenaDeSync` — un poll
     // que coincide con un login/logout en vuelo no pisa el estado visible.
     if (!haySesionEnCurso()) setUltimaSesionConocida(kind);

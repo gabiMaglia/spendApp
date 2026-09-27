@@ -26,6 +26,8 @@ import { installGlobalErrorHandler } from '@/src/services/globalErrorHandler';
 import { ErrorBoundary } from '@/src/components/ErrorBoundary';
 import { exportarDiagnostico } from '@/src/services/exportDiagnostico';
 import { CaptchaHost } from '@/src/components/CaptchaHost';
+import { useEntryGateStore } from '@/src/store/entryGateStore';
+import { decidirNavegacionAuthGuard } from '@/src/navigation/authGuardDecision';
 
 // A nivel de módulo, no dentro de un componente: el handler tiene que estar
 // registrado ANTES de que llegue el primer aviso. Sin él, expo-notifications
@@ -79,17 +81,32 @@ function AuthGuard() {
     return () => { active = false; unsub(); };
   }, []);
 
+  const entryGate = useEntryGateStore(s => s.estado);
+
   useEffect(() => {
-    if (isLoading) return;
     const inAuth = segments[0] === 'auth';
-    if (!currentUser && !inAuth) {
-      router.replace('/auth');
-    } else if (currentUser && inAuth) {
-      router.replace('/(tabs)');
-      const pendiente = tomarEnlacePendiente();
-      if (pendiente) router.push(pendiente as any);
+    const { accion } = decidirNavegacionAuthGuard({
+      isLoading, hayUsuario: !!currentUser, inAuth, gate: entryGate,
+    });
+    switch (accion) {
+      case 'ir_a_auth':
+        router.replace('/auth');
+        return;
+      case 'ir_a_verify':
+        // T-147 (fila 9): la app no pasa a las tabs hasta que hay sesión del
+        // buzón o la persona elige seguir sin verificar (`verify.tsx`).
+        router.replace('/auth/verify');
+        return;
+      case 'ir_a_tabs': {
+        router.replace('/(tabs)');
+        const pendiente = tomarEnlacePendiente();
+        if (pendiente) router.push(pendiente as any);
+        return;
+      }
+      case 'ninguna':
+        return;
     }
-  }, [currentUser, isLoading, segments]);
+  }, [currentUser, isLoading, segments, entryGate]);
 
   /**
    * **Links sin sesión.** Con sesión, expo-router abre la pantalla del link (filtrada por
@@ -136,12 +153,6 @@ export default function RootLayout() {
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <AuthGuard />
       {/*
-        T-147 (P-3): host del captcha de Turnstile — vive junto al Stack,
-        montado UNA sola vez, para que `ensureRelaySession` siempre tenga a
-        quién pedirle un token cuando hace falta abrir sesión anónima.
-      */}
-      <CaptchaHost />
-      {/*
         Envuelve al Stack y no a la app entera: adentro del ThemeProvider la
         pantalla de recuperación puede leer el tema, y `AuthGuard` —que no
         dibuja nada— queda afuera para que un error de render no se lleve la
@@ -166,6 +177,7 @@ export default function RootLayout() {
       >
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="auth/index" options={{ headerShown: false }} />
+        <Stack.Screen name="auth/verify" options={{ headerShown: false, gestureEnabled: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="groups/[id]"  options={{ headerShown: false }} />
         <Stack.Screen name="groups/new"   options={{ presentation: 'modal', headerShown: false }} />
@@ -182,6 +194,15 @@ export default function RootLayout() {
       </ErrorBoundary>
       <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
       {!splashListo && <AnimatedSplash onDone={() => setSplashListo(true)} />}
+      {/*
+        T-147 (P-3): host del captcha de Turnstile — montado UNA sola vez,
+        para que `ensureRelaySession` siempre tenga a quién pedirle un token
+        cuando hace falta abrir sesión anónima. Va ÚLTIMO (después del
+        `Stack` y del splash): ya no usa `Modal` (bug del cartel en blanco /
+        WebView remontado — ver `CaptchaHost.tsx`), así que necesita pintarse
+        arriba de todo por orden de hermanos, no por una capa nativa aparte.
+      */}
+      <CaptchaHost />
     </ThemeProvider>
     </SafeAreaProvider>
     </GestureHandlerRootView>
