@@ -29,6 +29,14 @@ export const CAPTCHA_INTERACTIVE_STUCK_MS = 25_000;
 
 type Estado = 'idle' | 'esperando' | 'interactivo';
 
+/** Piso y techo del alto dinámico (ajuste T-147): en Android un desafío de
+ *  Turnstile puede medir más que la casilla original (~300×65) y se
+ *  cortaba. El widget informa su alto real por `postMessage`; acá se acota
+ *  — nunca por debajo del alto original ni por encima de un techo razonable
+ *  de la hoja. */
+const CAPTCHA_ALTO_MIN = 70;
+const CAPTCHA_ALTO_MAX = 400;
+
 /**
  * Host visual del captcha (T-147 P-3): un WebView invisible que carga
  * Turnstile en modo Managed + `appearance: 'interaction-only'` — la mayoría de
@@ -48,6 +56,7 @@ export function CaptchaHost() {
   const [estado, setEstado] = useState<Estado>('idle');
   const [atascado, setAtascado] = useState(false);
   const [webviewKey, setWebviewKey] = useState(0);
+  const [alto, setAlto] = useState(CAPTCHA_ALTO_MIN);
   const resolverRef = useRef<((r: CaptchaOutcome) => void) | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const atascadoTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -69,14 +78,17 @@ export function CaptchaHost() {
     resolverRef.current = null;
     setAtascado(false);
     setEstado('idle');
+    setAlto(CAPTCHA_ALTO_MIN);
   };
 
   /** "Reintentar" (fila de la retro): recarga el WebView (remonta, a
    *  propósito) SIN resolver la promesa — la verificación sigue en la MISMA
-   *  pantalla, no se rinde como "Ahora no". */
+   *  pantalla, no se rinde como "Ahora no". El alto vuelve al piso: el
+   *  WebView nuevo va a informar el suyo propio en cuanto cargue. */
   const reintentar = () => {
     setAtascado(false);
     setWebviewKey(k => k + 1);
+    setAlto(CAPTCHA_ALTO_MIN);
     armarAtascado();
   };
 
@@ -150,6 +162,9 @@ export function CaptchaHost() {
       case 'expired':
         // El widget se re-arma solo; no hay nada que hacer desde acá.
         return;
+      case 'height':
+        setAlto(Math.min(CAPTCHA_ALTO_MAX, Math.max(CAPTCHA_ALTO_MIN, msg.height)));
+        return;
     }
   };
 
@@ -193,7 +208,10 @@ export function CaptchaHost() {
             )}
           </>
         )}
-        <View style={interactivo ? styles.webviewInteractivo : styles.oculto}>
+        <View
+          testID="turnstile-container"
+          style={interactivo ? [styles.webviewInteractivo, { height: alto }] : styles.oculto}
+        >
           <WebView
             key={webviewKey}
             testID="turnstile-webview"
@@ -227,5 +245,5 @@ const styles = StyleSheet.create({
   hojaOculta: { position: 'absolute', width: 1, height: 1, opacity: 0, padding: 0 },
   titulo: { ...Typography.h3, marginBottom: Spacing[1] },
   cuerpo: { ...Typography.bodyM, marginBottom: Spacing[4] },
-  webviewInteractivo: { height: 70, marginBottom: Spacing[3] },
+  webviewInteractivo: { marginBottom: Spacing[3] },
 });

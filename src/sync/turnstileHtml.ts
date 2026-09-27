@@ -10,7 +10,12 @@ export type TurnstileMsg =
   | { type: 'token'; token: string }
   | { type: 'error'; code: string }
   | { type: 'expired' }
-  | { type: 'interactive' };
+  | { type: 'interactive' }
+  | { type: 'height'; height: number };
+
+/** Tope del alto que se acepta desde el WebView — un valor fuera de rango se
+ *  descarta en `parseTurnstileMessage`, nunca se aplica a ciegas. */
+const ALTO_MAX_ACEPTADO = 600;
 
 /**
  * La site key **nunca se concatena cruda**: se inserta con `JSON.stringify` y
@@ -37,12 +42,25 @@ export function turnstileHtml(siteKey: string): string {
       turnstile.render('#turnstile', {
         sitekey: ${siteKeyJs},
         appearance: 'interaction-only',
+        size: 'flexible',
         callback: function (token) { enviar({ type: 'token', token: token }); },
         'error-callback': function (code) { enviar({ type: 'error', code: String(code) }); },
         'expired-callback': function () { enviar({ type: 'expired' }); },
         'before-interactive-callback': function () { enviar({ type: 'interactive' }); },
       });
     }
+    // El desafío de Turnstile puede medir más que la casilla que le da la
+    // app (Android, tamaño 'flexible'): se informa el alto real del body
+    // para que la app agrande el contenedor en vez de cortarlo. Debounce
+    // simple para no inundar el puente con cada micro-cambio de layout.
+    var alturaTimeout = null;
+    function informarAltura() {
+      if (alturaTimeout) clearTimeout(alturaTimeout);
+      alturaTimeout = setTimeout(function () {
+        enviar({ type: 'height', height: document.body.scrollHeight });
+      }, 50);
+    }
+    new ResizeObserver(informarAltura).observe(document.body);
   </script>
 </body>
 </html>`;
@@ -67,6 +85,10 @@ export function parseTurnstileMessage(raw: string): TurnstileMsg | null {
       return { type: 'expired' };
     case 'interactive':
       return { type: 'interactive' };
+    case 'height':
+      return typeof m.height === 'number' && Number.isFinite(m.height) && m.height >= 0 && m.height <= ALTO_MAX_ACEPTADO
+        ? { type: 'height', height: m.height }
+        : null;
     default:
       return null;
   }
