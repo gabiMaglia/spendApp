@@ -170,3 +170,41 @@ describe('Task 3 — el orden de la cola es el del feed (arriba primero)', () =>
     expect(idsVerificados).toEqual(gastos.map(g => g.id));
   });
 });
+
+describe('B1 (rechazo del verifier) — cambiar la clave a mitad de cola no pierde lo ya verificado', () => {
+  /**
+   * El bug: `hechos` (ref, sobrevive al efecto) marca una firma como hecha
+   * ANTES de que su veredicto se vuelque al estado. Si `clave` cambia (llega
+   * un registro nuevo al feed — el caso normal de Actividad, drenaje cada
+   * 20 s) antes de que pasen los 100 ms del volcado, la limpieza del efecto
+   * viejo tiraba el buffer sin volcarlo. El efecto nuevo arranca, filtra esas
+   * firmas por `hechos` (ya "hechas") y nunca las vuelve a poner en cola: la
+   * fila queda `pendiente` para siempre, aunque la verificación YA se hizo.
+   */
+  it('un registro nuevo a mitad de cola no deja las filas ya verificadas pendientes para siempre', () => {
+    const gastos = Array.from({ length: 10 }, (_, i) => base({ id: `b${i}` }));
+
+    const { rerender, result } = renderHook<
+      Readonly<Record<string, string>>, { lista: Expense[] }
+    >(({ lista }) => useRecordTrust('expense', lista), { initialProps: { lista: gastos } });
+
+    // b0 y b1 procesados y en el buffer, sin volcar todavía (74 ms < 100 ms).
+    nPasos(2);
+
+    const nuevo = base({ id: 'b-nuevo' });
+    rerender({ lista: [...gastos, nuevo] });
+
+    nPasos(30);
+
+    for (const g of [...gastos, nuevo]) {
+      expect(result.current[g.id]).toBe('verificado');
+    }
+
+    // b0 y b1 no se verifican dos veces: `hechos` ya las tenía marcadas.
+    const idsVerificados = checkRecordMock.mock.calls.map(([, record]) =>
+      (record as Expense).id);
+    expect(idsVerificados.filter(id => id === 'b0')).toHaveLength(1);
+    expect(idsVerificados.filter(id => id === 'b1')).toHaveLength(1);
+    expect(checkRecordMock).toHaveBeenCalledTimes(11); // 10 originales + 1 nuevo
+  });
+});
