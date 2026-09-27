@@ -53,6 +53,30 @@ describe('cuándo hace falta el acuse', () => {
     expect(requiereConfirmacion(p, grupo(), { nucleoDe: () => 'valida' })).toBe(false);
     expect(estadoDelSaldado(p, grupo(), CONFIA)).toBe('efectivo');
   });
+
+  /**
+   * T-182: los pagos derivados de un cierre forzado —salida con absorción
+   * (`leave:...`) o expulsión (`expel:...`)— no piden acuse ni en un grupo
+   * `consensus`. No hay aprobaciones que juntar en una expulsión, y pedirle a
+   * la otra parte que confirme dejaría la deuda `pendiente` para siempre
+   * cuando esa otra parte es justo quien ya salió del grupo.
+   */
+  it('un pago `leave:` derivado, sin firma, no pide acuse aunque createdById≠toUserId', () => {
+    const p = pago({ id: 'leave:g1:ana:1000:0', createdById: 'ana', toUserId: 'beto', k: undefined, s: undefined });
+    expect(requiereConfirmacion(p, grupo(), { nucleoDe: () => 'no_verificable' })).toBe(false);
+    expect(estadoDelSaldado(p, grupo(), CONFIA)).toBe('efectivo');
+  });
+
+  it('un pago `expel:` derivado, sin firma, no pide acuse aunque createdById≠toUserId', () => {
+    const p = pago({ id: 'expel:g1:beto:1000:0', createdById: 'ana', toUserId: 'beto', k: undefined, s: undefined });
+    expect(requiereConfirmacion(p, grupo(), { nucleoDe: () => 'no_verificable' })).toBe(false);
+    expect(estadoDelSaldado(p, grupo(), CONFIA)).toBe('efectivo');
+  });
+
+  it('un `expel:` CON firma (no es el derivado real) sigue pidiendo acuse como cualquier pago', () => {
+    const p = pago({ id: 'expel:g1:beto:1000:0', createdById: 'ana', toUserId: 'beto', k: 'aa'.repeat(32), s: 'bb'.repeat(64) });
+    expect(requiereConfirmacion(p, grupo(), { nucleoDe: () => 'valida' })).toBe(true);
+  });
 });
 
 describe('el estado que se deriva de los acuses', () => {
