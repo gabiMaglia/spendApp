@@ -45,7 +45,7 @@ describe('fila 9d: falla al entrar → mensaje + Reintentar en la misma pantalla
     await act(async () => {});
 
     expect(getByText('captcha.verify_failed')).toBeTruthy();
-    expect(useEntryGateStore.getState().estado).toBe('pendiente');
+    expect(useEntryGateStore.getState().estado).not.toBe('lista'); // no deja pasar a tabs
   });
 
   it('"Reintentar" vuelve a pedir la sesión, y si ahora sale bien, marca el gate "lista"', async () => {

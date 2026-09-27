@@ -747,6 +747,10 @@
     "body": "É um passo rápido para proteger a sincronização dos seus grupos.",
     "cancel": "Agora não",
     "stuck": "Não foi possível verificar. Tente novamente.",
-    "retry": "Tentar novamente"
+    "retry": "Tentar novamente",
+    "verify_title": "Confirmando seu acesso",
+    "verify_body": "Um passo rápido para proteger a sincronização dos seus grupos.",
+    "verify_failed": "Não foi possível confirmar seu acesso. Verifique sua conexão e tente novamente.",
+    "skip": "Continuar sem verificar"
   }
 }
