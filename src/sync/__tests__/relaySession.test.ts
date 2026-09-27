@@ -65,8 +65,10 @@ jest.mock('../captchaBridge', () => ({ requestCaptchaToken: jest.fn(async () => 
  * silencioso / Apple interactivo) le daría a `relaySession`.
  */
 let mockReconnect: import('../accountReconnectBridge').ReconnectOutcome = { status: 'not_available' };
-const mockRequestReconnect = jest.fn(async () => mockReconnect);
-jest.mock('../accountReconnectBridge', () => ({ requestReconnect: (...a: unknown[]) => mockRequestReconnect(...a) }));
+const mockRequestReconnect = jest.fn(async (_provider: string, _mode: string) => mockReconnect);
+jest.mock('../accountReconnectBridge', () => ({
+  requestReconnect: (provider: string, mode: string) => mockRequestReconnect(provider, mode),
+}));
 
 /**
  * No se reemplaza el módulo `react-native` entero (como antes): esta versión

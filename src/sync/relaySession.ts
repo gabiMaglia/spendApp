@@ -1,9 +1,11 @@
 import { AppState } from 'react-native';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { requestCaptchaToken } from './captchaBridge';
+import { requestReconnect } from './accountReconnectBridge';
 import { getRelayClient } from './relay';
 import { useAuthStore } from '@/src/store/authStore';
 import { withTimeout } from '@/src/utils/withTimeout';
+import type { User } from '@/src/types/models';
 
 /**
  * Sesión de Supabase SIEMPRE presente (T-147 D1/D2).
@@ -68,9 +70,16 @@ let enCurso: Promise<SessionKind> | null = null;
  */
 export const SESSION_TIMEOUT_MS = 20_000;
 
+/** Backoff de la reconexión de cuenta (R3-1) — mismo criterio que
+ *  `SESSION_RETRY_MS`: un fallo (sin red, Auth caído) no puede convertirse en
+ *  un intento de reconexión por segundo. */
+export const RECONNECT_RETRY_MS = 120_000;
+let ultimoFalloReconexion = 0;
+
 /** Sólo tests. */
 export function __resetRelaySession(): void {
   ultimoFallo = 0;
+  ultimoFalloReconexion = 0;
   enCurso = null;
 }
 
@@ -124,7 +133,24 @@ async function hacerEnsure(): Promise<SessionKind> {
   if (!supabase) return 'none';
 
   const { data, error } = await supabase.auth.getSession();
-  if (data.session) return data.session.user.is_anonymous ? 'anonymous' : 'identity';
+  const user = useAuthStore.getState().currentUser;
+  const esInvitado = user?.authProvider === 'guest';
+
+  if (data.session) {
+    const esAnonimaEnStorage = Boolean(data.session.user.is_anonymous);
+    /**
+     * Verifier R3-2 (residual, ronda 3): una sesión ANÓNIMA en el storage NO
+     * puede servir para una cuenta — puede ser un residuo de cuando este
+     * aparato era invitado y un `signOut` local que no llegó a borrarla (el
+     * borrado forzado vive en `directoryAuth.signOutOfDirectory`, pero no
+     * siempre corrió antes de que esto se lea). Se descarta y se sigue de
+     * largo hacia la reconexión — nunca se la trata como válida para una
+     * cuenta.
+     */
+    if (!(esAnonimaEnStorage && !esInvitado)) {
+      return esAnonimaEnStorage ? 'anonymous' : 'identity';
+    }
+  }
 
   /**
    * Verifier D1: `error` acá significa que el refresh del token FALLÓ —red
@@ -144,24 +170,35 @@ async function hacerEnsure(): Promise<SessionKind> {
   }
 
   /**
-   * **Verifier D2-bis, ruling del orquestador (ronda 2): "cortar de raíz, no
-   * parchear".** La sesión ANÓNIMA sólo existe para el modo invitado
-   * (DEC-03). Con usuario de cuenta (Google/Apple) — incluso mientras el
-   * login todavía no terminó, `authProvider` ya viene puesto en el mismo
-   * `setUser` que dispara `startRelay` (`app/auth/index.tsx:247`, antes de
-   * `entrarAlDirectorio:273`) — nunca se abre una anónima: no hay ninguna
-   * carrera posible porque el camino que la generaba directamente no se
-   * toma. Se reporta `'none'` (el aviso de "sin sesión", D3/D5, cubre la
-   * espera) hasta que el login persista la sesión de cuenta — auth-js la
-   * escribe siempre (`_saveSession` incondicional) — y la vuelta siguiente
-   * (poll o el reinicio por cambio de sesión) la encuentre.
+   * **Ruling ronda 2 ("cortar de raíz, no parchear"), corregido en ronda 3
+   * (R3-1): la sesión ANÓNIMA sigue existiendo SÓLO para el modo invitado
+   * (DEC-03) — eso no cambia.** Lo que cambiaba en la ronda 2 era demasiado:
+   * dejaba a CUALQUIER cuenta sin sesión de Supabase guardada en `'none'`
+   * PARA SIEMPRE, que es el caso de todo usuario Google/Apple que actualiza
+   * desde una versión anterior (corría con `persistSession: false`,
+   * `bc933a9:relay.ts:86` — nunca tuvo nada que guardar). Rompía el Gherkin
+   * «usuario viejo que actualiza».
    *
-   * La vieja lógica de «esperar un login en vuelo + releer el storage
-   * después de abrir la anónima» quedó sin uso y se borró: parcheaba una
-   * carrera que ahora es estructuralmente imposible.
+   * Ahora, para una cuenta: NUNCA se abre una anónima (eso sigue intacto —
+   * no hay ninguna carrera posible porque ese camino no se toma), pero SÍ se
+   * intenta RECONECTAR sola antes de rendirse:
+   *  - Google puede reconectar en SILENCIO (`signInSilently` del SDK, vía
+   *    `accountReconnectBridge` — el host real usa el SDK nativo).
+   *  - Apple no tiene equivalente silencioso: `requestReconnect` devuelve
+   *    `not_available` siempre en modo `'silent'`, y el aviso en pantalla
+   *    ofrece un botón «Reconectar» (interactivo, ver `reconectarCuenta`).
+   * Con backoff (`RECONNECT_RETRY_MS`) para no reintentar por segundo.
    */
-  const esInvitado = useAuthStore.getState().currentUser?.authProvider === 'guest';
-  if (!esInvitado) return 'none';
+  if (!esInvitado) {
+    if (!user) return 'none'; // sin usuario activo, nada que reconectar (D5 ya evita llegar acá)
+    if (ultimoFalloReconexion && Date.now() - ultimoFalloReconexion < RECONNECT_RETRY_MS) return 'none';
+
+    const reconectado = await intentarReconexionSilenciosa(supabase, user);
+    if (reconectado) return 'identity';
+
+    ultimoFalloReconexion = Date.now();
+    return 'none';
+  }
 
   if (ultimoFallo && Date.now() - ultimoFallo < SESSION_RETRY_MS) return 'none';
 
@@ -169,6 +206,24 @@ async function hacerEnsure(): Promise<SessionKind> {
   // error y sin sesión — primer arranque, o logout explícito (`signOut`, que
   // borra el storage) — nunca un refresh que no se pudo confirmar.
   return abrirSesion();
+}
+
+type ClienteAuth = NonNullable<ReturnType<typeof getRelayClient>>;
+
+/**
+ * Intenta reconectar la cuenta SIN interacción del usuario (R3-1). Sólo
+ * Google la soporta (`signInSilently` del SDK); Apple siempre devuelve
+ * `not_available` en modo `'silent'` — el host (`AccountReconnectHost`) es
+ * quien sabe la diferencia, acá sólo se usa el resultado.
+ */
+async function intentarReconexionSilenciosa(supabase: ClienteAuth, user: User): Promise<boolean> {
+  if (user.authProvider !== 'google' && user.authProvider !== 'apple') return false;
+
+  const r = await requestReconnect(user.authProvider, 'silent');
+  if (r.status !== 'ok') return false;
+
+  const { error } = await supabase.auth.signInWithIdToken({ provider: user.authProvider, token: r.idToken });
+  return !error;
 }
 
 /**
