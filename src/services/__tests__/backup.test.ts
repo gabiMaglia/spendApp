@@ -119,7 +119,12 @@ describe('parseBackup — validación', () => {
     expect(() => parseBackup(JSON.stringify({ ...valid, format: 'otro' }))).toThrow('backup.error_invalid_format');
   });
   it('rechaza versión no soportada', () => {
-    expect(() => parseBackup(JSON.stringify({ ...valid, version: 2 }))).toThrow('backup.error_unsupported_version');
+    // T-188b subió BACKUP_VERSION a 2 y sigue aceptando 1 (v1 sin claves) — acá
+    // lo que hay que probar es una versión que NINGUNA de las dos rutas conoce.
+    expect(() => parseBackup(JSON.stringify({ ...valid, version: 99 }))).toThrow('backup.error_unsupported_version');
+  });
+  it('acepta v1, sin `ownerId` ni `groupKeys` (backups de antes de T-188b)', () => {
+    expect(parseBackup(JSON.stringify({ ...valid, version: 1 })).version).toBe(1);
   });
   it('rechaza si falta una colección', () => {
     const { expenses, ...missing } = valid;
@@ -247,6 +252,10 @@ describe('backup — plantillas recurrentes y comentarios (hallazgo del verifica
 
 describe('T-188b · el backup restaura la sesión completa (claves + roster)', () => {
   const CLAVE_G1: GroupKeyRecord = { groupId: 'g1', key: 'aa'.repeat(32), epoch: 1 };
+
+  beforeEach(() => {
+    (jest.requireMock('@/src/sync/relayEngine') as { schedulePublish: jest.Mock }).schedulePublish.mockClear();
+  });
 
   it('B1 · exportar: el archivo lleva groupKeys y ownerId = mi id', () => {
     useAuthStore.setState({ currentUser: user('u1', 10) });

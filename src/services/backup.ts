@@ -10,6 +10,11 @@ import { usePersonalStore } from '@/src/store/personalStore';
 import { useRecurringStore } from '@/src/store/recurringStore';
 import { useCommentStore } from '@/src/store/commentStore';
 import { useAuthStore } from '@/src/store/authStore';
+import { useGroupKeyStore, type GroupKeyRecord } from '@/src/store/groupKeyStore';
+import { conAlta, rosterDe } from '@/src/algorithms/roster';
+import { esYo } from '@/src/store/identityAlias';
+import { schedulePublish } from '@/src/sync/relayEngine';
+import { syncedNow } from '@/src/utils/syncedClock';
 
 /**
  * Backup completo `.hushsplit`: exporta TODOS los datos locales a un archivo JSON
@@ -23,11 +28,19 @@ import { useAuthStore } from '@/src/store/authStore';
 
 /** Tag INTERNO del archivo; no es marca. Queda «splitp2p» a propósito: cambiarlo dejaría sin abrir los backups ya exportados. */
 export const BACKUP_FORMAT = 'splitp2p-backup' as const;
-export const BACKUP_VERSION = 1 as const;
+/**
+ * v2 (T-188b, decisión PO 2026-09-27): el archivo pasa a llevar `ownerId` y
+ * `groupKeys` — EN CLARO, como todo el resto del archivo (T-124 SEC L-F ya
+ * documentó que el backup no va cifrado). Un archivo v1 se sigue leyendo
+ * (`parseBackup` acepta 1 y 2): simplemente no trae claves, y `applyBackup`
+ * restaura los datos igual, sin re-entrar a ningún grupo ni adoptar nada.
+ */
+export const BACKUP_VERSION = 2 as const;
+const VERSIONES_SOPORTADAS = [1, 2] as const;
 
 export interface BackupFile {
   format:          typeof BACKUP_FORMAT;
-  version:         typeof BACKUP_VERSION;
+  version:         typeof BACKUP_VERSION | 1;
   exportedAt:      number;
   groups:          Group[];
   expenses:        Expense[];
@@ -38,6 +51,15 @@ export interface BackupFile {
   /** Opcionales: los backups hechos antes de estas features no los traen. */
   recurring?:      RecurringExpense[];
   comments?:       ExpenseComment[];
+  /** T-188b: de quién es este archivo. Ausente en v1. */
+  ownerId?:        string;
+  /**
+   * T-188b: las claves de cifrado de cada grupo, en claro. Sin esto restaurar
+   * en OTRO teléfono deja los grupos legibles pero SIN forma de sincronizar
+   * (no hay con qué derivar el topic ni descifrar lo que llegue). Ausente en
+   * v1 — esos backups no las llevaban.
+   */
+  groupKeys?:      GroupKeyRecord[];
 }
 
 /** Arma el backup leyendo el estado actual de todos los stores. */
@@ -54,6 +76,8 @@ export function buildBackup(): BackupFile {
     personalBudget:  usePersonalStore.getState().budget,
     recurring:       useRecurringStore.getState().recurring,
     comments:        useCommentStore.getState().comments,
+    ownerId:         useAuthStore.getState().currentUser?.id,
+    groupKeys:       useGroupKeyStore.getState().keys,
   };
 }
 
@@ -85,7 +109,7 @@ export function parseBackup(raw: string): BackupFile {
   if (obj.format !== BACKUP_FORMAT) {
     throw new Error('backup.error_invalid_format');
   }
-  if (obj.version !== BACKUP_VERSION) {
+  if (!VERSIONES_SOPORTADAS.includes(obj.version as typeof VERSIONES_SOPORTADAS[number])) {
     throw new Error('backup.error_unsupported_version');
   }
   for (const key of ARRAY_KEYS) {
@@ -138,6 +162,41 @@ export function applyBackup(backup: BackupFile): void {
   if (current) {
     const restored = backup.users.find(u => u.id === current.id);
     if (restored) useAuthStore.getState().setUser(restored);
+  }
+
+  /**
+   * T-188b · claves + re-entrada — **sólo si el backup es MÍO**.
+   *
+   * `esYo` (no una comparación literal): cubre también un `ownerId` que sea un
+   * alias mío de una fusión de cuentas vieja (T-048), no sólo el id activo.
+   * Un backup AJENO (`ownerId` de otra persona, importado con confirmación
+   * explícita en la pantalla) trae los datos —igual que siempre, RESTORE— pero
+   * NUNCA sus claves ni un alta mía: adoptar la clave de un grupo que no es
+   * mío sería leer conversaciones ajenas sin haber sido invitado, y darse de
+   * alta ahí es autoinvitarse a un grupo de otra persona.
+   */
+  if (backup.ownerId !== undefined && esYo(backup.ownerId) && backup.groupKeys?.length) {
+    useGroupKeyStore.getState().adoptKeys(backup.groupKeys);
+
+    const ahora = syncedNow();
+    const idsConClave = new Set(backup.groupKeys.map(k => k.groupId));
+    for (const g of backup.groups) {
+      // Sin la clave no hay con qué publicar ni descifrar lo que vuelva: no
+      // tiene sentido re-entrar a un grupo que se quedó sin canal.
+      if (!idsConClave.has(g.id)) continue;
+      const local = useGroupStore.getState().getById(g.id);
+      if (!local || rosterDe(local.miembros).includes(current!.id)) continue;
+
+      // `at` FRESCO (`ahora`, no el que traía el archivo): el borrado (T-187)
+      // pudo haber publicado un `conBaja` más reciente que cualquier timestamp
+      // del backup — sin un `at` nuevo, la re-entrada perdería ese merge por
+      // LWW y quedaría fantasma para los demás.
+      useGroupStore.setState({
+        groups: useGroupStore.getState().groups.map(x =>
+          x.id === g.id ? conAlta(x, current!.id, ahora) : x),
+      });
+      schedulePublish(g.id, 0);
+    }
   }
 }
 
