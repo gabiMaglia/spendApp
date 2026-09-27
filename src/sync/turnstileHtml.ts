@@ -1,9 +1,9 @@
 /**
- * HTML servido al WebView invisible que hospeda el widget de Cloudflare
- * Turnstile (T-147 P-3). El widget corre en modo Managed +
- * `appearance: 'interaction-only'`: la mayoría de las veces resuelve solo, sin
- * mostrar nada, y sólo pide interacción cuando Cloudflare lo considera
- * necesario — recién ahí `CaptchaHost` muestra la hoja.
+ * HTML servido al WebView que hospeda el widget de Cloudflare Turnstile
+ * (T-147). El widget corre en modo Managed + `appearance: 'interaction-only'`:
+ * la mayoría de las veces resuelve solo, sin mostrar nada, y sólo pide
+ * interacción cuando Cloudflare lo considera necesario — recién ahí
+ * `TurnstileWidget` (montado inline en `app/auth/verify.tsx`) lo agranda.
  */
 
 export type TurnstileMsg =
@@ -29,7 +29,7 @@ export function turnstileHtml(siteKey: string): string {
   return `<!DOCTYPE html>
 <html>
 <head>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=cargado" async defer></script>
 </head>
 <body style="margin:0;padding:0;">
