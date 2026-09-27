@@ -35,6 +35,21 @@ export function supabaseAuthStorage(): {
   };
 }
 
+/**
+ * Verifier R3-2: `supabase.auth.signOut({ scope: 'local' })` sigue haciendo un
+ * viaje de red incluso para `local` (`GoTrueClient.js:_signOut`), y si ese
+ * viaje falla con algo que no sea 404/401/403/sesión-ausente, auth-js
+ * devuelve el error y **NUNCA** llega a `_removeSession()` — la sesión vieja
+ * (anónima o de otra cuenta) queda pegada en el storage para siempre, sin
+ * red o con red mala. `directoryAuth.signOutOfDirectory` usa esto como
+ * último recurso cuando el signOut de verdad falla: el bucket `'sbauth'` es
+ * EXCLUSIVO de la sesión de Supabase (nada más vive ahí), así que vaciarlo
+ * entero es seguro y no depende de conocer la clave interna que usa auth-js.
+ */
+export function forceClearPersistedSession(): void {
+  storage.clearAll();
+}
+
 export type SessionKind = 'identity' | 'anonymous' | 'none';
 
 /** Tras un fallo (captcha o Auth), cuánto esperar antes de reintentar en vez de
