@@ -162,6 +162,15 @@ describe('T-147 fila 9c/9e: la verificación bloqueante sólo aparece si hace fa
     expect(useEntryGateStore.getState().estado).toBe('ninguna');
   });
 
+  it('si el chequeo rechaza (falla inesperada), el gate no queda pegado en "chequeando" — pasa a "pendiente"', async () => {
+    mockHaySesion.mockRejectedValue(new Error('boom'));
+    unsub = subscribeSessionRehydrate();
+    useAuthStore.setState({ currentUser: user('acc-que-actualiza') });
+
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+    expect(useEntryGateStore.getState().estado).toBe('pendiente');
+  });
+
   it('un cambio de cuenta REAL (no hidratación inicial) no dispara el chequeo — el gate ya lo pidió quien disparó el cambio', async () => {
     unsub = subscribeSessionRehydrate();
     useAuthStore.setState({ currentUser: user('acc-A') }); // hidratación inicial
