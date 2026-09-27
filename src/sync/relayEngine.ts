@@ -259,16 +259,26 @@ export async function drainNow(groupId: string): Promise<number> {
 
   // Foto previa: es lo que distingue "llegó recién" de "ya estaba". Sin esto
   // cada relectura por cursor volvería a avisar lo mismo.
-  const antes = snapshot(
-    useExpenseStore.getState().expenses,
-    syncedNow(),
-    useGroupStore.getState().groups,
-    usePaymentStore.getState().payments,
-  );
+  //
+  // T-158b: se toma PEREZOSAMENTE — sólo si `drainGroup` de verdad encuentra
+  // algo que aplicar (`opts.antesDeAplicar`). Calcularla es trabajo de JS
+  // sobre potencialmente miles de gastos, y la inmensa mayoría de las vueltas
+  // de poll en un grupo tranquilo no traen un solo sobre nuevo — tirarla a la
+  // basura en esos casos es puro desperdicio.
+  let antes: Snapshot | undefined;
 
   try {
     const topic = await deriveTopic(fromHex(record.key), record.epoch);
-    const r = await drainGroup(groupId, userId, deviceId(), readCursor(topic));
+    const r = await drainGroup(groupId, userId, deviceId(), readCursor(topic), {
+      antesDeAplicar: () => {
+        antes = snapshot(
+          useExpenseStore.getState().expenses,
+          syncedNow(),
+          useGroupStore.getState().groups,
+          usePaymentStore.getState().payments,
+        );
+      },
+    });
     if (!r.ok) return 0;
 
     // T-136 · D-1: si la clave cambió desde la foto de entrada (el usuario
@@ -302,7 +312,10 @@ export async function drainNow(groupId: string): Promise<number> {
 
     // T-010. Va DESPUÉS de resolver borrados: una ronda que acaba de vencer ya
     // no es un pedido pendiente y no tiene por qué avisarse.
-    if (r.applied > 0) void avisarDeLoNuevo(antes, userId);
+    // `antes` siempre está seteado acá: `r.applied > 0` sólo es posible si
+    // `drainGroup` aplicó al menos una rebanada, y eso no pasa sin haber
+    // llamado antes a `antesDeAplicar` (ver el comentario en `relaySync.ts`).
+    if (r.applied > 0 && antes) void avisarDeLoNuevo(antes, userId);
 
     return r.applied;
   } catch {

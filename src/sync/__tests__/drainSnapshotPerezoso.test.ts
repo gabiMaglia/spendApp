@@ -19,6 +19,16 @@ jest.mock('../relaySync', () => ({
   publishToGroup: jest.fn(async () => ({ ok: true, seq: 1 })),
 }));
 
+/**
+ * OJO: los mocks de acá abajo se DEFINEN antes de que `jest.mock` los use,
+ * pero el factory de `jest.mock` se ejecuta al `require`-earse el módulo real
+ * — que Babel hoistea ANTES de este `const` (import/require al tope del
+ * archivo). Referenciar `mockSnapshot` DIRECTO como valor del factory
+ * (`snapshot: mockSnapshot`) lo capturaría `undefined` en ese momento. Por eso
+ * cada campo es una función-envoltorio: se crea en el momento del factory,
+ * pero recién LEE `mockSnapshot`/`mockNoticesFor`/`mockAnnounce` cuando se
+ * LLAMA — para entonces esos `const` ya están inicializados.
+ */
 const mockSnapshot = jest.fn(() => ({
   expenseIds: [], conBorradoAbierto: [], paymentIds: [], borrados: [], traspasosConocidos: {},
 }));
@@ -26,12 +36,14 @@ const mockNoticesFor = jest.fn(() => [
   { kind: 'expenses' as const, groupId: 'G', groupName: 'Grupo', count: 2 },
 ]);
 jest.mock('@/src/services/syncNotices', () => ({
-  snapshot: mockSnapshot,
-  noticesFor: mockNoticesFor,
+  snapshot: (...args: unknown[]) => mockSnapshot(...(args as [])),
+  noticesFor: (...args: unknown[]) => mockNoticesFor(...(args as [])),
 }));
 
 const mockAnnounce = jest.fn(async () => {});
-jest.mock('@/src/services/notifications', () => ({ announce: mockAnnounce }));
+jest.mock('@/src/services/notifications', () => ({
+  announce: (...args: unknown[]) => mockAnnounce(...(args as [])),
+}));
 
 import { drainNow } from '../relayEngine';
 import { drainGroup, type DrainOptions } from '../relaySync';

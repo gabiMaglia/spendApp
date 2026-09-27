@@ -410,7 +410,19 @@ export const DRAIN_FETCH_LIMIT = 200;
 export const DRAIN_MAX_PAGES = 25;
 
 /** Sólo tests: páginas chicas para ejercitar la paginación sin 200 sobres. */
-export type DrainOptions = { pageLimit?: number; maxPages?: number };
+export type DrainOptions = {
+  pageLimit?: number;
+  maxPages?: number;
+  /**
+   * T-158b: se invoca UNA sola vez, justo antes de aplicar la primera página
+   * que trae rebanadas de datos — nunca si el buzón está vacío (ninguna
+   * página trajo nada que aplicar). Existe para que `drainNow` pueda tomar su
+   * "foto previa" (`snapshot`, T-010) de forma perezosa: calcularla es
+   * trabajo sobre potencialmente miles de gastos, y la inmensa mayoría de las
+   * vueltas de poll no traen un solo sobre nuevo.
+   */
+  antesDeAplicar?: () => void;
+};
 
 export async function drainGroup(
   groupId: string,
@@ -439,6 +451,7 @@ export async function drainGroup(
   // página y sus rebanadas en otra.
   const recibidasPorRemitente = new Map<string, Map<string, string>>();
   const manifiestos: { sender: string; manifest: SliceManifest }[] = [];
+  let seLlamoAntesDeAplicar = false;
 
   for (let pagina = 0; pagina < maxPages; pagina++) {
     const r = await fetchSince(topic, cursor, deviceId, pageLimit);
@@ -525,6 +538,15 @@ export async function drainGroup(
         }
         mapa.set(envelope.ckey, plain);
       }
+    }
+
+    // T-158b: la foto previa se toma UNA sola vez, recién acá — después del
+    // fetch de esta página, antes de aplicar la primera rebanada de datos que
+    // trajo. Una página que sólo trae manifiestos (o sobres que no abrieron)
+    // no dispara nada: no hay nada que aplicar todavía.
+    if (!seLlamoAntesDeAplicar && rebanadas.length > 0) {
+      opts.antesDeAplicar?.();
+      seLlamoAntesDeAplicar = true;
     }
 
     for (const { seq, delta, senderKey } of rebanadas) {
