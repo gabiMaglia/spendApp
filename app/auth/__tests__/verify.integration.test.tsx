@@ -40,7 +40,6 @@ jest.mock('react-native-webview', () => {
   return {
     WebView: (p: { onMessage: typeof mockUltimoOnMessage }) => {
       mockUltimoOnMessage = p.onMessage;
-      // eslint-disable-next-line react-hooks/rules-of-hooks
       useEffect(() => { mockMontajesWebView++; }, []);
       return <View testID="turnstile-webview" />;
     },
