@@ -1,4 +1,5 @@
 import { getRelayClient } from './relay';
+import { withTimeout } from '@/src/utils/withTimeout';
 
 /**
  * Sesión de CUENTA contra Supabase Auth — abre la que usan el buzón Y el
@@ -41,56 +42,27 @@ import { getRelayClient } from './relay';
  * `relay.ts` → `relaySession.ts`): un `import` estático acá arriba armaría
  * un ciclo (`relaySession.ts` → `authStore.ts` → `directoryAuth.ts`); sólo
  * hace falta en tiempo de ejecución, nunca al cargar el módulo.
+ *
+ * **T-175 (obs verifier T-147-b ronda 2):** `signInWithIdToken`/`signOut`
+ * corrían acá SIN tope de tiempo. El tope de `SESSION_TIMEOUT_MS` que ya
+ * existía vive DENTRO de `hacerEnsure` (`relaySession.ts`), envolviendo lo
+ * que `ensureRelaySession` encola — nunca alcanza a lo que YA estaba
+ * encolado ADELANTE en la MISMA cola (fix D1). Un fetch colgado acá
+ * bloqueaba la cola para siempre y `verify.tsx` quedaba en spinner sin
+ * salida. Se reusa `withTimeout` (`src/utils/withTimeout.ts`, T-138-bis —
+ * el mismo corte que ya usa `doStartRelay`) en vez de escribir otra copia,
+ * y la MISMA `SESSION_TIMEOUT_MS`: un solo presupuesto de red para toda la
+ * cola. Se aplica ANTES de encolar, no a la promesa ya encolada: si
+ * quedara afuera, la operación colgada seguiría bloqueando la cola aunque
+ * ESTA llamada se rindiera. A propósito NO pausado por el captcha —
+ * login/logout de CUENTA nunca lo tocan; ese pausado (`withNetworkTimeout`)
+ * es sólo del camino de invitado.
  */
-function encolar<T>(fn: () => Promise<T>, alVencer: () => T): Promise<T> {
+function encolar<T>(fn: () => Promise<T>, alVencer: T): Promise<T> {
   const { encolarOperacionDeSesion, SESSION_TIMEOUT_MS } =
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     require('./relaySession') as typeof import('./relaySession');
-  return encolarOperacionDeSesion(() => withTimeout(fn, SESSION_TIMEOUT_MS, alVencer));
-}
-
-/**
- * T-175 (obs verifier T-147-b ronda 2): tope de red generico para lo que se
- * encola en directoryAuth -- signInWithIdToken/signOut corrian sin ninguno.
- * El tope de SESSION_TIMEOUT_MS que ya existia vive DENTRO de hacerEnsure
- * (relaySession.ts), envolviendo lo que ensureRelaySession encola -- nunca
- * alcanza a lo que YA estaba encolado ADELANTE en la MISMA cola (fix D1).
- * Un fetch colgado aca bloqueaba la cola para siempre y verify.tsx quedaba
- * en spinner sin salida.
- *
- * A proposito NO pausado por el captcha (login/logout de CUENTA nunca lo
- * tocan -- ese pausado es solo del camino de invitado,
- * withNetworkTimeout en relaySession.ts). El tope envuelve la funcion ANTES
- * de encolarla, no la promesa ya encolada: si quedara afuera, la operacion
- * colgada seguiria bloqueando la cola aunque ESTA llamada se rindiera.
- *
- * Al vencer, resuelve con alVencer() en vez de rechazar: fn ya es best
- * effort y quien llama espera un resultado, no una excepcion.
- */
-function withTimeout<T>(fn: () => Promise<T>, ms: number, alVencer: () => T): Promise<T> {
-  return new Promise<T>(resolve => {
-    let resuelto = false;
-    const timer = setTimeout(() => {
-      if (resuelto) return;
-      resuelto = true;
-      resolve(alVencer());
-    }, ms);
-
-    fn().then(
-      v => {
-        if (resuelto) return;
-        resuelto = true;
-        clearTimeout(timer);
-        resolve(v);
-      },
-      () => {
-        if (resuelto) return;
-        resuelto = true;
-        clearTimeout(timer);
-        resolve(alVencer());
-      },
-    );
-  });
+  return encolarOperacionDeSesion(() => withTimeout(fn(), SESSION_TIMEOUT_MS, alVencer));
 }
 
 export type DirectorySignIn =
@@ -119,7 +91,7 @@ export async function signIntoDirectory(
         return { ok: false, reason: 'rejected', detail: String(e) };
       }
     },
-    () => ({ ok: false, reason: 'rejected', detail: 'timeout' }),
+    { ok: false, reason: 'rejected', detail: 'timeout' },
   );
 }
 
@@ -134,27 +106,31 @@ export async function signIntoDirectory(
  * corren sobre el mismo cliente y ahora también sobre la MISMA cola (fix
  * D1), así que quedan serializadas entre sí sin importar cuál se dispara
  * primero — ninguna deja un JWT de cuenta vivo.
+ *
+ * **T-175:** si el `signOut` de red vence sin contestar, el fallback de
+ * `encolar` no puede purgar el storage por sí solo (es un valor estático,
+ * no una función) — acá se detecta el vencimiento por el sentinel
+ * `'timeout'` y se purga DESPUÉS, con `forceClearPersistedSession` (sin
+ * otro viaje de red que también podría colgarse), para que el JWT viejo no
+ * quede pegado esperando una respuesta que nunca llega.
  */
 export async function signOutOfDirectory(): Promise<void> {
   const supabase = getRelayClient();
   if (!supabase) return;
 
-  await encolar(
-    async () => {
-      try {
-        await supabase.auth.signOut({ scope: 'local' });
-      } catch {
-        // Sin sesion persistida no hay nada que forzar: el proximo login del
-        // directorio abre una sesion nueva sin importar como termino esta.
-      }
-    },
-    () => {
-      // T-175: vencio sin contestar -- purgamos el storage LOCAL a mano
-      // (sin otro viaje de red que tambien podria colgarse) para que el JWT
-      // viejo no quede pegado esperando una respuesta que nunca llega.
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { forceClearPersistedSession } = require('./relaySession') as typeof import('./relaySession');
-      forceClearPersistedSession();
-    },
-  );
+  const resultado = await encolar(async (): Promise<'ok' | 'timeout'> => {
+    try {
+      await supabase.auth.signOut({ scope: 'local' });
+    } catch {
+      // Sin sesión persistida no hay nada que forzar: el próximo login del
+      // directorio abre una sesión nueva sin importar cómo terminó ésta.
+    }
+    return 'ok';
+  }, 'timeout');
+
+  if (resultado === 'timeout') {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { forceClearPersistedSession } = require('./relaySession') as typeof import('./relaySession');
+    forceClearPersistedSession();
+  }
 }
