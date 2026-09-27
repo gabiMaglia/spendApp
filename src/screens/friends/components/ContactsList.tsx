@@ -15,13 +15,16 @@ import { useColors } from '@/src/skins/useSkin';
 
 /** Estado vacío, o la lista de contactos con su saldo — encabezado con mármol incluido. */
 export function ContactsList({
-  contacts, personBalances, conHistorial, onRemove, onSettle,
+  contacts, personBalances, conHistorial, blocked, onRemove, onSettle, onToggleBlock,
 }: {
   contacts: User[];
   personBalances: PersonBalance[];
   conHistorial: Set<string>;
+  /** T-180 (7.1): ids bloqueados — muestran la insignia y ofrecen Desbloquear. */
+  blocked: Set<string>;
   onRemove: (id: string, name: string) => void;
   onSettle: (id: string, amount: number, currency: string) => void;
+  onToggleBlock: (id: string, name: string) => void;
 }) {
   const { t } = useTranslation();
   const c = useColors();
@@ -50,9 +53,11 @@ export function ContactsList({
               amount={balance?.amount}
               conHistorial={conHistorial.has(idCanonico(contact.id))}
               currency={balance?.currency ?? 'ARS'}
+              blocked={blocked.has(contact.id)}
               last={i === contacts.length - 1}
               onRemove={onRemove}
               onSettle={onSettle}
+              onToggleBlock={onToggleBlock}
             />
           );
         })}

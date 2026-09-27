@@ -33,7 +33,7 @@ export default function FriendsScreen() {
   const {
     cur, personBalances, owedToYou, youOwe, owedToYouPending, youOwePending,
   } = useFriendsBalances(currentUser?.id ?? '');
-  const { contacts, conHistorial, handleRemove, handleSettle } = useFriendsContacts();
+  const { contacts, conHistorial, blocked, handleRemove, handleSettle, handleToggleBlock } = useFriendsContacts();
   const addSheet = useAddContactSheet();
   const pendingCalculando = t('fx.calculating');
 
@@ -70,8 +70,10 @@ export default function FriendsScreen() {
           contacts={contacts}
           personBalances={personBalances}
           conHistorial={conHistorial}
+          blocked={blocked}
           onRemove={handleRemove}
           onSettle={handleSettle}
+          onToggleBlock={handleToggleBlock}
         />
       </Animated.ScrollView>
 

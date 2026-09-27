@@ -1,6 +1,7 @@
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { readScoped, writeScoped } from '@/src/store/userScope';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
+import { isBlocked } from './blockedPeers';
 
 /**
  * **Ofertas de clave de grupo** (T-136 · ADR-013).
@@ -209,6 +210,11 @@ export function conflictoForzado(groupId: string): boolean {
  * o `estado()` nunca se vuelve a mirar para este grupo en este lote.
  */
 export function registrarOferta(o: KeyOffer): boolean {
+  // T-180 (7.1): un bloqueado no me entrega claves de grupo. `fromUserId` de
+  // una oferta de invitación lleva el prefijo `invite:` (`idDeOfertaDeInvitacion`)
+  // y nunca coincide con un userId real, así que esto no le pega a ese camino.
+  if (isBlocked(o.fromUserId)) return false;
+
   const r = aplicarOferta(leer(), o);
   if (r.forzarConflicto) marcarConflictoForzado(o.groupId);
   if (!r.lista) return r.forzarConflicto;

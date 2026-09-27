@@ -16,14 +16,17 @@ import { useColors } from '@/src/skins/useSkin';
  * referencias ESTABLES desde `FriendsScreen` (`useFriendsContacts`), no inline.
  */
 export const ContactRow = React.memo(function ContactRow({
-  userId, name, amount, currency, conHistorial, onRemove, onSettle, last,
+  userId, name, amount, currency, conHistorial, blocked, onRemove, onSettle, onToggleBlock, last,
 }: {
   userId: string; name: string;
   amount?: number; currency: string;
   /** Si hubo gastos o saldados entre los dos. Sin historial, un saldo en cero no es «Saldado». */
   conHistorial: boolean;
+  /** T-180 (7.1): bloqueado localmente — no recibe tarjeta ni claves de grupo. */
+  blocked: boolean;
   onRemove: (id: string, name: string) => void;
   onSettle: (id: string, amount: number, currency: string) => void;
+  onToggleBlock: (id: string, name: string) => void;
   last?: boolean;
 }) {
   const { t } = useTranslation();
@@ -37,7 +40,11 @@ export const ContactRow = React.memo(function ContactRow({
       <UserAvatar userId={userId} name={name} size={42} />
       <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
         <Text style={[Typography.bodyL, { color: c.text }]} numberOfLines={1}>{name}</Text>
-        {hasBalance ? (
+        {blocked ? (
+          <Text style={{ fontSize: 11.5, fontWeight: '600', color: c.semantic.negative }}>
+            {t('contacts.blocked_badge')}
+          </Text>
+        ) : hasBalance ? (
           <Text
             style={{
               fontSize: 11.5, fontWeight: '600',
@@ -64,6 +71,14 @@ export const ContactRow = React.memo(function ContactRow({
           </Text>
         </Pressable>
       )}
+      <Pressable
+        onPress={() => onToggleBlock(userId, name)}
+        style={[styles.actionChip, { backgroundColor: c.bgGrouped }]}
+      >
+        <Text style={{ fontSize: 11, fontWeight: '700', color: c.textSecondary }}>
+          {blocked ? t('contacts.unblock') : t('contacts.block')}
+        </Text>
+      </Pressable>
       <Pressable onPress={() => onRemove(userId, name)} hitSlop={8}>
         <Ionicons name="trash-outline" size={16} color={c.textTertiary} />
       </Pressable>

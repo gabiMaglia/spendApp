@@ -608,6 +608,13 @@
     "contacts_count": "Amigos ({{count}})",
     "qr_note": "Os contatos são adicionados escaneando um QR: a identidade viaja entre dispositivos, não há servidor de usuários."
   },
+  "contacts": {
+    "block": "Bloquear",
+    "unblock": "Desbloquear",
+    "blocked_badge": "Bloqueado",
+    "block_confirm_title": "Bloquear {{name}}",
+    "block_confirm_body": "Você não vai mais receber o cartão nem chaves de grupo dele por este canal. Se estiverem no mesmo grupo, o que ele postar lá continua chegando."
+  },
   "recurrence": {
     "label": "REPETIR",
     "once": "Uma vez",

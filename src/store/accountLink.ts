@@ -119,6 +119,7 @@ const kGroupKeys       = ranura('groupkeys', DATA_KEY);
 const kArchived        = ranura('groups', 'archived_v1');
 const kInbox           = ranura('notices', 'inbox_v1');
 const kContactPeers    = ranura('users', 'contact_peers_v1');
+const kBlockedPeers    = ranura('users', 'blocked_peers_v1');
 const kProfile         = ranura('auth', AUTH_KEYS.PROFILE);
 
 /**
@@ -177,6 +178,7 @@ export function mergeAccounts(fromAccountId: string, toAccountId: string): Merge
   mergeProfiles(fromAccountId, toAccountId);
   mergeSettings(fromAccountId, toAccountId);
   mergeContactPeers(fromAccountId, toAccountId);
+  mergeBlockedPeers(fromAccountId, toAccountId);
   mergeAlias(fromAccountId, toAccountId);
   mergePendingDrain(fromAccountId, toAccountId);
   mergeInvites(fromAccountId, toAccountId);
@@ -672,6 +674,37 @@ function mergeContactPeers(fromAccountId: string, toAccountId: string): void {
 }
 
 /**
+ * La lista de bloqueados (T-180 · 7.1) se UNE, nunca se reemplaza: si
+ * cualquiera de las dos cuentas que se fusionan había bloqueado a alguien, la
+ * cuenta resultante lo sigue teniendo bloqueado. Es el lado seguro — perder un
+ * bloqueo en una fusión reabriría justo el canal que el usuario cerró a
+ * propósito, y no hay forma de que la fusión sepa si eso fue querido.
+ */
+function mergeBlockedPeers(fromAccountId: string, toAccountId: string): void {
+  if (fromAccountId === toAccountId) return;
+  const storage = createSecureStorage('users');
+  const k = kBlockedPeers;
+
+  const leer = (uid: string): string[] => {
+    const raw = storage.getString(k(uid));
+    if (!raw) return [];
+    try {
+      const v = JSON.parse(raw);
+      return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+    } catch {
+      return []; // scope corrupto: no puede tumbar el resto de la fusión
+    }
+  };
+
+  const origen = leer(fromAccountId);
+  if (origen.length === 0) return;
+
+  const destino = new Set(leer(toAccountId));
+  for (const id of origen) destino.add(id);
+  storage.set(k(toAccountId), JSON.stringify([...destino]));
+}
+
+/**
  * Movimientos personales y presupuesto. Van aparte porque `personalStore` no usa
  * la clave `data_v1` de los demás.
  *
@@ -766,6 +799,7 @@ export const COBERTURA_FUSION: Record<string, string> = {
   'store/identityAlias':  'aparte · mergeAlias (alias_v1: unión de los alias del origen MÁS el id del origen, bajo el scope destino). Es lo que hace el alias transitivo A→B→C; sin la unión, la primera identidad se pierde en la segunda fusión.',
   'sync/pendingDrain':    'aparte · mergePendingDrain (pending_drain_v1: UNIÓN de las marcas de las dos cuentas). Unir es el lado seguro: heredar una marca de más cuesta un drenaje; perder una deja publicar un grupo heredado sin leer su buzón, que es el defecto de T-089.',
   'sync/contactChannel':  'aparte · mergeContactPeers (contact_peers_v1: unión por userId, el destino gana campo por campo). El secreto propio y el acuse de tarjeta NO se fusionan — ver el docblock de mergeContactPeers.',
+  'sync/blockedPeers':    'aparte · mergeBlockedPeers (blocked_peers_v1: UNIÓN de ids bloqueados de las dos cuentas). Perder un bloqueo en la fusión reabriría un canal que el usuario cerró a propósito; ganar uno de más nunca perjudica.',
   'store/identityStore':  'aparte · mergeInvites/mergePendingJoins/mergeContactInvites/mergePendingContactClaims (invites_v1/pending_joins_v1/contact_invites_v1/contact_pending_claims_v1: unión por token, vencidas descartadas de los dos lados). Las privadas (identity_v1/owner_secret_v1/wrapkeys_v1) siguen siendo del APARATO y no pasan por writeScoped ni por ranura().',
 };
 
