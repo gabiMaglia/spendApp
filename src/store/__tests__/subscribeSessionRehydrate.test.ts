@@ -31,6 +31,7 @@ import { subscribeSessionRehydrate } from '../session';
 import type { User } from '@/src/types/models';
 
 const mockReinicio = jest.requireMock('@/src/sync/relayEngine').reiniciarSyncPorCambioDeCuenta as jest.Mock;
+const mockStartRelay = jest.requireMock('@/src/sync/relayEngine').startRelay as jest.Mock;
 
 const user = (id: string): User => ({ id, authProvider: 'google' } as User);
 
@@ -38,6 +39,7 @@ let unsub: () => void = () => {};
 
 beforeEach(() => {
   mockReinicio.mockClear();
+  mockStartRelay.mockClear();
   useAuthStore.setState({ currentUser: null });
 });
 
@@ -81,5 +83,30 @@ describe('arranque en frío con sesión persistida', () => {
 
     useAuthStore.setState({ currentUser: user('acc-nueva') }); // login real
     expect(mockReinicio).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * BUG (T-147 post-merge): el captcha tiene que ser exclusivo de la entrada
+ * (T-147, decisión del PO). `rehydrateForActiveUser` es el único llamador de
+ * `startRelay` que corre exactamente en los momentos de entrada (hidratación
+ * inicial con sesión persistida, login real, cambio de cuenta) — así que es
+ * el único que debe permitir captcha.
+ */
+describe('BUG: el captcha sólo en la entrada', () => {
+  it('la hidratación inicial (arranque en frío con sesión persistida) llama a startRelay(true)', () => {
+    unsub = subscribeSessionRehydrate();
+    useAuthStore.setState({ currentUser: user('acc-de-siempre') });
+
+    expect(mockStartRelay).toHaveBeenCalledWith(true);
+  });
+
+  it('un cambio real de cuenta también llama a startRelay(true)', () => {
+    unsub = subscribeSessionRehydrate();
+    useAuthStore.setState({ currentUser: user('acc-A') }); // hidratación inicial
+    mockStartRelay.mockClear();
+
+    useAuthStore.setState({ currentUser: user('acc-B') }); // cambio real
+    expect(mockStartRelay).toHaveBeenCalledWith(true);
   });
 });

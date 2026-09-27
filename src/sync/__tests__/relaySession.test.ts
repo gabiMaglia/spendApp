@@ -136,6 +136,21 @@ describe('ensureRelaySession', () => {
     expect(signInAnonymously).toHaveBeenCalledTimes(1);
   });
 
+  /**
+   * BUG (T-147 post-merge): el cartel de captcha aparecía "en cualquier
+   * momento" porque el reintento de fondo (poll de `relayEngine`) compartía
+   * el mismo camino que la entrada real y podía terminar pidiendo un token
+   * nuevo. `permitirCaptcha=false` es el freno: sin sesión, NUNCA intenta
+   * abrir una (ni pide captcha, ni llama a `signInAnonymously`) — se resuelve
+   * a 'none' en silencio, y el aviso `SinSesionDeSync` ya existente es quien
+   * avisa en pantalla, no un modal.
+   */
+  it('permitirCaptcha=false: sin sesión, no intenta abrir ninguna (nunca pide captcha)', async () => {
+    mockCaptcha = { status: 'ok', token: 'tok' }; // aunque el captcha resolvería bien...
+    expect(await S.ensureRelaySession(false)).toBe('none');
+    expect(signInAnonymously).not.toHaveBeenCalled();
+  });
+
   it('un error de getSession (refresh transitorio) NO abre sesión anónima', async () => {
     sesion = null;
     errorDeGetSession = { message: 'Failed to fetch' };

@@ -192,6 +192,41 @@ it('D5: en el poll tampoco, mientras siga sin usuario', async () => {
   expect(mockEnsureRelaySession).not.toHaveBeenCalled();
 });
 
+/**
+ * BUG (T-147 post-merge): el cartel de captcha aparecía "en cualquier
+ * momento" — el reintento de fondo (poll cada `POLL_INTERVAL_MS`, o al volver
+ * de background) pedía sesión igual que la entrada real, y si no había
+ * ninguna terminaba pidiendo un captcha nuevo encima de cualquier pantalla.
+ * Decisión del PO: el captcha es SÓLO de la entrada — el poll nunca debe
+ * poder abrir uno. `ensureRelaySession` ahora recibe `permitirCaptcha`, y
+ * sólo la entrada real (`session.ts::rehydrateForActiveUser`) lo pasa en
+ * `true`; todo lo demás (poll, join de grupo, alta de contacto, etc.) usa el
+ * default `false`.
+ */
+describe('BUG: el captcha nunca sale de la entrada', () => {
+  it('el poll pide la sesión con permitirCaptcha=false', async () => {
+    sembrarUnGrupoConClave();
+    await startRelay(true); // la entrada real
+    mockEnsureRelaySession.mockClear();
+
+    await jest.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
+
+    expect(mockEnsureRelaySession).toHaveBeenCalledWith(false);
+  });
+
+  it('startRelay() sin argumento (join de grupo, alta de contacto, etc.) tampoco permite captcha', async () => {
+    sembrarUnGrupoConClave();
+    await startRelay();
+    expect(mockEnsureRelaySession).toHaveBeenCalledWith(false);
+  });
+
+  it('startRelay(true) — la entrada real — sí permite captcha', async () => {
+    sembrarUnGrupoConClave();
+    await startRelay(true);
+    expect(mockEnsureRelaySession).toHaveBeenCalledWith(true);
+  });
+});
+
 it('ata el refresco al ciclo de vida y lo suelta al parar', async () => {
   const soltar = jest.fn();
   mockBindAuthRefreshToAppState.mockReturnValue(soltar);
