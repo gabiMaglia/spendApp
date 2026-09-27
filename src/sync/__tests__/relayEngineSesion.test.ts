@@ -55,7 +55,7 @@ jest.mock('../contactInviteEngine', () => ({ processAllContactInvites: jest.fn(a
 import { startRelay, stopRelay, POLL_INTERVAL_MS, __resetReenvioClaves, announceGroupToContacts } from '../relayEngine';
 import { sinSesionDeSync, __resetSessionStatus } from '../sessionStatus';
 import { recordPublish, publishFailures, clearPublishFailures } from '../publishHealth';
-import { __resetRelayQueue, QUEUE_INTERVAL_MS } from '../relayQueue';
+import { __resetRelayQueue, QUEUE_INTERVAL_MS, REINTENTO_CUOTA_MS } from '../relayQueue';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
@@ -253,7 +253,11 @@ describe('D4 ronda 2: reenviarClavesDeGrupo pasa por la cola', () => {
     await jest.advanceTimersByTimeAsync(0);
     expect(mockSendGroupKeyResultado).toHaveBeenCalledTimes(1); // el primero, rechazado
 
-    await jest.advanceTimersByTimeAsync(QUEUE_INTERVAL_MS);
+    // R4-2: un rate_limited espera el ritmo de la CUOTA (REINTENTO_CUOTA_MS,
+    // ≥60s), no el ritmo normal de la cola.
+    for (let i = 0; i < Math.ceil(REINTENTO_CUOTA_MS / QUEUE_INTERVAL_MS) + 1; i++) {
+      await jest.advanceTimersByTimeAsync(QUEUE_INTERVAL_MS);
+    }
     expect(mockSendGroupKeyResultado).toHaveBeenCalledTimes(2); // la cola lo reintentó solo
   });
 
@@ -392,7 +396,9 @@ describe('R3-3(d): announceGroupToContacts pasa por la cola con prioridad alta',
     await jest.advanceTimersByTimeAsync(0);
     expect(mockSendGroupKeyResultado).toHaveBeenCalledTimes(1);
 
-    await jest.advanceTimersByTimeAsync(QUEUE_INTERVAL_MS);
+    for (let i = 0; i < Math.ceil(REINTENTO_CUOTA_MS / QUEUE_INTERVAL_MS) + 1; i++) {
+      await jest.advanceTimersByTimeAsync(QUEUE_INTERVAL_MS);
+    }
     expect(mockSendGroupKeyResultado).toHaveBeenCalledTimes(2);
   });
 });

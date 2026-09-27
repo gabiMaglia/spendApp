@@ -32,7 +32,7 @@ import { withTimeout } from '@/src/utils/withTimeout';
 const ANUNCIO_TIMEOUT_MS = 8_000;
 import {
   ensureContactSecret, deriveContactTopic, drainContacts, sendGroupKeyResultado,
-  announceContact, listPeers, myContactCard, cardFingerprint,
+  announceContactResultado, listPeers, myContactCard, cardFingerprint,
   cardYaEnviada, marcarCardEnviada,
 } from './contactChannel';
 import { encolar } from './relayQueue';
@@ -626,6 +626,15 @@ async function reintentarPublicacionesConCuota(): Promise<void> {
  * Cuesta un sobre chico por contacto por arranque. Se paga con gusto: la
  * alternativa demostró ser "el dato no llega y nadie se entera".
  */
+/**
+ * Verifier R4-2 (ronda 4): el PoC combinaba 13 tarjetas + 11 claves en el
+ * mismo minuto de cuota — con las tarjetas mandándose en un loop directo
+ * (fuera de `relayQueue`), competían por la misma cuota del uid sin ningún
+ * ritmo, empujando a las claves (que sí pasaban por la cola) a agotar su
+ * cupo. Ahora las tarjetas también encolan, prioridad `normal` (nadie está
+ * esperando activamente un contacto reparado, a diferencia de una clave de
+ * grupo nueva).
+ */
 export async function anunciarMiTarjeta(): Promise<void> {
   const card = myContactCard();
   if (!card) return;
@@ -638,14 +647,24 @@ export async function anunciarMiTarjeta(): Promise<void> {
     // por arranque para siempre.
     if (cardYaEnviada(userId, huella)) continue;
 
-    // Se marca sólo si salió bien, así un fallo de red se reintenta solo.
-    // Un contacto que falla no puede frenar a los demás — y con timeout
-    // (T-138-bis), tampoco uno que se cuelga sin resolver ni rechazar.
-    try {
-      if (await withTimeout(announceContact(peer.secret, deviceId()), ANUNCIO_TIMEOUT_MS, false)) {
-        marcarCardEnviada(userId, huella);
-      }
-    } catch { /* sigue con el resto */ }
+    const secret = peer.secret;
+    encolar({
+      prioridad: 'normal',
+      ejecutar: async () => {
+        try {
+          const r = await withTimeout(
+            announceContactResultado(secret, deviceId()),
+            ANUNCIO_TIMEOUT_MS,
+            { ok: false, reason: 'network' } as const,
+          );
+          if (r.ok) { marcarCardEnviada(userId, huella); return 'hecho'; }
+          if (r.reason === 'rate_limited') return 'reintentar_cuota';
+          return r.reason === 'network' ? 'reintentar' : 'descartar';
+        } catch {
+          return 'reintentar';
+        }
+      },
+    });
   }
 }
 
@@ -763,7 +782,11 @@ async function reenviarClavesDeGrupo(adoptados: string[] = []): Promise<void> {
           try {
             const r = await sendGroupKeyResultado(memberId, group, deviceId());
             if (r.ok) return 'hecho';
-            return (r.reason === 'rate_limited' || r.reason === 'network') ? 'reintentar' : 'descartar';
+            // R4-2: `rate_limited` NO es un fallo permanente — es "todavía
+            // no", y cuenta contra un tope de horas, no de ~32s (ver
+            // `relayQueue.ts`).
+            if (r.reason === 'rate_limited') return 'reintentar_cuota';
+            return r.reason === 'network' ? 'reintentar' : 'descartar';
           } catch {
             return 'reintentar';
           }
@@ -891,7 +914,12 @@ export async function announceGroupToContacts(groupId: string): Promise<number> 
         try {
           const r = await sendGroupKeyResultado(memberId, group, deviceId());
           if (r.ok) return 'hecho';
-          return (r.reason === 'rate_limited' || r.reason === 'network') ? 'reintentar' : 'descartar';
+          // R4-2: mismo criterio — la clave del DUEÑO a un miembro nuevo es
+          // justo el caso del PoC del verificador (13 tarjetas + 11 claves
+          // en el mismo minuto de cuota): un `rate_limited` acá no puede
+          // perderse nunca.
+          if (r.reason === 'rate_limited') return 'reintentar_cuota';
+          return r.reason === 'network' ? 'reintentar' : 'descartar';
         } catch {
           return 'reintentar';
         }

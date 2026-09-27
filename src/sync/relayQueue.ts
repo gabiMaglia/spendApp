@@ -21,9 +21,9 @@
  * (reenvío de rutina, nadie está mirando). Dentro de la misma prioridad,
  * FIFO.
  *
- * Un trabajo que devuelve `'reintentar'` (rate_limited, red) vuelve al
- * FRENTE de su prioridad — nunca se pierde, y no revive antes de la próxima
- * vuelta del ritmo, así que reintentarlo no puede ráfaguear.
+ * Un trabajo que devuelve `'reintentar'` (red, error transitorio genérico)
+ * vuelve al FRENTE de su prioridad — nunca se pierde, y no revive antes de
+ * la próxima vuelta del ritmo, así que reintentarlo no puede ráfaguear.
  *
  * **Verifier R3-3 (ronda 3): dos agujeros de robustez que el diseño de la
  * ronda 2 no cerraba.**
@@ -38,31 +38,81 @@
  *    siguiente arrancaba (PoC: 0 hechos en 1h). `EJECUCION_TIMEOUT_MS` lo
  *    corta y lo trata como `'reintentar'` — no cancela la promesa original
  *    (JS no puede), pero deja de esperarla.
+ *
+ * **Verifier R4-2 (ronda 4): el tope de reintentos descartaba fallos
+ * TRANSITORIOS de cuota antes de que la cuota se renovara.** 8 intentos ×
+ * `QUEUE_INTERVAL_MS` (4s) ≈ 32s — bastante menos que la ventana real
+ * (el minuto de calendario, `011a:229-230`). PoC del verificador: 13
+ * tarjetas + 11 claves `alta` en el mismo minuto → la clave #7 se
+ * descartaba a los ~56s, justo antes de que la cuota volviera a estar
+ * libre. `'reintentar_cuota'` es un resultado APARTE de `'reintentar'`:
+ *  - No cuenta para `MAX_INTENTOS_POR_TRABAJO` — un `rate_limited` no es un
+ *    fallo permanente, es "todavía no": el trabajo sigue siendo válido para
+ *    siempre mientras la sesión lo sea.
+ *  - Se reprograma con `REINTENTO_CUOTA_MS` (alineado a la ventana de
+ *    cuota, ≥60s) en vez del ritmo normal de la cola — y SIN bloquear a los
+ *    demás trabajos: se saca de la cola activa a una lista de espera
+ *    (`enEspera`) que la cola sigue revisando en cada vuelta, así que un
+ *    trabajo esperando su cuota no le hace fila a los sanos.
+ *  - Sólo un backstop de HORAS (`MAX_ANTIGUEDAD_MS`), no de segundos, lo
+ *    descarta — para el caso límite de una sesión que dejó de ser válida y
+ *    nunca más va a poder mandar nada.
  */
 
 import { recordError } from '@/src/services/errorLog';
 
-export type ResultadoTrabajo = 'hecho' | 'reintentar' | 'descartar';
+export type ResultadoTrabajo = 'hecho' | 'reintentar' | 'reintentar_cuota' | 'descartar';
 export type TrabajoCola = { prioridad: 'alta' | 'normal'; ejecutar: () => Promise<ResultadoTrabajo> };
 
 /** 60_000 / 4_000 = 15/min como máximo — por debajo de la cuota real (20/min). */
 export const QUEUE_INTERVAL_MS = 4_000;
 
-/** Tope de reintentos por trabajo antes de descartarlo con rastro. Con
- *  `QUEUE_INTERVAL_MS` de espera entre cada uno, agotarlo tarda ~32s — mucho
- *  antes de que un solo trabajo envenenado se coma una hora entera. */
+/** Tope de reintentos por trabajo antes de descartarlo con rastro — SÓLO para
+ *  `'reintentar'` (fallos que no son de cuota). Con `QUEUE_INTERVAL_MS` de
+ *  espera entre cada uno, agotarlo tarda ~32s. */
 export const MAX_INTENTOS_POR_TRABAJO = 8;
+
+/** Espera de un trabajo en `'reintentar_cuota'` antes de volver a intentarse
+ *  — alineada a la ventana de cuota real (el minuto de calendario), con
+ *  margen. Nunca cuenta contra `MAX_INTENTOS_POR_TRABAJO`. */
+export const REINTENTO_CUOTA_MS = 65_000;
+
+/** Backstop final para CUALQUIER trabajo (incluido `'reintentar_cuota'`):
+ *  horas, no segundos — sólo para el caso límite de una sesión que dejó de
+ *  ser válida para siempre. */
+export const MAX_ANTIGUEDAD_MS = 6 * 60 * 60_000;
 
 /** Igual de generoso que el resto del motor (`STARTUP_TIMEOUT_MS`,
  *  `SESSION_TIMEOUT_MS`): un envío real nunca debería tardar esto. */
 export const EJECUCION_TIMEOUT_MS = 15_000;
 
-type TrabajoInterno = TrabajoCola & { intentos: number };
+type TrabajoInterno = TrabajoCola & { intentos: number; primerVisto: number };
+type EnEspera = { trabajo: TrabajoInterno; listoEn: number };
 
 let alta: TrabajoInterno[] = [];
 let normal: TrabajoInterno[] = [];
+let enEspera: EnEspera[] = [];
 let corriendo = false;
 let timer: ReturnType<typeof setTimeout> | null = null;
+
+function descartarConRastro(trabajo: TrabajoInterno, motivo: string): void {
+  recordError({
+    message: `relayQueue.trabajo_descartado prioridad=${trabajo.prioridad} intentos=${trabajo.intentos} motivo=${motivo}`,
+    fatal: false,
+    screen: 'sync',
+  });
+}
+
+/** Mueve a la cola activa los trabajos en espera de cuota cuyo plazo ya
+ *  pasó — se llama al principio de cada vuelta. */
+function liberarListos(): void {
+  if (enEspera.length === 0) return;
+  const ahora = Date.now();
+  const listos = enEspera.filter(e => e.listoEn <= ahora);
+  if (listos.length === 0) return;
+  enEspera = enEspera.filter(e => e.listoEn > ahora);
+  for (const { trabajo } of listos) (trabajo.prioridad === 'alta' ? alta : normal).push(trabajo);
+}
 
 /**
  * Encola un trabajo y arranca el drenaje si estaba parado.
@@ -75,7 +125,7 @@ let timer: ReturnType<typeof setTimeout> | null = null;
  * encolados después existieran, y la prioridad dejaría de cumplirse.
  */
 export function encolar(t: TrabajoCola): void {
-  (t.prioridad === 'alta' ? alta : normal).push({ ...t, intentos: 0 });
+  (t.prioridad === 'alta' ? alta : normal).push({ ...t, intentos: 0, primerVisto: Date.now() });
   if (!corriendo) {
     corriendo = true;
     timer = setTimeout(() => { void tick(); }, 0);
@@ -103,25 +153,37 @@ function conTope(ejecutar: () => Promise<ResultadoTrabajo>): Promise<ResultadoTr
 }
 
 async function tick(): Promise<void> {
+  liberarListos();
+
   const cola = alta.length > 0 ? alta : normal;
   if (cola.length === 0) {
+    if (enEspera.length > 0) {
+      // Nada listo todavía, pero hay trabajos esperando su ventana de cuota
+      // — la cola sigue "latiendo" para liberarlos cuando corresponda, sin
+      // quedarse dormida para siempre.
+      timer = setTimeout(() => { void tick(); }, QUEUE_INTERVAL_MS);
+      return;
+    }
     corriendo = false;
     return;
   }
 
   const trabajo = cola.shift()!;
   const resultado = await conTope(trabajo.ejecutar);
+  const antiguo = Date.now() - trabajo.primerVisto > MAX_ANTIGUEDAD_MS;
 
-  if (resultado === 'reintentar') {
+  if (resultado === 'reintentar_cuota') {
+    if (antiguo) {
+      descartarConRastro(trabajo, 'antiguedad_cuota');
+    } else {
+      enEspera.push({ trabajo, listoEn: Date.now() + REINTENTO_CUOTA_MS });
+    }
+  } else if (resultado === 'reintentar') {
     trabajo.intentos++;
-    if (trabajo.intentos >= MAX_INTENTOS_POR_TRABAJO) {
+    if (trabajo.intentos >= MAX_INTENTOS_POR_TRABAJO || antiguo) {
       // R3-3(a): se descarta con rastro — es lo que impide que un trabajo
       // envenenado se coma la cola entera para siempre.
-      recordError({
-        message: `relayQueue.trabajo_descartado prioridad=${trabajo.prioridad} intentos=${trabajo.intentos}`,
-        fatal: false,
-        screen: 'sync',
-      });
+      descartarConRastro(trabajo, antiguo ? 'antiguedad' : 'max_intentos');
     } else {
       cola.unshift(trabajo);
     }
@@ -135,10 +197,11 @@ async function tick(): Promise<void> {
 export function __resetRelayQueue(): void {
   alta = [];
   normal = [];
+  enEspera = [];
   corriendo = false;
   if (timer) { clearTimeout(timer); timer = null; }
 }
 
 export function __colaLength(): number {
-  return alta.length + normal.length;
+  return alta.length + normal.length + enEspera.length;
 }

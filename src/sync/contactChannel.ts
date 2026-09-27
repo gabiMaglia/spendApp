@@ -171,16 +171,27 @@ export function myContactCard(): ContactCard | null {
  * un problema de red sería mucho peor.
  */
 export async function announceContact(peerSecret: string, deviceId: string): Promise<boolean> {
+  return (await announceContactResultado(peerSecret, deviceId)).ok;
+}
+
+/**
+ * Igual que `announceContact`, pero exponiendo el motivo del fallo (T-147
+ * R4-2) — para que `relayQueue` pueda distinguir `rate_limited` (se
+ * reintenta con el ritmo de la cuota, nunca se pierde) de un fallo real.
+ */
+export async function announceContactResultado(
+  peerSecret: string,
+  deviceId: string,
+): Promise<SendResult | { ok: false; reason: 'no_data' }> {
   const card = myContactCard();
-  if (!card || !peerSecret) return false;
+  if (!card || !peerSecret) return { ok: false, reason: 'no_data' };
 
   try {
     const topic = await deriveContactTopic(peerSecret);
     const sealed = sealEnvelope(await contactKey(peerSecret), JSON.stringify(card));
-    const r = await sendEnvelope(topic, sealed, deviceId);
-    return r.ok;
-  } catch {
-    return false;
+    return await sendEnvelope(topic, sealed, deviceId);
+  } catch (e) {
+    return { ok: false, reason: 'network', detail: String(e) };
   }
 }
 
