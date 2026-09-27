@@ -23,6 +23,36 @@
  * desbloqueado, y con eso ya se tienen los datos igual.
  */
 
+import { sha256 } from '@noble/hashes/sha2.js';
+import { toHex, utf8Bytes } from '@/src/sync/hexBytes';
+
+/**
+ * T-188a (decisión PO 2026-09-27): el mismo Google/Apple es siempre la misma
+ * persona, en este teléfono o en otro — sin importar si el índice local de
+ * proveedores está vacío (reinstall, borrado de cuenta, teléfono nuevo). Un
+ * `uuidv4()` al azar rompía esa promesa: cada `resolveAccount` en modo
+ * "nuevo" abría una cuenta distinta. `idEstable` es una función PURA del
+ * `providerId` — SHA-256 de un dominio propio, formateado como UUID (v5-like,
+ * no RFC 4122 real: no hay namespace UUID de entrada, sólo el formato) — así
+ * que el mismo Google siempre deriva el mismo id, en cualquier aparato,
+ * sin estado.
+ *
+ * Síncrona a propósito: usa `@noble/hashes` (mismo mecanismo que
+ * `identityStore.ts`/`verdictCache.ts`) y no `expo-crypto` — `resolveAccount`
+ * es puro y sincrónico, y las pantallas lo llaman sin `await`.
+ */
+export function idEstable(providerId: string): string {
+  const hex = toHex(sha256(utf8Bytes(`hushsplit:account:${providerId}`)));
+  const variant = ((parseInt(hex[16]!, 16) & 0x3) | 0x8).toString(16);
+  return [
+    hex.slice(0, 8),
+    hex.slice(8, 12),
+    `5${hex.slice(13, 16)}`,
+    `${variant}${hex.slice(17, 20)}`,
+    hex.slice(20, 32),
+  ].join('-');
+}
+
 export interface AccountIndex {
   getAccountByProvider(providerId: string): string | null;
   getAccountByEmail(normalizedEmail: string): string | null;
@@ -121,10 +151,14 @@ export function resolveAccount(
     return { kind: 'confirm', providerId, candidates };
   }
 
-  // 4. Cuenta nueva. Su id es este providerId, así las cuentas que ya existían
-  //    conservan el suyo y sus datos scopeados siguen donde están.
-  index.link(providerId, providerId, normalized);
-  return { kind: 'new', accountId: providerId };
+  // 4. Cuenta nueva. Su id sale de `idEstable(providerId)` (T-188a): así el
+  //    mismo Google/Apple deriva siempre el mismo id, incluso si el índice
+  //    local está vacío (teléfono nuevo, o el mismo tras borrar la cuenta).
+  //    Las cuentas que ya existían conservan el suyo y sus datos scopeados
+  //    siguen donde están.
+  const accountId = idEstable(providerId);
+  index.link(providerId, accountId, normalized);
+  return { kind: 'new', accountId };
 }
 
 /**

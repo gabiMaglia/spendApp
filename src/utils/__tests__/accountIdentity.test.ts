@@ -78,14 +78,14 @@ describe('resolveAccount', () => {
     const ix = memoryIndex();
     resolveAccount(ix, APPLE, MAIL);
     const r = resolveAccount(ix, GOOGLE, MAIL);
-    expect(r).toMatchObject({ kind: 'linked', accountId: APPLE });
+    expect(r).toMatchObject({ kind: 'linked', accountId: idEstable(APPLE) });
   });
 
   it('el enganche por mail ignora mayúsculas', () => {
     const ix = memoryIndex();
     resolveAccount(ix, APPLE, MAIL);
     const r = resolveAccount(ix, GOOGLE, ' GAB.MAGLIA@GMAIL.COM ');
-    expect(r).toMatchObject({ kind: 'linked', accountId: APPLE });
+    expect(r).toMatchObject({ kind: 'linked', accountId: idEstable(APPLE) });
   });
 
   // EL DEFECTO QUE HUNDIÓ v1: Apple ya no manda el mail
@@ -97,7 +97,7 @@ describe('resolveAccount', () => {
     expect(r.kind).toBe('confirm');
     if (r.kind === 'confirm') {
       expect(r.providerId).toBe(APPLE);
-      expect(r.candidates.map(c => c.accountId)).toEqual([GOOGLE]);
+      expect(r.candidates.map(c => c.accountId)).toEqual([idEstable(GOOGLE)]);
     }
   });
 
