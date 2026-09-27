@@ -8,7 +8,7 @@ jest.mock('@/src/services/errorLog', () => ({ recordError: jest.fn() }));
 
 import {
   encolar, __resetRelayQueue, __colaLength, QUEUE_INTERVAL_MS,
-  MAX_INTENTOS_POR_TRABAJO, EJECUCION_TIMEOUT_MS,
+  MAX_INTENTOS_POR_TRABAJO, EJECUCION_TIMEOUT_MS, REINTENTO_CUOTA_MS,
 } from '../relayQueue';
 import { recordError } from '@/src/services/errorLog';
 
@@ -143,6 +143,64 @@ describe('R3-3(b): tope de tiempo por envío', () => {
     }
 
     expect(sano).toHaveBeenCalled();
+  });
+});
+
+/**
+ * Verifier R4-2 (ronda 4): el tope de reintentos (8, ~32s) es MENOR que la
+ * ventana de cuota real (el minuto de calendario, `011a`). PoC del
+ * verificador: 13 tarjetas + 11 claves `alta` de un grupo nuevo en el mismo
+ * minuto → la clave #7 se descartaba a los ~56s, JUSTO antes de que la cuota
+ * se renovara — un fallo transitorio (rate_limited) se trataba igual que uno
+ * permanente. `'reintentar_cuota'` es un resultado aparte: no cuenta para
+ * `MAX_INTENTOS_POR_TRABAJO`, y su espera está alineada a la ventana de
+ * cuota (`REINTENTO_CUOTA_MS` ⇒ 60s), no al ritmo normal de la cola. Sólo un
+ * backstop de horas (no ~32s) lo descarta.
+ */
+describe('R4-2: rate_limited no cuenta para el tope de reintentos', () => {
+  it('"reintentar_cuota" sobrevive MUCHO más que MAX_INTENTOS_POR_TRABAJO sin descartarse', async () => {
+    let intentos = 0;
+    encolar({
+      prioridad: 'alta',
+      ejecutar: async () => { intentos++; return intentos <= MAX_INTENTOS_POR_TRABAJO + 2 ? 'reintentar_cuota' : 'hecho'; },
+    });
+
+    for (let i = 0; i < MAX_INTENTOS_POR_TRABAJO + 4; i++) {
+      await jest.advanceTimersByTimeAsync(REINTENTO_CUOTA_MS);
+    }
+
+    expect(intentos).toBeGreaterThan(MAX_INTENTOS_POR_TRABAJO); // superó el tope viejo y no se descartó
+    expect(mockRecordError).not.toHaveBeenCalled();
+    expect(__colaLength()).toBe(0);
+  });
+
+  it('espera al menos REINTENTO_CUOTA_MS (≥60s) antes de reintentar, no el ritmo normal', async () => {
+    let intentos = 0;
+    encolar({ prioridad: 'alta', ejecutar: async () => { intentos++; return intentos < 2 ? 'reintentar_cuota' : 'hecho'; } });
+
+    await jest.advanceTimersByTimeAsync(0);
+    expect(intentos).toBe(1);
+
+    await jest.advanceTimersByTimeAsync(QUEUE_INTERVAL_MS * 3); // el ritmo normal NO alcanza
+    expect(intentos).toBe(1);
+
+    await jest.advanceTimersByTimeAsync(REINTENTO_CUOTA_MS);
+    expect(intentos).toBe(2);
+  });
+
+  it('otro trabajo sano no espera detrás de uno en "reintentar_cuota" (no bloquea en cabeza)', async () => {
+    encolar({ prioridad: 'normal', ejecutar: async () => 'reintentar_cuota' });
+    const sano = jest.fn(async () => 'hecho' as const);
+    encolar({ prioridad: 'normal', ejecutar: sano });
+
+    await jest.advanceTimersByTimeAsync(0);
+    await jest.advanceTimersByTimeAsync(QUEUE_INTERVAL_MS);
+
+    expect(sano).toHaveBeenCalled();
+  });
+
+  it('REINTENTO_CUOTA_MS está alineado a la ventana de cuota (≥60s)', () => {
+    expect(REINTENTO_CUOTA_MS).toBeGreaterThanOrEqual(60_000);
   });
 });
 
