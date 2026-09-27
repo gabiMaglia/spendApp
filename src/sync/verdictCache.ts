@@ -110,17 +110,26 @@ function cargar(): void {
  * último. `readScoped` (usado por `cargar()`) vacía lo pendiente antes de
  * leer, así que nadie ve una caché desactualizada por la demora.
  *
- * El `[...cache.entries()]` se saca ACÁ, no adentro del `serialize` diferido:
+ * La REFERENCIA al `Map` se captura ACÁ (`mapa`), no adentro del `serialize`
+ * diferido — pero el `[...mapa.entries()]` sí se difiere hasta el vaciado.
  * `cache` es un `let` de módulo que `reloadVerdictCache`/`clearVerdictCache`
- * reasignan. Si el cierre leyera `cache` en vivo, un reload que corriera
- * ANTES de que venza el debounce vaciaría lo pendiente leyendo la caché ya
- * reseteada — un `Map` vacío — y pisaría en disco el veredicto que se acaba
- * de guardar con nada. Sólo el `JSON.stringify` (que es lo caro) se difiere;
- * la foto de qué había en la caché se toma ya.
+ * REASIGNAN (nunca mutan in-place para vaciarla), así que guardar la
+ * referencia alcanza para la misma protección que antes tenía sacar una foto
+ * con `[...cache.entries()]` en cada llamada: si el cierre leyera `cache` (la
+ * variable) en vivo, un reload que corriera ANTES de que venza el debounce
+ * pisaría en disco el veredicto recién guardado con un `Map` vacío — la
+ * variable ya apuntaría a otro objeto. Con `mapa` fijo, eso no puede pasar.
+ *
+ * Y a diferencia de la foto, esto NO copia las entradas en cada
+ * `rememberVerdict`: con una ráfaga de N veredictos seguidos, sólo el último
+ * `guardar()` sobrevive (`writeScopedLazy` reemplaza el `serialize` pendiente
+ * en cada llamada), así que copiar en las N-1 llamadas anteriores era basura
+ * para el GC que nadie iba a usar. La copia real — `[...mapa.entries()]` — se
+ * hace UNA vez, al vaciar.
  */
 function guardar(): void {
-  const foto = [...cache.entries()];
-  writeScopedLazy(storage, VERDICT_CACHE_KEY, () => JSON.stringify({ e: foto }));
+  const mapa = cache;
+  writeScopedLazy(storage, VERDICT_CACHE_KEY, () => JSON.stringify({ e: [...mapa.entries()] }));
 }
 
 /** El veredicto ya calculado para esta firma exacta, si lo hay. */

@@ -20,6 +20,20 @@ import { EXPENSE } from '@/src/test-utils/recordFixtures';
  * hacia `no_verificable`, NUNCA hacia `valida`.
  */
 
+/** El espía delega en el real: acá se firma y se verifica de verdad. */
+jest.mock('@noble/curves/ed25519.js', () => {
+  const real = jest.requireActual('@noble/curves/ed25519.js');
+  return {
+    ...real,
+    ed25519: {
+      ...real.ed25519,
+      verify: jest.fn((...args: unknown[]) => real.ed25519.verify(...args)),
+    },
+  };
+});
+
+const espia = ed25519.verify as unknown as jest.Mock;
+
 const storage = createSecureStorage('users');
 
 const priv = new Uint8Array(32).fill(5);
@@ -32,6 +46,7 @@ const firmado = { ...EXPENSE, ...signCore('expense', EXPENSE as never, PRIV) };
 beforeEach(() => {
   useAuthStore.setState({ currentUser: { id: 'yo' } as User });
   clearVerdictCache();
+  espia.mockClear();
 });
 
 describe('memoriza el veredicto en vez de repetir la curva', () => {
@@ -226,6 +241,30 @@ describe('persistencia y límites', () => {
     expect(verdictCacheSize()).toBe(300);
     expect(cachedVerdict('expense', { ...firmado, id: 'v2-0' } as never)).toBe('valida');
     expect(cachedVerdict('expense', { ...firmado, id: 'v2-299' } as never)).toBe('valida');
+  });
+
+  /**
+   * V2, fila completa de la tabla (obs del verifier): remontar con los MISMOS
+   * 300 no debe tocar la curva ni una vez — es la garantía de D8 (`useRecordTrust`
+   * la ejerce por fila visible; acá se prueba directo contra `verifiedCore`,
+   * que es lo único que sabe si `ed25519.verify` corrió).
+   */
+  it('V2: remontar con los mismos 300 hace 0 llamadas a la curva', () => {
+    const gastos300 = Array.from({ length: 300 }, (_, i) => {
+      const r = { ...EXPENSE, id: `v2r-${i}` };
+      return { ...r, ...signCore('expense', r as never, PRIV) };
+    });
+
+    for (const g of gastos300) expect(verifiedCore('expense', g as never, [PUB])).toBe('valida');
+    expect(espia).toHaveBeenCalledTimes(300);
+
+    // "Remontar" = soltar memoria y releer de disco, como hace `session.ts`
+    // al cambiar de cuenta o al reabrir la app.
+    reloadVerdictCache();
+    espia.mockClear();
+
+    for (const g of gastos300) expect(verifiedCore('expense', g as never, [PUB])).toBe('valida');
+    expect(espia).not.toHaveBeenCalled();
   });
 });
 
