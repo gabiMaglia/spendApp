@@ -2,9 +2,13 @@ import { deleteAccount, resumePendingDeletion } from '../deleteAccount';
 import { readJournal, writeJournal, clearJournal } from '@/src/store/deleteJournal';
 import { useAuthStore } from '@/src/store/authStore';
 import { useUserStore } from '@/src/store/userStore';
+import { useGroupStore } from '@/src/store/groupStore';
+import { useExpenseStore } from '@/src/store/expenseStore';
+import { usePaymentStore } from '@/src/store/paymentStore';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { ensureIdentity, ensureOwnerPledge } from '@/src/store/identityStore';
-import type { User } from '@/src/types/models';
+import { rosterDe } from '@/src/algorithms/roster';
+import type { User, Group, Expense, Payment } from '@/src/types/models';
 
 /**
  * T-074 · El borrado de cuenta. **Lo que se testea acá es el ORDEN**, que es lo
@@ -231,6 +235,85 @@ describe('retomar un borrado interrumpido', () => {
   it('un diario corrupto se descarta en vez de trabar el arranque', async () => {
     createSecureStorage('auth').set('acct::delete_pending', '{roto');
     expect(await resumePendingDeletion()).toBeNull();
+  });
+});
+
+describe('T-187 · salida automática de los grupos saldados', () => {
+  function miembros(...ids: string[]): Group['miembros'] {
+    return Object.fromEntries(ids.map((id, i) => [id, { estado: 'in' as const, at: i }]));
+  }
+  function group(id: string, over: Partial<Group> = {}): Group {
+    return {
+      id, updatedAt: 0, isDeleted: false, name: `G-${id}`, memberIds: ['u1', 'u2'],
+      miembros: miembros('u1', 'u2'), currency: 'ARS', createdAt: 0, createdById: 'u1',
+      ...over,
+    };
+  }
+  function expense(id: string, groupId: string, over: Partial<Expense> = {}): Expense {
+    return {
+      id, updatedAt: 0, isDeleted: false, groupId, description: `E-${id}`,
+      amount: 1000, currency: 'ARS', paidById: 'u1',
+      splits: [{ userId: 'u1', amount: 500, isPaid: false }, { userId: 'u2', amount: 500, isPaid: false }],
+      splitMode: 'equal', category: 'other', date: 0, createdAt: 0, createdById: 'u1',
+      ...over,
+    };
+  }
+  function payment(id: string, groupId: string, over: Partial<Payment> = {}): Payment {
+    return {
+      id, updatedAt: 0, isDeleted: false, groupId, fromUserId: 'u2', toUserId: 'u1',
+      amount: 500, currency: 'ARS', date: 0, createdAt: 0, createdById: 'u2',
+      ...over,
+    };
+  }
+
+  afterEach(() => {
+    useGroupStore.setState({ groups: [] });
+    useExpenseStore.setState({ expenses: [] });
+    usePaymentStore.setState({ payments: [] });
+  });
+
+  it('D1 · saldo 0 en todas las monedas: sale del grupo (el roster publicado no me incluye)', async () => {
+    useGroupStore.setState({ groups: [group('g1')] });
+    useExpenseStore.setState({ expenses: [expense('e1', 'g1')] });
+    usePaymentStore.setState({ payments: [payment('p1', 'g1')] }); // salda la deuda
+
+    await deleteAccount({ timeoutMs: 200 });
+
+    const g = useGroupStore.getState().getById('g1')!;
+    expect(rosterDe(g.miembros)).not.toContain('u1');
+  });
+
+  it('D2 · saldo distinto de cero: sigo como miembro', async () => {
+    useGroupStore.setState({ groups: [group('g1')] });
+    useExpenseStore.setState({ expenses: [expense('e1', 'g1')] });
+    usePaymentStore.setState({ payments: [] }); // u2 todavía debe
+
+    await deleteAccount({ timeoutMs: 200 });
+
+    const g = useGroupStore.getState().getById('g1')!;
+    expect(rosterDe(g.miembros)).toContain('u1');
+  });
+
+  it('D3 · único miembro del grupo: sale igual', async () => {
+    useGroupStore.setState({ groups: [group('g1', { memberIds: ['u1'], miembros: miembros('u1') })] });
+
+    await deleteAccount({ timeoutMs: 200 });
+
+    const g = useGroupStore.getState().getById('g1')!;
+    expect(rosterDe(g.miembros)).not.toContain('u1');
+  });
+
+  it('D4 · sin red: la baja queda local igual (el borrado no se cuelga)', async () => {
+    mockRespuesta = () => ({ ok: false, reason: 'network' });
+    useGroupStore.setState({ groups: [group('g1')] });
+    useExpenseStore.setState({ expenses: [expense('e1', 'g1')] });
+    usePaymentStore.setState({ payments: [payment('p1', 'g1')] });
+
+    const r = await deleteAccount({ timeoutMs: 200 });
+
+    expect(r.ok).toBe(true);
+    const g = useGroupStore.getState().getById('g1')!;
+    expect(rosterDe(g.miembros)).not.toContain('u1');
   });
 });
 
