@@ -37,6 +37,10 @@ ni siquiera nosotros podemos abrirlos: la llave la tienen los teléfonos, nunca 
 Nada de esto se nos envía. Si desinstalás la app sin exportar un respaldo, **se pierde**: no hay
 ninguna copia nuestra desde la cual restaurarlo.
 
+El archivo de respaldo (`.hushsplit`) incluye, en claro (sin cifrar), tus datos **y las claves
+criptográficas de tus grupos** — es lo que le permite a otro teléfono, con el mismo Google o
+Apple, seguir sincronizando después de restaurarlo. Guardalo como algo privado.
+
 ### En los teléfonos de la gente de tus grupos
 Cuando compartís un grupo, los gastos de ese grupo —y tu nombre y tu foto— **quedan guardados en
 el teléfono de cada integrante**. Es lo que hace que la app funcione sin servidor y también que
