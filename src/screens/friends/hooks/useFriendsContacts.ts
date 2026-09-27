@@ -13,7 +13,8 @@ import { esYo } from '@/src/store/identityAlias';
 export function useFriendsContacts() {
   const { t } = useTranslation();
   const { currentUser } = useAuthStore();
-  const { users, removeUser } = useUserStore();
+  const users = useUserStore(s => s.users);
+  const removeUser = useUserStore(s => s.removeUser);
   const conHistorial = useContactosConHistorial(currentUser?.id ?? '');
 
   const contacts = useMemo(

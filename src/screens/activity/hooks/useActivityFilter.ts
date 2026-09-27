@@ -9,7 +9,7 @@ export const ALL_FILTER = '__all__';
 /** Filtro por grupo (T-116, orden fijo: Todos, Personal, y después cada grupo) + búsqueda de texto. */
 export function useActivityFilter(feed: ActivityKind[]) {
   const groups = useGroupStore(s => s.groups);
-  const { getUserName } = useUserStore();
+  const getUserName = useUserStore(s => s.getUserName);
 
   const [query, setQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState(ALL_FILTER);

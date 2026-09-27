@@ -52,7 +52,8 @@ export default function AddContactScreen() {
   const { t } = useTranslation();
   const c = useColors();
   const { currentUser } = useAuthStore();
-  const { addOrUpdateUser, getUserById } = useUserStore();
+  const addOrUpdateUser = useUserStore(s => s.addOrUpdateUser);
+  const getUserById = useUserStore(s => s.getUserById);
 
   // `?mode=scan` abre directo en la cámara — usado por «Validar miembro» desde un grupo
   // (T-101): no hay razón para hacer pasar a alguien por «Mi QR» primero.

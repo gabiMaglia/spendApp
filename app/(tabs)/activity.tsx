@@ -27,7 +27,7 @@ export default function ActivityScreen() {
   const limiteContenido = useLimiteContenido();
   const c = useColors();
   const { currentUser } = useAuthStore();
-  const { getUserName } = useUserStore();
+  const getUserName = useUserStore(s => s.getUserName);
   const { scrollHandler, progress, contenidoMinimo, alMedirScroll } = useHeaderColapsable();
 
   const restaurar = useRestoreExpense(currentUser);
