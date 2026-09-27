@@ -10,50 +10,61 @@ import { ActionButton } from '@/src/components/ActionButton';
 import { ButtonRack } from '@/src/components/ButtonRack';
 import { TurnstileWidget } from '@/src/components/TurnstileWidget';
 import { ensureRelaySession } from '@/src/sync/relaySession';
+import { reconectarGoogleSilencioso, reconectarInteractivo } from '@/src/sync/accountEntry';
 import { setUltimaSesionConocida } from '@/src/sync/sessionStatus';
 import { useEntryGateStore } from '@/src/store/entryGateStore';
+import { useAuthStore } from '@/src/store/authStore';
 
 /**
- * T-147 (fila 9, decisión del PO 2026-09-27, `engram/plans/T-147.md`;
- * rediseño posterior por evidencia de campo) · pantalla de verificación
- * BLOQUEANTE en la entrada — la única puerta por la que el captcha puede
- * aparecer:
+ * T-147 (fila 9, decisión del PO 2026-09-27) · pantalla de verificación
+ * BLOQUEANTE en la entrada — la única puerta por la que el buzón puede pedir
+ * algo. `AuthGuard` (`app/_layout.tsx`) es quien manda acá — vía
+ * `decidirNavegacionAuthGuard` — y sólo deja pasar a tabs cuando el gate
+ * (`entryGateStore`) diga 'lista'.
  *
- * (a) al tocar «Entrar como invitado», (b) justo después del login
- * Google/Apple, (c) la primera vez que abre la versión nueva un usuario que
- * ya estaba logueado sin sesión del buzón. `AuthGuard` (`app/_layout.tsx`)
- * es quien manda acá — vía `decidirNavegacionAuthGuard` — y sólo deja pasar
- * a tabs cuando el gate (`entryGateStore`) diga 'lista'.
+ * **T-147-b (`engram/plans/T-147.md`, sellado por el PO 2026-09-27):
+ * captcha SÓLO para invitados.** Dos modos, en la MISMA pantalla:
  *
- * **Dibuja el captcha ella misma**, con `<TurnstileWidget />` INLINE (ya no
- * hay un `CaptchaHost` global con panel/velo — evidencia de campo del PO: el
- * desafío podía medir más que la casilla visible y era imposible scrollear
- * hasta ella). Como sólo esta pantalla lo monta, `ensureRelaySession` es la
- * ÚNICA que puede pedirle un captcha — el sync de fondo nunca tiene a quién.
- *
- * `key={intentoId}` fuerza un remonte COMPLETO del widget en cada
- * "Reintentar" explícito: un desafío ya resuelto (o fallado) de Turnstile no
- * emite un token nuevo sin que alguien lo reinicie, así que la única forma
- * confiable de garantizar un desafío fresco es recargar el WebView entero
- * (mismo mecanismo, a propósito, que el "Reintentar" INTERNO del widget para
- * "está atascado" — ver `TurnstileWidget.tsx`). El propio `ensureRelaySession`
- * recibe `{ ignorarCooldown: true }` en ese caso: `SESSION_RETRY_MS` existe
- * para frenar el reintento de FONDO, no un toque explícito de la persona.
+ *  - **Invitado:** sin cambios — `<TurnstileWidget />` INLINE (ya no hay un
+ *    `CaptchaHost` global con panel/velo), `ensureRelaySession` abre una
+ *    sesión ANÓNIMA con captcha. `key={intentoId}` fuerza un remonte
+ *    COMPLETO del widget en cada "Reintentar": un desafío ya resuelto (o
+ *    fallado) de Turnstile no emite un token nuevo sin que alguien lo
+ *    reinicie.
+ *  - **Cuenta (Google/Apple):** NUNCA capcha, NUNCA anónima —
+ *    `ensureRelaySession` sólo LEE (`relaySession.ts`, Task 1). Si no hay
+ *    sesión de cuenta todavía, esta pantalla reconecta
+ *    (`accountEntry.ts`, Task 3): Google lo intenta SOLO (silencioso); Apple
+ *    (o Google si el silencioso no alcanzó) muestra «Volvé a iniciar
+ *    sesión», que corre el flujo interactivo del proveedor. Si esa
+ *    reconexión trae OTRA cuenta (comparación de `sub` contra la identidad
+ *    activa, con alias T-048), se rechaza con un mensaje — nada se guarda.
+ *    Se descarta a propósito el Arbitraje P-2 (`accountReconnect`, botón
+ *    «Reconectar», 17 estados): toda esta lógica vive acá y en
+ *    `accountEntry.ts`, en un único lugar — el fondo (`relaySession.ts`)
+ *    sólo lee la sesión que esta pantalla deja.
  */
 export default function VerifyScreen() {
   const { t } = useTranslation();
   const c = useColors();
   const marcarLista = useEntryGateStore(s => s.marcarLista);
+  const currentUser = useAuthStore(s => s.currentUser);
+  const provider = currentUser?.authProvider;
+  const modoCuenta = provider === 'google' || provider === 'apple';
+
   const [fallo, setFallo] = useState(false);
+  const [otraCuenta, setOtraCuenta] = useState(false);
   const [verificando, setVerificando] = useState(true);
   const [intentoId, setIntentoId] = useState(0);
 
   useEffect(() => {
-    void intentar(intentoId > 0);
+    if (modoCuenta) void intentarCuenta();
+    else void intentarInvitado(intentoId > 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [intentoId]);
 
-  async function intentar(esReintentoExplicito: boolean): Promise<void> {
+  /** Invitado: sin cambios — anónima + captcha en `TurnstileWidget`. */
+  async function intentarInvitado(esReintentoExplicito: boolean): Promise<void> {
     setFallo(false);
     setVerificando(true);
     const kind = await ensureRelaySession(true, { ignorarCooldown: esReintentoExplicito });
@@ -67,22 +78,76 @@ export default function VerifyScreen() {
     setFallo(true);
   }
 
-  /** "Reintentar" de la PANTALLA (distinto del interno del widget): remonta
-   *  `TurnstileWidget` completo (nueva `key`) para garantizar un desafío de
-   *  Turnstile fresco, e ignora el cooldown de `ensureRelaySession`. */
+  /**
+   * Cuenta: primero LEE (puede que el login ya haya dejado la sesión — filas
+   * 2/3, cuenta nueva). Si no hay nada todavía, Google intenta reconectar
+   * SOLO (fila 4); Apple no tiene un silencioso equivalente, así que sólo
+   * queda ofrecer el botón (fila 5).
+   */
+  async function intentarCuenta(): Promise<void> {
+    setFallo(false);
+    setOtraCuenta(false);
+    setVerificando(true);
+
+    let kind = await ensureRelaySession(true);
+    if (kind !== 'identity' && provider === 'google') {
+      const r = await reconectarGoogleSilencioso();
+      if (r.status === 'ok') kind = await ensureRelaySession(true);
+      // 'other_account' acá sería un residuo raro (el silencioso siempre
+      // trae la MISMA cuenta que ya está logueada en el SDK) — cae igual al
+      // botón interactivo de abajo, sin haber guardado nada.
+    }
+
+    setVerificando(false);
+    setUltimaSesionConocida(kind);
+    if (kind === 'identity') { marcarLista(); return; }
+    setFallo(true);
+  }
+
+  /** Fila 5/6: botón «Volvé a iniciar sesión» — flujo INTERACTIVO del
+   *  proveedor. Fila 6: si trae otra cuenta, rechazo con mensaje, nada
+   *  guardado (ya lo garantiza `accountEntry.ts`). */
+  async function reconectarConBoton(): Promise<void> {
+    if (!provider || !modoCuenta) return;
+    setFallo(false);
+    setOtraCuenta(false);
+    setVerificando(true);
+
+    const r = await reconectarInteractivo(provider);
+    if (r.status !== 'ok') {
+      setVerificando(false);
+      if (r.status === 'other_account') { setOtraCuenta(true); return; }
+      setFallo(true);
+      return;
+    }
+
+    const kind = await ensureRelaySession(true);
+    setVerificando(false);
+    setUltimaSesionConocida(kind);
+    if (kind === 'identity') { marcarLista(); return; }
+    setFallo(true);
+  }
+
+  /** "Reintentar" de la PANTALLA, sólo invitado (distinto del interno del
+   *  widget): remonta `TurnstileWidget` completo (nueva `key`) para
+   *  garantizar un desafío de Turnstile fresco, e ignora el cooldown de
+   *  `ensureRelaySession`. */
   function reintentar(): void {
     setIntentoId(id => id + 1);
   }
 
-  /** Fila 9f: nunca un modal suelto — el aviso discreto ya existente
+  /** Fila 9f/10: nunca un modal suelto — el aviso discreto ya existente
    *  (`SinSesionDeSync`) es quien avisa después, con una acción para volver
-   *  a verificar cuando quiera. Visible SIEMPRE (no sólo tras un fallo): sin
-   *  el "Ahora no" que tenía el viejo panel del widget, esta es la única
-   *  salida mientras se espera un desafío interactivo. */
+   *  a verificar cuando quiera (Task 4). Visible SIEMPRE (no sólo tras un
+   *  fallo): sin el "Ahora no" que tenía el viejo panel del widget de
+   *  invitado, esta es la única salida mientras se espera un desafío
+   *  interactivo o una reconexión. */
   function seguirSinVerificar(): void {
     setUltimaSesionConocida('none');
     marcarLista();
   }
+
+  const cuerpo = otraCuenta ? t('captcha.other_account') : fallo ? t('captcha.verify_failed') : t('captcha.verify_body');
 
   return (
     <SafeAreaView style={[styles.root, { backgroundColor: c.bg }]}>
@@ -91,13 +156,16 @@ export default function VerifyScreen() {
           {t('captcha.verify_title')}
         </Text>
         <Text style={[Typography.bodyM, styles.centrado, { color: c.textSecondary }]}>
-          {fallo ? t('captcha.verify_failed') : t('captcha.verify_body')}
+          {cuerpo}
         </Text>
-        <TurnstileWidget key={intentoId} />
-        {verificando && !fallo && <ActivityIndicator style={styles.spinner} />}
+        {!modoCuenta && <TurnstileWidget key={intentoId} />}
+        {verificando && !fallo && !otraCuenta && <ActivityIndicator style={styles.spinner} />}
       </View>
       <ButtonRack>
-        {fallo && (
+        {modoCuenta && (fallo || otraCuenta) && (
+          <ActionButton label={t('captcha.relogin')} action={() => void reconectarConBoton()} variant="primary" full />
+        )}
+        {!modoCuenta && fallo && (
           <ActionButton label={t('captcha.retry')} action={reintentar} variant="primary" full />
         )}
         <ActionButton label={t('captcha.skip')} action={seguirSinVerificar} variant="ghost" full />

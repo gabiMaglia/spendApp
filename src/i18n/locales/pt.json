@@ -748,6 +748,8 @@
     "verify_title": "Confirmando seu acesso",
     "verify_body": "Um passo rápido para proteger a sincronização dos seus grupos.",
     "verify_failed": "Não foi possível confirmar seu acesso. Verifique sua conexão e tente novamente.",
-    "skip": "Continuar sem verificar"
+    "skip": "Continuar sem verificar",
+    "relogin": "Entre novamente",
+    "other_account": "Essa é uma conta diferente da que já estava ativa neste aparelho. Entre com a conta correta."
   }
 }
