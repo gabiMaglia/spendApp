@@ -181,10 +181,17 @@ export function subscribeSessionRehydrate(): () => void {
        */
       if (esHidratacionInicial && nextId) {
         useEntryGateStore.getState().chequear();
-        void haySesionAnonimaValida().then(yaValida => {
-          if (yaValida) useEntryGateStore.getState().marcarLista();
-          else useEntryGateStore.getState().pedirVerificacion();
-        });
+        void haySesionAnonimaValida()
+          .then(yaValida => {
+            if (yaValida) useEntryGateStore.getState().marcarLista();
+            else useEntryGateStore.getState().pedirVerificacion();
+          })
+          // Un rechazo inesperado (no debería pasar: `haySesionAnonimaValida`
+          // ya atrapa el error de `getSession()`) no puede dejar el gate
+          // pegado en 'chequeando' para siempre — eso trabaría a quien
+          // ACTUALIZA en la pantalla de login sin salida. Peor caso: una
+          // verificación de más.
+          .catch(() => useEntryGateStore.getState().pedirVerificacion());
       }
     }
   });
