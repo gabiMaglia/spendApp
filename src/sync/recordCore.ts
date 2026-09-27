@@ -70,6 +70,10 @@ const EXPENSE_SLOTS: Record<keyof Expense, CoreSlot> = {
   note: 'core',
   createdAt: 'core',
   createdById: 'core',
+  // T-185: quien reedita firma, así que `editedById` decide autoría igual que
+  // `createdById` — tiene que estar ADENTRO, o un tercero podría cambiar quién
+  // editó sin invalidar la firma del núcleo.
+  editedById: 'core',
   // `rev` va DENTRO de la firma, igual que en las otras cuatro entidades. Es la
   // razón de que exista (§5): sin él, un tercero toma un núcleo firmado válido,
   // lo re-estampa con un `rev` mayor y le gana al merge por niveles con datos

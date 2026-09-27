@@ -33,6 +33,10 @@ export const EXPENSE: Required<Expense> = {
   date: 1_700_000_000_000,
   createdAt: 1_700_000_000_100,
   createdById: 'ana',
+  // T-185: mismo valor que `createdById` a propósito — así los fixtures que
+  // pisan sólo `createdById: 'ana'` (varios tests de otros módulos) siguen
+  // resolviendo el mismo autor efectivo sin tener que tocarlos.
+  editedById: 'ana',
   note: 'con propina',
   receiptImageUri: 'file:///local/recibo.jpg',
   deletionVotes: [{ userId: 'beto', votedAt: 4_000, action: 'delete' }],

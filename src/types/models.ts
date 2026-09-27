@@ -348,6 +348,15 @@ export interface Expense extends SyncMeta, CoreSigned {
   date: number;           // timestamp del gasto (no del registro)
   createdAt: number;
   createdById: string;
+  /**
+   * Quién editó por última vez, si no fue el autor (T-185). Adentro del
+   * núcleo (`recordCore.ts`): la reedición la firma quien edita, y la
+   * verificación (`authorOf`, `src/sync/signOnWrite.ts`) toma como firmante
+   * `editedById ?? createdById`. `createdById` no se toca nunca — sigue
+   * siendo quien cargó el gasto. Ausente cuando el autor es quien editó por
+   * última vez (incluida la creación).
+   */
+  editedById?: string;
   note?: string;
   receiptImageUri?: string;
   deletionVotes: DeletionVote[];
