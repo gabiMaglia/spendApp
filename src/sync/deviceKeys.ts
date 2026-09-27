@@ -1,4 +1,4 @@
-import { esFuncionAusente } from './relay';
+import { esFuncionAusente, getRelayClient } from './relay';
 import { getDirectoryClient } from './directoryClient';
 import { ensureIdentity } from '@/src/store/identityStore';
 import { useAuthStore } from '@/src/store/authStore';
@@ -93,8 +93,18 @@ export async function fetchAccountKeys(accountId: string): Promise<string[]> {
  */
 export type KeysQuery = { ok: boolean; keys: string[] };
 
+/**
+ * **Fix del verificador (§Simplificación, bloqueante).** Las LECTURAS del
+ * directorio salen por el cliente del BUZÓN (sesión anónima, siempre
+ * disponible, rol `authenticated` tras 011b) — NO por el del directorio, que
+ * no persiste sesión (`directoryClient.ts`, Fase A) y en un arranque en frío
+ * saldría con la anon key pelada, que 011b ya no acepta ni para `account_keys`
+ * ni para el SELECT de respaldo sobre `device_keys` (42501). Sólo la
+ * ESCRITURA de la clave propia (`registerDeviceKey`, arriba) necesita probar
+ * de qué CUENTA es, y por eso sigue en el cliente del directorio.
+ */
 export async function queryAccountKeys(accountId: string): Promise<KeysQuery> {
-  const supabase = getDirectoryClient();
+  const supabase = getRelayClient();
   if (!supabase || !accountId) return { ok: false, keys: [] };
 
   const filas = (data: unknown): string[] =>
