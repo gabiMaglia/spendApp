@@ -169,6 +169,26 @@ function hacerEnsure(permitirCaptcha: boolean): Promise<SessionKind> {
   return cola.run(() => withTimeout(hacerEnsureSinCola(permitirCaptcha), SESSION_TIMEOUT_MS, 'none' as SessionKind));
 }
 
+/**
+ * T-147 (fila 9c/9e de la retro, decisión del PO 2026-09-27): chequeo PURO
+ * — nunca abre nada, nunca pide captcha, nunca purga un residuo — para que
+ * la hidratación inicial pueda decidir SIN efectos secundarios si hace
+ * falta bloquear el paso a tabs con la pantalla de verificación (9c: no hay
+ * sesión del buzón) o si ya la tiene (9e: arranque en frío con sesión
+ * persistida — la pantalla no debe aparecer nunca).
+ *
+ * Un error de `getSession()` (refresh transitorio) se trata como "no
+ * validada": es preferible mostrar la verificación de más (peor caso, un
+ * paso extra) que saltarla sobre un estado incierto.
+ */
+export async function haySesionAnonimaValida(): Promise<boolean> {
+  const supabase = getRelayClient();
+  if (!supabase) return true; // relay no configurado: nada que verificar
+  const { data, error } = await supabase.auth.getSession();
+  if (error) return false;
+  return Boolean(data.session?.user.is_anonymous);
+}
+
 async function hacerEnsureSinCola(permitirCaptcha: boolean): Promise<SessionKind> {
   const supabase = getRelayClient();
   if (!supabase) return 'none';
