@@ -1,9 +1,16 @@
-import { buildDelta, applyDelta, type SyncDelta } from './useSyncQR';
+import { applyDelta, DELTA_FEATURE_VERSION, type SyncDelta } from './useSyncQR';
+import { sinAvatarUrl, sinCamposLocales } from './soloLocal';
 import { acotarDeltaAlGrupo } from './acotarDeltaAlGrupo';
 import { sealEnvelope, openEnvelope, deriveTopic, type GroupKey } from './envelopeCrypto';
 import { sendEnvelope, fetchSince, deleteMyEnvelopes, type DeleteResult } from './relay';
 import { groupKeyBytes, useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { ensureIdentity } from '@/src/store/identityStore';
+import { useGroupStore } from '@/src/store/groupStore';
+import { useExpenseStore } from '@/src/store/expenseStore';
+import { usePaymentStore } from '@/src/store/paymentStore';
+import { useUserStore } from '@/src/store/userStore';
+import { useRecurringStore } from '@/src/store/recurringStore';
+import { useCommentStore } from '@/src/store/commentStore';
 import { signEnvelope, verifyEnvelope } from './envelopeSign';
 import { observeAuthor, RECHAZAR_AUTORES_NO_VERIFICADOS } from './authorHealth';
 import { refreshPendingAuthors } from './authorKeys';
@@ -12,7 +19,6 @@ import { buildManifest, digestOfJson, isManifest, looksLikeManifest, type SliceM
 import { recordManifestCheck } from './manifestHealth';
 import { recordSlicePublished } from './sliceRenewal';
 import { publishAvatarIfOwn, fetchAvatarIfMissing } from './avatarTopic';
-import { useUserStore } from '@/src/store/userStore';
 import { registrarFalloDeAplicacion, agotoReintentos } from './drainFailures';
 import { recordError } from '@/src/services/errorLog';
 
@@ -50,41 +56,53 @@ import { recordError } from '@/src/services/errorLog';
  * obliga a decidir. Para que agregar una entidad nueva no se olvide EN SILENCIO,
  * `relayScope.test.ts` compara las claves del delta contra esta lista y falla si
  * aparece una que nadie clasificó.
+ *
+ * **T-157a: se filtra ANTES de limpiar campos, nunca al revés.** Antes esto
+ * llamaba a `buildDelta` — que corre `sinCamposLocales`/`sinAvatarUrl` sobre
+ * el DISPOSITIVO ENTERO— y recién después filtraba por `groupId`. Con 1000
+ * gastos en 10 grupos, publicar UNO solo (100 gastos) transformaba y tiraba
+ * los otros 900 en cada publicación. Acá se arma cada campo leyendo el store
+ * directo y filtrando primero: `sinCamposLocales`/`sinAvatarUrl` sólo ven la
+ * porción que ya va a viajar. El resultado es exactamente el mismo —ninguno
+ * de los dos filtros depende de qué otros registros haya alrededor— sólo
+ * cambia CUÁNTO trabajo se hace para llegar ahí (`relayScopeFiltraPrimero.test.ts`
+ * compara byte a byte contra la implementación vieja).
  */
 export function buildGroupPayload(groupId: string, currentUserId: string): SyncDelta {
-  const completo = buildDelta(currentUserId);
-
-  const delGrupo = completo.groups.filter(g => g.id === groupId);
+  const delGrupo = useGroupStore.getState().groups.filter(g => g.id === groupId);
   const miembros = new Set(delGrupo[0]?.memberIds ?? []);
 
-  const expenses = completo.expenses.filter(e => e.groupId === groupId);
+  const expenses = sinCamposLocales(
+    useExpenseStore.getState().expenses.filter(e => e.groupId === groupId),
+  );
   const idsDeGastos = new Set(expenses.map(e => e.id));
 
   return {
-    version: completo.version,
-    featureVersion: completo.featureVersion,
-    fromUserId: completo.fromUserId,
-    timestamp: completo.timestamp,
+    version: 1,
+    featureVersion: DELTA_FEATURE_VERSION,
+    fromUserId: currentUserId,
+    timestamp: Date.now(),
 
     groups: delGrupo,
     expenses,
-    payments: completo.payments.filter(p => p.groupId === groupId),
+    payments: usePaymentStore.getState().payments.filter(p => p.groupId === groupId),
     // Los perfiles de los miembros SÍ hacen falta: sin ellos el otro ve ids en
     // vez de nombres. Los de gente ajena al grupo, no.
     //
     // El email SÍ se saca (T-093 ronda 2 / R-2, hallazgo del verificador ciego):
-    // `completo.users` trae el registro ENTERO de cada uno —incluido el propio,
-    // que `session.ts` persiste con el mail real de OAuth al loguear— y filtrar
+    // el registro ENTERO de cada usuario —incluido el propio, que `session.ts`
+    // persiste con el mail real de OAuth al loguear— trae el mail, y filtrar
     // por `miembros` sólo decide QUÉ FILAS viajan, nunca qué CAMPOS. El mail
     // viajaba tal cual a cualquiera que compartiera el grupo, y ningún receptor
     // lo lee (sólo se muestra `currentUser.email`, la cuenta propia, en
     // `user.tsx`/`debug/identity.tsx`; nunca el de otro usuario). Es lo que
     // `plans/T-077.md` ya declaraba cierto ("Mail: NO recolectado") sin serlo:
     // esto lo hace cierto, no cambia la fila de Data Safety.
-    users: completo.users.filter(u => miembros.has(u.id)).map(u => ({ ...u, email: '' })),
-    recurring: (completo.recurring ?? []).filter(r => r.groupId === groupId),
+    users: sinAvatarUrl(useUserStore.getState().users.filter(u => miembros.has(u.id)))
+      .map(u => ({ ...u, email: '' })),
+    recurring: useRecurringStore.getState().recurring.filter(r => r.groupId === groupId),
     // Un comentario no sabe de qué grupo es: cuelga del gasto.
-    comments: (completo.comments ?? []).filter(c => idsDeGastos.has(c.expenseId)),
+    comments: useCommentStore.getState().comments.filter(c => idsDeGastos.has(c.expenseId)),
 
     // `personal` NO viaja: son movimientos sin grupo, de nadie más que su dueño.
     // `groupKeys` tampoco: si el relay pudiera entregar claves podría
