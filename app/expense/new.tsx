@@ -31,6 +31,7 @@ import { useExpenseStore } from '@/src/store/expenseStore';
 import { useArchiveStore } from '@/src/store/archiveStore';
 import { useGroupExpenseCount } from '@/src/store/selectors';
 import { estaBloqueado } from '@/src/algorithms/groupExpenseLimit';
+import { motivoDeExceso } from '@/src/services/topeDeRegistro';
 import { usePersonalStore, toMonthKey } from '@/src/store/personalStore';
 import { UserAvatar } from '@/src/components/UserAvatar';
 import { BottomSheet, SheetButton, SheetInput, SheetOption, SheetOptionAvatar } from '@/src/components/Sheet';
@@ -364,7 +365,7 @@ export default function NewExpenseScreen() {
     const groupName = group?.name ?? '';
 
     if (isEditMode && expenseId) {
-      const guardo = updateExpense(expenseId, {
+      const cambios = {
         description:     description.trim(),
         amount,
         ...payerFields(),
@@ -374,7 +375,16 @@ export default function NewExpenseScreen() {
         date:            date.getTime(),
         note:            note || undefined,
         receiptImageUri: receiptUri,
-      });
+      };
+      // T-178 (6.4): el mismo predicado que hoy sólo corre al publicar/recibir
+      // corre ACÁ antes de escribir — si no, el registro queda huérfano en
+      // este teléfono, sin viajar nunca y sin que nadie se entere.
+      const motivo = motivoDeExceso({ ...existingExpense, ...cambios });
+      if (motivo) {
+        Alert.alert(t('sync.record_too_big_title'), t(motivo));
+        return;
+      }
+      const guardo = updateExpense(expenseId, cambios);
       // T-152 · D2: si el núcleo ya estaba firmado y no se pudo re-firmar esta
       // edición, el store la bloqueó — no la guardó — para no perderla en
       // silencio contra la próxima republicación de la versión vieja. Se le
@@ -400,7 +410,7 @@ export default function NewExpenseScreen() {
       }
     } else {
       const newId = uuidv4();
-      addExpense({
+      const nuevo = {
         id:              newId,
         groupId,
         description:     description.trim(),
@@ -418,7 +428,14 @@ export default function NewExpenseScreen() {
         deletionVotes:   [],
         updatedAt:       syncedNow(),
         isDeleted:       false,
-      });
+      };
+      // T-178 (6.4): mismo gate que en la edición, antes de escribir.
+      const motivo = motivoDeExceso(nuevo);
+      if (motivo) {
+        Alert.alert(t('sync.record_too_big_title'), t(motivo));
+        return;
+      }
+      addExpense(nuevo);
       // Un alta nueva no tiene núcleo previo firmado que re-firmar: no puede
       // bloquearse como una edición (T-152 · D2), así que el haptic va sin gate.
       hapticSuccess();

@@ -21,6 +21,7 @@ import { useGroupBalance, useGroupExpenseCount } from '@/src/store/selectors';
 import { debeAvisar } from '@/src/algorithms/groupExpenseLimit';
 import { traspasarGrupo } from '@/src/services/groupTraspaso';
 import { admiteUnMiembroMas, MAX_TEXTO_CORTO, MAX_MIEMBROS } from '@/src/sync/topes';
+import { motivoDeExceso } from '@/src/services/topeDeRegistro';
 import { useArchiveStore } from '@/src/store/archiveStore';
 import { UserAvatar } from '@/src/components/UserAvatar';
 import { SyncWarningBanner } from '@/src/components/SyncWarningBanner';
@@ -109,8 +110,17 @@ export default function GroupDetailScreen() {
       Alert.alert(t('group_detail.member_limit_title'), t('group_detail.member_limit_body', { max: MAX_MIEMBROS }));
       return;
     }
+    const memberIds = [...group.memberIds, userId];
+    // T-178 (6.4): mismo gate, defensa en profundidad además del tope de
+    // arriba (que ya cubre `memberIds`; esto cubre bytes de cualquier otro
+    // campo que el grupo traiga acumulado).
+    const motivo = motivoDeExceso({ ...group, memberIds });
+    if (motivo) {
+      Alert.alert(t('sync.record_too_big_title'), t(motivo));
+      return;
+    }
     hapticSuccess();
-    updateGroup(group.id, { memberIds: [...group.memberIds, userId] });
+    updateGroup(group.id, { memberIds });
     ensureKey(group.id);
     void announceGroupToContacts(group.id);
     setInviteVisible(false);
@@ -246,9 +256,15 @@ export default function GroupDetailScreen() {
       isDeleted:    false,
       createdAt:    Date.now(),
     };
+    const memberIds = [...group.memberIds, newUser.id];
+    const motivo = motivoDeExceso({ ...group, memberIds });
+    if (motivo) {
+      Alert.alert(t('sync.record_too_big_title'), t(motivo));
+      return;
+    }
 
     addOrUpdateUser(newUser);
-    updateGroup(group.id, { memberIds: [...group.memberIds, newUser.id] });
+    updateGroup(group.id, { memberIds });
     ensureKey(group.id);
     void announceGroupToContacts(group.id);
     hapticSuccess();

@@ -31,6 +31,7 @@ import { UserAvatar } from '@/src/components/UserAvatar';
 import { hueForUser } from '@/src/utils/hueForUser';
 import { deletionRound, msUntilDeletion, hasObjected, hasRequested } from '@/src/algorithms/deletionRound';
 import { TrustMark } from '@/src/components/TrustMark';
+import { motivoDeExceso } from '@/src/services/topeDeRegistro';
 import { useRecordTrust, useVoteTrust, voteRefKey } from '@/src/hooks/useRecordTrust';
 import { attributedVote, isMarked } from '@/src/algorithms/recordTrust';
 import { emitirVoto } from '@/src/services/deletionVotes';
@@ -169,7 +170,7 @@ export default function ExpenseDetailScreen() {
     }
     if (!currentUser || !id) return;
     const now = syncedNow();
-    addComment({
+    const nuevo = {
       id:        uuidv4(),
       expenseId: id,
       authorId:  currentUser.id,
@@ -177,7 +178,14 @@ export default function ExpenseDetailScreen() {
       createdAt: now,
       updatedAt: now,
       isDeleted: false,
-    });
+    };
+    // T-178 (6.4): mismo gate que en los otros formularios, antes de escribir.
+    const motivo = motivoDeExceso(nuevo);
+    if (motivo) {
+      Alert.alert(t('sync.record_too_big_title'), t(motivo));
+      return;
+    }
+    addComment(nuevo);
   }
   // Un registro que llega por sync puede no traer estos campos (versión vieja
   // del otro lado, o dato a medio escribir). Sin los `?? []` la pantalla no

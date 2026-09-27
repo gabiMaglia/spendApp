@@ -447,7 +447,10 @@
     "manifest_gap_title": "Faltam dados de um membro",
     "manifest_gap_body": "Os saldos deste grupo podem estar incompletos até sincronizar.",
     "sign_failed_title": "Não foi possível salvar a alteração",
-    "sign_failed_body": "Falta a chave deste dispositivo. Feche o app e tente de novo; se continuar falhando, peça ajuda pelo diagnóstico em Configurações."
+    "sign_failed_body": "Falta a chave deste dispositivo. Feche o app e tente de novo; se continuar falhando, peça ajuda pelo diagnóstico em Configurações.",
+    "record_too_big_title": "Isto é grande demais para salvar",
+    "record_too_big_members": "Este grupo passou do máximo de membros permitido. Remova alguém antes de salvar.",
+    "record_too_big_bytes": "Este registro pesa demais para sincronizar. Diminua a nota ou o texto e tente de novo."
   },
   "categories": {
     "food": "Comida",

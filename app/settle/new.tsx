@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
+  Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -18,6 +18,7 @@ import { Typography } from '@/src/constants/typography';
 import { MontoEditable } from '@/src/components/MontoEditable';
 import { topeDelSaldo, excedeElTope } from '@/src/algorithms/settleScope';
 import { acreedoresDe, pagosDelReparto, repartoParejo, totalAdeudado } from '@/src/algorithms/repartoSaldo';
+import { motivoDeExceso } from '@/src/services/topeDeRegistro';
 import { formatMoney } from '@/src/constants/currencies';
 import type { CurrencyCode } from '@/src/constants/currencies';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -241,29 +242,36 @@ export default function SettleNewScreen() {
   function handleSave() {
     if (!canSave || !currentUser) return;
     if (exceedsMax) { hapticWarning(); return; }
-    hapticSuccess();
 
     // Modo "todo": un pago por acreedor. Si el monto no cubre la deuda entera,
     // se reparte parejo — la app OFRECE ese reparto, no lo impone: el usuario
     // puede volver al modo de a uno y decidir a quién le da cuánto.
     if (modoTodo) {
       const reparto = repartoParejo(acreedores, amount);
-      for (const pago of pagosDelReparto(reparto, currentUser.id, groupId, currency)) {
-        addPayment({
-          id:          uuidv4(),
-          ...pago,
-          date:        date.getTime(),
-          createdAt:   Date.now(),
-          createdById: currentUser.id,
-          updatedAt:   syncedNow(),
-          isDeleted:   false,
-        });
+      const pagos = pagosDelReparto(reparto, currentUser.id, groupId, currency).map(pago => ({
+        id:          uuidv4(),
+        ...pago,
+        date:        date.getTime(),
+        createdAt:   Date.now(),
+        createdById: currentUser.id,
+        updatedAt:   syncedNow(),
+        isDeleted:   false,
+      }));
+      // T-178 (6.4): el mismo predicado que hoy sólo corre al publicar/recibir
+      // corre ACÁ antes de escribir. Si cualquier pago del reparto excede, no
+      // se escribe ninguno — nada de guardar la mitad de un reparto.
+      const motivo = pagos.map(motivoDeExceso).find(m => m !== null) ?? null;
+      if (motivo) {
+        Alert.alert(t('sync.record_too_big_title'), t(motivo));
+        return;
       }
+      hapticSuccess();
+      for (const pago of pagos) addPayment(pago);
       router.back();
       return;
     }
 
-    addPayment({
+    const nuevo = {
       id:          uuidv4(),
       groupId,
       fromUserId:  fromId,
@@ -275,7 +283,14 @@ export default function SettleNewScreen() {
       createdById: currentUser.id,
       updatedAt:   syncedNow(),
       isDeleted:   false,
-    });
+    };
+    const motivo = motivoDeExceso(nuevo);
+    if (motivo) {
+      Alert.alert(t('sync.record_too_big_title'), t(motivo));
+      return;
+    }
+    hapticSuccess();
+    addPayment(nuevo);
     router.back();
   }
 

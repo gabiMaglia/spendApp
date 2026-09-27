@@ -26,6 +26,7 @@ import { useTranslation } from 'react-i18next';
 import { syncedNow } from '@/src/utils/syncedClock';
 import { esYo } from '@/src/store/identityAlias';
 import { admiteUnMiembroMas, MAX_MIEMBROS, MAX_TEXTO_CORTO } from '@/src/sync/topes';
+import { motivoDeExceso } from '@/src/services/topeDeRegistro';
 import { useColors } from '@/src/skins/useSkin';
 
 const PRIMARY_CURRENCIES: CurrencyCode[] = ['ARS', 'USD', 'EUR', 'BRL'];
@@ -77,14 +78,13 @@ export default function NewGroupScreen() {
 
   function handleSave() {
     if (!canSave || !currentUser) return;
-    hapticSuccess();
 
     const memberIds = selectedIds.includes(currentUser.id)
       ? selectedIds
       : [currentUser.id, ...selectedIds];
 
     const id = uuidv4();
-    addGroup({
+    const nuevo = {
       id,
       name:          name.trim(),
       memberIds,
@@ -95,7 +95,17 @@ export default function NewGroupScreen() {
       deletionMode,
       updatedAt:     syncedNow(),
       isDeleted:     false,
-    });
+    };
+    // T-178 (6.4): el mismo predicado que hoy sólo corre al publicar/recibir
+    // corre ACÁ antes de escribir — si no, el grupo queda huérfano en este
+    // teléfono, sin viajar nunca y sin que nadie se entere.
+    const motivo = motivoDeExceso(nuevo);
+    if (motivo) {
+      Alert.alert(t('sync.record_too_big_title'), t(motivo));
+      return;
+    }
+    hapticSuccess();
+    addGroup(nuevo);
 
     // La clave del grupo y su reparto a los contactos que ya escaneaste. Es lo
     // que hace que el grupo le aparezca al otro sin que tenga que hacer nada.

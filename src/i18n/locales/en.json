@@ -447,7 +447,10 @@
     "manifest_gap_title": "Missing data from a member",
     "manifest_gap_body": "This group's balances may be incomplete until it syncs.",
     "sign_failed_title": "Couldn't save the change",
-    "sign_failed_body": "This device's key is missing. Close the app and try again; if it keeps failing, get help from the diagnostics in Settings."
+    "sign_failed_body": "This device's key is missing. Close the app and try again; if it keeps failing, get help from the diagnostics in Settings.",
+    "record_too_big_title": "This is too large to save",
+    "record_too_big_members": "This group is over the maximum number of members allowed. Remove someone before saving.",
+    "record_too_big_bytes": "This record is too heavy to sync. Shorten the note or text and try again."
   },
   "categories": {
     "food": "Food",
