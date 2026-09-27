@@ -76,13 +76,34 @@ function useVeredictos(trabajos: readonly Trabajo[]): Readonly<Record<string, Re
     const pendientes = trabajos.filter(t => !hechos.current.has(t.firma));
     let i = 0;
 
+    /**
+     * **Un `setVeredictos` por lote, no por firma** (T-153). Con ~300 filas
+     * por visita a Actividad, publicar cada veredicto apenas sale de la cola
+     * es un re-render de la pantalla entera por firma. Los veredictos se
+     * juntan acá y se vuelcan al estado comprometido cada ≥100 ms de reloj
+     * real o cuando la cola termina — nunca antes, y nunca los dos juntos.
+     *
+     * Es un objeto de closure, no un ref: vive y muere con ESTE efecto, así
+     * que un desmontaje a mitad de cola lo descarta solo, sin acción extra.
+     */
+    let buffer: Record<string, RecordVerdict> = {};
+    let ultimoVolcado = Date.now();
+
+    const volcar = () => {
+      if (Object.keys(buffer).length === 0) return;
+      const lote = buffer;
+      buffer = {};
+      ultimoVolcado = Date.now();
+      setVeredictos(previos => ({ ...previos, ...lote }));
+    };
+
     const paso = () => {
       const trabajo = pendientes[i++];
-      if (!trabajo) return;
+      if (!trabajo) { volcar(); return; }
 
       hechos.current.add(trabajo.firma);
-      const veredicto = trabajo.verificar();
-      setVeredictos(previos => ({ ...previos, [trabajo.firma]: veredicto }));
+      buffer[trabajo.firma] = trabajo.verificar();
+      if (Date.now() - ultimoVolcado >= 100) volcar();
 
       timer = setTimeout(paso, 0);
     };
