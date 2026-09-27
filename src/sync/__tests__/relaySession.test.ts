@@ -31,6 +31,15 @@ const signInAnonymously = jest.fn(async () => {
   sesion = { user: { is_anonymous: true } };
   return { data: { session: sesion }, error: null as null | { message: string } };
 });
+/**
+ * Verifier R3-1: fiel a auth-js — al resolver sin error, deja escrita la
+ * sesión de identidad de manera incondicional (mismo patrón que
+ * `signInAnonymously` de arriba).
+ */
+const signInWithIdToken = jest.fn(async (_args: { provider: string; token: string }) => {
+  sesion = { user: { is_anonymous: false } };
+  return { error: null as null | { message: string } };
+});
 const signOut = jest.fn(async () => ({ error: null }));
 const startAutoRefresh = jest.fn();
 const stopAutoRefresh = jest.fn();
@@ -38,6 +47,7 @@ const mockCliente = {
   auth: {
     getSession: jest.fn(async () => ({ data: { session: sesion }, error: errorDeGetSession })),
     signInAnonymously,
+    signInWithIdToken,
     signOut,
     startAutoRefresh,
     stopAutoRefresh,
@@ -49,6 +59,14 @@ jest.mock('@supabase/supabase-js', () => ({
 
 let mockCaptcha: import('../captchaBridge').CaptchaOutcome = { status: 'not_required' };
 jest.mock('../captchaBridge', () => ({ requestCaptchaToken: jest.fn(async () => mockCaptcha) }));
+
+/**
+ * Verifier R3-1: reconexión de cuentas — la respuesta que el host (Google
+ * silencioso / Apple interactivo) le daría a `relaySession`.
+ */
+let mockReconnect: import('../accountReconnectBridge').ReconnectOutcome = { status: 'not_available' };
+const mockRequestReconnect = jest.fn(async () => mockReconnect);
+jest.mock('../accountReconnectBridge', () => ({ requestReconnect: (...a: unknown[]) => mockRequestReconnect(...a) }));
 
 /**
  * No se reemplaza el módulo `react-native` entero (como antes): esta versión
@@ -77,10 +95,13 @@ beforeEach(() => {
   sesion = null;
   errorDeGetSession = null;
   mockCaptcha = { status: 'not_required' };
+  mockReconnect = { status: 'not_available' };
   signInAnonymously.mockClear();
+  signInWithIdToken.mockClear();
   signOut.mockClear();
   startAutoRefresh.mockClear();
   stopAutoRefresh.mockClear();
+  mockRequestReconnect.mockClear();
 
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   useAuthStore = (require('@/src/store/authStore') as typeof import('@/src/store/authStore')).useAuthStore;
@@ -305,6 +326,73 @@ describe('D2 (ronda 2): tope de tiempo, nunca cuelga', () => {
     await S.ensureRelaySession();
     expect(signInAnonymously).toHaveBeenCalledTimes(1);
     jest.useRealTimers();
+  });
+});
+
+/**
+ * Verifier R3-1 (ronda 3, ruling nuevo del orquestador): el ruling de la
+ * ronda 2 («la anónima sólo existe para el invitado») dejaba a CUALQUIER
+ * cuenta sin sesión de Supabase guardada en `'none'` para siempre — que es
+ * el caso de TODO usuario Google/Apple que actualiza desde una versión que
+ * corría con `persistSession: false` (`bc933a9:relay.ts:86`). Nunca abre
+ * anónima (eso no cambia), pero ahora intenta RECONECTAR sola.
+ */
+describe('R3-1: una cuenta sin sesión guardada se reconecta (nunca anónima)', () => {
+  it('Gherkin «usuario viejo que actualiza» (cuenta Google): reconecta en silencio', async () => {
+    useAuthStore.setState({ currentUser: conCuenta('google') });
+    sesion = null; // versión anterior no persistía sesión — exactamente este caso
+    mockReconnect = { status: 'ok', idToken: 'tok-silencioso' };
+
+    expect(await S.ensureRelaySession()).toBe('identity');
+
+    expect(mockRequestReconnect).toHaveBeenCalledWith('google', 'silent');
+    expect(signInWithIdToken).toHaveBeenCalledWith({ provider: 'google', token: 'tok-silencioso' });
+    expect(signInAnonymously).not.toHaveBeenCalled();
+  });
+
+  it('Apple (sin reconexión silenciosa posible): "none", nunca anónima', async () => {
+    useAuthStore.setState({ currentUser: conCuenta('apple') });
+    sesion = null;
+    mockReconnect = { status: 'not_available' };
+
+    expect(await S.ensureRelaySession()).toBe('none');
+
+    expect(mockRequestReconnect).toHaveBeenCalledWith('apple', 'silent');
+    expect(signInAnonymously).not.toHaveBeenCalled();
+  });
+
+  it('un fallo de reconexión respeta un backoff antes de reintentar', async () => {
+    useAuthStore.setState({ currentUser: conCuenta('google') });
+    sesion = null;
+    mockReconnect = { status: 'not_available' };
+    const ahora = jest.spyOn(Date, 'now').mockReturnValue(3_000_000);
+
+    expect(await S.ensureRelaySession()).toBe('none');
+    expect(await S.ensureRelaySession()).toBe('none');
+    expect(mockRequestReconnect).toHaveBeenCalledTimes(1); // todavía no pasó el backoff
+
+    mockReconnect = { status: 'ok', idToken: 'tok2' };
+    ahora.mockReturnValue(3_000_000 + S.RECONNECT_RETRY_MS + 1);
+    expect(await S.ensureRelaySession()).toBe('identity');
+    expect(mockRequestReconnect).toHaveBeenCalledTimes(2);
+
+    ahora.mockRestore();
+  });
+
+  /**
+   * R3-1/R3-2: una sesión ANÓNIMA vieja en el storage (invitado que pasó a
+   * cuenta y cuyo `signOut` local no llegó a borrarla, o cualquier residuo)
+   * no puede servir para una cuenta — se descarta sin tocar el storage
+   * directamente acá (eso lo resuelve `signOutOfDirectory`/R3-2) y se sigue
+   * el camino normal de reconexión.
+   */
+  it('una sesión anónima vieja en storage NO sirve para una cuenta: se descarta y reconecta', async () => {
+    useAuthStore.setState({ currentUser: conCuenta('google') });
+    sesion = { user: { is_anonymous: true } }; // residuo de cuando era invitado
+    mockReconnect = { status: 'ok', idToken: 'tok3' };
+
+    expect(await S.ensureRelaySession()).toBe('identity');
+    expect(signInWithIdToken).toHaveBeenCalled();
   });
 });
 
