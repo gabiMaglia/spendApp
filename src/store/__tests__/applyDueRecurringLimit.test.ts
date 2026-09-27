@@ -16,7 +16,7 @@ function grupo(over: Partial<Group> = {}): Group {
   return {
     id: 'g1', name: 'Depto', memberIds: ['ana', 'beto'], currency: 'ARS',
     miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
-    createdAt: 1, updatedAt: 1, isDeleted: false, createdById: 'ana', deletionVotes: [],
+    createdAt: 1, updatedAt: 1, isDeleted: false, createdById: 'ana',
     ...over,
   };
 }
@@ -26,7 +26,7 @@ function gastoViejo(id: string): Expense {
     id, groupId: 'g1', description: 'x', amount: 1_000, currency: 'ARS',
     paidById: 'ana', splits: [{ userId: 'beto', amount: 500, isPaid: false }],
     splitMode: 'equal', category: 'other', date: 1, createdAt: 1, updatedAt: 1,
-    createdById: 'ana', isDeleted: false, deletionVotes: [],
+    createdById: 'ana', isDeleted: false,
   } as Expense;
 }
 

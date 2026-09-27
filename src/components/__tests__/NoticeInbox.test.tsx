@@ -4,11 +4,8 @@ import { NoticeBell } from '../NoticeBell';
 import { NoticeInboxSheet } from '../NoticeInboxSheet';
 import type { StoredNotice } from '@/src/store/noticeInboxStore';
 import type { Notice } from '@/src/services/syncNotices';
-import type { Expense, Group } from '@/src/types/models';
+import type { Group } from '@/src/types/models';
 import { useGroupStore } from '@/src/store/groupStore';
-import { DELETION_TIMEOUT_MS } from '@/src/sync/SyncEngine';
-
-const AHORA = 10_000_000;
 
 const NOTICE_GASTOS: Notice = { kind: 'expenses', groupId: 'g1', groupName: 'Asado', count: 2 };
 
@@ -16,27 +13,15 @@ const item = (id: string, readAt: number | null, notice: Notice = NOTICE_GASTOS)
   id, readAt, createdAt: 1_000, notice,
 });
 
-// Los tres kinds accionables (T-062: deletion, settlement_pending, sync_down)
-// y dos informativos, para armar los escenarios de las pestañas.
-//
-// `borrado` NO lleva `expenseId` a propósito: es el aviso «viejo» de antes de
-// T-071 (o cualquiera sin gasto vivo detrás), así que nunca cuenta como ronda
-// VIVA — se usa donde el test sólo necesita un `deletion` que exista, no uno
-// con plazo. Los escenarios de plazo/contador-vivo tienen su propio describe.
-const borrado: Notice = { kind: 'deletion', groupId: 'g1', groupName: 'Asado', description: 'Vino' };
+// Los dos kinds accionables (T-062, T-186: `settlement_pending`/`sync_down` —
+// `deletion` se sacó con el modo «con acuerdo») y uno informativo, para armar
+// los escenarios de las pestañas.
 const pendiente: Notice = {
   kind: 'settlement_pending', groupId: 'g1', groupName: 'Asado',
   paymentId: 'p1', amount: 500, currency: 'ARS',
 };
 const caido: Notice = { kind: 'sync_down', groupId: 'g1', groupName: 'Asado', reason: 'too_large' };
-
-/** Un gasto con una ronda de borrado abierta desde `votedAt`. */
-const gastoConRonda = (id: string, votedAt: number): Expense => ({
-  id, groupId: 'g1', description: 'Vino', amount: 100, currency: 'ARS',
-  paidById: 'ana', createdById: 'ana', splits: [], date: 0,
-  createdAt: 0, updatedAt: 0, isDeleted: false,
-  deletionVotes: [{ userId: 'ana', votedAt, action: 'delete' }],
-} as unknown as Expense);
+const restaurado: Notice = { kind: 'restored', groupId: 'g1', groupName: 'Asado', description: 'Vino' };
 
 describe('NoticeBell', () => {
   it('sin avisos sin leer no muestra badge', () => {
@@ -65,7 +50,6 @@ describe('NoticeBell', () => {
 describe('NoticeInboxSheet', () => {
   const props = {
     visible: true, onClose: jest.fn(), onOpenNotice: jest.fn(), onMarkAll: jest.fn(),
-    expenses: [] as Expense[], now: AHORA,
   };
 
   it('sin avisos muestra el vacio explicado, no una lista en blanco', () => {
@@ -109,7 +93,7 @@ describe('NoticeInboxSheet', () => {
     it('con avisos aparecen las dos pestañas y Todo arranca con la lista de siempre, en orden', () => {
       // Los dos leídos: la pestaña Acción sale sin número, más fácil de matchear
       // por texto exacto — el número se cubre en su propio escenario.
-      const items = [item('a', 1_000, NOTICE_GASTOS), item('b', 1_000, borrado)];
+      const items = [item('a', 1_000, NOTICE_GASTOS), item('b', 1_000, restaurado)];
       const { getByText, getAllByTestId } = render(<NoticeInboxSheet {...props} items={items} />);
 
       expect(getByText('notifications.tab_all')).toBeTruthy();
@@ -119,31 +103,28 @@ describe('NoticeInboxSheet', () => {
       expect(filas.map(f => f.props.testID)).toEqual(['notice-a', 'notice-b']);
     });
 
-    it('la pestaña Acción cuenta los accionables SIN LEER, no los pendientes de resolver', () => {
-      // 'a' es un borrado VIVO (T-071: cuenta por ronda abierta, no por leído).
-      const vivo: Notice = { kind: 'deletion', groupId: 'g1', groupName: 'Asado', description: 'Vino', expenseId: 'e1' };
-      const gasto = gastoConRonda('e1', AHORA - 1000);
+    it('la pestaña Acción cuenta los accionables SIN LEER, no los leídos', () => {
       const items = [
-        item('a', null, vivo),          // accionable, ronda viva
-        item('b', null, pendiente),     // accionable, sin leer
-        item('c', 2_000, caido),        // accionable, YA leído: no cuenta
+        item('a', null, pendiente),     // accionable, sin leer
+        item('b', null, caido),         // accionable, sin leer
+        item('c', 2_000, pendiente),    // accionable, YA leído: no cuenta
         item('d', null, NOTICE_GASTOS), // informativo sin leer: no cuenta
       ];
-      const { getByText } = render(<NoticeInboxSheet {...props} items={items} expenses={[gasto]} />);
+      const { getByText } = render(<NoticeInboxSheet {...props} items={items} />);
       expect(getByText('notifications.tab_action_count({"count":2})')).toBeTruthy();
     });
 
     it('sin accionables sin leer, la pestaña Acción no lleva número (ni cero)', () => {
-      const items = [item('a', 2_000, borrado), item('b', null, NOTICE_GASTOS)];
+      const items = [item('a', 2_000, pendiente), item('b', null, NOTICE_GASTOS)];
       const { getByText, queryByText } = render(<NoticeInboxSheet {...props} items={items} />);
       expect(getByText('notifications.tab_action')).toBeTruthy();
       expect(queryByText(/tab_action_count/)).toBeNull();
     });
 
-    it('tocar Acción filtra a deletion/settlement_pending/sync_down y deja leídos y sin leer', () => {
+    it('tocar Acción filtra a settlement_pending/sync_down y deja leídos y sin leer', () => {
       const items = [
         item('a', null, NOTICE_GASTOS), // informativo: afuera
-        item('b', null, borrado),
+        item('b', null, pendiente),
         item('c', 2_000, pendiente),
         item('d', null, caido),
       ];
@@ -157,10 +138,6 @@ describe('NoticeInboxSheet', () => {
       expect(getByTestId('notice-d')).toBeTruthy();
     });
 
-    // `pendiente` (settlement_pending) y no `borrado`: ESTE es un kind que
-    // sigue contando por «sin leer» sin cambios (T-062). El comportamiento
-    // especial de `deletion` — cuenta por ronda viva, leerlo no lo baja —
-    // tiene su propio describe más abajo (T-071).
     it('leer uno de los accionables baja el contador de la pestaña', () => {
       const sinLeer = [item('a', null, pendiente), item('b', null, caido)];
       const { getByText, rerender } = render(<NoticeInboxSheet {...props} items={sinLeer} />);
@@ -201,7 +178,7 @@ describe('NoticeInboxSheet', () => {
     });
 
     it('la pestaña elegida no sobrevive al cierre: reabrir vuelve a Todo', () => {
-      const items = [item('a', null, NOTICE_GASTOS), item('b', null, borrado)];
+      const items = [item('a', null, NOTICE_GASTOS), item('b', null, pendiente)];
       const { getByText, getByTestId, queryByTestId, rerender } = render(
         <NoticeInboxSheet {...props} visible items={items} />,
       );
@@ -216,75 +193,6 @@ describe('NoticeInboxSheet', () => {
     });
   });
 
-  describe('el plazo del pedido de borrado (T-071)', () => {
-    const notice = (expenseId?: string): Notice => ({
-      kind: 'deletion', groupId: 'g1', groupName: 'Asado', description: 'Vino', expenseId,
-    });
-
-    it('la fila muestra el tiempo que falta de verdad, no el «72hs» fijo', () => {
-      const faltaUnDia = 24 * 3600_000;
-      const gasto = gastoConRonda('e1', AHORA - (DELETION_TIMEOUT_MS - faltaUnDia));
-      const { getByText, queryByText } = render(
-        <NoticeInboxSheet {...props} items={[item('a', null, notice('e1'))]} expenses={[gasto]} />,
-      );
-      expect(getByText(/notifications\.deletion_remaining/)).toBeTruthy();
-      // El texto fijo de la notificación push (siempre «72hs») NO es lo que se
-      // dibuja acá — sería prometer un plazo que puede ya no ser cierto.
-      expect(queryByText(/notifications\.deletion_requested/)).toBeNull();
-    });
-
-    it('una ronda vencida no promete un plazo que no existe', () => {
-      const gasto = gastoConRonda('e1', AHORA - DELETION_TIMEOUT_MS - 1);
-      const { getByText, queryByText } = render(
-        <NoticeInboxSheet {...props} items={[item('a', null, notice('e1'))]} expenses={[gasto]} />,
-      );
-      expect(getByText(/notifications\.deletion_no_time/)).toBeTruthy();
-      expect(queryByText(/notifications\.deletion_remaining/)).toBeNull();
-    });
-
-    it('un aviso viejo sin expenseId no rompe nada: se dibuja sin tiempo', () => {
-      const { getByText } = render(
-        <NoticeInboxSheet {...props} items={[item('a', null, notice(undefined))]} />,
-      );
-      expect(getByText(/notifications\.deletion_no_time/)).toBeTruthy();
-    });
-
-    it('un gasto cuyo expenseId ya no está en el store tampoco rompe nada', () => {
-      const { getByText } = render(
-        <NoticeInboxSheet {...props} items={[item('a', null, notice('fantasma'))]} expenses={[]} />,
-      );
-      expect(getByText(/notifications\.deletion_no_time/)).toBeTruthy();
-    });
-
-    it('la pestaña Acción cuenta rondas de borrado VIVAS, aunque estén leídas', () => {
-      const faltaUnDia = 24 * 3600_000;
-      const gasto = gastoConRonda('e1', AHORA - (DELETION_TIMEOUT_MS - faltaUnDia));
-      // LEÍDO (readAt !== null): el silencio decide a las 72hs, leerlo no lo resuelve.
-      const { getByText } = render(
-        <NoticeInboxSheet {...props} items={[item('a', 2_000, notice('e1'))]} expenses={[gasto]} />,
-      );
-      expect(getByText('notifications.tab_action_count({"count":1})')).toBeTruthy();
-    });
-
-    it('una ronda vencida deja de contar en Acción, esté leída o no', () => {
-      const gasto = gastoConRonda('e1', AHORA - DELETION_TIMEOUT_MS - 1);
-      // SIN LEER, pero vencida: tampoco cuenta.
-      const { getByText, queryByText } = render(
-        <NoticeInboxSheet {...props} items={[item('a', null, notice('e1'))]} expenses={[gasto]} />,
-      );
-      expect(getByText('notifications.tab_action')).toBeTruthy();
-      expect(queryByText(/tab_action_count/)).toBeNull();
-    });
-
-    it('los demás kinds siguen contando por «sin leer»: uno YA leído no cuenta', () => {
-      const { getByText, queryByText } = render(
-        <NoticeInboxSheet {...props} items={[item('a', 2_000, pendiente)]} />,
-      );
-      expect(getByText('notifications.tab_action')).toBeTruthy();
-      expect(queryByText(/tab_action_count/)).toBeNull();
-    });
-  });
-
   // Minor de la revisión final, upgraded a fix-now: el nombre del grupo nuevo
   // se resuelve AHORA, contra el store en vivo — no el `newGroupName` congelado
   // del aviso, que puede llegar en blanco si el grupo nuevo todavía no
@@ -293,7 +201,7 @@ describe('NoticeInboxSheet', () => {
     const grupo = (over: Partial<Group> = {}): Group => ({
       id: 'g-nuevo', name: 'Viaje (2)', memberIds: ['ana', 'beto'], currency: 'ARS',
       miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
-      createdAt: 0, updatedAt: 0, isDeleted: false, createdById: 'ana', deletionVotes: [],
+      createdAt: 0, updatedAt: 0, isDeleted: false, createdById: 'ana',
       ...over,
     });
 

@@ -1,31 +1,10 @@
-import { SyncEngine, mergeDeletionVotes, resolveDeletionVotes } from '../SyncEngine';
-import type { Expense, SyncMeta } from '@/src/types/models';
+import { SyncEngine } from '../SyncEngine';
+import type { SyncMeta } from '@/src/types/models';
 
 interface TestRecord extends SyncMeta { value: string }
 
 function rec(id: string, updatedAt: number, isDeleted = false, value = 'v'): TestRecord {
   return { id, updatedAt, isDeleted, value };
-}
-
-function makeExpense(overrides: Partial<Expense> = {}): Expense {
-  return {
-    id: 'exp-1',
-    updatedAt: 1000,
-    isDeleted: false,
-    groupId: 'g1',
-    description: 'Test',
-    amount: 100,
-    currency: 'ARS',
-    paidById: 'u1',
-    splits: [],
-    splitMode: 'equal',
-    category: 'other',
-    date: 1000,
-    createdAt: 1000,
-    createdById: 'u1',
-    deletionVotes: [],
-    ...overrides,
-  };
 }
 
 describe('SyncEngine.mergeData', () => {
@@ -84,63 +63,3 @@ describe('SyncEngine.buildDelta', () => {
   });
 });
 
-describe('mergeDeletionVotes', () => {
-  it('keeps the most recent vote per user', () => {
-    const votes = [
-      { userId: 'u1', votedAt: 100, action: 'delete' as const },
-      { userId: 'u1', votedAt: 200, action: 'cancel' as const },
-    ];
-    const result = mergeDeletionVotes(votes, 1_000);
-    expect(result).toHaveLength(1);
-    expect(result[0]!.action).toBe('cancel');
-  });
-
-  it('keeps votes from different users', () => {
-    const votes = [
-      { userId: 'u1', votedAt: 100, action: 'delete' as const },
-      { userId: 'u2', votedAt: 100, action: 'delete' as const },
-    ];
-    expect(mergeDeletionVotes(votes, 1_000)).toHaveLength(2);
-  });
-});
-
-describe('resolveDeletionVotes', () => {
-  it('returns false when there are no votes', () => {
-    const expense = makeExpense({ deletionVotes: [] });
-    expect(resolveDeletionVotes(expense, ['u1', 'u2'])).toBe(false);
-  });
-
-  it('returns true immediately when creator forces deletion and the caller trusts the signature (T-143)', () => {
-    const expense = makeExpense({
-      createdById: 'creator',
-      deletionVotes: [{ userId: 'creator', votedAt: Date.now(), action: 'delete', forced: true }],
-    });
-    expect(resolveDeletionVotes(expense, ['creator', 'u2'], Date.now(), () => true)).toBe(true);
-  });
-
-  it('returns false when any member cancels', () => {
-    const expense = makeExpense({
-      createdById: 'creator',
-      deletionVotes: [
-        { userId: 'creator', votedAt: Date.now(), action: 'delete' },
-        { userId: 'u2',      votedAt: Date.now(), action: 'cancel' },
-      ],
-    });
-    expect(resolveDeletionVotes(expense, ['creator', 'u2'])).toBe(false);
-  });
-
-  it('returns false when 72hs have NOT passed since delete vote', () => {
-    const expense = makeExpense({
-      deletionVotes: [{ userId: 'u1', votedAt: Date.now() - 1000, action: 'delete' }],
-    });
-    expect(resolveDeletionVotes(expense, ['u1', 'u2'])).toBe(false);
-  });
-
-  it('returns true when 72hs have passed and no one cancelled', () => {
-    const OVER_72H = 73 * 60 * 60 * 1000;
-    const expense = makeExpense({
-      deletionVotes: [{ userId: 'u1', votedAt: Date.now() - OVER_72H, action: 'delete' }],
-    });
-    expect(resolveDeletionVotes(expense, ['u1', 'u2'])).toBe(true);
-  });
-});

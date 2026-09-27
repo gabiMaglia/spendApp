@@ -1,14 +1,13 @@
 import { act, renderHook } from '@testing-library/react-native';
 import { ed25519 } from '@noble/curves/ed25519.js';
-import { useRecordTrust, useVoteTrust, voteRefKey } from '../useRecordTrust';
+import { useRecordTrust } from '../useRecordTrust';
 import { signCore } from '@/src/sync/recordSign';
-import { signVote } from '@/src/sync/voteSign';
 import { toHex } from '@/src/sync/hexBytes';
 import { clearVerdictCache } from '@/src/sync/verdictCache';
 import {
   forgetAuthorKeys, reloadAuthorKeys, rememberAuthorKey, __resetAuthorSources,
 } from '@/src/sync/authorKeys';
-import type { DeletionVote, Expense } from '@/src/types/models';
+import type { Expense } from '@/src/types/models';
 
 /**
  * **La verificación por fila visible** (T-041 · S10, decisión D8).
@@ -283,72 +282,5 @@ describe('los veredictos que no cuestan curva', () => {
     laColaEntera();
 
     expect(result.current['rec_t1_777']).toBe('marcado');
-  });
-});
-
-describe('los votos también se verifican por fila visible', () => {
-  const voto = (over: Partial<DeletionVote> = {}): DeletionVote => ({
-    userId: 'ana', votedAt: 500, action: 'delete', roundId: 'r1', ...over,
-  });
-
-  const votoFirmado = (over: Partial<DeletionVote> = {}): DeletionVote => {
-    const v = voto(over);
-    return { ...v, ...signVote('e-1', v, PRIV) };
-  };
-
-  it('un voto firmado por su autor no lleva marca, y tampoco en el render', () => {
-    const v = votoFirmado();
-    const { result } = renderHook(() => useVoteTrust([{ expenseId: 'e-1', vote: v }]));
-
-    expect(espia).not.toHaveBeenCalled();
-
-    laColaEntera();
-
-    expect(result.current[voteRefKey('e-1', v)]).toBe('verificado');
-  });
-
-  it('un voto sin firma queda marcado', () => {
-    const v = voto();
-    const { result } = renderHook(() => useVoteTrust([{ expenseId: 'e-1', vote: v }]));
-
-    laColaEntera();
-
-    expect(result.current[voteRefKey('e-1', v)]).toBe('marcado');
-  });
-
-  /**
-   * La firma del voto ata el enunciado a SU gasto. Una objeción firmada para
-   * otro gasto no puede pasar por buena acá: sin eso, un voto valdría para
-   * cualquier registro.
-   */
-  it('un voto firmado contra otro gasto queda marcado', () => {
-    const v = votoFirmado();
-    const { result } = renderHook(() => useVoteTrust([{ expenseId: 'e-OTRO', vote: v }]));
-
-    laColaEntera();
-
-    expect(result.current[voteRefKey('e-OTRO', v)]).toBe('marcado');
-  });
-
-  /**
-   * Los votos de VARIOS gastos en una sola cola: es lo que necesita el feed de
-   * actividad, donde cada fila de pedido o de restauración es de otro gasto. Un
-   * hook por gasto sería un hook adentro de un bucle, que React no permite.
-   */
-  it('mezcla votos de gastos distintos sin confundirlos', () => {
-    // El MISMO enunciado (misma persona, mismo instante) en dos gastos: si la
-    // clave no llevara el gasto, los dos compartirían veredicto y el segundo
-    // entraría gratis con el permiso del primero. Es la misma trampa que la
-    // caché de S3 tuvo que cerrar, un nivel más arriba.
-    const v = votoFirmado();
-    const { result } = renderHook(() => useVoteTrust([
-      { expenseId: 'e-1', vote: v },
-      { expenseId: 'e-2', vote: v },   // firmado contra e-1, mostrado en e-2
-    ]));
-
-    laColaEntera();
-
-    expect(result.current[voteRefKey('e-1', v)]).toBe('verificado');
-    expect(result.current[voteRefKey('e-2', v)]).toBe('marcado');
   });
 });

@@ -39,8 +39,7 @@ export const EXPENSE: Required<Expense> = {
   editedById: 'ana',
   note: 'con propina',
   receiptImageUri: 'file:///local/recibo.jpg',
-  deletionVotes: [{ userId: 'beto', votedAt: 4_000, action: 'delete' }],
-  // T-186 (Task 0): etiquetas LWW sin firma de quién borró/restauró.
+  // T-186 (opción B): etiquetas LWW sin firma de quién borró/restauró.
   deletedById: 'beto',
   restoredById: 'ana',
   // T-170 · D-2 (ronda 2): ya no es un `string[]` de ids sueltos — cada
@@ -127,8 +126,6 @@ export const GROUP: Required<Group> = {
   currency: 'ARS',
   createdAt: 1_690_000_000_000,
   createdById: 'ana',
-  deletionVotes: [{ userId: 'ana', votedAt: 4_000, action: 'delete', forced: true }],
-  deletionMode: 'consensus',
   defaultSplitMode: 'equal',
   leaveRequest: {
     userId: 'beto',

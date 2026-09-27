@@ -14,7 +14,6 @@ import { CurrencySheet } from './CurrencyPicker';
 import { UserAvatar } from './UserAvatar';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
-import { useExpenseStore } from '@/src/store/expenseStore';
 import { useSettingsStore } from '@/src/store/settingsStore';
 import {
   useNoticeInboxStore, useUnreadNoticeCount, type StoredNotice,
@@ -22,7 +21,6 @@ import {
 import { esAccionable, type KeyConflictNotice } from '@/src/services/syncNotices';
 import { ofertasDe } from '@/src/sync/groupKeyOffers';
 import { hapticLight } from '@/src/utils/haptics';
-import { syncedNow } from '@/src/utils/syncedClock';
 import { useColors } from '@/src/skins/useSkin';
 
 /**
@@ -69,7 +67,6 @@ export function TabHeader({
   const cur         = useSettingsStore(s => s.displayCurrency);
   const setCurrency = useSettingsStore(s => s.setDisplayCurrency);
   const groups      = useGroupStore(s => s.groups);
-  const expenses    = useExpenseStore(s => s.expenses);
 
   const inboxItems  = useNoticeInboxStore(s => s.items);
   const sinLeer     = useUnreadNoticeCount();
@@ -84,9 +81,9 @@ export function TabHeader({
 
   /**
    * **Abrir la campana marca leídas las que NO piden acción** (PO 2026-09-13,
-   * T-119). Las accionables (`esAccionable`: `deletion`, `settlement_pending`,
+   * T-119). Las accionables (`esAccionable`: `settlement_pending`,
    * `sync_down`) siguen pendientes — abrirlas no las resuelve, hace falta
-   * actuar (objetar/acusar recibo/reintentar). El botón "Marcar todo" de la
+   * actuar (acusar recibo/reintentar). El botón "Marcar todo" de la
    * bandeja sigue siendo la vía explícita para apagar TODO, accionables
    * incluidas — este auto-marcado no lo reemplaza.
    */
@@ -188,8 +185,6 @@ export function TabHeader({
       <NoticeInboxSheet
         visible={bandeja}
         items={inboxItems}
-        expenses={expenses}
-        now={syncedNow()}
         onClose={() => setBandeja(false)}
         onOpenNotice={abrirAviso}
         onMarkAll={() => markAllRead()}

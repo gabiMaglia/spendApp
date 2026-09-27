@@ -20,7 +20,7 @@ const materializado = (t = plantilla(), at = VENC, over: Partial<Expense> = {}):
   currency: t.currency, paidById: t.paidById, splitMode: t.splitMode,
   splits: buildSplits(t.amount, t.memberIds, t.splitMode, t.splitValues),
   category: t.category, date: at, createdAt: at, createdById: t.createdById,
-  deletionVotes: [], updatedAt: at, isDeleted: false, ...over,
+ updatedAt: at, isDeleted: false, ...over,
 } as Expense);
 
 describe('de qué plantilla dice venir', () => {
@@ -104,7 +104,6 @@ describe('¿el gasto es fiel a su plantilla?', () => {
   it('borrarlo o votarlo NO lo vuelve infiel', () => {
     const tocado = materializado(plantilla(), VENC, {
       isDeleted: true, updatedAt: VENC + 999_999,
-      deletionVotes: [{ userId: 'beto', votedAt: 1, action: 'delete' }],
     });
     expect(fielALaPlantilla(tocado, plantilla(), VENC)).toBe(true);
   });

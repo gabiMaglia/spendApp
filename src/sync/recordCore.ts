@@ -18,9 +18,9 @@ import type {
  *  - **adentro** (`core`) va lo que decide plata y autoría, y lo que escribe
  *    únicamente el autor;
  *  - **afuera** (`fuera`) va todo lo que escriben terceros legítimamente
- *    (`updatedAt`, `isDeleted`, `deletionVotes`, `leaveRequest`,
+ *    (`updatedAt`, `isDeleted`, `deletedById`, `leaveRequest`,
  *    `lastMaterializedAt`) y lo que es local del aparato (`receiptImageUri`).
- *    Meter cualquiera de esos adentro rompería el borrado consensuado, la
+ *    Meter cualquiera de esos adentro rompería la restauración libre, la
  *    materialización de recurrentes o las dos.
  *
  * El tipo `Record<keyof X, CoreSlot>` obliga a clasificar en tiempo de
@@ -80,9 +80,8 @@ const EXPENSE_SLOTS: Record<keyof Expense, CoreSlot> = {
   // viejos. Estaba en 'fuera' — el único de los cinco — y el meta-test lo cazó.
   rev: 'core',
 
-  updatedAt: 'fuera',       // lo bumpea cualquiera que vote un borrado
+  updatedAt: 'fuera',       // lo bumpea cualquiera que borra o restaura
   isDeleted: 'fuera',       // tombstone: lo escriben terceros
-  deletionVotes: 'fuera',   // unión de aportes de gente distinta
   deletedById: 'fuera',     // T-186: etiqueta LWW de quién borró, sin firma
   restoredById: 'fuera',    // T-186: etiqueta LWW de quién restauró, sin firma
   receiptImageUri: 'fuera', // URI local del aparato, no un dato compartido
@@ -160,10 +159,9 @@ const RECURRING_SLOTS: Record<keyof RecurringExpense, CoreSlot> = {
 /**
  * Del grupo se firma **sólo la creación**.
  *
- * `memberIds`, `name`, `deletionMode` y `leaveRequest` los escribe cualquier
- * miembro por diseño: no hay una sola persona que pueda firmarlos sin mentir.
- * Protegerlos es un ticket propio (roster/admin firmado, riesgo 2 del §QUÉ);
- * `deletionMode` se cerró aparte como T-053.
+ * `memberIds`, `name` y `leaveRequest` los escribe cualquier miembro por
+ * diseño: no hay una sola persona que pueda firmarlos sin mentir. Protegerlos
+ * es un ticket propio (roster/admin firmado, riesgo 2 del §QUÉ).
  */
 const GROUP_SLOTS: Record<keyof Group, CoreSlot> = {
   id: 'core',
@@ -178,8 +176,6 @@ const GROUP_SLOTS: Record<keyof Group, CoreSlot> = {
   // motivo de la nota de arriba.
   miembros: 'fuera',
   currency: 'fuera',
-  deletionVotes: 'fuera',
-  deletionMode: 'fuera',
   defaultSplitMode: 'fuera',
   leaveRequest: 'fuera',
   updatedAt: 'fuera',

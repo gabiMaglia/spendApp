@@ -5,7 +5,6 @@ import GroupDetailScreen from '@/app/groups/[id]';
 import ActivityScreen from '@/app/(tabs)/activity';
 import ExpenseDetailScreen from '@/app/expense/[id]';
 import { signCore } from '@/src/sync/recordSign';
-import { signVote } from '@/src/sync/voteSign';
 import { toHex } from '@/src/sync/hexBytes';
 import { clearVerdictCache } from '@/src/sync/verdictCache';
 import {
@@ -17,7 +16,7 @@ import { usePaymentStore } from '@/src/store/paymentStore';
 import { useCommentStore } from '@/src/store/commentStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useAuthStore } from '@/src/store/authStore';
-import type { DeletionVote, Expense, Group, Payment, User } from '@/src/types/models';
+import type { Expense, Group, Payment, User } from '@/src/types/models';
 
 /**
  * **La marca, donde el usuario la ve** (T-041 · S10).
@@ -58,14 +57,14 @@ const PUB  = toHex(ed25519.getPublicKey(new Uint8Array(32).fill(41)));
 
 const grupo = (over: Partial<Group> = {}): Group => ({
   id: 'g1', name: 'Asado', memberIds: ['ana', 'beto'], currency: 'ARS',
-  createdAt: 0, createdById: 'ana', deletionVotes: [], updatedAt: 0, isDeleted: false, ...over,
+  createdAt: 0, createdById: 'ana', updatedAt: 0, isDeleted: false, ...over,
 } as Group);
 
 const gasto = (over: Partial<Expense> = {}): Expense => ({
   id: 'e1', groupId: 'g1', description: 'Nafta', amount: 100_000, currency: 'ARS',
   paidById: 'ana', splits: [{ userId: 'ana', amount: 50_000 }, { userId: 'beto', amount: 50_000 }],
   splitMode: 'equal', category: 'transport', date: 1_000, createdAt: 1_000,
-  createdById: 'ana', deletionVotes: [], rev: 1_000, updatedAt: 1_000, isDeleted: false, ...over,
+  createdById: 'ana', rev: 1_000, updatedAt: 1_000, isDeleted: false, ...over,
 } as Expense);
 
 const pago = (over: Partial<Payment> = {}): Payment => ({
@@ -215,42 +214,6 @@ describe('la marca en el feed de actividad', () => {
   });
 
   /**
-   * **Cada fila lleva la marca de LA FIRMA QUE LA SOSTIENE.** La fila de un
-   * pedido de borrado no habla del gasto: habla del enunciado de quien lo pidió,
-   * y lo firma otra persona. Marcarla con el veredicto del gasto sería mostrar
-   * el resultado de haber verificado otra cosa.
-   *
-   * El caso está armado para que las dos respuestas se vean distintas: el gasto
-   * verifica y el voto no.
-   */
-  it('la fila del pedido de borrado se marca por el voto, no por el gasto', () => {
-    useExpenseStore.setState({
-      expenses: [gastoFirmado({
-        deletionVotes: [{ userId: 'ana', votedAt: 3_000, action: 'delete', roundId: 'r1' }],
-      })],
-    });
-
-    const { getByTestId, queryByTestId } = render(<ActivityScreen />);
-    laColaEntera();
-
-    expect(getByTestId('trust-expense_delete_request')).toBeTruthy();
-    expect(queryByTestId('trust-expense_added')).toBeNull();
-  });
-
-  /** Y al revés: con el pedido firmado por su autor, la fila queda limpia. */
-  it('el pedido firmado por su autor no marca su fila', () => {
-    const v = { userId: 'ana' as const, votedAt: 3_000, action: 'delete' as const, roundId: 'r1' };
-    useExpenseStore.setState({
-      expenses: [gastoFirmado({ deletionVotes: [{ ...v, ...signVote('e1', v, PRIV) }] })],
-    });
-
-    const { queryByTestId } = render(<ActivityScreen />);
-    laColaEntera();
-
-    expect(queryByTestId('trust-expense_delete_request')).toBeNull();
-  });
-
-  /**
    * El feed sigue contando lo que pasó: la marca se suma a la fila, no la
    * reemplaza ni agrega un evento aparte. Un evento nuevo duplicaría la fila del
    * mismo gasto —«agregado» y «no verificado»— y R1 pide que aparezca *como
@@ -267,18 +230,9 @@ describe('la marca en el feed de actividad', () => {
   });
 });
 
-describe('la marca en el detalle del gasto, y la de los votos', () => {
+describe('la marca en el detalle del gasto', () => {
   beforeEach(() => { mockIdDeRuta = 'e1'; });
   afterEach(() => { mockIdDeRuta = 'g1'; });
-
-  const voto = (over: Partial<DeletionVote> = {}): DeletionVote => ({
-    userId: 'ana', votedAt: 3_000, action: 'delete', roundId: 'r1', ...over,
-  });
-
-  const votoFirmado = (over: Partial<DeletionVote> = {}): DeletionVote => {
-    const v = voto(over);
-    return { ...v, ...signVote('e1', v, PRIV) };
-  };
 
   it('el gasto sin firma queda marcado en su detalle', () => {
     useExpenseStore.setState({ expenses: [gasto({ id: 'e1' })] });
@@ -291,68 +245,12 @@ describe('la marca en el detalle del gasto, y la de los votos', () => {
     expect(queryAllByText('trust.expense').length).toBe(1);
   });
 
-  /**
-   * **El llamador de producción de `verifyVote` (S8), que hasta acá no tenía
-   * ninguno.** El `forced` del creador se honra SIEMPRE (R3) y el pedido de
-   * borrado también: lo único que agrega S10 es la atribución — quién lo pidió,
-   * y si esa firma verificó.
-   */
-  it('un pedido de borrado sin firma queda marcado', () => {
-    useExpenseStore.setState({ expenses: [gasto({ id: 'e1', deletionVotes: [voto()] })] });
-
-    const { queryAllByText } = render(<ExpenseDetailScreen />);
-    laColaEntera();
-
-    // Dos avisos distintos, porque son dos firmas distintas de dos personas
-    // distintas: el núcleo del gasto y el enunciado del voto.
-    expect(queryAllByText('trust.expense').length).toBe(1);
-    expect(queryAllByText('trust.vote').length).toBe(1);
-  });
-
-  it('un pedido de borrado firmado por su autor NO lleva marca', () => {
-    useExpenseStore.setState({
-      expenses: [gastoFirmado({ id: 'e1', deletionVotes: [votoFirmado()] })],
-    });
+  it('el gasto firmado por su autor NO lleva marca', () => {
+    useExpenseStore.setState({ expenses: [gastoFirmado({ id: 'e1' })] });
 
     const { queryAllByText } = render(<ExpenseDetailScreen />);
     laColaEntera();
 
     expect(queryAllByText('trust.expense')).toEqual([]);
-    expect(queryAllByText('trust.vote')).toEqual([]);
-  });
-
-  /**
-   * Un voto que dice ser de Beto y lo firmó la clave de Ana. Beto tiene clave
-   * conocida y no es ésa, así que la firma **no cierra** — no es falta de
-   * información. Con una sola marca el usuario ve lo mismo que ante un voto sin
-   * firma —mirá el gasto—, que es exactamente lo que el PO pidió; la medición
-   * interna sí los separa.
-   */
-  it('un pedido de borrado firmado por otro queda marcado', () => {
-    rememberAuthorKey('beto', toHex(ed25519.getPublicKey(new Uint8Array(32).fill(7))));
-    const ajeno = voto({ userId: 'beto' });
-
-    useExpenseStore.setState({
-      expenses: [gastoFirmado({
-        id: 'e1',
-        deletionVotes: [{ ...ajeno, ...signVote('e1', ajeno, PRIV) }],
-      })],
-    });
-
-    const { queryAllByText } = render(<ExpenseDetailScreen />);
-    laColaEntera();
-
-    expect(queryAllByText('trust.expense')).toEqual([]);   // el gasto sí verifica
-    expect(queryAllByText('trust.vote').length).toBe(1);
-  });
-
-  /** Nunca bloquea: el pedido de borrado marcado se sigue contando. */
-  it('el pedido marcado sigue abriendo la ronda', () => {
-    useExpenseStore.setState({ expenses: [gasto({ id: 'e1', deletionVotes: [voto()] })] });
-
-    const { getByText } = render(<ExpenseDetailScreen />);
-    laColaEntera();
-
-    expect(getByText(/expense\.delete_pending_title/)).toBeTruthy();
   });
 });

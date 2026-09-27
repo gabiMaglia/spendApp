@@ -5,9 +5,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { v4 as uuidv4 } from 'uuid';
-import { hapticLight, hapticWarning } from '@/src/utils/haptics';
+import { hapticWarning } from '@/src/utils/haptics';
 import { useTranslation } from 'react-i18next';
-import i18n from '@/src/i18n';
 import { Ionicons } from '@expo/vector-icons';
 
 import { Radius, Spacing } from '@/src/constants/spacing';
@@ -19,36 +18,23 @@ import { formatMoney } from '@/src/constants/currencies';
 import { MoneyText } from '@/src/components/MoneyText';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useArchiveStore } from '@/src/store/archiveStore';
-import { borraAlInstante, deletionModeOf } from '@/src/algorithms/deletionPolicy';
 import { useAuthStore } from '@/src/store/authStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useCommentStore } from '@/src/store/commentStore';
 import { CommentThread } from '@/src/components/CommentThread';
 import { CategoryIcon } from '@/src/components/CategoryIcon';
-import { Avatar } from '@/src/components/Avatar';
 import { UserAvatar } from '@/src/components/UserAvatar';
-import { hueForUser } from '@/src/utils/hueForUser';
-import { deletionRound, msUntilDeletion, hasObjected, hasRequested } from '@/src/algorithms/deletionRound';
 import { TrustMark } from '@/src/components/TrustMark';
 import { motivoDeExceso } from '@/src/services/topeDeRegistro';
-import { useRecordTrust, useVoteTrust, voteRefKey } from '@/src/hooks/useRecordTrust';
-import { attributedVote, isMarked } from '@/src/algorithms/recordTrust';
-import { emitirVoto } from '@/src/services/deletionVotes';
+import { useRecordTrust } from '@/src/hooks/useRecordTrust';
+import { isMarked } from '@/src/algorithms/recordTrust';
 import type { CategoryKind } from '@/src/constants/colors';
 import { syncedNow } from '@/src/utils/syncedClock';
-import { esYo } from '@/src/store/identityAlias';
+import { esYo, mismaPersona } from '@/src/store/identityAlias';
 import { useColors } from '@/src/skins/useSkin';
 import { enDisputa, autoresVerificados } from '@/src/sync/autoriaTrust';
 import { InlineWarningBanner } from '@/src/components/InlineWarningBanner';
-
-/** "2 días" / "5 horas" / "40 minutos": basta para saber si hay que apurarse. */
-function formatearRestante(ms: number): string {
-  const horas = Math.floor(ms / 3600_000);
-  if (horas >= 24) return i18n.t('expense.time_days', { count: Math.floor(horas / 24) });
-  if (horas >= 1)  return i18n.t('expense.time_hours', { count: horas });
-  return i18n.t('expense.time_minutes', { count: Math.max(1, Math.floor(ms / 60_000)) });
-}
 
 export default function ExpenseDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -86,31 +72,10 @@ export default function ExpenseDetailScreen() {
   }, [expense]);
 
   /**
-   * **La marca de T-041** (S10). Los tres hooks van ACÁ ARRIBA, antes del early
+   * **La marca de T-041** (S10). El hook va ACÁ ARRIBA, antes del early
    * return: uno después de un return condicional rompe el orden entre renders.
-   *
-   * Se verifican dos cosas distintas y las firma gente distinta: el **núcleo del
-   * gasto** (lo declaró su autor) y el **voto que la banda de la ronda
-   * atribuye** (lo declaró un tercero). Marcar la banda con el veredicto del
-   * gasto sería marcar otra cosa.
    */
-  // Una sola lectura del reloj corregido por render: desde T-059 qué ronda
-  // está vigente depende de la hora, y la banda, los botones y el contador
-  // tienen que contestar todos contra el mismo instante.
-  const ahora = syncedNow();
-  const ronda = expense ? deletionRound(expense, ahora) : null;
-
   const marcaDeGasto = useRecordTrust('expense', expense ? [expense] : [])[expense?.id ?? ''];
-
-  /**
-   * Sólo el voto que se muestra, no los de la ronda entera: a 37,57 ms medidos
-   * en el device del PO, verificar lo que no está en pantalla es tiempo de hilo
-   * regalado. Es la misma regla de D8 aplicada adentro de una pantalla.
-   */
-  const votoDeLaRonda = attributedVote(ronda, expense?.deletionVotes ?? []);
-  const marcaDeVoto = useVoteTrust(
-    expense && votoDeLaRonda ? [{ expenseId: expense.id, vote: votoDeLaRonda }] : [],
-  );
   const isArchivedFn = useArchiveStore(s => s.isArchived);
 
   if (!expense) {
@@ -131,12 +96,7 @@ export default function ExpenseDetailScreen() {
   }
 
   const isCreator = esYo(expense.createdById);
-  // T-170 · D-1: con autoría en disputa, ningún `forced` es inmediato — ni
-  // siquiera el del autor genuino (I-10). La opción de forzar se oculta acá,
-  // y `resolvePendingDeletions` corta lo mismo del lado que corre solo
-  // (`src/sync/forcedTrust.ts`, predicado único).
   const disputada = enDisputa(expense);
-  const puedeForzar = isCreator && !disputada;
   // T-170 · D-3 (decisión del PO): quién abrió la disputa, para mostrarlo.
   // TODOS los autores ATRIBUIBLES (`autoresVerificados`: firma que cierra,
   // D9 afuera del merge) — SIN filtrar por `expense.createdById` vigente.
@@ -149,31 +109,23 @@ export default function ExpenseDetailScreen() {
   // disputa»).
   const autoresDeLaDisputa = disputada ? [...autoresVerificados(expense)] : [];
 
-  // En un grupo de borrado LIBRE (elegido al crearlo) cualquier miembro borra
-  // al instante, igual que Splitwise: la defensa no es impedir sino que quede
-  // visible en Actividad y se pueda restaurar de un toque. En un grupo con
-  // acuerdo sigue mandando la regla #2 y sólo el creador del gasto fuerza.
+  // Cualquier miembro del grupo edita y borra al instante, igual que
+  // Splitwise (T-186: se sacó el modo «con acuerdo», ver
+  // docs/CONSENSO-PENDIENTE.md). La defensa no es impedir sino que quede
+  // visible en Actividad y se pueda restaurar de un toque.
   const grupoDelGasto = groups.find(g => g.id === expense.groupId);
   const grupoArchivado = grupoDelGasto ? isArchivedFn(grupoDelGasto.id) : false;
 
-  // T-185: en un grupo `open` (Libre) cualquier miembro edita al instante,
-  // igual que borra — es el mismo modelo Splitwise. En `consensus` sigue
-  // siendo sólo del creador. Sin grupo resuelto se cae al comportamiento de
-  // siempre (el creador manda), misma razón que `borradoDirecto` arriba.
-  const puedeEditar = !expense.isDeleted && (
-    isCreator || (
-      grupoDelGasto !== undefined
-      && deletionModeOf(grupoDelGasto) === 'open'
-      && grupoDelGasto.memberIds.some(m => esYo(m))
-    )
-  );
   // Si el grupo no se puede resolver (todavía no sincronizó, dato a medias) se
   // cae al comportamiento de siempre —el creador manda— y NO al más
   // restrictivo: quitarle el override al creador por no encontrar el grupo
   // sería una regresión silenciosa. Lo atrapó `expenseDetail.test.tsx`.
+  const esMiembroDelGrupo = grupoDelGasto !== undefined
+    && grupoDelGasto.memberIds.some(m => mismaPersona(m, currentUser?.id ?? ''));
   const borradoDirecto = !currentUser ? false
-    : grupoDelGasto ? borraAlInstante(grupoDelGasto, currentUser.id, expense.createdById)
+    : grupoDelGasto ? esMiembroDelGrupo
     : isCreator;
+  const puedeEditar = !expense.isDeleted && (isCreator || (grupoDelGasto !== undefined && esMiembroDelGrupo));
 
   function handleAddComment(text: string) {
     if (grupoArchivado) {
@@ -204,32 +156,15 @@ export default function ExpenseDetailScreen() {
   // abre y no hay forma de ver el gasto ni de arreglarlo.
   const splits = expense.splits ?? [];
 
-  const hayPedido = ronda !== null && ronda.status === 'open';
-  const yoPedi    = currentUser ? hasRequested(expense, currentUser.id, ahora) : false;
-  const yoObjete  = currentUser ? hasObjected(expense, currentUser.id, ahora) : false;
-
   /**
-   * Pedir el borrado ABRE UNA RONDA NUEVA: se limpian los votos anteriores.
-   *
-   * Si se acumularan, una objeción vieja bloquearía cualquier pedido futuro
-   * para siempre, y un pedido viejo que sobreviviera a la objeción vencería al
-   * instante al reabrirse — borrando sin darle a nadie sus 72hs.
+   * Se borra ya, sin ventana para objetar — cualquier miembro del grupo, o el
+   * creador (T-186: se sacó el modo «con acuerdo»).
    */
-  function pedirBorrado() {
+  function borrarGasto() {
     if (!currentUser || !expense) return;
     updateExpense(expense.id, {
-      deletionVotes: emitirVoto(expense, currentUser.id, 'delete', syncedNow()),
-    });
-  }
-
-  /** Se borra ya, sin ventana para objetar: creador, o grupo de borrado libre. */
-  function forzarBorrado() {
-    if (!currentUser || !expense) return;
-    updateExpense(expense.id, {
-      deletionVotes: emitirVoto(expense, currentUser.id, 'force', syncedNow()),
       isDeleted: true,
-      // T-186 (Task 0): etiqueta LWW sin firma para que Actividad muestre
-      // quién borró, sin depender del voto (que se va con el modo consenso).
+      // Etiqueta LWW sin firma para que Actividad muestre quién borró.
       deletedById: currentUser.id,
     });
     // Cascada: si no, los comentarios quedan huérfanos apuntando a un gasto
@@ -246,80 +181,17 @@ export default function ExpenseDetailScreen() {
     if (!currentUser || !expense) return;
     hapticWarning();
 
-    // En un grupo de borrado LIBRE no hay ronda que abrir: se borra y listo,
-    // con restaurar como contraparte. Ofrecer "pedir el borrado" ahí sería
-    // ofrecer un trámite que ese grupo decidió no tener.
-    if (grupoDelGasto && deletionModeOf(grupoDelGasto) === 'open') {
-      Alert.alert(
-        t('expense.delete_title'),
-        t('expense.delete_body_open'),
-        [
-          { text: t('common.cancel'), style: 'cancel' as const },
-          { text: t('expense.delete_expense'), style: 'destructive' as const, onPress: forzarBorrado },
-        ],
-      );
-      return;
-    }
-
-    // El creador elige: pedirlo y esperar, o forzarlo. Los demás —y un
-    // creador con la autoría en disputa (T-170 · D-1)— sólo pueden pedirlo
-    // (regla de negocio #2).
-    const opciones = puedeForzar
-      ? [
-          { text: t('common.cancel'), style: 'cancel' as const },
-          { text: t('expense.delete_request'), onPress: pedirBorrado },
-          { text: t('expense.delete_force'), style: 'destructive' as const, onPress: forzarBorrado },
-        ]
-      : [
-          { text: t('common.cancel'), style: 'cancel' as const },
-          { text: t('expense.delete_request'), style: 'destructive' as const, onPress: pedirBorrado },
-        ];
-
     Alert.alert(
       t('expense.delete_title'),
-      puedeForzar ? t('expense.delete_body_creator') : t('expense.delete_body_member'),
-      opciones,
+      t('expense.delete_body_open'),
+      [
+        { text: t('common.cancel'), style: 'cancel' as const },
+        { text: t('expense.delete_expense'), style: 'destructive' as const, onPress: borrarGasto },
+      ],
     );
   }
 
-  /** Objetar mata la ronda: el gasto no se borra hasta que alguien pida de nuevo. */
-  function objetarBorrado() {
-    if (!currentUser || !expense) return;
-    hapticLight();
-    updateExpense(expense.id, {
-      deletionVotes: emitirVoto(expense, currentUser.id, 'object', syncedNow()),
-    });
-  }
-
-  /**
-   * Retirar MI pedido, que desde S8 es una acción PROPIA y no una objeción
-   * disfrazada: si otra persona sigue queriendo borrar, su ronda sigue viva.
-   *
-   * Lo que no cambió: frenar es AGREGAR un voto, nunca sacar los que hay. Ver
-   * `src/services/deletionVotes.ts`.
-   */
-  function retirarPedido() {
-    if (!currentUser || !expense) return;
-    hapticLight();
-    updateExpense(expense.id, {
-      deletionVotes: emitirVoto(expense, currentUser.id, 'withdraw', syncedNow()),
-    });
-  }
-
   const nombreDe = (uid: string) => (esYo(uid) ? t('common.you') : getUserName(uid));
-  const restante = ronda ? formatearRestante(msUntilDeletion(ronda, ahora)) : '';
-
-  // Restaurar y objetar frenan las dos, pero no son lo mismo y el cartel no
-  // puede contar una historia que no pasó (R-Q2 del PO).
-  const frenada = ronda !== null && ronda.status !== 'open';
-  const tituloDeRonda = !ronda ? '' :
-    ronda.status === 'restored' ? t('expense.delete_restored_title', { name: nombreDe(ronda.stoppedBy!) }) :
-    ronda.status === 'objected' ? t('expense.delete_objected_title', { name: nombreDe(ronda.stoppedBy!) }) :
-    t('expense.delete_pending_title');
-  const cuerpoDeRonda = !ronda ? '' :
-    ronda.status === 'restored' ? t('expense.delete_restored_body') :
-    ronda.status === 'objected' ? t('expense.delete_objected_body') :
-    t('expense.delete_pending_body', { name: nombreDe(ronda.requestedBy), time: restante });
 
   const myShare = splits.find(s => esYo(s.userId))?.amount ?? 0;
   const isPayer = esYo(expense.paidById);
@@ -483,57 +355,20 @@ export default function ExpenseDetailScreen() {
           />
         )}
 
-        {/* Estado de la solicitud de borrado. Decir QUIÉN lo pidió y CUÁNTO
-            falta es lo que hace accionable el aviso: "pendiente" a secas no le
-            dice a nadie si tiene que hacer algo ni cuándo. */}
-        {ronda && !expense.isDeleted && (
-          <InlineWarningBanner
-            icon={frenada ? 'hand-left-outline' : 'time-outline'}
-            tone={frenada ? 'neutral' : 'warning'}
-            title={tituloDeRonda}
-            body={cuerpoDeRonda}
-          >
-            {/* Quién pidió/objetó/restauró se muestra igual —el override del
-                creador se honra SIEMPRE (R3)—; lo que agrega la marca es si
-                esa firma cerró. Atribuir, no bloquear. */}
-            {votoDeLaRonda && isMarked(
-              marcaDeVoto[voteRefKey(expense.id, votoDeLaRonda)] ?? 'pendiente',
-            ) && (
-              <View style={{ marginTop: Spacing[2] }}>
-                <TrustMark label={t('trust.vote')} size="sm" />
-              </View>
-            )}
-          </InlineWarningBanner>
+        {/* Borrar. Va como fila de banda (T-107): borde a borde, sin relleno
+            ni radio, igual que las filas de Yo. El rojo queda sólo en el
+            ícono y el texto. T-186: cualquier miembro borra al instante, sin
+            ronda que abrir — sólo se muestra si el usuario puede borrar. */}
+        {!expense.isDeleted && currentUser && borradoDirecto && (
+          <Band style={{ marginBottom: Spacing[4] }}>
+            <BandRow onPress={handleRequestDelete} last accessibilityRole="button">
+              <Ionicons name="trash-outline" size={19} color={c.semantic.negative} />
+              <Text style={[Typography.bodyL, { flex: 1, color: c.semantic.negative, fontWeight: '600' }]}>
+                {t('expense.delete_expense')}
+              </Text>
+            </BandRow>
+          </Band>
         )}
-
-        {/* Acciones. Objetar y retirar el pedido NO son lo mismo: objetar frena
-            el borrado de todos, retirar sólo me saca a mí.
-            Van como fila de banda (T-107): borde a borde, sin relleno ni radio, igual que
-            las filas de Yo. El rojo queda sólo en el ícono y el texto — antes era una
-            píldora rellena que no pertenecía al sistema en ningún tema. Las tres
-            condiciones son excluyentes: a lo sumo hay una acción visible. */}
-        {!expense.isDeleted && currentUser && (() => {
-          const accion =
-            hayPedido && !yoPedi && !yoObjete
-              ? { onPress: objetarBorrado, icono: 'hand-left-outline' as const, texto: t('expense.object_delete'), color: c.brand.primary }
-            : hayPedido && yoPedi
-              ? { onPress: retirarPedido, icono: 'arrow-undo-outline' as const, texto: t('expense.withdraw_request'), color: c.textSecondary }
-            : !hayPedido
-              ? { onPress: handleRequestDelete, icono: 'trash-outline' as const,
-                  texto: borradoDirecto ? t('expense.delete_expense') : t('expense.request_delete'), color: c.semantic.negative }
-            : null;
-          if (!accion) return null;
-          return (
-            <Band style={{ marginBottom: Spacing[4] }}>
-              <BandRow onPress={accion.onPress} last accessibilityRole="button">
-                <Ionicons name={accion.icono} size={19} color={accion.color} />
-                <Text style={[Typography.bodyL, { flex: 1, color: accion.color, fontWeight: '600' }]}>
-                  {accion.texto}
-                </Text>
-              </BandRow>
-            </Band>
-          );
-        })()}
 
         {/* Comentarios. Con el mismo margen lateral que el resto del contenido: se
             pegaba a los bordes de la pantalla (PO 2026-09-13, T-111). */}

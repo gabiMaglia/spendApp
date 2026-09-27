@@ -6,9 +6,7 @@ import { calculateBalancesByCurrency } from '@/src/algorithms/calculateBalances'
 import { directedDebts, type DirectedDebt, type Transferencia } from '@/src/algorithms/directedDebts';
 import { simplifyDebts } from '@/src/algorithms/simplifyDebts';
 import { pagosQueCuentan } from '@/src/algorithms/settlementStatus';
-import { deletionRound } from '@/src/algorithms/deletionRound';
 import { contactosConHistorial } from '@/src/algorithms/historialConContacto';
-import { syncedNow } from '@/src/utils/syncedClock';
 import { idCanonico, mismaPersona } from './identityAlias';
 import { useGroupStore } from './groupStore';
 import { useExpenseStore } from './expenseStore';
@@ -314,7 +312,6 @@ export function useContactosConHistorial(currentUserId: string): Set<string> {
 
 export type ActivityKind =
   | { kind: 'expense_added';          expense: Expense; groupName: string }
-  | { kind: 'expense_delete_request'; expense: Expense; groupName: string; requestedByName: string }
   | { kind: 'payment_made';           payment: Payment; groupName: string }
   /**
    * Un gasto borrado. Aparece para que se pueda RESTAURAR: es la contraparte
@@ -372,11 +369,6 @@ export function useActivityFeed(currentUserId: string): ActivityKind[] {
 
     const events: (ActivityKind & { _ts: number })[] = [];
 
-    // Una sola lectura del reloj corregido para todo el feed: qué ronda está
-    // vigente depende de la hora (T-059), y dos gastos del mismo render no
-    // pueden contestar contra relojes distintos.
-    const ahora = syncedNow();
-
     for (const expense of expenses) {
       // `groupId === ''` es un movimiento PERSONAL (T-116): no vive en
       // `myGroupIds` porque no es de ningún grupo, y por eso necesita su
@@ -384,8 +376,7 @@ export function useActivityFeed(currentUserId: string): ActivityKind[] {
       if (expense.groupId !== '' && !myGroupIds.has(expense.groupId)) continue;
 
       // Lo borrado se muestra como tal y NO genera los demás eventos: un gasto
-      // que ya no existe no puede seguir figurando como "agregado" ni con una
-      // ronda de borrado abierta.
+      // que ya no existe no puede seguir figurando como "agregado".
       if (expense.isDeleted) {
         events.push({
           kind: 'expense_deleted',
@@ -398,34 +389,18 @@ export function useActivityFeed(currentUserId: string): ActivityKind[] {
         continue;
       }
 
-      // Solicitudes de borrado pendientes.
-      //
-      // Se lee la RONDA y no los votos sueltos: desde el merge por niveles
-      // (T-041 · S7) el conjunto se une, así que el pedido sigue ahí al lado de
-      // la objeción que lo frenó. Buscar "algún voto de borrado" le avisaría al
-      // usuario de un trámite que ya no va a pasar.
-      const ronda = deletionRound(expense, ahora);
-      if (ronda && ronda.status === 'open') {
-        events.push({
-          kind: 'expense_delete_request',
-          expense,
-          groupName: groupName(expense.groupId),
-          requestedByName: getUserName(ronda.requestedBy),
-          _ts: ronda.requestedAt,
-        });
-      }
-
-      // El gasto está vivo y su ronda terminó en un `restore`: alguien deshizo
-      // un borrado. Se fecha por `updatedAt` y no por la fecha del gasto, igual
-      // que su hermano `expense_deleted`: lo que se registra es CUÁNDO volvió.
-      // Si no, un gasto viejo restaurado hoy quedaría enterrado al fondo del
-      // feed y nadie se enteraría de que alguien lo devolvió al libro.
-      if (ronda && ronda.status === 'restored' && ronda.stoppedBy) {
+      // El gasto está vivo y trae `restoredById` (T-186, opción B): alguien
+      // deshizo un borrado. Se fecha por `updatedAt` y no por la fecha del
+      // gasto, igual que su hermano `expense_deleted`: lo que se registra es
+      // CUÁNDO volvió. Si no, un gasto viejo restaurado hoy quedaría enterrado
+      // al fondo del feed y nadie se enteraría de que alguien lo devolvió al
+      // libro.
+      if (expense.restoredById) {
         events.push({
           kind: 'expense_restored',
           expense,
           groupName: groupName(expense.groupId),
-          restoredByName: getUserName(ronda.stoppedBy),
+          restoredByName: getUserName(expense.restoredById),
           _ts: expense.updatedAt || expense.date,
         });
       }

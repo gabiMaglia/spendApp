@@ -10,7 +10,6 @@ import { useUserStore } from '@/src/store/userStore';
 import { useActivityFeed } from '@/src/store/selectors';
 import { TabHeader } from '@/src/components/TabHeader';
 import { useHeaderPadding, useLimiteContenido } from '@/src/components/CollapsibleHeader';
-import { syncedNow } from '@/src/utils/syncedClock';
 
 import { useActivityFilter } from '@/src/screens/activity/hooks/useActivityFilter';
 import { useActivitySections } from '@/src/screens/activity/hooks/useActivitySections';
@@ -32,14 +31,10 @@ export default function ActivityScreen() {
 
   const restaurar = useRestoreExpense(currentUser);
   const feed = useActivityFeed(currentUser?.id ?? '');
-  // T-155: redondeado al minuto — nada acá corre a precisión de ms (rondas de
-  // borrado de 72hs, agrupación por día) y así el valor queda estable dentro
-  // del mismo minuto, en vez de invalidar la memoización de cada render.
-  const ahora = Math.floor(syncedNow() / 60_000) * 60_000;
 
   const { query, setQuery, activeFilter, setActiveFilter, allGroupNames, filteredFeed } = useActivityFilter(feed);
   const { sections, todayNewCount } = useActivitySections(filteredFeed);
-  const trustFor = useActivityTrust(filteredFeed, ahora);
+  const trustFor = useActivityTrust(filteredFeed);
 
   // Sin 'bottom': la tab bar ya reserva el inset del sistema (_layout.tsx); contarlo acá dejaba una franja muerta entre el contenido y la barra.
   return (

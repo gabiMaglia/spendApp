@@ -19,7 +19,6 @@ import { recordPublish, publishFailures } from './publishHealth';
 import { noticeDeCaida } from './syncDownNotices';
 import { noticeDeReloj } from './clockNotice';
 import { estaPendienteDeDrenaje, limpiarPendienteDeDrenaje } from './pendingDrain';
-import { resolvePendingDeletions } from '@/src/services/resolveDeletions';
 import { applyApprovedLeaves } from '@/src/services/applyLeave';
 import { deriveInviteTopic, type GroupInvite } from './groupInvite';
 import { activeInvites, processInvite, processAllInvites } from './inviteEngine';
@@ -303,15 +302,11 @@ export async function drainNow(groupId: string): Promise<number> {
      */
     if (r.completo) limpiarPendienteDeDrenaje(groupId);
 
-    // Los votos de borrado viajan como cualquier campo: lo que acaba de llegar
-    // puede completar una ronda que hasta recién figuraba pendiente.
     if (r.applied > 0) {
-      resolvePendingDeletions();
       applyApprovedLeaves();
     }
 
-    // T-010. Va DESPUÉS de resolver borrados: una ronda que acaba de vencer ya
-    // no es un pedido pendiente y no tiene por qué avisarse.
+    // T-010.
     // `antes` siempre está seteado acá: `r.applied > 0` sólo es posible si
     // `drainGroup` aplicó al menos una rebanada, y eso no pasa sin haber
     // llamado antes a `antesDeAplicar` (ver el comentario en `relaySync.ts`).

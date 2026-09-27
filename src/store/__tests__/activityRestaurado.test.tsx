@@ -6,17 +6,18 @@ import { useGroupStore } from '../groupStore';
 import { useExpenseStore } from '../expenseStore';
 import { usePaymentStore } from '../paymentStore';
 import { useUserStore } from '../userStore';
-import { emitirVoto } from '@/src/services/deletionVotes';
-import type { Expense, Group } from '@/src/types/models';
+import { useAuthStore } from '../authStore';
+import { useRestoreExpense } from '@/src/screens/activity/hooks/useRestoreExpense';
+import type { Expense, Group, User } from '@/src/types/models';
 
 /**
- * **Restaurar cuenta lo que pasó, no otra cosa** (T-041 · S8, R-Q2 del PO).
+ * **Restaurar cuenta lo que pasó, no otra cosa** (T-041 · S8, R-Q2 del PO;
+ * T-186: sin ronda ni voto, el evento sale de `restoredById`, el campo del
+ * «resto» sin firma que T-186 (opción B) agrega para esto).
  *
- * Antes de S8 restaurar y objetar escribían el mismo voto, así que el que
- * devolvía un gasto al libro figuraba como si se hubiera opuesto a algo. El
- * principio del PO para todo T-041 es «prevenir no es la defensa; ver y poder
- * deshacer, sí» — y un feed que cuenta una historia que no pasó rompe la mitad
- * «ver» justo en el evento donde más importa.
+ * El principio del PO para todo T-041 es «prevenir no es la defensa; ver y
+ * poder deshacer, sí» — y un feed que cuenta una historia que no pasó rompe
+ * la mitad «ver» justo en el evento donde más importa.
  */
 
 jest.mock('@/src/sync/relayEngine', () => ({ schedulePublish: jest.fn(), deviceId: () => 'dev' }));
@@ -27,14 +28,14 @@ const T0 = Date.UTC(2026, 8, 1, 12);
 const grupo = (): Group => ({
   id: 'g1', name: 'Viaje', memberIds: ['ana', 'beto'], currency: 'ARS',
   miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
-  createdAt: 0, createdById: 'ana', deletionVotes: [], updatedAt: 0, isDeleted: false,
+  createdAt: 0, createdById: 'ana', updatedAt: 0, isDeleted: false,
 } as Group);
 
 const gasto = (over: Partial<Expense> = {}): Expense => ({
   id: 'e1', groupId: 'g1', description: 'Nafta', amount: 1_000_000, currency: 'ARS',
   paidById: 'ana', splits: [], splitMode: 'equal', category: 'transport',
   date: 5_000, createdAt: 0, createdById: 'ana',
-  deletionVotes: [], updatedAt: 0, isDeleted: false, ...over,
+  updatedAt: 0, isDeleted: false, ...over,
 } as Expense);
 
 function feed(): ReturnType<typeof useActivityFeed> {
@@ -49,24 +50,18 @@ const kinds = () => feed().map(e => e.kind);
 beforeEach(() => {
   useGroupStore.setState({ groups: [grupo()] });
   usePaymentStore.setState({ payments: [] });
-  useUserStore.setState({ users: [{ id: 'beto', name: 'Beto' }] as never });
+  useUserStore.setState({ users: [{ id: 'ana', name: 'Ana' }, { id: 'beto', name: 'Beto' }] as never });
 });
 
 describe('un gasto restaurado', () => {
-  const borrado = gasto({
-    isDeleted: true, updatedAt: T0,
-    deletionVotes: emitirVoto(gasto(), 'ana', 'force', T0),
-  });
+  const borrado = gasto({ isDeleted: true, deletedById: 'ana', updatedAt: T0 });
   const restaurado = (): Expense => ({
-    ...borrado, isDeleted: false, updatedAt: T0 + 1_000,
-    deletionVotes: emitirVoto(borrado, 'beto', 'restore', T0 + 1_000),
+    ...borrado, isDeleted: false, restoredById: 'beto', updatedAt: T0 + 1_000,
   });
 
-  it('aparece como RESTAURADO, no como objetado ni como pedido de borrado', () => {
+  it('aparece como RESTAURADO', () => {
     useExpenseStore.setState({ expenses: [restaurado()] });
-
     expect(kinds()).toContain('expense_restored');
-    expect(kinds()).not.toContain('expense_delete_request');
   });
 
   it('dice quién lo restauró', () => {
@@ -96,24 +91,53 @@ describe('un gasto restaurado', () => {
   });
 });
 
-describe('una objeción NO es una restauración', () => {
-  it('objetar un pedido no genera el evento de restaurado', () => {
-    const pedido = gasto({ deletionVotes: emitirVoto(gasto(), 'beto', 'delete', T0) });
-    const objetado = { ...pedido, deletionVotes: emitirVoto(pedido, 'ana', 'object', T0 + 1_000) };
-    useExpenseStore.setState({ expenses: [objetado] });
+describe('un gasto borrado sin restaurar', () => {
+  it('no genera el evento de restaurado', () => {
+    const borrado = gasto({ isDeleted: true, deletedById: 'beto', updatedAt: T0 });
+    useExpenseStore.setState({ expenses: [borrado] });
 
+    expect(kinds()).toContain('expense_deleted');
     expect(kinds()).not.toContain('expense_restored');
-    expect(kinds()).not.toContain('expense_delete_request');
   });
 });
 
-describe('un pedido vivo sigue avisando', () => {
-  it('el pedido de borrado abierto no se confunde con nada de esto', () => {
-    useExpenseStore.setState({
-      expenses: [gasto({ deletionVotes: emitirVoto(gasto(), 'beto', 'delete', T0) })],
-    });
+/**
+ * T-186 · Task 1 (test nuevo del plan): la integración de punta a punta —
+ * cualquier miembro borra al instante desde `updateExpense` y otro miembro
+ * restaura con `useRestoreExpense`, sin ronda ni voto — y Actividad muestra
+ * quién hizo cada cosa.
+ */
+describe('T-186: cualquier miembro borra al instante, otro restaura al instante', () => {
+  beforeEach(() => {
+    useExpenseStore.setState({ expenses: [gasto()] });
+  });
 
-    expect(kinds()).toContain('expense_delete_request');
-    expect(kinds()).not.toContain('expense_restored');
+  it('Beto borra el gasto de Ana, y Actividad lo muestra borrado', () => {
+    useExpenseStore.getState().updateExpense('e1', { isDeleted: true, deletedById: 'beto' });
+
+    const gastoBorrado = useExpenseStore.getState().expenses[0]!;
+    expect(gastoBorrado.isDeleted).toBe(true);
+    expect(gastoBorrado.deletedById).toBe('beto');
+    expect(kinds()).toContain('expense_deleted');
+  });
+
+  it('Ana restaura lo que borró Beto, y Actividad muestra que fue Ana', () => {
+    useExpenseStore.getState().updateExpense('e1', { isDeleted: true, deletedById: 'beto' });
+
+    useAuthStore.setState({ currentUser: { id: 'ana', name: 'Ana' } as User });
+    const restaurar = (id: string) => {
+      let fn: (expenseId: string) => void = () => {};
+      function Probe() { fn = useRestoreExpense({ id: 'ana', name: 'Ana' } as User); return <Text>x</Text>; }
+      render(<Probe />);
+      fn(id);
+    };
+    restaurar('e1');
+
+    const restaurado = useExpenseStore.getState().expenses[0]!;
+    expect(restaurado.isDeleted).toBe(false);
+    expect(restaurado.restoredById).toBe('ana');
+
+    const ev = feed().find(e => e.kind === 'expense_restored');
+    expect(ev).toMatchObject({ restoredByName: 'Ana' });
   });
 });

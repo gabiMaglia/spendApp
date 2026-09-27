@@ -12,7 +12,7 @@ function group(over: Partial<Group> = {}): Group {
     id: 'g1', name: 'Viaje', memberIds, currency: 'ARS',
     // T-182: `miembros` es la fuente de verdad de `memberIds` (derivado).
     miembros: Object.fromEntries(memberIds.map((uid, i) => [uid, { estado: 'in' as const, at: i }])),
-    createdAt: 0, createdById: ADMIN, deletionVotes: [],
+    createdAt: 0, createdById: ADMIN,
     updatedAt: 1_000, isDeleted: false, ...over,
   } as Group;
 }
@@ -93,34 +93,5 @@ describe('eliminar y salir de un grupo', () => {
 
       expect(useGroupStore.getState().getById('g1')!.updatedAt).toBeGreaterThan(1_000);
     });
-  });
-});
-
-describe('el modo de borrado no se afloja por sync', () => {
-  beforeEach(() => {
-    createSecureStorage('groups').clearAll();
-    useAuthStore.setState({ currentUser: { id: ADMIN } as User });
-    useGroupStore.setState({ groups: [], isLoading: false });
-  });
-
-  // El Group viaja ENTERO en el sobre y el merge es LWW: un miembro que manda
-  // el grupo con `deletionMode: 'open'` y un `updatedAt` mayor ganaba, y desde
-  // ahí borraba gastos ajenos al instante. Vaciaba la regla #2 por el sync.
-  it('un miembro NO puede pasar mi grupo de consensuado a libre', () => {
-    useGroupStore.getState().addGroup(group({ deletionMode: 'consensus', updatedAt: 1_000 }));
-
-    useGroupStore.getState().mergeGroups([
-      group({ deletionMode: 'open', name: 'Viaje editado', updatedAt: 9_999 }),
-    ]);
-
-    const g = useGroupStore.getState().getById('g1')!;
-    expect(g.deletionMode).toBe('consensus');
-    // El resto del merge sigue funcionando: sólo el modo queda congelado.
-    expect(g.name).toBe('Viaje editado');
-  });
-
-  it('un grupo que llega por primera vez SÍ trae su modo', () => {
-    useGroupStore.getState().mergeGroups([group({ id: 'g2', deletionMode: 'open' })]);
-    expect(useGroupStore.getState().getById('g2')!.deletionMode).toBe('open');
   });
 });

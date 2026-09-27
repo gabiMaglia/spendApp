@@ -19,7 +19,7 @@ function group(id: string, updatedAt: number, over: Partial<Group> = {}): Group 
   return {
     id, updatedAt, isDeleted: false, name: `G-${id}`, memberIds: ['u1'],
     miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
-    currency: 'ARS', createdAt: 0, createdById: 'u1', deletionVotes: [], ...over,
+    currency: 'ARS', createdAt: 0, createdById: 'u1', ...over,
   };
 }
 function expense(id: string, updatedAt: number, over: Partial<Expense> = {}): Expense {
@@ -28,7 +28,7 @@ function expense(id: string, updatedAt: number, over: Partial<Expense> = {}): Ex
     amount: 1000, currency: 'ARS', paidById: 'u1',
     splits: [{ userId: 'u1', amount: 1000, isPaid: false }],
     splitMode: 'equal', category: 'other', date: 0, createdAt: 0,
-    createdById: 'u1', deletionVotes: [], ...over,
+    createdById: 'u1', ...over,
   };
 }
 function payment(id: string, updatedAt: number, over: Partial<Payment> = {}): Payment {

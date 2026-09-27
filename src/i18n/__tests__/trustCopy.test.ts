@@ -26,7 +26,7 @@ import pt from '../locales/pt.json';
  */
 
 const IDIOMAS = { es, en, pt } as Record<string, { trust: Record<string, string> }>;
-const CLAVES = ['badge', 'expense', 'payment', 'vote'];
+const CLAVES = ['badge', 'expense', 'payment'];
 
 /**
  * Palabras que afirman más de lo que T-041 puede probar, o que acusan.
@@ -42,7 +42,7 @@ const ACUSATORIAS = [
 describe.each(Object.keys(IDIOMAS))('el copy de la marca en %s', (lang) => {
   const trust = IDIOMAS[lang]!.trust;
 
-  it('tiene las cuatro claves', () => {
+  it('tiene las tres claves', () => {
     expect(Object.keys(trust).sort()).toEqual([...CLAVES].sort());
   });
 
@@ -58,7 +58,7 @@ describe.each(Object.keys(IDIOMAS))('el copy de la marca en %s', (lang) => {
    * la diferencia entre falta de información y una acusación, y es la única
    * afirmación que las tres causas de la marca sostienen a la vez.
    */
-  it.each(['expense', 'payment', 'vote'])('«%s» habla de verificar, no de culpar', (clave) => {
+  it.each(['expense', 'payment'])('«%s» habla de verificar, no de culpar', (clave) => {
     expect(trust[clave]!.toLowerCase()).toMatch(/verif/);
   });
 

@@ -107,8 +107,6 @@ export function traspasarGrupo(grupoViejo: Group, description: string, createdBy
     updatedAt: ahora,
     isDeleted: false,
     createdById,
-    deletionVotes: [],
-    deletionMode: grupoViejo.deletionMode,
     defaultSplitMode: grupoViejo.defaultSplitMode,
   };
 

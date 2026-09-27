@@ -1,10 +1,10 @@
 import { readdirSync, readFileSync, statSync } from 'fs';
 import { join } from 'path';
 import {
-  estadoDelSaldado, requiereConfirmacion, pagosQueCuentan, saldadosPendientes,
+  estadoDelSaldado, requiereConfirmacion, pagosQueCuentan,
   type ContextoDeAcuse,
 } from '@/src/algorithms/settlementStatus';
-import type { Group, Payment, SettlementConfirmation } from '@/src/types/models';
+import type { Group, Payment } from '@/src/types/models';
 
 /** Ana le paga a Beto. Lo declara Ana, o sea el que PAGA. */
 const pago = (over: Partial<Payment> = {}): Payment => ({
@@ -13,16 +13,15 @@ const pago = (over: Partial<Payment> = {}): Payment => ({
   createdById: 'ana', updatedAt: 0, isDeleted: false, ...over,
 } as Payment);
 
-const grupo = (mode: 'consensus' | 'open' = 'consensus'): Group => ({
+// T-186: el modo «con acuerdo» se sacó — ya no hay `deletionMode` en Group,
+// así que este parámetro quedó sin efecto (ningún grupo pide acuse). Se
+// mantiene la firma para no tocar cada llamador; Task 2 de la extracción
+// termina de podar este archivo.
+const grupo = (_mode: 'consensus' | 'open' = 'consensus'): Group => ({
   id: 'g1', name: 'Viaje', memberIds: ['ana', 'beto'], currency: 'ARS',
   miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
-  deletionMode: mode, createdAt: 0, createdById: 'ana',
-  deletionVotes: [], updatedAt: 0, isDeleted: false,
+  createdAt: 0, createdById: 'ana', updatedAt: 0, isDeleted: false,
 } as Group);
-
-const acuse = (o: Partial<SettlementConfirmation> = {}): SettlementConfirmation => ({
-  userId: 'beto', confirmedAt: 1_000, action: 'confirm', ...o,
-});
 
 /**
  * Estos tests son sobre la DERIVACIÓN del estado, no sobre la firma (eso es
@@ -35,12 +34,6 @@ describe('cuándo hace falta el acuse', () => {
   it('en un grupo abierto no hace falta: saldar nunca necesitó consenso', () => {
     expect(requiereConfirmacion(pago(), grupo('open'))).toBe(false);
     expect(estadoDelSaldado(pago(), grupo('open'), CONFIA)).toBe('efectivo');
-  });
-
-  // Un grupo sin `deletionMode` es anterior a T-053. No se le cambia la regla
-  // por debajo: si nunca eligió consenso, no se le impone.
-  it('un grupo sin modo declarado tampoco lo pide', () => {
-    expect(requiereConfirmacion(pago(), { ...grupo(), deletionMode: undefined })).toBe(false);
   });
 
   it('sin grupo no se inventa una regla', () => {
@@ -72,75 +65,24 @@ describe('cuándo hace falta el acuse', () => {
     expect(requiereConfirmacion(p, grupo(), { nucleoDe: () => 'no_verificable' })).toBe(false);
     expect(estadoDelSaldado(p, grupo(), CONFIA)).toBe('efectivo');
   });
-
-  it('un `expel:` CON firma (no es el derivado real) sigue pidiendo acuse como cualquier pago', () => {
-    const p = pago({ id: 'expel:g1:beto:1000:0', createdById: 'ana', toUserId: 'beto', k: 'aa'.repeat(32), s: 'bb'.repeat(64) });
-    expect(requiereConfirmacion(p, grupo(), { nucleoDe: () => 'valida' })).toBe(true);
-  });
 });
 
-describe('el estado que se deriva de los acuses', () => {
-  it('declarado por el que paga y sin acuse: pendiente', () => {
-    expect(estadoDelSaldado(pago(), grupo(), CONFIA)).toBe('pendiente');
-    expect(estadoDelSaldado(pago({ confirmations: [] }), grupo(), CONFIA)).toBe('pendiente');
-  });
-
-  it('con el acuse de quien cobra: efectivo', () => {
-    expect(estadoDelSaldado(pago({ confirmations: [acuse()] }), grupo(), CONFIA)).toBe('efectivo');
-  });
-
-  it('rechazado por quien cobra: rechazado', () => {
-    const p = pago({ confirmations: [acuse({ action: 'reject' })] });
-    expect(estadoDelSaldado(p, grupo(), CONFIA)).toBe('rechazado');
-  });
-
-  // Un tercero no puede dar por recibida una plata que no recibió él. Sin esto,
-  // cualquier miembro del grupo cierra una deuda ajena.
-  it('el acuse de un tercero no vale', () => {
-    const p = pago({ confirmations: [acuse({ userId: 'ana' }), acuse({ userId: 'caro' })] });
-    expect(estadoDelSaldado(p, grupo(), CONFIA)).toBe('pendiente');
-  });
-
-  // El orden del array es el resultado de una unión entre teléfonos y no
-  // significa nada: manda `confirmedAt`.
-  it('manda el acuse más nuevo, no el último del array', () => {
-    const p = pago({ confirmations: [
-      acuse({ action: 'reject', confirmedAt: 5_000 }),
-      acuse({ action: 'confirm', confirmedAt: 1_000 }),
-    ] });
-    expect(estadoDelSaldado(p, grupo(), CONFIA)).toBe('rechazado');
-  });
-
-  it('y también al revés: un confirm posterior levanta un rechazo', () => {
-    const p = pago({ confirmations: [
-      acuse({ action: 'reject', confirmedAt: 1_000 }),
-      acuse({ action: 'confirm', confirmedAt: 5_000 }),
-    ] });
-    expect(estadoDelSaldado(p, grupo(), CONFIA)).toBe('efectivo');
-  });
-
-  // Ante un empate conviene equivocarse hacia la deuda viva y no hacia una
-  // plata dada por recibida: lo segundo hace perder plata de verdad.
-  it('empatados en el tiempo, gana el rechazo', () => {
-    const p = pago({ confirmations: [
-      acuse({ action: 'confirm', confirmedAt: 1_000 }),
-      acuse({ action: 'reject',  confirmedAt: 1_000 }),
-    ] });
-    expect(estadoDelSaldado(p, grupo(), CONFIA)).toBe('rechazado');
+// T-186 (Task 1): sin `deletionMode`, `requiereConfirmacion` quedó inerte —
+// siempre `false` — así que todo saldado declarado es `efectivo` de una.
+// Las ramas `pendiente`/`rechazado` de `estadoDelSaldado` y `saldadosPendientes`
+// son código muerto hasta que el Task 2 de esta extracción borre el acuse
+// entero (`settlementCore`/`settlementConfirm`/`SettlementAcuse`/etc.) y
+// reduzca este archivo a `pagosQueCuentan`. Se prueba acá la superficie que
+// sigue siendo verdad.
+describe('el estado del saldado, ya sin acuse', () => {
+  it('declarado por el que paga: efectivo de una', () => {
+    expect(estadoDelSaldado(pago(), grupo(), CONFIA)).toBe('efectivo');
   });
 });
 
 describe('qué cuenta para el balance', () => {
-  // D1: mientras espera el acuse, quien ya transfirió la plata NO queda de
-  // deudor. Es la mitad del pedido del PO; la otra mitad es que tampoco figure
-  // como saldado, y eso lo resuelve la UI con `saldadosPendientes`.
-  it('un saldado pendiente cuenta igual que uno efectivo', () => {
+  it('un saldado declarado cuenta', () => {
     expect(pagosQueCuentan([pago()], grupo(), CONFIA)).toHaveLength(1);
-  });
-
-  it('un saldado rechazado NO cuenta: la deuda vuelve', () => {
-    const p = pago({ confirmations: [acuse({ action: 'reject' })] });
-    expect(pagosQueCuentan([p], grupo(), CONFIA)).toHaveLength(0);
   });
 
   it('no se lleva pagos de otro grupo', () => {
@@ -149,11 +91,6 @@ describe('qué cuenta para el balance', () => {
 
   it('sin grupo no cuenta nada', () => {
     expect(pagosQueCuentan([pago()], undefined)).toHaveLength(0);
-  });
-
-  it('los pendientes se pueden listar aparte, y un borrado no está', () => {
-    const vivos = saldadosPendientes([pago(), pago({ id: 'p2', isDeleted: true })], grupo(), CONFIA);
-    expect(vivos.map(p => p.id)).toEqual(['p1']);
   });
 });
 

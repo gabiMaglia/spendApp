@@ -9,7 +9,7 @@ function makeGroup(over: Partial<Group> & Pick<Group, 'id' | 'memberIds'>): Grou
     currency: 'ARS',
     createdAt: 0,
     createdById: over.memberIds[0],
-    deletionVotes: [],
+
     updatedAt: 0,
     isDeleted: false,
     // T-182: placeholder de tipo (fixture no ejercita el roster).
@@ -32,7 +32,7 @@ function makeExpense(
     date: 0,
     createdAt: 0,
     createdById: over.paidById,
-    deletionVotes: [],
+
     ...over,
   };
 }

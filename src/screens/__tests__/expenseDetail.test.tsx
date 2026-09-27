@@ -9,7 +9,6 @@ import { useCommentStore } from '@/src/store/commentStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useArchiveStore } from '@/src/store/archiveStore';
-import { hasRequested } from '@/src/algorithms/deletionRound';
 import { toHex } from '@/src/sync/hexBytes';
 import { signCore } from '@/src/sync/recordSign';
 import { rememberAuthorKey, forgetAuthorKeys } from '@/src/sync/authorKeys';
@@ -34,7 +33,7 @@ const gasto = (over: Partial<Expense> = {}): Expense => ({
   paidById: 'ua', splitMode: 'equal',
   splits: [{ userId: 'ua', amount: 10000 }, { userId: 'ub', amount: 10000 }],
   memberIds: ['ua', 'ub'], category: 'food', date: 0, createdAt: 0,
-  createdById: 'ua', deletionVotes: [], updatedAt: 0, isDeleted: false, ...over,
+  createdById: 'ua', updatedAt: 0, isDeleted: false, ...over,
 } as Expense);
 
 const comentario = (over: Partial<ExpenseComment> = {}): ExpenseComment => ({
@@ -76,14 +75,6 @@ describe('detalle del gasto', () => {
     expect(render(<ExpenseDetailScreen />).queryByText('Borrado')).toBeNull();
   });
 
-  // Un registro que llega por sync puede venir sin campos que acá se recorren.
-  // Que falte un dato no puede impedir ABRIR el gasto: sin la pantalla no hay
-  // manera de verlo ni de corregirlo.
-  it('abre aunque el gasto llegue sin deletionVotes', () => {
-    useExpenseStore.setState({ expenses: [gasto({ deletionVotes: undefined as any })] });
-    expect(() => render(<ExpenseDetailScreen />)).not.toThrow();
-  });
-
   it('abre aunque el gasto llegue sin splits', () => {
     useExpenseStore.setState({ expenses: [gasto({ splits: undefined as any })] });
     expect(() => render(<ExpenseDetailScreen />)).not.toThrow();
@@ -102,120 +93,18 @@ describe('detalle del gasto', () => {
   });
 });
 
-describe('borrado consensuado', () => {
-  const pedido = (userId: string, at = Date.now()) =>
-    ({ userId, votedAt: at, action: 'delete' as const });
-
-  beforeEach(() => {
-    useUserStore.setState({ users: [
-      { id: 'ua', name: 'Ana' } as User,
-      { id: 'ub', name: 'Beto' } as User,
-    ]});
-    // El diálogo no se puede tocar en un test: se dispara la primera opción con
-    // acción, que es "pedir eliminación" (la que abre la ronda).
-    jest.spyOn(Alert, 'alert').mockImplementation((_t, _m, botones) => {
-      (botones as { onPress?: () => void }[] | undefined)?.find(b => b.onPress)?.onPress?.();
-    });
-  });
-
-  afterEach(() => { jest.restoreAllMocks(); });
-
-  it('sin solicitud, el creador ve "eliminar gasto"', () => {
-    useExpenseStore.setState({ expenses: [gasto({ createdById: 'ua' })] });
-    expect(render(<ExpenseDetailScreen />).getByText('expense.delete_expense')).toBeTruthy();
-  });
-
-  it('sin solicitud, quien no es creador ve "pedir eliminación"', () => {
-    useExpenseStore.setState({ expenses: [gasto({ createdById: 'ub' })] });
-    expect(render(<ExpenseDetailScreen />).getByText('expense.request_delete')).toBeTruthy();
-  });
-
-  // Un aviso que no dice quién ni cuándo no le sirve a nadie para decidir.
-  it('el aviso dice quién pidió y cuánto falta', () => {
-    useExpenseStore.setState({ expenses: [gasto({
-      createdById: 'ua', deletionVotes: [pedido('ub')],
-    })] });
-
-    const { getByText } = render(<ExpenseDetailScreen />);
-    const aviso = getByText(/delete_pending_body/);
-
-    expect(aviso.props.children).toContain('Beto');
-  });
-
-  it('con solicitud ajena, puedo objetar', () => {
-    useExpenseStore.setState({ expenses: [gasto({
-      createdById: 'ua', deletionVotes: [pedido('ub')],
-    })] });
-
-    const { getByText } = render(<ExpenseDetailScreen />);
-    fireEvent.press(getByText('expense.object_delete'));
-
-    const votos = useExpenseStore.getState().expenses[0]!.deletionVotes;
-    expect(votos.find(v => v.userId === 'ua')?.action).toBe('cancel');
-  });
-
-  // Objetar frena a todos; retirar sólo me saca a mí. No son lo mismo y no se
-  // pueden ofrecer indistintamente.
-  //
-  // Lo que cambió con el merge por niveles (T-041 · S7): retirar ya no BORRA mi
-  // voto del array —una ausencia vuelve del primer peer que sincronice, con su
-  // `votedAt` original y el plazo vencido— sino que emite el mío. Lo que el
-  // test exige sigue siendo lo mismo: después de retirar, mi pedido no está.
-  it('si el pedido es MÍO, la acción es retirarlo, no objetar', () => {
-    useExpenseStore.setState({ expenses: [gasto({
-      createdById: 'ua', deletionVotes: [pedido('ua')],
-    })] });
-
-    const { getByText, queryByText } = render(<ExpenseDetailScreen />);
-
-    expect(queryByText('expense.object_delete')).toBeNull();
-    fireEvent.press(getByText('expense.withdraw_request'));
-
-    const votos = useExpenseStore.getState().expenses[0]!.deletionVotes;
-    expect(votos.filter(v => v.action === 'delete')).toHaveLength(0);
-    expect(hasRequested(useExpenseStore.getState().expenses[0]!, 'ua', Date.now())).toBe(false);
-  });
-
-  it('ya objetado, se avisa y no se ofrece objetar de nuevo', () => {
-    useExpenseStore.setState({ expenses: [gasto({
-      createdById: 'ub',
-      deletionVotes: [pedido('ub'), { userId: 'ua', votedAt: Date.now(), action: 'cancel' }],
-    })] });
-
-    const { getByText, queryByText } = render(<ExpenseDetailScreen />);
-
-    expect(getByText(/delete_objected_title/)).toBeTruthy();
-    expect(queryByText('expense.object_delete')).toBeNull();
-  });
-
-  // Con una objeción viva, volver a pedir tiene que abrir una ronda LIMPIA: si
-  // se acumularan, el cancel viejo bloquearía el pedido nuevo para siempre.
-  it('pedir de nuevo después de una objeción limpia los votos viejos', () => {
-    useExpenseStore.setState({ expenses: [gasto({
-      createdById: 'ua',
-      deletionVotes: [pedido('ub'), { userId: 'ua', votedAt: Date.now(), action: 'cancel' }],
-    })] });
-
-    const { getByText } = render(<ExpenseDetailScreen />);
-    fireEvent.press(getByText('expense.delete_expense'));
-
-    // El Alert está mockeado: se dispara la opción de pedir directamente.
-    const votos = useExpenseStore.getState().expenses[0]!.deletionVotes;
-    expect(votos.every(v => v.action === 'delete')).toBe(true);
-    expect(votos).toHaveLength(1);
-  });
-});
-
-// T-186 · Task 0: el borrado deja quién borró (`deletedById`), campo del
-// «resto» sin firma — la base de la atribución en Actividad cuando se saque
-// el voto de borrado. Coexiste todavía con los votos.
-describe('T-186 · Task 0: deletedById', () => {
-  function grupoLibre(over: Partial<Group> = {}): Group {
+/**
+ * T-186: se sacó el modo «con acuerdo» — cualquier miembro del grupo borra al
+ * instante, sin ronda ni objeción, con un solo diálogo de confirmación. Queda
+ * `deletedById` (campo del «resto», sin firma) para que Actividad muestre
+ * quién borró.
+ */
+describe('borrado libre (T-186)', () => {
+  function grupo(over: Partial<Group> = {}): Group {
     return {
       id: 'g1', name: 'Viaje', memberIds: ['ua', 'ub'], currency: 'ARS',
-      miembros: {}, deletionMode: 'open',
-      createdAt: 1_000, updatedAt: 1_000, isDeleted: false,
-      createdById: 'ua', deletionVotes: [],
+      miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
+      createdAt: 1_000, updatedAt: 1_000, isDeleted: false, createdById: 'ua',
       ...over,
     };
   }
@@ -225,7 +114,8 @@ describe('T-186 · Task 0: deletedById', () => {
       { id: 'ua', name: 'Ana' } as User,
       { id: 'ub', name: 'Beto' } as User,
     ]});
-    useGroupStore.setState({ groups: [grupoLibre()] });
+    useGroupStore.setState({ groups: [grupo()] });
+    // El diálogo no se puede tocar en un test: se dispara la opción con acción.
     jest.spyOn(Alert, 'alert').mockImplementation((_t, _m, botones) => {
       (botones as { onPress?: () => void }[] | undefined)?.find(b => b.onPress)?.onPress?.();
     });
@@ -233,9 +123,13 @@ describe('T-186 · Task 0: deletedById', () => {
 
   afterEach(() => { jest.restoreAllMocks(); });
 
-  it('al borrar en un grupo libre, queda deletedById = quien borró', () => {
-    useExpenseStore.setState({ expenses: [gasto({ createdById: 'ub' })] });
+  it('el creador ve "eliminar gasto" y borra al instante', () => {
+    useExpenseStore.setState({ expenses: [gasto({ createdById: 'ua' })] });
+    expect(render(<ExpenseDetailScreen />).getByText('expense.delete_expense')).toBeTruthy();
+  });
 
+  it('quien NO es creador —pero es miembro del grupo— también borra al instante, y queda deletedById', () => {
+    useExpenseStore.setState({ expenses: [gasto({ createdById: 'ub' })] });
     const { getByText } = render(<ExpenseDetailScreen />);
     fireEvent.press(getByText('expense.delete_expense'));
 
@@ -243,64 +137,11 @@ describe('T-186 · Task 0: deletedById', () => {
     expect(g.isDeleted).toBe(true);
     expect(g.deletedById).toBe('ua');
   });
-});
 
-/**
- * T-170 · D-1: la opción de forzar el borrado tiene que desaparecer cuando la
- * autoría está en disputa DE VERDAD (firma que verifica, no un id inyectado —
- * `src/sync/autoriaTrust.ts`). Antes de este fix, `enDisputa` no tenía
- * consumidor en esta pantalla: Mallory forzaba igual (T-170-verifier.md, D1).
- */
-describe('T-170 · D-1: "Forzar" desaparece con autoría en disputa (verificada)', () => {
-  const PRIV_UA = toHex(new Uint8Array(32).fill(1));
-  const PUB_UA = toHex(ed25519.getPublicKey(new Uint8Array(32).fill(1)));
-  const PRIV_MALLORY = toHex(new Uint8Array(32).fill(2));
-  const PUB_MALLORY = toHex(ed25519.getPublicKey(new Uint8Array(32).fill(2)));
-
-  const nucleoBase = {
-    id: 'e1', groupId: 'g1', description: 'Carne', amount: 20000, currency: 'ARS', paidById: 'ua',
-    splits: [{ userId: 'ua', amount: 10000 }, { userId: 'ub', amount: 10000 }],
-    splitMode: 'equal', category: 'food', date: 0, createdAt: 0, createdById: 'ua', rev: 1,
-  };
-
-  beforeEach(() => {
-    useUserStore.setState({ users: [{ id: 'ua', name: 'Ana' } as User, { id: 'ub', name: 'Beto' } as User] });
-  });
-
-  afterEach(() => { jest.restoreAllMocks(); forgetAuthorKeys(); });
-
-  it('el creador NO ve "Forzar" cuando Mallory re-estampó el núcleo y su firma verifica', () => {
-    rememberAuthorKey('ua', PUB_UA);
-    rememberAuthorKey('mallory', PUB_MALLORY);
-
-    const nucleoUa = { ...nucleoBase, ...signCore('expense', nucleoBase as never, PRIV_UA) };
-    const nucleoMallory = { ...nucleoBase, createdById: 'mallory', rev: 2 };
-    const firmadoPorMallory = { ...nucleoMallory, ...signCore('expense', nucleoMallory as never, PRIV_MALLORY) };
-
-    useExpenseStore.setState({ expenses: [gasto({
-      ...nucleoUa, createdById: 'ua', autoriaDisputada: [firmadoPorMallory as never],
-    } as unknown as Partial<Expense>)] });
-
-    const alertMock = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
-    const { getByText } = render(<ExpenseDetailScreen />);
-    fireEvent.press(getByText('expense.delete_expense'));
-
-    const opciones = alertMock.mock.calls[0]![2] as { text: string }[];
-    expect(opciones.some(o => o.text === 'expense.delete_force')).toBe(false);
-    expect(opciones.some(o => o.text === 'expense.delete_request')).toBe(true);
-  });
-
-  it('SIN disputa registrada, el creador sigue viendo "Forzar" (no regresiona)', () => {
-    rememberAuthorKey('ua', PUB_UA);
-    const nucleoUa = { ...nucleoBase, ...signCore('expense', nucleoBase as never, PRIV_UA) };
-    useExpenseStore.setState({ expenses: [gasto({ ...nucleoUa, createdById: 'ua' } as unknown as Partial<Expense>)] });
-
-    const alertMock = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
-    const { getByText } = render(<ExpenseDetailScreen />);
-    fireEvent.press(getByText('expense.delete_expense'));
-
-    const opciones = alertMock.mock.calls[0]![2] as { text: string }[];
-    expect(opciones.some(o => o.text === 'expense.delete_force')).toBe(true);
+  it('quien NO es miembro del grupo no ve la acción de borrar', () => {
+    useExpenseStore.setState({ expenses: [gasto({ createdById: 'ub' })] });
+    useGroupStore.setState({ groups: [grupo({ memberIds: ['ub'] })] }); // 'ua' ya no está
+    expect(render(<ExpenseDetailScreen />).queryByText('expense.delete_expense')).toBeNull();
   });
 });
 
@@ -310,7 +151,7 @@ describe('grupo archivado: solo lectura (revisión final, Important #5b)', () =>
       id: 'g1', name: 'Viaje', memberIds: ['ua', 'ub'], currency: 'ARS',
       miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
       createdAt: 1_000, updatedAt: 1_000, isDeleted: false,
-      createdById: 'ua', deletionVotes: [],
+      createdById: 'ua',
       ...over,
     };
   }
@@ -331,8 +172,8 @@ describe('grupo archivado: solo lectura (revisión final, Important #5b)', () =>
     expect(Alert.alert).toHaveBeenCalledWith(
       'groups.archived_readonly_title', 'groups.archived_readonly_hint',
     );
-    // No se abrió ninguna ronda: el voto de borrado no se emitió.
-    expect(useExpenseStore.getState().expenses[0]!.deletionVotes).toHaveLength(0);
+    // No se borró nada.
+    expect(useExpenseStore.getState().expenses[0]!.isDeleted).toBe(false);
   });
 
   it('comentar en un grupo archivado no agrega el comentario: avisa que está archivado', () => {

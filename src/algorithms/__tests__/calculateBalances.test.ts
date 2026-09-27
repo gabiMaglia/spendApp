@@ -16,7 +16,7 @@ function makeExpense(overrides: Partial<Expense> & Pick<Expense, 'paidById' | 'a
     date: Date.now(),
     createdAt: Date.now(),
     createdById: overrides.paidById,
-    deletionVotes: [],
+
     ...overrides,
   };
 }
@@ -114,7 +114,7 @@ describe('calculateBalances — gastos pagados entre varios (T-025)', () => {
   const base = {
     id: 'e1', groupId: 'g1', description: 'Cena', currency: 'ARS' as const,
     splitMode: 'equal' as const, category: 'food' as const,
-    date: 0, createdAt: 0, createdById: 'ua', deletionVotes: [],
+    date: 0, createdAt: 0, createdById: 'ua',
     updatedAt: 0, isDeleted: false,
   };
 

@@ -16,7 +16,6 @@ import { haySesionAnonimaValida } from '@/src/sync/relaySession';
 import { useEntryGateStore } from './entryGateStore';
 import { materializeRecurring } from '@/src/services/materializeRecurring';
 import { estaBloqueado } from '@/src/algorithms/groupExpenseLimit';
-import { resolvePendingDeletions } from '@/src/services/resolveDeletions';
 import { applyApprovedLeaves } from '@/src/services/applyLeave';
 import { useSettingsStore } from './settingsStore';
 import { useNoticeInboxStore } from './noticeInboxStore';
@@ -97,11 +96,6 @@ export function rehydrateForActiveUser(): void {
   // recurrentes vencidos. Va acá y no en el arranque de la app porque depende
   // de QUÉ cuenta está activa: cada una tiene sus propias plantillas.
   applyDueRecurring();
-
-  // Solicitudes de borrado cuyas 72hs ya vencieron sin objeción. Va acá y no en
-  // un temporizador: mientras la app está cerrada no hay nada que ejecutar, y
-  // el vencimiento se evalúa igual de bien al volver.
-  resolvePendingDeletions();
 
   // Salidas de grupo que ya juntaron todas las aprobaciones. Misma razón que
   // arriba: la firma que faltaba pudo haber llegado por sync mientras la app

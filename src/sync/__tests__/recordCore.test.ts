@@ -166,10 +166,10 @@ describe('guard de enumeración: ningún campo del modelo queda sin clasificar',
   it('el parser lee models.ts de verdad', () => {
     const campos = camposDeclarados('Expense');
     expect(campos).toEqual(expect.arrayContaining([
-      'id', 'updatedAt', 'isDeleted', 'amount', 'splits', 'deletionVotes', 'note',
+      'id', 'updatedAt', 'isDeleted', 'amount', 'splits', 'deletedById', 'note',
     ]));
     expect(campos.length).toBeGreaterThan(15);
-    expect(camposDeclarados('Group')).toContain('deletionMode');
+    expect(camposDeclarados('Group')).toContain('leaveRequest');
   });
 
   it.each(CORE_KINDS)('%s: cada campo está adentro o afuera, explícito', (kind) => {

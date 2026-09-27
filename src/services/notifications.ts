@@ -133,10 +133,9 @@ export function isEnabled(notice: Notice): boolean {
   const s = useSettingsStore.getState();
   switch (notice.kind) {
     case 'expenses': return s.notifExpenses;
-    case 'deletion': return s.notifDeletions;
-    // Restaurar es la contraparte de borrar: mismo dominio, mismo toggle. Dos
-    // interruptores para las dos mitades de una misma ronda sólo darían la
-    // forma de apagar la buena noticia y dejar la mala.
+    // T-186: el toggle era compartido con el pedido de borrado, que se sacó.
+    // Se queda con el nombre del setting (se reetiqueta en la UI) porque es
+    // el mismo dominio: avisos sobre qué pasó con un gasto ajeno.
     case 'restored': return s.notifDeletions;
     case 'joined':   return s.notifInvites;
     case 'settled':  return s.notifSettlements;
@@ -181,11 +180,6 @@ export function textFor(notice: Notice): { title: string; body: string } {
       return {
         title: notice.groupName,
         body: t('notifications.new_expenses', { count: notice.count }),
-      };
-    case 'deletion':
-      return {
-        title: notice.groupName,
-        body: t('notifications.deletion_requested', { description: notice.description }),
       };
     case 'restored':
       return {

@@ -61,7 +61,6 @@ export function buildCarryOverExpenses(
       createdById,
       updatedAt: ahora,
       isDeleted: false,
-      deletionVotes: [],
     });
   }
 

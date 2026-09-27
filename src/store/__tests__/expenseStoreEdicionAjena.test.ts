@@ -38,7 +38,7 @@ const gastoDeAna = (over: Partial<Expense> = {}): Expense => ({
   id: 'e1', groupId: 'g1', description: 'Cena', amount: 12_345, currency: 'ARS',
   paidById: ANA, splits: [{ userId: ANA, amount: 12_345, isPaid: false }],
   splitMode: 'equal', category: 'food', date: 1_700_000_000_000,
-  createdAt: 1_700_000_000_000, createdById: ANA, deletionVotes: [],
+  createdAt: 1_700_000_000_000, createdById: ANA,
   updatedAt: 0, isDeleted: false, ...over,
 });
 
@@ -48,7 +48,7 @@ const grupo = (over: Partial<Group> = {}): Group => {
     id: 'g1', name: 'Asado', memberIds, currency: 'ARS',
     // T-182: `miembros` es la fuente de verdad de `memberIds` (derivado).
     miembros: Object.fromEntries(memberIds.map((uid, i) => [uid, { estado: 'in' as const, at: i }])),
-    createdAt: 1_700_000_000_000, createdById: ANA, deletionVotes: [],
+    createdAt: 1_700_000_000_000, createdById: ANA,
     updatedAt: 0, isDeleted: false, ...over,
   };
 };
@@ -67,7 +67,7 @@ beforeEach(() => {
 
 describe('E1 · open: B edita el gasto de A', () => {
   it('se guarda con editedById=B, createdById=A, firmado por B; en el teléfono de A verifica y no hay disputa', () => {
-    useGroupStore.setState({ groups: [grupo({ deletionMode: 'open' })] });
+    useGroupStore.setState({ groups: [grupo()] });
     comoUsuario(ANA);
     useExpenseStore.getState().addExpense(gastoDeAna());
 
@@ -89,7 +89,7 @@ describe('E1 · open: B edita el gasto de A', () => {
 
 describe('E3 · open: B edita y después A vuelve a editar', () => {
   it('editedById vuelve a ausente, rev sube de nuevo, y verifica', () => {
-    useGroupStore.setState({ groups: [grupo({ deletionMode: 'open' })] });
+    useGroupStore.setState({ groups: [grupo()] });
     comoUsuario(ANA);
     useExpenseStore.getState().addExpense(gastoDeAna());
 
@@ -114,7 +114,7 @@ describe('E3 · open: B edita y después A vuelve a editar', () => {
 
 describe('E4 · open: edición de alguien que NO es miembro del grupo (llega por sync)', () => {
   it('sin la clave del editor en el directorio: no_verificable, no rompe nada', () => {
-    useGroupStore.setState({ groups: [grupo({ deletionMode: 'open', memberIds: [ANA] })] });
+    useGroupStore.setState({ groups: [grupo({ memberIds: [ANA] })] });
     comoUsuario(ANA);
     useExpenseStore.getState().addExpense(gastoDeAna());
 

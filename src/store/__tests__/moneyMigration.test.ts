@@ -26,7 +26,7 @@ function makeExpense(overrides: Partial<Expense> = {}): Expense {
     date: 0,
     createdAt: 0,
     createdById: 'u1',
-    deletionVotes: [],
+
     ...overrides,
   };
 }

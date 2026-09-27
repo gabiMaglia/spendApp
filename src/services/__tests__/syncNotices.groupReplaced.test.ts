@@ -6,7 +6,7 @@ function grupo(over: Partial<Group> = {}): Group {
     id: 'g1', name: 'Viaje', memberIds: ['ana', 'beto'], currency: 'ARS',
     miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
     createdAt: 1_000, updatedAt: 1_000, isDeleted: false,
-    createdById: 'ana', deletionVotes: [],
+    createdById: 'ana',
     ...over,
   };
 }

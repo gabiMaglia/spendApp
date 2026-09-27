@@ -5,9 +5,10 @@ import type { Expense, Payment } from '@/src/types/models';
 /**
  * TEC-03 (T-142a / T-149). `mergeAccountData.mergeById` era un TERCER LWW:
  * registro entero por `updatedAt`, sin desempate ni unión de los campos
- * colaborativos. Fusionar dos cuentas del mismo dueño podía perder un voto de
- * borrado o un acuse de saldado que sólo estaban en la cuenta absorbida, y
- * su docblock decía «la misma semántica que el sync» — falso desde T-041.
+ * colaborativos. Fusionar dos cuentas del mismo dueño podía perder una
+ * disputa de autoría o un acuse de saldado que sólo estaban en la cuenta
+ * absorbida, y su docblock decía «la misma semántica que el sync» — falso
+ * desde T-041.
  */
 const NOW = 1_790_000_000_000;
 const APPLE = 'apple:000123.abc';
@@ -27,7 +28,7 @@ function fakeStorage(): SimpleStorage {
 const gasto = (over: Partial<Expense> = {}): Expense => ({
   id: 'e1', groupId: 'g1', description: 'Cena', amount: 1000, currency: 'ARS', paidById: 'ana',
   splits: [], splitMode: 'equal', category: 'food', date: 0, createdAt: 0, createdById: 'ana',
-  deletionVotes: [], updatedAt: NOW - 10_000, isDeleted: false, rev: 5, ...over,
+  updatedAt: NOW - 10_000, isDeleted: false, rev: 5, ...over,
 } as Expense);
 
 const pago = (over: Partial<Payment> = {}): Payment => ({
@@ -39,15 +40,25 @@ function leer<T>(st: SimpleStorage, base: string, uid: string): T[] {
   return JSON.parse(st.getString(`${base}::u:${uid}`)!) as T[];
 }
 
-it('un voto de borrado que sólo estaba en la cuenta absorbida sobrevive a la fusión', () => {
+it('una disputa de autoría que sólo estaba en la cuenta absorbida sobrevive a la fusión', () => {
   const st = fakeStorage();
-  const voto = { userId: 'beto', votedAt: NOW - 5000, action: 'delete' as const };
-  st.set(`data_v1::u:${APPLE}`, JSON.stringify([gasto({ updatedAt: NOW - 1000 })]));   // más nuevo, sin voto
-  st.set(`data_v1::u:${GOOGLE}`, JSON.stringify([gasto({ deletionVotes: [voto] })]));     // más viejo, con voto
+  // `autoriaDisputada` (T-170) es el campo colaborativo que le queda a
+  // `Expense` tras T-186 — mismo rol que `deletionVotes` tenía acá: un aporte
+  // de un tercero que la fusión no puede perder aunque su lado no gane el
+  // `updatedAt`. No hace falta que la firma verifique (el merge no la mira).
+  const nucleoCompetidor = {
+    id: 'e1', groupId: 'g1', description: 'Cena', amount: 1, currency: 'ARS' as const, paidById: 'beto',
+    payers: [], splits: [], splitMode: 'equal' as const, category: 'food' as const, date: 0, createdAt: 0,
+    createdById: 'beto', note: '', rev: 1, k: 'aa'.repeat(32), s: 'bb'.repeat(64),
+  };
+  st.set(`data_v1::u:${APPLE}`, JSON.stringify([gasto({ updatedAt: NOW - 1000 })])); // más nuevo, sin disputa
+  st.set(`data_v1::u:${GOOGLE}`, JSON.stringify([
+    gasto({ autoriaDisputada: [nucleoCompetidor] }),
+  ])); // más viejo, con disputa
 
   mergeAccountData([[st, 'data_v1', 'expense'] as StoreAFusionar], GOOGLE, APPLE, NOW);
 
-  expect(leer<Expense>(st, 'data_v1', APPLE)[0]!.deletionVotes).toEqual([voto]);
+  expect(leer<Expense>(st, 'data_v1', APPLE)[0]!.autoriaDisputada).toEqual([nucleoCompetidor]);
 });
 
 it('un acuse de saldado que sólo estaba en la cuenta absorbida sobrevive', () => {

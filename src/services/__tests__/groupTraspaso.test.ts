@@ -8,7 +8,7 @@ import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { useRecurringStore } from '@/src/store/recurringStore';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { announceGroupToContacts } from '@/src/sync/relayEngine';
-import type { Group, Expense, Payment, RecurringExpense, SettlementConfirmation } from '@/src/types/models';
+import type { Group, Expense, Payment, RecurringExpense } from '@/src/types/models';
 
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
 jest.mock('@/src/sync/relayEngine', () => ({
@@ -28,7 +28,7 @@ function grupo(over: Partial<Group> = {}): Group {
     // T-182: `miembros` es la fuente de verdad de `memberIds` (derivado).
     miembros: Object.fromEntries(memberIds.map((uid, i) => [uid, { estado: 'in' as const, at: i }])),
     createdAt: 1_000, updatedAt: 1_000, isDeleted: false,
-    createdById: 'ana', deletionVotes: [],
+    createdById: 'ana',
     ...over,
   };
 }
@@ -38,7 +38,7 @@ function gasto(over: Partial<Expense> = {}): Expense {
     id: `e-${Math.random()}`, groupId: 'g-viejo', description: 'x', amount: 20_000, currency: 'ARS',
     paidById: 'ana', splits: [{ userId: 'beto', amount: 10_000, isPaid: false }, { userId: 'ana', amount: 10_000, isPaid: false }],
     splitMode: 'equal', category: 'other', date: 1_000, createdAt: 1_000, updatedAt: 1_000,
-    createdById: 'ana', isDeleted: false, deletionVotes: [],
+    createdById: 'ana', isDeleted: false,
     ...over,
   } as Expense;
 }
@@ -51,10 +51,6 @@ function pago(over: Partial<Payment> = {}): Payment {
     ...over,
   } as Payment;
 }
-
-const acuse = (o: Partial<SettlementConfirmation> = {}): SettlementConfirmation => ({
-  userId: 'ana', confirmedAt: 2_000, action: 'confirm', ...o,
-});
 
 function recurrente(over: Partial<RecurringExpense> = {}): RecurringExpense {
   return {
@@ -313,27 +309,9 @@ describe('traspasarGrupo', () => {
     });
   });
 
-  // T-064: un pago RECHAZADO no cuenta — la deuda tiene que seguir viva en el
-  // traspaso, como si el pago nunca hubiera existido.
-  it('un pago rechazado (T-064) no se resta del balance trasladado', () => {
-    useGroupStore.setState({ groups: [grupo({ deletionMode: 'consensus' })] });
-    usePaymentStore.setState({
-      payments: [pago({
-        fromUserId: 'beto', toUserId: 'ana', createdById: 'beto', amount: 10_000,
-        confirmations: [acuse({ userId: 'ana', action: 'reject', confirmedAt: 2_000 })],
-      })],
-    });
-
-    const viejo = useGroupStore.getState().groups[0];
-    const nuevo = traspasarGrupo(viejo, 'Saldo trasladado de Viaje', 'ana');
-
-    const delNuevo = useExpenseStore.getState().expenses.filter(e => e.groupId === nuevo.id);
-    expect(delNuevo).toHaveLength(1);
-    // Beto le debe a Ana los 20.000 del gasto ENTEROS: el "pago" rechazado no
-    // descontó nada, la deuda nunca se movió.
-    expect(delNuevo[0].payers).toEqual([{ userId: 'ana', amount: 20_000 }]);
-    expect(delNuevo[0].splits).toEqual([{ userId: 'beto', amount: 20_000, isPaid: false }]);
-  });
+  // T-064 se sacó en T-186 junto con el modo «con acuerdo»: ya no existe el
+  // acuse de recibo, así que un pago declarado por el deudor cuenta al
+  // instante — no hay «rechazado» que probar acá. Ver docs/CONSENSO-PENDIENTE.md.
 
   // Test de punta a punta explícitamente pedido por el spec: 2 monedas, saldos
   // mixtos entre 3 miembros → exactamente 2 Expense de traspaso, uno por moneda.

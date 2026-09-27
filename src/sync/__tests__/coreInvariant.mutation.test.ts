@@ -102,21 +102,19 @@ describe('los ataques del §QUÉ, uno por uno', () => {
   });
 
   /**
-   * Éste es el que rompe el proyecto si el núcleo se pasa de goloso: el que vota
-   * un borrado NO tiene la privada del autor y no puede re-firmar. Si
-   * `updatedAt`/`deletionVotes` entraran al núcleo, votar invalidaría el gasto.
+   * Éste es el que rompe el proyecto si el núcleo se pasa de goloso: quien
+   * borra (T-186, cualquier miembro) NO tiene la privada del autor y no puede
+   * re-firmar. Si `updatedAt`/`deletedById` entraran al núcleo, borrar
+   * invalidaría el gasto.
    */
-  it('un tercero vota el borrado y la firma del autor SIGUE valiendo', () => {
-    const votado = {
+  it('un tercero borra el gasto y la firma del autor SIGUE valiendo', () => {
+    const borrado = {
       ...firmado,
       updatedAt: (firmado.updatedAt as number) + 1,
-      deletionVotes: [
-        ...(firmado.deletionVotes as unknown[]),
-        { userId: 'caro', votedAt: 9_000, action: 'delete' },
-      ],
+      deletedById: 'caro',
       isDeleted: true,
     };
-    expect(verifyCore('expense', votado as never, [PUB])).toBe('valida');
+    expect(verifyCore('expense', borrado as never, [PUB])).toBe('valida');
   });
 
   /** C.1f: cualquier device materializa una plantilla ajena. */

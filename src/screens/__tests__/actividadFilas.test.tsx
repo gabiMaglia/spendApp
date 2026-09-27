@@ -45,7 +45,7 @@ const AHORA = 1_800_000_000_000;
 const grupo: Group = {
   id: 'g1', name: 'Asado', memberIds: ['ana', 'beto'], currency: 'ARS',
   miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
-  createdAt: 0, createdById: 'ana', deletionVotes: [], updatedAt: 0, isDeleted: false,
+  createdAt: 0, createdById: 'ana', updatedAt: 0, isDeleted: false,
 } as Group;
 
 /** Un gasto normal: la fila TOCABLE (lleva `onPress`). */
@@ -54,7 +54,7 @@ const gasto = (over: Partial<Expense> = {}): Expense => ({
   paidById: 'beto', splitMode: 'equal',
   splits: [{ userId: 'ana', amount: 50_000 }, { userId: 'beto', amount: 50_000 }],
   memberIds: ['ana', 'beto'], category: 'food', date: AHORA, createdAt: AHORA,
-  createdById: 'beto', deletionVotes: [], updatedAt: AHORA, isDeleted: false, ...over,
+  createdById: 'beto', updatedAt: AHORA, isDeleted: false, ...over,
 } as Expense);
 
 /** Un pago: fila SIN `onPress` — la clase que se rompía. */
@@ -86,10 +86,8 @@ describe('ninguna fila del feed queda sin estilo', () => {
     estilos.forEach(e => expect(typeof e).not.toBe('function'));
   });
 
-  it('la fila de un pedido de borrado tampoco', () => {
-    useExpenseStore.setState({ expenses: [gasto({
-      deletionVotes: [{ userId: 'beto', votedAt: AHORA, action: 'delete' }],
-    })] });
+  it('la fila de un gasto restaurado tampoco', () => {
+    useExpenseStore.setState({ expenses: [gasto({ restoredById: 'beto' })] });
 
     const estilos = estilosDeFilas(render(<ActivityScreen />));
     expect(estilos.length).toBeGreaterThan(0);

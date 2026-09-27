@@ -19,7 +19,7 @@ jest.mock('expo-notifications', () => ({
 }));
 
 const gastos: Notice = { kind: 'expenses', groupId: 'g1', groupName: 'Viaje', count: 2 };
-const borrado: Notice = { kind: 'deletion', groupId: 'g1', groupName: 'Viaje', description: 'Pizza' };
+const borrado: Notice = { kind: 'restored', groupId: 'g1', groupName: 'Viaje', description: 'Pizza' };
 const unido: Notice = { kind: 'joined', groupId: 'g1', groupName: 'Viaje' };
 
 beforeEach(() => {

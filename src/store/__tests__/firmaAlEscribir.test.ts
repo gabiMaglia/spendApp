@@ -71,7 +71,7 @@ const gasto = (over: Partial<Expense> = {}): Expense => ({
   id: 'e1', groupId: 'g1', description: 'Cena', amount: 12_345, currency: 'ARS',
   paidById: YO, splits: [{ userId: YO, amount: 12_345, isPaid: false }],
   splitMode: 'equal', category: 'food', date: 1_700_000_000_000,
-  createdAt: 1_700_000_000_000, createdById: YO, deletionVotes: [],
+  createdAt: 1_700_000_000_000, createdById: YO,
   updatedAt: 0, isDeleted: false, ...over,
 });
 
@@ -98,7 +98,7 @@ const plantilla = (over: Partial<RecurringExpense> = {}): RecurringExpense => ({
 const grupo = (over: Partial<Group> = {}): Group => ({
   id: 'g1', name: 'Asado', memberIds: [YO, OTRO], currency: 'ARS',
   miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
-  createdAt: 1_700_000_000_000, createdById: YO, deletionVotes: [],
+  createdAt: 1_700_000_000_000, createdById: YO,
   updatedAt: 0, isDeleted: false, ...over,
 });
 
@@ -184,10 +184,10 @@ describe('editar como autor re-firma', () => {
     useExpenseStore.getState().addExpense(gasto());
     const antes = elGasto();
 
-    // El propio autor pide el borrado de su gasto: `deletionVotes` y
-    // `updatedAt` están fuera del núcleo, así que no hay nada que re-firmar.
+    // El propio autor borra su gasto: `deletedById` y `updatedAt` están
+    // fuera del núcleo, así que no hay nada que re-firmar.
     useExpenseStore.getState().updateExpense('e1', {
-      deletionVotes: [{ userId: YO, votedAt: 1, action: 'delete' }],
+      isDeleted: true, deletedById: YO,
     });
     const despues = elGasto();
 
@@ -220,11 +220,11 @@ describe('un tercero tocando el registro', () => {
     return firmado;
   };
 
-  it('votar el borrado deja la firma INTACTA y válida', () => {
+  it('que un tercero lo borre deja la firma INTACTA y válida', () => {
     const antes = gastoDeAnaFirmado();
 
     useExpenseStore.getState().updateExpense('e1', {
-      deletionVotes: [{ userId: OTRO, votedAt: 7, action: 'delete' }],
+      isDeleted: true, deletedById: OTRO,
     });
     const despues = elGasto();
 

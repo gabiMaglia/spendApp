@@ -5,7 +5,6 @@ import { usePersonalStore } from '../personalStore';
 import { useExpenseStore } from '../expenseStore';
 import { mergeExpensesPure } from '../mergeExpensesPure';
 import { useGroupStore } from '../groupStore';
-import { mergeGroupsPure } from '../mergeGroupsPure';
 import { usePaymentStore } from '../paymentStore';
 import { useUserStore } from '../userStore';
 import { mergeUsersPure } from '../mergeUsersPure';
@@ -52,12 +51,12 @@ function leer<T>(st: SimpleStorage, base: string, uid: string): T[] {
 const gasto = (over: Partial<Expense> = {}): Expense => ({
   id: 'e1', groupId: 'g1', description: 'Cena', amount: 1000, currency: 'ARS', paidById: 'ana',
   splits: [], splitMode: 'equal', category: 'food', date: 0, createdAt: 0, createdById: 'ana',
-  deletionVotes: [], updatedAt: NOW - 10_000, isDeleted: false, rev: 5, ...over,
+  updatedAt: NOW - 10_000, isDeleted: false, rev: 5, ...over,
 } as Expense);
 
 const grupo = (over: Partial<Group> = {}): Group => ({
-  id: 'g1', name: 'Viaje', memberIds: ['ana', 'beto'], currency: 'ARS', deletionMode: 'consensus',
-  createdAt: 0, createdById: 'ana', deletionVotes: [], updatedAt: NOW - 10_000, isDeleted: false, rev: 5, ...over,
+  id: 'g1', name: 'Viaje', memberIds: ['ana', 'beto'], currency: 'ARS',
+  createdAt: 0, createdById: 'ana', updatedAt: NOW - 10_000, isDeleted: false, rev: 5, ...over,
 } as Group);
 
 const entrada = (over: Partial<PersonalEntry> = {}): PersonalEntry => ({
@@ -93,17 +92,6 @@ it('D1: el recibo local sobrevive a la fusión de expenses, igual que al sync', 
   mergeAccountData([[st, 'data_v1', mergeExpensesPure] as unknown as StoreAFusionar], GOOGLE, APPLE, NOW);
 
   expect(leer<Expense>(st, 'data_v1', APPLE)[0]!.receiptImageUri).toBe('file://r.jpg');
-});
-
-// D2 -------------------------------------------------------------------
-it('D2: deletionMode del destino sobrevive a la fusión de groups (T-053) — no baja de consensus a open', () => {
-  const st = fakeStorage();
-  st.set(`data_v1::u:${APPLE}`, JSON.stringify([grupo({ deletionMode: 'consensus' })]));
-  st.set(`data_v1::u:${GOOGLE}`, JSON.stringify([grupo({ deletionMode: 'open', updatedAt: NOW - 1000 })]));
-
-  mergeAccountData([[st, 'data_v1', mergeGroupsPure] as unknown as StoreAFusionar], GOOGLE, APPLE, NOW);
-
-  expect(leer<Group>(st, 'data_v1', APPLE)[0]!.deletionMode).toBe('consensus');
 });
 
 // D3 -------------------------------------------------------------------
@@ -189,8 +177,8 @@ type CasoDeStore = {
 const CASOS: CasoDeStore[] = [
   {
     bucket: 'groups',
-    seedCurrent: (o) => grupo({ deletionMode: 'consensus', ...o }) as unknown as Syncable,
-    seedIncoming: (o) => grupo({ deletionMode: 'open', updatedAt: NOW - 1000, ...o }) as unknown as Syncable,
+    seedCurrent: (o) => grupo({ name: 'Viaje', ...o }) as unknown as Syncable,
+    seedIncoming: (o) => grupo({ name: 'Viaje editado', updatedAt: NOW - 1000, ...o }) as unknown as Syncable,
     viaStore: (current, incoming, now) => {
       useGroupStore.setState({ groups: current as unknown as Group[] });
       useGroupStore.getState().mergeGroups(incoming as unknown as Group[], now);

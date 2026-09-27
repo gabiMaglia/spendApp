@@ -1,7 +1,6 @@
 import { ed25519 } from '@noble/curves/ed25519.js';
-import { checkRecord, checkVote } from '../trustCheck';
+import { checkRecord } from '../trustCheck';
 import { signCore } from '../recordSign';
-import { signVote } from '../voteSign';
 import { toHex } from '../hexBytes';
 import { clearVerdictCache } from '../verdictCache';
 import { observeRecord, recordStats, clearRecordHealth } from '../recordHealth';
@@ -10,7 +9,7 @@ import {
   __resetAuthorSources,
 } from '../authorKeys';
 import { clearRatchet } from '../ratchet';
-import type { DeletionVote, Expense, Payment } from '@/src/types/models';
+import type { Expense, Payment } from '@/src/types/models';
 
 /**
  * **El veredicto de una fila que se está mirando** (T-041 · S10).
@@ -132,44 +131,6 @@ describe('checkRecord', () => {
   });
 });
 
-describe('checkVote', () => {
-  const voto = (over: Partial<DeletionVote> = {}): DeletionVote => ({
-    userId: 'ana', votedAt: 500, action: 'delete', roundId: 'r1', ...over,
-  });
-  const votoFirmado = (over: Partial<DeletionVote> = {}): DeletionVote => {
-    const v = voto(over);
-    return { ...v, ...signVote('e-1', v, PRIV) };
-  };
-
-  it('firmado por quien dice ser: `valida`', () => {
-    expect(checkVote('e-1', votoFirmado())).toBe('valida');
-  });
-
-  it('sin firma: `no_verificable`', () => {
-    expect(checkVote('e-1', voto())).toBe('no_verificable');
-  });
-
-  /**
-   * La firma ata el enunciado a SU gasto. Sin eso, una objeción firmada valdría
-   * para cualquier registro del grupo.
-   */
-  it('el mismo enunciado contra otro gasto: `invalida`', () => {
-    expect(checkVote('e-OTRO', votoFirmado())).toBe('invalida');
-  });
-
-  it('firmado con la clave de otro: `invalida`', () => {
-    rememberAuthorKey('beto', OTRA);
-    const ajeno = voto({ userId: 'beto' });
-    expect(checkVote('e-1', { ...ajeno, ...signVote('e-1', ajeno, PRIV) })).toBe('invalida');
-  });
-
-  it('votante del que no tenemos ninguna clave: `no_verificable`', () => {
-    const suelto = voto({ userId: 'nadie' });
-    expect(checkVote('e-1', { ...suelto, ...signVote('e-1', suelto, PRIV) }))
-      .toBe('no_verificable');
-  });
-});
-
 /**
  * **Mirar dispara la consulta al directorio.** Es la mitad que hace que la unión
  * de fuentes de S4 sirva de algo: `authorKeysFor` resuelve contra lo local
@@ -207,12 +168,6 @@ describe('mirar una fila pide las claves que faltan', () => {
     expect(pendingAuthorRefreshes()).toEqual([]);
   });
 
-  it('un voto de un votante desconocido también encola', () => {
-    const v: DeletionVote = { userId: 'caro', votedAt: 1, action: 'delete' };
-    checkVote('e-1', { ...v, ...signVote('e-1', v, PRIV) });
-
-    expect(pendingAuthorRefreshes()).toContain('caro');
-  });
 });
 
 /**
@@ -225,7 +180,6 @@ describe('la marca no toca la medición', () => {
 
     checkRecord('expense', firmado() as never);
     checkRecord('expense', gasto() as never);
-    checkVote('e-1', { userId: 'ana', votedAt: 1, action: 'delete' });
 
     expect(recordStats()).toEqual(antes);
   });

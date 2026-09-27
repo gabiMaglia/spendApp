@@ -1,6 +1,4 @@
-import { trustOf, isMarked, attributedVote, type TrustState } from '../recordTrust';
-import type { DeletionRound } from '../deletionRound';
-import type { DeletionVote } from '@/src/types/models';
+import { trustOf, isMarked, type TrustState } from '../recordTrust';
 import { recordStats, type RecordVerdict } from '@/src/sync/recordHealth';
 
 /**
@@ -80,70 +78,5 @@ describe('trustOf', () => {
     const todos = Object.keys(recordStats()) as RecordVerdict[];
     expect(todos.length).toBeGreaterThanOrEqual(4);   // el recorrido enumeró de verdad
     expect(todos.filter(v => trustOf(v) === 'pendiente')).toEqual([]);
-  });
-});
-
-/**
- * **A qué voto le corresponde la marca de una ronda de borrado.**
- *
- * La banda de la ronda —en el detalle y en el feed— atribuye a UNA persona:
- * «Ana pidió borrar», «Beto restauró». Marcar esa banda con el veredicto del
- * gasto sería marcar otra cosa; lo que hay que verificar es la firma del
- * enunciado que se está atribuyendo. Es el llamador que le faltaba a
- * `verifyVote` desde S8.
- */
-describe('attributedVote', () => {
-  const pedido = (over: Partial<DeletionVote> = {}): DeletionVote => ({
-    userId: 'ana', votedAt: 100, action: 'delete', roundId: 'r1', ...over,
-  });
-  const objecion = (over: Partial<DeletionVote> = {}): DeletionVote => ({
-    userId: 'beto', votedAt: 200, action: 'cancel', roundId: 'r1', ...over,
-  });
-
-  const ronda = (over: Partial<DeletionRound> = {}): DeletionRound => ({
-    roundId: 'r1', requestedBy: 'ana', requestedAt: 100,
-    expiresAt: 100 + 72 * 3600_000, status: 'open', ...over,
-  });
-
-  it('una ronda abierta atribuye al pedido que la abrió', () => {
-    const votos = [pedido(), objecion({ roundId: 'otra' })];
-    expect(attributedVote(ronda(), votos)).toBe(votos[0]);
-  });
-
-  it('una ronda frenada atribuye al voto que la frenó, no al pedido', () => {
-    const votos = [pedido(), objecion()];
-    expect(attributedVote(ronda({ status: 'objected', stoppedBy: 'beto' }), votos))
-      .toBe(votos[1]);
-  });
-
-  it('una ronda restaurada atribuye al `restore`', () => {
-    const restore = objecion({ userId: 'caro', votedAt: 300, intent: 'restore' });
-    const votos = [pedido(), restore];
-    expect(attributedVote(ronda({ status: 'restored', stoppedBy: 'caro' }), votos))
-      .toBe(restore);
-  });
-
-  /**
-   * Un voto de OTRA ronda del mismo autor no puede prestarle su firma a ésta.
-   * Sin este corte, un enunciado viejo y válido haría pasar por verificada una
-   * atribución que nunca se firmó.
-   */
-  it('no toma un voto de otra ronda', () => {
-    const votos = [pedido({ roundId: 'vieja', votedAt: 50 })];
-    expect(attributedVote(ronda(), votos)).toBeUndefined();
-  });
-
-  /**
-   * La ronda sintética `''` —todo lo anterior a S8 y lo de un peer sin
-   * actualizar— entra igual: el otro lado no tenía cómo nombrar la ronda, y
-   * perder su atribución sería dejar de mostrar quién pidió el borrado.
-   */
-  it('acepta el voto sin ronda, que es el de antes de S8', () => {
-    const viejo = { userId: 'ana', votedAt: 100, action: 'delete' as const };
-    expect(attributedVote(ronda(), [viejo])).toBe(viejo);
-  });
-
-  it('sin ronda no hay nada que atribuir', () => {
-    expect(attributedVote(null, [pedido()])).toBeUndefined();
   });
 });

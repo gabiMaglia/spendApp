@@ -76,14 +76,18 @@ function esPagoDeCierreForzado(payment: Payment): boolean {
     && (payment.id.startsWith('leave:') || payment.id.startsWith('expel:'));
 }
 
+/**
+ * T-186 (Task 1): el modo «con acuerdo» se sacó — ya no queda ningún grupo
+ * `consensus`, así que ningún saldado pide acuse. La función se queda (no
+ * cambiar su firma todavía: la limpian de un saque `settlementCore`/
+ * `settlementConfirm`/etc. en el Task 2 de la extracción, junto con
+ * `esPagoDeCierreForzado` y el resto de esta máquina) pero ya no evalúa nada.
+ */
 export function requiereConfirmacion(
-  payment: Payment, group: Group | undefined,
-  ctx: Pick<ContextoDeAcuse, 'nucleoDe'> = contextoReal(),
+  _payment: Payment, _group: Group | undefined,
+  _ctx: Pick<ContextoDeAcuse, 'nucleoDe'> = contextoReal(),
 ): boolean {
-  if (group?.deletionMode !== 'consensus') return false;
-  if (esPagoDeCierreForzado(payment)) return false;
-  if (payment.createdById !== payment.toUserId) return true;
-  return ctx.nucleoDe(payment) !== 'valida';
+  return false;
 }
 
 /** Lo que el derivador necesita del mundo: la hora, quién verifica un acuse y el núcleo. */

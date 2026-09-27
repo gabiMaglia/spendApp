@@ -1,6 +1,5 @@
 import type { CurrencyCode } from '@/src/constants/currencies';
 import type { Expense, Group, Payment } from '@/src/types/models';
-import { deletionRound, msUntilDeletion } from '@/src/algorithms/deletionRound';
 import { requiereConfirmacion } from '@/src/algorithms/settlementStatus';
 // Sólo el tipo: `publishHealth` no puede entrar al grafo de módulos de acá.
 import type { BlockingReason } from '@/src/sync/publishHealth';
@@ -30,17 +29,6 @@ import { mismaPersona } from '@/src/store/identityAlias';
 export type Notice =
   /** Llegaron gastos ajenos a un grupo. */
   | { kind: 'expenses'; groupId: string; groupName: string; count: number }
-  /**
-   * Alguien pidió borrar un gasto y hay que opinar.
-   *
-   * `expenseId` es de T-071: sin él, la bandeja no puede volver a mirar la
-   * ronda para saber cuánto falta de verdad — sólo tiene la foto congelada
-   * del momento en que se avisó. **Opcional a propósito**: un `Notice`
-   * guardado ANTES de este cambio no lo tiene y no se recalcula
-   * (`noticeInboxStore.ts:14-18`), así que sigue existiendo sin él para
-   * siempre. Todo lo que lo lee tiene que andar igual sin `expenseId`.
-   */
-  | { kind: 'deletion'; groupId: string; groupName: string; description: string; expenseId?: string }
   /**
    * Alguien deshizo un borrado que este teléfono ya había aplicado.
    *
@@ -138,9 +126,9 @@ export type Notice =
 /**
  * ¿Este aviso pide que el usuario HAGA algo, o sólo informa? (T-062)
  *
- * Sólo `deletion`, `settlement_pending` y `sync_down` tienen algo que el
- * usuario deba resolver; el resto es historia. Switch exhaustivo A PROPÓSITO,
- * sin `default`: el tipo de retorno obliga a cubrir los siete casos, así que
+ * Sólo `settlement_pending` y `sync_down` tienen algo que el usuario deba
+ * resolver; el resto es historia. Switch exhaustivo A PROPÓSITO, sin
+ * `default`: el tipo de retorno obliga a cubrir todos los casos, así que
  * agregar un `kind` a `Notice` sin decidir acá no compila (mismo patrón que
  * `claveDeFalloDeSync` en `sync/useSyncFailure.ts`).
  *
@@ -150,7 +138,6 @@ export type Notice =
  */
 export function esAccionable(kind: Notice['kind']): boolean {
   switch (kind) {
-    case 'deletion':
     case 'settlement_pending':
     case 'sync_down':
     // Accionable aunque lo que hay que hacer esté FUERA de la app: si se
@@ -196,8 +183,6 @@ export function nombreDeGrupoEnConflicto(
 export type Snapshot = {
   /** Ids de gastos vivos conocidos ANTES de la bajada. */
   expenseIds: string[];
-  /** Ids de gastos que ya tenían una ronda de borrado abierta. */
-  conBorradoAbierto: string[];
   /** Ids de pagos vivos conocidos ANTES. Sin esto, un saldo entraba al balance sin anunciarse. */
   paymentIds: string[];
   /**
@@ -216,12 +201,6 @@ export type Snapshot = {
   traspasosConocidos: Record<string, string>;
 };
 
-/** Una ronda abierta es la que existe, todavía no venció y nadie objetó. */
-function borradoPendiente(e: Expense, now: number): boolean {
-  const ronda = deletionRound(e, now);
-  return ronda !== null && ronda.status === 'open' && ronda.expiresAt > now;
-}
-
 export function snapshot(
   expenses: Expense[],
   now: number,
@@ -235,7 +214,6 @@ export function snapshot(
   }
   return {
     expenseIds: vivos.map(e => e.id),
-    conBorradoAbierto: vivos.filter(e => borradoPendiente(e, now)).map(e => e.id),
     paymentIds: payments.filter(p => !p.isDeleted).map(p => p.id),
     borrados: expenses.filter(e => e.isDeleted).map(e => e.id),
     traspasosConocidos,
@@ -273,7 +251,6 @@ export function noticesFor(
     id !== undefined && mismaPersona(id, currentUserId);
 
   const conocidos = new Set(before.expenseIds);
-  const yaAbiertos = new Set(before.conBorradoAbierto);
   const teniaBorrados = new Set(before.borrados);
   const nombre = (id: string) => groups.find(g => g.id === id)?.name ?? '';
 
@@ -281,7 +258,6 @@ export function noticesFor(
   const mios = new Set(groups.filter(g => !g.isDeleted).map(g => g.id));
 
   const nuevosPorGrupo = new Map<string, number>();
-  const pedidosDeBorrado: Notice[] = [];
   const restauraciones: Notice[] = [];
 
   for (const e of expensesAfter) {
@@ -295,43 +271,24 @@ export function noticesFor(
       nuevosPorGrupo.set(e.groupId, (nuevosPorGrupo.get(e.groupId) ?? 0) + 1);
     }
 
-    // Un pedido de borrado que se abrió en esta bajada. El que lo pidió ya sabe.
-    if (!yaAbiertos.has(e.id) && borradoPendiente(e, now)) {
-      // El que lo pidió ya sabe: no se le avisa de su propia solicitud.
-      if (!esMio(deletionRound(e, now)!.requestedBy)) {
-        pedidosDeBorrado.push({
-          kind: 'deletion',
-          groupId: e.groupId,
-          groupName: nombre(e.groupId),
-          description: e.description,
-          expenseId: e.id,
-        });
-      }
-    }
-
     /**
      * Un gasto que ACABA de volver de estar borrado.
      *
      * La condición que lo hace un evento es `teniaBorrados`: tiene que haber
-     * estado borrado en ESTE teléfono. Mirar sólo el estado de la ronda
-     * avisaría de nuevo en cada recálculo, y le anunciaría a un device recién
-     * llegado restauraciones que pasaron hace meses.
+     * estado borrado en ESTE teléfono. Mirar sólo `restoredById` avisaría de
+     * nuevo en cada recálculo mientras el campo siga puesto, y le anunciaría a
+     * un device recién llegado restauraciones que pasaron hace meses — por eso
+     * la condición sigue siendo `teniaBorrados`, no el campo.
      *
-     * **Antes también exigía que la ronda quedara en `restored`, y eso dejaba
-     * un camino mudo** (T-061): un peer que manda `isDeleted: false` con un
-     * `updatedAt` mayor —LWW puro, sin voto de restauración— hace reaparecer el
-     * gasto sin abrir ninguna ronda. El gasto volvía a contar en el balance y
-     * no se enteraba nadie. Es el caso MÁS necesitado de aviso, no el menos:
-     * cuando hay voto por lo menos queda quién y por qué.
-     *
-     * El arreglo saca una condición en vez de agregar un caso. Llegar acá ya
-     * significa que el gasto está vivo —el `continue` de arriba descarta los
-     * borrados— y `teniaBorrados` significa que antes no lo estaba. Eso ES la
+     * **T-186 (riesgo 5 del doc de extracción):** sin ronda que mirar, quién
+     * restauró sale de `restoredById` (T-186, opción B, campo del «resto» sin
+     * firma) en vez de `ronda.stoppedBy`. Llegar acá ya significa que el gasto
+     * está vivo —el `continue` de arriba descarta los borrados— y
+     * `teniaBorrados` significa que antes no lo estaba. Eso ES la
      * restauración. Lo único que sigue exceptuado es haberla hecho uno mismo.
      */
     if (teniaBorrados.has(e.id)) {
-      const ronda = deletionRound(e, now);
-      const loRestauréYo = ronda?.status === 'restored' && esMio(ronda.stoppedBy);
+      const loRestauréYo = esMio(e.restoredById);
       if (!loRestauréYo) {
         restauraciones.push({
           kind: 'restored',
@@ -432,34 +389,5 @@ export function noticesFor(
     });
   }
 
-  return [...porGastos, ...pedidosDeBorrado, ...restauraciones, ...saldos, ...traspasos];
-}
-
-/**
- * Cuánto falta para que se aplique un pedido de borrado, mirado HOY — no
- * cuando se generó el `Notice` (T-071).
- *
- * El `Notice` guardado es una copia CONGELADA (`noticeInboxStore.ts:14-18`):
- * esto no la relee a ella, relee el GASTO, que sí es una fuente viva. Por
- * eso hace falta el `expenses` del store y un `now` explícito, igual que
- * `deletionRound` (T-059): sin reloj no hay forma de saber si la ronda que
- * abrió el aviso sigue siendo la vigente.
- *
- * `null` es "no hay nada que prometer", y pasa por CUALQUIERA de estas
- * razones — no se distinguen porque a la fila le da lo mismo cuál fue:
- *  - El aviso es de antes de T-071 y no tiene `expenseId`.
- *  - El gasto ya no está vivo en el store (se fue, o directo no está).
- *  - La ronda que abrió el aviso dejó de estar `open` (la objetaron, se
- *    restauró) o ya venció — vencida no promete un plazo que no existe.
- */
-export function msRestanteDeBorrado(
-  notice: Notice, expenses: readonly Expense[], now: number,
-): number | null {
-  if (notice.kind !== 'deletion' || notice.expenseId === undefined) return null;
-  const expense = expenses.find(e => e.id === notice.expenseId);
-  if (!expense || expense.isDeleted) return null;
-  const ronda = deletionRound(expense, now);
-  if (ronda === null || ronda.status !== 'open') return null;
-  const restante = msUntilDeletion(ronda, now);
-  return restante > 0 ? restante : null;
+  return [...porGastos, ...restauraciones, ...saldos, ...traspasos];
 }

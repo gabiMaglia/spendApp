@@ -148,21 +148,6 @@ export const EventRow = React.memo(function EventRow({
     });
   }
 
-  if (event.kind === 'expense_delete_request') {
-    const { expense, groupName, requestedByName } = event;
-    return row({
-      icon: 'warning-outline', tint: c.semantic.warning, bg: c.semantic.warningSoft, warn: true,
-      body: (
-        <ActivityLine
-          who={requestedByName}
-          action={t('activity.action_requested_delete')}
-          subject={`“${expense.description}” · ${nombreDeGrupo(groupName)}`}
-          ts={relativeTime(expense.deletionVotes?.[0]?.votedAt ?? expense.date)}
-        />
-      ),
-    });
-  }
-
   if (event.kind === 'expense_deleted') {
     const { expense, groupName } = event;
     return row({

@@ -41,7 +41,7 @@ describe('money migration guard (D1) — expenseStore', () => {
           { userId: 'u2', amount: 750, isPaid: false },
         ],
         splitMode: 'equal', category: 'other', date: 0, createdAt: 0,
-        createdById: 'u1', deletionVotes: [],
+        createdById: 'u1',
       };
       seed.set('data_v1', JSON.stringify([floatExpense]));
       expect(seed.getBoolean('money_int_v1_done')).toBeFalsy();

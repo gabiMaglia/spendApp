@@ -25,9 +25,9 @@ function camposDe(ev: ActivityKind, nombreDe: (id: string) => string): string[] 
   if (ev.kind === 'personal_entry') {
     return [ev.groupName, ev.entry.description];
   }
-  const campos = [ev.groupName, ev.expense.description, nombreDe(ev.expense.paidById)];
-  if (ev.kind === 'expense_delete_request') campos.push(ev.requestedByName);
-  return campos;
+  // T-186: se sacó `expense_delete_request` (pedido de borrado) junto con el
+  // modo «con acuerdo» — no queda ningún otro kind de gasto con nombre propio.
+  return [ev.groupName, ev.expense.description, nombreDe(ev.expense.paidById)];
 }
 
 export function searchActivity(

@@ -12,7 +12,7 @@ import { DetailHeader } from '@/src/components/CollapsibleHeader';
 
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import type { DeletionMode, Group } from '@/src/types/models';
+import type { Group } from '@/src/types/models';
 import { conAlta, rosterDe } from '@/src/algorithms/roster';
 import type { CurrencyCode } from '@/src/constants/currencies';
 import { useAuthStore } from '@/src/store/authStore';
@@ -43,9 +43,6 @@ export default function NewGroupScreen() {
 
   const [name, setName] = useState('');
   const [currency, setCurrency] = useState<CurrencyCode>('ARS');
-  // Se elige al crear y no cambia después: aflojarlo más tarde relajaría en
-  // retroactivo un acuerdo que el grupo ya había tomado.
-  const [deletionMode, setDeletionMode] = useState<DeletionMode>('consensus');
   const [selectedIds, setSelectedIds] = useState<string[]>(
     currentUser ? [currentUser.id] : [],
   );
@@ -104,8 +101,6 @@ export default function NewGroupScreen() {
       currency,
       createdAt:     Date.now(),
       createdById:   currentUser.id,
-      deletionVotes: [],
-      deletionMode,
       updatedAt:     ahora,
       isDeleted:     false,
     };
@@ -194,51 +189,6 @@ export default function NewGroupScreen() {
               </Pressable>
             ))}
           </View>
-
-          {/* Cómo se borran los gastos — se elige acá y no cambia después */}
-          <Text style={[Typography.label, styles.sectionLabel, { color: c.textTertiary }]}>
-            {t('groups.deletion_label')}
-          </Text>
-          {([
-            { modo: 'consensus' as const, titulo: t('groups.deletion_consensus'), detalle: t('groups.deletion_consensus_hint') },
-            { modo: 'open'      as const, titulo: t('groups.deletion_open'),      detalle: t('groups.deletion_open_hint') },
-          ]).map(op => {
-            const elegido = deletionMode === op.modo;
-            return (
-              <Pressable
-                key={op.modo}
-                testID={`deletion-${op.modo}`}
-                accessibilityRole="radio"
-                accessibilityState={{ selected: elegido }}
-                onPress={() => { hapticSelection(); setDeletionMode(op.modo); }}
-                style={[styles.deletionOption, {
-                  backgroundColor: elegido ? c.brand.primarySoft : c.surface,
-                  borderColor:     elegido ? c.brand.primary : c.hair,
-                }]}
-              >
-                <Ionicons
-                  name={elegido ? 'radio-button-on' : 'radio-button-off'}
-                  size={18}
-                  color={elegido ? c.brand.primary : c.textTertiary}
-                />
-                <View style={{ flex: 1 }}>
-                  <Text style={[Typography.bodyM, {
-                    color: elegido ? c.brand.primaryOnSoft : c.text, fontWeight: '700',
-                  }]}>
-                    {op.titulo}
-                  </Text>
-                  <Text style={[Typography.bodyS, {
-                    color: elegido ? c.brand.primaryOnSoft : c.textTertiary,
-                  }]}>
-                    {op.detalle}
-                  </Text>
-                </View>
-              </Pressable>
-            );
-          })}
-          <Text style={[Typography.caption, { color: c.textTertiary, marginTop: 4 }]}>
-            {t('groups.deletion_fixed')}
-          </Text>
 
           {/* Members */}
           <Text style={[Typography.label, styles.sectionLabel, { color: c.textTertiary }]}>
@@ -343,11 +293,6 @@ const styles = StyleSheet.create({
   },
   nameInput:    { flex: 1, padding: 0, fontWeight: '500' },
   currencyRow:  { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  deletionOption: {
-    flexDirection: 'row', alignItems: 'flex-start', gap: 10,
-    borderWidth: 1, borderRadius: Radius.md,
-    padding: 12, marginBottom: 8,
-  },
   currencyChip: { paddingHorizontal: 18, paddingVertical: 10, borderRadius: Radius.full, borderWidth: 1 },
   memberRow:    {
     flexDirection: 'row', alignItems: 'center', gap: 12,

@@ -26,7 +26,7 @@ function grupo(): Group {
     id: 'g1', name: 'Viaje', memberIds: ['ana', 'beto'], currency: 'ARS',
     miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
     createdAt: 1_000, updatedAt: 1_000, isDeleted: false,
-    createdById: 'ana', deletionVotes: [],
+    createdById: 'ana',
   };
 }
 
@@ -35,7 +35,7 @@ function gastos(n: number): Expense[] {
     id: `e${i}`, groupId: 'g1', description: `g${i}`, amount: 1_000, currency: 'ARS',
     paidById: 'ana', splits: [{ userId: 'beto', amount: 1_000, isPaid: false }],
     splitMode: 'equal', category: 'other', date: 1_000, createdAt: 1_000, updatedAt: 1_000,
-    createdById: 'ana', isDeleted: false, deletionVotes: [],
+    createdById: 'ana', isDeleted: false,
   }));
 }
 

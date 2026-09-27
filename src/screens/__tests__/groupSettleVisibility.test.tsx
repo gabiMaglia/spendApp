@@ -6,7 +6,7 @@ import { useExpenseStore } from '@/src/store/expenseStore';
 import { usePaymentStore } from '@/src/store/paymentStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useAuthStore } from '@/src/store/authStore';
-import type { Expense, Group, Payment, SettlementConfirmation, User } from '@/src/types/models';
+import type { Expense, Group, Payment, User } from '@/src/types/models';
 
 /**
  * "Saldar deuda" solo aparece si el grupo tiene al menos una DEUDA VIVA, en
@@ -14,9 +14,7 @@ import type { Expense, Group, Payment, SettlementConfirmation, User } from '@/sr
  * cargado (PO 2026-08-30) y eso mandaba a la pantalla de saldar aun cuando ya
  * no había nada que saldar (gastos compensados, pagos hechos, multi-moneda en
  * cero). Usa la misma fuente que ya calcula el balance de la pantalla
- * (`useGroupBalance`, que corre `calculateBalancesByCurrency` + `pagosQueCuentan`),
- * así que un saldado pendiente de acuse en un grupo `consensus` (T-064) ya
- * cuenta como si estuviera pagado y no mantiene el botón visible.
+ * (`useGroupBalance`, que corre `calculateBalancesByCurrency` + `pagosQueCuentan`).
  */
 jest.mock('@/src/sync/relayEngine', () => ({
   schedulePublish: jest.fn(), deviceId: () => 'dev', startRelay: jest.fn(),
@@ -29,14 +27,14 @@ jest.mock('expo-router', () => ({
 
 const grupo = (over: Partial<Group> = {}): Group => ({
   id: 'g1', name: 'Asado', memberIds: ['ana', 'beto'], currency: 'ARS',
-  createdAt: 0, createdById: 'ana', deletionVotes: [], updatedAt: 0, isDeleted: false, ...over,
+  createdAt: 0, createdById: 'ana', updatedAt: 0, isDeleted: false, ...over,
 } as Group);
 
 const gasto = (over: Partial<Expense> = {}): Expense => ({
   id: 'e1', groupId: 'g1', description: 'Nafta', amount: 100_000, currency: 'ARS',
   paidById: 'ana', splits: [{ userId: 'ana', amount: 50_000 }, { userId: 'beto', amount: 50_000 }],
   splitMode: 'equal', category: 'transport', date: 0, createdAt: 0, createdById: 'ana',
-  deletionVotes: [], updatedAt: 0, isDeleted: false, ...over,
+  updatedAt: 0, isDeleted: false, ...over,
 } as Expense);
 
 const pago = (over: Partial<Payment> = {}): Payment => ({
@@ -44,10 +42,6 @@ const pago = (over: Partial<Payment> = {}): Payment => ({
   amount: 50_000, currency: 'ARS', date: 0, createdAt: 0,
   createdById: 'beto', updatedAt: 0, isDeleted: false, ...over,
 } as Payment);
-
-const acuse = (o: Partial<SettlementConfirmation> = {}): SettlementConfirmation => ({
-  userId: 'ana', confirmedAt: 1_000, action: 'confirm', ...o,
-});
 
 beforeEach(() => {
   useAuthStore.setState({ currentUser: { id: 'ana', name: 'Ana' } as User });
@@ -138,28 +132,6 @@ describe('visibilidad de "saldar deuda" (T-104: deuda viva, no solo gastos)', ()
     });
     const { queryByTestId } = render(<GroupDetailScreen />);
     expect(queryByTestId('settle-debts')).toBeNull();
-  });
-
-  it('grupo consensus con saldado pendiente de acuse (T-064): esa deuda no cuenta como viva, no se ofrece', () => {
-    useGroupStore.setState({ groups: [grupo({ deletionMode: 'consensus' })] });
-    useExpenseStore.setState({ expenses: [gasto({ paidById: 'beto' })] });
-    // Ana (yo, deudora) declara el pago; Beto (quien cobra) todavía no acusó recibo.
-    usePaymentStore.setState({ payments: [pago({ fromUserId: 'ana', toUserId: 'beto', createdById: 'ana' })] });
-    const { queryByTestId } = render(<GroupDetailScreen />);
-    expect(queryByTestId('settle-debts')).toBeNull();
-  });
-
-  it('grupo consensus con saldado RECHAZADO: la deuda vuelve a estar viva, SI se ofrece', () => {
-    useGroupStore.setState({ groups: [grupo({ deletionMode: 'consensus' })] });
-    useExpenseStore.setState({ expenses: [gasto({ paidById: 'beto' })] });
-    usePaymentStore.setState({
-      payments: [pago({
-        fromUserId: 'ana', toUserId: 'beto', createdById: 'ana',
-        confirmations: [acuse({ userId: 'beto', action: 'reject' })],
-      })],
-    });
-    const { getByTestId } = render(<GroupDetailScreen />);
-    expect(getByTestId('settle-debts')).toBeTruthy();
   });
 
   it('deuda entre OTROS miembros con la mía en cero: NO se ofrece (coincide con el «Saldado» de la pantalla)', () => {

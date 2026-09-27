@@ -257,8 +257,8 @@ describe('group_replaced navega al grupo NUEVO, no al archivado (revisión final
 
   it('con el grupo nuevo vivo, navega a /groups/<newGroupId>', () => {
     useGroupStore.setState({ groups: [
-      { id: 'g-viejo', name: 'Viaje', memberIds: ['ana'], miembros: {}, currency: 'ARS', createdAt: 0, updatedAt: 0, isDeleted: false, createdById: 'ana', deletionVotes: [] },
-      { id: 'g-nuevo', name: 'Viaje (2)', memberIds: ['ana'], miembros: {}, currency: 'ARS', createdAt: 0, updatedAt: 0, isDeleted: false, createdById: 'ana', deletionVotes: [] },
+      { id: 'g-viejo', name: 'Viaje', memberIds: ['ana'], miembros: {}, currency: 'ARS', createdAt: 0, updatedAt: 0, isDeleted: false, createdById: 'ana' },
+      { id: 'g-nuevo', name: 'Viaje (2)', memberIds: ['ana'], miembros: {}, currency: 'ARS', createdAt: 0, updatedAt: 0, isDeleted: false, createdById: 'ana' },
     ] });
 
     const r = montar();
@@ -271,7 +271,7 @@ describe('group_replaced navega al grupo NUEVO, no al archivado (revisión final
 
   it('marca el aviso leído al tocarlo', () => {
     useGroupStore.setState({ groups: [
-      { id: 'g-nuevo', name: 'Viaje (2)', memberIds: ['ana'], miembros: {}, currency: 'ARS', createdAt: 0, updatedAt: 0, isDeleted: false, createdById: 'ana', deletionVotes: [] },
+      { id: 'g-nuevo', name: 'Viaje (2)', memberIds: ['ana'], miembros: {}, currency: 'ARS', createdAt: 0, updatedAt: 0, isDeleted: false, createdById: 'ana' },
     ] });
 
     const r = montar();

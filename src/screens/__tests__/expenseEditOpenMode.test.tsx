@@ -10,9 +10,9 @@ import { useArchiveStore } from '@/src/store/archiveStore';
 import type { Expense, Group, User } from '@/src/types/models';
 
 /**
- * T-185 · Task 2, tabla U1-U3: en un grupo `open`, cualquier miembro ve (y
- * puede tocar) el botón de editar en el gasto de otro — igual que Splitwise.
- * En `consensus` sigue siendo sólo del creador.
+ * T-185: cualquier miembro ve (y puede tocar) el botón de editar en el gasto
+ * de otro — igual que Splitwise. T-186 sacó el modo «con acuerdo»: ya no hay
+ * excepción para `consensus` (era U2, se borró con el modo).
  */
 
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
@@ -30,12 +30,12 @@ const gasto = (over: Partial<Expense> = {}): Expense => ({
   paidById: 'ana', splitMode: 'equal',
   splits: [{ userId: 'ana', amount: 10_000 }, { userId: 'beto', amount: 10_000 }],
   category: 'food', date: 0, createdAt: 0,
-  createdById: 'ana', deletionVotes: [], updatedAt: 0, isDeleted: false, ...over,
+  createdById: 'ana', updatedAt: 0, isDeleted: false, ...over,
 } as Expense);
 
 const grupo = (over: Partial<Group> = {}): Group => ({
   id: 'g1', name: 'Viaje', memberIds: ['ana', 'beto'], currency: 'ARS',
-  createdAt: 0, createdById: 'ana', deletionVotes: [], updatedAt: 0, isDeleted: false, ...over,
+  createdAt: 0, createdById: 'ana', updatedAt: 0, isDeleted: false, ...over,
 } as Group);
 
 beforeEach(() => {
@@ -46,9 +46,9 @@ beforeEach(() => {
   useArchiveStore.setState({ archivedIds: [], reasons: {} });
 });
 
-describe('U1 · open: cualquier miembro ve y usa el botón de editar', () => {
+describe('U1 · cualquier miembro ve y usa el botón de editar', () => {
   it('Beto ve el lápiz en el gasto de Ana y abre expense/new con el id', () => {
-    useGroupStore.setState({ groups: [grupo({ deletionMode: 'open' })] });
+    useGroupStore.setState({ groups: [grupo()] });
     useExpenseStore.setState({ expenses: [gasto()] });
 
     const { getByTestId } = render(<ExpenseDetailScreen />);
@@ -58,19 +58,9 @@ describe('U1 · open: cualquier miembro ve y usa el botón de editar', () => {
   });
 });
 
-describe('U2 · consensus: sólo el creador ve el botón de editar', () => {
-  it('Beto NO ve el lápiz en el gasto de Ana', () => {
-    useGroupStore.setState({ groups: [grupo({ deletionMode: 'consensus' })] });
-    useExpenseStore.setState({ expenses: [gasto()] });
-
-    const { queryByTestId } = render(<ExpenseDetailScreen />);
-    expect(queryByTestId('edit-expense-btn')).toBeNull();
-  });
-});
-
 describe('U3 · gasto editado por otro: se muestra quién', () => {
   it('"Editado por Beto" cuando editedById difiere del creador', () => {
-    useGroupStore.setState({ groups: [grupo({ deletionMode: 'open' })] });
+    useGroupStore.setState({ groups: [grupo()] });
     useExpenseStore.setState({ expenses: [gasto({ editedById: 'beto' })] });
 
     const { getByText } = render(<ExpenseDetailScreen />);
@@ -78,7 +68,7 @@ describe('U3 · gasto editado por otro: se muestra quién', () => {
   });
 
   it('no se muestra nada cuando nadie más editó', () => {
-    useGroupStore.setState({ groups: [grupo({ deletionMode: 'open' })] });
+    useGroupStore.setState({ groups: [grupo()] });
     useExpenseStore.setState({ expenses: [gasto()] });
 
     const { queryByText } = render(<ExpenseDetailScreen />);

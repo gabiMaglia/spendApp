@@ -32,7 +32,6 @@ const FUENTE_NOTICE = readFileSync(join(SRC, 'services', 'syncNotices.ts'), 'utf
  */
 const INVENTARIO: Record<string, string> = {
   expenses:  'llegaron gastos ajenos a un grupo',
-  deletion:  'alguien pidió borrar un gasto y hay 72hs para objetar',
   restored:  'alguien restauró un gasto que yo tenía borrado',
   joined:    'nos entregaron la clave de un grupo nuevo',
   settled:   'alguien registró un saldo que me involucra',

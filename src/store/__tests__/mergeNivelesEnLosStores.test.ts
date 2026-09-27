@@ -7,8 +7,6 @@ import { useCommentStore } from '../commentStore';
 import { useRecurringStore } from '../recurringStore';
 import { useGroupStore } from '../groupStore';
 import { useUserStore } from '../userStore';
-import { emitirVoto } from '@/src/services/deletionVotes';
-import { resolvePendingDeletions } from '@/src/services/resolveDeletions';
 import type { Expense, Payment, User } from '@/src/types/models';
 
 /**
@@ -45,7 +43,7 @@ function gasto(over: Partial<Expense> = {}): Expense {
       { userId: 'beto', amount: 10_000, isPaid: false },
     ],
     splitMode: 'equal', category: 'food', date: 1_000, createdAt: 1_000,
-    createdById: 'ana', deletionVotes: [], updatedAt: 1_000, isDeleted: false,
+    createdById: 'ana', updatedAt: 1_000, isDeleted: false,
     ...over,
   } as Expense;
 }
@@ -108,42 +106,51 @@ describe('el ataque que motiva `rev`: re-estampar un núcleo viejo', () => {
   });
 });
 
-describe('un tercero que vota un borrado no pisa el núcleo del autor', () => {
-  it('el voto entra y el núcleo nuevo del autor se queda', () => {
+describe('una disputa de autoría de un tercero no pisa el núcleo del autor', () => {
+  // `autoriaDisputada` (T-170) es el campo colaborativo que le queda a
+  // `Expense` tras T-186 (se sacó `deletionVotes`) — mismo rol que tenía acá:
+  // un aporte de un tercero que la unión no puede perder aunque su lado no
+  // gane el núcleo por `rev`.
+  const nucleoCompetidor = {
+    id: 'e1', groupId: 'g1', description: 'Cena', amount: 1, currency: 'ARS' as const,
+    paidById: 'beto', payers: [], splits: [], splitMode: 'equal' as const, category: 'food' as const,
+    date: 0, createdAt: 0, createdById: 'beto', note: '', rev: 1, k: 'aa'.repeat(32), s: 'bb'.repeat(64),
+  };
+
+  it('la disputa entra y el núcleo nuevo del autor se queda', () => {
     const nueva = firmado('expense', gasto({ amount: 20_000, rev: 3_000, updatedAt: 3_000 }));
-    // Beto tiene la versión VIEJA y vota el borrado: `updateExpense` le bumpea
-    // el `updatedAt` a su copia, que arrastra el núcleo viejo.
+    // Beto tiene la versión VIEJA y trae una disputa: `mergeExpenses` le
+    // bumpea el `updatedAt` a su copia, que arrastra el núcleo viejo.
     const votadaPorBeto = firmado('expense', gasto({ amount: 12_000, rev: 2_000, updatedAt: 2_000 }));
 
     useExpenseStore.setState({ expenses: [nueva] });
     useExpenseStore.getState().mergeExpenses([{
       ...votadaPorBeto,
       updatedAt: 8_000,
-      deletionVotes: [{ userId: 'beto', votedAt: 8_000, action: 'delete' }],
+      autoriaDisputada: [nucleoCompetidor],
     }]);
 
     expect(soloGasto().amount).toBe(20_000);
-    expect(soloGasto().deletionVotes).toHaveLength(1);
-    expect(soloGasto().deletionVotes[0]!.userId).toBe('beto');
+    expect(soloGasto().autoriaDisputada).toHaveLength(1);
   });
 
-  it('el voto del tercero NO desaparece porque el autor editó su núcleo', () => {
-    // Ana edita en su teléfono SIN haber visto el voto de Beto: su copia no
-    // tiene votos y su `updatedAt` es mayor. Con LWW de registro entero, el
-    // voto de Beto se perdía y nadie se enteraba.
-    const conVoto = gasto({
+  it('la disputa del tercero NO desaparece porque el autor editó su núcleo', () => {
+    // Ana edita en su teléfono SIN haber visto la disputa: su copia no la
+    // tiene y su `updatedAt` es mayor. Con LWW de registro entero, la disputa
+    // se perdía y nadie se enteraba.
+    const conDisputa = gasto({
       rev: 2_000, updatedAt: 2_000,
-      deletionVotes: [{ userId: 'beto', votedAt: 2_000, action: 'delete' }],
+      autoriaDisputada: [nucleoCompetidor],
     });
     const editadaPorAna = firmado('expense', gasto({
-      amount: 25_000, rev: 5_000, updatedAt: 5_000, deletionVotes: [],
+      amount: 25_000, rev: 5_000, updatedAt: 5_000,
     }));
 
-    useExpenseStore.setState({ expenses: [conVoto] });
+    useExpenseStore.setState({ expenses: [conDisputa] });
     useExpenseStore.getState().mergeExpenses([editadaPorAna]);
 
     expect(soloGasto().amount).toBe(25_000);
-    expect(soloGasto().deletionVotes).toHaveLength(1);
+    expect(soloGasto().autoriaDisputada).toHaveLength(1);
   });
 });
 
@@ -225,12 +232,12 @@ describe('los siete stores siguen mergeando', () => {
     const pedido = { userId: 'caro', plan: [], requestedAt: 500 };
     useGroupStore.setState({ groups: [{
       id: 'g1', name: 'Viaje', memberIds: ['ana', 'beto', 'caro'], currency: 'ARS',
-      createdAt: 0, createdById: 'ana', deletionVotes: [], updatedAt: 1_000, isDeleted: false,
+      createdAt: 0, createdById: 'ana', updatedAt: 1_000, isDeleted: false,
       leaveRequest: { ...pedido, approvedBy: ['ana'] },
     } as never] });
     useGroupStore.getState().mergeGroups([{
       id: 'g1', name: 'Viaje', memberIds: ['ana', 'beto', 'caro'], currency: 'ARS',
-      createdAt: 0, createdById: 'ana', deletionVotes: [], updatedAt: 2_000, isDeleted: false,
+      createdAt: 0, createdById: 'ana', updatedAt: 2_000, isDeleted: false,
       leaveRequest: { ...pedido, approvedBy: ['beto'] },
     } as never]);
 
@@ -249,45 +256,29 @@ describe('los siete stores siguen mergeando', () => {
   });
 });
 
-describe('restaurar sobrevive a un sync que trae el voto de vuelta', () => {
+describe('restaurar sobrevive a un sync que trae el borrado de vuelta (T-186)', () => {
   /**
-   * Es el choque que abre la unión de votos: hasta S6 restaurar VACIABA el
-   * conjunto, y con la unión ese vaciado no se puede expresar — el voto vuelve
-   * del primer peer que sincronice y `resolvePendingDeletions` re-borra el
-   * gasto solo, en el próximo arranque, sin que el usuario haya tocado nada.
+   * T-186: sin ronda ni voto, `isDeleted`/`deletedById`/`restoredById` son
+   * campos del «resto», simple LWW por `updatedAt` — el mismo mecanismo que
+   * ya protege cualquier tombstone (regla #1). Restaurar con un `updatedAt`
+   * más nuevo le gana a una copia vieja que todavía trae el borrado.
    */
-  const forzado = (over: Partial<Expense> = {}) => gasto({
-    isDeleted: true, updatedAt: 1_000,
-    deletionVotes: [{ userId: 'ana', votedAt: 1_000, action: 'delete', forced: true }],
-    ...over,
+  const borrado = (over: Partial<Expense> = {}) => gasto({
+    isDeleted: true, deletedById: 'ana', updatedAt: 1_000, ...over,
   });
 
-  it('el gasto restaurado no se vuelve a borrar cuando vuelve el voto forzado', () => {
-    useExpenseStore.setState({ expenses: [forzado()] });
+  it('el gasto restaurado no se vuelve a borrar cuando vuelve una copia vieja del borrado', () => {
+    useExpenseStore.setState({ expenses: [borrado()] });
 
     // Beto restaura desde Actividad.
     useExpenseStore.getState().updateExpense('e1', {
-      isDeleted: false,
-      deletionVotes: emitirVoto(forzado(), 'beto', 'restore', 2_000),
+      isDeleted: false, restoredById: 'beto',
     });
 
-    // Y el teléfono de Ana republica su copia, que todavía tiene el borrado.
-    useExpenseStore.getState().mergeExpenses([forzado()]);
+    // Y el teléfono de Ana republica su copia vieja, que todavía tiene el borrado.
+    useExpenseStore.getState().mergeExpenses([borrado()]);
 
     expect(soloGasto().isDeleted).toBe(false);
-    expect(resolvePendingDeletions(9_999_999)).toBe(0);
-    expect(soloGasto().isDeleted).toBe(false);
-  });
-
-  it('y el voto de Ana NO se pierde: queda la ronda entera, con su objeción', () => {
-    useExpenseStore.setState({ expenses: [forzado()] });
-    useExpenseStore.getState().updateExpense('e1', {
-      isDeleted: false,
-      deletionVotes: emitirVoto(forzado(), 'beto', 'restore', 2_000),
-    });
-    useExpenseStore.getState().mergeExpenses([forzado()]);
-
-    expect(soloGasto().deletionVotes.map(v => `${v.userId}:${v.action}`))
-      .toEqual(['ana:delete', 'beto:cancel']);
+    expect(soloGasto().restoredById).toBe('beto');
   });
 });

@@ -41,7 +41,7 @@ const USER = { id: 'ua', name: 'Ana' } as User;
 const GROUP: Group = {
   id: 'g1', name: 'Viaje', memberIds: ['ua', 'ub'], currency: 'ARS',
   miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
-  createdAt: 0, createdById: 'ua', deletionVotes: [], updatedAt: 0, isDeleted: false,
+  createdAt: 0, createdById: 'ua', updatedAt: 0, isDeleted: false,
 };
 const EXPENSE: Expense = {
   id: 'e1', groupId: 'g1', description: 'Cena', amount: 10_000, currency: 'ARS',
@@ -51,7 +51,7 @@ const EXPENSE: Expense = {
     { userId: 'ub', amount: 5_000, isPaid: false },
   ],
   splitMode: 'equal', category: 'food', date: 1_000, createdAt: 1_000,
-  updatedAt: 1_000, isDeleted: false, deletionVotes: [],
+  updatedAt: 1_000, isDeleted: false,
 };
 
 describe('T-152 · D2 — edición bloqueada por firma avisa y no cierra la pantalla', () => {

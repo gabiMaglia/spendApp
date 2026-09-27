@@ -39,7 +39,7 @@ const USER = { id: 'ua', name: 'Ana' } as User;
 const GROUP: Group = {
   id: 'g1', name: 'Viaje', memberIds: ['ua', 'ub'], currency: 'ARS',
   miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
-  createdAt: 0, createdById: 'ua', deletionVotes: [], updatedAt: 0, isDeleted: false,
+  createdAt: 0, createdById: 'ua', updatedAt: 0, isDeleted: false,
 };
 const NOTA_GIGANTE = 'x'.repeat(300_000);
 
@@ -88,7 +88,7 @@ describe('T-178 — el registro que excede el tope no se guarda (gate al escribi
         { userId: 'ub', amount: 5_000, isPaid: false },
       ],
       splitMode: 'equal', category: 'food', date: 1_000, createdAt: 1_000,
-      updatedAt: 1_000, isDeleted: false, deletionVotes: [],
+      updatedAt: 1_000, isDeleted: false,
     };
     mockSearchParams = { expenseId: 'e1' };
     const updateExpense = jest.fn(() => true);
@@ -141,7 +141,7 @@ describe('T-178 — el registro que excede el tope no se guarda (gate al escribi
       currency: 'ARS', paidById: 'ua', createdById: 'ua',
       splits: [{ userId: 'ua', amount: 1, isPaid: true }],
       splitMode: 'equal', category: 'other', date: 1, createdAt: 1,
-      note: NOTA_GIGANTE, updatedAt: 1, isDeleted: false, deletionVotes: [],
+      note: NOTA_GIGANTE, updatedAt: 1, isDeleted: false,
     };
     useExpenseStore.setState({ expenses: [legado] });
     expect(useExpenseStore.getState().expenses).toEqual([legado]);

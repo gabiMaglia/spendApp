@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { checkRecord, checkVote } from '@/src/sync/trustCheck';
+import { checkRecord } from '@/src/sync/trustCheck';
 import { useRecurringStore } from '@/src/store/recurringStore';
 import { canonicalCore } from '@/src/sync/recordCore';
-import { canonicalVote } from '@/src/sync/voteCore';
 import { trustOf, type TrustState } from '@/src/algorithms/recordTrust';
 import type { CoreKind, CoreRecord } from '@/src/sync/recordCore';
 import type { RecordVerdict } from '@/src/sync/recordHealth';
-import type { DeletionVote } from '@/src/types/models';
 
 /**
  * **Verificar sólo lo que el usuario está mirando** (T-041 · S10, decisión D8).
@@ -196,46 +194,5 @@ export function useRecordTrust<K extends CoreKind>(
 
   const marcas: Record<string, TrustState> = {};
   for (const fila of filas) marcas[fila.id] = trustOf(veredictos[fila.firma]);
-  return marcas;
-}
-
-/** Un voto, con el gasto al que pertenece: los votos no viajan solos. */
-export type VoteRef = { expenseId: string; vote: DeletionVote };
-
-/**
- * Qué identifica a un voto. **El gasto entra**, porque entra en la firma: el
- * mismo enunciado contra otro gasto es otro veredicto — sin eso, una objeción
- * valdría para cualquier registro. Los votos no tienen id propio: el colapso del
- * merge es por persona y ronda, así que quién y cuándo alcanza.
- */
-export function voteRefKey(expenseId: string, vote: DeletionVote): string {
-  return `${expenseId}|${vote.userId}|${vote.votedAt}`;
-}
-
-/** Mismo criterio que el de los núcleos: el mensaje verificado, no el voto. */
-function firmaDeVoto({ expenseId, vote }: VoteRef): string {
-  return `${canonicalVote(expenseId, vote)}|${vote.k ?? ''}|${vote.s ?? ''}`;
-}
-
-/**
- * La marca de cada voto de borrado visible.
- *
- * Es el llamador de producción de `verifyVote` (S8), que hasta acá no tenía
- * ninguno. Va por fila visible por la misma razón que los núcleos, y sirve para
- * lo que R1 pide del feed: decir quién pidió, forzó o restauró **y si esa firma
- * verificó**. El `forced` del creador se honra siempre (R3) — lo que cambia es
- * que queda atribuido.
- */
-export function useVoteTrust(refs: readonly VoteRef[]): Readonly<Record<string, TrustState>> {
-  const filas = refs.map(ref => ({
-    clave: voteRefKey(ref.expenseId, ref.vote),
-    firma: firmaDeVoto(ref),
-    verificar: () => checkVote(ref.expenseId, ref.vote) as RecordVerdict,
-  }));
-
-  const veredictos = useVeredictos(filas);
-
-  const marcas: Record<string, TrustState> = {};
-  for (const fila of filas) marcas[fila.clave] = trustOf(veredictos[fila.firma]);
   return marcas;
 }

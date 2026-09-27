@@ -1,7 +1,5 @@
 import { useCallback } from 'react';
 import { useExpenseStore } from '@/src/store/expenseStore';
-import { emitirVoto } from '@/src/services/deletionVotes';
-import { syncedNow } from '@/src/utils/syncedClock';
 import type { User } from '@/src/types/models';
 
 /**
@@ -18,9 +16,8 @@ export function useRestoreExpense(currentUser: User | null): (expenseId: string)
     if (!gasto || !currentUser) return;
     updateExpense(expenseId, {
       isDeleted: false,
-      deletionVotes: emitirVoto(gasto, currentUser.id, 'restore', syncedNow()),
-      // T-186 (Task 0): etiqueta LWW sin firma para que Actividad muestre
-      // quién restauró, sin depender del voto (que se va con el modo consenso).
+      // T-186: etiqueta LWW sin firma para que Actividad muestre quién
+      // restauró, sin depender de ningún voto (el modo «con acuerdo» se sacó).
       restoredById: currentUser.id,
     });
   }, [currentUser, updateExpense]);

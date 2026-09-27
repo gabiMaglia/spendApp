@@ -1,7 +1,4 @@
-import { esDeLaRonda, frenaLaRonda } from '@/src/sync/voteCore';
 import type { RecordVerdict } from '@/src/sync/recordHealth';
-import type { DeletionRound } from './deletionRound';
-import type { DeletionVote } from '@/src/types/models';
 
 /**
  * **Qué marca le corresponde a un veredicto** (T-041 · S10).
@@ -63,48 +60,4 @@ export function trustOf(verdict: RecordVerdict | undefined): TrustState {
 /** ¿Esta fila muestra la marca? */
 export function isMarked(state: TrustState): boolean {
   return state === 'marcado';
-}
-
-/**
- * El voto al que le corresponde la marca de una ronda de borrado.
- *
- * La banda de la ronda —en el detalle del gasto y en el feed— atribuye a UNA
- * persona: «Ana pidió borrar», «Beto restauró». Lo que hay que verificar ahí no
- * es el núcleo del gasto sino **la firma del enunciado que se está
- * atribuyendo**, que es una cosa distinta y la firma otra persona.
- *
- * Devuelve `undefined` cuando no se puede señalar un voto: sin ronda, o cuando
- * el que la ronda nombra no tiene un enunciado de ESTA ronda. La marca que
- * corresponde entonces la decide `trustOf(undefined)` — `pendiente`, ni acusa ni
- * avala.
- *
- * **El `forced` del creador se honra siempre** (R3, decisión del PO), verifique
- * o no. Lo único que agrega esto es la atribución: quién lo hizo y si su firma
- * cerró.
- */
-export function attributedVote(
-  round: DeletionRound | null, votes: readonly DeletionVote[],
-): DeletionVote | undefined {
-  if (round === null) return undefined;
-
-  const persona = round.status === 'open' ? round.requestedBy : round.stoppedBy;
-  if (!persona) return undefined;
-
-  /**
-   * Un voto de otra ronda del mismo autor no puede prestarle su firma a ésta:
-   * un enunciado viejo y válido haría pasar por verificada una atribución que
-   * nunca se firmó. La ronda sintética `''` —lo anterior a S8 y lo de un peer
-   * sin actualizar— sí entra: el otro lado no tenía cómo nombrar la ronda.
-   */
-  const deLaRonda = votes.filter(v =>
-    v.userId === persona &&
-    esDeLaRonda(v, round.roundId) &&
-    (round.status === 'open' ? !frenaLaRonda(v) : frenaLaRonda(v)),
-  );
-
-  // El más nuevo: es el enunciado vigente de esa persona en esta ronda.
-  return deLaRonda.reduce<DeletionVote | undefined>(
-    (mejor, v) => (mejor === undefined || v.votedAt > mejor.votedAt ? v : mejor),
-    undefined,
-  );
 }

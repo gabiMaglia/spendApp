@@ -55,7 +55,7 @@ describe('indicador de cantidad de grupos junto al ingreso', () => {
       id, name: id, memberIds, currency: 'ARS',
       miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
       createdAt: 1_000, updatedAt: 1_000, isDeleted: false,
-      createdById: memberIds[0], deletionVotes: [],
+      createdById: memberIds[0],
     };
   }
 
@@ -107,7 +107,7 @@ describe('la caja de deudas', () => {
     useGroupStore.setState({ groups: [{
       id: 'g1', name: 'Asado', memberIds: ['ana', 'beto'], currency: 'ARS',
       miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
-      createdAt: 0, createdById: 'beto', deletionVotes: [], updatedAt: 0, isDeleted: false,
+      createdAt: 0, createdById: 'beto', updatedAt: 0, isDeleted: false,
     } as never] });
     useUserStore.setState({ users: [ANA, { id: 'beto', name: 'Beto' } as User] });
     useExpenseStore.setState({ expenses: [{
@@ -118,7 +118,7 @@ describe('la caja de deudas', () => {
         { userId: 'beto', amount: 50_000, isPaid: false },
       ],
       memberIds: ['ana', 'beto'], category: 'food', date: Date.now(), createdAt: Date.now(),
-      createdById: 'beto', deletionVotes: [], updatedAt: 0, isDeleted: false,
+      createdById: 'beto', updatedAt: 0, isDeleted: false,
     } as never] });
 
     const r = render(<PersonalScreen />);
@@ -135,7 +135,7 @@ describe('la caja de deudas', () => {
     useGroupStore.setState({ groups: [{
       id: 'g1', name: 'Asado', memberIds: ['ana', 'beto'], currency: 'ARS',
       miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
-      createdAt: 0, createdById: 'beto', deletionVotes: [], updatedAt: 0, isDeleted: false,
+      createdAt: 0, createdById: 'beto', updatedAt: 0, isDeleted: false,
     } as never] });
     useUserStore.setState({ users: [ANA, { id: 'beto', name: 'Beto' } as User] });
     // Ana debe $1.000 (100_000 en unidad menor) y no tiene presupuesto ni
@@ -148,7 +148,7 @@ describe('la caja de deudas', () => {
         { userId: 'beto', amount: 100_000, isPaid: false },
       ],
       memberIds: ['ana', 'beto'], category: 'food', date: Date.now(), createdAt: Date.now(),
-      createdById: 'beto', deletionVotes: [], updatedAt: 0, isDeleted: false,
+      createdById: 'beto', updatedAt: 0, isDeleted: false,
     } as never] });
 
     const r = render(<PersonalScreen />);
@@ -166,12 +166,12 @@ describe('la caja de deudas', () => {
         {
           id: 'g1', name: 'Asado', memberIds: ['ana', 'beto'], currency: 'ARS',
           miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
-          createdAt: 0, createdById: 'beto', deletionVotes: [], updatedAt: 0, isDeleted: false,
+          createdAt: 0, createdById: 'beto', updatedAt: 0, isDeleted: false,
         },
         {
           id: 'g2', name: 'Viaje', memberIds: ['ana', 'carla'], currency: 'ARS',
           miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
-          createdAt: 0, createdById: 'ana', deletionVotes: [], updatedAt: 0, isDeleted: false,
+          createdAt: 0, createdById: 'ana', updatedAt: 0, isDeleted: false,
         },
       ] as never,
     });
@@ -189,7 +189,7 @@ describe('la caja de deudas', () => {
             { userId: 'beto', amount: 1_000_000, isPaid: false },
           ],
           memberIds: ['ana', 'beto'], category: 'food', date: Date.now(), createdAt: Date.now(),
-          createdById: 'beto', deletionVotes: [], updatedAt: 0, isDeleted: false,
+          createdById: 'beto', updatedAt: 0, isDeleted: false,
         },
         // A Ana le deben $5.000 (ana pagó, split parejo de 2, cada mitad $5.000).
         {
@@ -200,7 +200,7 @@ describe('la caja de deudas', () => {
             { userId: 'carla', amount: 500_000, isPaid: false },
           ],
           memberIds: ['ana', 'carla'], category: 'food', date: Date.now(), createdAt: Date.now(),
-          createdById: 'ana', deletionVotes: [], updatedAt: 0, isDeleted: false,
+          createdById: 'ana', updatedAt: 0, isDeleted: false,
         },
       ] as never,
     });

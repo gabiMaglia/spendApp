@@ -1,13 +1,11 @@
 import { verifiedCore } from './verdictCache';
-import { verifyVote } from './voteSign';
 import { conPropiaSoloParaValida } from './authorKeys';
 import { authorOf } from './signOnWrite';
 import { derivedOriginOf } from './derivedRecords';
 import type { CoreKind, CoreRecord } from './recordCore';
 import type { RecordVerdict } from './recordHealth';
-import type { CoreVerdict } from './recordSign';
 import { fielALaPlantilla, origenRecurrenteDe } from '@/src/algorithms/derivedRecurring';
-import type { DeletionVote, Expense, RecurringExpense } from '@/src/types/models';
+import type { Expense, RecurringExpense } from '@/src/types/models';
 
 /**
  * **El veredicto de una fila que el usuario está mirando** (T-041 · S10).
@@ -80,16 +78,6 @@ export function checkRecord<K extends CoreKind>(
 }
 
 /**
- * El veredicto de UN voto de borrado, para marcarlo.
- *
- * `verifyVote` (S8) no tenía llamador de producción: es éste. Va por fila
- * visible y **nunca en el merge** — a 37 ms por voto, verificar mientras se
- * mergea volvería inusable el drenado del relay (D9).
- *
- * Los votos no pasan por la caché de veredictos, que es de núcleos: son pocos
- * —los de la ronda vigente de un gasto abierto— y se pagan una vez por vista.
- */
-/**
  * **Un gasto materializado hereda el veredicto de su plantilla** (S9 · D5).
  *
  * Nadie lo firmó y nadie podía: lo emite el primer device que abre la app
@@ -117,12 +105,4 @@ function veredictoHeredadoDeLaPlantilla(
   // La plantilla se verifica por el camino normal, con caché: es un registro
   // firmado como cualquier otro.
   return checkRecord('recurring', template);
-}
-
-export function checkVote(expenseId: string, vote: DeletionVote): CoreVerdict {
-  // T-170 · D-2: mismo criterio que `checkRecord` — la propia sólo mejora
-  // hacia `valida` un `forced`/voto MÍO, nunca lo degrada.
-  return conPropiaSoloParaValida(
-    vote.userId, vote.k, keys => verifyVote(expenseId, vote, keys), v => v === 'valida',
-  );
 }

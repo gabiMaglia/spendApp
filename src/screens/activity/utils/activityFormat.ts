@@ -16,7 +16,7 @@ export function relativeTime(ts: number): string {
 }
 
 export function getTs(ev: ActivityKind): number {
-  if (ev.kind === 'expense_added' || ev.kind === 'expense_delete_request') return ev.expense.date;
+  if (ev.kind === 'expense_added') return ev.expense.date;
   if (ev.kind === 'expense_deleted' || ev.kind === 'expense_restored') {
     return ev.expense.updatedAt || ev.expense.date;
   }

@@ -1,11 +1,10 @@
 import { canonical, type Syncable } from './lww';
 import { canonicalCore, coreFieldsOf, type CoreKind, type CoreRecord } from '@/src/sync/recordCore';
-import { mergeDeletionVoteSets } from '@/src/sync/SyncEngine';
 import { mergeApprovals } from '@/src/algorithms/leaveRequest';
 import { envenenado } from './relojDelMerge';
 import { unirDisputa } from '@/src/algorithms/autoria';
 import { unirMiembros } from '@/src/algorithms/roster';
-import type { DeletionVote, Group, LeaveRequest, NucleoDisputado, SettlementConfirmation } from '@/src/types/models';
+import type { Group, LeaveRequest, NucleoDisputado, SettlementConfirmation } from '@/src/types/models';
 
 /**
  * **Merge por niveles** (T-041 · S7).
@@ -24,8 +23,9 @@ import type { DeletionVote, Group, LeaveRequest, NucleoDisputado, SettlementConf
  *    con firma y uno sin firma gana el que la trae (T-152); si no, gana el de
  *    `rev` mayor, que sólo sube el autor y va ADENTRO de la firma. Subirlo sin
  *    la privada del autor rompe la firma; ése es todo el mecanismo.
- * 2. **Colaborativo** — `deletionVotes` y `leaveRequest.approvedBy`. Son
- *    aportes de gente distinta: no se eligen, se unen.
+ * 2. **Colaborativo** — `leaveRequest.approvedBy`, `miembros`, `autoriaDisputada`
+ *    y (por ahora) `confirmations` del acuse de saldado. Son aportes de gente
+ *    distinta: no se eligen, se unen.
  * 3. **El resto** — `updatedAt`, `isDeleted`, el nombre del grupo, el URI local
  *    del recibo. Sigue siendo LWW por `updatedAt`, exactamente como hoy, con el
  *    tope de reloj de T-144: un `updatedAt` más de `TOLERANCIA_RELOJ_MS` en el
@@ -64,22 +64,6 @@ const CAMPOS_DE_FIRMA = ['k', 's'] as const;
  * siendo asignable a este tipo, así que las demás no lo mencionan.
  */
 type Union = (local: unknown, remoto: unknown, cur: Registro, inc: Registro, now: number) => unknown;
-
-const unirVotos: Union = (local, remoto) => {
-  const a = local as DeletionVote[] | undefined;
-  const b = remoto as DeletionVote[] | undefined;
-  if (a === undefined && b === undefined) return undefined;
-
-  const unido = mergeDeletionVoteSets(a, b);
-  // Devolver la MISMA referencia cuando no cambió nada no es cosmética: sin
-  // esto cada drenado del relay produce un array nuevo para cada gasto, y con
-  // él un re-render y una escritura a disco de todo, cada 20 segundos.
-  return a !== undefined && mismosVotos(a, unido) ? a : unido;
-};
-
-function mismosVotos(a: readonly DeletionVote[], b: readonly DeletionVote[]): boolean {
-  return a.length === b.length && a.every((v, i) => canonical(v) === canonical(b[i]));
-}
 
 /**
  * Los acuses de recibo de un saldado (T-064).
@@ -160,11 +144,11 @@ const unirMiembrosDeGrupo: Union = (local, remoto, _cur, _inc, now) =>
  * lo tanto no se puede elegir sin perder el aporte de alguien.
  */
 const COLABORATIVOS: Record<CoreKind, readonly (readonly [string, Union])[]> = {
-  expense: [['deletionVotes', unirVotos], ['autoriaDisputada', unirAutoria]],
+  expense: [['autoriaDisputada', unirAutoria]],
   payment: [['confirmations', unirAcuses]],
   comment: [],
   recurring: [],
-  group: [['deletionVotes', unirVotos], ['leaveRequest', unirAprobaciones], ['miembros', unirMiembrosDeGrupo]],
+  group: [['leaveRequest', unirAprobaciones], ['miembros', unirMiembrosDeGrupo]],
 };
 
 /** `rev` ausente cuenta como 0: es todo lo que existe desde antes de T-041. */

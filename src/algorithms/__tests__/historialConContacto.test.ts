@@ -93,15 +93,6 @@ describe('contactosConHistorial', () => {
     expect(con({ payments: [pago({ isDeleted: true })] }).has('beto')).toBe(false);
   });
 
-  it('un saldado RECHAZADO en un grupo consensuado no cuenta: el pago nunca existió', () => {
-    const consenso = grupo({ deletionMode: 'consensus' } as Partial<Group>);
-    const rechazado = pago({
-      createdById: 'beto',
-      confirmations: [{ userId: 'yo', confirmedAt: 1, action: 'reject' }],
-    } as Partial<Payment>);
-    expect(con({ groups: [consenso], payments: [rechazado] }).has('beto')).toBe(false);
-  });
-
   it('un saldado entre otros dos no me da historial con ninguno', () => {
     const r = con({ payments: [pago({ fromUserId: 'beto', toUserId: 'caro' })] });
     expect(r.size).toBe(0);

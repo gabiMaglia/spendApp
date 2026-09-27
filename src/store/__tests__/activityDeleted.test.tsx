@@ -12,10 +12,10 @@ import type { Expense, Group } from '@/src/types/models';
  * Lo BORRADO tiene que verse en Actividad — si no, no hay desde donde
  * restaurarlo.
  *
- * Es la contraparte del modo de borrado LIBRE que el grupo puede elegir: ahi
- * cualquiera borra al instante, y el trato es que cualquiera pueda deshacerlo.
- * Con el feed filtrando `isDeleted`, borrar era irreversible y el trato quedaba
- * a medias. Splitwise resuelve exactamente asi: "undelete in one tap from your
+ * T-186: es el ÚNICO modo desde que se sacó el modo «con acuerdo» — cualquiera
+ * borra al instante, y el trato es que cualquiera pueda deshacerlo. Con el
+ * feed filtrando `isDeleted`, borrar era irreversible y el trato quedaba a
+ * medias. Splitwise resuelve exactamente asi: "undelete in one tap from your
  * recent activity feed".
  */
 
@@ -24,14 +24,14 @@ jest.mock('@/src/sync/relayEngine', () => ({ schedulePublish: jest.fn(), deviceI
 const YO = 'ana';
 const grupo = (over: Partial<Group> = {}): Group => ({
   id: 'g1', name: 'Viaje', memberIds: ['ana', 'beto'], currency: 'ARS',
-  createdAt: 0, createdById: 'ana', deletionVotes: [], updatedAt: 0, isDeleted: false, ...over,
+  createdAt: 0, createdById: 'ana', updatedAt: 0, isDeleted: false, ...over,
 } as Group);
 
 const gasto = (over: Partial<Expense> = {}): Expense => ({
   id: 'e1', groupId: 'g1', description: 'Nafta', amount: 1_000_000, currency: 'ARS',
   paidById: 'ana', splits: [{ userId: 'ana', amount: 500_000 }, { userId: 'beto', amount: 500_000 }],
   splitMode: 'equal', category: 'transport', date: 5_000, createdAt: 0, createdById: 'ana',
-  deletionVotes: [], updatedAt: 0, isDeleted: false, ...over,
+  updatedAt: 0, isDeleted: false, ...over,
 } as Expense);
 
 function feed(): ReturnType<typeof useActivityFeed> {
@@ -72,34 +72,5 @@ describe('lo borrado sigue visible en Actividad', () => {
     useGroupStore.setState({ groups: [grupo({ memberIds: ['beto', 'caro'] })] });
     useExpenseStore.setState({ expenses: [gasto({ isDeleted: true })] });
     expect(feed()).toHaveLength(0);
-  });
-});
-
-/**
- * Una ronda de borrado FRENADA no es una solicitud pendiente.
- *
- * Con el merge por niveles (T-041 · S7) los votos se unen en vez de pisarse, así
- * que el pedido de borrado ya no desaparece del registro cuando alguien objeta o
- * restaura: queda al lado de la objeción, que es lo que hace que el borrado no
- * vuelva a ejecutarse solo. El feed no puede leer "hay un voto de borrado" como
- * "hay un borrado pendiente" — le estaría avisando al usuario de un trámite que
- * ya se frenó.
- */
-describe('el feed no anuncia rondas ya frenadas', () => {
-  const votos = (extra: object[] = []) => [
-    { userId: 'beto', votedAt: 1_000, action: 'delete' as const },
-    ...extra,
-  ];
-
-  it('un pedido vivo sí aparece', () => {
-    useExpenseStore.setState({ expenses: [gasto({ deletionVotes: votos() as never })] });
-    expect(feed().some(e => e.kind === 'expense_delete_request')).toBe(true);
-  });
-
-  it('un pedido objetado NO aparece', () => {
-    useExpenseStore.setState({ expenses: [gasto({
-      deletionVotes: votos([{ userId: 'ana', votedAt: 2_000, action: 'cancel' }]) as never,
-    })] });
-    expect(feed().some(e => e.kind === 'expense_delete_request')).toBe(false);
   });
 });
