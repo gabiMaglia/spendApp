@@ -450,6 +450,54 @@ describe('R4-1: la sesión se ata al usuario de la app', () => {
     sesion = null;
     expect(await S.validarIdentidadReconectada('acc1')).toBe('sin_sesion');
   });
+
+  /**
+   * Verifier R4-1(b) (ronda 4, hueco declarado en la ronda 3 — «A→B con
+   * signOut lento»): el PoC real del verificador mostraba `getSession()`
+   * devolviendo la sesión de A mientras el `signOut` de A todavía estaba en
+   * vuelo (auth-js 2.109 no tiene lock propio). Este test no confía en la
+   * VALIDACIÓN de identidad (R4-1a/c, que es una red de seguridad) — prueba
+   * la DEFENSA PRIMARIA: la cola (`encolarOperacionDeSesion`) hace que
+   * `ensureRelaySession` ni siquiera INTENTE leer la sesión hasta que el
+   * `signOut` en vuelo haya terminado. Orden real: `signOutOfDirectory` (A)
+   * se dispara, se cuelga a mitad de camino; recién ahí la app pasa a B y
+   * pide una lectura de sesión — el orden de resolución observado tiene que
+   * ser signOut-primero, getSession-después, nunca al revés.
+   */
+  it('R4-1(b): A→B con signOut lento — ensureRelaySession no lee la sesión hasta que el signOut en vuelo termina', async () => {
+    useAuthStore.setState({ currentUser: conCuenta('google') }); // todavía A
+    sesion = { user: { is_anonymous: false, id: 'uid-A' } };
+
+    const orden: string[] = [];
+    let liberarSignOut: (() => void) | null = null;
+    signOut.mockImplementationOnce(() => new Promise(resolve => {
+      liberarSignOut = () => { orden.push('signOut-resuelto'); resolve({ error: null }); };
+    }));
+    mockCliente.auth.getSession.mockImplementationOnce(async () => {
+      orden.push('getSession-leyo');
+      return { data: { session: sesion }, error: errorDeGetSession };
+    });
+
+    const { signOutOfDirectory } = require('../directoryAuth') as typeof import('../directoryAuth');
+    const logoutDeA = signOutOfDirectory(); // A se desloguea — el signOut queda colgado
+
+    // La app ya cambió el usuario activo a B mientras el signOut de A sigue
+    // en vuelo, y dispara una lectura de sesión (el primer poll tras entrar).
+    useAuthStore.setState({ currentUser: { id: 'accB', authProvider: 'google' } as User });
+    const lecturaDeB = S.ensureRelaySession();
+
+    // Deja correr microtasks: sin la cola, `getSession` ya habría corrido
+    // acá, ANTES de que el signOut de A termine.
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+    expect(orden).toEqual([]); // nada leyó todavía — la lectura de B está esperando en la cola
+
+    sesion = { user: { is_anonymous: false, id: 'uid-B' } }; // lo que el login de B ya persistió
+    liberarSignOut!();
+    await logoutDeA;
+
+    expect(await lecturaDeB).toBe('identity');
+    expect(orden).toEqual(['signOut-resuelto', 'getSession-leyo']); // orden real: A termina antes de que B lea
+  });
 });
 
 describe('logout (H2)', () => {
