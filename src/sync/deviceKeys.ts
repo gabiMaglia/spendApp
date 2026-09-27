@@ -1,5 +1,4 @@
 import { esFuncionAusente, getRelayClient } from './relay';
-import { getDirectoryClient } from './directoryClient';
 import { ensureIdentity } from '@/src/store/identityStore';
 import { useAuthStore } from '@/src/store/authStore';
 
@@ -39,7 +38,11 @@ export type RegisterResult =
  * antes de que esto existiera.
  */
 export async function registerDeviceKey(): Promise<RegisterResult> {
-  const supabase = getDirectoryClient();
+  // T-147-b (Task 2): la escritura sale por el mismo cliente que la lectura
+  // (`queryAccountKeys`, abajo) — el del BUZÓN. Ya no hay un cliente del
+  // directorio aparte: para una cuenta, la sesión que dejó `signInWithIdToken`
+  // en el login (`directoryAuth.ts`) vive PERSISTIDA acá.
+  const supabase = getRelayClient();
   if (!supabase) return { ok: false, reason: 'not_configured' };
 
   const accountId = useAuthStore.getState().currentUser?.id;
@@ -94,14 +97,13 @@ export async function fetchAccountKeys(accountId: string): Promise<string[]> {
 export type KeysQuery = { ok: boolean; keys: string[] };
 
 /**
- * **Fix del verificador (§Simplificación, bloqueante).** Las LECTURAS del
- * directorio salen por el cliente del BUZÓN (sesión anónima, siempre
- * disponible, rol `authenticated` tras 011b) — NO por el del directorio, que
- * no persiste sesión (`directoryClient.ts`, Fase A) y en un arranque en frío
- * saldría con la anon key pelada, que 011b ya no acepta ni para `account_keys`
- * ni para el SELECT de respaldo sobre `device_keys` (42501). Sólo la
- * ESCRITURA de la clave propia (`registerDeviceKey`, arriba) necesita probar
- * de qué CUENTA es, y por eso sigue en el cliente del directorio.
+ * Las LECTURAS del directorio salen por el cliente del BUZÓN (`getRelayClient`)
+ * — la policy de SELECT de `account_keys`/`device_keys` es pública, no exige
+ * sesión de cuenta, así que un invitado (sesión anónima) o una cuenta sin
+ * reconectar todavía pueden preguntar igual. **T-147-b (Task 2):** desde que
+ * se unificaron los clientes, esto ya es el MISMO cliente que usa
+ * `registerDeviceKey` (arriba) para escribir — no queda ninguna razón por la
+ * que las dos operaciones tuvieran que salir por clientes distintos.
  */
 export async function queryAccountKeys(accountId: string): Promise<KeysQuery> {
   const supabase = getRelayClient();
@@ -176,9 +178,9 @@ export function myKeyPresence(): KeyPresence {
  * pantalla que se lo diga. Al encender el rechazo de la fase B, esa persona
  * dejaría de sincronizar sin entender por qué.
  *
- * Leer el directorio NO necesita sesión —la política de select es abierta— así
- * que esto se puede hacer en cada arranque, que es justamente donde no hay
- * sesión de Supabase (`persistSession: false`).
+ * Leer el directorio NO necesita sesión —la política de select es abierta—
+ * así que esto se puede hacer en cada arranque, incluso antes de que
+ * `verify.tsx` (T-147-b) termine de reconectar la sesión de cuenta.
  *
  * Sólo DETECTA. Registrar necesita un `id_token` fresco, y pedirlo en silencio
  * al arrancar sería un login encubierto: la decisión de reloguearse es del
