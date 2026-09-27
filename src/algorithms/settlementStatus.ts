@@ -57,12 +57,31 @@ export type EstadoSaldado =
  *    `efectivo` sin acuse, y el `reject` real del acreedor se ignoraba
  *    porque `estadoDelSaldado` ni llegaba a mirarlo. Sin firma válida, el
  *    atajo no aplica y hace falta el acuse de siempre.
+ *
+ * **Tercera salida (T-182):** un pago derivado de un CIERRE FORZADO — salida
+ * con absorción (`leave:...`, `applyLeave.ts`) o expulsión
+ * (`expel:...`, `expulsarDelGrupo.ts`) — tampoco pide acuse. Ninguno de los
+ * dos pasa por una ronda de aprobación de saldos: la salida ya juntó las
+ * aprobaciones del `LeaveRequest` (otro circuito, `leaveRequest.ts`) y la
+ * expulsión es una decisión unilateral del creador. Pedirle a la otra parte
+ * que confirme dejaría la deuda `pendiente` para siempre en el caso más común
+ * — esa otra parte es justo quien ya salió del grupo. Se reconoce por el
+ * prefijo del id y por no traer firma (`derived: true`, T-041 · S6): son
+ * exactamente las dos condiciones que ya identifican a esta clase en
+ * `derivedRecords.ts`. No se exige más prueba a propósito — decisión del PO
+ * 2026-09-27: sin modelo de miembro malicioso para este ticket.
  */
+function esPagoDeCierreForzado(payment: Payment): boolean {
+  return !payment.k && !payment.s
+    && (payment.id.startsWith('leave:') || payment.id.startsWith('expel:'));
+}
+
 export function requiereConfirmacion(
   payment: Payment, group: Group | undefined,
   ctx: Pick<ContextoDeAcuse, 'nucleoDe'> = contextoReal(),
 ): boolean {
   if (group?.deletionMode !== 'consensus') return false;
+  if (esPagoDeCierreForzado(payment)) return false;
   if (payment.createdById !== payment.toUserId) return true;
   return ctx.nucleoDe(payment) !== 'valida';
 }
