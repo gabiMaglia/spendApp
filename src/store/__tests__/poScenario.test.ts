@@ -2,6 +2,7 @@ import { useAuthStore } from '../authStore';
 import { useGroupStore } from '../groupStore';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { mergeProviderUser } from '@/src/utils/mergeProviderUser';
+import { idEstable } from '@/src/utils/accountIdentity';
 
 // El anon key real vive en el env de jest (igual que en producción), así que
 // `getRelayClient()` no es null acá — sin este mock, `createClient` real de
@@ -89,8 +90,20 @@ describe('ESCENARIO DEL PO: Google y Apple con el mismo mail en un teléfono que
     useAuthStore.setState({ currentUser: null, isPro: false, isLoading: false });
 
     // Datos preexistentes de cada cuenta, de antes del índice de identidad.
+    //
+    // T-188a: la rama «cuenta nueva» de `resolveAccount` ya no devuelve el
+    // `providerId` crudo, deriva `idEstable(providerId)` — así que el id de
+    // cuenta que un login en blanco asigna depende de si ese proveedor entra
+    // por la rama 4 («nueva», gana `idEstable`) o por un enlace/fusión
+    // (gana el `providerId` crudo del origen, ver `confirmLink`/rama `linked`
+    // de `accountIdentity.ts`). Cuál pasa por cuál rama depende del ORDEN en
+    // que cada test hace login, así que acá se siembra bajo las DOS claves
+    // posibles para cada proveedor — sobra en cualquier test dado, pero
+    // ninguno se queda sin encontrar sus datos según el orden que ejercite.
     seedGroups(GOOGLE_ID, ['grupo-google']);
+    seedGroups(idEstable(GOOGLE_ID), ['grupo-google']);
     seedGroups(APPLE_ID,  ['grupo-apple']);
+    seedGroups(idEstable(APPLE_ID), ['grupo-apple']);
   });
 
   it('el 2º login (Apple sin email) PREGUNTA en vez de abrir otra cuenta', () => {
