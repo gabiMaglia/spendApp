@@ -67,6 +67,10 @@ let storageBuzon = storageEnMemoria();
 let uidSecuenciaAnon = 0;
 let uidSecuenciaCuenta = 0;
 let redCaida = false;
+/** D1 (verifier, ronda 2): retraso artificial del login por id_token, para
+ *  que una lectura de sesión que arranca DESPUÉS (pero sin esperar el login)
+ *  tenga margen real de adelantársele si las dos colas no están unificadas. */
+let retrasoTokenMs = 0;
 
 /**
  * Fetch fake: responde como GoTrue para signup anónimo (invitado), login por
@@ -85,6 +89,7 @@ async function fetchFalso(url: string | URL, opts?: { method?: string }): Promis
     }), { status: 200 });
   }
   if (u.includes('/token') && u.includes('grant_type=id_token') && opts?.method === 'POST') {
+    if (retrasoTokenMs) await new Promise(r => setTimeout(r, retrasoTokenMs));
     uidSecuenciaCuenta++;
     const uid = `cuenta-${uidSecuenciaCuenta}`;
     return new Response(JSON.stringify({
@@ -167,6 +172,7 @@ beforeEach(() => {
   uidSecuenciaAnon = 0;
   uidSecuenciaCuenta = 0;
   redCaida = false;
+  retrasoTokenMs = 0;
   mockCaptcha = { status: 'not_required' };
   mockClienteBuzon = nuevoClienteBuzon();
 
@@ -257,6 +263,62 @@ describe('fila 3 · cuenta Apple nueva', () => {
 
     expect(uidGuardado()).toMatch(/^cuenta-/);
     expect(await relaySession.ensureRelaySession(true)).toBe('identity');
+  });
+
+  /**
+   * D1 (verifier, ronda 2 — rechazo bloqueante): orden REAL de
+   * `app/auth/index.tsx:313-320` — `setUser` dispara el login
+   * (`entrarAlDirectorio` → `signIntoDirectory`) SIN `await`, y casi en el
+   * mismo instante `verify.tsx` (o el propio `startRelay`) llama a
+   * `ensureRelaySession`. Antes de este fix, `relaySession` y
+   * `directoryAuth` tenían colas SEPARADAS: la lectura no esperaba nada del
+   * login en vuelo y leía 'none' antes de tiempo — «No se pudo confirmar tu
+   * acceso» sobre un login que en realidad iba a salir bien. Con una sola
+   * cola compartida, la lectura queda detrás del login encolado y espera.
+   */
+  it('D1: setUser → login SIN await → la lectura espera el login encolado y da "identity", nunca falla', async () => {
+    useAuthStore.setState({ currentUser: cuenta('acc-apple', 'apple') as never });
+    retrasoTokenMs = 15; // el login tarda un toque — tiempo de sobra para que una lectura sin cola compartida se le adelante
+
+    const loginPromise = directoryAuth.signIntoDirectory('apple', 'idtok-de-apple'); // fire-and-forget, como en el login real
+
+    const kind = await relaySession.ensureRelaySession(true); // la MISMA pantalla, leyendo "ya"
+
+    expect(kind).toBe('identity'); // nunca 'none': tuvo que esperar detrás del login en la cola compartida
+    await expect(loginPromise).resolves.toEqual({ ok: true });
+  });
+});
+
+/**
+ * D2 (verifier, ronda 2 — rechazo bloqueante): una cuenta que ACTUALIZA
+ * desde el `main` actual (donde TODOS usaban sesión anónima, sin
+ * excepción) tiene una sesión ANÓNIMA residual guardada en 'sbauth'. Antes
+ * de este fix, `ensureRelaySession` para una cuenta devolvía 'none' SIN
+ * borrarla — el fondo (`relayEngine.ts`) seguía usando esa sesión anónima
+ * (`getRelayClient()` la sigue teniendo persistida) y mandaba el JWT
+ * anónimo bajo el nombre de una cuenta, violando "cuenta: nunca anónima".
+ */
+describe('fila 4b · cuenta que ACTUALIZA con una sesión ANÓNIMA residual (D2)', () => {
+  it('la purga (signOut local) y lee "none" — nunca la confunde con identity ni la deja viva', async () => {
+    // Estado heredado del `main` actual: TODOS abrían anónima, incluida esta
+    // instalación (antes de que el perfil local pasara a decir "google").
+    useAuthStore.setState({ currentUser: invitado() as never });
+    mockCaptcha = { status: 'ok', token: 'tok-viejo' };
+    await relaySession.ensureRelaySession(true);
+    const uidAnonimoResidual = uidGuardado();
+    expect(uidAnonimoResidual).toMatch(/^anon-/);
+
+    // La versión nueva llega: el perfil YA dice "google" (usuario que
+    // actualiza) — pero nadie purgó el storage del buzón todavía, porque
+    // esto NO pasa por `reiniciarSyncPorCambioDeCuenta` (no es un cambio de
+    // cuenta en vivo, es simplemente la sesión vieja que quedó ahí).
+    useAuthStore.setState({ currentUser: cuenta('acc-google') as never });
+    relaySession.__resetRelaySession();
+
+    const kind = await relaySession.ensureRelaySession(true);
+
+    expect(kind).toBe('none'); // nunca 'identity': la anónima no prueba ninguna cuenta
+    expect(uidGuardado()).toBeNull(); // y tampoco queda viva para que el fondo la siga usando
   });
 });
 
