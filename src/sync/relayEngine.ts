@@ -68,10 +68,37 @@ const CURSOR_PREFIX = 'cursor::';
  * gasto que NUNCA aparecía hasta reiniciar. Esto es lo que hace cierto el
  * invariante que ya estaba escrito.
  *
- * 20s es barato —una query indexada por grupo— y es el orden de magnitud que
- * la gente tolera esperando ver un gasto que acaba de cargar el otro.
+ * **T-158a (DEC-04): el intervalo pasó a ser adaptativo.** Con el canal
+ * PRIVADO de todos los grupos `SUBSCRIBED`, el aviso realtime ya cubre casi
+ * todo y el poll de respaldo puede espaciarse a `POLL_OK_MS` — sigue
+ * existiendo por si el aviso se pierde, pero pierde uno de cada tanto es
+ * barato. En cuanto algún canal cae (`CHANNEL_ERROR`/`TIMED_OUT`/`CLOSED`) o
+ * todavía no hay ninguno suscripto (arranque, invitado sin grupos), se vuelve
+ * a la cadencia corta de siempre — es la única señal con la que el poll
+ * puede saber que el aviso realtime dejó de ser confiable.
  */
-export const POLL_INTERVAL_MS = 20_000;
+export const POLL_OK_MS = 90_000;
+export const POLL_CAIDO_MS = 20_000;
+/** Compat: quien importaba el intervalo de siempre sigue viendo el mismo número —
+ *  era, y sigue siendo, el de "canal caído" (el conservador). */
+export const POLL_INTERVAL_MS = POLL_CAIDO_MS;
+
+/**
+ * Estado del canal PRIVADO de cada topic de GRUPO suscripto (T-158a). Sólo los
+ * de grupo entran acá — los de invitación/contacto no participan de esta
+ * decisión, y por eso un invitado sin grupos todavía cae en `POLL_CAIDO_MS`
+ * (S3): no hay ningún canal de grupo del que decir "está sano".
+ */
+const estadoCanales = new Map<string, boolean>();
+
+/** Próximo intervalo de poll, recalculado en cada vuelta (DEC-04). */
+export function intervaloDePoll(): number {
+  if (estadoCanales.size === 0) return POLL_CAIDO_MS;
+  for (const ok of estadoCanales.values()) {
+    if (!ok) return POLL_CAIDO_MS;
+  }
+  return POLL_OK_MS;
+}
 
 /** Ventana de agrupación: suficiente para juntar una edición, imperceptible. */
 export const PUBLISH_DEBOUNCE_MS = 1_500;
@@ -510,7 +537,12 @@ async function arrancarCadenaDeSync(permitirCaptcha: boolean): Promise<void> {
       // Fix 1: agendado con debounce (no `drainNow` directo) — ver
       // `scheduleDrain` para por qué un aviso realtime por sobre individual
       // no puede disparar un drenaje inmediato con ADR-007 en juego.
-      unsubs.push(subscribeTopic(topic, () => { scheduleDrain(groupId); }));
+      // T-158a: además del aviso, se registra el estado del canal privado —
+      // es lo que decide el intervalo del próximo poll (`intervaloDePoll`).
+      const off = subscribeTopic(topic, () => { scheduleDrain(groupId); }, (ok) => {
+        estadoCanales.set(topic, ok);
+      });
+      unsubs.push(() => { off(); estadoCanales.delete(topic); });
     } catch { /* un grupo que falla no debe impedir los demás */ }
   }
 
@@ -534,11 +566,23 @@ async function arrancarCadenaDeSync(permitirCaptcha: boolean): Promise<void> {
 
 // --- relectura periódica ------------------------------------------------------
 
-let poll: ReturnType<typeof setInterval> | null = null;
+let poll: ReturnType<typeof setTimeout> | null = null;
 let appStateSub: { remove: () => void } | null = null;
 
 /**
- * Relee todo cada `POLL_INTERVAL_MS` y también al volver del background.
+ * Agenda la próxima relectura. Ya no es un `setInterval` de intervalo fijo
+ * (T-158a): es una cadena de `setTimeout` que recalcula `intervaloDePoll()`
+ * en cada vuelta, así que el espaciado a 90s/20s reacciona al estado de los
+ * canales que haya AHORA MISMO, no al que había cuando arrancó el poll.
+ */
+function programarProximoPoll(): void {
+  poll = setTimeout(() => {
+    void releerTodo().finally(() => { programarProximoPoll(); });
+  }, intervaloDePoll());
+}
+
+/**
+ * Relee todo cada `intervaloDePoll()` y también al volver del background.
  *
  * Lo segundo importa tanto como lo primero: en background el websocket se cae y
  * los avisos de ese rato no llegan nunca. Volver a la app tiene que ponerte al
@@ -547,7 +591,7 @@ let appStateSub: { remove: () => void } | null = null;
 function startPolling(): void {
   stopPolling();
 
-  poll = setInterval(() => { void releerTodo(); }, POLL_INTERVAL_MS);
+  programarProximoPoll();
 
   appStateSub = AppState.addEventListener('change', estado => {
     if (estado === 'active') void releerTodo();
@@ -560,7 +604,7 @@ function startPolling(): void {
 }
 
 function stopPolling(): void {
-  if (poll) { clearInterval(poll); poll = null; }
+  if (poll) { clearTimeout(poll); poll = null; }
   if (appStateSub) { appStateSub.remove(); appStateSub = null; }
   if (soltarRefresh) { soltarRefresh(); soltarRefresh = null; }
 }

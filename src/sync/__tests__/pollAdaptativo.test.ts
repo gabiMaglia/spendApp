@@ -109,7 +109,12 @@ describe('T-158a: poll adaptativo según estado de canales Realtime (DEC-04)', (
     expect(estados.size).toBeGreaterThan(0); // se suscribió al menos un canal de grupo
     for (const cb of estados.values()) cb(true);
 
+    // El primer poll ya había quedado agendado (conservador, 20s) ANTES de
+    // que el status llegara — se lo deja consumir; lo que importa es el
+    // SIGUIENTE, que ya se recalcula con el mapa en `true`.
+    await jest.advanceTimersByTimeAsync(POLL_CAIDO_MS);
     const n = mockEnsureRelaySession.mock.calls.length;
+
     await jest.advanceTimersByTimeAsync(POLL_OK_MS - 1_000);
     expect(mockEnsureRelaySession.mock.calls.length).toBe(n); // todavía no
 
@@ -122,14 +127,21 @@ describe('T-158a: poll adaptativo según estado de canales Realtime (DEC-04)', (
     await startRelay();
     for (const cb of estados.values()) cb(false); // CHANNEL_ERROR/TIMED_OUT/CLOSED
 
+    // Mismo motivo que en S1: se consume el primer poll (ya agendado antes
+    // del status) para medir el SIGUIENTE con el mapa ya puesto.
+    await jest.advanceTimersByTimeAsync(POLL_CAIDO_MS);
     const n = mockEnsureRelaySession.mock.calls.length;
     await jest.advanceTimersByTimeAsync(POLL_CAIDO_MS - 1_000);
     expect(mockEnsureRelaySession.mock.calls.length).toBe(n);
+
+    // Vuelve a SUBSCRIBED justo ANTES de que dispare el poll ya agendado: lo
+    // que importa es qué intervalo se recalcula DESPUÉS de ese disparo, no
+    // el disparo en sí (su demora ya estaba fijada desde que se agendó).
+    for (const cb of estados.values()) cb(true);
     await jest.advanceTimersByTimeAsync(1_000);
     expect(mockEnsureRelaySession.mock.calls.length).toBeGreaterThan(n);
 
-    // Vuelve a SUBSCRIBED: el próximo poll ya se calcula a 90s.
-    for (const cb of estados.values()) cb(true);
+    // El próximo poll ya se recalculó a 90s con el mapa en `true`.
     const n2 = mockEnsureRelaySession.mock.calls.length;
     await jest.advanceTimersByTimeAsync(POLL_OK_MS - 1_000);
     expect(mockEnsureRelaySession.mock.calls.length).toBe(n2);
