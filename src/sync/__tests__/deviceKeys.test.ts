@@ -11,20 +11,22 @@ import type { User } from '@/src/types/models';
  * El directorio de claves (ADR-004). Lo que importa verificar acá NO es la
  * seguridad —esa la sostiene la RLS del servidor— sino que **nada de esto pueda
  * romper la app**: sin configurar, sin sesión o sin red, todo sigue andando.
+ *
+ * **T-147-b (`engram/plans/T-147.md`, sellado por el PO 2026-09-27) — Task 2,
+ * unificación de clientes.** Ya NO hay un `directoryClient.ts` aparte: para
+ * una cuenta (Google/Apple), el buzón y el directorio comparten la MISMA
+ * sesión — la que dejó `signInWithIdToken` en el login, persistida en el
+ * cliente del BUZÓN (`relay.ts`). Escritura (`registerDeviceKey`,
+ * `signIntoDirectory`) y lectura (`queryAccountKeys`, ya unificada desde el
+ * fix del verificador) salen las dos por `getRelayClient()`.
  */
 
 const estado = {
-  /** Cliente del DIRECTORIO (sesión de cuenta) — sólo lo usa `registerDeviceKey` (escritura). */
-  clienteDirectorio: true as boolean,
+  clienteBuzon: true as boolean,
   sesion: true as boolean,
   errorUpsert: null as { code?: string; message: string } | null,
   upserts: [] as unknown[],
   signIn: null as { message: string } | null,
-  /** Cliente del BUZÓN (sesión anónima) — lo usan las LECTURAS (`queryAccountKeys`,
-   *  fix del verificador: tras 011b `account_keys`/SELECT de `device_keys` sólo
-   *  aceptan `authenticated`, y la sesión de la instalación es la anónima, no la
-   *  del directorio, que no persiste nada). */
-  clienteBuzon: true as boolean,
   filas: [] as { public_key: string }[],
   errorSelect: false,
   /** null = la funcion existe. Un objeto = el error que devuelve Supabase. */
@@ -34,23 +36,10 @@ const estado = {
   filasRpc: [] as { public_key: string }[],
   rpcArgs: [] as unknown[],
   /** El header con el que salió el último `rpc()` del cliente del buzón —
-   *  para comprobar que las lecturas viajan con el JWT de la sesión anónima,
-   *  no con la anon key pelada. */
+   *  para comprobar que las lecturas viajan con un JWT de sesión, no con la
+   *  anon key pelada. */
   headerAuthorizationBuzon: null as string | null,
 };
-
-jest.mock('../directoryClient', () => ({
-  getDirectoryClient: () => estado.clienteDirectorio ? {
-    auth: {
-      getSession: async () => ({ data: { session: estado.sesion ? { user: {} } : null } }),
-      signInWithIdToken: async () => ({ error: estado.signIn }),
-      signOut: async () => ({}),
-    },
-    from: () => ({
-      upsert: async (fila: unknown) => { estado.upserts.push(fila); return { error: estado.errorUpsert }; },
-    }),
-  } : null,
-}));
 
 // T-147 (D6): el real detecta "función ausente" por código/texto — el mock
 // usa la implementación real para no desincronizarse de `esFuncionAusente`.
@@ -59,20 +48,22 @@ jest.mock('../relay', () => ({
     e.code === 'PGRST202' || e.code === '42883'
     || /could not find the function/i.test(e.message)
     || /function .*does not exist/i.test(e.message),
-  // El cliente del BUZÓN (sesión anónima, rol `authenticated` tras 011b) —
-  // fix del verificador (§Simplificación): las LECTURAS del directorio
-  // (`account_keys`, el SELECT de respaldo) pasan por ACÁ, no por el cliente
-  // del directorio (que no persiste sesión y saldría con la anon key pelada).
   getRelayClient: () => estado.clienteBuzon ? {
+    auth: {
+      getSession: async () => ({ data: { session: estado.sesion ? { user: {} } : null } }),
+      signInWithIdToken: async () => ({ error: estado.signIn }),
+      signOut: async () => ({}),
+    },
     rpc: async (nombre: string, args: unknown) => {
       if (estado.rpcExplota) throw new TypeError('rpc no existe');
       estado.rpcArgs.push([nombre, args]);
-      estado.headerAuthorizationBuzon = 'Bearer jwt-de-la-sesion-anonima';
+      estado.headerAuthorizationBuzon = 'Bearer jwt-de-la-sesion';
       return estado.errorRpc
         ? { data: null, error: estado.errorRpc }
         : { data: estado.filasRpc, error: null };
     },
     from: () => ({
+      upsert: async (fila: unknown) => { estado.upserts.push(fila); return { error: estado.errorUpsert }; },
       select: () => ({
         eq: async () => estado.errorSelect
           ? { data: null, error: { message: 'boom' } }
@@ -86,7 +77,7 @@ beforeEach(() => {
   createSecureStorage('groupkeys').clearAll();
   useAuthStore.setState({ currentUser: { id: 'cuenta-ana' } as User });
   Object.assign(estado, {
-    clienteDirectorio: true, clienteBuzon: true, sesion: true, errorUpsert: null,
+    clienteBuzon: true, sesion: true, errorUpsert: null,
     filas: [], errorSelect: false, upserts: [], signIn: null,
     errorRpc: null, rpcExplota: false, filasRpc: [], rpcArgs: [],
     headerAuthorizationBuzon: null,
@@ -118,11 +109,11 @@ describe('registrar la clave de este dispositivo', () => {
 
 describe('nada de esto puede romper la app', () => {
   it('sin relay configurado', async () => {
-    estado.clienteDirectorio = false;
+    estado.clienteBuzon = false;
     expect(await registerDeviceKey()).toMatchObject({ ok: false, reason: 'not_configured' });
   });
 
-  it('sin sesión en el directorio', async () => {
+  it('sin sesión', async () => {
     estado.sesion = false;
     expect(await registerDeviceKey()).toMatchObject({ ok: false, reason: 'no_session' });
   });
@@ -180,25 +171,21 @@ describe('leer las claves de una cuenta', () => {
   });
 
   /**
-   * Verificador (§Simplificación, bloqueante): tras un arranque en frío el
-   * cliente del DIRECTORIO no tiene sesión (no persiste — `directoryClient.ts`).
-   * Si la lectura (`account_keys`) saliera por ese cliente, viajaría con la
-   * anon key pelada y 011b la rechaza (42501: sólo `authenticated`). La sesión
-   * que SÍ está siempre disponible es la del BUZÓN (anónima, rol
-   * `authenticated`) — las lecturas del directorio tienen que salir por ahí,
-   * como antes de T-147.
+   * T-147-b (Task 2): la lectura sale por el cliente del BUZÓN, sea cual sea
+   * la sesión de ARRIBA (`estado.sesion`) — `account_keys`/el SELECT de
+   * respaldo son de policy pública, no necesitan sesión de cuenta.
    */
-  it('sale por la sesión del BUZÓN, no por la del directorio (arranque en frío, sin sesión de cuenta)', async () => {
-    estado.sesion = false; // "arranque en frío": el cliente del directorio no tiene sesión
+  it('lee igual sin sesión de cuenta activa (la lectura del directorio no la necesita)', async () => {
+    estado.sesion = false;
     estado.filasRpc = [{ public_key: 'aa' }];
 
     expect(await fetchAccountKeys('cuenta-ana')).toEqual(['aa']);
-    expect(estado.headerAuthorizationBuzon).toBe('Bearer jwt-de-la-sesion-anonima');
+    expect(estado.headerAuthorizationBuzon).toBe('Bearer jwt-de-la-sesion');
   });
 
-  it('si el cliente del buzón no está configurado, no hay lectura (nunca cae al del directorio)', async () => {
+  it('si el cliente del buzón no está configurado, no hay lectura', async () => {
     estado.clienteBuzon = false;
-    estado.filasRpc = [{ public_key: 'aa' }]; // si esto saliera por el directorio, lo vería igual
+    estado.filasRpc = [{ public_key: 'aa' }];
     expect(await fetchAccountKeys('cuenta-ana')).toEqual([]);
   });
 });
@@ -234,7 +221,7 @@ describe('resolver claves por PERSONA, no por proveedor (005)', () => {
   });
 });
 
-describe('sesión del directorio', () => {
+describe('sesión de cuenta (T-147-b: unificada con el buzón)', () => {
   it('sin id_token no se intenta: es el fallo más probable y hay que nombrarlo', async () => {
     expect(await signIntoDirectory('google', null)).toMatchObject({ ok: false, reason: 'no_token' });
   });
@@ -246,6 +233,11 @@ describe('sesión del directorio', () => {
   it('un rechazo del servidor no tira', async () => {
     estado.signIn = { message: 'nonce mismatch' };
     expect(await signIntoDirectory('apple', 'tok')).toMatchObject({ ok: false, reason: 'rejected' });
+  });
+
+  it('sin relay configurado, not_configured', async () => {
+    estado.clienteBuzon = false;
+    expect(await signIntoDirectory('google', 'tok')).toMatchObject({ ok: false, reason: 'not_configured' });
   });
 });
 

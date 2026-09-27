@@ -32,6 +32,16 @@ jest.mock('@supabase/supabase-js', () => ({
   createClient: jest.fn(() => mockCliente),
 }));
 
+// Este archivo ejercita el camino de INVITADO de punta a punta — la
+// reconexión de cuenta (T-147-b) tiene su propia prueba real en
+// `accountEntry.test.ts`; acá alcanza con un stub para que `verify.tsx` (que
+// ahora importa `accountEntry.ts`, y con él `@react-native-google-signin` /
+// `expo-apple-authentication`, nativos) pueda cargarse en Jest.
+jest.mock('@/src/sync/accountEntry', () => ({
+  reconectarGoogleSilencioso: jest.fn(),
+  reconectarInteractivo: jest.fn(),
+}));
+
 let mockUltimoOnMessage: ((e: { nativeEvent: { data: string } }) => void) | null = null;
 let mockMontajesWebView = 0;
 jest.mock('react-native-webview', () => {

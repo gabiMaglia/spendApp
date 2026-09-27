@@ -1,14 +1,14 @@
 /**
- * T-147 (SIMPLIFICACIÓN 2026-09-27) · el login y el logout DEL DIRECTORIO
- * quedan serializados entre sí — un logout lento no puede terminar (y
- * "pisar" el storage) después de que el login siguiente ya escribió su
- * sesión.
+ * El login y el logout DEL DIRECTORIO quedan serializados entre sí — un
+ * logout lento no puede terminar (y "pisar" el storage) después de que el
+ * login siguiente ya escribió su sesión.
  *
- * Antes esta cola vivía compartida con `relaySession` (la sesión del buzón),
- * porque los dos leían y escribían el MISMO cliente de Supabase. Ahora el
- * directorio tiene su propio cliente (`directoryClient.ts`, sin sesión
- * persistida — Fase A) y su propia cola: ya no hace falta (ni corresponde)
- * coordinarse con la sesión anónima del buzón.
+ * **T-147-b (Task 2, unificación de clientes):** ya no hay un
+ * `directoryClient.ts` aparte — `signIntoDirectory`/`signOutOfDirectory`
+ * usan `getRelayClient()` (`relay.ts`), el mismo cliente PERSISTIDO que usa
+ * el buzón para una cuenta. La cola propia de este archivo sigue haciendo
+ * falta por la misma razón de siempre: un logout lento no puede terminar
+ * después de que el login siguiente ya escribió su sesión.
  *
  * ⚠️ Mismo esqueleto de env + `resetModules` que el resto del suite de sync.
  */
@@ -33,7 +33,7 @@ const signInWithIdToken = jest.fn(async (_args: { provider: string; token: strin
   return { error: null };
 });
 const mockCliente = { auth: { signOut, signInWithIdToken } };
-jest.mock('../directoryClient', () => ({ getDirectoryClient: () => mockCliente }));
+jest.mock('../relay', () => ({ getRelayClient: () => mockCliente }));
 
 let directoryAuth: typeof import('../directoryAuth');
 

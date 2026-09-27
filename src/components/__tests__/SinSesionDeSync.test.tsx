@@ -1,24 +1,32 @@
 import React from 'react';
-import { render, act } from '@testing-library/react-native';
+import { render, act, fireEvent } from '@testing-library/react-native';
 
 jest.mock('react-i18next', () => ({ useTranslation: () => ({ t: (k: string) => k }) }));
+
+const mockPush = jest.fn();
+jest.mock('expo-router', () => ({ router: { push: (...a: unknown[]) => mockPush(...a) } }));
 
 import { SinSesionDeSync } from '@/src/components/SinSesionDeSync';
 import { setUltimaSesionConocida, __resetSessionStatus } from '@/src/sync/sessionStatus';
 import { useAuthStore } from '@/src/store/authStore';
+import { useEntryGateStore, __resetEntryGate } from '@/src/store/entryGateStore';
 import type { User } from '@/src/types/models';
 
 beforeEach(() => {
   useAuthStore.setState({ currentUser: { id: 'g1', authProvider: 'guest' } as User });
+  __resetEntryGate();
+  mockPush.mockClear();
 });
 
 /**
- * T-147 (SIMPLIFICACIÓN, PO 2026-09-27): el aviso ya NO distingue invitado de
- * cuenta — el buzón usa la MISMA sesión anónima por instalación para los
- * dos, y no hay ningún botón «Reconectar» del lado del buzón (eso era del
- * diseño viejo, atado a la cuenta — se borró junto con `accountReconnect`).
+ * T-147-b (`engram/plans/T-147.md`, Task 4, sellado por el PO 2026-09-27):
+ * el aviso sigue sin distinguir invitado de cuenta en el MENSAJE (las dos
+ * causas posibles de "no me está llegando nada" se explican igual), pero
+ * ahora SÍ tiene una acción — filas 9/10 de la tabla: "aviso con acción" que
+ * lleva de vuelta a la pantalla de entrada, donde cada modo (cuenta o
+ * invitado) sabe qué hacer.
  */
-describe('SinSesionDeSync (T-147, simplificación)', () => {
+describe('SinSesionDeSync (T-147-b)', () => {
   it('sin sesión, avisa que este teléfono no está sincronizando', () => {
     const { getByText } = render(<SinSesionDeSync sinSesion />);
     expect(getByText('sync.no_session_title')).toBeTruthy();
@@ -30,10 +38,32 @@ describe('SinSesionDeSync (T-147, simplificación)', () => {
     expect(queryByText('sync.no_session_title')).toBeNull();
   });
 
-  it('nunca dibuja un botón «Reconectar» (no hay cuenta que reconectar en el buzón)', () => {
+  /**
+   * Filas 9/10: tocar el aviso pide la verificación de nuevo (el gate vuelve
+   * a 'pendiente' — si no, `AuthGuard` la manda directo de vuelta a tabs,
+   * `decidirNavegacionAuthGuard` sólo va a `/auth/verify` con gate
+   * 'pendiente') y navega a la pantalla de entrada — sirve igual para
+   * cuenta (fila 9) que para invitado (fila 10): cada modo de `verify.tsx`
+   * sabe qué hacer solo.
+   */
+  it('tocar el aviso pide la verificación de nuevo y navega a la entrada', () => {
     useAuthStore.setState({ currentUser: { id: 'acc1', authProvider: 'google' } as User });
-    const { queryByText } = render(<SinSesionDeSync sinSesion />);
-    expect(queryByText('sync.reconnect')).toBeNull();
+    const { getByText } = render(<SinSesionDeSync sinSesion />);
+
+    fireEvent.press(getByText('sync.no_session_title'));
+
+    expect(useEntryGateStore.getState().estado).toBe('pendiente');
+    expect(mockPush).toHaveBeenCalledWith('/auth/verify');
+  });
+
+  it('funciona igual para invitado', () => {
+    useAuthStore.setState({ currentUser: { id: 'g1', authProvider: 'guest' } as User });
+    const { getByText } = render(<SinSesionDeSync sinSesion />);
+
+    fireEvent.press(getByText('sync.no_session_title'));
+
+    expect(useEntryGateStore.getState().estado).toBe('pendiente');
+    expect(mockPush).toHaveBeenCalledWith('/auth/verify');
   });
 
   it('el mensaje es el mismo para invitado y para cuenta', () => {

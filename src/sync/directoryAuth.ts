@@ -1,30 +1,52 @@
-import { getDirectoryClient } from './directoryClient';
-import { createSerialQueue } from '@/src/utils/serialQueue';
+import { getRelayClient } from './relay';
 
 /**
- * Sesión contra Supabase Auth, usada SÓLO para poder escribir en el directorio
- * de claves (ADR-004).
+ * Sesión de CUENTA contra Supabase Auth — abre la que usan el buzón Y el
+ * directorio de claves (ADR-004) para una cuenta Google/Apple.
  *
  * No decide quién entra a la app: eso lo sigue resolviendo el login de siempre,
- * en el dispositivo. Acá lo único que se busca es que el servidor pueda probar
- * "esta cuenta es de quien está pidiendo registrar la clave" — cosa que el
- * cliente no puede probar solo.
+ * en el dispositivo. Acá lo único que se busca es dejarle a Supabase Auth una
+ * sesión real con la que el servidor pueda probar "esta cuenta es de quien
+ * está pidiendo registrar la clave" — cosa que el cliente no puede probar
+ * solo — y que el buzón pueda usar ESA MISMA sesión (T-147-b) en vez de una
+ * anónima.
  *
  * Se le pasa el mismo `id_token` que Google o Apple ya devuelven al loguearse:
  * no hay una segunda pantalla ni un segundo consentimiento para el usuario.
  *
  * Todo lo de acá es **best effort**: si falla, la app funciona exactamente como
- * antes de que este archivo existiera.
+ * antes de que este archivo existiera (para el buzón, `relaySession.ts`
+ * simplemente sigue leyendo 'none' hasta que `verify.tsx` reconecte).
  *
- * **T-147 (SIMPLIFICACIÓN 2026-09-27):** este login corre en su PROPIO
- * cliente de Supabase (`directoryClient.ts`), separado del que usa el buzón
- * (`relay.ts`). Ya no hace falta compartir una cola con `relaySession` — las
- * dos sesiones viven en storages distintos y no pueden pisarse entre sí. Lo
- * que SÍ sigue haciendo falta es serializar el login y el logout DEL
- * DIRECTORIO entre sí (un logout lento no puede terminar después de que el
- * login siguiente ya escribió su sesión) — de ahí la cola propia.
+ * **T-147-b (`engram/plans/T-147.md`, Task 2, sellado por el PO
+ * 2026-09-27):** este login corre en el cliente del BUZÓN (`relay.ts`,
+ * persistido) — ya NO existe un `directoryClient.ts` aparte. La
+ * SIMPLIFICACIÓN del mismo día había separado los dos clientes para que el
+ * buzón nunca llevara un JWT de cuenta; T-147-b invierte esa premisa a
+ * propósito: ahora SÍ tiene que llevarlo, porque el captcha (que exige la
+ * anónima) dejó de aplicar a las cuentas.
+ *
+ * **Fix D1 (verifier, ronda 2, rechazo bloqueante):** el login/logout ya NO
+ * usa una cola propia — usa `encolarOperacionDeSesion` de `relaySession.ts`,
+ * la MISMA cola que `ensureRelaySession`/`reabrirSesionAnonima`. Antes,
+ * `app/auth/index.tsx` disparaba el login (`entrarAlDirectorio` →
+ * `signIntoDirectory`) SIN `await` justo después de `setUser`, y
+ * `verify.tsx` leía la sesión casi en el mismo instante — con colas
+ * separadas, esa lectura no esperaba nada del login en vuelo y devolvía
+ * `'none'` sobre un login que en realidad iba a salir bien ("No se pudo
+ * confirmar tu acceso" después de loguearse correctamente). Compartir la
+ * cola también deja a `haySesionEnCurso()` ver el login en vuelo — sin eso,
+ * el guard R4-3 de `relayEngine.ts` no podía distinguir "sin sesión
+ * todavía" de "login resolviéndose solo". Import PEREZOSO (mismo patrón que
+ * `relay.ts` → `relaySession.ts`): un `import` estático acá arriba armaría
+ * un ciclo (`relaySession.ts` → `authStore.ts` → `directoryAuth.ts`); sólo
+ * hace falta en tiempo de ejecución, nunca al cargar el módulo.
  */
-const cola = createSerialQueue();
+function encolar<T>(fn: () => Promise<T>): Promise<T> {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { encolarOperacionDeSesion } = require('./relaySession') as typeof import('./relaySession');
+  return encolarOperacionDeSesion(fn);
+}
 
 export type DirectorySignIn =
   | { ok: true }
@@ -34,7 +56,7 @@ export async function signIntoDirectory(
   provider: 'google' | 'apple',
   idToken: string | null | undefined,
 ): Promise<DirectorySignIn> {
-  const supabase = getDirectoryClient();
+  const supabase = getRelayClient();
   if (!supabase) return { ok: false, reason: 'not_configured' };
 
   // Sin `webClientId` configurado, el SDK de Google no devuelve `idToken`. Es
@@ -42,7 +64,7 @@ export async function signIntoDirectory(
   // servidor: uno se arregla en el .env, el otro en el panel de Supabase.
   if (!idToken) return { ok: false, reason: 'no_token' };
 
-  return cola.run(async () => {
+  return encolar(async () => {
     try {
       const { error } = await supabase.auth.signInWithIdToken({ provider, token: idToken });
       if (error) return { ok: false, reason: 'rejected', detail: error.message };
@@ -54,20 +76,22 @@ export async function signIntoDirectory(
 }
 
 /**
- * Cierra la sesión del directorio. Se llama al desloguearse de la app.
+ * Cierra la sesión de cuenta. Se llama al desloguearse de la app.
  *
  * `scope: 'local'`: el default de `signOut()` es `scope: 'global'` y
  * revocaría el refresh token en TODOS los dispositivos — con la sesión
- * persistida esto doleria de verdad, pero acá ni siquiera aplica porque el
- * cliente del directorio NO persiste sesión (`persistSession: false`,
- * `directoryClient.ts`): igual se pide `'local'` por las dudas de que auth-js
- * tenga algo en memoria para esta instancia.
+ * PERSISTIDA del buzón (T-147-b) esto sí importa de verdad. Best effort y
+ * redundante a propósito con `reiniciarSyncPorCambioDeCuenta`
+ * (`relayEngine.ts`, que además fuerza el borrado del storage): las dos
+ * corren sobre el mismo cliente y ahora también sobre la MISMA cola (fix
+ * D1), así que quedan serializadas entre sí sin importar cuál se dispara
+ * primero — ninguna deja un JWT de cuenta vivo.
  */
 export async function signOutOfDirectory(): Promise<void> {
-  const supabase = getDirectoryClient();
+  const supabase = getRelayClient();
   if (!supabase) return;
 
-  await cola.run(async () => {
+  await encolar(async () => {
     try {
       await supabase.auth.signOut({ scope: 'local' });
     } catch {
