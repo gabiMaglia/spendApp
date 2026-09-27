@@ -53,6 +53,9 @@ import { syncedNow } from '@/src/utils/syncedClock';
 import { salirDelGrupo } from '@/src/services/salirDelGrupo';
 import { esYo, mismaPersona } from '@/src/store/identityAlias';
 import { conAlta } from '@/src/algorithms/roster';
+import { expulsar } from '@/src/services/expulsarDelGrupo';
+import { calculateBalancesByCurrency } from '@/src/algorithms/calculateBalances';
+import { pagosQueCuentan } from '@/src/algorithms/settlementStatus';
 import { useColors } from '@/src/skins/useSkin';
 
 type TimelineItem =
@@ -275,6 +278,46 @@ export default function GroupDetailScreen() {
     Alert.alert(t('group_detail.member_added_title'), t('group_detail.without_app_warning'));
   }
 
+  /**
+   * Expulsar (T-182 Task 2). Sólo el creador la ve, y nunca sobre sí mismo —
+   * las dos condiciones se chequean acá Y de nuevo adentro de `expulsar()`
+   * (que es la autoridad real; esto es sólo para no ofrecer un botón que
+   * el servicio va a rechazar).
+   */
+  function handleExpel(uid: string) {
+    if (!group || !currentUser || !esYo(group.createdById) || uid === group.createdById) return;
+
+    const gastosDelGrupo = allExpenses.filter(e => e.groupId === group.id);
+    const pagosDelGrupo = pagosQueCuentan(allPayments, group);
+    const balances = calculateBalancesByCurrency(gastosDelGrupo, pagosDelGrupo, group.memberIds);
+    const saldoDelExpulsado = (balances.find(b => b.userId === uid)?.balances ?? [])
+      .filter(b => b.amount !== 0);
+
+    const nombre = getUserName(uid);
+    const cuerpo = saldoDelExpulsado.length > 0
+      ? t('group_detail.expel_body_with_balance', {
+          name: nombre,
+          amounts: saldoDelExpulsado.map(b => formatMoney(Math.abs(b.amount), b.currency)).join(', '),
+        })
+      : t('group_detail.expel_body', { name: nombre });
+
+    Alert.alert(
+      t('group_detail.expel_title', { name: nombre }),
+      cuerpo,
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('group_detail.expel_confirm'),
+          style: 'destructive',
+          onPress: () => {
+            const resultado = expulsar(group.id, uid);
+            if (resultado === 'ok') hapticSuccess();
+          },
+        },
+      ],
+    );
+  }
+
   if (!group) {
     return (
       <SafeAreaView edges={['bottom']} style={[styles.safe, { backgroundColor: c.bg }]}>
@@ -363,12 +406,17 @@ export default function GroupDetailScreen() {
         <Band>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.members}>
             {group.memberIds.map(uid => (
-              <View key={uid} style={{ alignItems: 'center', gap: 5, width: 56 }}>
+              <Pressable
+                key={uid}
+                testID={`member-${uid}`}
+                onPress={() => handleExpel(uid)}
+                style={{ alignItems: 'center', gap: 5, width: 56 }}
+              >
                 <UserAvatar userId={uid} name={getUserName(uid)} size={40} />
                 <Text style={[Typography.caption, { color: c.textTertiary }]} numberOfLines={1}>
                   {getUserName(uid).split(' ')[0]}
                 </Text>
-              </View>
+              </Pressable>
             ))}
           </ScrollView>
         </Band>
