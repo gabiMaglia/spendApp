@@ -3,7 +3,7 @@ import { verifyCore, type CoreVerdict } from './recordSign';
 import { canonicalCore, type CoreKind, type CoreRecord } from './recordCore';
 import { toHex, utf8Bytes } from './hexBytes';
 import { createSecureStorage } from '@/src/utils/secureStorage';
-import { readScoped, writeScoped } from '@/src/store/userScope';
+import { readScoped, writeScoped, writeScopedLazy, flushScopedWrites } from '@/src/store/userScope';
 
 /**
  * **Caché de veredictos** (T-041 · S3).
@@ -33,11 +33,15 @@ const storage = createSecureStorage('users');
 export const VERDICT_CACHE_KEY = 'record_verdicts_v1';
 
 /**
- * Techo de entradas. Con 64 hex por clave son ~20 KB persistidos, que es lo que
- * se serializa cada vez que aparece un veredicto nuevo — y en régimen
- * estacionario no aparece ninguno.
+ * Techo de entradas (T-153: 256 → 2000). Actividad sola verifica ≥300
+ * registros por visita — con 256 el LRU se comía a sí mismo DENTRO de la
+ * misma ráfaga de la primera visita, así que ni siquiera la segunda visita
+ * encontraba caché para lo que la primera acababa de verificar. Con 64 hex
+ * por clave, 2000 entradas son ~156 KB persistidos — el guardado ya no es
+ * síncrono por veredicto (ver `guardar()`), así que ese tamaño ya no cuesta
+ * un `JSON.stringify` por fila.
  */
-export const VERDICT_CACHE_MAX = 256;
+export const VERDICT_CACHE_MAX = 2000;
 
 type Cacheable = Extract<CoreVerdict, 'valida' | 'invalida'>;
 
@@ -98,8 +102,25 @@ function cargar(): void {
   }
 }
 
+/**
+ * Diferido (T-153, mismo escritor que los stores de datos — T-156): una
+ * ráfaga de veredictos nuevos (import, primera visita a una pantalla) ya no
+ * hace un `storage.set` con un `JSON.stringify` de la caché entera por CADA
+ * veredicto — se agrupa y se escribe una sola vez, ~300 ms después del
+ * último. `readScoped` (usado por `cargar()`) vacía lo pendiente antes de
+ * leer, así que nadie ve una caché desactualizada por la demora.
+ *
+ * El `[...cache.entries()]` se saca ACÁ, no adentro del `serialize` diferido:
+ * `cache` es un `let` de módulo que `reloadVerdictCache`/`clearVerdictCache`
+ * reasignan. Si el cierre leyera `cache` en vivo, un reload que corriera
+ * ANTES de que venza el debounce vaciaría lo pendiente leyendo la caché ya
+ * reseteada — un `Map` vacío — y pisaría en disco el veredicto que se acaba
+ * de guardar con nada. Sólo el `JSON.stringify` (que es lo caro) se difiere;
+ * la foto de qué había en la caché se toma ya.
+ */
 function guardar(): void {
-  writeScoped(storage, VERDICT_CACHE_KEY, JSON.stringify({ e: [...cache.entries()] }));
+  const foto = [...cache.entries()];
+  writeScopedLazy(storage, VERDICT_CACHE_KEY, () => JSON.stringify({ e: foto }));
 }
 
 /** El veredicto ya calculado para esta firma exacta, si lo hay. */
@@ -160,6 +181,12 @@ export function verdictCacheSize(): number {
 
 /** Vacía memoria y disco. Logout, wipe, tests. */
 export function clearVerdictCache(): void {
+  // Si quedó un guardado diferido pendiente de un `rememberVerdict` anterior
+  // (su timer real de T-156 todavía no venció), se vacía YA antes de pisarlo:
+  // sin esto, ese timer puede disparar más tarde — a mitad de otra prueba, o
+  // en producción a mitad de otra pantalla — y volver a escribir la foto
+  // vieja encima del `''` que este `clearVerdictCache` acaba de dejar.
+  flushScopedWrites();
   cache = new Map();
   cargado = true;
   writeScoped(storage, VERDICT_CACHE_KEY, '');
@@ -169,4 +196,18 @@ export function clearVerdictCache(): void {
 export function reloadVerdictCache(): void {
   cache = new Map();
   cargado = false;
+}
+
+/**
+ * Sólo para tests (mismo patrón que `__resetAuthorSources`/`__resetSettlementTrust`
+ * en otros módulos de sync): el `storage` real que usa este módulo, para poder
+ * espiar `.set` directamente. `createSecureStorage(id)` construye un proxy
+ * NUEVO en cada llamada — el mismo id resuelve al mismo backing store, pero
+ * dos proxies son dos objetos distintos, y el escritor diferido (T-156)
+ * indexa lo pendiente por identidad del proxy. Sin este acceso, un test que
+ * cree su propio `createSecureStorage('users')` para espiar nunca ve las
+ * escrituras que programa este módulo con SU proxy.
+ */
+export function __verdictCacheStorageForTests() {
+  return storage;
 }

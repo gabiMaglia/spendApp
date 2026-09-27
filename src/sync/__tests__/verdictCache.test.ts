@@ -2,11 +2,12 @@ import { ed25519 } from '@noble/curves/ed25519.js';
 import {
   verifiedCore, cachedVerdict, rememberVerdict, verdictCacheSize,
   clearVerdictCache, reloadVerdictCache, VERDICT_CACHE_KEY, VERDICT_CACHE_MAX,
+  __verdictCacheStorageForTests,
 } from '../verdictCache';
 import { signCore } from '../recordSign';
 import { toHex } from '../hexBytes';
 import { createSecureStorage } from '@/src/utils/secureStorage';
-import { readScoped, writeScoped, SCOPED_WRITE_DELAY_MS } from '@/src/store/userScope';
+import { readScoped, writeScoped, flushScopedWrites, SCOPED_WRITE_DELAY_MS } from '@/src/store/userScope';
 import { useAuthStore } from '@/src/store/authStore';
 import type { User } from '@/src/types/models';
 import { EXPENSE } from '@/src/test-utils/recordFixtures';
@@ -163,6 +164,9 @@ describe('fail-closed: ante cualquier duda, nunca `valida`', () => {
     ['un número', 1],
   ])('entrada con %s se descarta, no se lee como `valida`', (_caso, valor) => {
     rememberVerdict('expense', firmado as never, 'valida');
+    // El guardado quedó DIFERIDO (T-153): se vacía antes de leerlo crudo,
+    // igual que haría cualquier lector real vía `readScoped`.
+    flushScopedWrites();
     const bruto = JSON.parse(readScoped(storage, VERDICT_CACHE_KEY)!) as { e: [string, unknown][] };
     bruto.e = bruto.e.map(([clave]) => [clave, valor]);
     writeScoped(storage, VERDICT_CACHE_KEY, JSON.stringify(bruto));
@@ -235,7 +239,11 @@ describe('guardado diferido (V5, T-153)', () => {
    */
   it('V5: 20 veredictos nuevos seguidos hacen 1 sola escritura a storage', () => {
     jest.useFakeTimers();
-    const setSpy = jest.spyOn(storage, 'set');
+    // El proxy que este archivo crea con `createSecureStorage('users')` NO es
+    // el mismo objeto que usa `verdictCache.ts` internamente (cada llamada
+    // construye un proxy nuevo); el escritor diferido indexa lo pendiente por
+    // identidad de ese objeto, así que hay que espiar el real.
+    const setSpy = jest.spyOn(__verdictCacheStorageForTests(), 'set');
 
     for (let i = 0; i < 20; i++) {
       rememberVerdict('expense', { ...firmado, id: `v5-${i}` } as never, 'valida');
