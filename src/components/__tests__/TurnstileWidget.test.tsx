@@ -58,14 +58,18 @@ it('sin host montado → failed/no_host', async () => {
   await expect(bridge.requestCaptchaToken()).resolves.toEqual({ status: 'failed', reason: 'no_host' });
 });
 
-it('token silencioso → ok, sin mostrar nada', async () => {
-  const { queryByTestId } = montar();
+it('token silencioso → ok, sin haber mostrado nada, y no queda nada montado', async () => {
+  const { getByTestId, queryByTestId } = montar();
   const p = bridge.requestCaptchaToken();
   await act(async () => {});
+  // Antes de resolver (modo "esperando"): colapsado, invisible.
+  const estilo = flatten(getByTestId('turnstile-container').props.style) as { opacity?: number };
+  expect(estilo.opacity).toBe(0);
+
   await enviar({ type: 'token', token: 'T1' });
   await expect(p).resolves.toEqual({ status: 'ok', token: 'T1' });
-  const estilo = flatten(queryByTestId('turnstile-container')?.props.style) as { opacity?: number };
-  expect(estilo?.opacity).toBe(0);
+  // Resuelto: vuelve a 'idle', no queda nada en el árbol.
+  expect(queryByTestId('turnstile-container')).toBeNull();
 });
 
 it('si pide interacción se agranda y no vence a los 15 s', async () => {
