@@ -53,9 +53,12 @@ jest.mock('../authorKeys', () => ({ refreshPendingAuthors: jest.fn(async () => {
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
-import { useGroupKeyStore } from '@/src/store/groupKeyStore';
+import { useGroupKeyStore, groupKeyBytes } from '@/src/store/groupKeyStore';
 import { useUserStore } from '@/src/store/userStore';
 import { publishToGroup, drainGroup } from '../relaySync';
+import { openEnvelope } from '../envelopeCrypto';
+import { verifyEnvelope } from '../envelopeSign';
+import { isManifest } from '../manifest';
 import type { Group, Expense, User } from '@/src/types/models';
 
 const cederHiloMock = jest.requireMock('../cederHilo').cederHilo as jest.Mock;
@@ -83,7 +86,10 @@ function gasto(id: string): Expense {
 
 beforeEach(() => {
   relayMock.__reset();
-  cederHiloMock.mockClear();
+  // `mockReset` (no sólo `mockClear`): un test de este archivo cambia la
+  // implementación a la REAL para comparar contenido — sin resetearla
+  // también, esa implementación se filtraría a los tests siguientes.
+  cederHiloMock.mockReset().mockImplementation(async () => {});
   useAuthStore.setState({ user: { id: 'u1' } } as never);
   useGroupKeyStore.setState({ keys: [] });
   useGroupKeyStore.getState().ensureKey('G');
@@ -102,6 +108,51 @@ it('publishToGroup cede el hilo K-1 veces (K = rebanadas + manifiesto), nunca an
   expect(sobres.length).toBeGreaterThan(1); // K > 1, si no el test no prueba nada
 
   expect(cederHiloMock).toHaveBeenCalledTimes(sobres.length - 1);
+});
+
+/** Descifra todos los sobres del buzón y devuelve, EN ORDEN, los ids de gasto
+ *  de cada rebanada `expenses` que encuentra — para comparar contenido, no
+ *  sólo cantidad de sobres. */
+function idsDeGastosEnviados(): string[] {
+  const key = groupKeyBytes('G')!;
+  const ids: string[] = [];
+  for (const sobres of relayMock.__buzones.values()) {
+    for (const sobre of sobres) {
+      const firmado = verifyEnvelope(sobre.payload);
+      if (!firmado) continue;
+      const plain = openEnvelope(key, firmado.sealed);
+      if (!plain) continue;
+      let content: unknown;
+      try { content = JSON.parse(plain); } catch { continue; }
+      if (!content || typeof content !== 'object' || isManifest(content)) continue;
+      const expenses = (content as { expenses?: { id: string }[] }).expenses;
+      if (Array.isArray(expenses)) ids.push(...expenses.map(e => e.id));
+    }
+  }
+  return ids;
+}
+
+/**
+ * Observación del verificador ciego: ceder el hilo entre rebanadas es un
+ * detalle de CUÁNDO se manda cada sobre, nunca de QUÉ se manda. Se publica
+ * dos veces con el MISMO estado (`beforeEach` resiembra 200 gastos idénticos
+ * en cada test) — una con `cederHilo` mockeado a no-op (como el resto de este
+ * archivo) y otra con la implementación REAL (timer real de verdad,
+ * `setTimeout(0)`, sin fake timers en este archivo así que resuelve solo) — y
+ * se compara el contenido descifrado, no sólo la cantidad de sobres.
+ */
+it('el contenido publicado es idéntico ceda o no el hilo entre rebanadas', async () => {
+  await publishToGroup('G', 'u1', 'device1'); // cederHilo mockeado a no-op (default del archivo)
+  const idsConMock = idsDeGastosEnviados();
+  expect(idsConMock.length).toBe(200); // sanity: se publicaron los 200 gastos sembrados
+
+  relayMock.__reset();
+  cederHiloMock.mockImplementation(jest.requireActual('../cederHilo').cederHilo as () => Promise<void>);
+
+  await publishToGroup('G', 'u1', 'device1'); // ahora cederHilo REAL
+  const idsConCederHiloReal = idsDeGastosEnviados();
+
+  expect(idsConCederHiloReal).toEqual(idsConMock); // mismo contenido, mismo orden
 });
 
 it('la apertura de drainGroup cede el hilo K-1 veces sobre la página, nunca entre aplicaciones', async () => {

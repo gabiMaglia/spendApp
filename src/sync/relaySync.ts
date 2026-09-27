@@ -5,6 +5,7 @@ import { sealEnvelope, openEnvelope, deriveTopic, type GroupKey } from './envelo
 import { sendEnvelope, fetchSince, deleteMyEnvelopes, type DeleteResult } from './relay';
 import { groupKeyBytes, useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { ensureIdentity } from '@/src/store/identityStore';
+import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { usePaymentStore } from '@/src/store/paymentStore';
@@ -459,6 +460,15 @@ export async function drainGroup(
   const pageLimit = opts.pageLimit ?? DRAIN_FETCH_LIMIT;
   const maxPages = opts.maxPages ?? DRAIN_MAX_PAGES;
 
+  // Verifier ciego (B3): foto de la SESIÓN ACTIVA al arrancar — no se compara
+  // contra `currentUserId` (ese es el id de atribución del merge, que un
+  // llamador puede legítimamente pasar distinto de la sesión activa, p. ej.
+  // para aplicar en nombre de otro id en un test o en un camino de fusión de
+  // cuentas) sino contra sí misma más abajo, justo antes de aplicar: lo que
+  // importa es si la sesión CAMBIÓ durante el drenaje, no si coincide con
+  // este parámetro puntual.
+  const sesionAlArrancar = useAuthStore.getState().currentUser?.id ?? null;
+
   const key = groupKeyBytes(groupId);
   if (!key) return { ok: false, reason: 'no_key' };
 
@@ -510,11 +520,17 @@ export async function drainGroup(
     for (let i = 0; i < r.envelopes.length; i++) {
       // T-157b: cede el hilo ENTRE aperturas, nunca antes de la primera —
       // sólo en esta pasada (colección: verificar firma + descifrar). La
-      // pasada de APLICACIÓN (abajo) nunca cede: `users`/`comments` dependen
-      // de que `groups`/`expenses` de la MISMA publicación ya se hayan
-      // aplicado (ver el comentario sobre `SLICED_FIELDS`), y intercalar un
-      // `await` ahí abriría una ventana para que algo más toque los stores a
-      // mitad de una aplicación que tiene que verse atómica.
+      // pasada de APLICACIÓN (abajo) no llama a `cederHilo()` ENTRE piezas
+      // —eso sí rompería el orden load-bearing de `SLICED_FIELDS`, que exige
+      // que `groups`/`expenses` de la MISMA publicación ya estén aplicados
+      // antes de `users`/`comments`—, pero **no es código síncrono de punta a
+      // punta**: verifier ciego (B3), corrección sobre una afirmación falsa
+      // de una revisión anterior. `observeAuthor` (abajo) es una llamada real
+      // con su propio `await`, y `fetchAvatarIfMissing` (más abajo, dentro
+      // del mismo bloque) también. Por eso el rechequeo de `sigueSiendoLaClave`
+      // y del usuario activo, justo antes de `antesDeAplicar`, no es
+      // paranoia: el hueco que abre `cederHilo()` acá arriba es el mismo tipo
+      // de ventana que esos otros `await`, sólo que más ancha.
       if (i > 0) await cederHilo();
       const envelope = r.envelopes[i]!;
       // 1. Firma. Descarta lo ajeno ANTES de gastar una operación de cifrado.
@@ -571,6 +587,24 @@ export async function drainGroup(
           recibidasPorRemitente.set(envelope.sender, mapa);
         }
         mapa.set(envelope.ckey, plain);
+      }
+    }
+
+    // Verifier ciego (B3): rechequeo justo antes de aplicar. El chequeo de
+    // `sigueSiendoLaClave` de más arriba corrió ANTES de abrir un solo sobre
+    // de esta página — pero la pasada de colección que acaba de terminar
+    // cedió el hilo varias veces (`cederHilo`, T-157b), y en ese hueco puede
+    // haber pasado un logout, un wipe de cuenta o un cambio de clave de
+    // grupo. Aplicar la caché que se armó ANTES de eso, sobre stores que
+    // mientras tanto se vaciaron, resucita datos de la cuenta anterior en la
+    // cuenta nueva. Si algo cambió, esta página se aborta ENTERA — no se
+    // aplica nada de ella ni se mueve el cursor (mismo criterio que el
+    // chequeo de arriba): la próxima vuelta, ya con el contexto correcto,
+    // la vuelve a pedir desde `sinceSeq`.
+    if (rebanadas.length > 0) {
+      const sesionSigueSiendoLaMisma = (useAuthStore.getState().currentUser?.id ?? null) === sesionAlArrancar;
+      if (!sesionSigueSiendoLaMisma || !sigueSiendoLaClave(groupId, record)) {
+        return { ok: false, reason: 'key_changed' };
       }
     }
 

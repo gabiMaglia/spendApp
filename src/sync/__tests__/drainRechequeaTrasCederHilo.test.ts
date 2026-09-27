@@ -125,6 +125,14 @@ it('B3: un logout durante el hueco de cederHilo aborta la página — nada se ap
   expect(publicado.ok).toBe(true);
   useExpenseStore.setState({ expenses: [] } as never); // el receptor (u1) todavía no los tiene
 
+  // `publishToGroup` (arriba) también cede el hilo entre SUS piezas, así que
+  // ya pudo haber consumido el disparo de "primera vez" del mock. Se
+  // resetea acá, justo antes del drenaje que es lo que este test mide, y se
+  // repone la sesión a u1 por si el publish (que no valida sesión) la dejó
+  // pisada.
+  cederHiloMock.__resetPrimeraVez();
+  useAuthStore.setState({ currentUser: { id: 'u1' } as User });
+
   // Drena como u1 — el mock de `cederHilo` va a cambiar el usuario activo a
   // "otro-usuario" a mitad de la colección, ANTES de que se llegue a aplicar.
   const r = await drainGroup('G', 'u1', 'device-local', 0);
