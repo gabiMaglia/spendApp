@@ -12,7 +12,8 @@ import { DetailHeader } from '@/src/components/CollapsibleHeader';
 
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import type { DeletionMode } from '@/src/types/models';
+import type { DeletionMode, Group } from '@/src/types/models';
+import { conAlta, rosterDe } from '@/src/algorithms/roster';
 import type { CurrencyCode } from '@/src/constants/currencies';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
@@ -79,23 +80,31 @@ export default function NewGroupScreen() {
   function handleSave() {
     if (!canSave || !currentUser) return;
 
-    const memberIds = selectedIds.includes(currentUser.id)
+    const memberIdsSeleccionados = selectedIds.includes(currentUser.id)
       ? selectedIds
       : [currentUser.id, ...selectedIds];
 
     const id = uuidv4();
+    const ahora = syncedNow();
+    // T-182: el roster nace de `conAlta`, uno por seleccionado — nadie escribe
+    // `memberIds` a mano; sale derivado de `miembros` (`rosterDe`, abajo).
+    const miembrosIniciales = memberIdsSeleccionados.reduce(
+      (m, uid) => conAlta({ miembros: m } as Group, uid, ahora).miembros,
+      {} as Group['miembros'],
+    );
     const nuevo = {
       id,
       name:          name.trim(),
-      memberIds,
+      miembros:      miembrosIniciales,
       currency,
       createdAt:     Date.now(),
       createdById:   currentUser.id,
       deletionVotes: [],
       deletionMode,
-      updatedAt:     syncedNow(),
+      updatedAt:     ahora,
       isDeleted:     false,
-    };
+    } as Group;
+    nuevo.memberIds = rosterDe(miembrosIniciales);
     // T-178 (6.4): el mismo predicado que hoy sólo corre al publicar/recibir
     // corre ACÁ antes de escribir — si no, el grupo queda huérfano en este
     // teléfono, sin viajar nunca y sin que nadie se entere.
