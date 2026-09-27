@@ -487,3 +487,24 @@ describe('R3-3(d): announceGroupToContacts pasa por la cola con prioridad alta',
     expect(mockSendGroupKeyResultado).toHaveBeenCalledTimes(2);
   });
 });
+
+/**
+ * T-180 (7.1), fila B7: `announceGroupToContacts` es el reparto de la clave
+ * al crear/anunciar un grupo (miembro nuevo) — la misma familia de
+ * "reenvío de claves de grupo" que B4 (`reenviarClavesDeGrupo`), y por eso
+ * también tiene que saltear a un miembro bloqueado.
+ */
+describe('T-180: announceGroupToContacts saltea a un bloqueado (B7)', () => {
+  it('un miembro bloqueado no recibe la clave ni se cuenta como encolado', async () => {
+    sembrarGrupoConOtroMiembro(); // u1 (yo) y u2
+    block('u2');
+
+    const encolPromise = announceGroupToContacts('G');
+    await jest.advanceTimersByTimeAsync(0);
+    const encolados = await encolPromise;
+
+    expect(encolados).toBe(0);
+    await drenarTimersReales();
+    expect(mockSendGroupKeyResultado).not.toHaveBeenCalled();
+  });
+});
