@@ -65,6 +65,15 @@ export function excesoDe(record: unknown): string | null {
   if (r.isDeleted !== true && Array.isArray(r.memberIds) && r.memberIds.length > MAX_MIEMBROS) {
     return 'memberIds';
   }
+  // T-182: `miembros` es el ROSTER (altas y bajas por clave), no la lista
+  // viva — un grupo activo con rotación normal acumula más entradas ahí que
+  // en `memberIds`, así que el tope es el doble. Mismo criterio que arriba:
+  // exento en tombstones, para que un borrado nunca se pierda por contenido
+  // heredado de antes de este tope.
+  if (r.isDeleted !== true && r.miembros && typeof r.miembros === 'object'
+      && Object.keys(r.miembros as object).length > 2 * MAX_MIEMBROS) {
+    return 'miembros';
+  }
   if (byteLengthUtf8(JSON.stringify(record)) > MAX_REGISTRO_BYTES) return 'bytes';
   return null;
 }
