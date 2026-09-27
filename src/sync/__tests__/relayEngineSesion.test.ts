@@ -144,7 +144,7 @@ it('si la sesión cambió entre vueltas, reinicia el motor', async () => {
 
 it('con la misma sesión, la vuelta NO reinicia', async () => {
   sembrarUnGrupoConClave();
-  mockEnsureRelaySession.mockResolvedValue('identity');
+  mockEnsureRelaySession.mockResolvedValue('anonymous');
 
   await startRelay();
   const n = mockSubscribeTopic.mock.calls.length;

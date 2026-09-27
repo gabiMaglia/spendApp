@@ -26,7 +26,6 @@ import { installGlobalErrorHandler } from '@/src/services/globalErrorHandler';
 import { ErrorBoundary } from '@/src/components/ErrorBoundary';
 import { exportarDiagnostico } from '@/src/services/exportDiagnostico';
 import { CaptchaHost } from '@/src/components/CaptchaHost';
-import { AccountReconnectHost } from '@/src/components/AccountReconnectHost';
 
 // A nivel de módulo, no dentro de un componente: el handler tiene que estar
 // registrado ANTES de que llegue el primer aviso. Sin él, expo-notifications
@@ -142,13 +141,6 @@ export default function RootLayout() {
         quién pedirle un token cuando hace falta abrir sesión anónima.
       */}
       <CaptchaHost />
-      {/*
-        T-147 (R3-1): host de la reconexión de cuentas — Google en silencio,
-        Apple/botón «Reconectar» de forma interactiva. Sin esto, `relaySession`
-        no tiene a quién pedirle un `id_token` fresco y una cuenta que
-        actualiza sin sesión guardada se queda en «sin sesión» para siempre.
-      */}
-      <AccountReconnectHost />
       {/*
         Envuelve al Stack y no a la app entera: adentro del ThemeProvider la
         pantalla de recuperación puede leer el tema, y `AuthGuard` —que no

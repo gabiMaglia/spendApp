@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
@@ -7,96 +7,45 @@ import { Colors } from '@/src/constants/colors';
 import { Typography } from '@/src/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Band, BandRow } from '@/src/components/Band';
-import { ActionButton } from '@/src/components/ActionButton';
-import { ButtonRack } from '@/src/components/ButtonRack';
 import { sinSesionDeSync } from '@/src/sync/sessionStatus';
 import { useLiveValue } from '@/src/hooks/useLiveValue';
-import { useAuthStore } from '@/src/store/authStore';
-import { reconectarCuentaInteractivo } from '@/src/sync/accountReconnect';
 
 /**
- * **T-147, enmienda del PO (2026-09-26).** Cuando el buzón SÍ está
- * configurado pero este teléfono no consiguió abrir ninguna sesión de
- * Supabase —el captcha nunca resolvió, o Auth está caído— sigue con el rol
- * `anon`: anda hasta que corra 011b, y después deja de poder sincronizar EN
- * SILENCIO. Vive junto a `SyncNoDisponible` en "Yo": misma sección, la otra
- * causa posible de "no me está llegando nada".
+ * **T-147 (SIMPLIFICACIÓN, PO 2026-09-27).** Cuando este teléfono no consigue
+ * abrir la sesión ANÓNIMA del buzón —el captcha nunca resolvió, o Auth está
+ * caído—, sigue sin poder sincronizar hasta que se recupere solo. Vive junto
+ * a `SyncNoDisponible` en "Yo": misma sección, la otra causa posible de "no
+ * me está llegando nada".
  *
- * Se retira solo en cuanto `ensureRelaySession()` vuelve a conseguir una
- * sesión (identidad o anónima) — no hace falta que el usuario la cierre.
+ * A diferencia del diseño anterior (sesión atada a la cuenta), acá NO
+ * importa si el usuario es invitado o tiene cuenta: el buzón usa la MISMA
+ * sesión anónima por instalación para los dos, así que el mensaje y el
+ * reintento automático son iguales para cualquiera. No hay botón
+ * «Reconectar» — no hay ninguna cuenta que reconectar del lado del buzón.
  *
- * **Verifier D3:** `sinSesionDeSync()` lee una variable de MÓDULO —React no
- * se entera cuando cambia sola—. Un default param la evalúa una vez, al
- * montar, y se queda pegado ahí; en la app real "parecía" andar sólo porque
- * "Yo" volvía a renderizar cada 2s por otro efecto (`useLiveValue` en la
- * medición de errores). Acá se sondea con el mismo hook que ya usa el repo
- * para este problema exacto (ver su docblock).
+ * Se retira solo en cuanto `ensureRelaySession()` vuelve a conseguir sesión —
+ * no hace falta que el usuario haga nada.
  *
- * **Verifier R3-1 (ronda 3): el texto "se va a resolver solo" no es cierto
- * para toda cuenta.** Para el invitado sí lo es (la anónima se reintenta
- * sola con backoff). Para una cuenta (Google/Apple), `relaySession` también
- * reintenta en silencio — pero SÓLO Google puede realmente lograrlo sin
- * ayuda; Apple nunca tiene reconexión silenciosa, y un Google con el token
- * revocado tampoco. Por eso una cuenta muestra un texto distinto y un botón
- * «Reconectar» (`reconectarCuentaInteractivo`, abre el diálogo real del
- * proveedor) — el invitado no lo necesita.
+ * **Verifier D3 (heredado):** `sinSesionDeSync()` lee una variable de
+ * MÓDULO — React no se entera cuando cambia sola. Se sondea con
+ * `useLiveValue`, el mismo hook que ya usa el repo para este problema exacto.
  */
 export function SinSesionDeSync({ sinSesion }: { sinSesion?: boolean } = {}) {
   const { t } = useTranslation();
   const c = Colors[useColorScheme() ?? 'light'];
   const enVivo = useLiveValue(sinSesionDeSync);
   const activo = sinSesion ?? enVivo;
-  const [reconectando, setReconectando] = useState(false);
-  // Verifier R4-1(a): el selector de cuentas puede volver con una distinta de
-  // la activa — hay que avisarle al usuario, no aceptarla en silencio.
-  const [otraCuenta, setOtraCuenta] = useState(false);
   if (!activo) return null;
-
-  const proveedor = useAuthStore.getState().currentUser?.authProvider;
-  const esCuenta = proveedor === 'google' || proveedor === 'apple';
-
-  async function reconectar() {
-    setReconectando(true);
-    setOtraCuenta(false);
-    try {
-      const resultado = await reconectarCuentaInteractivo();
-      if (resultado === 'otra_cuenta') setOtraCuenta(true);
-    } finally {
-      setReconectando(false);
-    }
-  }
 
   return (
     <Band>
-      <BandRow last={!esCuenta}>
+      <BandRow last>
         <View style={{ flex: 1, gap: 2 }}>
           <Text style={[Typography.bodyL, { color: c.text }]}>{t('sync.no_session_title')}</Text>
-          <Text style={[Typography.caption, { color: c.textTertiary }]}>
-            {t(esCuenta ? 'sync.no_session_account_body' : 'sync.no_session_body')}
-          </Text>
+          <Text style={[Typography.caption, { color: c.textTertiary }]}>{t('sync.no_session_body')}</Text>
         </View>
         <Ionicons name="cloud-offline-outline" size={18} color={c.semantic.warning} />
       </BandRow>
-      {esCuenta && otraCuenta && (
-        <BandRow>
-          <Text style={[Typography.caption, { color: c.semantic.warning, flex: 1 }]}>
-            {t('sync.reconnect_wrong_account')}
-          </Text>
-        </BandRow>
-      )}
-      {esCuenta && (
-        <BandRow last>
-          <ButtonRack placement="inline">
-            <ActionButton
-              label={t('sync.reconnect')}
-              action={() => { void reconectar(); }}
-              loading={reconectando}
-              variant="secondary"
-              full
-            />
-          </ButtonRack>
-        </BandRow>
-      )}
     </Band>
   );
 }
