@@ -10,7 +10,7 @@
  */
 const mockSignInSilently = jest.fn();
 const mockSignIn = jest.fn();
-const mockHasPlayServices = jest.fn(async () => true);
+const mockHasPlayServices = jest.fn(async (..._args: unknown[]) => true);
 jest.mock('@react-native-google-signin/google-signin', () => ({
   GoogleSignin: {
     signInSilently: (...a: unknown[]) => mockSignInSilently(...a),
@@ -55,7 +55,7 @@ describe('fila 4 · reconexión SILENCIOSA de Google', () => {
   });
 
   it('credencial propia con idToken → ok, entra al directorio y marca el proveedor probado', async () => {
-    mockSignInSilently.mockResolvedValue({ type: 'success', data: { id: 'sub-google-1', idToken: 'idtok-1' } });
+    mockSignInSilently.mockResolvedValue({ type: 'success', data: { user: { id: 'sub-google-1' }, idToken: 'idtok-1' } });
     expect(await reconectarGoogleSilencioso()).toEqual({ status: 'ok' });
     expect(mockSignIntoDirectory).toHaveBeenCalledWith('google', 'idtok-1');
     expect(mockMarcarProveedorProbado).toHaveBeenCalledWith('sub-google-1');
@@ -68,20 +68,20 @@ describe('fila 4 · reconexión SILENCIOSA de Google', () => {
    */
   it('credencial de OTRA cuenta → other_account, nada guardado', async () => {
     mockEsYo.mockReturnValue(false);
-    mockSignInSilently.mockResolvedValue({ type: 'success', data: { id: 'sub-de-otro', idToken: 'idtok-x' } });
+    mockSignInSilently.mockResolvedValue({ type: 'success', data: { user: { id: 'sub-de-otro' }, idToken: 'idtok-x' } });
     expect(await reconectarGoogleSilencioso()).toEqual({ status: 'other_account' });
     expect(mockSignIntoDirectory).not.toHaveBeenCalled();
     expect(mockMarcarProveedorProbado).not.toHaveBeenCalled();
   });
 
   it('credencial propia SIN idToken (falta webClientId) → failed/no_token', async () => {
-    mockSignInSilently.mockResolvedValue({ type: 'success', data: { id: 'sub-google-1', idToken: null } });
+    mockSignInSilently.mockResolvedValue({ type: 'success', data: { user: { id: 'sub-google-1' }, idToken: null } });
     expect(await reconectarGoogleSilencioso()).toEqual({ status: 'failed', reason: 'no_token' });
     expect(mockSignIntoDirectory).not.toHaveBeenCalled();
   });
 
   it('el directorio rechaza el token → failed/rejected', async () => {
-    mockSignInSilently.mockResolvedValue({ type: 'success', data: { id: 'sub-google-1', idToken: 'idtok-1' } });
+    mockSignInSilently.mockResolvedValue({ type: 'success', data: { user: { id: 'sub-google-1' }, idToken: 'idtok-1' } });
     mockSignIntoDirectory.mockResolvedValue({ ok: false, reason: 'rejected' });
     expect(await reconectarGoogleSilencioso()).toEqual({ status: 'failed', reason: 'rejected' });
   });
@@ -100,14 +100,14 @@ describe('fila 5 · botón «Volvé a iniciar sesión» — Google interactivo (
   });
 
   it('ok', async () => {
-    mockSignIn.mockResolvedValue({ type: 'success', data: { id: 'sub-google-1', idToken: 'idtok-1' } });
+    mockSignIn.mockResolvedValue({ type: 'success', data: { user: { id: 'sub-google-1' }, idToken: 'idtok-1' } });
     expect(await reconectarInteractivo('google')).toEqual({ status: 'ok' });
     expect(mockSignIntoDirectory).toHaveBeenCalledWith('google', 'idtok-1');
   });
 
   it('otra cuenta → other_account, nada guardado', async () => {
     mockEsYo.mockReturnValue(false);
-    mockSignIn.mockResolvedValue({ type: 'success', data: { id: 'sub-de-otro', idToken: 'idtok-x' } });
+    mockSignIn.mockResolvedValue({ type: 'success', data: { user: { id: 'sub-de-otro' }, idToken: 'idtok-x' } });
     expect(await reconectarInteractivo('google')).toEqual({ status: 'other_account' });
     expect(mockSignIntoDirectory).not.toHaveBeenCalled();
   });
