@@ -88,17 +88,22 @@ describe('superficies de skin', () => {
   });
 
   describe('useC: paleta de las primitivas de Band', () => {
-    it('fuera de un Panel es Colors[scheme], con cualquier skin', () => {
+    // Etapa 2 del Aero: `useC` es la paleta del skin activo en toda la app,
+    // no solo dentro de un panel. Con el default, mismos valores que `Colors`.
+    it('fuera de un Panel, con aero, es la paleta resuelta del skin', () => {
       useSettingsStore.setState({ skin: 'aero' });
       const out: { c?: unknown } = {};
       render(<Sonda out={out} />);
-      expect(out.c).toBe(Colors.light);
+      expect(out.c).toBe(resolveSkin('aero', 'light').colors);
     });
 
-    it('con el default, dentro de un Panel sigue siendo Colors[scheme] (no hay panel)', () => {
-      const out: { c?: unknown } = {};
-      render(<Panel><Sonda out={out} /></Panel>);
-      expect(out.c).toBe(Colors.light);
+    it('con el default, dentro o fuera de un Panel, tiene los valores de Colors', () => {
+      const fuera: { c?: unknown } = {};
+      const dentro: { c?: unknown } = {};
+      render(<Sonda out={fuera} />);
+      render(<Panel><Sonda out={dentro} /></Panel>);
+      expect(fuera.c).toMatchObject(Colors.light);
+      expect(dentro.c).toMatchObject(Colors.light);
     });
 
     it('dentro de un Panel de aero es la paleta resuelta del skin', () => {

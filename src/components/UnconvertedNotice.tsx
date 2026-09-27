@@ -3,12 +3,11 @@ import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 
-import { Colors } from '@/src/constants/colors';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { formatMoney, type CurrencyCode } from '@/src/constants/currencies';
 import type { Bucket } from '@/src/services/fxTotals';
+import { useColors } from '@/src/skins/useSkin';
 
 /**
  * Avisa que el total mostrado está incompleto, y CUÁNTO falta.
@@ -34,8 +33,7 @@ export function UnconvertedNotice({
   owed?: Bucket[];
   onClose: () => void;
 }) {
-  const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
   const { t } = useTranslation();
 
   // Sin nada pendiente no hay nada que avisar: el total ya es completo.

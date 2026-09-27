@@ -4,13 +4,12 @@ import Animated, { useAnimatedStyle, useReducedMotion, type SharedValue } from '
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Colors } from '@/src/constants/colors';
 import { Spacing } from '@/src/constants/spacing';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { FondoMarmol } from '@/src/components/FondoMarmol';
-import { useSkinTokens } from '@/src/skins/useSkin';
+import { useSkinTokens, useColors } from '@/src/skins/useSkin';
 import { HeaderAero, fondoBarraAero } from '@/src/components/skin/HeaderAero';
-import { RECORRIDO_AERO } from '@/src/components/skin/headerAeroGeometria';
+import { AERO_RADIO, AERO_TOPE, RECORRIDO_AERO } from '@/src/components/skin/headerAeroGeometria';
+import { VidrioMarmol } from '@/src/components/skin/VidrioMarmol';
 import { HEADER_BAR_H, TITLE_BOTTOM_GAP, TITLE_BLOCK_H } from '@/src/constants/header';
 import {
   alturaHeaderColapsable, alturaBloqueTituloVisible, opacidadTituloCompacto, opacidadTituloCompactoSinMovimiento,
@@ -63,7 +62,11 @@ export function useHeaderPadding(aire: number = Spacing[4]): number {
   // T-131: el scroll ya arranca debajo de la barra fija (`useLimiteContenido`), así que el
   // padding sólo cubre el bloque título que se colapsa.
   const soft = useSkinTokens().flags.soft;
-  return (soft ? RECORRIDO_AERO : TITLE_BLOCK_H) + aire;
+  const insets = useSafeAreaInsets();
+  // Aero (PO 2026-09-26, header transparente): el scroll arranca en el borde
+  // de arriba de la pantalla (ver `useLimiteContenido`), así que el padding
+  // cubre también la status bar y la barra.
+  return soft ? fondoBarraAero(insets.top) + RECORRIDO_AERO + aire : TITLE_BLOCK_H + aire;
 }
 
 /**
@@ -73,11 +76,12 @@ export function useHeaderPadding(aire: number = Spacing[4]): number {
  */
 export function useLimiteContenido(): { marginTop: number } {
   const insets = useSafeAreaInsets();
-  // Skin Aero (PO 2026-09-26): la barra es una tarjeta separada de la status
-  // bar; el contenido se corta justo en su borde de abajo (ni un punto más
-  // abajo: se leía como un «fondo fantasma»). Con el default, el de siempre.
+  // Skin Aero (PO 2026-09-26, header transparente): sin límite. El contenido
+  // sube por DETRÁS de las tarjetas del header (que lo tapan solo donde
+  // están) y se sigue viendo en los huecos hasta el borde de la pantalla.
+  // Con el default, el límite de siempre.
   const soft = useSkinTokens().flags.soft;
-  return { marginTop: soft ? fondoBarraAero(insets.top) : insets.top + HEADER_BAR_H };
+  return { marginTop: soft ? 0 : insets.top + HEADER_BAR_H };
 }
 
 /** Margen extra, en pt, del mármol más allá del alto expandido — colchón de seguridad para que nunca se vea un hueco. */
@@ -95,8 +99,7 @@ export function CollapsibleHeader({
   /** Avatar u otro botón de la fila de arriba. */
   left?: React.ReactNode;
 }) {
-  const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
   const insets = useSafeAreaInsets();
   const soft = useSkinTokens().flags.soft;
 
@@ -196,8 +199,7 @@ export function CollapsibleHeader({
 
 /** Avatar de iniciales del header. */
 export function HeaderAvatar({ initials }: { initials: string }) {
-  const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
   return (
     <View style={[styles.avatar, { backgroundColor: c.text }]}>
       <Text style={{ fontSize: 11, fontWeight: '600', color: c.bg }}>{initials}</Text>
@@ -207,8 +209,7 @@ export function HeaderAvatar({ initials }: { initials: string }) {
 
 /** Chip de moneda del header. */
 export function HeaderCurrency({ code, onPress }: { code: string; onPress?: () => void }) {
-  const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
   return (
     <Pressable onPress={onPress} hitSlop={8}>
       <Text style={{ fontSize: 12, fontWeight: '700', letterSpacing: 0.5, color: c.textSecondary }}>
@@ -222,8 +223,7 @@ export function HeaderCurrency({ code, onPress }: { code: string; onPress?: () =
 export function HeaderIcon({
   name, onPress,
 }: { name: keyof typeof Ionicons.glyphMap; onPress: () => void }) {
-  const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
   return (
     <Pressable onPress={onPress} hitSlop={10} style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}>
       <Ionicons name={name} size={19} color={c.text} />
@@ -299,9 +299,37 @@ export function DetailHeader({
   /** `close` en pantallas de formulario que se cierran, no que vuelven. */
   icon?: keyof typeof Ionicons.glyphMap;
 }) {
-  const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
   const insets = useSafeAreaInsets();
+  const skin = useSkinTokens();
+
+  // Aero (etapa 2): la misma tarjeta flotante que la barra de las tabs —
+  // fuera de la status bar, con margen, radio pronunciado, mármol y vidrio.
+  if (skin.flags.soft) {
+    return (
+      <View style={{ paddingTop: insets.top + AERO_TOPE, backgroundColor: c.bg }}>
+        <View
+          testID="detail-header-aero"
+          style={[
+            detail.tarjetaAero,
+            { marginHorizontal: skin.space.inset, backgroundColor: c.surface, borderColor: c.hair },
+            { boxShadow: skin.elevation.e2.boxShadow },
+          ]}
+        >
+          <FondoMarmol patron="franja" />
+          <VidrioMarmol />
+          <View style={[detail.bar, detail.barAero]}>
+            <Pressable onPress={onBack} hitSlop={12} style={detail.side}>
+              <Ionicons name={icon} size={22} color={c.text} />
+            </Pressable>
+            <Text numberOfLines={1} style={[detail.title, { color: c.text }]}>{title}</Text>
+            <View style={[detail.side, { alignItems: 'flex-end' }]}>{right}</View>
+          </View>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={[detail.wrap, { paddingTop: insets.top, borderBottomColor: c.hair }]}>
       {/*
@@ -329,6 +357,8 @@ export function DetailHeader({
 
 const detail = StyleSheet.create({
   wrap: { borderBottomWidth: 1 },
+  tarjetaAero: { borderWidth: 1, borderRadius: AERO_RADIO, overflow: 'hidden' },
+  barAero: { paddingHorizontal: Spacing.screenPad - 8 },
   bar: {
     height: 52, flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: Spacing.screenPad, gap: 12,

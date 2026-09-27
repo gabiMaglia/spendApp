@@ -4,14 +4,13 @@ import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import i18n from '@/src/i18n';
 
-import { Colors } from '@/src/constants/colors';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { hapticLight } from '@/src/utils/haptics';
 import { UserAvatar } from './UserAvatar';
 import type { ExpenseComment } from '@/src/types/models';
 import { mismaPersona } from '@/src/store/identityAlias';
+import { useColors } from '@/src/skins/useSkin';
 
 const MAX_LENGTH = 500;
 
@@ -34,8 +33,7 @@ export function CommentThread({
   comments, currentUserId, authorName, onAdd, onDelete,
 }: CommentThreadProps) {
   const { t } = useTranslation();
-  const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
   const [draft, setDraft] = useState('');
 
   const canSend = draft.trim().length > 0;

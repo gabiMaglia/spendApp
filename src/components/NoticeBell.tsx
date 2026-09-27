@@ -2,9 +2,8 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
-import { Colors } from '@/src/constants/colors';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useColors } from '@/src/skins/useSkin';
 
 /**
  * Campanita con el contador de avisos sin leer.
@@ -13,8 +12,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
  * miraron todavía. No viaja a ningún lado (decisión del PO).
  */
 export function NoticeBell({ unread, onPress }: { unread: number; onPress: () => void }) {
-  const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
   const { t } = useTranslation();
 
   return (

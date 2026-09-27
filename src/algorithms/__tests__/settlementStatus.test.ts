@@ -28,7 +28,7 @@ const acuse = (o: Partial<SettlementConfirmation> = {}): SettlementConfirmation 
  * `acuseSinFirma.test.ts`, T-145). Se inyecta un contexto donde todo acuse
  * verifica, para que sigan probando exactamente lo que probaban.
  */
-const CONFIA: ContextoDeAcuse = { now: 10_000, veredicto: () => 'valida' };
+const CONFIA: ContextoDeAcuse = { now: 10_000, veredicto: () => 'valida', nucleoDe: () => 'valida' };
 
 describe('cuándo hace falta el acuse', () => {
   it('en un grupo abierto no hace falta: saldar nunca necesitó consenso', () => {
@@ -49,7 +49,7 @@ describe('cuándo hace falta el acuse', () => {
   // D3 del plan: es su propia declaración de haber recibido la plata.
   it('si lo declara el que COBRA, se efectiviza directo', () => {
     const p = pago({ createdById: 'beto' });
-    expect(requiereConfirmacion(p, grupo())).toBe(false);
+    expect(requiereConfirmacion(p, grupo(), { nucleoDe: () => 'valida' })).toBe(false);
     expect(estadoDelSaldado(p, grupo(), CONFIA)).toBe('efectivo');
   });
 });

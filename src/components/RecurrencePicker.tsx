@@ -2,14 +2,13 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { Colors } from '@/src/constants/colors';
 import { Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { hapticLight } from '@/src/utils/haptics';
 import { Segmented } from '@/src/components/Band';
 import type { RecurrenceRule } from '@/src/types/models';
 import type { Ionicons } from '@expo/vector-icons';
+import { useColors } from '@/src/skins/useSkin';
 
 export type Frequency = RecurrenceRule['frequency'];
 
@@ -53,8 +52,7 @@ export function RecurrencePicker({
   onChange: (v: RecurrenceValue) => void;
 }) {
   const { t } = useTranslation();
-  const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
 
   return (
     <View style={styles.wrap}>

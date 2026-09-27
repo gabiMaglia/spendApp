@@ -4,10 +4,8 @@ import Animated, { runOnJS, useAnimatedStyle, useSharedValue } from 'react-nativ
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useTranslation } from 'react-i18next';
 
-import { Colors } from '@/src/constants/colors';
 import { Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { BottomSheet } from './Sheet';
 import { ActionButton } from './ActionButton';
 import { ButtonRack } from './ButtonRack';
@@ -15,6 +13,7 @@ import { recordError } from '@/src/services/errorLog';
 import {
   acotar, escalaParaCubrir, limitesDePan, recorteDelVisor, type Recorte,
 } from '@/src/algorithms/avatarCrop';
+import { useColors } from '@/src/skins/useSkin';
 
 const ZOOM_MAX = 4;
 
@@ -56,9 +55,8 @@ export function AvatarCropSheet({
   onCancel: () => void;
   onConfirm: (recorte: Recorte) => void;
 }) {
-  const scheme = useColorScheme() ?? 'light';
   const { t } = useTranslation();
-  const c = Colors[scheme];
+  const c = useColors();
 
   // El visor ocupa el ancho de la pantalla menos los márgenes de la hoja.
   const lado = useMemo(

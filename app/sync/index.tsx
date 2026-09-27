@@ -8,20 +8,18 @@ import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import QRCode from 'react-native-qrcode-svg';
 
-import { Colors } from '@/src/constants/colors';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuthStore } from '@/src/store/authStore';
 import { buildDelta, deltaToQRString, parseDeltaFromQR, applyDelta, peerIsOutdated } from '@/src/sync/useSyncQR';
 import { useTranslation } from 'react-i18next';
+import { useColors } from '@/src/skins/useSkin';
 
 type Mode = 'choose' | 'show' | 'scan';
 
 export default function SyncQRScreen() {
-  const scheme = useColorScheme() ?? 'light';
   const { t } = useTranslation();
-  const c = Colors[scheme];
+  const c = useColors();
   const { currentUser } = useAuthStore();
 
   const [mode, setMode] = useState<Mode>('choose');

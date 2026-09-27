@@ -102,3 +102,14 @@ Sección existente de preferencias: fila "Estilo" con *Clásico* (default) y *Ae
 ## Fuera de alcance
 
 Gráfico de torta, migrar otras pantallas, skins creados por el usuario, cambiar el fallback desde la UI, `expo-linear-gradient`/`expo-blur`.
+
+## Etapa 2 — Aero en toda la app (PO 2026-09-26)
+
+Rama `worktree-skin-aero-app` (worktree aparte: otra sesión trabaja en el checkout principal). Regla: **el Clásico no cambia**.
+
+1. **Colores del skin en toda la app:** `useColors()` (= `useSkinTokens().colors`) reemplaza a `Colors[scheme]` en componentes y pantallas. Con el default los valores son los mismos de `Colors`.
+2. **`Band` con el Aero y fuera de un panel se dibuja como `Panel`** (margen lateral, radio, sombra, aire). Dentro de un panel sigue plana.
+3. **`BandStack`** (idea del PO) para bandas que van pegadas: `modo="unido"` → un solo panel con las bandas adentro; `modo="separado"` → un panel por banda. `Contenedor` por prop (default `Panel`) para adaptar el envoltorio. Con el Clásico devuelve los hijos tal cual.
+4. **Bottom sheets:** tarjeta flotante (margen, radio grande en las cuatro esquinas, borde) con la manija en color de marca.
+5. **`DetailHeader`:** tarjeta flotante de mármol con vidrio, como la barra del header de las tabs.
+6. Luego, pantalla por pantalla, lo armado a mano fuera de las primitivas.

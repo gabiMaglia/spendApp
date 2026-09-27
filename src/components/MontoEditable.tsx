@@ -1,10 +1,10 @@
 import React, { forwardRef } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { Colors } from '@/src/constants/colors';
 import { Typography } from '@/src/constants/typography';
 import { getCurrency, type CurrencyCode } from '@/src/constants/currencies';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useColors } from '@/src/skins/useSkin';
 
 /**
  * **El monto grande editable** de «Nuevo gasto» y «Registrar pago» (T-113).
@@ -40,7 +40,7 @@ export const MontoEditable = forwardRef<TextInput, {
   sobreMarmol?: boolean;
 }>(function MontoEditable({ currency, value, onChangeText, onBlur, error, testID, sobreMarmol }, ref) {
   const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
   const tenue = sobreMarmol ? c.textSecondary : c.textTertiary;
   const sombra = sobreMarmol ? {
     textShadowColor: scheme === 'dark' ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.95)',

@@ -5,9 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { HapticTab } from '@/components/haptic-tab';
-import { Colors } from '@/src/constants/colors';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useSkin } from '@/src/skins/useSkin';
+import { useSkin, useColors } from '@/src/skins/useSkin';
 import { TabBarFondoAero } from '@/src/components/skin/TabBarFondoAero';
 
 /**
@@ -29,8 +27,7 @@ const ALTO_CONTENIDO = 70;
 const PISO_INFERIOR = 12;
 
 function TabLabel({ label, focused }: { label: string; focused: boolean }) {
-  const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
   const { skin, degradado } = useSkin();
   const color = focused ? c.brand.primary : c.textTertiary;
   // Aero (PO 2026-09-26): el punto activo pasa a una píldora corta con brillo
@@ -51,8 +48,7 @@ function TabLabel({ label, focused }: { label: string; focused: boolean }) {
 }
 
 export default function TabLayout() {
-  const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
 
@@ -66,6 +62,10 @@ export default function TabLayout() {
   const inferior = Math.max(insets.bottom, PISO_INFERIOR);
   const { skin } = useSkin();
   const soft = skin.flags.soft;
+  // Aero (PO 2026-09-26): la tarjeta flota 8pt por encima de la zona del
+  // sistema (en Android con barra de tres botones quedaba pegada).
+  const separacionAero = soft ? 8 : 0;
+  const bajoTarjeta = inferior + separacionAero;
 
   const screen = (
     name: string,
@@ -91,9 +91,9 @@ export default function TabLayout() {
         tabBarActiveTintColor:   c.brand.primary,
         tabBarInactiveTintColor: c.textTertiary,
         tabBarStyle: {
-          height: ALTO_CONTENIDO + inferior,
+          height: ALTO_CONTENIDO + bajoTarjeta,
           paddingTop: 11,
-          paddingBottom: inferior,
+          paddingBottom: bajoTarjeta,
           backgroundColor: c.bg,
           borderTopWidth: 1,
           borderTopColor: c.hair,
@@ -101,7 +101,7 @@ export default function TabLayout() {
           // Aero: sin hairline ni fondo propio; la tarjeta la dibuja `TabBarFondoAero`.
           ...(soft && { borderTopWidth: 0, backgroundColor: 'transparent' }),
         },
-        ...(soft && { tabBarBackground: () => <TabBarFondoAero inferior={inferior} /> }),
+        ...(soft && { tabBarBackground: () => <TabBarFondoAero inferior={bajoTarjeta} /> }),
         tabBarItemStyle: { paddingTop: 0 },
         tabBarIconStyle: { marginBottom: -2 },
       }}

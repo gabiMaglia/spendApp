@@ -2,10 +2,8 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { Colors } from '@/src/constants/colors';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Band } from '@/src/components/Band';
 import { EmptyState } from '@/src/components/EmptyState';
 import { PERSONAL_ACTIVITY_KEY, type ActivityKind } from '@/src/store/selectors';
@@ -13,6 +11,7 @@ import type { TrustState } from '@/src/algorithms/recordTrust';
 import type { ActivitySection } from '@/src/screens/activity/hooks/useActivitySections';
 import { ActivitySectionHeader } from './ActivitySectionHeader';
 import { EventRow } from './EventRow';
+import { useColors } from '@/src/skins/useSkin';
 
 export function ActivityFeedList({
   feedIsEmpty, filteredIsEmpty, activeFilter, sections, todayNewCount,
@@ -29,8 +28,7 @@ export function ActivityFeedList({
   trustFor: (ev: ActivityKind) => TrustState;
 }) {
   const { t } = useTranslation();
-  const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
 
   if (feedIsEmpty) {
     return <EmptyState iconName="time-outline" title={t('activity.empty_title')} body={t('activity.empty_body')} />;

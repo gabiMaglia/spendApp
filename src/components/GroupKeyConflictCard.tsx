@@ -2,10 +2,8 @@ import React, { useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { Colors } from '@/src/constants/colors';
 import { Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { textFor } from '@/src/services/notifications';
 import { nombreDeGrupoEnConflicto, type KeyConflictNotice } from '@/src/services/syncNotices';
 import { elegirClaveDeGrupo } from '@/src/services/elegirClaveDeGrupo';
@@ -15,6 +13,7 @@ import { useUserStore } from '@/src/store/userStore';
 import { ActionButton } from './ActionButton';
 import { ButtonRack } from './ButtonRack';
 import { UserAvatar } from './UserAvatar';
+import { useColors } from '@/src/skins/useSkin';
 
 export interface GroupKeyConflictCardProps {
   notice: KeyConflictNotice;
@@ -52,8 +51,7 @@ export interface GroupKeyConflictCardProps {
  * estado, con confirmación.
  */
 export function GroupKeyConflictCard({ notice, senderIds, onResuelto, onDespues }: GroupKeyConflictCardProps) {
-  const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
   const { t } = useTranslation();
   const usuarios = useUserStore(s => s.users);
   const [eligiendo, setEligiendo] = useState<string | null>(null);

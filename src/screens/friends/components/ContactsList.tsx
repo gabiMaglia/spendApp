@@ -2,10 +2,8 @@ import React from 'react';
 import { StyleSheet, Text } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { Colors } from '@/src/constants/colors';
 import { Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Band } from '@/src/components/Band';
 import { EmptyState } from '@/src/components/EmptyState';
 import { idCanonico } from '@/src/store/identityAlias';
@@ -13,6 +11,7 @@ import type { User } from '@/src/types/models';
 import type { PersonBalance } from '@/src/store/selectors';
 import { ContactsCountHeader } from './ContactsCountHeader';
 import { ContactRow } from './ContactRow';
+import { useColors } from '@/src/skins/useSkin';
 
 /** Estado vacío, o la lista de contactos con su saldo — encabezado con mármol incluido. */
 export function ContactsList({
@@ -25,8 +24,7 @@ export function ContactsList({
   onSettle: (id: string, amount: number, currency: string) => void;
 }) {
   const { t } = useTranslation();
-  const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
 
   if (contacts.length === 0) {
     return (

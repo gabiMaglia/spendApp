@@ -8,14 +8,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { v4 as uuidv4 } from 'uuid';
 import { hapticSelection, hapticSuccess } from '@/src/utils/haptics';
 
-import { Colors } from '@/src/constants/colors';
 import { DetailHeader } from '@/src/components/CollapsibleHeader';
 
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import type { DeletionMode } from '@/src/types/models';
 import type { CurrencyCode } from '@/src/constants/currencies';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useUserStore } from '@/src/store/userStore';
@@ -28,13 +26,13 @@ import { useTranslation } from 'react-i18next';
 import { syncedNow } from '@/src/utils/syncedClock';
 import { esYo } from '@/src/store/identityAlias';
 import { admiteUnMiembroMas, MAX_MIEMBROS, MAX_TEXTO_CORTO } from '@/src/sync/topes';
+import { useColors } from '@/src/skins/useSkin';
 
 const PRIMARY_CURRENCIES: CurrencyCode[] = ['ARS', 'USD', 'EUR', 'BRL'];
 
 export default function NewGroupScreen() {
-  const scheme = useColorScheme() ?? 'light';
   const { t } = useTranslation();
-  const c = Colors[scheme];
+  const c = useColors();
 
   const { currentUser } = useAuthStore();
   const { addGroup } = useGroupStore();
@@ -283,8 +281,7 @@ function MemberRow({
 }: {
   id: string; name: string; selected: boolean; locked: boolean; onToggle: () => void;
 }) {
-  const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
 
   return (
     <Pressable

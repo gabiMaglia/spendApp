@@ -2,15 +2,14 @@ import React from 'react';
 import { StyleSheet, Text } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { Colors } from '@/src/constants/colors';
 import { Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Band } from '@/src/components/Band';
 import { SwipeToArchive } from '@/src/components/SwipeToArchive';
 import type { Group } from '@/src/types/models';
 import type { GroupsTab } from '@/src/screens/groups/hooks/useGroupsList';
 import { GroupRow } from './GroupRow';
+import { useColors } from '@/src/skins/useSkin';
 
 /**
  * Filas de grupos con swipe-to-archive + la leyenda de archivados. El estado
@@ -29,8 +28,7 @@ export function GroupsList({
   onArchiveAction: (id: string) => void;
 }) {
   const { t } = useTranslation();
-  const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
 
   return (
     <>

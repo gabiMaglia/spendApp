@@ -2,10 +2,9 @@ import React from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-import { Colors } from '@/src/constants/colors';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useColors } from '@/src/skins/useSkin';
 
 export type ActionButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'plain';
 export type ActionButtonSize = 'sm' | 'md' | 'lg';
@@ -52,8 +51,7 @@ export function ActionButton({
   disabled = false, loading = false, sub,
   testID, accessibilityLabel, style,
 }: ActionButtonProps) {
-  const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
   const inactivo = disabled || loading;
 
   const paleta: Record<

@@ -6,12 +6,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Spacing } from '@/src/constants/spacing';
 import { HEADER_BAR_H, TITLE_BOTTOM_GAP } from '@/src/constants/header';
 import { FondoMarmol } from '@/src/components/FondoMarmol';
-import { useSkinTokens } from '@/src/skins/useSkin';
+import { useSkin } from '@/src/skins/useSkin';
 import {
   opacidadTituloCompacto, opacidadTituloCompactoSinMovimiento,
   opacidadTituloGrande, opacidadTituloGrandeSinMovimiento,
 } from '@/src/hooks/useHeaderColapsable';
 import { VidrioMarmol } from './VidrioMarmol';
+import { VeloHeader } from './VeloHeader';
 import {
   AERO_RADIO, AERO_TOPE, aireEntreTarjetas, altoTarjetaTitulo, radioEnfrentado,
   radioInferiorBarra, TITULO_AERO_H, unidas,
@@ -41,7 +42,7 @@ export function HeaderAero({
   right?: React.ReactNode;
   left?: React.ReactNode;
 }) {
-  const skin = useSkinTokens();
+  const { skin, degradado } = useSkin();
   const c = skin.colors;
   const insets = useSafeAreaInsets();
   const reducirMovimiento = useReducedMotion();
@@ -51,6 +52,10 @@ export function HeaderAero({
     backgroundColor: c.surface,
     borderColor: c.hair,
     marginHorizontal: skin.space.inset,
+    // Sombra (PO 2026-09-26): las tarjetas de mármol flotan como los paneles.
+    ...(degradado
+      ? { elevation: skin.elevation.e2.elevationFallback }
+      : { boxShadow: skin.elevation.e2.boxShadow }),
   };
 
   const barraStyle = useAnimatedStyle(() => {
@@ -90,6 +95,9 @@ export function HeaderAero({
 
   return (
     <View testID="header-aero" style={[StyleSheet.absoluteFill, styles.capa]} pointerEvents="box-none">
+      {/* Velo esmerilado detrás de todo (PO 2026-09-26). */}
+      <VeloHeader progress={progress} fondoBarra={barraBottom} />
+
       {/* Tarjeta del título: debajo de la barra en el orden de dibujo, así al fundirse la barra queda encima. */}
       <Animated.View
         testID="header-aero-titulo"

@@ -1,6 +1,6 @@
-import { View, Text, useColorScheme } from 'react-native';
-import { Colors } from '@/src/constants/colors';
+import { View, Text } from 'react-native';
 import { Typography } from '@/src/constants/typography';
+import { useColors } from '@/src/skins/useSkin';
 
 interface ActivityLineProps {
   /** Quién lo hizo. Va en negrita. */
@@ -27,7 +27,7 @@ interface ActivityLineProps {
  * comillas o no.
  */
 export function ActivityLine({ who, action, subject, ts }: ActivityLineProps) {
-  const c = Colors[useColorScheme() ?? 'light'];
+  const c = useColors();
 
   return (
     <View style={{ flex: 1, minWidth: 0 }}>

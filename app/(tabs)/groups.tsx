@@ -6,8 +6,6 @@ import { useHeaderColapsable } from '@/src/hooks/useHeaderColapsable';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
-import { Colors } from '@/src/constants/colors';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Fab, FabRow } from '@/src/components/Fab';
 import { EmptyState } from '@/src/components/EmptyState';
 import { TabHeader } from '@/src/components/TabHeader';
@@ -21,14 +19,14 @@ import { GroupsSummaryStats } from '@/src/screens/groups/components/GroupsSummar
 import { GroupsTabSelector } from '@/src/screens/groups/components/GroupsTabSelector';
 import { GroupsList } from '@/src/screens/groups/components/GroupsList';
 import { GroupsNetTotal } from '@/src/screens/groups/components/GroupsNetTotal';
+import { useColors } from '@/src/skins/useSkin';
 
 export default function GroupsScreen() {
   const { t } = useTranslation();
   // Sin aire entre el header y el primer elemento (PO 2026-09-13, T-130).
   const headerPad = useHeaderPadding(0);
   const limiteContenido = useLimiteContenido();
-  const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
 
   const { scrollHandler, progress, contenidoMinimo, alMedirScroll } = useHeaderColapsable();
 

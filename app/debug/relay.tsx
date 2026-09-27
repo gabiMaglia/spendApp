@@ -5,14 +5,13 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Platform } from 'react-native';
 
-import { Colors } from '@/src/constants/colors';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
   sendEnvelope, fetchSince, subscribeTopic, isRelayConfigured, type Envelope,
 } from '@/src/sync/relay';
 import { SoloEnDesarrollo } from '@/src/components/SoloEnDesarrollo';
+import { useColors } from '@/src/skins/useSkin';
 
 /**
  * Spike del relay (solo DEV): probar el buzón store-and-forward entre dos
@@ -26,8 +25,7 @@ import { SoloEnDesarrollo } from '@/src/components/SoloEnDesarrollo';
  *     websocket se cayó, la próxima lectura recupera igual.
  */
 function PantallaRelay() {
-  const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
 
   const [topic, setTopic] = useState('spike');
   const [text, setText] = useState('');

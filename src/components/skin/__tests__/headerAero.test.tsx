@@ -2,6 +2,7 @@ import React from 'react';
 import { render, screen } from '@testing-library/react-native';
 import { useSharedValue } from 'react-native-reanimated';
 import { CollapsibleHeader } from '@/src/components/CollapsibleHeader';
+import { altoVelo, VELO_DEBAJO } from '@/src/components/skin/VeloHeader';
 import { useSettingsStore } from '@/src/store/settingsStore';
 import {
   AERO_AIRE, AERO_RADIO, FUSION, REAPARECE,
@@ -78,5 +79,24 @@ describe('CollapsibleHeader según el skin', () => {
     expect(screen.queryByTestId('header-wrap')).toBeNull();
     expect(screen.getByText('Hola, invitado')).toBeTruthy();
     expect(screen.getAllByText('Tus cuentas').length).toBeGreaterThan(0);
+  });
+});
+
+describe('velo del header Aero', () => {
+  it('llega 2pt por debajo del borde del header', () => {
+    expect(altoVelo(100, 50)).toBe(100 + 50 + VELO_DEBAJO);
+    expect(VELO_DEBAJO).toBe(2);
+  });
+
+  it('con aero se dibuja detrás del header', () => {
+    useSettingsStore.setState({ skin: 'aero' });
+    render(<Header />);
+    expect(screen.getByTestId('velo-header', { includeHiddenElements: true })).toBeTruthy();
+  });
+
+  it('con el default no hay velo', () => {
+    useSettingsStore.setState({ skin: 'default' });
+    render(<Header />);
+    expect(screen.queryByTestId('velo-header', { includeHiddenElements: true })).toBeNull();
   });
 });

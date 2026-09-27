@@ -3,10 +3,8 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 
-import { Colors } from '@/src/constants/colors';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { textFor } from '@/src/services/notifications';
 import { esAccionable, msRestanteDeBorrado, type Notice } from '@/src/services/syncNotices';
 import type { StoredNotice } from '@/src/store/noticeInboxStore';
@@ -14,6 +12,7 @@ import { useGroupStore } from '@/src/store/groupStore';
 import type { Expense } from '@/src/types/models';
 import { BottomSheet } from './Sheet';
 import { Segmented } from './Band';
+import { useColors } from '@/src/skins/useSkin';
 
 /** Todo = la bandeja de siempre. Acción = sólo lo que pide algo (T-062). */
 type Tab = 'todo' | 'accion';
@@ -89,8 +88,7 @@ export function NoticeInboxSheet({
   onOpenNotice: (item: StoredNotice) => void;
   onMarkAll: () => void;
 }) {
-  const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
   const { t } = useTranslation();
   const groups = useGroupStore(s => s.groups);
   const haySinLeer = items.some(i => i.readAt === null);

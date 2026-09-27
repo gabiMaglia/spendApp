@@ -4,11 +4,10 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 
-import { Colors } from '@/src/constants/colors';
 import { Radius } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { BottomSheet } from '@/src/components/Sheet';
+import { useColors } from '@/src/skins/useSkin';
 
 /** Hoja "Nuevo contacto" — alta manual por nombre, sin QR. */
 export function AddContactSheet({
@@ -22,8 +21,7 @@ export function AddContactSheet({
   onConfirm: () => void;
 }) {
   const { t } = useTranslation();
-  const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
 
   return (
     <BottomSheet visible={visible} onClose={onClose}>

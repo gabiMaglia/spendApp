@@ -4,10 +4,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
-import { Colors } from '@/src/constants/colors';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { formatMoney } from '@/src/constants/currencies';
 import { isMarked, type TrustState } from '@/src/algorithms/recordTrust';
 import { TrustMark } from '@/src/components/TrustMark';
@@ -15,6 +13,7 @@ import { ActivityLine } from '@/src/components/ActivityLine';
 import { mismaPersona } from '@/src/store/identityAlias';
 import { PERSONAL_ACTIVITY_KEY, type ActivityKind } from '@/src/store/selectors';
 import { relativeTime, miParteDelGasto } from '@/src/screens/activity/utils/activityFormat';
+import { useColors } from '@/src/skins/useSkin';
 
 /**
  * Fila de evento. En el reskin todas las variantes comparten la MISMA caja
@@ -40,8 +39,7 @@ export const EventRow = React.memo(function EventRow({
   last?: boolean;
 }) {
   const { t } = useTranslation();
-  const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
 
   // El `groupName` de un movimiento sin grupo es el sentinel `PERSONAL_ACTIVITY_KEY`
   // (T-116) — hace falta para el FILTRO, pero mostrárselo crudo al usuario

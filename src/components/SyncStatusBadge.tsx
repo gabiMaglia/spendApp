@@ -1,14 +1,14 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '@/src/constants/colors';
+import type { SkinColors } from '@/src/skins/types';
 import { Radius } from '@/src/constants/spacing';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTranslation } from 'react-i18next';
+import { useColors } from '@/src/skins/useSkin';
 
 export type SyncState = 'synced' | 'syncing' | 'pending' | 'offline';
 
-const SYNC_META: Record<SyncState, { key: string; iconName: keyof typeof Ionicons.glyphMap; getColor: (c: typeof Colors.light | typeof Colors.dark) => string }> = {
+const SYNC_META: Record<SyncState, { key: string; iconName: keyof typeof Ionicons.glyphMap; getColor: (c: SkinColors) => string }> = {
   synced:  { key: 'sync.synced',  iconName: 'checkmark-outline',  getColor: c => c.semantic.positive },
   syncing: { key: 'sync.syncing', iconName: 'sync-outline',       getColor: c => c.brand.primary },
   pending: { key: 'sync.pending', iconName: 'ellipse',            getColor: c => c.semantic.warning },
@@ -21,8 +21,7 @@ interface SyncStatusBadgeProps {
 
 export function SyncStatusBadge({ state = 'synced' }: SyncStatusBadgeProps) {
   const { t } = useTranslation();
-  const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
   const meta = SYNC_META[state];
   const iconColor = meta.getColor(c);
 

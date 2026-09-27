@@ -5,12 +5,10 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 
-import { Colors } from '@/src/constants/colors';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Segmented } from '@/src/components/Band';
 import { Typography } from '@/src/constants/typography';
 import { formatMoney } from '@/src/constants/currencies';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useUserStore } from '@/src/store/userStore';
@@ -22,6 +20,7 @@ import { hapticLight, hapticSuccess, hapticWarning } from '@/src/utils/haptics';
 import { planAbsorption, planSettlesLeaver, type BalanceEntry } from '@/src/algorithms/absorbBalance';
 import type { SplitMode } from '@/src/types/models';
 import { esYo } from '@/src/store/identityAlias';
+import { useColors } from '@/src/skins/useSkin';
 
 /**
  * Salir de un grupo con saldo abierto, repartiéndolo entre los que quedan.
@@ -42,8 +41,7 @@ const MODOS: { id: SplitMode; label: string }[] = [
 export default function LeaveGroupScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { t } = useTranslation();
-  const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
 
   const currentUser = useAuthStore(s => s.currentUser);
   const group = useGroupStore(s => s.groups.find(g => g.id === id));

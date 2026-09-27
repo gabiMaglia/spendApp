@@ -358,6 +358,32 @@ export function noticesFor(
    * conoce, y avisarlo sería contarle al usuario algo que acaba de hacer. Se
    * avisa en las DOS direcciones —me pagaron, o registraron que yo pagué—
    * porque en ambas alguien tocó mi saldo sin que yo estuviera mirando.
+   *
+   * **G5 / T-170 · D-3.** Un pago «mío» (`createdById === yo`) cuyo núcleo NO
+   * verifica `valida` contra mis claves conocidas es exactamente el forjado
+   * de H3: el deudor lo declaró con `createdById = toUserId`, firmado con SU
+   * clave, no la mía. Sin la excepción de la segunda cláusula, el filtro lo
+   * descartaba ANTES de mirar `requiereConfirmacion`, y el acreedor nunca
+   * veía el `settlement_pending` que le toca (T-170.4).
+   *
+   * **Esto no mira "quién firmó" en abstracto — mira el VEREDICTO contra las
+   * claves conocidas de `yo`** (`requiereConfirmacion` → `nucleoDe` →
+   * `checkRecord` → `conPropiaSoloParaValida`). Desde T-170 · D-2,
+   * `checkRecord` SUMA un segundo intento con la pública de ESTE aparato
+   * cuando el registro dice ser mío, y ese intento sólo puede MEJORAR el
+   * veredicto hacia `valida` (`src/sync/authorKeys.ts`, `clavePropia`) — así
+   * que un pago que YO firmé EN ESTE MISMO APARATO ya no depende del
+   * directorio para verse `valida` (antes daba `no_verificable` y me mandaba
+   * `settlement_pending` por un pago que acababa de cargar yo mismo).
+   *
+   * **Lo que SIGUE dependiendo del directorio, y el dictamen D-2 lo nombraba
+   * así** (residual, ronda de retorno 3): un pago mío firmado desde OTRO
+   * aparato de la misma cuenta, o de antes de una reinstalación. Ahí la
+   * pública propia de ESTE aparato no es la que firmó, así que el segundo
+   * intento no mejora nada y el veredicto sigue siendo el de siempre —
+   * `no_verificable` hasta que el directorio resuelva esa otra clave (nunca
+   * un `invalida` nuevo: `conPropiaSoloParaValida` sólo puede sumar, nunca
+   * degradar).
    */
   const conocidos_pagos = new Set(before.paymentIds);
   const saldos: Notice[] = paymentsAfter
@@ -365,7 +391,7 @@ export function noticesFor(
       !p.isDeleted &&
       !conocidos_pagos.has(p.id) &&
       mios.has(p.groupId) &&
-      !esMio(p.createdById) &&
+      (!esMio(p.createdById) || (esMio(p.toUserId) && requiereConfirmacion(p, groups.find(g => g.id === p.groupId)))) &&
       (esMio(p.fromUserId) || esMio(p.toUserId)))
     .map((p): Notice => {
       // En un grupo consensuado, quien COBRA no recibe un aviso informativo:

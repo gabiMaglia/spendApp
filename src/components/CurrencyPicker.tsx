@@ -3,12 +3,11 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 
-import { Colors } from '@/src/constants/colors';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { SUPPORTED_CURRENCIES, type CurrencyCode } from '@/src/constants/currencies';
 import { BottomSheet, SheetOption } from './Sheet';
+import { useColors } from '@/src/skins/useSkin';
 
 /**
  * Elige la moneda en la que el usuario ve sus totales, y le dice DE CUÁNDO son
@@ -32,8 +31,7 @@ export function CurrencyPicker({
   ratesNeeded: boolean;
   locale: string;
 }) {
-  const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
   const { t } = useTranslation();
   const [abierto, setAbierto] = useState(false);
 

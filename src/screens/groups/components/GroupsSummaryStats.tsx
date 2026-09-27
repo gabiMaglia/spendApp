@@ -1,10 +1,9 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { Colors } from '@/src/constants/colors';
 import { formatMoney, type CurrencyCode } from '@/src/constants/currencies';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { StatGrid } from '@/src/components/Band';
+import { useColors } from '@/src/skins/useSkin';
 
 /** Los 4 casilleros de arriba (2×2): describen "tu situación", no la lista de abajo — no dependen de la pestaña. */
 export function GroupsSummaryStats({
@@ -17,8 +16,7 @@ export function GroupsSummaryStats({
   cur: CurrencyCode;
 }) {
   const { t } = useTranslation();
-  const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
 
   return (
     <StatGrid

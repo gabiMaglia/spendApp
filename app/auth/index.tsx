@@ -9,9 +9,9 @@ import { marcarProveedorProbado, recordGuestAccount, pendingGuestAccountId, clea
 import { signIntoDirectory } from '@/src/sync/directoryAuth';
 import { registerDeviceKey } from '@/src/sync/deviceKeys';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
+import { codigoDeErrorGoogle } from '@/src/utils/googleSignInError';
 import * as AppleAuthentication from 'expo-apple-authentication';
 
-import { Colors } from '@/src/constants/colors';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -22,6 +22,7 @@ import { actualizarMiPerfil } from '@/src/store/miPerfil';
 import { mergeProviderUser } from '@/src/utils/mergeProviderUser';
 import { syncedNow } from '@/src/utils/syncedClock';
 import { Button } from '@/src/components/Button';
+import { useColors } from '@/src/skins/useSkin';
 
 type GoogleUser = {
   id: string;
@@ -34,7 +35,7 @@ type GoogleUser = {
 export default function AuthScreen() {
   const { t } = useTranslation();
   const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
   const { setUser, getStoredProfile, resolveAccount, confirmAccountLink, keepAccountSeparate } = useAuthStore();
 
   const [appleAvailable, setAppleAvailable] = useState(false);
@@ -275,7 +276,9 @@ export default function AuthScreen() {
     } catch (e) {
       const code = (e as { code?: string })?.code;
       if (code === statusCodes.SIGN_IN_CANCELLED || code === statusCodes.IN_PROGRESS) return;
-      alert(t('auth.error_google'));
+      // T-138: el código real va en el aviso — sin él no hay forma de saber
+      // si falta un SHA-1 (DEVELOPER_ERROR), si es la red o Play Services.
+      alert(t('auth.error_google_code', { code: codigoDeErrorGoogle(e) }));
     }
   }
 

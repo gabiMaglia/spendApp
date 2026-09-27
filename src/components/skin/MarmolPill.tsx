@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { FondoMarmol } from '@/src/components/FondoMarmol';
 import { useSkin } from '@/src/skins/useSkin';
+import { VidrioMarmol } from './VidrioMarmol';
 
 /**
  * **Píldora de mármol**: el navegador de mes y el encabezado de Movimientos.
@@ -29,8 +30,8 @@ export function MarmolPill({
   const c = skin.colors;
   // Memoizado: `FondoMarmol` es `React.memo` y un literal nuevo por render lo anularía.
   const marmolStyle = useMemo(
-    () => ({ opacity: sticky ? 1 : c.marmolOpacity }),
-    [sticky, c.marmolOpacity],
+    () => ({ opacity: sticky ? 1 : c.vidrioMarmolOpacity }),
+    [sticky, c.vidrioMarmolOpacity],
   );
 
   if (!skin.flags.soft) {
@@ -42,7 +43,11 @@ export function MarmolPill({
     );
   }
 
-  const sombra = sticky || degradado ? null : { boxShadow: skin.elevation.e1.boxShadow };
+  // PO 2026-09-26: los contenedores de mármol también flotan (sombra), como
+  // los paneles. Degradado: `elevation` simple.
+  const sombra = sticky ? null
+    : degradado ? { elevation: skin.elevation.e1.elevationFallback }
+    : { boxShadow: skin.elevation.e1.boxShadow };
 
   return (
     <View
@@ -60,11 +65,10 @@ export function MarmolPill({
           ]}
         >
           <FondoMarmol patron={patron} variante={variante} style={marmolStyle} />
-          <View
-            testID="marmol-veil"
-            pointerEvents="none"
-            style={[StyleSheet.absoluteFill, { backgroundColor: c.marmolVeil }]}
-          />
+          {/* Mismo vidrio perla que el header y la tab bar (continuidad, PO 2026-09-26). */}
+          <View testID="marmol-veil" pointerEvents="none" style={StyleSheet.absoluteFill}>
+            <VidrioMarmol />
+          </View>
           {children}
         </View>
       </View>

@@ -2,14 +2,13 @@ import React from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { Colors } from '@/src/constants/colors';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { UserAvatar } from './UserAvatar';
 import { formatMoney, minorFactor, type CurrencyCode } from '@/src/constants/currencies';
 import { validatePayers } from '@/src/algorithms/payers';
 import type { Payer } from '@/src/types/models';
+import { useColors } from '@/src/skins/useSkin';
 
 export type PayerSplitterProps = {
   members: Array<{ id: string; name: string }>;
@@ -31,8 +30,7 @@ export function PayerSplitter({
   members, value, totalAmount, currency, onChange,
 }: PayerSplitterProps) {
   const { t } = useTranslation();
-  const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
 
   const amountOf = (userId: string) => value.find(p => p.userId === userId)?.amount ?? 0;
   const sum = value.reduce((total, p) => total + p.amount, 0);

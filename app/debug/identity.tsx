@@ -4,10 +4,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
-import { Colors } from '@/src/constants/colors';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
@@ -31,6 +29,7 @@ import { wipeAllAccounts } from '@/src/store/wipeDevice';
 import { Alert } from 'react-native';
 import { misIdentidades } from '@/src/store/identityAlias';
 import { SoloEnDesarrollo } from '@/src/components/SoloEnDesarrollo';
+import { useColors } from '@/src/skins/useSkin';
 
 /**
  * Diagnóstico del índice de identidad (solo DEV).
@@ -40,8 +39,7 @@ import { SoloEnDesarrollo } from '@/src/components/SoloEnDesarrollo';
  * "cuenta aparte"— y adivinar cuál sale caro. Acá se ve el estado real.
  */
 function PantallaIdentidad() {
-  const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
 
   /**
    * `identitySnapshot` lee de MMKV, no del estado del store, así que

@@ -5,10 +5,8 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 
-import { Colors } from '@/src/constants/colors';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { hapticLight, hapticSuccess } from '@/src/utils/haptics';
@@ -17,6 +15,7 @@ import { publishClaim, processInvite } from '@/src/sync/inviteEngine';
 import { deviceId, drainNow, startRelay } from '@/src/sync/relayEngine';
 import { esYo } from '@/src/store/identityAlias';
 import { shortFingerprint } from '@/src/utils/keyFingerprint';
+import { useColors } from '@/src/skins/useSkin';
 
 /**
  * Pantalla que recibe el link de invitación (`spendapp://groups/join?...`).
@@ -40,8 +39,7 @@ const REINTENTO_MS = 3_000;
 type Estado = 'listo' | 'entrando' | 'entre' | 'esperando';
 
 export default function JoinGroupScreen() {
-  const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
   const { t } = useTranslation();
 
   const params = useLocalSearchParams();

@@ -6,8 +6,6 @@ import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
 import { CollapsibleHeader, HeaderCurrency } from './CollapsibleHeader';
-import { Colors } from '@/src/constants/colors';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { NoticeBell } from './NoticeBell';
 import { NoticeInboxSheet } from './NoticeInboxSheet';
 import { GroupKeyConflictCard } from './GroupKeyConflictCard';
@@ -25,6 +23,7 @@ import { esAccionable, type KeyConflictNotice } from '@/src/services/syncNotices
 import { ofertasDe } from '@/src/sync/groupKeyOffers';
 import { hapticLight } from '@/src/utils/haptics';
 import { syncedNow } from '@/src/utils/syncedClock';
+import { useColors } from '@/src/skins/useSkin';
 
 /**
  * **El header de las seis tabs. Uno solo, con lo mismo en todas.**
@@ -65,8 +64,7 @@ export function TabHeader({
   progress: SharedValue<number>;
 }) {
   const { t } = useTranslation();
-  const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
   const currentUser = useAuthStore(s => s.currentUser);
   const cur         = useSettingsStore(s => s.displayCurrency);
   const setCurrency = useSettingsStore(s => s.setDisplayCurrency);

@@ -1,8 +1,7 @@
 import React from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, type PressableProps } from 'react-native';
-import { Colors } from '@/src/constants/colors';
 import { Radius, Spacing } from '@/src/constants/spacing';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useColors } from '@/src/skins/useSkin';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'destructive' | 'ghost' | 'soft';
 type ButtonSize = 'sm' | 'md' | 'lg';
@@ -24,8 +23,7 @@ export function Button({
   disabled,
   ...rest
 }: ButtonProps) {
-  const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
 
   const variantStyle = {
     primary:     { bg: c.brand.primary,     fg: c.textOnBrand },

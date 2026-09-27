@@ -1,9 +1,9 @@
 import React from 'react';
-import { StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '@/src/constants/colors';
 import { Radius } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
+import { useColors } from '@/src/skins/useSkin';
 
 interface TrustMarkProps {
   /** El aviso, **YA traducido**. Neutro, nunca acusatorio. */
@@ -36,7 +36,7 @@ interface TrustMarkProps {
  * Las variantes viven acá adentro, nunca estiladas por pantalla.
  */
 export function TrustMark({ label, size = 'md', testID }: TrustMarkProps) {
-  const c = Colors[useColorScheme() ?? 'light'];
+  const c = useColors();
   const chico = size === 'sm';
 
   return (

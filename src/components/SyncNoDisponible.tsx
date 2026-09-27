@@ -3,11 +3,10 @@ import { Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 
-import { Colors } from '@/src/constants/colors';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Band, BandRow, SectionLabel } from '@/src/components/Band';
 import { isRelayConfigured } from '@/src/sync/relay';
+import { useColors } from '@/src/skins/useSkin';
 
 /**
  * **La app dice cuando no puede sincronizar** (T-099).
@@ -18,7 +17,7 @@ import { isRelayConfigured } from '@/src/sync/relay';
  */
 export function SyncNoDisponible({ configurado = isRelayConfigured() }: { configurado?: boolean }) {
   const { t } = useTranslation();
-  const c = Colors[useColorScheme() ?? 'light'];
+  const c = useColors();
   if (configurado) return null;
 
   return (

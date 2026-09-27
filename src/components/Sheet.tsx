@@ -7,12 +7,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
-import { Colors } from '@/src/constants/colors';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAnimacionesReducidas } from '@/src/hooks/useAnimacionesReducidas';
 import { UserAvatar } from './UserAvatar';
+import { useColors, useSkin } from '@/src/skins/useSkin';
+import { conAlfa } from '@/src/skins/color';
 
 /**
  * Sheets y modales — vocabulario "flat bands".
@@ -105,10 +105,20 @@ export function BottomSheet({
   /** false para contenido que ya scrollea o mide poco (pickers de 3 filas). */
   scroll?: boolean;
 }) {
-  const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
   const insets = useSafeAreaInsets();
   const alturaTeclado = useAlturaTeclado();
+  // Aero (etapa 2): la hoja flota como tarjeta — margen, radio en las cuatro
+  // esquinas, borde y sombra; manija en color de marca y divisores suaves.
+  // Con el default todo esto es `null` y la hoja es la de siempre.
+  const { skin, degradado } = useSkin();
+  const soft = skin.flags.soft;
+  const hojaAero = soft ? {
+    marginHorizontal: Spacing[2], marginBottom: Spacing[2],
+    borderRadius: 28, borderWidth: 1, borderColor: c.hair,
+    ...(degradado ? { elevation: skin.elevation.e3.elevationFallback } : { boxShadow: skin.elevation.e3.boxShadow }),
+  } : null;
+  const divisor = soft ? c.edgeShade : c.hair;
 
   // Reducir animaciones (PO 2026-09-22): `null` (todavía no sabemos) se trata
   // como "sí animar" — un sheet puede abrirse antes de que la consulta de
@@ -212,7 +222,7 @@ export function BottomSheet({
               translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [ALZADA, 0] }),
             }],
           }}>
-            <Animated.View style={[styles.sheet, {
+            <Animated.View style={[styles.sheet, hojaAero, {
               backgroundColor: c.surface,
               // El inset despeja la barra de gestos; NO es espacio de diseño. Sumarlos
               // daba 46px abajo (34 de inset + 12) contra 24 arriba, y con el padding
@@ -232,10 +242,16 @@ export function BottomSheet({
                 extrapolate: 'clamp',
               }),
             }]}>
-              <View style={[styles.grabber, { backgroundColor: c.hair }]} />
+              <View
+                style={[
+                  styles.grabber,
+                  { backgroundColor: soft ? conAlfa(c.brand.primary, 0.35) : c.hair },
+                  soft && styles.grabberAero,
+                ]}
+              />
 
               {title ? (
-                <View style={[styles.titleRow, { borderBottomColor: c.hair }]}>
+                <View style={[styles.titleRow, { borderBottomColor: divisor }]}>
                   <Text style={[styles.title, { color: c.text }]} numberOfLines={1}>{title}</Text>
                   <Pressable onPress={onClose} hitSlop={12} style={styles.closeBtn}>
                     <Ionicons name="close" size={20} color={c.textTertiary} />
@@ -254,7 +270,7 @@ export function BottomSheet({
               </Body>
 
               {footer ? (
-                <View style={[styles.footer, { borderTopColor: c.hair }]}>{footer}</View>
+                <View style={[styles.footer, { borderTopColor: divisor }]}>{footer}</View>
               ) : null}
             </Animated.View>
           </Animated.View>
@@ -282,8 +298,7 @@ export function SheetOption({
   last?: boolean;
   testID?: string;
 }) {
-  const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
 
   const tint = destructive ? c.semantic.negative : selected ? c.brand.primary : c.text;
   const iconTint = destructive ? c.semantic.negative : selected ? c.brand.primary : c.textSecondary;
@@ -328,8 +343,7 @@ export function SheetOptionAvatar({
   hint?: string;
   last?: boolean;
 }) {
-  const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
   return (
     <Pressable
       onPress={onPress}
@@ -362,8 +376,7 @@ export function SheetOptionAvatar({
 
 /** Bajada bajo el título: una línea de contexto, no un párrafo. */
 export function SheetNote({ children }: { children: React.ReactNode }) {
-  const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
   return (
     <Text style={[Typography.bodyS, styles.note, { color: c.textSecondary }]}>{children}</Text>
   );
@@ -371,8 +384,7 @@ export function SheetNote({ children }: { children: React.ReactNode }) {
 
 /** Etiqueta de sección dentro del sheet (uppercase, como en las pantallas). */
 export function SheetLabel({ children }: { children: string }) {
-  const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
   return (
     <Text style={[Typography.label, styles.sheetLabel, { color: c.textTertiary, textTransform: 'uppercase' }]}>
       {children}
@@ -385,8 +397,7 @@ export const SheetInput = React.forwardRef<
   TextInput,
   TextInputProps & { icon?: React.ComponentProps<typeof Ionicons>['name'] }
 >(function SheetInput({ icon, style, multiline, ...rest }, ref) {
-  const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
   return (
     <View
       style={[
@@ -424,8 +435,7 @@ export const SheetInput = React.forwardRef<
 export function SheetToggle({
   label, sublabel, value, onChange,
 }: { label: string; sublabel?: string; value: boolean; onChange: (v: boolean) => void }) {
-  const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
   return (
     <Pressable onPress={() => onChange(!value)} style={styles.toggleRow}>
       <View style={{ flex: 1, minWidth: 0, gap: Spacing[1] }}>
@@ -452,8 +462,7 @@ export function SheetButton({
   flex?: number;
   testID?: string;
 }) {
-  const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
 
   const bg = disabled ? c.bgGrouped
     : variant === 'primary' ? c.brand.primary
@@ -504,8 +513,7 @@ export function ConfirmSheet({
   confirmTestID?: string;
   cancelTestID?: string;
 }) {
-  const scheme = useColorScheme() ?? 'light';
-  const c = Colors[scheme];
+  const c = useColors();
   return (
     <BottomSheet
       visible={visible}
@@ -571,6 +579,7 @@ const styles = StyleSheet.create({
     paddingTop: 8,
   },
   grabber:   { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: Spacing[1] },
+  grabberAero: { width: 44, height: 5, borderRadius: 3, marginTop: 2 },
 
   // El título lleva su propio aire arriba y abajo, y es el MISMO que el de una
   // fila (`rowPadV`), así que la banda del título y las de abajo tienen el mismo
