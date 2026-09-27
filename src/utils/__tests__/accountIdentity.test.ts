@@ -1,5 +1,5 @@
 import {
-  resolveAccount, confirmLink, keepSeparate, normalizeEmail,
+  resolveAccount, confirmLink, keepSeparate, normalizeEmail, idEstable,
   type AccountIndex, type KnownAccount,
 } from '../accountIdentity';
 
@@ -36,16 +36,41 @@ describe('normalizeEmail', () => {
   });
 });
 
-describe('resolveAccount', () => {
-  it('primer login: cuenta nueva con el propio providerId como id', () => {
-    const ix = memoryIndex();
-    expect(resolveAccount(ix, APPLE, MAIL)).toEqual({ kind: 'new', accountId: APPLE });
+describe('idEstable (T-188a)', () => {
+  it('A1 · determinista: siempre el mismo valor para el mismo providerId', () => {
+    expect(idEstable(GOOGLE)).toBe(idEstable(GOOGLE));
   });
 
-  it('re-login del mismo proveedor: reusa la cuenta', () => {
+  it('providerId distintos ⇒ ids distintos', () => {
+    expect(idEstable(GOOGLE)).not.toBe(idEstable(APPLE));
+  });
+
+  it('tiene forma de UUID', () => {
+    expect(idEstable(GOOGLE)).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+  });
+});
+
+describe('resolveAccount', () => {
+  it('primer login: cuenta nueva con un id estable derivado del providerId (T-188a)', () => {
+    const ix = memoryIndex();
+    expect(resolveAccount(ix, APPLE, MAIL)).toEqual({ kind: 'new', accountId: idEstable(APPLE) });
+  });
+
+  it('A2 · re-login del mismo proveedor: reusa la MISMA cuenta (mismo id estable)', () => {
     const ix = memoryIndex();
     resolveAccount(ix, APPLE, MAIL);
-    expect(resolveAccount(ix, APPLE, null)).toEqual({ kind: 'existing', accountId: APPLE });
+    expect(resolveAccount(ix, APPLE, null)).toEqual({ kind: 'existing', accountId: idEstable(APPLE) });
+  });
+
+  it('A2 · borrar la cuenta (forgetAccount) y volver a entrar con el mismo Google: mismo id que antes', () => {
+    // forgetAccount saca al proveedor del índice (simulado acá vaciando `known`
+    // vía un índice nuevo con el mismo backing de providers/emails): el próximo
+    // login cae otra vez por la rama "nueva", y como el id sale de una función
+    // pura del providerId (no de un uuid al azar), es el MISMO id de antes.
+    const antes = resolveAccount(memoryIndex(), GOOGLE, MAIL);
+    const ixLimpio = memoryIndex(); // simula el índice tras forgetAccount
+    const despues = resolveAccount(ixLimpio, GOOGLE, MAIL);
+    expect(despues).toEqual(antes);
   });
 
   // EL CASO DEL PO, camino con email
@@ -78,14 +103,14 @@ describe('resolveAccount', () => {
 
   it('proveedor nuevo SIN mail y sin otras cuentas ⇒ cuenta nueva, sin molestar', () => {
     const ix = memoryIndex();
-    expect(resolveAccount(ix, APPLE, null)).toEqual({ kind: 'new', accountId: APPLE });
+    expect(resolveAccount(ix, APPLE, null)).toEqual({ kind: 'new', accountId: idEstable(APPLE) });
   });
 
   it('mails distintos NO se mezclan', () => {
     const ix = memoryIndex();
     resolveAccount(ix, APPLE, MAIL);
     expect(resolveAccount(ix, GOOGLE, 'otra@persona.com'))
-      .toEqual({ kind: 'new', accountId: GOOGLE });
+      .toEqual({ kind: 'new', accountId: idEstable(GOOGLE) });
   });
 
   // Misma regresión, por el camino automático (mail coincidente).
