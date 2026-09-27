@@ -21,6 +21,7 @@ import { recordSlicePublished } from './sliceRenewal';
 import { publishAvatarIfOwn, fetchAvatarIfMissing } from './avatarTopic';
 import { registrarFalloDeAplicacion, agotoReintentos } from './drainFailures';
 import { recordError } from '@/src/services/errorLog';
+import { cederHilo } from './cederHilo';
 
 /**
  * Sync por el relay: arma el sobre cifrado, lo publica y aplica lo que llega.
@@ -315,7 +316,13 @@ export async function publishToGroup(
   // saber que ya llegó todo, y es el último en el orden de envío — por eso su
   // `seq` es el que tiene sentido devolver en `PublishResult`.
   let ultimoSeq: number | undefined;
-  for (const pieza of piezas) {
+  for (let i = 0; i < piezas.length; i++) {
+    // T-157b: cede el hilo ENTRE piezas, nunca antes de la primera — sellar/
+    // firmar cada rebanada es trabajo síncrono, y una publicación grande
+    // encadena varias seguidas sin darle al event loop chance de atender un
+    // tap o un render de por medio.
+    if (i > 0) await cederHilo();
+    const pieza = piezas[i]!;
     const sealed = sealEnvelope(key, pieza.json);
 
     // La firma va POR FUERA del cifrado: autentica quién lo mandó sin exponer
@@ -500,7 +507,16 @@ export async function drainGroup(
     //     esa garantía; paginar no la toca porque `seq` es global al topic.
     const rebanadas: { seq: number; ckey?: string; sender: string; delta: SyncDelta; senderKey: string; json: string }[] = [];
 
-    for (const envelope of r.envelopes) {
+    for (let i = 0; i < r.envelopes.length; i++) {
+      // T-157b: cede el hilo ENTRE aperturas, nunca antes de la primera —
+      // sólo en esta pasada (colección: verificar firma + descifrar). La
+      // pasada de APLICACIÓN (abajo) nunca cede: `users`/`comments` dependen
+      // de que `groups`/`expenses` de la MISMA publicación ya se hayan
+      // aplicado (ver el comentario sobre `SLICED_FIELDS`), y intercalar un
+      // `await` ahí abriría una ventana para que algo más toque los stores a
+      // mitad de una aplicación que tiene que verse atómica.
+      if (i > 0) await cederHilo();
+      const envelope = r.envelopes[i]!;
       // 1. Firma. Descarta lo ajeno ANTES de gastar una operación de cifrado.
       const firmado = verifyEnvelope(envelope.payload);
       if (firmado === null) { skipped++; continue; }

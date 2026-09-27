@@ -70,6 +70,21 @@ const mockBindAuthRefreshToAppState = jest.requireMock('../relaySession').bindAu
 const mockSubscribeTopic = jest.requireMock('../relay').subscribeTopic as jest.Mock;
 const mockSendGroupKeyResultado = jest.requireMock('../contactChannel').sendGroupKeyResultado as jest.Mock;
 
+/**
+ * T-157b: `publishToGroup`/`drainGroup` ceden el hilo entre rebanadas
+ * (`cederHilo`, un `setTimeout(0)` real). Bajo fake timers eso no se resuelve
+ * solo con un único `advanceTimersByTimeAsync(0)` — avanzar por 0ms no
+ * garantiza que un timer agendado DURANTE ese mismo avance (por la propia
+ * cadena de `cederHilo` → `encolar`) se recoja en la misma pasada. Avanzar en
+ * pasos chicos y reales (1ms), varias vueltas, sí lo hace: cada vuelta ve como
+ * "vencido" lo que la anterior recién agendó. 20ms de sobra alcanzan para
+ * cualquier cadena razonable de este motor sin acercarse a `QUEUE_INTERVAL_MS`
+ * (4s) ni a ningún otro intervalo real que el test quiera medir después.
+ */
+async function drenarTimersReales(vueltas = 20): Promise<void> {
+  for (let i = 0; i < vueltas; i++) await jest.advanceTimersByTimeAsync(1);
+}
+
 function sembrarUnGrupoConClave(): void {
   useAuthStore.setState({ currentUser: { id: 'u1' } as User });
   useGroupStore.setState({
@@ -397,7 +412,9 @@ it('D4: un rate_limited se reintenta solo, sin que el usuario haga nada', async 
   expect(publishFailures().map(f => f.groupId)).toContain('G');
 
   await jest.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
-  await jest.advanceTimersByTimeAsync(0);
+  // T-157b: el reintento pasa por `publishToGroup`, que ahora cede el hilo
+  // entre rebanadas — ver `drenarTimersReales`.
+  await drenarTimersReales();
 
   expect(publishFailures().map(f => f.groupId)).not.toContain('G');
 });
@@ -415,12 +432,19 @@ describe('R3-3(d): announceGroupToContacts pasa por la cola con prioridad alta',
   it('encola (no manda directo) la clave para cada miembro ajeno', async () => {
     sembrarGrupoConOtroMiembro();
 
-    const encolados = await announceGroupToContacts('G');
+    // T-157b: `publishNow` (adentro de `announceGroupToContacts`) cede el
+    // hilo UNA vez entre sus dos rebanadas (grupo + manifiesto) — se dispara
+    // sin esperar y se libera con UN solo avance de 0ms, antes de que
+    // `encolar` programe su propio timer (ese es el que se flushea después,
+    // deliberadamente aparte: es el que prueba "todavía no drenó").
+    const encolPromise = announceGroupToContacts('G');
+    await jest.advanceTimersByTimeAsync(0);
+    const encolados = await encolPromise;
 
     expect(encolados).toBe(1); // u2, único miembro ajeno
     expect(mockSendGroupKeyResultado).not.toHaveBeenCalled(); // todavía no drenó
 
-    await jest.advanceTimersByTimeAsync(0);
+    await drenarTimersReales();
     expect(mockSendGroupKeyResultado).toHaveBeenCalledWith('u2', expect.objectContaining({ id: 'G' }), expect.any(String));
   });
 
@@ -430,8 +454,11 @@ describe('R3-3(d): announceGroupToContacts pasa por la cola con prioridad alta',
       .mockResolvedValueOnce({ ok: false, reason: 'rate_limited' })
       .mockResolvedValue({ ok: true, seq: 1 });
 
-    await announceGroupToContacts('G');
-    await jest.advanceTimersByTimeAsync(0);
+    // T-157b: mismo motivo que en el test de arriba.
+    const promesa = announceGroupToContacts('G');
+    await drenarTimersReales();
+    await promesa;
+    await drenarTimersReales();
     expect(mockSendGroupKeyResultado).toHaveBeenCalledTimes(1);
 
     for (let i = 0; i < Math.ceil(REINTENTO_CUOTA_MS / QUEUE_INTERVAL_MS) + 1; i++) {
