@@ -36,7 +36,10 @@ jest.mock('expo-camera', () => ({
 }));
 jest.mock('@/src/sync/contactChannel', () => ({
   ensureContactSecret: () => 'mi-secreto',
-  announceContact: jest.fn(() => Promise.resolve()),
+  // `true`: estos tests cubren el camino en que el anuncio SÍ llega — el mensaje
+  // ahora depende del resultado real (BUG «contacto por QR queda de un solo
+  // lado»), no de la sola presencia de un secreto en el código.
+  announceContact: jest.fn(() => Promise.resolve(true)),
   savePeer: jest.fn(),
   hasConflictingPinnedKeys: jest.fn(() => false),
 }));
@@ -94,12 +97,15 @@ function escanearCodigo(data: string) {
 }
 
 describe('agregar contacto por QR', () => {
-  it('con un alta mutua, cierra la pantalla SIN esperar a que se toque el cartel', () => {
+  it('con un alta mutua, cierra la pantalla SIN esperar a que se toque el cartel', async () => {
     escanearCodigo(CON_SECRETO);
 
     expect(useUserStore.getState().users.map(u => u.id)).toContain('beto1');
+    // El cierre no espera a la red: pasa en el acto, antes de conocer el resultado.
     expect(router.back).toHaveBeenCalledTimes(1);
-    // El cartel se muestra igual, pero ya no es él quien cierra.
+    // El cartel sí espera el resultado REAL de `announceContact` (BUG «contacto
+    // por QR queda de un solo lado») — acá el mock resuelve `true`.
+    await act(async () => { await Promise.resolve(); await Promise.resolve(); });
     expect(Alert.alert).toHaveBeenCalledWith('contact.added_title', expect.stringContaining('contact.added_both_body'), expect.any(Array));
     const botones = (Alert.alert as jest.Mock).mock.calls[0][2] as { onPress?: () => void }[];
     botones.forEach(b => b.onPress?.());
@@ -253,7 +259,7 @@ describe('agregar contacto por LINK', () => {
     expect(r.getByTestId('contact-confirm-add')).toBeTruthy();
   });
 
-  it('confirmar en la hoja agrega, cierra la pantalla y avisa — igual que escanear', () => {
+  it('confirmar en la hoja agrega, cierra la pantalla y avisa — igual que escanear', async () => {
     mockParams = { id: 'beto1', name: 'Beto', s: SEC, w: WRAP, k: IDK };
     const r = render(<AddContactScreen />);
 
@@ -261,6 +267,7 @@ describe('agregar contacto por LINK', () => {
 
     expect(useUserStore.getState().users.map(u => u.id)).toContain('beto1');
     expect(router.back).toHaveBeenCalledTimes(1);
+    await act(async () => { await Promise.resolve(); await Promise.resolve(); });
     expect(Alert.alert).toHaveBeenCalledWith('contact.added_title', expect.stringContaining('contact.added_both_body'), expect.any(Array));
   });
 
