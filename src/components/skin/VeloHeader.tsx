@@ -12,6 +12,9 @@ import { RECORRIDO_AERO } from './headerAeroGeometria';
 export const VELO_DEBAJO = 2;
 /** Opacidad del tinte del velo (PO: «overlay al 30%»). */
 export const VELO_OPACIDAD = 0.3;
+/** `intensity` de `expo-blur` que da ~30% de tinte en Android (ver comentario abajo). */
+export const INTENSIDAD_CLARO = Math.round((VELO_OPACIDAD / 0.78) * 100);
+export const INTENSIDAD_OSCURO = Math.round((VELO_OPACIDAD / 0.69) * 100);
 
 /**
  * `expo-blur` es nativo: si el dev client instalado todavía no lo trae, se
@@ -51,18 +54,28 @@ export function VeloHeader({
     height: altoVelo(fondoBarra, RECORRIDO_AERO * (1 - Math.min(1, Math.max(0, progress.value)))),
   }));
   const tinte = conAlfa(skin.colors.bg, VELO_OPACIDAD);
+  const conBlur = !!BlurNativo && !degradado;
 
   return (
     <Animated.View testID="velo-header" pointerEvents="none" style={[styles.velo, estilo]}>
-      {BlurNativo && !degradado ? (
+      {conBlur ? (
         <BlurNativo
           style={StyleSheet.absoluteFill}
-          intensity={90}
+          // En Android el tinte de `expo-blur` sale de `intensity`
+          // (alfa = intensity × factor del tinte: 0.78 light, 0.69 dark —
+          // `TintStyle.kt`). Con 90 quedaba ~70% opaco y tapaba lo de atrás.
+          // Estos valores dan ~30% de tinte (lo que pidió el PO) y, con
+          // `blurReductionFactor` 1, el radio del blur es el mismo número:
+          // fuerte, sin volver opaco el velo.
+          intensity={oscuro ? INTENSIDAD_OSCURO : INTENSIDAD_CLARO}
+          blurReductionFactor={1}
           tint={oscuro ? 'dark' : 'light'}
           experimentalBlurMethod="dimezisBlurView"
         />
-      ) : null}
-      <View style={[StyleSheet.absoluteFill, { backgroundColor: tinte }]} />
+      ) : (
+        // Sin blur (dev client sin el módulo, gama baja o reducir animaciones): solo el tinte.
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: tinte }]} />
+      )}
     </Animated.View>
   );
 }
