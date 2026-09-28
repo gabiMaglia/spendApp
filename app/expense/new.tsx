@@ -1054,7 +1054,12 @@ const styles = StyleSheet.create({
     alignItems: 'center', overflow: 'hidden',
     paddingTop: Spacing[6], paddingBottom: Spacing[4], gap: Spacing[3],
   },
-  heroMarmol: { top: 0, bottom: 0 },
+  // El mármol «distendido» funde al color de fondo en su 38% inferior
+  // (`scripts/generar-marmol-distendido.py`, fade_start 0.62). Estirado justo a
+  // la altura de la tarjeta, ese fundido queda adentro y el bloque del monto se
+  // ve «sin mármol» abajo (PO 2026-09-27). Se dibuja un 62% más alto y el
+  // `overflow:hidden` de la tarjeta recorta el fundido: la textura cubre todo.
+  heroMarmol: { top: 0, bottom: undefined, height: '162%' },
   heroCurrency: {
     textTransform: 'uppercase', fontWeight: '800',
     textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 6,
