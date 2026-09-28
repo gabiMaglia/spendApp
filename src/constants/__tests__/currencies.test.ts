@@ -237,3 +237,78 @@ describe('centavos en cero', () => {
     }
   });
 });
+
+/**
+ * T-198 (Moto E40, Hermes): `formatMoney`/`formatAmount` construían un
+ * `new Intl.NumberFormat` en CADA llamada. Es barato en V8 de escritorio,
+ * caro en Hermes — y `formatMoney` se llama por CADA fila de un preview de
+ * splits en cada tecla tipeada (`app/expense/new.tsx`). El fix es cachear
+ * la instancia por `(locale, decimales)` a nivel de módulo: el locale de
+ * salida sólo tiene 3 valores posibles (es/en/pt) y `decimales` sólo 0 o 2
+ * con las monedas de hoy — el cache nunca crece sin límite.
+ */
+describe('formatMoney — cachea el Intl.NumberFormat en vez de crear uno por llamada (T-198)', () => {
+  // El cache vive a nivel de MÓDULO (a propósito — es lo que lo hace útil
+  // entre renders). Otros `it` de este archivo ya lo calentaron para
+  // es/2-decimales, así que estos dos tests piden un módulo fresco
+  // (`jest.resetModules`) para partir de un cache vacío y medir
+  // construcciones desde cero, sin depender del orden de ejecución.
+  it('llamadas repetidas con el mismo idioma y la misma cantidad de decimales NO construyen una instancia nueva', () => {
+    const OriginalNumberFormat = Intl.NumberFormat;
+    let construcciones = 0;
+    class SpyNumberFormat extends OriginalNumberFormat {
+      constructor(...args: ConstructorParameters<typeof Intl.NumberFormat>) {
+        super(...args);
+        construcciones += 1;
+      }
+    }
+    // @ts-expect-error — reemplazo global sólo para este test, restaurado en el finally
+    global.Intl.NumberFormat = SpyNumberFormat;
+    jest.resetModules();
+
+    try {
+      // Montos CON centavos (no múltiplos del factor): así `formatAmount`
+      // usa siempre `decimales = 2`, la misma clave de cache en las 4
+      // llamadas — si usara montos redondos, "los centavos en cero no se
+      // muestran" haría que algunas pidan 0 decimales y otras 2, dando un
+      // falso positivo de 2 construcciones por una razón ajena al cache.
+      const fresh = require('../currencies') as typeof import('../currencies');
+      fresh.formatMoney(150050, 'ARS');   // primera llamada: puede construir
+      fresh.formatMoney(250075, 'ARS');   // mismo locale/decimales: NO debe construir de nuevo
+      fresh.formatMoney(105, 'ARS');
+      fresh.formatMoney(99987, 'USD');    // USD también son 2 decimales, mismo locale de salida (es)
+      expect(construcciones).toBe(1);
+    } finally {
+      // @ts-expect-error — restaurar el global real
+      global.Intl.NumberFormat = OriginalNumberFormat;
+      jest.resetModules();
+    }
+  });
+
+  it('monedas con distinta cantidad de decimales SÍ usan (y cachean por separado) su propia instancia', () => {
+    const OriginalNumberFormat = Intl.NumberFormat;
+    let construcciones = 0;
+    class SpyNumberFormat extends OriginalNumberFormat {
+      constructor(...args: ConstructorParameters<typeof Intl.NumberFormat>) {
+        super(...args);
+        construcciones += 1;
+      }
+    }
+    // @ts-expect-error — reemplazo global sólo para este test
+    global.Intl.NumberFormat = SpyNumberFormat;
+    jest.resetModules();
+
+    try {
+      const fresh = require('../currencies') as typeof import('../currencies');
+      fresh.formatMoney(150050, 'ARS');  // con centavos → decimales=2
+      fresh.formatMoney(150000, 'CLP');  // CLP nunca tiene decimales → clave distinta
+      fresh.formatMoney(105, 'ARS');     // reusa la de 2 decimales
+      fresh.formatMoney(2, 'CLP');       // reusa la de 0 decimales
+      expect(construcciones).toBe(2);
+    } finally {
+      // @ts-expect-error — restaurar el global real
+      global.Intl.NumberFormat = OriginalNumberFormat;
+      jest.resetModules();
+    }
+  });
+});
