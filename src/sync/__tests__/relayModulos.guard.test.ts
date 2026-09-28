@@ -9,6 +9,8 @@ import { readdirSync, readFileSync } from 'fs';
 import { join } from 'path';
 
 const LIMITE = 260;
+const LIMITE_REFERENCIA = 260;
+const LIMITE_DURO = 400;
 const SYNC_DIR = join(__dirname, '..');
 const RELAY_DIR = join(SYNC_DIR, 'relay');
 
@@ -24,6 +26,22 @@ function tsFilesIn(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true })
     .filter(d => d.isFile() && d.name.endsWith('.ts') && !d.name.endsWith('.d.ts'))
     .map(d => join(dir, d.name));
+}
+
+// T-192: recorre src/sync recursivamente, excluyendo cualquier carpeta
+// __tests__ (los tests no entran en el tope de producción).
+function tsFilesRecursivos(dir: string): string[] {
+  const entradas = readdirSync(dir, { withFileTypes: true });
+  const archivos: string[] = [];
+  for (const entrada of entradas) {
+    if (entrada.isDirectory()) {
+      if (entrada.name === '__tests__') continue;
+      archivos.push(...tsFilesRecursivos(join(dir, entrada.name)));
+    } else if (entrada.isFile() && entrada.name.endsWith('.ts') && !entrada.name.endsWith('.d.ts')) {
+      archivos.push(join(dir, entrada.name));
+    }
+  }
+  return archivos;
 }
 
 describe('tope de tamaño de archivo (T-189)', () => {
@@ -42,6 +60,23 @@ describe('tope de tamaño de archivo (T-189)', () => {
     const excedidos = archivos
       .map(path => ({ path, n: lineCount(path) }))
       .filter(({ n }) => n > LIMITE);
+
+    expect(excedidos).toEqual([]);
+  });
+});
+
+describe('tope de tamaño de archivo (T-192)', () => {
+  it('relaySync.ts no supera 260 líneas', () => {
+    const path = join(SYNC_DIR, 'relaySync.ts');
+    const n = lineCount(path);
+    expect(n).toBeLessThanOrEqual(LIMITE_REFERENCIA);
+  });
+
+  it('ningún archivo de producción bajo src/sync/** supera 400 líneas', () => {
+    const archivos = tsFilesRecursivos(SYNC_DIR);
+    const excedidos = archivos
+      .map(path => ({ path, n: lineCount(path) }))
+      .filter(({ n }) => n > LIMITE_DURO);
 
     expect(excedidos).toEqual([]);
   });
