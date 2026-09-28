@@ -21,7 +21,8 @@ jest.mock('../relay', () => {
 jest.mock('@/src/sync/confianza/authorHealth', () => ({ observeAuthor: jest.fn(async () => 'ok'), RECHAZAR_AUTORES_NO_VERIFICADOS: false }));
 jest.mock('@/src/sync/confianza/authorKeys', () => ({ refreshPendingAuthors: jest.fn(async () => {}) }));
 
-import { buildGroupPayload, publishToGroup } from '@/src/sync/motor/relaySync';
+import { publishToGroup } from '@/src/sync/motor/relaySync';
+import { armarComoDelta } from '@/src/test-utils/armarComoDelta';
 import { MAX_PAYLOAD_BYTES } from '../relay';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
@@ -103,7 +104,7 @@ function sembrar(miembros: number, gastos: number, conFotos: boolean) {
 /** Bytes del JSON del delta, y bytes que efectivamente viajan (base64 ⇒ ×4/3). */
 function medir(miembros: number, gastos: number, conFotos = true) {
   const yo = sembrar(miembros, gastos, conFotos);
-  const json = JSON.stringify(buildGroupPayload('G', yo));
+  const json = JSON.stringify(armarComoDelta('G', yo));
   const bytesJson = Buffer.byteLength(json, 'utf8');
   // El sobre se sella (AEAD: +nonce +tag) y se serializa en base64 antes de
   // medirse contra el tope — `sealEnvelope` devuelve base64 y el chequeo corre
@@ -172,7 +173,8 @@ describe('presupuesto real del sobre', () => {
 /**
  * P17 (T-191, spec §5/§8): el costo real de PUBLICAR una edición, no de
  * ARMAR el delta completo (eso es lo que mide `medir()` arriba, y sigue
- * siendo el número de ADR-007/T-058 — `buildGroupPayload` no cambió).
+ * siendo el número de ADR-007/T-058 — `adaptador.armar` no cambió el
+ * contenido, sólo quién lo llama, T-206-A/D2).
  *
  * Antes de T-191, cada publicación —edite lo que edite— mandaba TODAS las
  * rebanadas de siempre. Con cubos por prefijo + ledger (Task 2), una edición

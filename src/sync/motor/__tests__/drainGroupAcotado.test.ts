@@ -17,7 +17,8 @@
  * `scratchpad/poc/sec3RelayScope.test.ts`, con aserciones en vez de logs.
  */
 
-import { drainGroup, buildGroupPayload } from '../relaySync';
+import { drainGroup } from '../relaySync';
+import { armarComoDelta } from '@/src/test-utils/armarComoDelta';
 import { sealEnvelope, generateGroupKey, fromHex } from '@/src/sync/nucleo/envelopeCrypto';
 import { signEnvelope } from '@/src/sync/nucleo/envelopeSign';
 import { ensureIdentity } from '@/src/store/identityStore';
@@ -132,7 +133,11 @@ describe('S3-A1 — drainGroup no adopta claves ajenas ni inyecta personal/regis
       { id: VICTIM, name: 'Victim', updatedAt: 1_000 } as any,
     ]});
 
-    const payload = buildGroupPayload('A', 'publisher');
+    // T-206-A (D2): `buildGroupPayload` (`motor/publicar.ts`) se borró — estaba
+    // muerto en producción (`publishToGroup` nunca lo llamó, usa
+    // `adaptador.armar` directo). `armarComoDelta` es el mismo armado; este
+    // swap es mecánico, no toca ninguna aserción de S3-A1.
+    const payload = armarComoDelta('A', 'publisher');
     useGroupKeyStore.getState().adoptKeys([{ groupId: 'A', key: toHex(generateGroupKey()), epoch: 1 }]);
     const keyA = useGroupKeyStore.getState().getKey('A')!;
 

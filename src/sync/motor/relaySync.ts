@@ -14,7 +14,6 @@
  * via `publish.ts`/`drain.ts`) y los 2 tests que mockean `sync/relaySync` no cambian.
  */
 export {
-  buildGroupPayload,
   publishToGroup,
   deleteMyGroupEnvelopes,
   type PublishResult,

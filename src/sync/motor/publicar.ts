@@ -1,4 +1,3 @@
-import { DELTA_FEATURE_VERSION, type SyncDelta } from '@/src/sync/adaptadores/hushsplit/applyDelta';
 import { sealEnvelope, deriveTopic } from '@/src/sync/nucleo/envelopeCrypto';
 import { sendEnvelope, deleteMyEnvelopes, type DeleteResult } from '@/src/sync/adaptadores/supabase/relay';
 import { groupKeyBytes, useGroupKeyStore } from '@/src/store/groupKeyStore';
@@ -15,44 +14,15 @@ import { TIMEOUT_ENVIO_MS } from '@/src/sync/nucleo/limites';
  * Publicación por el relay (T-192: salió de `relaySync.ts`).
  *
  * **Por el relay NUNCA viaja una clave de grupo** — si pudiera, sustituiría
- * la propia y leería todo (ADR-003 §1). Por eso el payload se arma acá y no
- * se reusa `buildDelta` tal cual.
+ * la propia y leería todo (ADR-003 §1).
+ *
+ * T-206-A (D2): acá vivía `buildGroupPayload`, una segunda implementación
+ * del armado del sobre que `publishToGroup` (más abajo) YA NO usaba —
+ * arma directo con `adaptador.armar` + `adaptador.antesDePublicar` dentro de
+ * `encolarPorTopic`. Quedó como una función viva sólo para tests (7 archivos,
+ * migrados a `adaptador.armar` vía `src/test-utils/armarComoDelta.ts`); se
+ * borra por no tener ningún caller de producción.
  */
-
-/**
- * Payload del relay: **sólo lo del grupo al que se publica** (T-093/T-157a —
- * se filtra por `groupId` ANTES de limpiar campos, nunca al revés; ver
- * ADR-007 y `relayScopeFiltraPrimero.test.ts` para el porqué y la
- * comparación byte a byte contra la implementación vieja). Se arma campo por
- * campo, nunca quitando lo prohibido: `relayScope.test.ts` obliga a
- * clasificar cualquier entidad nueva o falla.
- */
-export function buildGroupPayload(groupId: string, currentUserId: string): SyncDelta {
-  // El armado campo por campo (qué le pertenece a `groupId`, elisión de mail
-  // y `avatarUrl`) vive en `adaptador.armar` (frontera P15, T-191 Task 0).
-  // Acá sólo se envuelve con el sobre.
-  const doc = adaptador.armar(groupId, currentUserId);
-
-  return {
-    version: 1,
-    featureVersion: DELTA_FEATURE_VERSION,
-    fromUserId: currentUserId,
-    timestamp: Date.now(),
-
-    // Re-tipado del `Documento` genérico del núcleo a lo que cada campo de
-    // `SyncDelta` es en verdad — `adaptador.armar` ya garantiza el store de origen.
-    groups: doc.groups as SyncDelta['groups'],
-    expenses: doc.expenses as SyncDelta['expenses'],
-    payments: doc.payments as SyncDelta['payments'],
-    // Perfiles de miembros: sin ellos el otro ve ids en vez de nombres. El
-    // email se saca en `adaptador.armar` (T-093 ronda 2 / R-2).
-    users: doc.users as SyncDelta['users'],
-    recurring: doc.recurring as SyncDelta['recurring'],
-    comments: doc.comments as SyncDelta['comments'],
-
-    // `personal` y `groupKeys` NO viajan por acá — ver ADR-003 §1.
-  };
-}
 
 /**
  * El orden de dependencia (`groups`/`expenses` antes que `users`/`comments`)
