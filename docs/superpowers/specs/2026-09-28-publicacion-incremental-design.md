@@ -130,3 +130,37 @@ Formato del sobre (cifrado + firma), `MANIFEST_VERSION`, compactación y TTL del
 - **C6 · Relectura acotada.** Contador propio en memoria: a lo sumo **una** relectura desde el cursor 0 por `(topic, sender, seq del manifiesto)`. Si sigue faltando, se registra en `manifestHealth` y no se relee hasta que llegue un manifiesto nuevo. Test P22.
 - **Frontera (respuesta 6).** `antesDePublicar(doc, ctx: { groupId, deviceId })` con efecto documentado (manda la foto propia). El adaptador envuelve cada cubo como `SyncDelta` `version: 1` para `applyDelta`, declara el orden de dependencia (C2) y provee el puerto de almacenamiento scopeado `{ get, set, delete }` al núcleo, que no importa `userScope`. `sliceRenewal.ts` **queda** para las fotos (`avatarTopic`); el ledger va en un namespace nuevo.
 - **Tests:** P1-P17 de §5 más P18-P23 de §7.
+
+---
+
+## 8 · C2 — regla del cursor ante retenidas (fallo del arquitecto, tercera ronda de revisión, 2026-09-28)
+
+V2 (verifier, segunda tanda) quedó incompleto: un fallo de aplicación con reintentos agotados devuelve `cursor: seq - 1` desde DENTRO del loop de páginas, sin llegar nunca a la reaplicación de `retenidasPorDependencia` de más abajo — una rebanada retenida en la MISMA llamada se pierde, porque el cursor ya avanzó más allá de ella. La corrección de la segunda tanda (M2/M3/M4 de la tercera ronda) no tocó esto — sigue pendiente y es lo que esta sección cierra.
+
+**Regla:** el cursor NUNCA pasa una retenida por dependencia no resuelta. Cada retenida tiene tope en `drainFailures` por `(topic, seq)` (`DRAIN_MAX_REINTENTOS`, `drainFailures.ts:24`). Se descarta la alternativa de un estado `pendiente` en `appliedSlices`: agregar un tercer estado ahí complica el cierre del manifiesto (`entradaCumplida`) sin necesidad — el cursor es la herramienta correcta para "no avances todavía".
+
+**Definiciones en `drainGroup` (`relaySync.ts`):**
+- `base` = `salidaTemprana.cursor` si hubo salida temprana, si no el último `r.cursor` (fondo del buzón o tope de páginas).
+- `H` = las retenidas que, tras la reaplicación final, SIGUEN sin resolver (`descartes.porDependencia > 0`) y que todavía tienen cupo en `drainFailures`; si la reaplicación TIRA (excepción), también entra en `H`.
+
+**Orden de las operaciones al cerrar un drenaje:** reaplicar retenidas → cobrar cupo (ajuste A) → armar `H` → sacar de `recibidasPorRemitente` toda retenida no resuelta, con o sin cupo (ajuste B) → chequeo de manifiesto y relectura C6 (ajuste C) → devolver.
+
+**Ajuste A (cuándo se cobra el cupo).** Una retenida consume cupo de `drainFailures` SÓLO en un drenaje que llega al fondo del buzón (`completo === true`) o al tope de páginas — NUNCA en `salidaTemprana` (fallo de aplicación de OTRA rebanada) ni en un corte de red en una página posterior: en esos dos casos la retenida ni siquiera tuvo la última chance real de resolverse en esta vuelta. El cobro usa el mismo mecanismo que un fallo de aplicación: `registrarFalloDeAplicacion(topic, seq, new Error('dependencia_pendiente'))`.
+
+**Ajuste B (recibida no es lo mismo que resuelta).** `mapa.set(envelope.ckey, plain)` (la colección que alimenta `recibidasPorRemitente`) guarda TODA rebanada que llegó, incluidas las retenidas — y `entradaCumplida` (`appliedSlices.ts`) da por cumplida una entrada del manifiesto si su ckey está en `recibidasPorRemitente`, sin mirar si de verdad se terminó de aplicar. Una retenida sin resolver nunca llegaría entonces a `manifestHealth`: el manifiesto la daría por cumplida aunque el registro siga sin estar completo localmente. Corrección: antes del chequeo de manifiesto, sacar de `recibidasPorRemitente` toda ckey que siga en `H` (con o sin cupo).
+
+**Ajuste C (C6 no dispara relectura sobre lo que ya se tiene en mano).** Una ckey retenida sin resolver NO dispara `releerFaltantes`: el sobre ya está localmente, releerlo de nuevo no cambia nada — el problema es la dependencia, no el transporte. Si TODOS los faltantes de un emisor, en esta vuelta, son retenidas, no se llama a `permiteRelectura` para ese emisor (se conserva el cupo de relectura para un faltante que sí sea de transporte). Esas ckeys retenidas SÍ cuentan como faltantes en `recordManifestCheck` — es información real para `manifestHealth`, sólo que no dispara la relectura.
+
+**Cursor por tipo de salida:**
+
+| Salida | Cursor | `completo` |
+|---|---|---|
+| Normal (fondo del buzón) | `H` vacío ⇒ `base`; si no, `min(base, min(H.seq) - 1)` | `H` vacío |
+| Tope de páginas | `min(base, min(H.seq) - 1)` (cobra cupo) | `false` |
+| Fallo de aplicación (`salidaTemprana`) | `min(seqFallo - 1, min(H.seq) - 1)` (NO cobra cupo) | `false` |
+| Corte de red en página posterior | `min(base, min(H.seq) - 1)` (NO cobra cupo) | `false` |
+| Cupo agotado para una retenida puntual | esa retenida SALE de `H` — el cursor la pasa; no va a `appliedSlices`; el manifiesto la marca faltante en `manifestHealth`, como cualquier otro faltante permanente | (no cambia el cálculo de arriba) |
+
+Lo que llega a `drainNow` (y por lo tanto a la marca de T-089) es `completo && H vacío` — la marca de "pendiente de drenaje" queda puesta mientras haya CUALQUIER retenida sin resolver, aunque el buzón se haya leído hasta el fondo (`relay/drain.ts:51`). **Invariante que vale en TODOS los casos:** `cursor >= sinceSeq` — el cursor nunca retrocede por debajo de donde el drenaje arrancó, sólo puede quedarse corto respecto del fondo real del buzón.
+
+— fallo del arquitecto (NERV) · 2026-09-28, tras el rechazo de la segunda tanda del verifier
