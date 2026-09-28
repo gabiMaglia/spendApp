@@ -4,29 +4,15 @@ import { readScoped, writeScoped } from '@/src/store/userScope';
 import { avatarCabe } from '@/src/services/avatarSize';
 import { useAuthStore } from '@/src/store/authStore';
 import { useUserStore } from '@/src/store/userStore';
-import { sealEnvelope, openEnvelope, toHex, fromHex } from './envelopeCrypto';
+import { sealEnvelope, openEnvelope, toHex } from './envelopeCrypto';
 import { sendEnvelope, fetchSince, type SendResult } from './relay';
 import { ensureIdentity, ensureWrapKeypair } from '@/src/store/identityStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
-import { wrapGroupKey, unwrapGroupKey } from './groupInvite';
-import { ed25519 } from '@noble/curves/ed25519.js';
 import { syncedNow } from '@/src/utils/syncedClock';
-import {
-  claveLocalVinoDeContacto, estado, marcarAdoptada, ofertasDe, registrarOferta,
-} from './groupKeyOffers';
-
-/** Bytes UTF-8 de un texto: `Buffer` no existe en React Native. */
-function utf8(s: string): Uint8Array {
-  const out: number[] = [];
-  for (const ch of s) {
-    const cp = ch.codePointAt(0)!;
-    if (cp < 0x80) out.push(cp);
-    else if (cp < 0x800) out.push(0xc0 | (cp >> 6), 0x80 | (cp & 63));
-    else if (cp < 0x10000) out.push(0xe0 | (cp >> 12), 0x80 | ((cp >> 6) & 63), 0x80 | (cp & 63));
-    else out.push(0xf0 | (cp >> 18), 0x80 | ((cp >> 12) & 63), 0x80 | ((cp >> 6) & 63), 0x80 | (cp & 63));
-  }
-  return new Uint8Array(out);
-}
+import { estado, marcarAdoptada, ofertasDe } from './groupKeyOffers';
+import { getPeer, savePeerFromCard, listPeers } from './contactPeers';
+import { deriveContactTopic, contactKey } from './contactTopic';
+import { type GroupKeyDrop, registrarDropComoOferta } from './contactGroupKeyDrop';
 
 /**
  * Verifier R3-3(a): `wrapPublicKey` es una clave pública x25519 — 32 bytes,
@@ -72,9 +58,6 @@ export function esWrapPublicKeyValida(hex: unknown): hex is string {
  * contactos conocidos, T-035).
  */
 
-const TOPIC_DOMAIN = 'splitp2p/contact/v1/topic';
-const KEY_DOMAIN   = 'splitp2p/contact/v1';
-
 const storage = createSecureStorage('users');
 const K_SECRET = 'contact_secret_v1';
 
@@ -91,26 +74,6 @@ export function ensureContactSecret(): string | null {
   const fresco = toHex(Crypto.getRandomBytes(32));
   writeScoped(storage, K_SECRET, fresco);
   return fresco;
-}
-
-/** Buzón de contacto de alguien, derivado de su secreto. */
-export async function deriveContactTopic(secret: string): Promise<string> {
-  return Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, `${TOPIC_DOMAIN}:${secret}`);
-}
-
-/**
- * Clave que cifra lo que se deja en ese buzón.
- *
- * Dominio DISTINTO del topic a propósito: el topic viaja en claro hasta el
- * servidor, así que si los dos salieran de la misma derivación el servidor
- * tendría la clave y podría leer quién agrega a quién.
- */
-async function contactKey(secret: string): Promise<Uint8Array> {
-  const hex = await Crypto.digestStringAsync(
-    Crypto.CryptoDigestAlgorithm.SHA256,
-    `${KEY_DOMAIN}:${secret}`,
-  );
-  return fromHex(hex.slice(0, 64));
 }
 
 export type ContactCard = {
@@ -209,183 +172,6 @@ export async function announceCardResultado(
   } catch (e) {
     return { ok: false, reason: 'network', detail: String(e) };
   }
-}
-
-/**
- * Entrega de la clave de un grupo a un contacto conocido.
- *
- * Reemplaza al link para gente que ya escaneaste: creás el grupo y le llega,
- * sin que tenga que abrir nada ni escanear de nuevo.
- *
- * La clave va **envuelta para su X25519**, no sólo cifrada con la clave del
- * buzón. La diferencia importa: la clave del buzón la conoce TODO el que haya
- * escaneado ese código alguna vez, así que dejar ahí una clave de grupo en esas
- * condiciones se la estaría entregando a todos ellos.
- */
-export type GroupKeyDrop = {
-  kind: 'group_key';
-  groupId: string;
-  groupName: string;
-  fromUserId: string;
-  forUserId: string;
-  wrappedKey: string;
-  senderWrapPublicKey: string;
-  /** Ed25519 de quien manda: se contrasta con la que guardamos de esa persona. */
-  senderIdentity: string;
-  epoch: number;
-  sentAt: number;
-  signature: string;
-};
-
-type ChannelMessage = ContactCard | GroupKeyDrop;
-
-function dropPayload(d: Omit<GroupKeyDrop, 'kind' | 'signature'>): string {
-  return [d.groupId, d.fromUserId, d.forUserId, d.wrappedKey, d.senderWrapPublicKey, d.epoch].join('|');
-}
-
-/**
- * Le manda a un contacto la clave de un grupo — versión que expone el motivo
- * del fallo (T-147 D4, ronda 2).
- *
- * `{ ok: false, reason: 'no_data' }` si no lo conocemos lo suficiente (sin
- * buzón o sin su pública) o si no tenemos la clave: en esos casos no hay nada
- * que entregar y reintentarlo no cambiaría nada. El resto de las razones son
- * las de `sendEnvelope` (`relay.ts`) — en particular `rate_limited`, que
- * `relayQueue` sabe reintentar solo (antes se perdía: `sendGroupKey` sólo
- * devolvía `boolean` y el motivo se descartaba).
- */
-export async function sendGroupKeyResultado(
-  peerUserId: string,
-  group: { id: string; name: string },
-  deviceId: string,
-): Promise<SendResult | { ok: false; reason: 'no_data' | 'invalid_key'; detail?: string }> {
-  const me = useAuthStore.getState().currentUser;
-  const peer = getPeer(peerUserId);
-  const record = useGroupKeyStore.getState().getKey(group.id);
-  if (!me || !peer?.secret || !peer.wrapPublicKey || !record) return { ok: false, reason: 'no_data' };
-
-  /**
-   * Verifier R3-3(a): antes, armar `drop` (incluido `wrapGroupKey`) corría
-   * FUERA de este `try`. Una `wrapPublicKey` corrupta que se coló al guardar
-   * el contacto (`savePeerFromCard` ya la valida, ver `esWrapPublicKeyValida`
-   * más abajo — esto es la segunda barrera) hacía tirar `x25519` con un
-   * `RangeError` sin capturar. `relayQueue` trata CUALQUIER excepción como
-   * `'reintentar'` — para un error permanente como éste (la clave nunca deja
-   * de estar corrupta sola), eso era reintentar para siempre (PoC: 901 veces
-   * en 1h, bloqueando a los trabajos sanos detrás). Envuelto acá, se
-   * distingue como `'invalid_key'`, que el llamador trata como descartable.
-   */
-  try {
-    const wrap = ensureWrapKeypair();
-    const identity = ensureIdentity();
-
-    const datos = {
-      groupId: group.id,
-      groupName: group.name,
-      fromUserId: me.id,
-      forUserId: peerUserId,
-      wrappedKey: wrapGroupKey(record.key, peer.wrapPublicKey, wrap.privateKey),
-      senderWrapPublicKey: wrap.publicKey,
-      senderIdentity: identity.publicKey,
-      epoch: record.epoch,
-      sentAt: Date.now(),
-    };
-
-    const drop: GroupKeyDrop = {
-      ...datos,
-      kind: 'group_key',
-      signature: toHex(ed25519.sign(utf8(dropPayload(datos)), fromHex(identity.privateKey))),
-    };
-
-    const topic = await deriveContactTopic(peer.secret);
-    const sealed = sealEnvelope(await contactKey(peer.secret), JSON.stringify(drop));
-    return await sendEnvelope(topic, sealed, deviceId);
-  } catch (e) {
-    if (e instanceof RangeError) return { ok: false, reason: 'invalid_key', detail: String(e) };
-    return { ok: false, reason: 'network', detail: String(e) };
-  }
-}
-
-/**
- * Le manda a un contacto la clave de un grupo.
- * `false` si no lo conocemos lo suficiente (sin buzón o sin su pública) o si
- * no tenemos la clave: en esos casos no hay nada que entregar.
- *
- * Envoltorio fino sobre `sendGroupKeyResultado` (mantenido por compatibilidad
- * — casi todos los llamadores sólo necesitan saber si salió).
- */
-export async function sendGroupKey(
-  peerUserId: string,
-  group: { id: string; name: string },
-  deviceId: string,
-): Promise<boolean> {
-  return (await sendGroupKeyResultado(peerUserId, group, deviceId)).ok;
-}
-
-/**
- * Registra como OFERTA una clave que llegó por el canal de contacto
- * (T-136 · ADR-013). Ya no adopta: eso se decide al final del lote, en
- * `resolverOfertas`, mirando todas las ofertas del grupo.
- *
- * Se acepta SÓLO si viene de alguien que escaneamos y la firma corresponde a la
- * identidad que guardamos de esa persona. Sin este chequeo, cualquiera que
- * conozca el buzón (todos los que escanearon el mismo código) podría meter una
- * clave inventada.
- *
- * Lo que la firma NO prueba: que el remitente sea miembro del grupo. Por eso
- * una oferta sola nunca sustituye nada.
- *
- * `true` sólo si dejó una oferta nueva o cambiada: es lo que marca al grupo
- * para resolverlo en este lote.
- */
-function registrarDropComoOferta(drop: GroupKeyDrop, myUserId: string): boolean {
-  // Redundante con la criptografía —una entrega envuelta para otro no la puedo
-  // abrir igual— y por eso ningún test puede matarlo. Se deja porque hace
-  // explícita la intención y corta antes de gastar una operación de curva.
-  if (drop.forUserId !== myUserId || drop.fromUserId === myUserId) return false;
-
-  const peer = getPeer(drop.fromUserId);
-  if (!peer?.identityPublicKey || peer.identityPublicKey !== drop.senderIdentity) return false;
-
-  try {
-    const { kind: _k, signature, ...datos } = drop;
-    const ok = ed25519.verify(fromHex(signature), utf8(dropPayload(datos)), fromHex(drop.senderIdentity));
-    if (!ok) return false;
-  } catch {
-    return false;
-  }
-
-  // El unwrap va ANTES de mirar la clave local (T-136): para saber si hay
-  // conflicto hay que comparar claves. Destinatario y firma ya se verificaron.
-  const wrap = ensureWrapKeypair();
-  const key = unwrapGroupKey(drop.wrappedKey, drop.senderWrapPublicKey, wrap.privateKey);
-  // Una clave del largo equivocado dejaría el grupo ilegible para siempre, sin
-  // más síntoma que "no me llega nada".
-  if (!key || !/^[0-9a-f]{64}$/i.test(key)) return false;
-
-  const local = useGroupKeyStore.getState().getKey(drop.groupId);
-  if (local) {
-    if (local.key.toLowerCase() === key.toLowerCase()) return false; // ya la teníamos
-
-    // T-132 criterio 4 (`qa/SEC3-2026-09-14.md`): esta guarda es la que hace
-    // que S3-A1 NO se repita acá. Una clave local de `ensureKey`, QR o
-    // invitación no deja ni oferta ni aviso, y `drop.epoch` no se mira para
-    // nada: no hay sustitución posible. Ver `contactChannel.test.ts` — "una
-    // época absurda en el mensaje NO alcanza para sustituir una clave que ya
-    // tenemos". Sólo una clave que vino de contacto puede entrar en disputa, y
-    // aun así la decide el usuario (`elegirClaveDeGrupo`).
-    if (!claveLocalVinoDeContacto(drop.groupId)) return false;
-  }
-
-  return registrarOferta({
-    groupId: drop.groupId,
-    fromUserId: drop.fromUserId,
-    key: key.toLowerCase(),
-    epoch: drop.epoch,
-    origen: 'contact',
-    receivedAt: Date.now(),
-    adoptada: false,
-  });
 }
 
 export type DrainContactsResult = {
@@ -543,6 +329,8 @@ export function peersIncompletos(): string[] {
     .map(([, info]) => info.secret);
 }
 
+type ChannelMessage = ContactCard | GroupKeyDrop;
+
 function parseMessage(plain: string | null): ChannelMessage | null {
   if (plain === null) return null;
   try {
@@ -555,159 +343,16 @@ function parseMessage(plain: string | null): ChannelMessage | null {
   }
 }
 
-// --- registro de contactos ----------------------------------------------------
-// De cada persona que escaneamos (o que nos escaneó) guardamos su buzón y sus
-// claves públicas. Es lo que permite mandarle cosas después sin volver a
-// vernos la cara — y, sobre todo, verificar que lo que llega es realmente suyo.
 
-const K_PEERS = 'contact_peers_v1';
-const K_CARD_SENT = 'card_sent_v1';
-
-export type PeerInfo = {
-  secret: string;
-  /** X25519: a ella se le envuelven las claves de grupo. */
-  wrapPublicKey?: string;
-  /** Ed25519: con ella se verifica que lo que llega lo mandó esta persona. */
-  identityPublicKey?: string;
-};
-
-/**
- * Guarda a alguien que tenemos DELANTE: su código lo estamos viendo en su
- * pantalla. Acá sí se pisa lo que hubiera antes — si reinstaló la app y tiene
- * claves nuevas, escanear de nuevo es exactamente cómo se re-verifica.
- *
- * **El gate vive en quien llama, no acá** (T-093 / SEC H-1): un link no es
- * "tenerlo delante", y un QR tampoco alcanza si ya había una clave pinneada
- * distinta (ni siquiera si el contacto está borrado). `app/contact/add.tsx`
- * llama primero a `hasConflictingPinnedKeys` y sólo invoca esta función
- * cuando no hay conflicto — a propósito se deja la función pisando siempre
- * que se la llama, porque otros caminos ya verificaron eso antes.
- */
-export function savePeer(userId: string, info: PeerInfo): void {
-  if (!info.secret) return;
-  const todos = listPeers();
-  // Los campos vacíos no borran lo que ya sabíamos: un código viejo sin claves
-  // no debe hacernos perder las que ya teníamos.
-  todos[userId] = { ...todos[userId], ...limpiar(info) };
-  writeScoped(storage, K_PEERS, JSON.stringify(todos));
-}
-
-/**
- * Guarda a alguien a partir de una tarjeta que llegó por el relay.
- *
- * **Sólo completa huecos, nunca reemplaza una clave que ya teníamos.** La
- * diferencia con `savePeer` es de confianza y es la más importante del módulo:
- * una tarjeta la puede escribir cualquiera que conozca el buzón — es decir,
- * cualquiera que haya escaneado ese código alguna vez. Si pudiera pisar claves,
- * uno de ellos mandaría una tarjeta diciendo ser otra persona, con SUS claves, y
- * a partir de ahí le entregaríamos claves de grupo creyendo que es quien dice.
- *
- * Consecuencia deliberada: si alguien reinstala la app, hay que volver a
- * escanearlo. Verificar en persona significa eso; aceptar la clave nueva por el
- * mismo canal que se quiere proteger no verificaría nada.
- */
-export function savePeerFromCard(userId: string, info: PeerInfo): void {
-  if (!info.secret) return;
-  const todos = listPeers();
-  const previo = todos[userId];
-
-  todos[userId] = {
-    secret:            previo?.secret            ?? info.secret,
-    wrapPublicKey:     previo?.wrapPublicKey     ?? info.wrapPublicKey,
-    identityPublicKey: previo?.identityPublicKey ?? info.identityPublicKey,
-  };
-  writeScoped(storage, K_PEERS, JSON.stringify(todos));
-}
-
-/** Saca los campos vacíos, para que no pisen datos buenos al mezclar. */
-function limpiar(info: PeerInfo): PeerInfo {
-  return Object.fromEntries(
-    Object.entries(info).filter(([, v]) => Boolean(v)),
-  ) as PeerInfo;
-}
-
-/**
- * Huella de lo que al otro lado le importa de mi tarjeta.
- *
- * `sentAt` y `contactSecret` quedan AFUERA a propósito: el primero cambia en
- * cada llamada y haría que todo arranque pareciera un cambio, que es justo lo
- * que esto evita.
- */
-export function cardFingerprint(card: ContactCard): string {
-  // La foto entra en la huella: si no, cambiarla no se detectaría como un
-  // cambio de tarjeta y no se reenviaría a nadie — exactamente el mecanismo
-  // por el que hoy se propaga el nombre.
-  return [
-    card.userId, card.name,
-    card.wrapPublicKey, card.identityPublicKey, card.avatar ?? '',
-  ].join('|');
-}
-
-function tarjetasEnviadas(): Record<string, string> {
-  const raw = readScoped(storage, K_CARD_SENT);
-  if (!raw) return {};
-  try {
-    return JSON.parse(raw) as Record<string, string>;
-  } catch {
-    return {}; // dato corrupto: se reenvía de más, nunca de menos
-  }
-}
-
-/** ¿Este contacto ya tiene ESTA versión de mi tarjeta? */
-export function cardYaEnviada(userId: string, huella: string): boolean {
-  return tarjetasEnviadas()[userId] === huella;
-}
-
-/**
- * Se marca SÓLO cuando el envío salió bien. Es lo que hace que un fallo de red
- * se reintente al próximo arranque en vez de perderse: el modo de falla que
- * teníamos era exactamente ese, y en silencio.
- */
-export function marcarCardEnviada(userId: string, huella: string): void {
-  const todas = tarjetasEnviadas();
-  todas[userId] = huella;
-  writeScoped(storage, K_CARD_SENT, JSON.stringify(todas));
-}
-
-export function listPeers(): Record<string, PeerInfo> {
-  // Prototipo nulo: los ids vienen de afuera, y `getPeer('constructor')` devolvía
-  // `Function` (T-098 · SEC L-3). Ojo con nombrar la otra forma de hacer esto
-  // acá arriba: el guard de `accountCoverage.test.ts` la toma como "esto cachea
-  // en memoria" (heurística pensada para el `create` de zustand), y este objeto
-  // es efímero — no hay nada que soltar al cambiar de cuenta.
-  const tabla: Record<string, PeerInfo> = Object.setPrototypeOf({}, null);
-  const raw = readScoped(storage, K_PEERS);
-  if (!raw) return tabla;
-  try {
-    return Object.assign(tabla, JSON.parse(raw) as Record<string, PeerInfo>);
-  } catch {
-    return tabla; // dato corrupto: se degrada a "no conozco a nadie", no rompe
-  }
-}
-
-export function getPeer(userId: string): PeerInfo | undefined {
-  return listPeers()[userId];
-}
-
-/**
- * ¿Lo que llegó (QR o link) pisaría una clave que ya teníamos pinneada?
- *
- * De sólo lectura: no persiste nada. Es el gate que `app/contact/add.tsx`
- * corre ANTES de `savePeer`, para los dos orígenes por igual (T-093 / SEC
- * H-1). Sin peer previo, o si el previo no tenía esa clave todavía, no hay
- * nada que pisar — completar un hueco no es un conflicto. El peer sobrevive
- * al borrado (tombstone) del contacto en `userStore` (`removeUser` no lo
- * toca), así que esto también protege a un contacto ya borrado.
- */
-export function hasConflictingPinnedKeys(userId: string, incoming: PeerInfo): boolean {
-  const previo = getPeer(userId);
-  if (!previo) return false;
-
-  const distinta = (a?: string, b?: string) => Boolean(a) && Boolean(b) && a !== b;
-  return distinta(previo.identityPublicKey, incoming.identityPublicKey)
-      || distinta(previo.wrapPublicKey, incoming.wrapPublicKey);
-}
-
-export function peerSecret(userId: string): string | undefined {
-  return getPeer(userId)?.secret;
-}
+// T-192: el registro de contactos (peers, tarjetas ya enviadas) salió a
+// contactPeers.ts; la entrega de clave de grupo por contacto a
+// contactGroupKeyDrop.ts; la derivación de topic/clave a contactTopic.ts.
+// Re-exportado para que la ruta pública no cambie.
+export {
+  type PeerInfo, savePeer, savePeerFromCard, cardFingerprint, cardYaEnviada,
+  marcarCardEnviada, listPeers, getPeer, hasConflictingPinnedKeys, peerSecret,
+} from './contactPeers';
+export {
+  type GroupKeyDrop, sendGroupKeyResultado, sendGroupKey,
+} from './contactGroupKeyDrop';
+export { deriveContactTopic, contactKey } from './contactTopic';

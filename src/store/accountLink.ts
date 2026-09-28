@@ -765,7 +765,7 @@ export const COBERTURA_FUSION: Record<string, string> = {
   'store/noticeInboxStore': 'aparte · mergeNotices (union por id; el acuse gana sobre el no-acuse). Decision del PO 2026-08-30: TODO se fusiona al enlazar cuentas.',
   'store/identityAlias':  'aparte · mergeAlias (alias_v1: unión de los alias del origen MÁS el id del origen, bajo el scope destino). Es lo que hace el alias transitivo A→B→C; sin la unión, la primera identidad se pierde en la segunda fusión.',
   'sync/pendingDrain':    'aparte · mergePendingDrain (pending_drain_v1: UNIÓN de las marcas de las dos cuentas). Unir es el lado seguro: heredar una marca de más cuesta un drenaje; perder una deja publicar un grupo heredado sin leer su buzón, que es el defecto de T-089.',
-  'sync/contactChannel':  'aparte · mergeContactPeers (contact_peers_v1: unión por userId, el destino gana campo por campo). El secreto propio y el acuse de tarjeta NO se fusionan — ver el docblock de mergeContactPeers.',
+  'sync/contactPeers':    'aparte · mergeContactPeers (contact_peers_v1: unión por userId, el destino gana campo por campo). El secreto propio y el acuse de tarjeta NO se fusionan — ver el docblock de mergeContactPeers.',
   'store/identityStore':  'aparte · mergeInvites/mergePendingJoins/mergeContactInvites/mergePendingContactClaims (invites_v1/pending_joins_v1/contact_invites_v1/contact_pending_claims_v1: unión por token, vencidas descartadas de los dos lados). Las privadas (identity_v1/owner_secret_v1/wrapkeys_v1) siguen siendo del APARATO y no pasan por writeScoped ni por ranura().',
 };
 
@@ -785,6 +785,8 @@ export const COBERTURA_FUSION: Record<string, string> = {
 export const EXCLUIDOS_FUSION: Record<string, string> = {
   'store/userScope':
     'No es data: es el mecanismo de scoping. `writeScoped` está acá porque este módulo lo DEFINE, no porque guarde algo propio.',
+  'sync/contactChannel':
+    'contact_secret_v1 es MI buzón de contacto, estable por diseño (T-192: separado de contact_peers_v1/card_sent_v1, que sí se fusionan — ver sync/contactPeers). Adoptar el secreto de la cuenta origen invalidaría los códigos QR que esa cuenta ya mostró en persona; cada cuenta conserva el propio.',
   'services/runMigrateReplicated':
     'Marca one-shot "esta cuenta ya migró sus réplicas" (ADR-006), no data del usuario. Fusionarla no aplica y heredarla no haría falta: todo scope que existe en este device llegó ahí por un `rehydrateForActiveUser`, y ése corre la migración. La cuenta origen ya migró lo suyo antes de que se fusione.',
   'sync/authorHealth':
