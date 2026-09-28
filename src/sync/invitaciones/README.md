@@ -1,7 +1,7 @@
 # invitaciones — cómo entra alguien a un grupo
 Invitación por link con token efímero; grant firmado; clave envuelta X25519.
 - `groupInvite`: crear/parsear link, claim/grant sellados.
-- `groupKeyWrap`: envoltura X25519 de la clave (v1 aceptada hasta 2026-10-14).
+- `groupKeyWrap`: envoltura X25519 + HKDF de la clave (sólo v2; la v1 se retiró en T-208).
 - `inviteEngine` (quien entra) · `inviteAdmit` (quien invita).
 - `suscripciones` (ex `relay/invitaciones`): escuchar buzones de invitación.
 - `groupKeyOffers` + `keyConflictNotice`: claves en disputa (T-136).

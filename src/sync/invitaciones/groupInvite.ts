@@ -364,8 +364,4 @@ function utf8(s: string): Uint8Array {
 // groupKeyWrap.ts. Re-exportado para que la ruta pública no cambie — los
 // tres tienen consumidores de producción reales (inviteEngine.ts,
 // contactInvite.ts, identityStore.ts, etc.).
-//
-// T-206-A (D9): `V1_ACEPTADO_HASTA` salió de esta lista — sin consumidores
-// de producción, sólo la usaba `groupInvite.test.ts`, migrado a importarla
-// de `groupKeyWrap.ts` directo.
 export { wrapGroupKey, unwrapGroupKey, generateWrapKeypair } from './groupKeyWrap';

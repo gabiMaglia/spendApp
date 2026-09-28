@@ -7,7 +7,6 @@ import {
 // T-206-A (D9): `V1_ACEPTADO_HASTA` es de `groupKeyWrap.ts` (su dueño) —
 // `groupInvite.ts` dejó de re-exportarla por no tener consumidores de
 // producción (sólo la usaba este test).
-import { V1_ACEPTADO_HASTA } from '../groupKeyWrap';
 import { openEnvelope, sealEnvelope } from '@/src/sync/nucleo/envelopeCrypto';
 import { fromHex } from '@/src/sync/nucleo/hexBytes';
 import * as Crypto from 'expo-crypto';
@@ -232,7 +231,7 @@ describe('envoltura de la clave del grupo', () => {
       expect(unwrapGroupKey(fabricado, miembro.publicKey, invitado.privateKey)).toBe(gk);
     });
 
-    it('un mensaje v1 (secreto crudo, sin prefijo) emitido antes de este cambio se sigue abriendo', () => {
+    it('T-208: un mensaje v1 (secreto crudo, sin prefijo) ya NO abre nunca — la rama v1 se retiró', () => {
       const miembro = generateWrapKeypair();
       const invitado = generateWrapKeypair();
       const gk = 'ee'.repeat(32);
@@ -241,7 +240,7 @@ describe('envoltura de la clave del grupo', () => {
       const shared = x25519.getSharedSecret(fromHex(miembro.privateKey), fromHex(invitado.publicKey));
       const v1 = sealEnvelope(shared.slice(0, 32), gk);
 
-      expect(unwrapGroupKey(v1, miembro.publicKey, invitado.privateKey)).toBe(gk);
+      expect(unwrapGroupKey(v1, miembro.publicKey, invitado.privateKey)).toBeNull();
     });
 
     it('receptor viejo ante v2 falla explícito (interoperabilidad hacia atrás, no deriva clave)', () => {
@@ -287,39 +286,6 @@ describe('envoltura de la clave del grupo', () => {
       expect(unwrapGroupKey(fabricado, miembro.publicKey, invitado.privateKey)).toBeNull();
     });
 
-    describe('ventana de v1: fecha de corte fija (QA T-129 ronda 2)', () => {
-      it('un v1 sigue abriendo antes del corte', () => {
-        const miembro = generateWrapKeypair();
-        const invitado = generateWrapKeypair();
-        const gk = '44'.repeat(32);
-        const shared = x25519.getSharedSecret(fromHex(miembro.privateKey), fromHex(invitado.publicKey));
-        const v1 = sealEnvelope(shared.slice(0, 32), gk);
-
-        const antesDelCorte = V1_ACEPTADO_HASTA - 1;
-        expect(unwrapGroupKey(v1, miembro.publicKey, invitado.privateKey, antesDelCorte)).toBe(gk);
-      });
-
-      it('un v1 ya NO abre pasado el corte', () => {
-        const miembro = generateWrapKeypair();
-        const invitado = generateWrapKeypair();
-        const gk = '55'.repeat(32);
-        const shared = x25519.getSharedSecret(fromHex(miembro.privateKey), fromHex(invitado.publicKey));
-        const v1 = sealEnvelope(shared.slice(0, 32), gk);
-
-        const despuesDelCorte = V1_ACEPTADO_HASTA + 1;
-        expect(unwrapGroupKey(v1, miembro.publicKey, invitado.privateKey, despuesDelCorte)).toBeNull();
-      });
-
-      it('v2 abre igual, antes y después del corte — el corte sólo afecta la rama v1', () => {
-        const miembro = generateWrapKeypair();
-        const invitado = generateWrapKeypair();
-        const gk = '66'.repeat(32);
-        const envuelta = wrapGroupKey(gk, invitado.publicKey, miembro.privateKey);
-
-        expect(unwrapGroupKey(envuelta, miembro.publicKey, invitado.privateKey, V1_ACEPTADO_HASTA - 1)).toBe(gk);
-        expect(unwrapGroupKey(envuelta, miembro.publicKey, invitado.privateKey, V1_ACEPTADO_HASTA + 1)).toBe(gk);
-      });
-    });
   });
 });
 
