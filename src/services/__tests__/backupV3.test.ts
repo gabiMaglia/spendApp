@@ -12,9 +12,10 @@ import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { useArchiveStore } from '@/src/store/archiveStore';
 import { useSettingsStore } from '@/src/store/settingsStore';
 import { useLangStore } from '@/src/store/langStore';
-import { recargarAlias, misIdentidades } from '@/src/store/identityAlias';
+import { recargarAlias, misIdentidades, restaurarAlias } from '@/src/store/identityAlias';
 import { ensureContactSecret, drainContacts } from '@/src/sync/contactChannel';
-import { savePeer, listPeers } from '@/src/sync/contactPeers';
+import { savePeer, marcarCardEnviada, listPeers, tarjetasEnviadas } from '@/src/sync/contactPeers';
+import { formatMoney } from '@/src/constants/currencies';
 import type { User, PersonalBudget } from '@/src/types/models';
 
 jest.mock('@/src/sync/relayEngine', () => ({
@@ -89,11 +90,11 @@ describe('buildBackup v3 — nuevos campos', () => {
 });
 
 describe('applyBackup v3 — restore por campo', () => {
-  it('restaura archived y settings SIEMPRE, sin importar el owner', () => {
+  it('backup PROPIO restaura archived y settings (además de contactos/alias)', () => {
     useAuthStore.setState({ currentUser: user('yo', 10) });
     applyBackup({
       ...blank(),
-      ownerId: 'otra-persona',
+      ownerId: 'yo',
       archived: { ids: ['gX'], reasons: { gX: 'limit' } },
       settings: {
         displayCurrency: 'BRL', language: 'pt', skin: 'aero',
@@ -109,16 +110,58 @@ describe('applyBackup v3 — restore por campo', () => {
     expect(useLangStore.getState().choice).toBe('pt');
   });
 
+  it('backup AJENO NO toca archivados ni ajustes locales — son preferencias del dueño, no datos del grupo (decisión orquestador, QA T-213 defecto 3)', () => {
+    useAuthStore.setState({ currentUser: user('yo', 10) });
+    useArchiveStore.setState({ archivedIds: ['propio'], reasons: { propio: 'manual' } });
+    useSettingsStore.getState().setDisplayCurrency('PEN');
+    useSettingsStore.getState().setSkin('default');
+
+    applyBackup({
+      ...blank(),
+      ownerId: 'otra-persona',
+      archived: { ids: ['gX'], reasons: { gX: 'limit' } },
+      settings: {
+        displayCurrency: 'BRL', language: 'pt', skin: 'aero',
+        notifExpenses: false, notifDeletions: false, notifInvites: false, notifSettlements: false,
+      },
+    });
+
+    // Los ajustes/archivados locales sobreviven intactos: el backup ajeno
+    // trajo SUS datos de grupo, no impuso sus preferencias de cuenta.
+    expect(useArchiveStore.getState().archivedIds).toEqual(['propio']);
+    expect(useSettingsStore.getState().displayCurrency).toBe('PEN');
+    expect(useSettingsStore.getState().skin).toBe('default');
+  });
+
   it('un skin inválido en el backup cae al default (esSkinId)', () => {
     useAuthStore.setState({ currentUser: user('yo', 10) });
     applyBackup({
       ...blank(),
+      ownerId: 'yo',
       settings: {
         displayCurrency: 'ARS', language: 'auto', skin: 'inexistente' as never,
         notifExpenses: true, notifDeletions: true, notifInvites: true, notifSettlements: true,
       },
     });
     expect(useSettingsStore.getState().skin).toBe('default');
+  });
+
+  it('BLOQUEANTE QA T-213 · una displayCurrency inválida cae al default y no crashea formatMoney', () => {
+    useAuthStore.setState({ currentUser: user('yo', 10) });
+    useSettingsStore.getState().setDisplayCurrency('EUR');
+
+    applyBackup({
+      ...blank(),
+      ownerId: 'yo',
+      settings: {
+        displayCurrency: 'XXX' as never, language: 'auto', skin: 'default',
+        notifExpenses: true, notifDeletions: true, notifInvites: true, notifSettlements: true,
+      },
+    });
+
+    // No queda un código inexistente en memoria (mismo criterio que `skin`).
+    expect(useSettingsStore.getState().displayCurrency).not.toBe('XXX');
+    expect(() => formatMoney(1000, useSettingsStore.getState().displayCurrency)).not.toThrow();
   });
 
   it('backup PROPIO adopta contactos y alias', () => {
@@ -167,24 +210,42 @@ describe('applyBackup v3 — restore por campo', () => {
 });
 
 describe('round-trip v3 completo', () => {
-  it('exportar y reimportar en stores vacíos reproduce archivados, ajustes, contactos y alias (backup propio)', () => {
+  it('exportar y reimportar en stores vacíos reproduce archivados (incl. `limit` pegajoso), los 4 toggles, contactos + cardSent y alias (backup propio)', () => {
     useAuthStore.setState({ currentUser: user('yo', 10) });
-    useArchiveStore.setState({ archivedIds: ['g1'], reasons: { g1: 'manual' } });
+    useArchiveStore.setState({
+      archivedIds: ['gManual', 'gLimit'],
+      reasons: { gManual: 'manual', gLimit: 'limit' },
+    });
     useSettingsStore.getState().setDisplayCurrency('CLP');
     useSettingsStore.getState().setSkin('aero');
+    useSettingsStore.getState().setNotifExpenses(false);
+    useSettingsStore.getState().setNotifDeletions(false);
+    useSettingsStore.getState().setNotifInvites(false);
+    useSettingsStore.getState().setNotifSettlements(false);
     useLangStore.getState().setLanguage('pt');
     savePeer('contactoX', { secret: 'sX', wrapPublicKey: 'c'.repeat(64), identityPublicKey: 'd'.repeat(64) });
+    marcarCardEnviada('contactoX', 'huella-real');
+    restaurarAlias(['alias-vieja']);
 
     const raw = serializeBackup(buildBackup());
     resetStores();
     useAuthStore.setState({ currentUser: user('yo', 10) });
     importBackup(raw);
 
-    expect(useArchiveStore.getState().archivedIds).toEqual(['g1']);
+    expect(useArchiveStore.getState().archivedIds.sort()).toEqual(['gLimit', 'gManual']);
+    expect(useArchiveStore.getState().reasons).toEqual({ gManual: 'manual', gLimit: 'limit' });
+    // La pegajosidad de 'limit' sobrevive al restore: sigue irrevocable.
+    expect(useArchiveStore.getState().canUnarchive('gLimit')).toBe(false);
     expect(useSettingsStore.getState().displayCurrency).toBe('CLP');
     expect(useSettingsStore.getState().skin).toBe('aero');
+    expect(useSettingsStore.getState().notifExpenses).toBe(false);
+    expect(useSettingsStore.getState().notifDeletions).toBe(false);
+    expect(useSettingsStore.getState().notifInvites).toBe(false);
+    expect(useSettingsStore.getState().notifSettlements).toBe(false);
     expect(useLangStore.getState().choice).toBe('pt');
     expect(listPeers().contactoX?.secret).toBe('sX');
+    expect(tarjetasEnviadas().contactoX).toBe('huella-real');
+    expect(misIdentidades()).toEqual(expect.arrayContaining(['yo', 'alias-vieja']));
   });
 });
 
