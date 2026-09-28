@@ -9,15 +9,11 @@ export async function digestOfJson(json: string): Promise<string> {
   return Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, json);
 }
 
-export async function buildManifest(
-  slices: { ckey: string; json: string }[],
-): Promise<SliceManifest> {
-  const entries: SliceManifestEntry[] = [];
-  for (const slice of slices) {
-    entries.push({ ckey: slice.ckey, digest: await digestOfJson(slice.json) });
-  }
-  return { version: MANIFEST_VERSION, entries };
-}
+// T-206-A (D4): acá vivía `buildManifest` — sin ningún consumidor de
+// producción, `publicarCubos.ts:122` arma el manifiesto inline
+// (`{ version: MANIFEST_VERSION, entries }`), nunca la llamó. La usaban 5
+// archivos de test como fixture; se borra y esos migran a
+// `src/test-utils/armarManifiesto.ts` (mismo cuerpo, movido).
 
 function isManifestEntry(value: unknown): value is SliceManifestEntry {
   if (typeof value !== 'object' || value === null) return false;

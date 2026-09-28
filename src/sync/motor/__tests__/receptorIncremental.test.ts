@@ -63,7 +63,7 @@ import { deriveTopic, sealEnvelope } from '@/src/sync/nucleo/envelopeCrypto';
 import { signEnvelope } from '@/src/sync/nucleo/envelopeSign';
 import { ensureIdentity } from '@/src/store/identityStore';
 import { deriveCkey } from '@/src/sync/nucleo/ckey';
-import { buildManifest } from '@/src/sync/nucleo/manifest';
+import { armarManifiesto } from '@/src/test-utils/armarManifiesto';
 import * as appliedSlices from '@/src/sync/nucleo/appliedSlices';
 import * as sliceLedger from '@/src/sync/nucleo/sliceLedger';
 import { almacen } from '@/src/sync/adaptadores/hushsplit/adaptadorHushSplit';
@@ -237,11 +237,11 @@ describe('P19: dependencia entre cubos de DISTINTOS emisores, en páginas distin
     empujar(topic, envolverCrudo('expenses', [gasto('e1')]), 'deviceAutor', ckeyExpenses);
 
     // Manifiestos de cada emisor, declarando su propia ckey.
-    const manifiestoComentarista = await buildManifest([{ ckey: ckeyComments, json: JSON.stringify(envolverCrudo('comments', [comentario])) }]);
+    const manifiestoComentarista = await armarManifiesto([{ ckey: ckeyComments, json: JSON.stringify(envolverCrudo('comments', [comentario])) }]);
     const ckeyManifiestoComentarista = await deriveCkey(key, 'manifest', 'unica');
     empujar(topic, manifiestoComentarista, 'deviceComentarista', ckeyManifiestoComentarista);
 
-    const manifiestoAutor = await buildManifest([{ ckey: ckeyExpenses, json: JSON.stringify(envolverCrudo('expenses', [gasto('e1')])) }]);
+    const manifiestoAutor = await armarManifiesto([{ ckey: ckeyExpenses, json: JSON.stringify(envolverCrudo('expenses', [gasto('e1')])) }]);
     empujar(topic, manifiestoAutor, 'deviceAutor', ckeyManifiestoComentarista);
 
     // Página de 1 sobre por vez: fuerza a que el comentario (seq 1) se
@@ -265,7 +265,7 @@ describe('P11 y P22: manifiesto que declara un digest que este dispositivo no ti
 
     // El manifiesto declara una ckey/digest que NUNCA se publicó de verdad
     // (simula un sobre que el TTL ya se llevó, o que se perdió).
-    const manifiesto = await buildManifest([{ ckey: 'ckey-fantasma', json: JSON.stringify({ nunca: 'llegó' }) }]);
+    const manifiesto = await armarManifiesto([{ ckey: 'ckey-fantasma', json: JSON.stringify({ nunca: 'llegó' }) }]);
     const ckeyManifiesto = await deriveCkey(key, 'manifest', 'unica');
     empujar(topic, manifiesto, 'deviceAutor', ckeyManifiesto);
 
@@ -280,7 +280,7 @@ describe('P11 y P22: manifiesto que declara un digest que este dispositivo no ti
   it('P22: una relectura y no más — un segundo drenaje sobre el MISMO manifiesto no vuelve a intentarlo', async () => {
     const topic = await topicDe();
     const key = groupKeyBytes('G')!;
-    const manifiesto = await buildManifest([{ ckey: 'ckey-fantasma', json: JSON.stringify({ nunca: 'llegó' }) }]);
+    const manifiesto = await armarManifiesto([{ ckey: 'ckey-fantasma', json: JSON.stringify({ nunca: 'llegó' }) }]);
     const ckeyManifiesto = await deriveCkey(key, 'manifest', 'unica');
     empujar(topic, manifiesto, 'deviceAutor', ckeyManifiesto);
 
@@ -308,7 +308,7 @@ describe('P21: manifiesto viejo + cubo ya aplicado con seq MAYOR — sin falta',
     // El manifiesto se generó ANTES de que la cuota dejara pasar el cubo con
     // la v2 (spec §7/§8 C5(c)): declara el digest de la v1, y su propio `seq`
     // en el buzón es MENOR que el del cubo, que salió recién después.
-    const manifiestoViejo = await buildManifest([{ ckey: ckeyExpenses, json: JSON.stringify(envolverCrudo('expenses', [gastoV1])) }]);
+    const manifiestoViejo = await armarManifiesto([{ ckey: ckeyExpenses, json: JSON.stringify(envolverCrudo('expenses', [gastoV1])) }]);
     const ckeyManifiesto = await deriveCkey(key, 'manifest', 'unica');
     empujar(topic, manifiestoViejo, 'deviceAutor', ckeyManifiesto);
 
@@ -420,7 +420,7 @@ describe('V1 (verifier, segunda tanda): restaurar backup con la misma clave deja
     const j2 = envolverCrudo('expenses', [gasto(E2)]);
     empujar(topic, j1, 'devA', k1);
     empujar(topic, j2, 'devA', k2);
-    const manifiesto1 = await buildManifest([{ ckey: k1, json: JSON.stringify(j1) }, { ckey: k2, json: JSON.stringify(j2) }]);
+    const manifiesto1 = await armarManifiesto([{ ckey: k1, json: JSON.stringify(j1) }, { ckey: k2, json: JSON.stringify(j2) }]);
     empujar(topic, manifiesto1, 'devA', km);
 
     const r1 = await drainGroup('G', 'u1', 'devR', 0);
@@ -438,7 +438,7 @@ describe('V1 (verifier, segunda tanda): restaurar backup con la misma clave deja
     // viaja de nuevo (no cambió), pero su ckey sigue en el manifiesto.
     const j1b = envolverCrudo('expenses', [gasto(E1, 'editado', 2_000)]);
     empujar(topic, j1b, 'devA', k1);
-    const manifiesto2 = await buildManifest([{ ckey: k1, json: JSON.stringify(j1b) }, { ckey: k2, json: JSON.stringify(j2) }]);
+    const manifiesto2 = await armarManifiesto([{ ckey: k1, json: JSON.stringify(j1b) }, { ckey: k2, json: JSON.stringify(j2) }]);
     empujar(topic, manifiesto2, 'devA', km);
 
     const r2 = await drainGroup('G', 'u1', 'devR', r1.cursor);

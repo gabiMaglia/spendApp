@@ -63,7 +63,7 @@ import { deriveTopic, sealEnvelope } from '@/src/sync/nucleo/envelopeCrypto';
 import { signEnvelope } from '@/src/sync/nucleo/envelopeSign';
 import { ensureIdentity } from '@/src/store/identityStore';
 import { deriveCkey } from '@/src/sync/nucleo/ckey';
-import { buildManifest } from '@/src/sync/nucleo/manifest';
+import { armarManifiesto } from '@/src/test-utils/armarManifiesto';
 import { applyBackup, BACKUP_FORMAT, BACKUP_VERSION, type BackupFile } from '@/src/services/backup';
 import type { Group, Expense } from '@/src/types/models';
 
@@ -129,7 +129,7 @@ it('M3: un restore que corre MIENTRAS drainNow está en vuelo no pierde su reset
   const km = await deriveCkey(key, 'manifest', 'unica');
   const j1 = envolverCrudo('expenses', [gasto(E1)]);
   empujar(topic, j1, 'devA', k1);
-  empujar(topic, await buildManifest([{ ckey: k1, json: JSON.stringify(j1) }]), 'devA', km);
+  empujar(topic, await armarManifiesto([{ ckey: k1, json: JSON.stringify(j1) }]), 'devA', km);
 
   // El fetchSince de este drenaje queda EN VUELO hasta que se libera a mano.
   let liberar: (() => void) | undefined;

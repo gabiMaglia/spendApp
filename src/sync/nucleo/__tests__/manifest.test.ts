@@ -1,4 +1,5 @@
-import { buildManifest, digestOfJson, isManifest, MANIFEST_VERSION } from '../manifest';
+import { digestOfJson, isManifest } from '../manifest';
+import { armarManifiesto } from '@/src/test-utils/armarManifiesto';
 
 describe('digestOfJson', () => {
   it('es determinístico y sensible al contenido', async () => {
@@ -10,27 +11,17 @@ describe('digestOfJson', () => {
   });
 });
 
-describe('buildManifest', () => {
-  it('produce una entrada por rebanada, con su ckey y digest', async () => {
-    const manifiesto = await buildManifest([
-      { ckey: 'ck1', json: '{"a":1}' },
-      { ckey: 'ck2', json: '{"b":2}' },
-    ]);
-    expect(manifiesto.version).toBe(MANIFEST_VERSION);
-    expect(manifiesto.entries).toHaveLength(2);
-    expect(manifiesto.entries[0].ckey).toBe('ck1');
-    expect(manifiesto.entries[0].digest).toBe(await digestOfJson('{"a":1}'));
-  });
-
-  it('lista vacía produce un manifiesto sin entradas, no un error', async () => {
-    const manifiesto = await buildManifest([]);
-    expect(manifiesto.entries).toEqual([]);
-  });
-});
+// T-206-A (D4): acá había un describe('buildManifest', ...) que probaba la
+// función directo (produce una entrada por ckey+digest; lista vacía no
+// rompe). `buildManifest` se borró — sin consumidor de producción, sólo la
+// usaban 5 archivos de test como fixture — y su reemplazo de test
+// (`armarManifiesto`) es tan trivial que probarlo por separado sería probar
+// el fixture, no el sistema; lo que sí importa —que un manifiesto armado así
+// pasa `isManifest`— lo sigue cubriendo el describe de abajo.
 
 describe('isManifest', () => {
   it('reconoce un manifiesto válido', async () => {
-    const m = await buildManifest([{ ckey: 'ck1', json: '{}' }]);
+    const m = await armarManifiesto([{ ckey: 'ck1', json: '{}' }]);
     expect(isManifest(m)).toBe(true);
   });
 

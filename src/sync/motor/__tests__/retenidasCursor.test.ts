@@ -50,7 +50,7 @@ import { deriveTopic, sealEnvelope } from '@/src/sync/nucleo/envelopeCrypto';
 import { signEnvelope } from '@/src/sync/nucleo/envelopeSign';
 import { ensureIdentity } from '@/src/store/identityStore';
 import { deriveCkey } from '@/src/sync/nucleo/ckey';
-import { buildManifest } from '@/src/sync/nucleo/manifest';
+import { armarManifiesto } from '@/src/test-utils/armarManifiesto';
 import { olvidarFallosDeAplicacion, DRAIN_MAX_REINTENTOS } from '@/src/sync/nucleo/drainFailures';
 import { permite as permiteRelectura, _reset as resetRelecturas } from '@/src/sync/nucleo/relecturas';
 import type { Group, Expense } from '@/src/types/models';
@@ -116,7 +116,7 @@ it('T1 (V2b): comentario retenido — tres drenajes hasta resolverse, sin cobrar
   const com = { id: 'c1', expenseId: E1, authorId: 'u1', text: 'hola', createdAt: 1, updatedAt: 1, isDeleted: false };
   const jc = envolverCrudo('comments', [com]);
   empujar(topic, jc, 'devB', kc);
-  empujar(topic, await buildManifest([{ ckey: kc, json: JSON.stringify(jc) }]), 'devB', km);
+  empujar(topic, await armarManifiesto([{ ckey: kc, json: JSON.stringify(jc) }]), 'devB', km);
   // seq3: rebanada que tira (fuerza el mismo caso que V2/M2 anteriores).
   empujar(topic, { version: 1, featureVersion: 2, fromUserId: 'q', timestamp: 0, groups: [], expenses: 5, payments: [], users: [] }, 'devZ', 'kz');
   // seq4: el gasto E1 de devA.
@@ -151,7 +151,7 @@ it('T2: sin fallos de por medio, un comentario que resuelve en la página siguie
   const com = { id: 'c1', expenseId: E1, authorId: 'u1', text: 'hola', createdAt: 1, updatedAt: 1, isDeleted: false };
   const jc = envolverCrudo('comments', [com]);
   empujar(topic, jc, 'devB', kc);
-  empujar(topic, await buildManifest([{ ckey: kc, json: JSON.stringify(jc) }]), 'devB', km);
+  empujar(topic, await armarManifiesto([{ ckey: kc, json: JSON.stringify(jc) }]), 'devB', km);
 
   const r1 = await drainGroup('G', 'u1', 'devR', 0);
   expect(r1.ok).toBe(true);
@@ -181,7 +181,7 @@ it('T3 (V6): descarte permanente por dependencia — cursores [0,0,2,2], manifes
   const com = { id: 'c1', expenseId: 'e-que-nunca-llega', authorId: 'u1', text: 'hola', createdAt: 1, updatedAt: 1, isDeleted: false };
   const jc = envolverCrudo('comments', [com]);
   empujar(topic, jc, 'devB', kc);
-  empujar(topic, await buildManifest([{ ckey: kc, json: JSON.stringify(jc) }]), 'devB', km);
+  empujar(topic, await armarManifiesto([{ ckey: kc, json: JSON.stringify(jc) }]), 'devB', km);
 
   let cursor = 0;
   const cursores: number[] = [];
@@ -209,7 +209,7 @@ it('T4 (ajuste C): una retenida sin resolver no gasta el cupo de relectura', asy
   const com = { id: 'c1', expenseId: 'e-que-nunca-llega', authorId: 'u1', text: 'hola', createdAt: 1, updatedAt: 1, isDeleted: false };
   const jc = envolverCrudo('comments', [com]);
   empujar(topic, jc, 'devB', kc);
-  empujar(topic, await buildManifest([{ ckey: kc, json: JSON.stringify(jc) }]), 'devB', km);
+  empujar(topic, await armarManifiesto([{ ckey: kc, json: JSON.stringify(jc) }]), 'devB', km);
 
   await drainGroup('G', 'u1', 'devR', 0);
 
@@ -254,7 +254,7 @@ it('T6: sin retenidas de por medio, cursor y completo son iguales a lo de siempr
   const km = await deriveCkey(key, 'manifest', 'unica');
   const je = envolverCrudo('expenses', [gasto(E1)]);
   empujar(topic, je, 'devA', ke);
-  empujar(topic, await buildManifest([{ ckey: ke, json: JSON.stringify(je) }]), 'devA', km);
+  empujar(topic, await armarManifiesto([{ ckey: ke, json: JSON.stringify(je) }]), 'devA', km);
 
   const r = await drainGroup('G', 'u1', 'devR', 0);
   expect(r.ok).toBe(true);
@@ -274,7 +274,7 @@ it('T7: en cada vuelta de drenaje, el cursor devuelto nunca retrocede por debajo
   const com = { id: 'c1', expenseId: E1, authorId: 'u1', text: 'hola', createdAt: 1, updatedAt: 1, isDeleted: false };
   const jc = envolverCrudo('comments', [com]);
   empujar(topic, jc, 'devB', kc);
-  empujar(topic, await buildManifest([{ ckey: kc, json: JSON.stringify(jc) }]), 'devB', km);
+  empujar(topic, await armarManifiesto([{ ckey: kc, json: JSON.stringify(jc) }]), 'devB', km);
   empujar(topic, { version: 1, featureVersion: 2, fromUserId: 'q', timestamp: 0, groups: [], expenses: 5, payments: [], users: [] }, 'devZ', 'kz');
   const je = envolverCrudo('expenses', [gasto(E1)]);
   empujar(topic, je, 'devA', ke);

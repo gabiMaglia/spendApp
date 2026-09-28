@@ -98,7 +98,7 @@ import { manifestGapFor, clearManifestGaps } from '@/src/sync/nucleo/manifestHea
 import { deriveCkey } from '@/src/sync/nucleo/ckey';
 import { deriveTopic, sealEnvelope } from '@/src/sync/nucleo/envelopeCrypto';
 import { signEnvelope } from '@/src/sync/nucleo/envelopeSign';
-import { buildManifest } from '@/src/sync/nucleo/manifest';
+import { armarManifiesto } from '@/src/test-utils/armarManifiesto';
 import { ensureIdentity } from '@/src/store/identityStore';
 import type { Group } from '@/src/types/models';
 
@@ -181,7 +181,7 @@ describe('T-191: el manifiesto que llega en un drenaje posterior a sus rebanadas
     // nunca viajó de verdad (sobre perdido / TTL vencido).
     relayMock.__descartarRetenido();
     const topic = await topicDe();
-    const manifiestoFalso = await buildManifest([{ ckey: 'ckey-fantasma-nunca-publicada', json: JSON.stringify({ nunca: 'llegó' }) }]);
+    const manifiestoFalso = await armarManifiesto([{ ckey: 'ckey-fantasma-nunca-publicada', json: JSON.stringify({ nunca: 'llegó' }) }]);
     const sealed = sealEnvelope(key, JSON.stringify(manifiestoFalso));
     const firmado = signEnvelope(sealed, ensureIdentity().privateKey);
     relayMock.__push(topic, firmado, 'device1', ckeyManifiesto);
