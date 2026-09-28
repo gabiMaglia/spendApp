@@ -1,18 +1,26 @@
 /**
- * T-189: guard de tamaño. `relayEngine.ts` (fachada) y cada módulo de
- * `src/sync/relay/*.ts` tienen tope duro de 260 líneas (comentarios
- * incluidos) — es lo que fuerza a que el archivo de 1101 líneas quede
- * partido en piezas chicas, con un dueño claro cada una, en vez de una
- * fachada que reacumula todo de nuevo.
+ * Guard de tamaño (T-189/T-192, reescrito en T-206-A tras la mudanza a
+ * carpetas — plan `engram/plans/T-206-A.md` Task 0/1).
+ *
+ * Antes: `relayEngine.ts` y `src/sync/relay/*.ts` sueltos a 260, y
+ * `relaySync.ts` + el resto de `src/sync/**` a 400. Esas rutas dejan de
+ * existir con la mudanza (`relay/` se reparte entre `nucleo/`, `motor/`,
+ * `adaptadores/`, etc. — spec 2026-09-28-sync-extraible-design.md §3.1).
+ *
+ * Ahora: barrido recursivo de TODO `src/sync/**` con tope duro 400
+ * (comentarios incluidos), y barrido recursivo, por separado, de
+ * `nucleo/` + `motor/` con tope de referencia 260 — son las dos carpetas
+ * candidatas al paquete futuro (spec §6 etapa (c)), así que se piden más
+ * chicas y legibles que el resto.
  */
-import { readdirSync, readFileSync } from 'fs';
+import { existsSync, readdirSync, readFileSync } from 'fs';
 import { join } from 'path';
 
-const LIMITE = 260;
 const LIMITE_REFERENCIA = 260;
 const LIMITE_DURO = 400;
 const SYNC_DIR = join(__dirname, '..');
-const RELAY_DIR = join(SYNC_DIR, 'relay');
+const NUCLEO_DIR = join(SYNC_DIR, 'nucleo');
+const MOTOR_DIR = join(SYNC_DIR, 'motor');
 
 function lineCount(path: string): number {
   const contenido = readFileSync(path, 'utf8');
@@ -22,15 +30,8 @@ function lineCount(path: string): number {
   return lineas.length;
 }
 
-function tsFilesIn(dir: string): string[] {
-  return readdirSync(dir, { withFileTypes: true })
-    .filter(d => d.isFile() && d.name.endsWith('.ts') && !d.name.endsWith('.d.ts'))
-    .map(d => join(dir, d.name));
-}
-
-// T-192: recorre src/sync recursivamente, excluyendo cualquier carpeta
-// __tests__ (los tests no entran en el tope de producción).
 function tsFilesRecursivos(dir: string): string[] {
+  if (!existsSync(dir)) return [];
   const entradas = readdirSync(dir, { withFileTypes: true });
   const archivos: string[] = [];
   for (const entrada of entradas) {
@@ -44,39 +45,38 @@ function tsFilesRecursivos(dir: string): string[] {
   return archivos;
 }
 
-describe('tope de tamaño de archivo (T-189)', () => {
-  it('relayEngine.ts no supera 260 líneas', () => {
-    const path = join(SYNC_DIR, 'relayEngine.ts');
-    const n = lineCount(path);
-    expect(n).toBeLessThanOrEqual(LIMITE);
-  });
-
-  it('cada módulo en src/sync/relay/*.ts no supera 260 líneas', () => {
-    const archivos = tsFilesIn(RELAY_DIR);
-    // Si el directorio no existe todavía o está vacío, este test no puede
-    // pasar por vacuidad: el refactor exige que la partición exista.
+describe('tope de tamaño de archivo — src/sync/** (400 duro, T-206-A)', () => {
+  it('ningún archivo de producción bajo src/sync/** supera 400 líneas', () => {
+    const archivos = tsFilesRecursivos(SYNC_DIR);
     expect(archivos.length).toBeGreaterThan(0);
 
     const excedidos = archivos
       .map(path => ({ path, n: lineCount(path) }))
-      .filter(({ n }) => n > LIMITE);
+      .filter(({ n }) => n > LIMITE_DURO);
 
     expect(excedidos).toEqual([]);
   });
 });
 
-describe('tope de tamaño de archivo (T-192)', () => {
-  it('relaySync.ts no supera 260 líneas', () => {
-    const path = join(SYNC_DIR, 'relaySync.ts');
-    const n = lineCount(path);
-    expect(n).toBeLessThanOrEqual(LIMITE_REFERENCIA);
-  });
+describe('tope de tamaño de archivo — nucleo/ y motor/ (260 referencia, T-206-A)', () => {
+  it('nucleo/ existe y ningún archivo supera 260 líneas', () => {
+    const archivos = tsFilesRecursivos(NUCLEO_DIR);
+    expect(archivos.length).toBeGreaterThan(0);
 
-  it('ningún archivo de producción bajo src/sync/** supera 400 líneas', () => {
-    const archivos = tsFilesRecursivos(SYNC_DIR);
     const excedidos = archivos
       .map(path => ({ path, n: lineCount(path) }))
-      .filter(({ n }) => n > LIMITE_DURO);
+      .filter(({ n }) => n > LIMITE_REFERENCIA);
+
+    expect(excedidos).toEqual([]);
+  });
+
+  it('motor/ existe y ningún archivo supera 260 líneas', () => {
+    const archivos = tsFilesRecursivos(MOTOR_DIR);
+    expect(archivos.length).toBeGreaterThan(0);
+
+    const excedidos = archivos
+      .map(path => ({ path, n: lineCount(path) }))
+      .filter(({ n }) => n > LIMITE_REFERENCIA);
 
     expect(excedidos).toEqual([]);
   });
