@@ -5,7 +5,7 @@ import AddContactScreen from '@/app/contact/add';
 import { useAuthStore } from '@/src/store/authStore';
 import { useUserStore } from '@/src/store/userStore';
 import { listContactInvites } from '@/src/store/identityStore';
-import { parseContactInviteLink } from '@/src/sync/contactInvite';
+import { __parseContactInviteLink } from '@/src/sync/contactos/contactInvite';
 import type { User } from '@/src/types/models';
 
 /**
@@ -34,7 +34,7 @@ jest.mock('expo-camera', () => ({
   CameraView: () => null,
   useCameraPermissions: () => [{ granted: true }, jest.fn()],
 }));
-jest.mock('@/src/sync/relayEngine', () => ({ deviceId: () => 'dev-1' }));
+jest.mock('@/src/sync/motor/relayEngine', () => ({ deviceId: () => 'dev-1' }));
 
 const ANA = { id: 'ana1', name: 'Ana', isDeleted: false } as User;
 
@@ -58,7 +58,7 @@ describe('compartir link de contacto — persistencia real (C1)', () => {
     const linkMatch = mensaje.match(/https:\/\/[^"\s]+/);
     expect(linkMatch).toBeTruthy();
 
-    const parsed = parseContactInviteLink(linkMatch![0]);
+    const parsed = __parseContactInviteLink(linkMatch![0]);
     expect(parsed).not.toBeNull();
 
     const persistidas = listContactInvites();

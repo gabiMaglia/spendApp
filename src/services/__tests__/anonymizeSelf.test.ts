@@ -4,7 +4,7 @@ import { useUserStore } from '@/src/store/userStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import type { User } from '@/src/types/models';
 
-jest.mock('@/src/sync/relayEngine', () => ({
+jest.mock('@/src/sync/motor/relayEngine', () => ({
   schedulePublish: jest.fn(), deviceId: () => 'dev', anunciarMiTarjeta: jest.fn(),
 }));
 

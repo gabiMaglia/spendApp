@@ -9,9 +9,9 @@ import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { useAuthStore } from '@/src/store/authStore';
 import { hapticLight, hapticSuccess } from '@/src/utils/haptics';
-import { contactInviteFromParams, isContactInviteExpired } from '@/src/sync/contactInvite';
-import { publishContactClaim, processContactInvite } from '@/src/sync/contactInviteEngine';
-import { deviceId, startRelay } from '@/src/sync/relayEngine';
+import { contactInviteFromParams, isContactInviteExpired } from '@/src/sync/contactos/contactInvite';
+import { publishContactClaim, processContactInvite } from '@/src/sync/contactos/contactInviteEngine';
+import { deviceId, startRelay } from '@/src/sync/motor/relayEngine';
 import { shortFingerprint } from '@/src/utils/keyFingerprint';
 import { useColors } from '@/src/skins/useSkin';
 

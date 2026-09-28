@@ -33,8 +33,8 @@ jest.mock('expo-apple-authentication', () => {
   };
 });
 
-jest.mock('@/src/sync/directoryAuth', () => ({ signIntoDirectory: jest.fn(async () => ({ ok: false })) }));
-jest.mock('@/src/sync/deviceKeys', () => ({ registerDeviceKey: jest.fn(async () => {}) }));
+jest.mock('@/src/sync/sesion/directoryAuth', () => ({ signIntoDirectory: jest.fn(async () => ({ ok: false })) }));
+jest.mock('@/src/sync/confianza/deviceKeys', () => ({ registerDeviceKey: jest.fn(async () => {}) }));
 jest.mock('@/src/services/avatar', () => ({ adoptarAvatarDelProveedor: jest.fn(async () => null) }));
 
 import React from 'react';

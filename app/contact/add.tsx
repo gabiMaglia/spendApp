@@ -22,9 +22,9 @@ import {
   buildContactPayload, parseContactPayload, contactFromParams, parseContactLink,
   type ContactPayload,
 } from '@/src/utils/contactLink';
-import { createContactInvite, contactInviteToLink } from '@/src/sync/contactInvite';
-import { ensureContactSecret, announceContact, savePeer, hasConflictingPinnedKeys } from '@/src/sync/contactChannel';
-import { deviceId } from '@/src/sync/relayEngine';
+import { createContactInvite, contactInviteToLink } from '@/src/sync/contactos/contactInvite';
+import { ensureContactSecret, announceContact, savePeer, hasConflictingPinnedKeys } from '@/src/sync/contactos/contactChannel';
+import { deviceId } from '@/src/sync/motor/relayEngine';
 import { withTimeout } from '@/src/utils/withTimeout';
 import { ensureIdentity, ensureWrapKeypair, saveContactInvite } from '@/src/store/identityStore';
 import { useTranslation } from 'react-i18next';

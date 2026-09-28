@@ -1,4 +1,4 @@
-import type { RecordVerdict } from '@/src/sync/recordHealth';
+import type { RecordVerdict } from '@/src/sync/confianza/recordHealth';
 
 /**
  * **Qué marca le corresponde a un veredicto** (T-041 · S10).

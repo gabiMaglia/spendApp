@@ -1,11 +1,11 @@
 import { preservarAvatar } from '@/src/store/userAvatar';
 import { useUserStore } from '@/src/store/userStore';
 import { canonical } from '@/src/store/lww';
-import { applyDelta, type SyncDelta } from '@/src/sync/applyDelta';
+import { applyDelta, type SyncDelta } from '@/src/sync/adaptadores/hushsplit/applyDelta';
 import type { User } from '@/src/types/models';
 
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
-jest.mock('@/src/sync/relayEngine', () => ({ schedulePublish: jest.fn(), deviceId: () => 'dev' }));
+jest.mock('@/src/sync/motor/relayEngine', () => ({ schedulePublish: jest.fn(), deviceId: () => 'dev' }));
 
 /**
  * **La foto no la borra nadie más que su dueño** (T-056).

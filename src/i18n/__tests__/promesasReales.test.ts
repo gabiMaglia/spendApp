@@ -48,7 +48,7 @@ describe('la app no promete lo que no hace', () => {
    * honesta y además más fuerte—. Decir que no pasan es falso.
    */
   it('no se dice que los datos no pasan por la nube mientras exista el relay', () => {
-    const relay = readFileSync(join(RAIZ, 'src', 'sync', 'relaySync.ts'), 'utf8');
+    const relay = readFileSync(join(RAIZ, 'src', 'sync', 'motor', 'relaySync.ts'), 'utf8');
     if (!/publishToGroup/.test(relay)) return; // sin relay, la promesa sería cierta
 
     /**

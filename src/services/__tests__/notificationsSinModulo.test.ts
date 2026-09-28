@@ -41,7 +41,7 @@ describe('T-054 · build sin el módulo nativo de notificaciones', () => {
     // Con el import estático arriba de `notifications.ts`, este require tira y
     // en el device equivale a que la app no abra. Es LA aserción del ticket.
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    expect(() => require('@/src/sync/relayEngine')).not.toThrow();
+    expect(() => require('@/src/sync/motor/relayEngine')).not.toThrow();
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { useGroupStore } = require('@/src/store/groupStore');
 

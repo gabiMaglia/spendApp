@@ -9,9 +9,9 @@ import { useCommentStore } from '@/src/store/commentStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useArchiveStore } from '@/src/store/archiveStore';
-import { toHex } from '@/src/sync/hexBytes';
-import { signCore } from '@/src/sync/recordSign';
-import { rememberAuthorKey, forgetAuthorKeys } from '@/src/sync/authorKeys';
+import { toHex } from '@/src/sync/nucleo/hexBytes';
+import { signCore } from '@/src/sync/confianza/recordSign';
+import { rememberAuthorKey, forgetAuthorKeys } from '@/src/sync/confianza/authorKeys';
 import { mergeRecord } from '@/src/store/mergeLevels';
 import type { Expense, ExpenseComment, Group, User } from '@/src/types/models';
 

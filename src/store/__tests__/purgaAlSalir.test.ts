@@ -8,11 +8,11 @@ import { useRecurringStore } from '@/src/store/recurringStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { purgarGrupoLocalmente } from '@/src/services/salirDelGrupo';
-import { conflictoForzado, marcarConflictoForzado, ofertasDe, registrarOferta } from '@/src/sync/groupKeyOffers';
+import { conflictoForzado, marcarConflictoForzado, ofertasDe, registrarOferta } from '@/src/sync/invitaciones/groupKeyOffers';
 import type { User } from '@/src/types/models';
 
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
-jest.mock('@/src/sync/relayEngine', () => ({
+jest.mock('@/src/sync/motor/relayEngine', () => ({
   schedulePublish: jest.fn(),
   deviceId: () => 'dev',
   olvidarCursor: jest.fn(),

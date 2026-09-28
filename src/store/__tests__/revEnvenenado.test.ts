@@ -1,6 +1,6 @@
 import { coreWins, mergeRecord } from '../mergeLevels';
 import { TOLERANCIA_RELOJ_MS } from '@/src/store/relojDelMerge';
-import { siguienteRev } from '@/src/sync/signOnWrite';
+import { siguienteRev } from '@/src/sync/confianza/signOnWrite';
 import { clearClockOffset } from '@/src/utils/syncedClock';
 import type { Expense } from '@/src/types/models';
 

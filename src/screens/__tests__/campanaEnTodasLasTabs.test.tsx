@@ -10,7 +10,7 @@ import { act } from '@testing-library/react-native';
 import type { User } from '@/src/types/models';
 
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
-jest.mock('@/src/sync/relayEngine', () => ({
+jest.mock('@/src/sync/motor/relayEngine', () => ({
   schedulePublish: jest.fn(), deviceId: () => 'dev', startRelay: jest.fn(),
   announceGroupToContacts: jest.fn(),
 }));

@@ -13,8 +13,8 @@ import {
   registerCaptchaProvider,
   setCaptchaInteractive,
   type CaptchaOutcome,
-} from '@/src/sync/captchaBridge';
-import { turnstileHtml, parseTurnstileMessage } from '@/src/sync/turnstileHtml';
+} from '@/src/sync/sesion/captchaBridge';
+import { turnstileHtml, parseTurnstileMessage } from '@/src/sync/sesion/turnstileHtml';
 import { recordError } from '@/src/services/errorLog';
 
 /** Sin respuesta en este tiempo y SIN que Cloudflare haya pedido interacción,

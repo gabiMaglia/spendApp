@@ -1,5 +1,5 @@
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
-jest.mock('@/src/sync/directoryAuth', () => ({ signOutOfDirectory: jest.fn(async () => {}) }));
+jest.mock('@/src/sync/sesion/directoryAuth', () => ({ signOutOfDirectory: jest.fn(async () => {}) }));
 
 import { useAuthStore } from '@/src/store/authStore';
 import { recordarEnlace, tomarEnlacePendiente, _reiniciarEnlacePendiente } from '@/src/utils/enlacePendiente';

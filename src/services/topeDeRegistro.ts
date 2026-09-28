@@ -1,4 +1,4 @@
-import { excesoDe } from '@/src/sync/topes';
+import { excesoDe } from '@/src/sync/nucleo/topes';
 
 /**
  * T-178 (6.4): el registro que excede `excesoDe` no viaja (`sliceEntities`

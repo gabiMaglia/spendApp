@@ -33,7 +33,7 @@ jest.mock('expo-camera', () => ({
   CameraView: () => null,
   useCameraPermissions: () => [{ granted: true }, jest.fn()],
 }));
-jest.mock('@/src/sync/contactChannel', () => ({
+jest.mock('@/src/sync/contactos/contactChannel', () => ({
   ensureContactSecret: () => 'mi-secreto',
   announceContact: jest.fn(() => Promise.resolve(true)),
   savePeer: jest.fn(),
@@ -44,7 +44,7 @@ jest.mock('@/src/store/identityStore', () => ({
   ensureWrapKeypair: () => ({ publicKey: 'bb'.repeat(32), privateKey: 'bb'.repeat(32) }),
   saveContactInvite: jest.fn(),
 }));
-jest.mock('@/src/sync/relayEngine', () => ({ deviceId: () => 'dev-1' }));
+jest.mock('@/src/sync/motor/relayEngine', () => ({ deviceId: () => 'dev-1' }));
 
 const ANA  = { id: 'ana1',  name: 'Ana',  isDeleted: false } as User;
 const BETO = { id: 'beto1', name: 'Beto', isDeleted: false } as User;

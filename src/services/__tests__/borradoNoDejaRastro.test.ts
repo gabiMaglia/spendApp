@@ -8,12 +8,12 @@ import { createSecureStorage } from '@/src/utils/secureStorage';
 import { createStorage } from '@/src/utils/createStorage';
 import type { User } from '@/src/types/models';
 
-jest.mock('@/src/sync/relay', () => ({
+jest.mock('@/src/sync/adaptadores/supabase/relay', () => ({
   getRelayClient: () => null,
   isRelayConfigured: () => false,
   deleteMyEnvelopes: jest.fn(async () => ({ ok: true, deleted: 0 })),
 }));
-jest.mock('@/src/sync/relayEngine', () => ({
+jest.mock('@/src/sync/motor/relayEngine', () => ({
   deviceId: () => 'dev', schedulePublish: jest.fn(), olvidarCursor: jest.fn(),
   publishNow: jest.fn(async () => {}),
 }));

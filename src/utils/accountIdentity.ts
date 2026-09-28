@@ -24,7 +24,7 @@
  */
 
 import { sha256 } from '@noble/hashes/sha2.js';
-import { toHex, utf8Bytes } from '@/src/sync/hexBytes';
+import { toHex, utf8Bytes } from '@/src/sync/nucleo/hexBytes';
 
 /**
  * T-188a (decisión PO 2026-09-27): el mismo Google/Apple es siempre la misma

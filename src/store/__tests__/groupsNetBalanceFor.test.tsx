@@ -15,7 +15,7 @@ import type { Expense, Group, User } from '@/src/types/models';
  * "activos" Y para "archivados" según la pestaña.
  */
 
-jest.mock('@/src/sync/relayEngine', () => ({ schedulePublish: jest.fn(), deviceId: () => 'dev' }));
+jest.mock('@/src/sync/motor/relayEngine', () => ({ schedulePublish: jest.fn(), deviceId: () => 'dev' }));
 
 const YO = 'ana';
 

@@ -1,0 +1,312 @@
+import {
+  registerDeviceKey, fetchAccountKeys, queryAccountKeys, verifyMyKeyRegistered,
+} from '../deviceKeys';
+import { signIntoDirectory } from '@/src/sync/sesion/directoryAuth';
+import { useAuthStore } from '@/src/store/authStore';
+import { ensureIdentity } from '@/src/store/identityStore';
+import { createSecureStorage } from '@/src/utils/secureStorage';
+import type { User } from '@/src/types/models';
+
+/**
+ * El directorio de claves (ADR-004). Lo que importa verificar acá NO es la
+ * seguridad —esa la sostiene la RLS del servidor— sino que **nada de esto pueda
+ * romper la app**: sin configurar, sin sesión o sin red, todo sigue andando.
+ *
+ * **T-147-b (`engram/plans/T-147.md`, sellado por el PO 2026-09-27) — Task 2,
+ * unificación de clientes.** Ya NO hay un `directoryClient.ts` aparte: para
+ * una cuenta (Google/Apple), el buzón y el directorio comparten la MISMA
+ * sesión — la que dejó `signInWithIdToken` en el login, persistida en el
+ * cliente del BUZÓN (`relay.ts`). Escritura (`registerDeviceKey`,
+ * `signIntoDirectory`) y lectura (`queryAccountKeys`, ya unificada desde el
+ * fix del verificador) salen las dos por `getRelayClient()`.
+ */
+
+const estado = {
+  clienteBuzon: true as boolean,
+  sesion: true as boolean,
+  errorUpsert: null as { code?: string; message: string } | null,
+  upserts: [] as unknown[],
+  signIn: null as { message: string } | null,
+  filas: [] as { public_key: string }[],
+  errorSelect: false,
+  /** null = la funcion existe. Un objeto = el error que devuelve Supabase. */
+  errorRpc: null as { message: string } | null,
+  /** true = ni siquiera existe el metodo (cliente viejo). */
+  rpcExplota: false,
+  filasRpc: [] as { public_key: string }[],
+  rpcArgs: [] as unknown[],
+  /** El header con el que salió el último `rpc()` del cliente del buzón —
+   *  para comprobar que las lecturas viajan con un JWT de sesión, no con la
+   *  anon key pelada. */
+  headerAuthorizationBuzon: null as string | null,
+};
+
+// T-147 (D6): el real detecta "función ausente" por código/texto — el mock
+// usa la implementación real para no desincronizarse de `esFuncionAusente`.
+jest.mock('@/src/sync/adaptadores/supabase/relay', () => ({
+  esFuncionAusente: (e: { code?: string; message: string }) =>
+    e.code === 'PGRST202' || e.code === '42883'
+    || /could not find the function/i.test(e.message)
+    || /function .*does not exist/i.test(e.message),
+  getRelayClient: () => estado.clienteBuzon ? {
+    auth: {
+      getSession: async () => ({ data: { session: estado.sesion ? { user: {} } : null } }),
+      signInWithIdToken: async () => ({ error: estado.signIn }),
+      signOut: async () => ({}),
+    },
+    rpc: async (nombre: string, args: unknown) => {
+      if (estado.rpcExplota) throw new TypeError('rpc no existe');
+      estado.rpcArgs.push([nombre, args]);
+      estado.headerAuthorizationBuzon = 'Bearer jwt-de-la-sesion';
+      return estado.errorRpc
+        ? { data: null, error: estado.errorRpc }
+        : { data: estado.filasRpc, error: null };
+    },
+    from: () => ({
+      upsert: async (fila: unknown) => { estado.upserts.push(fila); return { error: estado.errorUpsert }; },
+      select: () => ({
+        eq: async () => estado.errorSelect
+          ? { data: null, error: { message: 'boom' } }
+          : { data: estado.filas, error: null },
+      }),
+    }),
+  } : null,
+}));
+
+beforeEach(() => {
+  createSecureStorage('groupkeys').clearAll();
+  useAuthStore.setState({ currentUser: { id: 'cuenta-ana' } as User });
+  Object.assign(estado, {
+    clienteBuzon: true, sesion: true, errorUpsert: null,
+    filas: [], errorSelect: false, upserts: [], signIn: null,
+    errorRpc: null, rpcExplota: false, filasRpc: [], rpcArgs: [],
+    headerAuthorizationBuzon: null,
+  });
+});
+
+describe('registrar la clave de este dispositivo', () => {
+  it('publica la pública de este aparato bajo la cuenta activa', async () => {
+    const esperada = ensureIdentity().publicKey;
+
+    expect(await registerDeviceKey()).toEqual({ ok: true, alreadyThere: false });
+    expect(estado.upserts[0]).toEqual({ account_id: 'cuenta-ana', public_key: esperada });
+  });
+
+  // La privada NO se mueve: es la propiedad que hace que esto no necesite ni
+  // contraseña ni sincronizar secretos.
+  it('NUNCA manda la clave privada', async () => {
+    const privada = ensureIdentity().privateKey;
+    await registerDeviceKey();
+
+    expect(JSON.stringify(estado.upserts)).not.toContain(privada);
+  });
+
+  it('llamarla dos veces no molesta (es idempotente del lado del server)', async () => {
+    await registerDeviceKey();
+    expect((await registerDeviceKey()).ok).toBe(true);
+  });
+});
+
+describe('nada de esto puede romper la app', () => {
+  it('sin relay configurado', async () => {
+    estado.clienteBuzon = false;
+    expect(await registerDeviceKey()).toMatchObject({ ok: false, reason: 'not_configured' });
+  });
+
+  it('sin sesión', async () => {
+    estado.sesion = false;
+    expect(await registerDeviceKey()).toMatchObject({ ok: false, reason: 'no_session' });
+  });
+
+  it('sin cuenta activa', async () => {
+    useAuthStore.setState({ currentUser: null });
+    expect(await registerDeviceKey()).toMatchObject({ ok: false, reason: 'no_account' });
+  });
+
+  // Un rechazo de la RLS se arregla en otro lado que un problema de red: hay
+  // que poder distinguirlos en el diagnóstico.
+  it('un rechazo de la RLS se distingue de un problema de red', async () => {
+    estado.errorUpsert = { code: '42501', message: 'new row violates row-level security policy' };
+    expect(await registerDeviceKey()).toMatchObject({ ok: false, reason: 'denied' });
+
+    estado.errorUpsert = { message: 'fetch failed' };
+    expect(await registerDeviceKey()).toMatchObject({ ok: false, reason: 'network' });
+  });
+});
+
+describe('leer las claves de una cuenta', () => {
+  // El camino normal pasa por la función `account_keys` (ver 005). La consulta
+  // directa a la tabla quedó como respaldo y se prueba más abajo.
+  it('devuelve las registradas', async () => {
+    estado.filasRpc = [{ public_key: 'aa' }, { public_key: 'bb' }];
+    expect(await fetchAccountKeys('cuenta-ana')).toEqual(['aa', 'bb']);
+  });
+
+  /**
+   * Vacío significa "no pude preguntar" tanto como "no tiene ninguna". La Fase B
+   * tiene que tratarlo como "no verificar" y NUNCA como "rechazar": si no, un
+   * corte de red dejaría a todo el mundo sin poder sincronizar.
+   */
+  it('un error de consulta devuelve vacío, no una excepción', async () => {
+    estado.errorSelect = true;
+    expect(await fetchAccountKeys('cuenta-ana')).toEqual([]);
+  });
+
+  it('sin relay configurado devuelve vacío', async () => {
+    estado.clienteBuzon = false;
+    expect(await fetchAccountKeys('cuenta-ana')).toEqual([]);
+  });
+
+  /**
+   * T-147 (D6): un error de RED de `account_keys` NO cae al SELECT — tras
+   * 011b esa consulta directa está cerrada igual (vacía), así que caer ahí
+   * confundiría "no pude preguntar" con "no tiene claves". Sólo la función
+   * AUSENTE (servidor sin la migración 005) habilita el respaldo.
+   */
+  it('un error de red de account_keys no cae al SELECT', async () => {
+    estado.errorRpc = { message: 'Failed to fetch' };
+    estado.filas = [{ public_key: 'zz' }];
+    const r = await queryAccountKeys('cuenta-ana');
+    expect(r).toEqual({ ok: false, keys: [] });
+  });
+
+  /**
+   * T-147-b (Task 2): la lectura sale por el cliente del BUZÓN, sea cual sea
+   * la sesión de ARRIBA (`estado.sesion`) — `account_keys`/el SELECT de
+   * respaldo son de policy pública, no necesitan sesión de cuenta.
+   */
+  it('lee igual sin sesión de cuenta activa (la lectura del directorio no la necesita)', async () => {
+    estado.sesion = false;
+    estado.filasRpc = [{ public_key: 'aa' }];
+
+    expect(await fetchAccountKeys('cuenta-ana')).toEqual(['aa']);
+    expect(estado.headerAuthorizationBuzon).toBe('Bearer jwt-de-la-sesion');
+  });
+
+  it('si el cliente del buzón no está configurado, no hay lectura', async () => {
+    estado.clienteBuzon = false;
+    estado.filasRpc = [{ public_key: 'aa' }];
+    expect(await fetchAccountKeys('cuenta-ana')).toEqual([]);
+  });
+});
+
+describe('resolver claves por PERSONA, no por proveedor (005)', () => {
+  // El caso que motiva la migración: Google en un teléfono, Apple en el otro.
+  // Sin esto, la fase B rechazaría el segundo dispositivo de alguien legítimo.
+  it('usa la función y le pasa la cuenta', async () => {
+    estado.filasRpc = [{ public_key: 'aa' }, { public_key: 'bb' }];
+    expect(await fetchAccountKeys('cuenta-ana')).toEqual(['aa', 'bb']);
+    expect(estado.rpcArgs[0]).toEqual(['account_keys', { p_account_id: 'cuenta-ana' }]);
+  });
+
+  // La 005 se corre a mano: un cliente actualizado puede llegar antes que ella.
+  // Quedarse sin claves ahí se leería como "este sobre no verifica".
+  it('si la función todavía no existe cae a la consulta vieja', async () => {
+    estado.errorRpc = { message: 'function public.account_keys does not exist' };
+    estado.filas = [{ public_key: 'cc' }];
+    expect(await fetchAccountKeys('cuenta-ana')).toEqual(['cc']);
+  });
+
+  it('un cliente sin rpc tampoco rompe', async () => {
+    estado.rpcExplota = true;
+    estado.filas = [{ public_key: 'dd' }];
+    expect(await fetchAccountKeys('cuenta-ana')).toEqual(['dd']);
+  });
+
+  // Vacío tiene que seguir significando "no pude preguntar", nunca "rechazar".
+  it('si fallan los dos caminos devuelve vacío', async () => {
+    estado.rpcExplota = true;
+    estado.errorSelect = true;
+    expect(await fetchAccountKeys('cuenta-ana')).toEqual([]);
+  });
+});
+
+describe('sesión de cuenta (T-147-b: unificada con el buzón)', () => {
+  it('sin id_token no se intenta: es el fallo más probable y hay que nombrarlo', async () => {
+    expect(await signIntoDirectory('google', null)).toMatchObject({ ok: false, reason: 'no_token' });
+  });
+
+  it('con token entra', async () => {
+    expect(await signIntoDirectory('google', 'tok')).toEqual({ ok: true });
+  });
+
+  it('un rechazo del servidor no tira', async () => {
+    estado.signIn = { message: 'nonce mismatch' };
+    expect(await signIntoDirectory('apple', 'tok')).toMatchObject({ ok: false, reason: 'rejected' });
+  });
+
+  it('sin relay configurado, not_configured', async () => {
+    estado.clienteBuzon = false;
+    expect(await signIntoDirectory('google', 'tok')).toMatchObject({ ok: false, reason: 'not_configured' });
+  });
+});
+
+/**
+ * `registerDeviceKey` se llama SÓLO en el login. Quien ya estuviera logueado
+ * cuando esto se publique nunca se registra, no tiene motivo para desloguearse
+ * y nada en pantalla se lo dice. Al encender el rechazo de la fase B esa
+ * persona dejaría de sincronizar sin entender por qué.
+ */
+describe('detectar al arrancar si mi clave falta', () => {
+  it('si está en el directorio, registrada', async () => {
+    estado.filasRpc = [{ public_key: ensureIdentity().publicKey }, { public_key: 'otra' }];
+    expect(await verifyMyKeyRegistered()).toBe('registrada');
+  });
+
+  // El caso que motiva todo esto: la cuenta tiene claves, pero no la mía.
+  it('si la cuenta tiene otras claves pero no la mía, falta', async () => {
+    estado.filasRpc = [{ public_key: 'de-otro-telefono' }];
+    expect(await verifyMyKeyRegistered()).toBe('falta');
+  });
+
+  it('una cuenta sin ninguna clave también es falta', async () => {
+    estado.filasRpc = [];
+    expect(await verifyMyKeyRegistered()).toBe('falta');
+  });
+
+  /**
+   * Un corte de red NO puede leerse como "te falta la clave": mandaría al
+   * usuario a reloguearse al pedo. Es la razón de existir de `queryAccountKeys`.
+   */
+  it('sin poder consultar NO dice que falta', async () => {
+    estado.rpcExplota = true;
+    estado.errorSelect = true;
+    expect(await verifyMyKeyRegistered()).toBe('desconocido');
+  });
+
+  it('sin cuenta activa tampoco concluye nada', async () => {
+    useAuthStore.setState({ currentUser: null });
+    expect(await verifyMyKeyRegistered()).toBe('desconocido');
+  });
+
+  it('sin relay configurado tampoco', async () => {
+    estado.clienteBuzon = false;
+    expect(await verifyMyKeyRegistered()).toBe('desconocido');
+  });
+});
+
+// Otra vez la guarda: lógica construida que nadie llama ya nos pasó tres veces.
+describe('la detección está enchufada', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const fs: typeof import('fs') = require('fs');
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const path: typeof import('path') = require('path');
+
+  it('el arranque del relay la llama', () => {
+    const src = fs.readFileSync(path.join(__dirname, '../../motor/relayEngine.ts'), 'utf8');
+    expect(src).toContain('verifyMyKeyRegistered()');
+  });
+
+  /**
+   * La fila "mi clave" tiene que salir de la LECTURA del directorio, no del
+   * intento de escritura: sin sesión, escribir devuelve `no_session` y se lee
+   * como si la clave faltara cuando está perfectamente registrada.
+   */
+  it('la pantalla muestra la lectura, no el intento de escritura', () => {
+    const src = fs.readFileSync(path.join(__dirname, '../../../../app/debug/identity.tsx'), 'utf8');
+    const efecto = src.slice(src.indexOf('React.useEffect'), src.indexOf('return ('));
+    expect(efecto).toContain('verifyMyKeyRegistered()');
+    // El alta sólo se intenta cuando de verdad falta.
+    expect(efecto).toMatch(/if \(presente === 'falta'\)[\s\S]*registerDeviceKey\(\)/);
+  });
+});

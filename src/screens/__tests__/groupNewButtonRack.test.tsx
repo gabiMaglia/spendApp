@@ -16,7 +16,7 @@ jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) })
 jest.mock('expo-router', () => ({
   router: { back: jest.fn(), push: jest.fn() },
 }));
-jest.mock('@/src/sync/relayEngine', () => ({
+jest.mock('@/src/sync/motor/relayEngine', () => ({
   announceGroupToContacts: jest.fn(),
   schedulePublish: jest.fn(),
   deviceId: () => 'dev-1',

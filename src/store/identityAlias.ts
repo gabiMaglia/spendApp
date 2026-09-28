@@ -30,9 +30,10 @@ import { proveedoresDeCuenta } from './authStore';
  *    la otra (ADR-008 §4, medido).
  *
  * **Lo que este módulo NO puede hacer, y hay un guard que lo impide:** llegar al
- * cable. `idCanonico` no puede aparecer en el cierre de imports de `buildDelta`
- * ni de `buildGroupPayload` — ver `src/sync/__tests__/canonicalNoAlcanzaElCable.test.ts`.
- * Un id canonicalizado que se publica ES la migración destructiva, sólo que
+ * cable. `idCanonico` no puede aparecer en el cierre de imports del armado del
+ * sobre del relay (`motor/relaySync.ts` / `adaptadores/hushsplit/applyDelta.ts`)
+ * — ver `src/sync/__tests__/canonicalNoAlcanzaElCable.test.ts`. Un id
+ * canonicalizado que se publica ES la migración destructiva, sólo que
  * disfrazada y sin forma de volver atrás.
  *
  * **El conjunto es permanente y transitivo.** Permanente porque los registros

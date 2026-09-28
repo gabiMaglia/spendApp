@@ -1,9 +1,9 @@
-import { fromHex, toHex, utf8Bytes, utf8FromBytes } from '@/src/sync/hexBytes';
+import { fromHex, toHex, utf8Bytes, utf8FromBytes } from '@/src/sync/nucleo/hexBytes';
 import { esNombreSeguro, limpiarNombre } from '@/src/utils/nombreSeguro';
 import { esIdDeCuenta } from '@/src/utils/idDeCuenta';
 import type { ContactPayload } from '@/src/utils/contactLink';
-import type { GroupInvite } from '@/src/sync/groupInvite';
-import type { ContactInvite } from '@/src/sync/contactInvite';
+import type { GroupInvite } from '@/src/sync/invitaciones/groupInvite';
+import type { ContactInvite } from '@/src/sync/contactos/contactInvite';
 
 /**
  * # La regla de compresión de los links — formato compacto v1 (PO, 2026-09-12)

@@ -3,9 +3,9 @@ import { dirname, join, resolve } from 'path';
 import { ed25519 } from '@noble/curves/ed25519.js';
 import { mergeByIdLevels, mergeRecord, coreWins } from '../mergeLevels';
 import { canonical } from '../lww';
-import { verifyCore, signCore } from '@/src/sync/recordSign';
-import { toHex } from '@/src/sync/hexBytes';
-import { CORE_KINDS, coreFieldsOf, type CoreKind } from '@/src/sync/recordCore';
+import { verifyCore, signCore } from '@/src/sync/confianza/recordSign';
+import { toHex } from '@/src/sync/nucleo/hexBytes';
+import { CORE_KINDS, coreFieldsOf, type CoreKind } from '@/src/sync/confianza/recordCore';
 import { FIXTURES } from '@/src/test-utils/recordFixtures';
 
 /**

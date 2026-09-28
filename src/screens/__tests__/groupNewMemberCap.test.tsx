@@ -7,7 +7,7 @@ import { useUserStore } from '@/src/store/userStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { createSecureStorage } from '@/src/utils/secureStorage';
-import { MAX_MIEMBROS } from '@/src/sync/topes';
+import { MAX_MIEMBROS } from '@/src/sync/nucleo/topes';
 import type { User } from '@/src/types/models';
 
 /**
@@ -23,7 +23,7 @@ jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) })
 jest.mock('expo-router', () => ({
   router: { back: jest.fn(), push: jest.fn() },
 }));
-jest.mock('@/src/sync/relayEngine', () => ({
+jest.mock('@/src/sync/motor/relayEngine', () => ({
   announceGroupToContacts: jest.fn(),
   schedulePublish: jest.fn(),
   deviceId: () => 'dev-1',

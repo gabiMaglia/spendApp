@@ -1,0 +1,166 @@
+import { useGroupKeyStore } from '@/src/store/groupKeyStore';
+import { useAuthStore } from '@/src/store/authStore';
+import { deriveTopic } from '@/src/sync/nucleo/envelopeCrypto';
+import { fromHex } from '@/src/sync/nucleo/hexBytes';
+import { subscribeTopic, isRelayConfigured } from '@/src/sync/adaptadores/supabase/relay';
+import { ensureRelaySession, haySesionEnCurso, reabrirSesionAnonima } from '@/src/sync/sesion/relaySession';
+import type { SessionKind } from '@/src/sync/sesion/relaySession';
+import { setUltimaSesionConocida } from '@/src/sync/sesion/sessionStatus';
+import { processAllInvites } from '@/src/sync/invitaciones/inviteEngine';
+import { processAllContactInvites } from '@/src/sync/contactos/contactInviteEngine';
+import { verifyMyKeyRegistered } from '@/src/sync/confianza/deviceKeys';
+import { withTimeout } from '@/src/utils/withTimeout';
+import { deviceId } from './cursor';
+import { marcarCanal, olvidarCanal, startPolling, stopPolling } from './poll';
+import { syncableGroupIds, cancelPendingPublishes, reintentarPublicacionesConCuota } from './agendaDePublicacion';
+import { drainNow, scheduleDrain, cancelPendingDrains, drainAll } from './agendaDeDrenaje';
+import { anunciarMiTarjeta, reenviarClavesDeGrupo, drainContactsNow } from '@/src/sync/contactos/motorDeContactos';
+import { subscribeInvites, subscribeContacts, crearOnInviteNews } from '@/src/sync/invitaciones/suscripciones';
+import { vaciarCola } from './relayQueue';
+
+// ── API pública que sigue viviendo en esta ruta (13 importadores + 84 tests que la mockean) ──
+export { readCursor, writeCursor, olvidarCursor, deviceId } from './cursor';
+export { POLL_OK_MS, POLL_CAIDO_MS, intervaloDePoll } from './poll';
+export { PUBLISH_DEBOUNCE_MS, syncableGroupIds, schedulePublish, publishNow, cancelPendingPublishes } from './agendaDePublicacion';
+export { DRAIN_DEBOUNCE_MS, drainNow, scheduleDrain, cancelPendingDrains, drainAll } from './agendaDeDrenaje';
+export { anunciarMiTarjeta, __resetReenvioClaves, announceGroupToContacts, drainContactsNow } from '@/src/sync/contactos/motorDeContactos';
+
+/**
+ * Motor del sync en tiempo real (fachada, T-189). Dirección fija de imports
+ * (T-206-A: mudanza a carpetas, mismo orden): fachada (este archivo) →
+ * `invitaciones/suscripciones.ts` → `contactos/motorDeContactos.ts` →
+ * `motor/agendaDeDrenaje.ts` → `motor/agendaDePublicacion.ts` →
+ * `motor/poll.ts`/`motor/cursor.ts`. Ningún módulo de
+ * abajo importa uno de arriba; lo único que necesita `startRelay` (definido
+ * más abajo, declaración hoisteada) lo recibe como PARÁMETRO de la llamada
+ * (`drainContactsNow(startRelay)`, `crearOnInviteNews(startRelay)`) — nunca
+ * como estado de módulo (setter). Detalles de diseño en git log previo a
+ * T-189 y en los ADR citados función por función en cada módulo.
+ */
+
+// --- ciclo de vida -------------------------------------------------------------
+
+let unsubs: (() => void)[] = [];
+/** Candado de reentrada: `startRelay` corta TODO al arrancar; si dos
+ *  corridas se pisan, la de afuera gana (T-138-bis). */
+let arrancando: Promise<void> | null = null;
+
+/** `permitirCaptcha` (default `false`, T-147): sólo `rehydrateForActiveUser`
+ *  puede mostrarlo; el resto arranca con el default seguro. */
+export function startRelay(permitirCaptcha: boolean = false): Promise<void> {
+  if (arrancando) return arrancando;
+  arrancando = doStartRelay(permitirCaptcha).finally(() => { arrancando = null; });
+  return arrancando;
+}
+
+/** T-138-bis: timeout único de punta a punta. */
+const STARTUP_TIMEOUT_MS = 20_000;
+/** T-147 (D1/D5): sesión vigente al arrancar, comparada en cada vuelta de
+ *  `releerTodo` — un canal suscripto sin JWT queda afuera en silencio. */
+let kindAlArrancar: SessionKind = 'none';
+
+async function doStartRelay(permitirCaptcha: boolean): Promise<void> {
+  stopRelay();
+  if (!isRelayConfigured()) return;
+
+  await withTimeout(arrancarCadenaDeSync(permitirCaptcha), STARTUP_TIMEOUT_MS, undefined);
+  startPolling(releerTodo);
+}
+
+async function arrancarCadenaDeSync(permitirCaptcha: boolean): Promise<void> {
+  // T-147: sin usuario (login en curso) no hay grupos que sincronizar
+  // — abrir sesión (y su captcha) sólo interrumpiría el login. El resto SÍ
+  // corre sin usuario (T-096: invitaciones de CONTACTO no dependen de cuenta).
+  if (useAuthStore.getState().currentUser) {
+    // T-147 (D1): la sesión se garantiza ANTES de cualquier suscripción.
+    kindAlArrancar = await ensureRelaySession(permitirCaptcha);
+    if (!haySesionEnCurso()) setUltimaSesionConocida(kindAlArrancar); // R4-3
+  } else {
+    kindAlArrancar = 'none';
+  }
+
+  // Invitaciones PRIMERO: una que se complete acá adopta la clave del grupo
+  // y recién entonces entra en `syncableGroupIds`.
+  const adoptados = await processAllInvites(deviceId()).catch(() => [] as string[]);
+  await processAllContactInvites(deviceId()).catch(() => false);
+
+  for (const groupId of syncableGroupIds()) {
+    const record = useGroupKeyStore.getState().getKey(groupId);
+    if (!record) continue;
+
+    try {
+      const topic = await deriveTopic(fromHex(record.key), record.epoch);
+      // Fix 1: debounce (`scheduleDrain`) — ADR-007 manda K+1 sobres por
+      // publicación. T-158a: se siembra `false` ANTES de que `onStatus`
+      // dispare — un canal mudo cuenta como "no confirmado", nunca AUSENTE.
+      marcarCanal(topic, false);
+      const off = subscribeTopic(topic, () => { scheduleDrain(groupId); }, (ok) => {
+        marcarCanal(topic, ok);
+      });
+      unsubs.push(() => { off(); olvidarCanal(topic); });
+    } catch { /* un grupo que falla no debe impedir los demás */ }
+  }
+
+  unsubs.push(...await subscribeInvites(invite => { void onInviteNews(invite); }));
+  unsubs.push(...await subscribeContacts(() => { void drainContactsNow(startRelay); }));
+  await anunciarMiTarjeta();
+
+  void verifyMyKeyRegistered(); // sólo detecta; registrar necesita login (ver deviceKeys)
+  await drainContactsNow(startRelay);
+  await drainAll(); // al arrancar, lo encolado mientras estuvimos afuera
+
+  // Un grupo recién adoptado se drena explícitamente: el usuario está
+  // mirando la pantalla esperando verlo.
+  for (const groupId of adoptados) await drainNow(groupId);
+
+  await reenviarClavesDeGrupo(adoptados);
+}
+
+/**
+ * Qué hacer en cada vuelta del poll de `./relay/poll.ts` (que sólo sabe
+ * CUÁNDO). T-138-bis: mismo timeout total que `doStartRelay`.
+ */
+async function releerTodo(): Promise<void> {
+  // D5: sin usuario no se pide sesión en cada vuelta (evita el captcha cada
+  // 20s en login). T-147 (D1/D5): si la sesión cambió desde el arranque,
+  // reinicia TODA la cadena — el poll NUNCA puede mostrar captcha.
+  if (useAuthStore.getState().currentUser) {
+    const kind = await ensureRelaySession(false);
+    if (!haySesionEnCurso()) setUltimaSesionConocida(kind);
+    if (kind !== kindAlArrancar) {
+      void startRelay();
+      return;
+    }
+  }
+
+  await withTimeout((async () => {
+    try {
+      await drainContactsNow(startRelay);
+      await drainAll();
+      await processAllContactInvites(deviceId());
+      await reintentarPublicacionesConCuota();
+    } catch { /* offline: se reintenta en la próxima vuelta */ }
+  })(), STARTUP_TIMEOUT_MS, undefined);
+}
+
+/** `crearOnInviteNews` recibe `startRelay` por parámetro (declaración
+ *  hoisteada) para que `./relay/invitaciones.ts` no importe la fachada. */
+const onInviteNews = crearOnInviteNews(startRelay);
+
+export function stopRelay(): void {
+  for (const off of unsubs) { try { off(); } catch { /* ya cortado */ } }
+  unsubs = [];
+  stopPolling();
+  cancelPendingDrains(); // sin esto, un drenaje agendado dispararía contra un grupo ya no activo
+}
+
+/** Cambio de cuenta / logout (T-147-b), ANTES de `rehydrateForActiveUser`:
+ *  corta el motor, cancela publicaciones debounced, vacía `relayQueue` y
+ *  fuerza el cierre de la sesión del buzón — nada diferido de la cuenta
+ *  anterior sigue saliendo. */
+export function reiniciarSyncPorCambioDeCuenta(): void {
+  stopRelay();
+  cancelPendingPublishes();
+  vaciarCola();
+  void reabrirSesionAnonima();
+}

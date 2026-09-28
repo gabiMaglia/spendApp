@@ -1,11 +1,11 @@
 import { esYo } from '@/src/store/identityAlias';
-import { marcarConTopic } from '@/src/sync/pendingDrain';
+import { marcarConTopic } from '@/src/sync/motor/pendingDrain';
 import { purgarGrupoLocalmente } from './salirDelGrupo';
 import { useGroupStore } from '@/src/store/groupStore';
 import { usePaymentStore } from '@/src/store/paymentStore';
 import { isApprovedByAll } from '@/src/algorithms/leaveRequest';
-import { authorKeysFor } from '@/src/sync/authorKeys';
-import { verifyLeaveApproval } from '@/src/sync/leaveApprovalSign';
+import { authorKeysFor } from '@/src/sync/confianza/authorKeys';
+import { verifyLeaveApproval } from '@/src/sync/confianza/leaveApprovalSign';
 import type { Group, LeaveRequest } from '@/src/types/models';
 import { syncedNow } from '@/src/utils/syncedClock';
 import { conBaja } from '@/src/algorithms/roster';

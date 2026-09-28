@@ -1,5 +1,5 @@
 import { motivoDeExceso } from '../topeDeRegistro';
-import { MAX_MIEMBROS } from '@/src/sync/topes';
+import { MAX_MIEMBROS } from '@/src/sync/nucleo/topes';
 
 /**
  * T-178: el mismo predicado que hoy sólo corre al recibir/publicar (`excesoDe`,

@@ -2,9 +2,9 @@ import { useAuthStore } from '../authStore';
 import { ensureIdentity } from '../identityStore';
 import { useExpenseStore } from '../expenseStore';
 import { useGroupStore } from '../groupStore';
-import { checkRecord } from '@/src/sync/trustCheck';
-import { enDisputa } from '@/src/sync/autoriaTrust';
-import { rememberAuthorKey, forgetAuthorKeys } from '@/src/sync/authorKeys';
+import { checkRecord } from '@/src/sync/confianza/trustCheck';
+import { enDisputa } from '@/src/sync/confianza/autoriaTrust';
+import { rememberAuthorKey, forgetAuthorKeys } from '@/src/sync/confianza/authorKeys';
 import type { Expense, Group, User } from '@/src/types/models';
 
 /**
@@ -24,7 +24,7 @@ import type { Expense, Group, User } from '@/src/types/models';
  * — es la clave real que firmó como Beto, aprendida por A.
  */
 
-jest.mock('@/src/sync/relayEngine', () => ({
+jest.mock('@/src/sync/motor/relayEngine', () => ({
   schedulePublish: jest.fn(),
   deviceId: () => 'dev-test',
 }));

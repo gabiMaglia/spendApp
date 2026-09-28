@@ -7,8 +7,8 @@ import {
   type AccountIndex, type AccountResolution, type KnownAccount,
 } from '@/src/utils/accountIdentity';
 import { mergeAccounts } from './accountLink';
-import { signOutOfDirectory } from '@/src/sync/directoryAuth';
-import { isRelayConfigured } from '@/src/sync/relay';
+import { signOutOfDirectory } from '@/src/sync/sesion/directoryAuth';
+import { isRelayConfigured } from '@/src/sync/adaptadores/supabase/relay';
 import { AUTH_KEYS, profileKey } from './authKeys';
 import { descartarEnlacePendiente } from '@/src/utils/enlacePendiente';
 

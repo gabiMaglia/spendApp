@@ -16,7 +16,7 @@ import type { Expense, Group, User } from '@/src/types/models';
  * usuario veía que le debían algo que era imposible de cobrar.
  */
 
-jest.mock('@/src/sync/relayEngine', () => ({ schedulePublish: jest.fn(), deviceId: () => 'dev' }));
+jest.mock('@/src/sync/motor/relayEngine', () => ({ schedulePublish: jest.fn(), deviceId: () => 'dev' }));
 
 const YO = 'ana';
 

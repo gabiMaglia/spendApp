@@ -16,7 +16,7 @@ import type { Expense, Group, Payment, User } from '@/src/types/models';
  * cero). Usa la misma fuente que ya calcula el balance de la pantalla
  * (`useGroupBalance`, que corre `calculateBalancesByCurrency` + `pagosQueCuentan`).
  */
-jest.mock('@/src/sync/relayEngine', () => ({
+jest.mock('@/src/sync/motor/relayEngine', () => ({
   schedulePublish: jest.fn(), deviceId: () => 'dev', startRelay: jest.fn(),
   announceGroupToContacts: jest.fn(),
 }));

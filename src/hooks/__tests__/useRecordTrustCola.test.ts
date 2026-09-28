@@ -1,12 +1,12 @@
 import { act, renderHook } from '@testing-library/react-native';
 import { ed25519 } from '@noble/curves/ed25519.js';
 import { useRecordTrust } from '../useRecordTrust';
-import { signCore } from '@/src/sync/recordSign';
-import { toHex } from '@/src/sync/hexBytes';
-import { clearVerdictCache } from '@/src/sync/verdictCache';
+import { signCore } from '@/src/sync/confianza/recordSign';
+import { toHex } from '@/src/sync/nucleo/hexBytes';
+import { clearVerdictCache } from '@/src/sync/confianza/verdictCache';
 import {
   forgetAuthorKeys, reloadAuthorKeys, rememberAuthorKey, __resetAuthorSources,
-} from '@/src/sync/authorKeys';
+} from '@/src/sync/confianza/authorKeys';
 import type { Expense } from '@/src/types/models';
 
 /**
@@ -35,8 +35,8 @@ import type { Expense } from '@/src/types/models';
  */
 const contador = jest.fn();
 
-jest.mock('@/src/sync/trustCheck', () => {
-  const real = jest.requireActual('@/src/sync/trustCheck');
+jest.mock('@/src/sync/confianza/trustCheck', () => {
+  const real = jest.requireActual('@/src/sync/confianza/trustCheck');
   return {
     ...real,
     checkRecord: (...args: unknown[]) => {
@@ -50,8 +50,8 @@ jest.mock('@/src/sync/trustCheck', () => {
 export { contador };
 
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
-jest.mock('@/src/sync/contactChannel', () => ({ getPeer: () => undefined }));
-jest.mock('@/src/sync/deviceKeys', () => ({ fetchAccountKeys: jest.fn(async () => []) }));
+jest.mock('@/src/sync/contactos/contactChannel', () => ({ getPeer: () => undefined }));
+jest.mock('@/src/sync/confianza/deviceKeys', () => ({ fetchAccountKeys: jest.fn(async () => []) }));
 
 const PRIV = toHex(new Uint8Array(32).fill(41));
 const PUB  = toHex(ed25519.getPublicKey(new Uint8Array(32).fill(41)));

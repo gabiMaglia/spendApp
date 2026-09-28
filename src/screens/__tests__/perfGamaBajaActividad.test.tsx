@@ -15,7 +15,7 @@ import type { Expense, Group, Payment, User } from '@/src/types/models';
  *  archivo por pantalla y el dataset chico. */
 
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
-jest.mock('@/src/sync/relayEngine', () => ({
+jest.mock('@/src/sync/motor/relayEngine', () => ({
   schedulePublish: jest.fn(), deviceId: () => 'dev', startRelay: jest.fn(),
   announceGroupToContacts: jest.fn(),
 }));

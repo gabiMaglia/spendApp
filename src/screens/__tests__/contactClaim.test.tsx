@@ -12,7 +12,7 @@ jest.mock('expo-router', () => ({
   useLocalSearchParams: jest.fn(() => mockParams),
 }));
 
-jest.mock('@/src/sync/contactInvite', () => ({
+jest.mock('@/src/sync/contactos/contactInvite', () => ({
   contactInviteFromParams: jest.fn((params: Record<string, unknown>) => {
     if (!params.t) return null;
     return {
@@ -27,12 +27,12 @@ jest.mock('@/src/sync/contactInvite', () => ({
   }),
 }));
 
-jest.mock('@/src/sync/contactInviteEngine', () => ({
+jest.mock('@/src/sync/contactos/contactInviteEngine', () => ({
   publishContactClaim: jest.fn(() => Promise.resolve(true)),
   processContactInvite: jest.fn(() => Promise.resolve(false)),
 }));
 
-jest.mock('@/src/sync/relayEngine', () => ({
+jest.mock('@/src/sync/motor/relayEngine', () => ({
   deviceId: jest.fn(() => 'dev-1'),
   startRelay: jest.fn(() => undefined),
 }));
@@ -79,9 +79,9 @@ describe('ContactClaimScreen', () => {
       f: 'aa11bb22cc33dd44ee55ff66',
       e: String(Date.now() + 48 * 60 * 60 * 1000),
     };
-    const { publishContactClaim } = jest.requireMock('@/src/sync/contactInviteEngine');
+    const { publishContactClaim } = jest.requireMock('@/src/sync/contactos/contactInviteEngine');
     publishContactClaim.mockResolvedValue(true);
-    const { processContactInvite } = jest.requireMock('@/src/sync/contactInviteEngine');
+    const { processContactInvite } = jest.requireMock('@/src/sync/contactos/contactInviteEngine');
     // Always return false: no grant arrives; polling will timeout after 25s
     processContactInvite.mockResolvedValue(false);
 
@@ -114,9 +114,9 @@ describe('ContactClaimScreen', () => {
       f: 'aa11bb22cc33dd44ee55ff66',
       e: String(Date.now() + 48 * 60 * 60 * 1000),
     };
-    const { publishContactClaim } = jest.requireMock('@/src/sync/contactInviteEngine');
+    const { publishContactClaim } = jest.requireMock('@/src/sync/contactos/contactInviteEngine');
     publishContactClaim.mockResolvedValue(true);
-    const { processContactInvite } = jest.requireMock('@/src/sync/contactInviteEngine');
+    const { processContactInvite } = jest.requireMock('@/src/sync/contactos/contactInviteEngine');
     // Mock: processContactInvite returns false on first call, true on second call
     // This simulates: first poll attempt has no grant, second attempt (after 3s) has grant
     processContactInvite

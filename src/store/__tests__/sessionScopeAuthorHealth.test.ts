@@ -1,5 +1,5 @@
 import { rehydrateForActiveUser } from '../session';
-import { observeAuthor, authorStats, unverifiedAuthors, clearAuthorObservations } from '@/src/sync/authorHealth';
+import { observeAuthor, authorStats, unverifiedAuthors, clearAuthorObservations } from '@/src/sync/confianza/authorHealth';
 import { useAuthStore } from '../authStore';
 import { __resetSecureStorage } from '@/src/utils/secureStorage';
 import type { User } from '@/src/types/models';
@@ -19,12 +19,12 @@ import type { User } from '@/src/types/models';
  */
 
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
-jest.mock('@/src/sync/relayEngine', () => ({
+jest.mock('@/src/sync/motor/relayEngine', () => ({
   startRelay: jest.fn(() => () => {}), schedulePublish: jest.fn(), deviceId: () => 'dev',
 }));
 // Sin directorio, `observeAuthor` cuenta `sin_directorio`: alcanza para tener
 // una medición no vacía, que es lo único que este test necesita mover.
-jest.mock('@/src/sync/deviceKeys', () => ({
+jest.mock('@/src/sync/confianza/deviceKeys', () => ({
   fetchAccountKeys: jest.fn(async () => []),
   verifyMyKeyRegistered: jest.fn(async () => true),
 }));

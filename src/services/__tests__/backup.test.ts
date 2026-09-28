@@ -13,12 +13,13 @@ import { useCommentStore } from '@/src/store/commentStore';
 import { useGroupKeyStore, type GroupKeyRecord } from '@/src/store/groupKeyStore';
 import { rosterDe } from '@/src/algorithms/roster';
 import { recargarAlias } from '@/src/store/identityAlias';
-import { deriveTopic, fromHex } from '@/src/sync/envelopeCrypto';
+import { deriveTopic } from '@/src/sync/nucleo/envelopeCrypto';
+import { fromHex } from '@/src/sync/nucleo/hexBytes';
 import type {
   Group, Expense, Payment, User, PersonalEntry, PersonalBudget,
 } from '@/src/types/models';
 
-jest.mock('@/src/sync/relayEngine', () => ({
+jest.mock('@/src/sync/motor/relayEngine', () => ({
   schedulePublish: jest.fn(),
   anunciarMiTarjeta: jest.fn(),
 }));
@@ -255,7 +256,7 @@ describe('T-188b · el backup restaura la sesión completa (claves + roster)', (
   const CLAVE_G1: GroupKeyRecord = { groupId: 'g1', key: 'aa'.repeat(32), epoch: 1 };
 
   beforeEach(() => {
-    (jest.requireMock('@/src/sync/relayEngine') as { schedulePublish: jest.Mock }).schedulePublish.mockClear();
+    (jest.requireMock('@/src/sync/motor/relayEngine') as { schedulePublish: jest.Mock }).schedulePublish.mockClear();
   });
 
   it('B1 · exportar: el archivo lleva groupKeys y ownerId = mi id', () => {
@@ -294,7 +295,7 @@ describe('T-188b · el backup restaura la sesión completa (claves + roster)', (
     expect(rosterDe(g.miembros)).toContain('u1');
 
     // se publica el grupo al que reingresé
-    const { schedulePublish } = jest.requireMock('@/src/sync/relayEngine') as { schedulePublish: jest.Mock };
+    const { schedulePublish } = jest.requireMock('@/src/sync/motor/relayEngine') as { schedulePublish: jest.Mock };
     expect(schedulePublish).toHaveBeenCalledWith('g1', expect.anything());
 
     // la clave restaurada sirve DE VERDAD para derivar el topic del relay
@@ -349,7 +350,7 @@ describe('T-188b · el backup restaura la sesión completa (claves + roster)', (
     const g = useGroupStore.getState().getById('g1')!;
     expect(rosterDe(g.miembros)).not.toContain('u1');
 
-    const { schedulePublish } = jest.requireMock('@/src/sync/relayEngine') as { schedulePublish: jest.Mock };
+    const { schedulePublish } = jest.requireMock('@/src/sync/motor/relayEngine') as { schedulePublish: jest.Mock };
     expect(schedulePublish).not.toHaveBeenCalled();
   });
 

@@ -1,10 +1,10 @@
 import { useUserStore } from '../userStore';
-import { applyDelta, type SyncDelta } from '@/src/sync/applyDelta';
+import { applyDelta, type SyncDelta } from '@/src/sync/adaptadores/hushsplit/applyDelta';
 import { applyBackup } from '@/src/services/backup';
 import type { User } from '@/src/types/models';
 
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
-jest.mock('@/src/sync/relayEngine', () => ({ schedulePublish: jest.fn(), deviceId: () => 'dev' }));
+jest.mock('@/src/sync/motor/relayEngine', () => ({ schedulePublish: jest.fn(), deviceId: () => 'dev' }));
 
 /**
  * **T-137 (ADR-012) — el tope de `updatedAt` futuro llega por los TRES caminos**

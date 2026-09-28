@@ -8,7 +8,7 @@ import { textFor } from '@/src/services/notifications';
 import { nombreDeGrupoEnConflicto, type KeyConflictNotice } from '@/src/services/syncNotices';
 import { elegirClaveDeGrupo } from '@/src/services/elegirClaveDeGrupo';
 import { purgarGrupoLocalmente } from '@/src/services/salirDelGrupo';
-import { conflictoForzado, esOfertaDeInvitacion } from '@/src/sync/groupKeyOffers';
+import { conflictoForzado, esOfertaDeInvitacion } from '@/src/sync/invitaciones/groupKeyOffers';
 import { useUserStore } from '@/src/store/userStore';
 import { ActionButton } from './ActionButton';
 import { ButtonRack } from './ButtonRack';

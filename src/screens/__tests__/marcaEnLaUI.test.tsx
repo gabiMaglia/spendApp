@@ -4,12 +4,12 @@ import { ed25519 } from '@noble/curves/ed25519.js';
 import GroupDetailScreen from '@/app/groups/[id]';
 import ActivityScreen from '@/app/(tabs)/activity';
 import ExpenseDetailScreen from '@/app/expense/[id]';
-import { signCore } from '@/src/sync/recordSign';
-import { toHex } from '@/src/sync/hexBytes';
-import { clearVerdictCache } from '@/src/sync/verdictCache';
+import { signCore } from '@/src/sync/confianza/recordSign';
+import { toHex } from '@/src/sync/nucleo/hexBytes';
+import { clearVerdictCache } from '@/src/sync/confianza/verdictCache';
 import {
   forgetAuthorKeys, reloadAuthorKeys, rememberAuthorKey, __resetAuthorSources,
-} from '@/src/sync/authorKeys';
+} from '@/src/sync/confianza/authorKeys';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { usePaymentStore } from '@/src/store/paymentStore';
@@ -36,12 +36,12 @@ import type { Expense, Group, Payment, User } from '@/src/types/models';
  */
 
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
-jest.mock('@/src/sync/relayEngine', () => ({
+jest.mock('@/src/sync/motor/relayEngine', () => ({
   schedulePublish: jest.fn(), deviceId: () => 'dev', startRelay: jest.fn(),
   announceGroupToContacts: jest.fn(),
 }));
-jest.mock('@/src/sync/contactChannel', () => ({ getPeer: () => undefined }));
-jest.mock('@/src/sync/deviceKeys', () => ({ fetchAccountKeys: jest.fn(async () => []) }));
+jest.mock('@/src/sync/contactos/contactChannel', () => ({ getPeer: () => undefined }));
+jest.mock('@/src/sync/confianza/deviceKeys', () => ({ fetchAccountKeys: jest.fn(async () => []) }));
 /**
  * Las tres pantallas leen el id de la ruta. Se comparte una sola variable para
  * poder montar la de grupo y la de detalle en el mismo archivo.

@@ -4,7 +4,7 @@ import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import { GroupKeyConflictCard } from '../GroupKeyConflictCard';
 import { elegirClaveDeGrupo } from '@/src/services/elegirClaveDeGrupo';
 import { purgarGrupoLocalmente } from '@/src/services/salirDelGrupo';
-import { conflictoForzado, idDeOfertaDeInvitacion } from '@/src/sync/groupKeyOffers';
+import { conflictoForzado, idDeOfertaDeInvitacion } from '@/src/sync/invitaciones/groupKeyOffers';
 import { useAuthStore } from '@/src/store/authStore';
 import { useUserStore } from '@/src/store/userStore';
 import type { KeyConflictNotice } from '@/src/services/syncNotices';
@@ -14,14 +14,14 @@ import en from '@/src/i18n/locales/en.json';
 import pt from '@/src/i18n/locales/pt.json';
 
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
-jest.mock('@/src/sync/relayEngine', () => ({
+jest.mock('@/src/sync/motor/relayEngine', () => ({
   schedulePublish: jest.fn(), deviceId: () => 'dev', olvidarCursor: jest.fn(),
   publishNow: jest.fn(async () => {}), drainNow: jest.fn(async () => 0), startRelay: jest.fn(async () => {}),
 }));
 jest.mock('@/src/services/elegirClaveDeGrupo', () => ({ elegirClaveDeGrupo: jest.fn(async () => true) }));
 jest.mock('@/src/services/salirDelGrupo', () => ({ purgarGrupoLocalmente: jest.fn() }));
-jest.mock('@/src/sync/groupKeyOffers', () => {
-  const real = jest.requireActual('@/src/sync/groupKeyOffers');
+jest.mock('@/src/sync/invitaciones/groupKeyOffers', () => {
+  const real = jest.requireActual('@/src/sync/invitaciones/groupKeyOffers');
   return { ...real, conflictoForzado: jest.fn(() => false) };
 });
 

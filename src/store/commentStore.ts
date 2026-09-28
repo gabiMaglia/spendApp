@@ -3,8 +3,8 @@ import { createSecureStorage } from '@/src/utils/secureStorage';
 import { readScoped, writeScopedLazy } from './userScope';
 import { mergeByIdLevels } from './mergeLevels';
 import { siguienteUpdatedAt } from './relojDelMerge';
-import { signOnCreate } from '@/src/sync/signOnWrite';
-import { schedulePublish } from '@/src/sync/relayEngine';
+import { signOnCreate } from '@/src/sync/confianza/signOnWrite';
+import { schedulePublish } from '@/src/sync/motor/relayEngine';
 import { useExpenseStore } from './expenseStore';
 
 /**

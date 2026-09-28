@@ -5,7 +5,7 @@ import { createSecureStorage } from '@/src/utils/secureStorage';
 import { useAuthStore } from '@/src/store/authStore';
 import type { Group, LeaveRequest, User } from '@/src/types/models';
 
-jest.mock('@/src/sync/relayEngine', () => ({ schedulePublish: jest.fn(), deviceId: () => 'd' }));
+jest.mock('@/src/sync/motor/relayEngine', () => ({ schedulePublish: jest.fn(), deviceId: () => 'd' }));
 
 /**
  * Irse debiendo no es gratis: esa plata la pierde alguien. El reparto se

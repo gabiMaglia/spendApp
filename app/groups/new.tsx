@@ -21,14 +21,14 @@ import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
-import { announceGroupToContacts } from '@/src/sync/relayEngine';
+import { announceGroupToContacts } from '@/src/sync/motor/relayEngine';
 import { hueForUser } from '@/src/utils/hueForUser';
 import { Avatar } from '@/src/components/Avatar';
 import { UserAvatar } from '@/src/components/UserAvatar';
 import { useTranslation } from 'react-i18next';
 import { syncedNow } from '@/src/utils/syncedClock';
 import { esYo } from '@/src/store/identityAlias';
-import { admiteUnMiembroMas, MAX_MIEMBROS, MAX_TEXTO_CORTO } from '@/src/sync/topes';
+import { admiteUnMiembroMas, MAX_MIEMBROS, MAX_TEXTO_CORTO } from '@/src/sync/nucleo/topes';
 import { motivoDeExceso } from '@/src/services/topeDeRegistro';
 import { useColors } from '@/src/skins/useSkin';
 

@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { checkRecord } from '@/src/sync/trustCheck';
+import { checkRecord } from '@/src/sync/confianza/trustCheck';
 import { useRecurringStore } from '@/src/store/recurringStore';
-import { canonicalCore } from '@/src/sync/recordCore';
+import { canonicalCore } from '@/src/sync/confianza/recordCore';
 import { trustOf, type TrustState } from '@/src/algorithms/recordTrust';
-import type { CoreKind, CoreRecord } from '@/src/sync/recordCore';
-import type { RecordVerdict } from '@/src/sync/recordHealth';
+import type { CoreKind, CoreRecord } from '@/src/sync/confianza/recordCore';
+import type { RecordVerdict } from '@/src/sync/confianza/recordHealth';
 
 /**
  * **Verificar sólo lo que el usuario está mirando** (T-041 · S10, decisión D8).

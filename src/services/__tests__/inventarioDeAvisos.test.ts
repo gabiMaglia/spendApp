@@ -140,9 +140,11 @@ describe('quién puede escribir en la bandeja', () => {
 
     expect(llamadores).toEqual([
       'services/notifications',
-      'sync/relay/contactos',
-      'sync/relay/drain',
-      'sync/relay/publish',
+      // T-206-A: relay/contactos → contactos/motorDeContactos,
+      // relay/drain → motor/agendaDeDrenaje, relay/publish → motor/agendaDePublicacion.
+      'sync/contactos/motorDeContactos',
+      'sync/motor/agendaDeDrenaje',
+      'sync/motor/agendaDePublicacion',
     ]);
   });
 });

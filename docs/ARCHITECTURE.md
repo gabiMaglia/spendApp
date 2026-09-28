@@ -65,10 +65,16 @@ type ExpenseCategory =
 
 ## Motor de sincronización: `SyncEngine`
 
+> **Nota de rutas (T-206-A).** `SyncEngine.ts` es un nombre conceptual: no
+> existe ese archivo. La implementación real vive repartida en
+> `src/sync/motor/` (cuándo sincronizar), `src/sync/nucleo/` (el protocolo) y
+> `src/sync/adaptadores/hushsplit/applyDelta.ts` (el merge LWW de abajo). Ver
+> `src/sync/README.md` para el mapa completo de carpetas.
+
 ### Regla fundamental: Last-Write-Wins por `updatedAt`
 
 ```typescript
-// src/sync/SyncEngine.ts
+// concepto — implementación real en src/sync/adaptadores/hushsplit/applyDelta.ts
 export class SyncEngine {
   /**
    * Combina estado local y remoto. Gana siempre el registro con mayor updatedAt.
@@ -150,7 +156,7 @@ Un "token de invitación" contiene `groupId` + clave de cifrado AES-256 del grup
 
 Crear un grupo con un contacto le entrega la clave por el buzón de contacto (`sendGroupKey`), firmada y envuelta para su X25519. La firma prueba **quién** manda, no que sea miembro: «contacto» es cualquiera que haya escaneado mi QR. Por eso una clave entregada no se adopta a ciegas:
 
-- Cada entrega válida es una **oferta** por (grupo, remitente) en `src/sync/groupKeyOffers.ts` (bucket cifrado `groupkeys`, scopeado por cuenta, tope de 5 remitentes por grupo, dedupe del reenvío de cada arranque).
+- Cada entrega válida es una **oferta** por (grupo, remitente) en `src/sync/invitaciones/groupKeyOffers.ts` (bucket cifrado `groupkeys`, scopeado por cuenta, tope de 5 remitentes por grupo, dedupe del reenvío de cada arranque).
 - Al final de cada drenaje (`drainContacts`), un grupo sin clave local cuyas ofertas coinciden se **adopta solo**: es el camino normal.
 - Si las ofertas difieren —entre sí, o contra una clave local que vino de contacto— **no se adopta ni se sustituye nada**. Se avisa `group_key_conflict` (un solo aviso sin leer por grupo) y el usuario elige un remitente en `GroupKeyConflictCard`. Lo mismo si un grant de invitación choca con una clave de contacto (`inviteEngine.redeem`).
 - Elegir (`services/elegirClaveDeGrupo.ts`) sólo es posible si la clave local, de existir, vino de una oferta adoptada. Purga la copia local del grupo (`purgarGrupoLocalmente`), adopta la elegida, marca el grupo pendiente de drenaje y drena el topic real. No publica nada.

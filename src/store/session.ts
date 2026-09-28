@@ -11,23 +11,23 @@ import { useCommentStore } from './commentStore';
 import { useGroupKeyStore } from './groupKeyStore';
 import { purgeMergedScopes } from './accountLink';
 import { migrarReplicadosUnaVez } from '@/src/services/runMigrateReplicated';
-import { startRelay, reiniciarSyncPorCambioDeCuenta } from '@/src/sync/relayEngine';
-import { haySesionAnonimaValida } from '@/src/sync/relaySession';
+import { startRelay, reiniciarSyncPorCambioDeCuenta } from '@/src/sync/motor/relayEngine';
+import { haySesionAnonimaValida } from '@/src/sync/sesion/relaySession';
 import { useEntryGateStore } from './entryGateStore';
 import { materializeRecurring } from '@/src/services/materializeRecurring';
 import { estaBloqueado } from '@/src/algorithms/groupExpenseLimit';
 import { applyApprovedLeaves } from '@/src/services/applyLeave';
 import { useSettingsStore } from './settingsStore';
 import { useNoticeInboxStore } from './noticeInboxStore';
-import { reloadVerdictCache } from '@/src/sync/verdictCache';
-import { reloadAuthorKeys } from '@/src/sync/authorKeysCache';
-import { reloadAuthorRefreshQueue } from '@/src/sync/authorKeysRefresh';
-import { reloadRatchet } from '@/src/sync/ratchet';
-import { reloadRecordHealth } from '@/src/sync/recordHealthStore';
-import { reloadAuthorHealth } from '@/src/sync/authorHealth';
+import { reloadVerdictCache } from '@/src/sync/confianza/verdictCache';
+import { reloadAuthorKeys } from '@/src/sync/confianza/authorKeysCache';
+import { reloadAuthorRefreshQueue } from '@/src/sync/confianza/authorKeysRefresh';
+import { reloadRatchet } from '@/src/sync/confianza/ratchet';
+import { reloadRecordHealth } from '@/src/sync/confianza/recordHealthStore';
+import { reloadAuthorHealth } from '@/src/sync/confianza/authorHealth';
 import { recargarAlias, sembrarAliasDesdeIndice } from './identityAlias';
-import { olvidarFallosDeAplicacion } from '@/src/sync/drainFailures';
-import { olvidarGeneraciones } from '@/src/sync/pendingDrain';
+import { olvidarFallosDeAplicacion } from '@/src/sync/nucleo/drainFailures';
+import { olvidarGeneraciones } from '@/src/sync/motor/pendingDrain';
 
 // (Re)hidrata todos los stores scopeados por cuenta con los datos del usuario
 // activo. Con usuario nulo (deslogueado), cada hydrate lee un scope vacío y deja

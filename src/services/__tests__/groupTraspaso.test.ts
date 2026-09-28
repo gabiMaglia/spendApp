@@ -1,5 +1,5 @@
 import { traspasarGrupo, siguienteNombreDisponible } from '../groupTraspaso';
-import { MAX_TEXTO_CORTO } from '@/src/sync/topes';
+import { MAX_TEXTO_CORTO } from '@/src/sync/nucleo/topes';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { usePaymentStore } from '@/src/store/paymentStore';
@@ -7,11 +7,11 @@ import { useArchiveStore } from '@/src/store/archiveStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { useRecurringStore } from '@/src/store/recurringStore';
 import { createSecureStorage } from '@/src/utils/secureStorage';
-import { announceGroupToContacts } from '@/src/sync/relayEngine';
+import { announceGroupToContacts } from '@/src/sync/motor/relayEngine';
 import type { Group, Expense, Payment, RecurringExpense } from '@/src/types/models';
 
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
-jest.mock('@/src/sync/relayEngine', () => ({
+jest.mock('@/src/sync/motor/relayEngine', () => ({
   schedulePublish: jest.fn(), deviceId: () => 'dev', startRelay: jest.fn(),
   announceGroupToContacts: jest.fn(),
 }));

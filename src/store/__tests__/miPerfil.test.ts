@@ -4,7 +4,7 @@ import { useUserStore } from '../userStore';
 import type { User } from '@/src/types/models';
 
 const mockAnunciar = jest.fn();
-jest.mock('@/src/sync/relayEngine', () => ({
+jest.mock('@/src/sync/motor/relayEngine', () => ({
   anunciarMiTarjeta: () => mockAnunciar(),
 }));
 

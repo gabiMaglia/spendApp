@@ -26,7 +26,7 @@ import type { User, Group, Expense, Payment } from '@/src/types/models';
 const mockLlamadas: string[] = [];
 let mockRespuesta: (topic: string) => unknown = () => ({ ok: true, deleted: 1 });
 
-jest.mock('@/src/sync/relay', () => ({
+jest.mock('@/src/sync/adaptadores/supabase/relay', () => ({
   // `signOut` cierra la sesión del directorio de claves y eso pasa por acá: sin
   // este stub, el mock del módulo deja a `directoryAuth` sin cliente y la
   // promesa suelta que dispara tumba al worker de Jest.
@@ -38,7 +38,7 @@ jest.mock('@/src/sync/relay', () => ({
   }),
 }));
 
-jest.mock('@/src/sync/relayEngine', () => ({
+jest.mock('@/src/sync/motor/relayEngine', () => ({
   deviceId: () => 'dev',
   schedulePublish: jest.fn(),
   olvidarCursor: jest.fn(),
@@ -183,7 +183,7 @@ describe('qué hace con cada respuesta del buzón', () => {
 describe('sin red', () => {
   it('no se cuelga: termina y deja lo pendiente anotado', async () => {
     // El mock nunca resuelve. El presupuesto de tiempo tiene que ganar.
-    const relay = jest.requireMock('@/src/sync/relay') as { deleteMyEnvelopes: jest.Mock };
+    const relay = jest.requireMock('@/src/sync/adaptadores/supabase/relay') as { deleteMyEnvelopes: jest.Mock };
     relay.deleteMyEnvelopes.mockImplementationOnce(() => new Promise(() => {}));
 
     const r = await deleteAccount({ timeoutMs: 60 });

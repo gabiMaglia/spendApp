@@ -7,7 +7,7 @@ const mockPush = jest.fn();
 jest.mock('expo-router', () => ({ router: { push: (...a: unknown[]) => mockPush(...a) } }));
 
 import { SinSesionDeSync } from '@/src/components/SinSesionDeSync';
-import { setUltimaSesionConocida, __resetSessionStatus } from '@/src/sync/sessionStatus';
+import { setUltimaSesionConocida, __resetSessionStatus } from '@/src/sync/sesion/sessionStatus';
 import { useAuthStore } from '@/src/store/authStore';
 import { useEntryGateStore, __resetEntryGate } from '@/src/store/entryGateStore';
 import type { User } from '@/src/types/models';

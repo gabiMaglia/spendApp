@@ -1,0 +1,213 @@
+import { publishToGroup, drainGroup } from '../relaySync';
+import { signEnvelope } from '@/src/sync/nucleo/envelopeSign';
+import { sealEnvelope, deriveTopic } from '@/src/sync/nucleo/envelopeCrypto';
+import { fromHex } from '@/src/sync/nucleo/hexBytes';
+import { generateIdentity } from '@/src/sync/invitaciones/groupInvite';
+import { useAuthStore } from '@/src/store/authStore';
+import { useGroupStore } from '@/src/store/groupStore';
+import { useExpenseStore } from '@/src/store/expenseStore';
+import { useGroupKeyStore } from '@/src/store/groupKeyStore';
+import { createSecureStorage } from '@/src/utils/secureStorage';
+import type { Expense, Group, User } from '@/src/types/models';
+
+/**
+ * El buzón de un grupo es público: cualquiera que conozca el `topic` puede
+ * escribir. Lo que NO puede es hacer pasar lo suyo por un sobre legítimo.
+ */
+
+jest.mock('@/src/sync/adaptadores/supabase/relay', () => {
+  const buzones = new Map<string, { seq: number; topic: string; payload: string; sender: string; created_at: string; compactable?: boolean }[]>();
+  let seq = 0;
+  return {
+    __buzones: buzones,
+    __reset: () => { buzones.clear(); seq = 0; },
+    isRelayConfigured: () => true,
+    subscribeTopic: () => () => {},
+    sendEnvelope: async (topic: string, payload: string, sender: string, compactable = false) => {
+      const l = buzones.get(topic) ?? [];
+      l.push({ seq: ++seq, topic, payload, sender, created_at: '', compactable });
+      buzones.set(topic, l);
+      return { ok: true, seq };
+    },
+    fetchSince: async (topic: string, since: number, exclude?: string) => {
+      const todos = (buzones.get(topic) ?? [])
+        .filter(e => e.seq > since && (!exclude || e.sender !== exclude));
+      return { ok: true, envelopes: todos, cursor: todos.length ? todos.at(-1)!.seq : since };
+    },
+  };
+});
+
+const relayMock = jest.requireMock('@/src/sync/adaptadores/supabase/relay') as {
+  __buzones: Map<string, { seq: number; payload: string; sender: string; compactable?: boolean }[]>;
+  __reset: () => void;
+};
+
+const ANA = { id: 'ana', name: 'Ana' } as User;
+const meta = { updatedAt: 1_000, isDeleted: false };
+
+const grupo = (): Group => ({
+  id: 'G', name: 'Asado', memberIds: ['ana', 'beto'], currency: 'ARS',
+  miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
+  createdAt: 0, createdById: 'ana', ...meta,
+} as Group);
+
+const gasto = (id: string, desc: string): Expense => ({
+  id, groupId: 'G', description: desc, amount: 1000, currency: 'ARS',
+  paidById: 'ana', splitMode: 'equal', splits: [], category: 'food', date: 0,
+  createdAt: 0, createdById: 'ana', ...meta,
+} as Expense);
+
+async function topicDelGrupo(): Promise<string> {
+  const rec = useGroupKeyStore.getState().getKey('G')!;
+  return deriveTopic(fromHex(rec.key), rec.epoch);
+}
+
+beforeEach(() => {
+  relayMock.__reset();
+  createSecureStorage('groupkeys').clearAll();
+  createSecureStorage('groups').clearAll();
+  useAuthStore.setState({ currentUser: ANA });
+  useGroupStore.setState({ groups: [grupo()] });
+  useExpenseStore.setState({ expenses: [gasto('e1', 'Carne')] });
+  useGroupKeyStore.setState({ keys: [] });
+  useGroupKeyStore.getState().ensureKey('G');
+});
+
+describe('publicar y drenar con firma', () => {
+  it('lo propio, firmado, se aplica del otro lado', async () => {
+    await publishToGroup('G', 'ana', 'dev-ana');
+
+    useExpenseStore.setState({ expenses: [] });
+    const r = await drainGroup('G', 'beto', 'dev-beto', 0);
+
+    // `publishToGroup` ahora parte el estado del grupo en rebanadas + un
+    // manifiesto (ADR-007): acá una rebanada de `groups` y una de `expenses`
+    // (2 aplicados). Desde Task 6, `drainGroup` reconoce el sobre de
+    // manifiesto (`isManifest`) y lo usa para el chequeo de completitud en vez
+    // de tratarlo como un delta corrupto — no suma ni a `applied` ni a
+    // `skipped`. Lo que importa, y sigue probado abajo, es que el gasto propio
+    // llega igual al otro lado.
+    expect(r.ok && r.applied).toBe(2);
+    expect(r.ok && r.skipped).toBe(0);
+    expect(useExpenseStore.getState().expenses.map(e => e.id)).toEqual(['e1']);
+  });
+
+  it('el sobre que sale del relay va firmado', async () => {
+    await publishToGroup('G', 'ana', 'dev-ana');
+
+    const sobre = relayMock.__buzones.get(await topicDelGrupo())![0]!;
+    const wrapper = JSON.parse(sobre.payload);
+
+    expect(wrapper.k).toBeTruthy();
+    expect(wrapper.s).toBeTruthy();
+    expect(sobre.payload).not.toContain('Carne'); // sigue cifrado
+  });
+});
+
+describe('lo que el buzón no deja pasar', () => {
+  it('basura inyectada por alguien sin la clave se saltea', async () => {
+    const topic = await topicDelGrupo();
+    relayMock.__buzones.set(topic, [{ seq: 1, payload: 'basura', sender: 'dev-x' }]);
+
+    const r = await drainGroup('G', 'beto', 'dev-beto', 0);
+
+    expect(r.ok && r.applied).toBe(0);
+    expect(r.ok && r.skipped).toBe(1);
+  });
+
+  // Un sobre sin firma es el formato viejo o un inyector: se descarta. No se
+  // pierde nada, porque los sobres llevan ESTADO y la próxima publicación
+  // reemplaza lo que haya.
+  it('un sobre bien cifrado pero SIN firmar se rechaza', async () => {
+    const rec = useGroupKeyStore.getState().getKey('G')!;
+    const sellado = sealEnvelope(fromHex(rec.key), JSON.stringify({
+      version: 1, fromUserId: 'ana', timestamp: 0,
+      groups: [], expenses: [gasto('e9', 'Colado')], payments: [], users: [],
+    }));
+    relayMock.__buzones.set(await topicDelGrupo(), [{ seq: 1, payload: sellado, sender: 'dev-x' }]);
+
+    useExpenseStore.setState({ expenses: [] });
+    await drainGroup('G', 'beto', 'dev-beto', 0);
+
+    expect(useExpenseStore.getState().expenses).toEqual([]);
+  });
+
+  /**
+   * ⚠️ LO QUE LA FIRMA **NO** HACE, y conviene que esté escrito.
+   *
+   * La firma autentica el SOBRE, no lo que hay adentro. Quien tiene la clave
+   * del grupo puede fabricar registros a nombre de cualquiera: `createdById` y
+   * `paidById` son datos como cualquier otro y el merge no los verifica.
+   *
+   * Este test existe para que nadie crea que el problema está resuelto.
+   * Cerrarlo de verdad exige firmar CADA REGISTRO con la clave de su autor
+   * (T-041), no vigilar el remitente del sobre.
+   */
+  it('DOCUMENTA: la firma NO impide fabricar registros a nombre de otro', async () => {
+    const rec = useGroupKeyStore.getState().getKey('G')!;
+    const otroMiembro = generateIdentity();
+    const sellado = sealEnvelope(fromHex(rec.key), JSON.stringify({
+      version: 1, fromUserId: 'beto', timestamp: 0,
+      groups: [], payments: [], users: [],
+      expenses: [{ ...gasto('e9', 'Gasto que Ana nunca hizo'), createdById: 'ana', paidById: 'ana' }],
+    }));
+    relayMock.__buzones.set(await topicDelGrupo(), [{
+      seq: 1, payload: signEnvelope(sellado, otroMiembro.privateKey), sender: 'dev-beto',
+    }]);
+
+    useExpenseStore.setState({ expenses: [] });
+    await drainGroup('G', 'caro', 'dev-caro', 0);
+
+    expect(useExpenseStore.getState().expenses[0]?.createdById).toBe('ana');
+  });
+
+  // Cualquier dispositivo de cualquier miembro publica sin trámite previo: la
+  // credencial de pertenencia es la clave del grupo, no una lista aparte.
+  it('un dispositivo que nadie vio antes publica sin problema', async () => {
+    const nuevo = generateIdentity();
+    const rec = useGroupKeyStore.getState().getKey('G')!;
+    const sellado = sealEnvelope(fromHex(rec.key), JSON.stringify({
+      version: 1, fromUserId: 'caro', timestamp: 0,
+      groups: [], expenses: [gasto('e5', 'De Caro')], payments: [], users: [],
+    }));
+    relayMock.__buzones.set(await topicDelGrupo(), [{
+      seq: 1, payload: signEnvelope(sellado, nuevo.privateKey), sender: 'dev-caro',
+    }]);
+
+    useExpenseStore.setState({ expenses: [] });
+    await drainGroup('G', 'beto', 'dev-beto', 0);
+
+    expect(useExpenseStore.getState().expenses.map(e => e.id)).toEqual(['e5']);
+  });
+
+  it('un sobre ajeno no frena la cola: los buenos se aplican igual', async () => {
+    await publishToGroup('G', 'ana', 'dev-ana');
+    const topic = await topicDelGrupo();
+    relayMock.__buzones.get(topic)!.unshift({ seq: 0, payload: 'basura', sender: 'dev-x' });
+
+    useExpenseStore.setState({ expenses: [] });
+    const r = await drainGroup('G', 'beto', 'dev-beto', -1);
+
+    // Igual que arriba: 2 rebanadas de datos aplicadas; el manifiesto ya no
+    // cuenta como salteado (Task 6 lo reconoce), así que sólo la basura
+    // inyectada se saltea (ADR-007 — ver comentario del primer test de este
+    // describe).
+    expect(r.ok && r.applied).toBe(2);
+    expect(r.ok && r.skipped).toBe(1);
+  });
+});
+
+/**
+ * T-032. El servidor borra los sobres compactables anteriores del mismo
+ * remitente, así que la marca decide qué se puede tirar. Es segura **sólo**
+ * para los sobres de grupo, que llevan estado COMPLETO: el último reemplaza a
+ * todos los anteriores.
+ */
+describe('compactación', () => {
+  it('el sobre de un grupo se marca compactable', async () => {
+    await publishToGroup('G', 'ana', 'dev-ana');
+
+    const sobre = relayMock.__buzones.get(await topicDelGrupo())![0]!;
+    expect(sobre.compactable).toBe(true);
+  });
+});

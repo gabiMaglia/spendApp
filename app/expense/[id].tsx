@@ -33,7 +33,7 @@ import type { CategoryKind } from '@/src/constants/colors';
 import { syncedNow } from '@/src/utils/syncedClock';
 import { esYo, mismaPersona } from '@/src/store/identityAlias';
 import { useColors } from '@/src/skins/useSkin';
-import { enDisputa, autoresVerificados } from '@/src/sync/autoriaTrust';
+import { enDisputa, autoresVerificados } from '@/src/sync/confianza/autoriaTrust';
 import { InlineWarningBanner } from '@/src/components/InlineWarningBanner';
 
 export default function ExpenseDetailScreen() {

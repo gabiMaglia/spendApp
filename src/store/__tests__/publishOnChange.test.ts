@@ -1,7 +1,7 @@
 import { usePaymentStore } from '../paymentStore';
 import { useCommentStore } from '../commentStore';
 import { useExpenseStore } from '../expenseStore';
-import { schedulePublish } from '@/src/sync/relayEngine';
+import { schedulePublish } from '@/src/sync/motor/relayEngine';
 import type { Expense, ExpenseComment, Payment } from '@/src/types/models';
 
 /**
@@ -12,7 +12,7 @@ import type { Expense, ExpenseComment, Payment } from '@/src/types/models';
  * sigue reclamando hasta que algo ajeno dispare una publicación.
  */
 
-jest.mock('@/src/sync/relayEngine', () => ({
+jest.mock('@/src/sync/motor/relayEngine', () => ({
   schedulePublish: jest.fn(),
   deviceId: () => 'dev-test',
 }));

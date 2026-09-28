@@ -19,7 +19,7 @@ import {
   useNoticeInboxStore, useUnreadNoticeCount, type StoredNotice,
 } from '@/src/store/noticeInboxStore';
 import { esAccionable, type KeyConflictNotice } from '@/src/services/syncNotices';
-import { ofertasDe } from '@/src/sync/groupKeyOffers';
+import { ofertasDe } from '@/src/sync/invitaciones/groupKeyOffers';
 import { hapticLight } from '@/src/utils/haptics';
 import { useColors } from '@/src/skins/useSkin';
 

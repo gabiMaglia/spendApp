@@ -64,7 +64,7 @@ jest.mock('@supabase/supabase-js', () => ({
 
 // La reconexión de cuenta (Google silencioso / botón) no es lo que este test
 // ejercita — se stubea para que no interfiera si el fix llegara tarde.
-jest.mock('@/src/sync/accountEntry', () => ({
+jest.mock('@/src/sync/sesion/accountEntry', () => ({
   reconectarGoogleSilencioso: jest.fn(async () => ({ status: 'failed', reason: 'no_credential' })),
   reconectarInteractivo: jest.fn(),
 }));
@@ -96,9 +96,9 @@ import type { User } from '@/src/types/models';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const VerifyScreen = (require('../verify') as typeof import('../verify')).default;
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const relaySession = require('@/src/sync/relaySession') as typeof import('@/src/sync/relaySession');
+const relaySession = require('@/src/sync/sesion/relaySession') as typeof import('@/src/sync/sesion/relaySession');
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const directoryAuth = require('@/src/sync/directoryAuth') as typeof import('@/src/sync/directoryAuth');
+const directoryAuth = require('@/src/sync/sesion/directoryAuth') as typeof import('@/src/sync/sesion/directoryAuth');
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { useAuthStore } = require('@/src/store/authStore') as typeof import('@/src/store/authStore');
 

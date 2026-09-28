@@ -43,7 +43,7 @@ import { buildSplits } from '@/src/algorithms/buildSplits';
 import type { ExpenseCategory, PersonalCategory } from '@/src/types/models';
 import { syncedNow } from '@/src/utils/syncedClock';
 import { esYo } from '@/src/store/identityAlias';
-import { MAX_TEXTO_CORTO, MAX_NOTA } from '@/src/sync/topes';
+import { MAX_TEXTO_CORTO, MAX_NOTA } from '@/src/sync/nucleo/topes';
 import { useColors, useSkinTokens } from '@/src/skins/useSkin';
 
 type CatMeta = { id: PersonalCategory; icon: React.ComponentProps<typeof Ionicons>['name']; label: string };

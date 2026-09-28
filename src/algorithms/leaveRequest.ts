@@ -1,5 +1,5 @@
 import { canonical } from '@/src/store/lww';
-import { normalizarAprobaciones } from '@/src/sync/leaveApprovalCore';
+import { normalizarAprobaciones } from '@/src/sync/confianza/leaveApprovalCore';
 import type { ApprovalEntry, Group, LeaveApproval, LeaveRequest } from '@/src/types/models';
 
 /**

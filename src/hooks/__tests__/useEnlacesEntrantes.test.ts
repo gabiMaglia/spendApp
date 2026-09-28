@@ -13,7 +13,7 @@ jest.mock('expo-linking', () => ({
   }),
 }));
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
-jest.mock('@/src/sync/directoryAuth', () => ({ signOutOfDirectory: jest.fn(async () => {}) }));
+jest.mock('@/src/sync/sesion/directoryAuth', () => ({ signOutOfDirectory: jest.fn(async () => {}) }));
 
 import { useEnlacesEntrantes } from '@/src/hooks/useEnlacesEntrantes';
 import { useAuthStore } from '@/src/store/authStore';

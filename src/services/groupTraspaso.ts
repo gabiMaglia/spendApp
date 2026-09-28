@@ -8,10 +8,10 @@ import { usePaymentStore } from '@/src/store/paymentStore';
 import { useArchiveStore } from '@/src/store/archiveStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { useRecurringStore } from '@/src/store/recurringStore';
-import { announceGroupToContacts } from '@/src/sync/relayEngine';
+import { announceGroupToContacts } from '@/src/sync/motor/relayEngine';
 import { syncedNow } from '@/src/utils/syncedClock';
 import { pagosQueCuentan } from '@/src/algorithms/settlementStatus';
-import { truncar, MAX_TEXTO_CORTO } from '@/src/sync/topes';
+import { truncar, MAX_TEXTO_CORTO } from '@/src/sync/nucleo/topes';
 import { announceRecurringTraspasoBlocked } from './notifications';
 import { conAlta, rosterDe } from '@/src/algorithms/roster';
 

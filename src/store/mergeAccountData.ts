@@ -1,7 +1,7 @@
 import type { SimpleStorage } from '@/src/utils/createStorage';
 import { mergeByIdLevels } from './mergeLevels';
 import { mergeUsersLWW } from './mergeUsersLWW';
-import type { CoreKind, CoreRecord } from '@/src/sync/recordCore';
+import type { CoreKind, CoreRecord } from '@/src/sync/confianza/recordCore';
 import type { Syncable } from './lww';
 
 /**

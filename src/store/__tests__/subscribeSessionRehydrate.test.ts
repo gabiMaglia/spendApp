@@ -19,13 +19,13 @@
  * Nunca cuenta como cambio de cuenta. A partir de la segunda vez, cualquier
  * cambio de id sí lo es.
  */
-jest.mock('@/src/sync/relayEngine', () => ({
+jest.mock('@/src/sync/motor/relayEngine', () => ({
   startRelay: jest.fn(async () => {}),
   stopRelay: jest.fn(),
   cancelPendingPublishes: jest.fn(),
   reiniciarSyncPorCambioDeCuenta: jest.fn(),
 }));
-jest.mock('@/src/sync/relaySession', () => ({
+jest.mock('@/src/sync/sesion/relaySession', () => ({
   haySesionAnonimaValida: jest.fn(async () => true),
 }));
 
@@ -34,9 +34,9 @@ import { subscribeSessionRehydrate } from '../session';
 import { useEntryGateStore, __resetEntryGate } from '../entryGateStore';
 import type { User } from '@/src/types/models';
 
-const mockReinicio = jest.requireMock('@/src/sync/relayEngine').reiniciarSyncPorCambioDeCuenta as jest.Mock;
-const mockStartRelay = jest.requireMock('@/src/sync/relayEngine').startRelay as jest.Mock;
-const mockHaySesion = jest.requireMock('@/src/sync/relaySession').haySesionAnonimaValida as jest.Mock;
+const mockReinicio = jest.requireMock('@/src/sync/motor/relayEngine').reiniciarSyncPorCambioDeCuenta as jest.Mock;
+const mockStartRelay = jest.requireMock('@/src/sync/motor/relayEngine').startRelay as jest.Mock;
+const mockHaySesion = jest.requireMock('@/src/sync/sesion/relaySession').haySesionAnonimaValida as jest.Mock;
 
 const user = (id: string): User => ({ id, authProvider: 'google' } as User);
 

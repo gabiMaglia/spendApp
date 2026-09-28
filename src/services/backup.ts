@@ -19,10 +19,10 @@ import { esSkinId, FALLBACK_SKIN, type SkinId } from '@/src/skins/registry';
 import type { CurrencyCode } from '@/src/constants/currencies';
 import { conAlta, rosterDe } from '@/src/algorithms/roster';
 import { esYo, aliasPersistidos, restaurarAlias } from '@/src/store/identityAlias';
-import { schedulePublish, anunciarMiTarjeta } from '@/src/sync/relayEngine';
-import { marcarConTopic } from '@/src/sync/pendingDrain';
-import { exportarContactos, restaurarContactos } from '@/src/sync/contactChannel';
-import type { PeerInfo } from '@/src/sync/contactPeers';
+import { schedulePublish, anunciarMiTarjeta } from '@/src/sync/motor/relayEngine';
+import { marcarConTopic } from '@/src/sync/motor/pendingDrain';
+import { exportarContactos, restaurarContactos } from '@/src/sync/contactos/contactChannel';
+import type { PeerInfo } from '@/src/sync/contactos/contactPeers';
 import { syncedNow } from '@/src/utils/syncedClock';
 
 /**
@@ -147,15 +147,17 @@ export const INCLUIDOS_BACKUP: Record<string, string> = {
   'store/archiveStore':    'archived (ids + reasons)',
   'store/settingsStore':   'settings (displayCurrency, skin, toggles de notificación — NO reduceAnimations, ver BackupFile.settings)',
   'store/identityAlias':   'aliases',
-  'sync/contactPeers':     'contacts.peers + contacts.cardSent',
-  'sync/contactChannel':   'contacts.secret — a diferencia de la FUSIÓN (que lo excluye porque adoptar el de otra cuenta invalidaría códigos ya mostrados), el backup SÍ lo lleva: es un archivo propio para restaurar en OTRO dispositivo, no una fusión de dos cuentas activas — no hay códigos ajenos que invalidar.',
+  'sync/contactos/contactPeers':     'contacts.peers + contacts.cardSent',
+  'sync/contactos/contactChannel':   'contacts.secret — a diferencia de la FUSIÓN (que lo excluye porque adoptar el de otra cuenta invalidaría códigos ya mostrados), el backup SÍ lo lleva: es un archivo propio para restaurar en OTRO dispositivo, no una fusión de dos cuentas activas — no hay códigos ajenos que invalidar.',
 };
 
 /** Módulo scopeado por cuenta → por qué el backup NO lo exporta. */
 export const EXCLUIDOS_BACKUP: Record<string, string> = {
+  'sync/adaptadores/hushsplit/almacen':
+    'Ledger de cubos publicados y rebanadas aplicadas (T-191): caché de «¿ya lo mandé/apliqué?» de ESTE dispositivo. En otro teléfono no vale nada y sería activamente peor (declararía cubos de otro dispositivo como ya publicados); al restaurar, `marcarConTopic` fuerza una publicación y relectura completas. (T-206-A)',
   'store/noticeInboxStore':
     'Bandeja de avisos: estado de lectura LOCAL a este dispositivo, no data que alguien quiera "restaurar" — un backup que resucita avisos ya leídos como no-leídos sería peor que no llevarlos. Decisión PO T-213.',
-  'sync/pendingDrain':
+  'sync/motor/pendingDrain':
     'Marcas "este grupo todavía no drenó su buzón" (T-089): estado transitorio de ESTE aparato sincronizando, no data de la cuenta. Restaurar una marca vieja en otro teléfono no tiene sentido — el drenaje real depende del buzón, no de esta marca; y `applyBackup` ya corre `marcarConTopic` sobre TODOS los grupos del backup, que es el mecanismo que la vuelve a poner cuando hace falta.',
   'store/identityStore':
     'La parte de este módulo que pasa por `writeScoped` es invitaciones/joins EN CURSO de este aparato (`invites_v1`/`pending_joins_v1`/`contact_invites_v1`/`contact_pending_claims_v1`), no data durable de la cuenta — se reconstruye re-emitiendo o re-aceptando la invitación. Las claves privadas del dispositivo (`identity_v1`/`owner_secret_v1`/`wrapkeys_v1`) son harina de otro costal: no pasan por `writeScoped` (por eso ni siquiera están en `COBERTURA_FUSION`/`EXCLUIDOS_FUSION`) y un teléfono nuevo genera las suyas — nunca se exportan.',
@@ -163,24 +165,22 @@ export const EXCLUIDOS_BACKUP: Record<string, string> = {
     'No es data: es el mecanismo de scoping mismo (`writeScoped` está acá porque este módulo lo DEFINE). Mismo motivo que en `EXCLUIDOS_FUSION`.',
   'services/runMigrateReplicated':
     'Marca one-shot "esta cuenta ya migró sus réplicas" (ADR-006), no data del usuario. Restaurarla no protege nada: la migración real ya corrió o no hace falta, y de haber quedado pendiente, `rehydrateForActiveUser` la vuelve a intentar sola.',
-  'sync/authorHealth':
+  'sync/confianza/authorHealth':
     'Medición diagnóstica de la fase B de ADR-004 (pantalla DEV), no data del usuario — se vuelve a acumular con el uso. Mismo motivo que en `EXCLUIDOS_FUSION`.',
-  'sync/verdictCache':
+  'sync/confianza/verdictCache':
     'Caché de veredictos de firma ya calculados (T-041), reconstruible verificando de nuevo. Mismo motivo que en `EXCLUIDOS_FUSION`.',
-  'sync/authorKeysCache':
+  'sync/confianza/authorKeysCache':
     'Caché de públicas que el directorio ya devolvió (T-041), reconstruible consultando el directorio de nuevo. Mismo motivo que en `EXCLUIDOS_FUSION`.',
-  'sync/ratchet':
+  'sync/confianza/ratchet':
     'Trinquete "a este autor ya le vimos firmar" (T-041): hoy sólo mide, no bloquea nada, y se retraba solo con la próxima firma válida. Mismo motivo que en `EXCLUIDOS_FUSION`.',
-  'sync/syncDownNotices':
+  'sync/avisos/syncDownNotices':
     'Acuse local "a este grupo ya le avisé que dejó de sincronizar", para no repetir el aviso — es el registro de algo que YA se dijo en ESTE teléfono, no data de la cuenta. Mismo motivo que en `EXCLUIDOS_FUSION`.',
   'services/noticeDedupe':
     'Dedupe persistido de avisos por reintento (T-172): mismo caso que `syncDownNotices`, el registro de "esto YA se avisó" en este dispositivo, no data de la cuenta.',
-  'sync/recordHealthStore':
+  'sync/confianza/recordHealthStore':
     'Medición diagnóstica de T-041 (cuántos registros verificaron), no data del usuario — se reacumula con el uso. Mismo motivo que en `EXCLUIDOS_FUSION`.',
-  'sync/groupKeyOffers':
+  'sync/invitaciones/groupKeyOffers':
     'Ofertas de clave de grupo por remitente (T-136): estado de una decisión pendiente de ESTE teléfono ahora mismo. Restaurarlas en otro dispositivo (u horas después) no tiene sentido — las ofertas reales las reenvía `relayEngine.reenviarClavesDeGrupo` en cada arranque.',
-  'sync/relay/adaptadorHushSplit':
-    'Ledger de "qué cubo publiqué / qué rebanada apliqué" (T-191): un caché de sincronización de ESTE dispositivo, no data de la cuenta. Perderlo es el camino explícito del alta (spec §2.2, §7 C5): republica una vez de más, no pierde nada. Restaurar el de otro dispositivo sería activamente peor — declararía cubos ajenos como ya publicados/aplicados.',
 };
 
 /** Arma el backup leyendo el estado actual de todos los stores. */

@@ -13,12 +13,12 @@ import { useArchiveStore } from '@/src/store/archiveStore';
 import { useSettingsStore } from '@/src/store/settingsStore';
 import { useLangStore } from '@/src/store/langStore';
 import { recargarAlias, misIdentidades, restaurarAlias } from '@/src/store/identityAlias';
-import { ensureContactSecret, drainContacts } from '@/src/sync/contactChannel';
-import { savePeer, marcarCardEnviada, listPeers, tarjetasEnviadas } from '@/src/sync/contactPeers';
+import { ensureContactSecret, drainContacts } from '@/src/sync/contactos/contactChannel';
+import { savePeer, marcarCardEnviada, listPeers, tarjetasEnviadas } from '@/src/sync/contactos/contactPeers';
 import { formatMoney } from '@/src/constants/currencies';
 import type { User, PersonalBudget } from '@/src/types/models';
 
-jest.mock('@/src/sync/relayEngine', () => ({
+jest.mock('@/src/sync/motor/relayEngine', () => ({
   schedulePublish: jest.fn(),
   anunciarMiTarjeta: jest.fn(),
 }));
