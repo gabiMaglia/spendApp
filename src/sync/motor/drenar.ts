@@ -16,11 +16,14 @@ import { sigueSiendoLaClave } from './claveVigente';
 import { abrirSobre } from '@/src/sync/nucleo/abrirSobre';
 import { cursorFinal, completoFinal, clasificarRetenidas, quitarNoResueltas, type Retenida } from '@/src/sync/nucleo/cierreDeDrenaje';
 import { chequearManifiestos } from './chequeoManifiesto';
-import type { DrainResult, DrainOptions } from '@/src/sync/nucleo/drenarTypes';
+import type { DrainResult, DrainOptions } from '@/src/sync/puertos/puertos';
 
 export { DRAIN_FETCH_LIMIT, DRAIN_MAX_PAGES } from './relectura';
 export { sigueSiendoLaClave } from './claveVigente';
-export type { DrainResult, DrainOptions } from '@/src/sync/nucleo/drenarTypes';
+// T-206-A (D18): estos tipos vivían en nucleo/drenarTypes.ts, un archivo
+// aparte sólo para que este módulo quedara bajo 260 líneas — ahora en
+// puertos/puertos.ts, donde tienen sentido propio.
+export type { DrainResult, DrainOptions } from '@/src/sync/puertos/puertos';
 
 type Rebanada = { seq: number; ckey?: string; sender: string; delta: SyncDelta; senderKey: string; json: string };
 

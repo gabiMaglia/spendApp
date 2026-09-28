@@ -1,7 +1,7 @@
 import type { GroupKey } from './envelopeCrypto';
 import { deriveCkey } from './ckey';
 import { digestOfJson, MANIFEST_VERSION, type SliceManifest } from './manifest';
-import { RENEWAL_WINDOW_MS } from '@/src/sync/adaptadores/hushsplit/sliceRenewal';
+import { RENEWAL_WINDOW_MS } from './limites';
 import { excesoDe } from './topes';
 import { cubosDe, jsonDeCubo, profundidadNecesaria, SPLIT_BYTES } from './cubos';
 import {
@@ -20,9 +20,11 @@ import {
  * Reemplaza el loop viejo de `buildSlicedEnvelopes`/`publishToGroup`: en vez
  * de cortar por ÍNDICE y reenviar TODO siempre, corta por cubo estable
  * (`cubos.ts`) y sólo manda un cubo si cambió su digest o venció la ventana
- * de renovación (`RENEWAL_WINDOW_MS`, reusado de `sliceRenewal.ts` — ese
- * módulo sigue existiendo para las fotos, spec §8 respuesta (4); acá sólo se
- * reusa la constante, no el storage). El manifiesto se manda SIEMPRE, al
+ * de renovación (`RENEWAL_WINDOW_MS`, en `nucleo/limites.ts` — T-206-A D8:
+ * antes se importaba de `adaptadores/hushsplit/sliceRenewal.ts`, que arrastra
+ * `createStorage`/MMKV transitivamente al núcleo, spec §2.2 V3; ese módulo
+ * sigue existiendo para las fotos, spec §8 respuesta (4), pero ya no es de
+ * acá de donde este archivo saca la constante). El manifiesto se manda SIEMPRE, al
  * final, con el digest de TODOS los cubos presentes (se hayan mandado en
  * esta vuelta o no).
  */

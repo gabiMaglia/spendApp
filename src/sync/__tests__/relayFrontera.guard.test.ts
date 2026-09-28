@@ -16,10 +16,12 @@
  * de `nucleo/`+`puertos/`. Hoy pasa limpio — es la garantía real de esta
  * tarea.
  *
- * **`nucleo/` tiene 3 excepciones puntuales, por archivo+import exacto, NO
+ * **`nucleo/` tiene 2 excepciones puntuales, por archivo+import exacto, NO
  * por carpeta** — la medición real mostró que "cero excepciones" era
  * aspiracional para 2 de los 17 archivos, exactamente donde el arquitecto ya
- * había catalogado la deuda (§2.2):
+ * había catalogado la deuda (§2.2). Una tercera (V3, MMKV transitivo por
+ * `publicarCubos.ts` → `sliceRenewal.ts`) se cerró en el Task 2 de esta
+ * misma tarea (`nucleo/limites.ts`, D8) y ya no hace falta:
  *   - `abrirSobre.ts` → tipo `SyncDelta` de `adaptadores/hushsplit/applyDelta`
  *     y tipo `Envelope` de `adaptadores/supabase/relay` (V4: «el núcleo pasa
  *     a manejar unknown, decide el codec del documento» — recién en la
@@ -149,15 +151,16 @@ type Violacion = { archivo: string; motivo: string };
 type ExcepcionPuntual = { archivo: string; patron: RegExp };
 
 /**
- * Las 3 excepciones puntuales de `nucleo/` (V3, V4, V7 — spec §2.2). V3 se
- * cierra en el Task 2 de este mismo plan (nucleo/limites.ts, D8) y esta
- * lista se achica en ese commit. V4 y V7 quedan para la etapa B.
+ * Las 2 excepciones puntuales de `nucleo/` que quedan (V4, V7 — spec §2.2).
+ * V3 (`publicarCubos.ts` importaba `RENEWAL_WINDOW_MS` de
+ * `adaptadores/hushsplit/sliceRenewal.ts`, arrastrando MMKV transitivamente)
+ * se cerró en Task 2 (`nucleo/limites.ts`, D8): ya no hace falta la excepción.
+ * V4 y V7 quedan para la etapa B.
  */
 const EXCEPCIONES_NUCLEO: ExcepcionPuntual[] = [
   { archivo: 'src/sync/nucleo/abrirSobre.ts', patron: /^@\/src\/sync\/adaptadores\/hushsplit\/applyDelta$/ }, // V4
   { archivo: 'src/sync/nucleo/abrirSobre.ts', patron: /^@\/src\/sync\/adaptadores\/supabase\/relay$/ }, // V4 (tipo Envelope, mismo motivo)
   { archivo: 'src/sync/nucleo/drainFailures.ts', patron: /^@\/src\/services\/errorLog$/ }, // V7
-  { archivo: 'src/sync/nucleo/publicarCubos.ts', patron: /^@\/src\/sync\/adaptadores\/hushsplit\/sliceRenewal$/ }, // V3 — se cierra en Task 2
 ];
 
 /**

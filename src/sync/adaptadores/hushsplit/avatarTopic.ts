@@ -8,6 +8,7 @@ import { groupKeyBytes } from '@/src/store/groupKeyStore';
 import { useUserStore } from '@/src/store/userStore';
 import { recordSlicePublished, staleSliceCkeys } from './sliceRenewal';
 import { digestOfJson } from '@/src/sync/nucleo/manifest';
+import { TIMEOUT_ENVIO_MS } from '@/src/sync/nucleo/limites';
 
 /**
  * Ventana de la caché negativa de intentos de fetch (hallazgo #4 de la
@@ -18,11 +19,11 @@ import { digestOfJson } from '@/src/sync/nucleo/manifest';
 const AVATAR_FETCH_RETRY_WINDOW_MS = 5 * 60 * 1000;
 
 /**
- * T-191 (verifier, cuarta tanda): mismo valor que `PUBLICACION_TIMEOUT_MS`
- * (`relaySync.ts`) — duplicado a propósito, no importado, para no cerrar el
- * ciclo `relaySync.ts` → `adaptadorHushSplit.ts` → `avatarTopic.ts`.
+ * T-206-A (D8): mismo valor que `PUBLICACION_TIMEOUT_MS` (`motor/publicar.ts`)
+ * y `EJECUCION_TIMEOUT_MS` (`motor/relayQueue.ts`) — las tres importan
+ * `TIMEOUT_ENVIO_MS` de `nucleo/limites.ts` en vez de repetir el literal.
  */
-const AVATAR_TIMEOUT_MS = 15_000;
+const AVATAR_TIMEOUT_MS = TIMEOUT_ENVIO_MS;
 
 /**
  * Fotos de perfil por referencia (Task 9): en vez de reenviar los bytes del

@@ -1,5 +1,6 @@
 import * as Crypto from 'expo-crypto';
 import { RE_UUID } from '@/src/utils/linkCompacto';
+import { SPLIT_BYTES } from './limites';
 
 /**
  * Cubos por prefijo de id (T-191, spec §2.1) — núcleo puro, sin stores ni
@@ -17,11 +18,15 @@ import { RE_UUID } from '@/src/utils/linkCompacto';
  * Objetivo de tamaño por cubo (spec §8, C3 — decisión del PO, opción B):
  * 192 KB. Con esto un campo se queda en 16 cubos (d=1) hasta ~6.000 gastos;
  * subir a d=2 (256 cubos) recién hace falta para grupos mucho más grandes.
- * El tope duro sigue siendo `MAX_SLICE_BYTES` de `slices.ts` (256 KB) — un
+ * El tope duro sigue siendo `MAX_SLICE_BYTES` de `ckey.ts` (256 KB) — un
  * cubo que lo supera a profundidad máxima se publica igual y `sendEnvelope`
  * lo rechaza, como ya pasa hoy con un registro individual gigante.
+ *
+ * T-206-A (D8): la constante en sí vive en `limites.ts` (single source);
+ * se re-exporta acá porque `SPLIT_BYTES` es la API pública de ESTE módulo
+ * (los tests y `publicarCubos.ts` la importan de `cubos.ts`, no de `limites.ts`).
  */
-export const SPLIT_BYTES = 196_608;
+export { SPLIT_BYTES };
 
 /** Profundidad máxima de prefijo: 4 hex = 65.536 cubos posibles por campo. */
 export const MAX_PROFUNDIDAD = 4;

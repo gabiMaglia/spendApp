@@ -9,6 +9,7 @@ import { cederHilo } from '@/src/sync/nucleo/cederHilo';
 import * as adaptador from '@/src/sync/adaptadores/hushsplit/adaptadorHushSplit';
 import { publicarPorCubos, type CampoDoc } from '@/src/sync/nucleo/publicarCubos';
 import { olvidarTopic as olvidarTopicDelLedger, olvidarCubo } from '@/src/sync/nucleo/sliceLedger';
+import { TIMEOUT_ENVIO_MS } from '@/src/sync/nucleo/limites';
 
 /**
  * Publicación por el relay (T-192: salió de `relaySync.ts`).
@@ -76,9 +77,9 @@ type PublishFailReason = Extract<PublishResult, { ok: false }>['reason'];
 /**
  * Timeout del envío individual: un `sendEnvelope` que nunca resuelve no debe
  * dejar la cola de `encolarPorTopic` trabada para siempre (ADR-007 §T-191,
- * verifier tercera tanda).
+ * verifier tercera tanda). T-206-A (D8): `TIMEOUT_ENVIO_MS` en `nucleo/limites.ts`.
  */
-export const PUBLICACION_TIMEOUT_MS = 15_000;
+export const PUBLICACION_TIMEOUT_MS = TIMEOUT_ENVIO_MS;
 
 /**
  * Cola de promesas por topic — una publicación en vuelo por grupo, la

@@ -60,6 +60,7 @@
  */
 
 import { recordError } from '@/src/services/errorLog';
+import { TIMEOUT_ENVIO_MS } from '@/src/sync/nucleo/limites';
 
 export type ResultadoTrabajo = 'hecho' | 'reintentar' | 'reintentar_cuota' | 'descartar';
 export type TrabajoCola = { prioridad: 'alta' | 'normal'; ejecutar: () => Promise<ResultadoTrabajo> };
@@ -83,8 +84,9 @@ export const REINTENTO_CUOTA_MS = 65_000;
 export const MAX_ANTIGUEDAD_MS = 6 * 60 * 60_000;
 
 /** Igual de generoso que el resto del motor (`STARTUP_TIMEOUT_MS`,
- *  `SESSION_TIMEOUT_MS`): un envío real nunca debería tardar esto. */
-export const EJECUCION_TIMEOUT_MS = 15_000;
+ *  `SESSION_TIMEOUT_MS`): un envío real nunca debería tardar esto.
+ *  T-206-A (D8): `TIMEOUT_ENVIO_MS` en `nucleo/limites.ts`. */
+export const EJECUCION_TIMEOUT_MS = TIMEOUT_ENVIO_MS;
 
 type TrabajoInterno = TrabajoCola & { intentos: number; primerVisto: number };
 type EnEspera = { trabajo: TrabajoInterno; listoEn: number };

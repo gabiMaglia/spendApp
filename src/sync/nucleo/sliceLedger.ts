@@ -26,11 +26,12 @@
  * manifiesto sobre nada.
  */
 
-export interface AlmacenPort {
-  get(k: string): string | undefined;
-  set(k: string, v: string): void;
-  delete(k: string): void;
-}
+// T-206-A (D6): antes este archivo declaraba su propio `AlmacenPort`,
+// idéntico al de `appliedSlices.ts` — dos copias del mismo contrato. Ahora
+// las dos importan `Almacen` de `puertos/puertos.ts` y lo re-exportan con
+// el nombre que ya usaban (`AlmacenPort`), sin tocar a sus consumidores.
+import type { Almacen as AlmacenPort } from '@/src/sync/puertos/puertos';
+export type { AlmacenPort };
 
 export type LedgerEntry = { digest: string; publicadaEn: number };
 

@@ -35,14 +35,16 @@
  * en los textos que la app misma genera (`truncar`, más abajo). Un dato
  * legado de antes de T-150 (sin `maxLength`) ya no se pierde por eso.
  *
- * Sin imports: lo usan módulos puros (acotar) y módulos con nativo (slices).
+ * Sin imports propios: lo usan módulos puros (acotar) y módulos con nativo
+ * (ckey). `limites.ts` tampoco importa nada — es la misma hoja, sólo que
+ * ahora la constante no está copiada dos veces (T-206-A, D8).
  */
+import { MAX_REGISTRO_BYTES } from './limites';
 
 export const MAX_TEXTO_CORTO = 200;
 export const MAX_NOTA = 2_000;
 export const MAX_MIEMBROS = 100;
-/** Igual a `MAX_SLICE_BYTES` (`slices.ts`); repetido para no arrastrar `expo-crypto` acá. */
-export const MAX_REGISTRO_BYTES = 262_144;
+export { MAX_REGISTRO_BYTES };
 
 export function byteLengthUtf8(s: string): number {
   let bytes = 0;

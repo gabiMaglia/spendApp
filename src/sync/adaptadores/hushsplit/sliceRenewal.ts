@@ -1,4 +1,5 @@
 import { createStorage } from '@/src/utils/createStorage';
+import { RENEWAL_WINDOW_MS } from '@/src/sync/nucleo/limites';
 
 /**
  * Cuándo se publicó por última vez cada rebanada (`ckey`), para la regla de
@@ -13,8 +14,13 @@ import { createStorage } from '@/src/utils/createStorage';
  */
 const storage = createStorage('slice-renewal');
 
-/** Ventana de renovación: 20 días. */
-export const RENEWAL_WINDOW_MS = 20 * 24 * 60 * 60 * 1000;
+/**
+ * T-206-A (D8, cierra V3): la constante vive en `nucleo/limites.ts` — antes
+ * estaba acá, y `nucleo/publicarCubos.ts` la importaba de este archivo, que
+ * arrastra `createStorage` (MMKV) transitivamente al núcleo. Se re-exporta
+ * para no romper a `avatarTopic.ts` y a los tests que la importan de acá.
+ */
+export { RENEWAL_WINDOW_MS };
 
 /**
  * Registra que la rebanada de esta `ckey` se publicó (fresca) en `at`.
