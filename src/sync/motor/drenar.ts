@@ -18,8 +18,11 @@ import { cursorFinal, completoFinal, clasificarRetenidas, quitarNoResueltas, typ
 import { chequearManifiestos } from './chequeoManifiesto';
 import type { DrainResult, DrainOptions } from '@/src/sync/puertos/puertos';
 
-export { DRAIN_FETCH_LIMIT, DRAIN_MAX_PAGES } from './relectura';
-export { sigueSiendoLaClave } from './claveVigente';
+// T-206-A (D9): acá se re-exportaban también `DRAIN_FETCH_LIMIT`/
+// `DRAIN_MAX_PAGES` (`./relectura`) y `sigueSiendoLaClave` (`./claveVigente`)
+// — una fachada doble: nadie las importaba de ESTE archivo, sólo
+// `relaySync.ts` las tomaba de acá para volver a re-exportarlas. `relaySync.ts`
+// pasa a importarlas directo de sus dueños.
 // T-206-A (D18): estos tipos vivían en nucleo/drenarTypes.ts, un archivo
 // aparte sólo para que este módulo quedara bajo 260 líneas — ahora en
 // puertos/puertos.ts, donde tienen sentido propio.

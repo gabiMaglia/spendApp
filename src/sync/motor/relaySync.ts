@@ -22,9 +22,12 @@ export {
 
 export {
   drainGroup,
-  sigueSiendoLaClave,
-  DRAIN_FETCH_LIMIT,
-  DRAIN_MAX_PAGES,
   type DrainResult,
   type DrainOptions,
 } from './drenar';
+
+// T-206-A (D9): `sigueSiendoLaClave`/`DRAIN_FETCH_LIMIT`/`DRAIN_MAX_PAGES`
+// vienen directo de sus dueños — `drenar.ts` sólo las reexportaba para que
+// ESTA fachada las tomara de ahí (doble re-export sin motivo propio).
+export { sigueSiendoLaClave } from './claveVigente';
+export { DRAIN_FETCH_LIMIT, DRAIN_MAX_PAGES } from './relectura';
