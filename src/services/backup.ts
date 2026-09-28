@@ -12,7 +12,7 @@ import { useCommentStore } from '@/src/store/commentStore';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupKeyStore, type GroupKeyRecord } from '@/src/store/groupKeyStore';
 import { useArchiveStore, type ArchiveReason } from '@/src/store/archiveStore';
-import { useSettingsStore } from '@/src/store/settingsStore';
+import { useSettingsStore, esMonedaSoportada, DEFAULT_DISPLAY_CURRENCY } from '@/src/store/settingsStore';
 import { useLangStore, type LanguageChoice } from '@/src/store/langStore';
 import { SUPPORTED_LANGUAGES, type SupportedLanguage } from '@/src/i18n';
 import { esSkinId, FALLBACK_SKIN, type SkinId } from '@/src/skins/registry';
@@ -76,7 +76,12 @@ export interface BackupFile {
    * v1 — esos backups no las llevaban.
    */
   groupKeys?:      GroupKeyRecord[];
-  /** T-213: grupos archivados (ids + motivo de cada uno). Ausente en v1/v2. */
+  /**
+   * T-213: grupos archivados (ids + motivo de cada uno). Ausente en v1/v2.
+   * `applyBackup` sólo lo restaura para un backup PROPIO (`esYo(ownerId)`,
+   * QA defecto 3): es una preferencia del DUEÑO del archivo, no un dato del
+   * grupo — un backup ajeno no debe imponer qué archivó la otra cuenta.
+   */
   archived?: {
     ids:     string[];
     reasons: Record<string, ArchiveReason>;
@@ -87,7 +92,8 @@ export interface BackupFile {
    * propósito: es un heurístico de gama del DISPOSITIVO
    * (`esDispositivoDeGamaBaja`), no una preferencia de la cuenta — llevarlo a
    * un teléfono distinto le impondría una elección pensada para otro
-   * hardware. Ausente en v1/v2.
+   * hardware. Ausente en v1/v2. Mismo gate que `archived` (sólo backup
+   * propio, QA defecto 3).
    */
   settings?: {
     displayCurrency:   CurrencyCode;
@@ -286,30 +292,6 @@ export function applyBackup(backup: BackupFile): void {
   useCommentStore.setState({ comments: [] });
   useCommentStore.getState().mergeComments(backup.comments ?? []);
 
-  // T-213: archivados y ajustes se restauran SIEMPRE (reemplazo, como el
-  // resto), sin importar si el backup es propio o ajeno — son preferencias
-  // de qué se ve y cómo, no accesos a datos de otra persona.
-  if (backup.archived) {
-    useArchiveStore.getState().restore(backup.archived.ids, backup.archived.reasons);
-  }
-
-  if (backup.settings) {
-    const s = backup.settings;
-    useSettingsStore.getState().setDisplayCurrency(s.displayCurrency);
-    // Un skin desconocido (backup corrupto, o de una versión futura con un
-    // skin que ésta no tiene) cae al fallback — mismo criterio que
-    // `settingsStore.hydrate()` con un skin guardado inválido.
-    useSettingsStore.getState().setSkin(esSkinId(s.skin) ? s.skin : FALLBACK_SKIN);
-    useSettingsStore.getState().setNotifExpenses(s.notifExpenses);
-    useSettingsStore.getState().setNotifDeletions(s.notifDeletions);
-    useSettingsStore.getState().setNotifInvites(s.notifInvites);
-    useSettingsStore.getState().setNotifSettlements(s.notifSettlements);
-    // Mismo criterio: un idioma inválido no pisa el que ya estaba elegido.
-    if (s.language === 'auto' || SUPPORTED_LANGUAGES.includes(s.language as SupportedLanguage)) {
-      useLangStore.getState().setLanguage(s.language);
-    }
-  }
-
   /**
    * V1 (verifier, T-191 segunda tanda): un restore REEMPLAZA los stores de
    * cada grupo — no es un merge incremental. El cursor del topic, el ledger
@@ -348,8 +330,43 @@ export function applyBackup(backup: BackupFile): void {
    * NUNCA sus claves ni un alta mía: adoptar la clave de un grupo que no es
    * mío sería leer conversaciones ajenas sin haber sido invitado, y darse de
    * alta ahí es autoinvitarse a un grupo de otra persona.
+   *
+   * T-213 (QA, defecto 3): `archived`/`settings` entran al MISMO gate, no
+   * SIEMPRE como en la primera versión de este ticket. Son preferencias del
+   * DUEÑO del archivo (qué idioma usa, qué grupos tiene archivados), no
+   * datos del grupo que un backup ajeno trae para consulta — pisarlas con
+   * las de otra persona sería el mismo tipo de apropiación que adoptar su
+   * clave de grupo, sólo que de la cuenta en vez del grupo.
    */
   if (backup.ownerId !== undefined && esYo(backup.ownerId)) {
+    if (backup.archived) {
+      useArchiveStore.getState().restore(backup.archived.ids, backup.archived.reasons);
+    }
+
+    if (backup.settings) {
+      const s = backup.settings;
+      // Una moneda desconocida (backup corrupto, o de una versión futura con
+      // una moneda que esta build no tiene) cae al default — mismo criterio
+      // que `skin`. Sin este chequeo, `getCurrency(code)!` devuelve
+      // `undefined` en runtime y el primer `formatMoney`/`minorFactor` que
+      // corra revienta (QA T-213, defecto 1 bloqueante).
+      useSettingsStore.getState().setDisplayCurrency(
+        esMonedaSoportada(s.displayCurrency) ? s.displayCurrency : DEFAULT_DISPLAY_CURRENCY,
+      );
+      // Un skin desconocido (backup corrupto, o de una versión futura con un
+      // skin que ésta no tiene) cae al fallback — mismo criterio que
+      // `settingsStore.hydrate()` con un skin guardado inválido.
+      useSettingsStore.getState().setSkin(esSkinId(s.skin) ? s.skin : FALLBACK_SKIN);
+      useSettingsStore.getState().setNotifExpenses(s.notifExpenses);
+      useSettingsStore.getState().setNotifDeletions(s.notifDeletions);
+      useSettingsStore.getState().setNotifInvites(s.notifInvites);
+      useSettingsStore.getState().setNotifSettlements(s.notifSettlements);
+      // Mismo criterio: un idioma inválido no pisa el que ya estaba elegido.
+      if (s.language === 'auto' || SUPPORTED_LANGUAGES.includes(s.language as SupportedLanguage)) {
+        useLangStore.getState().setLanguage(s.language);
+      }
+    }
+
     if (backup.groupKeys?.length) {
       useGroupKeyStore.getState().adoptKeys(backup.groupKeys);
 
