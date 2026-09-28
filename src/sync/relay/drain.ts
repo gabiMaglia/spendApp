@@ -1,27 +1,70 @@
+import { useAuthStore } from '@/src/store/authStore';
+import { useGroupStore } from '@/src/store/groupStore';
+import { useGroupKeyStore } from '@/src/store/groupKeyStore';
+import { useExpenseStore } from '@/src/store/expenseStore';
+import { usePaymentStore } from '@/src/store/paymentStore';
+import { syncedNow } from '@/src/utils/syncedClock';
+import { snapshot, noticesFor, type Snapshot } from '@/src/services/syncNotices';
+import { announce } from '@/src/services/notifications';
+import { applyApprovedLeaves } from '@/src/services/applyLeave';
+import { deriveTopic, fromHex } from '../envelopeCrypto';
+import { drainGroup, sigueSiendoLaClave } from '../relaySync';
+import { limpiarPendienteDeDrenaje } from '../pendingDrain';
+import { readCursor, writeCursor, deviceId } from './cursor';
 import { syncableGroupIds } from './publish';
 
 /**
- * Drenaje con debounce y `drainAll` (T-189: extraído de `relayEngine.ts`).
- *
- * `drainNow` en sí (bajar y aplicar UN grupo) se queda en la fachada a
- * propósito: `syncNotices.test.ts` («está enchufado al sync») lee el TEXTO
- * de `relayEngine.ts` y exige, con `export async function drainNow` ahí
- * mismo, que `drainGroup(` envuelva a `antesDeAplicar:` y éste a `snapshot(`
- * — es una guarda contra reintroducir la foto ANTES de la bajada (T-158b).
- * Ese archivo no distingue "se movió a otro módulo" de "se rompió el
- * enganche", así que el texto tiene que seguir estando ahí.
- *
- * Este módulo sólo sabe CUÁNDO drenar (debounce de avisos realtime, y el
- * barrido de `drainAll`) — no CÓMO. Recibe el `drainNow` real por inyección,
- * igual que `startPolling(releer)` en `./poll.ts` recibe la relectura: así
- * no importa el drenaje real "hacia arriba", hacia la fachada.
+ * Drenaje (T-189): `drainNow` de un grupo, su debounce de avisos realtime, y
+ * `drainAll`. Vive acá completo (no inyectado desde la fachada): T-189
+ * ronda 2 reescribió `syncNotices.test.ts` para que lea ESTE archivo en vez
+ * de la fachada — la guarda contra reintroducir la foto ANTES de la bajada
+ * (T-158b) sigue el código, no un punto fijo arbitrario.
  */
-export type DrainNowImpl = (groupId: string) => Promise<number>;
-let ejecutarDrainNow: DrainNowImpl = async () => 0;
 
-/** Sólo la fachada llama a esto, una vez, al cargar el módulo. */
-export function setDrainNowImpl(fn: DrainNowImpl): void {
-  ejecutarDrainNow = fn;
+/**
+ * Baja y aplica lo pendiente de un grupo. El cursor se persiste DESPUÉS de
+ * aplicar (si muriera antes, esos sobres no se volverían a pedir).
+ */
+export async function drainNow(groupId: string): Promise<number> {
+  const userId = useAuthStore.getState().currentUser?.id;
+  const record = useGroupKeyStore.getState().getKey(groupId);
+  if (!userId || !record) return 0;
+
+  // T-158b: la foto previa se toma PEREZOSAMENTE, sólo si `drainGroup`
+  // encuentra algo que aplicar — la mayoría de las vueltas no traen nada.
+  let antes: Snapshot | undefined;
+
+  try {
+    const topic = await deriveTopic(fromHex(record.key), record.epoch);
+    const r = await drainGroup(groupId, userId, deviceId(), readCursor(topic), {
+      antesDeAplicar: () => {
+        antes = snapshot(useExpenseStore.getState().expenses, syncedNow(),
+          useGroupStore.getState().groups, usePaymentStore.getState().payments);
+      },
+    });
+    if (!r.ok) return 0;
+    // T-136 · D-1: clave cambiada mientras esperaba => cursor del topic viejo.
+    if (!sigueSiendoLaClave(groupId, record)) return 0;
+    // T-146: `drainGroup` no devuelve un cursor por encima de una rebanada fallida.
+    writeCursor(topic, r.cursor);
+    // T-089: sólo se limpia con el buzón leído hasta el final (`r.completo`).
+    if (r.completo) limpiarPendienteDeDrenaje(groupId);
+    if (r.applied > 0) applyApprovedLeaves();
+    // T-010: `antes` siempre está seteado si `r.applied > 0` (ver `antesDeAplicar`).
+    if (r.applied > 0 && antes) void avisarDeLoNuevo(antes, userId);
+    return r.applied;
+  } catch {
+    return 0; // offline: se reintenta al próximo arranque o aviso
+  }
+}
+
+/** T-010: avisa de lo que llegó en esta bajada, sin frenar el sync si falla. */
+async function avisarDeLoNuevo(antes: Snapshot, userId: string): Promise<void> {
+  try {
+    const avisos = noticesFor(antes, useExpenseStore.getState().expenses, useGroupStore.getState().groups,
+      userId, syncedNow(), usePaymentStore.getState().payments);
+    if (avisos.length > 0) await announce(avisos);
+  } catch { /* nunca rompe el sync */ }
 }
 
 /**
@@ -82,7 +125,7 @@ const pendientesDrain = new Map<string, ReturnType<typeof setTimeout>>();
 function dispararDrainAgendado(groupId: string): void {
   if (drenajesPorAvisoEnCurso.has(groupId)) return;
   drenajesPorAvisoEnCurso.add(groupId);
-  void ejecutarDrainNow(groupId).finally(() => {
+  void drainNow(groupId).finally(() => {
     drenajesPorAvisoEnCurso.delete(groupId);
   });
 }
@@ -111,6 +154,6 @@ export function cancelPendingDrains(): void {
 /** Drena todos los grupos sincronizables. Se llama al abrir la app. */
 export async function drainAll(): Promise<number> {
   let total = 0;
-  for (const groupId of syncableGroupIds()) total += await ejecutarDrainNow(groupId);
+  for (const groupId of syncableGroupIds()) total += await drainNow(groupId);
   return total;
 }

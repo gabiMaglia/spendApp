@@ -119,13 +119,25 @@ function fuentes(dir: string): string[] {
  * Un grep a mano no lo diría nunca.
  */
 describe('quién puede escribir en la bandeja', () => {
-  it('sólo el motor de sync llama a announce()', () => {
+  /**
+   * T-189 (ronda 2): el motor de sync se partió en `relayEngine.ts`
+   * (fachada) + `sync/relay/*.ts` (módulos) — el aviso vive donde vive la
+   * lógica que lo dispara, no forzado a quedarse en la fachada. Esto corrige
+   * la RUTA que el guard reconoce como "el motor de sync", no debilita lo
+   * que verifica: sigue fallando por diferencia ante cualquier archivo FUERA
+   * de ese conjunto que empiece a llamar a `announce()`.
+   */
+  const PERMITIDOS = new Set(['services/notifications', 'sync/relayEngine']);
+  const esModuloDelMotor = (ruta: string) => /^sync\/relay\/[^/]+$/.test(ruta);
+
+  it('sólo el motor de sync (fachada + sus módulos) llama a announce()', () => {
     const llamadores = [...fuentes(SRC), ...fuentes(APP)]
       .filter(ruta => /(^|[^A-Za-z])announce\s*\(/.test(readFileSync(ruta, 'utf8')))
       .map(ruta => relative(SRC, ruta).replace(/\.tsx?$/, '').split(sep).join('/'))
       .sort();
 
-    expect(llamadores).toEqual(['services/notifications', 'sync/relayEngine']);
+    const inesperados = llamadores.filter(r => !PERMITIDOS.has(r) && !esModuloDelMotor(r));
+    expect(inesperados).toEqual([]);
   });
 });
 

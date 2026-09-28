@@ -179,7 +179,11 @@ describe('está enchufado al sync', () => {
   const fs: typeof import('fs') = require('fs');
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const path: typeof import('path') = require('path');
-  const motor = fs.readFileSync(path.join(__dirname, '../../sync/relayEngine.ts'), 'utf8');
+  // T-189 (ronda 2): `drainNow`/`avisarDeLoNuevo` viven en `sync/relay/drain.ts`
+  // — el guard sigue el código, no un archivo fijo. `drainContactsNow` (el
+  // aviso "me uní a un grupo") vive en `sync/relay/contactos.ts`.
+  const drain = fs.readFileSync(path.join(__dirname, '../../sync/relay/drain.ts'), 'utf8');
+  const contactos = fs.readFileSync(path.join(__dirname, '../../sync/relay/contactos.ts'), 'utf8');
 
   /**
    * T-158b: la foto ya NO se saca antes de llamar a `drainGroup` — se saca
@@ -190,7 +194,7 @@ describe('está enchufado al sync', () => {
    * que `snapshot(` cuelga de `antesDeAplicar`, no de la línea antigua.
    */
   it('drainNow saca la foto previa perezosamente, dentro de antesDeAplicar', () => {
-    const fn = motor.slice(motor.indexOf('export async function drainNow'));
+    const fn = drain.slice(drain.indexOf('export async function drainNow'));
     const bajada = fn.indexOf('drainGroup(');
     const callback = fn.indexOf('antesDeAplicar:');
     const foto = fn.indexOf('snapshot(');
@@ -204,18 +208,18 @@ describe('está enchufado al sync', () => {
   });
 
   it('drainNow avisa de lo que llegó', () => {
-    expect(motor).toContain('avisarDeLoNuevo(');
-    expect(motor).toContain('noticesFor(');
+    expect(drain).toContain('avisarDeLoNuevo(');
+    expect(drain).toContain('noticesFor(');
   });
 
   // Un aviso que tira no puede llevarse puesto el sync.
   it('el aviso va sin await para no meterse en el camino del sync', () => {
-    const linea = motor.split('\n').find(l => l.includes('avisarDeLoNuevo(antes'))!;
+    const linea = drain.split('\n').find(l => l.includes('avisarDeLoNuevo(antes'))!;
     expect(linea).toContain('void ');
   });
 
   it('entrar a un grupo nuevo también avisa', () => {
-    expect(motor).toMatch(/kind: 'joined'/);
+    expect(contactos).toMatch(/kind: 'joined'/);
   });
 });
 

@@ -2,33 +2,24 @@ import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { withTimeout } from '@/src/utils/withTimeout';
+import { announce } from '@/src/services/notifications';
 import {
   sendGroupKeyResultado, announceCardResultado, listPeers, myContactCard, cardFingerprint,
-  cardYaEnviada, marcarCardEnviada,
+  cardYaEnviada, marcarCardEnviada, ensureContactSecret, deriveContactTopic, drainContacts,
 } from '../contactChannel';
+import { avisarConflictosDelDrenaje } from '../keyConflictNotice';
 import { encolar } from '../relayQueue';
 import { estaPendienteDeDrenaje } from '../pendingDrain';
-import { deviceId } from './cursor';
-import { syncableGroupIds } from './publish';
+import { readCursor, writeCursor, deviceId } from './cursor';
+import { syncableGroupIds, publishNow } from './publish';
+import { drainNow } from './drain';
 
 /**
- * `announceGroupToContacts` necesita `drainNow`/`publishNow`, que viven en la
- * fachada (`drainNow` está atado ahí por `syncNotices.test.ts`, ver
- * `relayEngine.ts`). Se inyectan una vez, mismo patrón que `setDrainNowImpl`
- * en `./drain.ts` — para no importar la fachada y crear un ciclo.
- */
-type DrainPublishImpl = {
-  drainNow: (groupId: string) => Promise<number>;
-  publishNow: (groupId: string) => Promise<void>;
-};
-let impl: DrainPublishImpl = { drainNow: async () => 0, publishNow: async () => {} };
-export function setDrainPublishImpl(fn: DrainPublishImpl): void {
-  impl = fn;
-}
-
-/**
- * Contactos (T-189: extraído de `relayEngine.ts`): reparto de tarjeta propia
- * y reenvío de claves de grupo a contactos conocidos.
+ * Contactos (T-189): tarjeta propia, reenvío de claves de grupo y drenaje del
+ * buzón de contactos. `drainNow`/`publishNow` se importan directo de
+ * `./drain.ts`/`./publish.ts` (dirección fija: fachada → invitaciones →
+ * contactos → drain → publish → poll/cursor). Lo único "hacia arriba"
+ * (`startRelay`) llega como PARÁMETRO de la llamada, como `startPolling(releer)`.
  */
 
 /** T-138-bis: ver `anunciarMiTarjeta`. */
@@ -82,27 +73,16 @@ export async function anunciarMiTarjeta(): Promise<void> {
   }
 }
 
-/**
- * **Verifier D4: cooldown contra la cuota (20 sobres/min, 011a).** Corre en
- * cada `startRelay()`; sin freno, un grupo de M miembros manda M-1 sobres por
- * reinicio, y varios reinicios seguidos en un login normal pueden acercarse
- * o pasar la cuota sin que el usuario haya tocado nada. El cooldown lo acota
- * a UN reenvío real cada `REENVIO_CLAVES_COOLDOWN_MS`.
- *
- * **Ronda 2: el cooldown solo no alcanza** contra la ráfaga de UN SOLO
- * arranque (medido: 5×8 → 35 sobres, contra 20/min de cuota). Cada sobre pasa
- * por `relayQueue`: los grupos recién ADOPTADOS van con prioridad `alta`, el
- * resto es reenvío de rutina (`normal`).
- */
+/** Verifier D4: cooldown contra la cuota (20 sobres/min, 011a) — UN reenvío
+ *  real cada `REENVIO_CLAVES_COOLDOWN_MS`, sea cual sea la cantidad de
+ *  reinicios. Ronda 2: no alcanza solo contra la ráfaga de un único arranque
+ *  (medido: 5×8 → 35 sobres); cada sobre pasa por `relayQueue`. */
 const REENVIO_CLAVES_COOLDOWN_MS = 5 * 60_000;
 let ultimoReenvioClaves = 0;
 
-/**
- * **Verifier R3-3(c): la prioridad `alta` sobrevive a matar la app.**
- * `relayQueue` vive sólo en memoria — se persiste qué grupos siguen "recién
- * adoptados" (TTL generoso) en el mismo bucket cifrado que ya guarda los
- * cursores, para que un arranque en frío no los degrade a prioridad `normal`.
- */
+/** Verifier R3-3(c): la prioridad `alta` sobrevive a matar la app — se
+ *  persiste qué grupos siguen "recién adoptados" (TTL generoso) junto a los
+ *  cursores, para que un arranque en frío no los degrade a `normal`. */
 const ADOPCION_ALTA_PRIORIDAD_TTL_MS = 24 * 60 * 60_000;
 const ADOPCION_ALTA_PRIORIDAD_KEY = 'adopciones_alta_prioridad';
 
@@ -204,9 +184,9 @@ export async function announceGroupToContacts(groupId: string): Promise<number> 
   // El estado se publica ANTES de repartir claves (si no, el invitado abre un
   // buzón vacío). T-089: se drena primero y no se fuerza — si la guarda lo
   // bloquea, ni la publicación ni el reparto de claves salen.
-  await impl.drainNow(groupId);
+  await drainNow(groupId);
   if (estaPendienteDeDrenaje(groupId)) return 0;
-  await impl.publishNow(groupId);
+  await publishNow(groupId);
 
   marcarAdopciones([groupId]); // conserva prioridad alta si esto se regenera en un próximo arranque
   const owner = me.id; // T-147 (punto 4): mismo criterio que `reenviarClavesDeGrupo`.
@@ -233,4 +213,42 @@ export async function announceGroupToContacts(groupId: string): Promise<number> 
   }
 
   return encolados;
+}
+
+/**
+ * Recoge lo que dejaron en mi buzón de contacto: tarjetas y claves de grupo.
+ * El cursor se persiste DESPUÉS de aplicarlas. `startRelay` llega por
+ * PARÁMETRO (lo pasa quien llama, ver comentario del tope del archivo) —
+ * nunca como estado de módulo.
+ */
+export async function drainContactsNow(startRelay: () => Promise<void>): Promise<number> {
+  const secret = ensureContactSecret();
+  if (!secret) return 0;
+
+  try {
+    const topic = await deriveContactTopic(secret);
+    const r = await drainContacts(secret, deviceId(), readCursor(topic));
+    writeCursor(topic, r.cursor);
+
+    // T-136: va ANTES del drainNow/joined-groups — ese bloque puede tirar y
+    // se comería el aviso de un conflicto de clave ya persistido.
+    await avisarConflictosDelDrenaje(r);
+
+    // Llegó la clave de un grupo nuevo: bajar su contenido y quedarse escuchando.
+    if (r.joinedGroups.length > 0) {
+      for (const groupId of r.joinedGroups) await drainNow(groupId);
+      void startRelay();
+
+      // T-010: va DESPUÉS de drenar — recién ahí el grupo tiene nombre.
+      void announce(r.joinedGroups.map(groupId => ({
+        kind: 'joined' as const,
+        groupId,
+        groupName: useGroupStore.getState().getById(groupId)?.name ?? '',
+      })).filter(n => n.groupName !== ''));
+    }
+
+    return r.added + r.joinedGroups.length + r.conflictedGroups.length;
+  } catch {
+    return 0; // offline: se reintenta al próximo arranque o aviso
+  }
 }

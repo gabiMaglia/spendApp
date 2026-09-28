@@ -1,67 +1,16 @@
 import { subscribeTopic } from '../relay';
 import { deriveInviteTopic, type GroupInvite } from '../groupInvite';
 import { activeInvites, processInvite } from '../inviteEngine';
-import { ensureContactSecret, deriveContactTopic, drainContacts } from '../contactChannel';
-import { avisarConflictosDelDrenaje } from '../keyConflictNotice';
-import { readCursor, writeCursor, deviceId } from './cursor';
+import { ensureContactSecret, deriveContactTopic } from '../contactChannel';
+import { deviceId } from './cursor';
 
 /**
- * Invitaciones y contactos (T-189: extraído de `relayEngine.ts`): escucha
- * los buzones de invitación abiertos (quien invita espera reclamos, quien
- * entra espera su clave) y el buzón de contactos propio.
+ * Invitaciones y contactos (T-189): escucha los buzones de invitación
+ * abiertos (quien invita espera reclamos, quien entra espera su clave) y el
+ * buzón de contactos propio. `drainContactsNow` vive en `./contactos.ts`
+ * (dirección fija: fachada → invitaciones → contactos → drain → publish →
+ * poll/cursor); este módulo sólo suscribe.
  */
-
-/**
- * `drainContactsNow` necesita `drainNow` (fachada, atado ahí por
- * `syncNotices.test.ts`) y `startRelay` — se inyectan una vez desde la
- * fachada, mismo patrón que `setDrainPublishImpl` en `./contactos.ts`. El
- * aviso de "me uní a un grupo" (con `kind: 'joined'`) tiene la misma
- * restricción de `inventarioDeAvisos.test.ts` / `syncNotices.test.ts` que ya
- * obligó a esos hooks: se dispara por un hook aparte que registra la
- * fachada, para que el texto de esa notificación se quede ahí.
- */
-type ContactosImpl = { drainNow: (groupId: string) => Promise<number>; startRelay: () => Promise<void> };
-let impl: ContactosImpl = { drainNow: async () => 0, startRelay: async () => {} };
-export function setContactosImpl(fn: ContactosImpl): void {
-  impl = fn;
-}
-
-type NotificadorDeJoined = (groupIds: string[]) => void;
-let notificarJoined: NotificadorDeJoined = () => {};
-export function setNotificadorDeJoined(fn: NotificadorDeJoined): void {
-  notificarJoined = fn;
-}
-
-/**
- * Recoge lo que dejaron en mi buzón de contacto: tarjetas y claves de grupo.
- * El cursor se persiste DESPUÉS de aplicarlas.
- */
-export async function drainContactsNow(): Promise<number> {
-  const secret = ensureContactSecret();
-  if (!secret) return 0;
-
-  try {
-    const topic = await deriveContactTopic(secret);
-    const r = await drainContacts(secret, deviceId(), readCursor(topic));
-    writeCursor(topic, r.cursor);
-
-    // T-136: va ANTES del drainNow/joined-groups — ese bloque puede tirar y
-    // se comería el aviso de un conflicto de clave ya persistido.
-    await avisarConflictosDelDrenaje(r);
-
-    // Llegó la clave de un grupo nuevo: bajar su contenido y quedarse escuchando.
-    if (r.joinedGroups.length > 0) {
-      for (const groupId of r.joinedGroups) await impl.drainNow(groupId);
-      void impl.startRelay();
-      // T-010: va DESPUÉS de drenar — recién ahí el grupo tiene nombre.
-      notificarJoined(r.joinedGroups);
-    }
-
-    return r.added + r.joinedGroups.length + r.conflictedGroups.length;
-  } catch {
-    return 0; // offline: se reintenta al próximo arranque o aviso
-  }
-}
 
 /**
  * Escucha mi buzón de contactos: quien escanea mi QR deja su tarjeta ahí.

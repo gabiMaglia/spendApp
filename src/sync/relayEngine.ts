@@ -1,136 +1,37 @@
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
-import { useGroupStore } from '@/src/store/groupStore';
-import { useExpenseStore } from '@/src/store/expenseStore';
-import { usePaymentStore } from '@/src/store/paymentStore';
-import { syncedNow } from '@/src/utils/syncedClock';
-import { snapshot, noticesFor, type Snapshot } from '@/src/services/syncNotices';
-import { announce } from '@/src/services/notifications';
 import { useAuthStore } from '@/src/store/authStore';
 import { deriveTopic, fromHex } from './envelopeCrypto';
 import { subscribeTopic, isRelayConfigured } from './relay';
 import { ensureRelaySession, haySesionEnCurso, reabrirSesionAnonima } from './relaySession';
 import type { SessionKind } from './relaySession';
 import { setUltimaSesionConocida } from './sessionStatus';
-import { drainGroup, sigueSiendoLaClave, type PublishResult } from './relaySync';
-import { noticeDeCaida } from './syncDownNotices';
-import { noticeDeReloj } from './clockNotice';
-import { limpiarPendienteDeDrenaje } from './pendingDrain';
-import { applyApprovedLeaves } from '@/src/services/applyLeave';
 import { processAllInvites } from './inviteEngine';
 import { processAllContactInvites } from './contactInviteEngine';
 import { verifyMyKeyRegistered } from './deviceKeys';
 import { withTimeout } from '@/src/utils/withTimeout';
-import { readCursor, writeCursor, deviceId } from './relay/cursor';
+import { deviceId } from './relay/cursor';
 export { readCursor, writeCursor, olvidarCursor, deviceId } from './relay/cursor';
 import { marcarCanal, olvidarCanal, startPolling, stopPolling } from './relay/poll';
 export { POLL_OK_MS, POLL_CAIDO_MS, POLL_INTERVAL_MS, intervaloDePoll } from './relay/poll';
-import { syncableGroupIds, publishNow, cancelPendingPublishes, reintentarPublicacionesConCuota, setNotificadorDePublish } from './relay/publish';
+import { syncableGroupIds, cancelPendingPublishes, reintentarPublicacionesConCuota } from './relay/publish';
 export { PUBLISH_DEBOUNCE_MS, syncableGroupIds, schedulePublish, publishNow, cancelPendingPublishes } from './relay/publish';
-import { scheduleDrain, cancelPendingDrains, drainAll, setDrainNowImpl } from './relay/drain';
-export { DRAIN_DEBOUNCE_MS, scheduleDrain, cancelPendingDrains, drainAll } from './relay/drain';
-import { anunciarMiTarjeta, reenviarClavesDeGrupo, setDrainPublishImpl } from './relay/contactos';
-export { anunciarMiTarjeta, __resetReenvioClaves, announceGroupToContacts } from './relay/contactos';
-import { subscribeInvites, subscribeContacts, crearOnInviteNews, drainContactsNow, setContactosImpl, setNotificadorDeJoined } from './relay/invitaciones';
-export { drainContactsNow } from './relay/invitaciones';
+import { drainNow, scheduleDrain, cancelPendingDrains, drainAll } from './relay/drain';
+export { DRAIN_DEBOUNCE_MS, drainNow, scheduleDrain, cancelPendingDrains, drainAll } from './relay/drain';
+import { anunciarMiTarjeta, reenviarClavesDeGrupo, drainContactsNow } from './relay/contactos';
+export { anunciarMiTarjeta, __resetReenvioClaves, announceGroupToContacts, drainContactsNow } from './relay/contactos';
+import { subscribeInvites, subscribeContacts, crearOnInviteNews } from './relay/invitaciones';
 import { vaciarCola } from './relayQueue';
 
 /**
- * Motor del sync en tiempo real (fachada, T-189). Mapa: `relay/cursor.ts`
- * (cursores+deviceId), `relay/poll.ts` (poll adaptativo), `relay/publish.ts`
- * (debounce de publicación), `relay/drain.ts` (debounce/`drainAll`),
- * `relay/contactos.ts` + `relay/invitaciones.ts` (tarjeta, claves,
- * invitaciones). Detalles de diseño en git log previo a T-189 y en los ADR
- * citados función por función.
- *
- * `drainNow` y los `avisar*`/`announce()` se quedan acá (no en los módulos
- * de abajo) por tests que leen el TEXTO de este archivo — `inventarioDeAvisos.test.ts`
- * exige que sólo `services/notifications.ts` y esta fachada llamen a
- * `announce()`, y `syncNotices.test.ts` exige `export async function
- * drainNow` acá con `drainGroup(`→`antesDeAplicar:`→`snapshot(` en orden
- * (T-158b). Los módulos avisan por hooks inyectados una vez (`setNotificadorDePublish`,
- * `setDrainNowImpl`, etc.) — mismo patrón que `startPolling(releer)`.
+ * Motor del sync en tiempo real (fachada, T-189). Dirección fija de imports:
+ * fachada → `relay/invitaciones.ts` → `relay/contactos.ts` → `relay/drain.ts`
+ * → `relay/publish.ts` → `relay/poll.ts`/`relay/cursor.ts`. Ningún módulo de
+ * abajo importa uno de arriba; lo único que necesita `startRelay` (definido
+ * más abajo, declaración hoisteada) lo recibe como PARÁMETRO de la llamada
+ * (`drainContactsNow(startRelay)`, `crearOnInviteNews(startRelay)`) — nunca
+ * como estado de módulo (setter). Detalles de diseño en git log previo a
+ * T-189 y en los ADR citados función por función en cada módulo.
  */
-setNotificadorDePublish((groupId, result) => {
-  void avisarSiDejoDeSincronizar(groupId, result);
-  void avisarSiElRelojEstaMal();
-});
-
-/** T-054/T-058: anota en la bandeja cuando un grupo dejó de sincronizar. */
-async function avisarSiDejoDeSincronizar(groupId: string, result: PublishResult): Promise<void> {
-  try {
-    const grupo = useGroupStore.getState().groups.find(g => g.id === groupId);
-    const aviso = noticeDeCaida(groupId, grupo?.name ?? '', result);
-    if (aviso) await announce([aviso]);
-  } catch { /* nunca rompe la publicación */ }
-}
-
-/** ADR-005/T-054: avisa si el reloj del teléfono está desfasado. */
-async function avisarSiElRelojEstaMal(): Promise<void> {
-  try {
-    const aviso = noticeDeReloj();
-    if (aviso) await announce([aviso]);
-  } catch { /* nunca rompe la publicación */ }
-}
-
-// --- drenaje -----------------------------------------------------------------
-
-setDrainNowImpl(drainNow);
-setDrainPublishImpl({ drainNow, publishNow });
-setContactosImpl({ drainNow, startRelay });
-/** `kind: 'joined'` se queda acá — mismo motivo que `avisarDeLoNuevo`. */
-setNotificadorDeJoined(groupIds => {
-  void announce(groupIds.map(groupId => ({
-    kind: 'joined' as const,
-    groupId,
-    groupName: useGroupStore.getState().getById(groupId)?.name ?? '',
-  })).filter(n => n.groupName !== ''));
-});
-
-/**
- * Baja y aplica lo pendiente de un grupo. El cursor se persiste DESPUÉS de
- * aplicar (si muriera antes, esos sobres no se volverían a pedir).
- */
-export async function drainNow(groupId: string): Promise<number> {
-  const userId = useAuthStore.getState().currentUser?.id;
-  const record = useGroupKeyStore.getState().getKey(groupId);
-  if (!userId || !record) return 0;
-
-  // T-158b: la foto previa se toma PEREZOSAMENTE, sólo si `drainGroup`
-  // encuentra algo que aplicar — la mayoría de las vueltas no traen nada.
-  let antes: Snapshot | undefined;
-
-  try {
-    const topic = await deriveTopic(fromHex(record.key), record.epoch);
-    const r = await drainGroup(groupId, userId, deviceId(), readCursor(topic), {
-      antesDeAplicar: () => {
-        antes = snapshot(useExpenseStore.getState().expenses, syncedNow(),
-          useGroupStore.getState().groups, usePaymentStore.getState().payments);
-      },
-    });
-    if (!r.ok) return 0;
-    // T-136 · D-1: clave cambiada mientras esperaba => cursor del topic viejo.
-    if (!sigueSiendoLaClave(groupId, record)) return 0;
-    // T-146: `drainGroup` no devuelve un cursor por encima de una rebanada fallida.
-    writeCursor(topic, r.cursor);
-    // T-089: sólo se limpia con el buzón leído hasta el final (`r.completo`).
-    if (r.completo) limpiarPendienteDeDrenaje(groupId);
-    if (r.applied > 0) applyApprovedLeaves();
-    // T-010: `antes` siempre está seteado si `r.applied > 0` (ver `antesDeAplicar`).
-    if (r.applied > 0 && antes) void avisarDeLoNuevo(antes, userId);
-    return r.applied;
-  } catch {
-    return 0; // offline: se reintenta al próximo arranque o aviso
-  }
-}
-
-/** T-010: avisa de lo que llegó en esta bajada, sin frenar el sync si falla. */
-async function avisarDeLoNuevo(antes: Snapshot, userId: string): Promise<void> {
-  try {
-    const avisos = noticesFor(antes, useExpenseStore.getState().expenses, useGroupStore.getState().groups,
-      userId, syncedNow(), usePaymentStore.getState().payments);
-    if (avisos.length > 0) await announce(avisos);
-  } catch { /* nunca rompe el sync */ }
-}
 
 // --- ciclo de vida -------------------------------------------------------------
 
@@ -196,11 +97,11 @@ async function arrancarCadenaDeSync(permitirCaptcha: boolean): Promise<void> {
   }
 
   unsubs.push(...await subscribeInvites(invite => { void onInviteNews(invite); }));
-  unsubs.push(...await subscribeContacts(() => { void drainContactsNow(); }));
+  unsubs.push(...await subscribeContacts(() => { void drainContactsNow(startRelay); }));
   await anunciarMiTarjeta();
 
   void verifyMyKeyRegistered(); // sólo detecta; registrar necesita login (ver deviceKeys)
-  await drainContactsNow();
+  await drainContactsNow(startRelay);
   await drainAll(); // al arrancar, lo encolado mientras estuvimos afuera
 
   // Un grupo recién adoptado se drena explícitamente: el usuario está
@@ -229,7 +130,7 @@ async function releerTodo(): Promise<void> {
 
   await withTimeout((async () => {
     try {
-      await drainContactsNow();
+      await drainContactsNow(startRelay);
       await drainAll();
       await processAllContactInvites(deviceId());
       await reintentarPublicacionesConCuota();

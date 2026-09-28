@@ -2,9 +2,12 @@ import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { esYo } from '@/src/store/identityAlias';
+import { announce } from '@/src/services/notifications';
 import { isRelayConfigured } from '../relay';
 import { publishToGroup, type PublishResult } from '../relaySync';
 import { recordPublish, publishFailures } from '../publishHealth';
+import { noticeDeCaida } from '../syncDownNotices';
+import { noticeDeReloj } from '../clockNotice';
 import { estaPendienteDeDrenaje } from '../pendingDrain';
 import { deviceId } from './cursor';
 
@@ -15,24 +18,6 @@ import { deviceId } from './cursor';
  * seguidos; sin agrupar, se manda un sobre por cada uno y se quema la cuota
  * del relay con estados intermedios que nadie va a leer.
  */
-
-/**
- * `avisarSiDejoDeSincronizar`/`avisarSiElRelojEstaMal` (en la fachada) llaman
- * a la función de aviso del sistema (bandeja + notificación), y
- * `inventarioDeAvisos.test.ts` exige
- * que **sólo** `services/notifications.ts` y la fachada (`relayEngine.ts`)
- * contengan esa llamada — es el inventario de quién puede escribir en la
- * bandeja. Este módulo no la hace directamente: notifica por este hook,
- * inyectado UNA vez desde la fachada (mismo patrón que `startPolling(releer)`
- * en `./poll.ts`, para no importar el dominio "hacia arriba").
- */
-export type NotificadorDePublish = (groupId: string, result: PublishResult) => void;
-let notificar: NotificadorDePublish = () => {};
-
-/** Sólo la fachada llama a esto, una vez, al cargar el módulo. */
-export function setNotificadorDePublish(fn: NotificadorDePublish): void {
-  notificar = fn;
-}
 
 /** Ventana de agrupación: suficiente para juntar una edición, imperceptible. */
 export const PUBLISH_DEBOUNCE_MS = 1_500;
@@ -110,7 +95,25 @@ export async function publishNow(groupId: string, opts: { forzar?: boolean } = {
   }
 
   recordPublish(groupId, result);
-  notificar(groupId, result);
+  void avisarSiDejoDeSincronizar(groupId, result);
+  void avisarSiElRelojEstaMal();
+}
+
+/** T-054/T-058: anota en la bandeja cuando un grupo dejó de sincronizar. */
+async function avisarSiDejoDeSincronizar(groupId: string, result: PublishResult): Promise<void> {
+  try {
+    const grupo = useGroupStore.getState().groups.find(g => g.id === groupId);
+    const aviso = noticeDeCaida(groupId, grupo?.name ?? '', result);
+    if (aviso) await announce([aviso]);
+  } catch { /* nunca rompe la publicación */ }
+}
+
+/** ADR-005/T-054: avisa si el reloj del teléfono está desfasado. */
+async function avisarSiElRelojEstaMal(): Promise<void> {
+  try {
+    const aviso = noticeDeReloj();
+    if (aviso) await announce([aviso]);
+  } catch { /* nunca rompe la publicación */ }
 }
 
 /** Sólo para tests: cancela los envíos pendientes. */
