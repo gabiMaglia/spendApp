@@ -2,7 +2,7 @@ import { sinCamposLocales, sinAvatarUrl, preservarRecibo } from '../soloLocal';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useAuthStore } from '@/src/store/authStore';
-import { buildDelta } from '../useSyncQR';
+import { buildDelta } from '../applyDelta';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import type { Expense } from '@/src/types/models';
 

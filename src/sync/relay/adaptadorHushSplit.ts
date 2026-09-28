@@ -1,4 +1,4 @@
-import { applyDelta, type SyncDelta } from '../useSyncQR';
+import { applyDelta, type SyncDelta } from '../applyDelta';
 import { acotarDeltaAlGrupo, type Descartados, type DescartesPorDependencia } from '../acotarDeltaAlGrupo';
 import { sinAvatarUrl, sinCamposLocales } from '../soloLocal';
 import { publishAvatarIfOwn } from '../avatarTopic';

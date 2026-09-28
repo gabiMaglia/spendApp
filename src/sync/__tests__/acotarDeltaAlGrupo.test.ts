@@ -5,7 +5,7 @@ import { usePaymentStore } from '@/src/store/paymentStore';
 import { useRecurringStore } from '@/src/store/recurringStore';
 import { useCommentStore } from '@/src/store/commentStore';
 import { useUserStore } from '@/src/store/userStore';
-import type { SyncDelta } from '../useSyncQR';
+import type { SyncDelta } from '../applyDelta';
 
 const meta = { updatedAt: 1_000, isDeleted: false };
 

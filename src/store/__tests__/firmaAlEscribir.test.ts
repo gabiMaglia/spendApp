@@ -6,7 +6,7 @@ import { useCommentStore } from '../commentStore';
 import { useRecurringStore } from '../recurringStore';
 import { useGroupStore } from '../groupStore';
 import { verifyCore } from '@/src/sync/recordSign';
-import { applyDelta, type SyncDelta } from '@/src/sync/useSyncQR';
+import { applyDelta, type SyncDelta } from '@/src/sync/applyDelta';
 import type {
   Expense, Payment, ExpenseComment, RecurringExpense, Group, User,
 } from '@/src/types/models';

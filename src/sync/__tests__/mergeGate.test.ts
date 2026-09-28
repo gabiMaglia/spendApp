@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { ed25519 } from '@noble/curves/ed25519.js';
-import { applyDelta, type SyncDelta } from '../useSyncQR';
+import { applyDelta, type SyncDelta } from '../applyDelta';
 import { signCore } from '../recordSign';
 import { toHex } from '../hexBytes';
 import * as recordHealth from '../recordHealth';

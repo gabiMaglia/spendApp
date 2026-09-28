@@ -64,8 +64,8 @@ jest.mock('@/src/services/notifications', () => ({ announce: jest.fn(async () =>
 
 // `applyDelta` real, envuelto para poder ver CUÁNDO se llama respecto de
 // `snapshot` — la prueba de orden real que B2 pedía.
-jest.mock('../useSyncQR', () => {
-  const actual = jest.requireActual('../useSyncQR') as typeof import('../useSyncQR');
+jest.mock('../applyDelta', () => {
+  const actual = jest.requireActual('../applyDelta') as typeof import('../applyDelta');
   return { ...actual, applyDelta: jest.fn(actual.applyDelta) };
 });
 
@@ -87,7 +87,7 @@ const relayMock = jest.requireMock('../relay') as {
 const mockSnapshot = jest.requireMock('@/src/services/syncNotices').snapshot as jest.Mock;
 const mockNoticesFor = jest.requireMock('@/src/services/syncNotices').noticesFor as jest.Mock;
 const mockAnnounce = jest.requireMock('@/src/services/notifications').announce as jest.Mock;
-const mockApplyDelta = jest.requireMock('../useSyncQR').applyDelta as jest.Mock;
+const mockApplyDelta = jest.requireMock('../applyDelta').applyDelta as jest.Mock;
 
 function grupo(): Group {
   return {

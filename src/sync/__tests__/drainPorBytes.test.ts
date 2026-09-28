@@ -39,8 +39,8 @@ jest.mock('../relay', () => {
 });
 jest.mock('../authorHealth', () => ({ observeAuthor: jest.fn(async () => 'ok'), RECHAZAR_AUTORES_NO_VERIFICADOS: false }));
 jest.mock('../authorKeys', () => ({ refreshPendingAuthors: jest.fn(async () => {}) }));
-jest.mock('../useSyncQR', () => {
-  const real = jest.requireActual('../useSyncQR');
+jest.mock('../applyDelta', () => {
+  const real = jest.requireActual('../applyDelta');
   return { ...real, applyDelta: jest.fn(real.applyDelta) };
 });
 
@@ -60,7 +60,7 @@ const relayMock = jest.requireMock('../relay') as {
   __buzones: Map<string, { seq: number; sender: string }[]>;
   fetchSince: jest.Mock;
 };
-const { applyDelta } = jest.requireMock('../useSyncQR') as { applyDelta: jest.Mock };
+const { applyDelta } = jest.requireMock('../applyDelta') as { applyDelta: jest.Mock };
 const fetchSinceMock = relayMock.fetchSince;
 
 const grupo = (): Group => ({
@@ -91,7 +91,7 @@ beforeEach(() => {
   clearErrors();
   olvidarFallosDeAplicacion();
   applyDelta.mockClear();
-  applyDelta.mockImplementation(jest.requireActual('../useSyncQR').applyDelta);
+  applyDelta.mockImplementation(jest.requireActual('../applyDelta').applyDelta);
   useAuthStore.setState({ currentUser: { id: 'u2' } } as never);
   useGroupKeyStore.setState({ keys: [] });
   useGroupKeyStore.getState().ensureKey('G');

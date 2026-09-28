@@ -1,4 +1,4 @@
-import { DELTA_FEATURE_VERSION, type SyncDelta } from './useSyncQR';
+import { DELTA_FEATURE_VERSION, type SyncDelta } from './applyDelta';
 import { sealEnvelope, openEnvelope, deriveTopic, type GroupKey } from './envelopeCrypto';
 import { sendEnvelope, fetchSince, deleteMyEnvelopes, type DeleteResult } from './relay';
 import { groupKeyBytes, useGroupKeyStore } from '@/src/store/groupKeyStore';

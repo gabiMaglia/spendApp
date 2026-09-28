@@ -11,7 +11,8 @@ import QRCode from 'react-native-qrcode-svg';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { useAuthStore } from '@/src/store/authStore';
-import { buildDelta, deltaToQRString, parseDeltaFromQR, applyDelta, peerIsOutdated } from '@/src/sync/useSyncQR';
+import { buildDelta, applyDelta, peerIsOutdated } from '@/src/sync/applyDelta';
+import { deltaToQRString, parseDeltaFromQR } from '@/src/sync/useSyncQR';
 import { useTranslation } from 'react-i18next';
 import { useColors } from '@/src/skins/useSkin';
 

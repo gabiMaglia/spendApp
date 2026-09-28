@@ -1,7 +1,7 @@
 import { preservarAvatar } from '@/src/store/userAvatar';
 import { useUserStore } from '@/src/store/userStore';
 import { canonical } from '@/src/store/lww';
-import { applyDelta, type SyncDelta } from '@/src/sync/useSyncQR';
+import { applyDelta, type SyncDelta } from '@/src/sync/applyDelta';
 import type { User } from '@/src/types/models';
 
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));

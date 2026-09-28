@@ -1,5 +1,5 @@
 import { useUserStore } from '../userStore';
-import { applyDelta, type SyncDelta } from '@/src/sync/useSyncQR';
+import { applyDelta, type SyncDelta } from '@/src/sync/applyDelta';
 import { applyBackup } from '@/src/services/backup';
 import type { User } from '@/src/types/models';
 

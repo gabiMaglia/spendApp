@@ -2,7 +2,7 @@ import { buildGroupPayload } from '../relaySync';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { useGroupStore } from '@/src/store/groupStore';
-import { buildDelta } from '../useSyncQR';
+import { buildDelta } from '../applyDelta';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import type { User } from '@/src/types/models';
 

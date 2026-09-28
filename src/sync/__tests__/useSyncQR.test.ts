@@ -1,4 +1,5 @@
-import { buildDelta, applyDelta, deltaToQRString, parseDeltaFromQR } from '../useSyncQR';
+import { buildDelta, applyDelta } from '../applyDelta';
+import { deltaToQRString, parseDeltaFromQR } from '../useSyncQR';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { usePaymentStore } from '@/src/store/paymentStore';

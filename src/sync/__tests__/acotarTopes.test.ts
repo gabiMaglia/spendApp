@@ -1,7 +1,7 @@
 import { acotarDeltaAlGrupo, type LocalSnapshot } from '../acotarDeltaAlGrupo';
 import { sliceEntities } from '../slices';
 import { MAX_NOTA, MAX_MIEMBROS } from '../topes';
-import type { SyncDelta } from '../useSyncQR';
+import type { SyncDelta } from '../applyDelta';
 
 /**
  * SEC-07 (T-150), enmienda PO 2026-09-26 (ronda 2, tras QA+verifier

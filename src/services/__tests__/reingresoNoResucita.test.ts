@@ -4,7 +4,7 @@ import { useExpenseStore } from '@/src/store/expenseStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { marcarPendienteDeDrenaje, estaPendienteDeDrenaje } from '@/src/sync/pendingDrain';
-import { applyDelta, buildDelta } from '@/src/sync/useSyncQR';
+import { applyDelta, buildDelta } from '@/src/sync/applyDelta';
 import type { Expense, Group, User } from '@/src/types/models';
 
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));

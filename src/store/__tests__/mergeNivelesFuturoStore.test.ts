@@ -1,6 +1,6 @@
 import { useExpenseStore } from '../expenseStore';
 import { useGroupStore } from '../groupStore';
-import { applyDelta, type SyncDelta } from '@/src/sync/useSyncQR';
+import { applyDelta, type SyncDelta } from '@/src/sync/applyDelta';
 import { syncedNow } from '@/src/utils/syncedClock';
 import { TOLERANCIA_RELOJ_MS } from '@/src/store/relojDelMerge';
 import type { Expense, Group } from '@/src/types/models';

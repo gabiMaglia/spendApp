@@ -26,7 +26,7 @@ jest.mock('../soloLocal', () => {
 });
 
 import { buildGroupPayload } from '../relaySync';
-import { buildDelta, type SyncDelta } from '../useSyncQR';
+import { buildDelta, type SyncDelta } from '../applyDelta';
 import { sinCamposLocales } from '../soloLocal';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
