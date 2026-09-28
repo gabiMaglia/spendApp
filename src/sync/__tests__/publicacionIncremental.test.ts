@@ -13,7 +13,7 @@
  * verificando, no en el núcleo.
  */
 import { publicarPorCubos, type CampoDoc, type EnviarPieza } from '../relay/publicarCubos';
-import { leerCubo, profundidad, type AlmacenPort } from '../relay/sliceLedger';
+import { leerCubo, profundidad, olvidarTopic, type AlmacenPort } from '../relay/sliceLedger';
 import { generateGroupKey } from '../envelopeCrypto';
 import { RENEWAL_WINDOW_MS } from '../sliceRenewal';
 import { deriveCkey } from '../slices';
@@ -226,5 +226,45 @@ describe('publicarPorCubos — publicar sólo lo que cambió (T-191 Task 2)', ()
       envolver, key, almacen, 'topic1', 'device1', 3_000, fase3.enviar, NO_CEDER,
     );
     expect(fase3.piezas().length).toBe(1); // sólo el manifiesto
+  });
+
+  /**
+   * M4 (verifier, tercera tanda): `olvidarTopic` borraba TAMBIÉN el snapshot
+   * de `ckeysDeCampo` — sin él, tras un reingreso/purga/restore, un cubo que
+   * quedó huérfano MIENTRAS el dispositivo estaba fuera nunca recibe `[]`:
+   * la próxima publicación completa no tiene con qué compararse y no nota
+   * que faltó. El fix: `olvidarTopic` borra los digests (fuerza republicar
+   * TODO) pero CONSERVA el snapshot por campo, para que el diff siga
+   * pudiendo detectar lo huérfano.
+   */
+  it('M4: el snapshot de ckeys por campo sobrevive a olvidarTopic — un cubo huérfano igual recibe []', async () => {
+    const key = generateGroupKey();
+    const almacen = memoria();
+    const userA = { id: 'a0000000-0000-4000-8000-000000000001' };
+    const userB = { id: 'b0000000-0000-4000-8000-000000000002' };
+
+    await publicarPorCubos(
+      [{ campo: 'users', registros: [userA, userB] }],
+      envolver, key, almacen, 'topic1', 'device1', 1_000, enviarFalso().enviar, NO_CEDER,
+    );
+    const ckeyB = await deriveCkey(key, 'users', 'b');
+    expect(leerCubo(almacen, 'topic1', 'device1', ckeyB)).not.toBeNull();
+
+    // Reingreso/purga/restore: se olvida el ledger del topic.
+    olvidarTopic(almacen, 'topic1');
+    expect(leerCubo(almacen, 'topic1', 'device1', ckeyB)).toBeNull(); // el digest SÍ se olvida
+
+    // Mientras tanto B se fue del grupo — la publicación siguiente (completa,
+    // porque el ledger se olvidó) ya no lo incluye.
+    const segunda = enviarFalso();
+    const r = await publicarPorCubos(
+      [{ campo: 'users', registros: [userA] }],
+      envolver, key, almacen, 'topic1', 'device1', 2_000, segunda.enviar, NO_CEDER,
+    );
+    expect(r.ok).toBe(true);
+
+    const vaciado = segunda.piezas().find(p => p.ckey === ckeyB);
+    expect(vaciado).toBeDefined(); // el snapshot sobrevivió: el diff SÍ lo detecta
+    expect(JSON.parse(vaciado!.json).registros).toEqual([]);
   });
 });
