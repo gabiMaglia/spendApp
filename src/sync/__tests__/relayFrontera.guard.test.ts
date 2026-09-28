@@ -41,6 +41,10 @@ const NUCLEO = [
   'appliedSlices.ts',
   'relecturas.ts',
   'documento.ts',
+  // T-192 (Task 3): puro, sin stores — a diferencia de `publicar.ts`/
+  // `drenar.ts`/`relectura.ts`/`aplicarAcotado.ts`, que sí tocan stores y
+  // por eso NO entran acá (son pegamento, igual que `publish.ts`/`drain.ts`).
+  'cierreDeDrenaje.ts',
 ];
 
 const PROHIBIDOS = [/@\/src\/store\//, /@\/src\/types\/models/];
