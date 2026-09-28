@@ -23,7 +23,8 @@ import { useAuthStore } from '@/src/store/authStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { drainGroup } from '../relaySync';
 import { fetchSince } from '@/src/sync/adaptadores/supabase/relay';
-import { toHex, generateGroupKey } from '@/src/sync/nucleo/envelopeCrypto';
+import { generateGroupKey } from '@/src/sync/nucleo/envelopeCrypto';
+import { toHex } from '@/src/sync/nucleo/hexBytes';
 
 const fetchSinceMock = fetchSince as jest.Mock;
 

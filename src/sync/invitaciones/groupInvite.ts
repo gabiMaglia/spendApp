@@ -5,7 +5,8 @@ import { esIdDeCuenta } from '@/src/utils/idDeCuenta';
 import { codificarInvitacion, decodificarInvitacion, RE_UUID } from '@/src/utils/linkCompacto';
 import { esNombreSeguro, limpiarNombre } from '@/src/utils/nombreSeguro';
 import { recordError } from '@/src/services/errorLog';
-import { sealEnvelope, openEnvelope, toHex, fromHex } from '@/src/sync/nucleo/envelopeCrypto';
+import { sealEnvelope, openEnvelope } from '@/src/sync/nucleo/envelopeCrypto';
+import { toHex, fromHex } from '@/src/sync/nucleo/hexBytes';
 
 /**
  * Invitación a un grupo por link (ADR-003, enmienda T-034).

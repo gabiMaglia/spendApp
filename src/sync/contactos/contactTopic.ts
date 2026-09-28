@@ -1,5 +1,5 @@
 import * as Crypto from 'expo-crypto';
-import { fromHex } from '@/src/sync/nucleo/envelopeCrypto';
+import { fromHex } from '@/src/sync/nucleo/hexBytes';
 
 /**
  * Derivación del topic y la clave del buzón de contacto (T-192: salió de

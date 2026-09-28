@@ -8,7 +8,8 @@ import {
 // `groupInvite.ts` dejó de re-exportarla por no tener consumidores de
 // producción (sólo la usaba este test).
 import { V1_ACEPTADO_HASTA } from '../groupKeyWrap';
-import { openEnvelope, sealEnvelope, fromHex } from '@/src/sync/nucleo/envelopeCrypto';
+import { openEnvelope, sealEnvelope } from '@/src/sync/nucleo/envelopeCrypto';
+import { fromHex } from '@/src/sync/nucleo/hexBytes';
 import * as Crypto from 'expo-crypto';
 import { x25519 } from '@noble/curves/ed25519.js';
 import { hkdf } from '@noble/hashes/hkdf.js';

@@ -1,6 +1,7 @@
 import { publishToGroup, drainGroup } from '../relaySync';
 import { signEnvelope } from '@/src/sync/nucleo/envelopeSign';
-import { sealEnvelope, deriveTopic, fromHex } from '@/src/sync/nucleo/envelopeCrypto';
+import { sealEnvelope, deriveTopic } from '@/src/sync/nucleo/envelopeCrypto';
+import { fromHex } from '@/src/sync/nucleo/hexBytes';
 import { generateIdentity } from '@/src/sync/invitaciones/groupInvite';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';

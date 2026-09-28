@@ -1,6 +1,6 @@
 import { xchacha20poly1305 } from '@noble/ciphers/chacha.js';
 import * as Crypto from 'expo-crypto';
-import { toHex, fromHex } from './hexBytes';
+import { toHex } from './hexBytes';
 
 /**
  * Cifrado de los sobres del relay (ADR-003).
@@ -90,13 +90,6 @@ function assertKey(key: GroupKey): void {
   }
 }
 
-// --- helpers de codificación -------------------------------------------------
-// Escritos a mano porque `Buffer` no existe en React Native y `atob`/`btoa`
-// no manejan bytes arbitrarios de forma segura.
-
-// `toHex`/`fromHex` viven en `hexBytes.ts` (sin dependencias) y se re-exportan
-// para no tocar a los que ya los importaban desde acá.
-export { toHex, fromHex };
 
 const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 

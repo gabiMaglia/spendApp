@@ -1,7 +1,8 @@
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { readScoped, writeScoped } from '@/src/store/userScope';
 import { PENDIENTE_DRENAJE_BASE } from '@/src/store/accountLink';
-import { deriveTopic, fromHex } from '@/src/sync/nucleo/envelopeCrypto';
+import { deriveTopic } from '@/src/sync/nucleo/envelopeCrypto';
+import { fromHex } from '@/src/sync/nucleo/hexBytes';
 import { olvidarCursor } from './cursor';
 
 /**

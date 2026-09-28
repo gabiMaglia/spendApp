@@ -1,5 +1,6 @@
 import { ed25519 } from '@noble/curves/ed25519.js';
-import { sealEnvelope, toHex, fromHex } from '@/src/sync/nucleo/envelopeCrypto';
+import { sealEnvelope } from '@/src/sync/nucleo/envelopeCrypto';
+import { toHex, fromHex } from '@/src/sync/nucleo/hexBytes';
 import { sendEnvelope, type SendResult } from '@/src/sync/adaptadores/supabase/relay';
 import { ensureIdentity, ensureWrapKeypair } from '@/src/store/identityStore';
 import { useAuthStore } from '@/src/store/authStore';

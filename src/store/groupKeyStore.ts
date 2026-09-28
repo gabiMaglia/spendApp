@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { readScoped, writeScoped } from './userScope';
-import { generateGroupKey, toHex, fromHex } from '@/src/sync/nucleo/envelopeCrypto';
+import { generateGroupKey } from '@/src/sync/nucleo/envelopeCrypto';
+import { toHex, fromHex } from '@/src/sync/nucleo/hexBytes';
 
 /**
  * Claves de cifrado de cada grupo (ADR-003).

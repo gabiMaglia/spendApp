@@ -2,7 +2,8 @@ import { x25519 } from '@noble/curves/ed25519.js';
 import { hkdf } from '@noble/hashes/hkdf.js';
 import { sha256 } from '@noble/hashes/sha2.js';
 import * as Crypto from 'expo-crypto';
-import { sealEnvelope, openEnvelope, toHex, fromHex } from '@/src/sync/nucleo/envelopeCrypto';
+import { sealEnvelope, openEnvelope } from '@/src/sync/nucleo/envelopeCrypto';
+import { toHex, fromHex } from '@/src/sync/nucleo/hexBytes';
 
 /**
  * Envoltura X25519 de la clave de grupo hacia el invitado (T-192: salió de

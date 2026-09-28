@@ -1,6 +1,7 @@
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { useAuthStore } from '@/src/store/authStore';
-import { deriveTopic, fromHex } from '@/src/sync/nucleo/envelopeCrypto';
+import { deriveTopic } from '@/src/sync/nucleo/envelopeCrypto';
+import { fromHex } from '@/src/sync/nucleo/hexBytes';
 import { subscribeTopic, isRelayConfigured } from '@/src/sync/adaptadores/supabase/relay';
 import { ensureRelaySession, haySesionEnCurso, reabrirSesionAnonima } from '@/src/sync/sesion/relaySession';
 import type { SessionKind } from '@/src/sync/sesion/relaySession';

@@ -4,7 +4,8 @@ import {
   contactInviteToLink, __parseContactInviteLink,
 } from '../contactInvite';
 import { generateIdentity, generateWrapKeypair, fingerprint, unwrapGroupKey } from '@/src/sync/invitaciones/groupInvite';
-import { sealEnvelope, openEnvelope, fromHex } from '@/src/sync/nucleo/envelopeCrypto';
+import { sealEnvelope, openEnvelope } from '@/src/sync/nucleo/envelopeCrypto';
+import { fromHex } from '@/src/sync/nucleo/hexBytes';
 import * as Crypto from 'expo-crypto';
 import type { ContactCard } from '../contactChannel';
 

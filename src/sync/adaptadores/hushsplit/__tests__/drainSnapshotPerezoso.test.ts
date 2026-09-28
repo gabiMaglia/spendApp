@@ -77,7 +77,8 @@ import { useExpenseStore } from '@/src/store/expenseStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { useUserStore } from '@/src/store/userStore';
 import { marcarPendienteDeDrenaje, limpiarPendienteDeDrenaje } from '@/src/sync/motor/pendingDrain';
-import { deriveTopic, fromHex } from '@/src/sync/nucleo/envelopeCrypto';
+import { deriveTopic } from '@/src/sync/nucleo/envelopeCrypto';
+import { fromHex } from '@/src/sync/nucleo/hexBytes';
 import type { Group, Expense, User } from '@/src/types/models';
 
 const relayMock = jest.requireMock('../../supabase/relay') as {

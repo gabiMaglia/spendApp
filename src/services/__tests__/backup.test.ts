@@ -13,7 +13,8 @@ import { useCommentStore } from '@/src/store/commentStore';
 import { useGroupKeyStore, type GroupKeyRecord } from '@/src/store/groupKeyStore';
 import { rosterDe } from '@/src/algorithms/roster';
 import { recargarAlias } from '@/src/store/identityAlias';
-import { deriveTopic, fromHex } from '@/src/sync/nucleo/envelopeCrypto';
+import { deriveTopic } from '@/src/sync/nucleo/envelopeCrypto';
+import { fromHex } from '@/src/sync/nucleo/hexBytes';
 import type {
   Group, Expense, Payment, User, PersonalEntry, PersonalBudget,
 } from '@/src/types/models';

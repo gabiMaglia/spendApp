@@ -1,6 +1,6 @@
 import * as Crypto from 'expo-crypto';
 import type { GroupKey } from './envelopeCrypto';
-import { toHex } from './envelopeCrypto';
+import { toHex } from './hexBytes';
 
 /**
  * `ckey` es opaca para el servidor — se deriva de la clave del grupo más el

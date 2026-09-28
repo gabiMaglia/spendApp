@@ -1,6 +1,7 @@
 import {
-  generateGroupKey, sealEnvelope, openEnvelope, deriveTopic, toHex, fromHex,
+  generateGroupKey, sealEnvelope, openEnvelope, deriveTopic,
 } from '../envelopeCrypto';
+import { toHex, fromHex } from '../hexBytes';
 
 describe('sobre cifrado — ida y vuelta', () => {
   it('lo que se cierra se abre igual', () => {

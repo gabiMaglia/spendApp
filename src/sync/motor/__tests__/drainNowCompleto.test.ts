@@ -17,7 +17,8 @@ import { drainGroup } from '../relaySync';
 import { marcarPendienteDeDrenaje, estaPendienteDeDrenaje, limpiarPendienteDeDrenaje } from '../pendingDrain';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
-import { deriveTopic, fromHex } from '@/src/sync/nucleo/envelopeCrypto';
+import { deriveTopic } from '@/src/sync/nucleo/envelopeCrypto';
+import { fromHex } from '@/src/sync/nucleo/hexBytes';
 import type { User } from '@/src/types/models';
 
 const drainGroupMock = drainGroup as jest.Mock;

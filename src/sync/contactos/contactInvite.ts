@@ -1,7 +1,8 @@
 import { ed25519 } from '@noble/curves/ed25519.js';
 import * as Crypto from 'expo-crypto';
 import { fingerprint, wrapGroupKey } from '@/src/sync/invitaciones/groupInvite';
-import { sealEnvelope, openEnvelope, toHex, fromHex } from '@/src/sync/nucleo/envelopeCrypto';
+import { sealEnvelope, openEnvelope } from '@/src/sync/nucleo/envelopeCrypto';
+import { toHex, fromHex } from '@/src/sync/nucleo/hexBytes';
 import type { ContactCard } from './contactChannel';
 import { enlaceCompacto, enlaceCompartible, rutaDeEnlace } from '@/src/utils/appLink';
 import { codificarInvitacionDeContacto, decodificarInvitacionDeContacto } from '@/src/utils/linkCompacto';

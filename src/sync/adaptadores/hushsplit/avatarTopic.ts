@@ -1,6 +1,7 @@
 import * as Crypto from 'expo-crypto';
 import type { GroupKey } from '@/src/sync/nucleo/envelopeCrypto';
-import { toHex, sealEnvelope, openEnvelope } from '@/src/sync/nucleo/envelopeCrypto';
+import { sealEnvelope, openEnvelope } from '@/src/sync/nucleo/envelopeCrypto';
+import { toHex } from '@/src/sync/nucleo/hexBytes';
 import { signEnvelope, verifyEnvelope } from '@/src/sync/nucleo/envelopeSign';
 import { sendEnvelope, fetchSince } from '../supabase/relay';
 import { ensureIdentity } from '@/src/store/identityStore';

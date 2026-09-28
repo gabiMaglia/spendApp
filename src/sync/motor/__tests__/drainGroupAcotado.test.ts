@@ -19,7 +19,8 @@
 
 import { drainGroup } from '../relaySync';
 import { armarComoDelta } from '@/src/test-utils/armarComoDelta';
-import { sealEnvelope, generateGroupKey, fromHex } from '@/src/sync/nucleo/envelopeCrypto';
+import { sealEnvelope, generateGroupKey } from '@/src/sync/nucleo/envelopeCrypto';
+import { fromHex } from '@/src/sync/nucleo/hexBytes';
 import { signEnvelope } from '@/src/sync/nucleo/envelopeSign';
 import { ensureIdentity } from '@/src/store/identityStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
