@@ -203,6 +203,10 @@ it('M2b: un envío colgado no bloquea la cola para siempre — la siguiente publ
     useExpenseStore.setState({ expenses: [gasto('e1', 'v1', 1_000)] } as never);
     const p1 = publishToGroup('G', 'u1', 'device1'); // su primer envío queda colgado
 
+    // Deja que P1 avance (derivar el topic, armar, entrar a la cola, llegar
+    // al `sendEnvelope` colgado y registrar el timeout de `withTimeout`)
+    // ANTES de avanzar el reloj — si no, el timer todavía no existe.
+    await jest.advanceTimersByTimeAsync(0);
     await jest.advanceTimersByTimeAsync(PUBLICACION_TIMEOUT_MS + 1_000);
     const r1 = await p1;
     expect(r1.ok).toBe(false); // el timeout lo corta
@@ -211,7 +215,7 @@ it('M2b: un envío colgado no bloquea la cola para siempre — la siguiente publ
     // que se colgó — corre y termina normalmente.
     useExpenseStore.setState({ expenses: [gasto('e1', 'v2', 2_000)] } as never);
     const p2 = publishToGroup('G', 'u1', 'device1');
-    await jest.advanceTimersByTimeAsync(0);
+    await jest.advanceTimersByTimeAsync(100);
     const r2 = await p2;
     expect(r2.ok).toBe(true);
 

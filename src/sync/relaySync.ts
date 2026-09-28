@@ -19,6 +19,7 @@ import { publicarPorCubos, type CampoDoc } from './relay/publicarCubos';
 import { olvidarTopic as olvidarTopicDelLedger } from './relay/sliceLedger';
 import * as appliedSlices from './relay/appliedSlices';
 import { permite as permiteRelectura } from './relay/relecturas';
+import { withTimeout } from '@/src/utils/withTimeout';
 
 /**
  * Sync por el relay: arma el sobre cifrado, lo publica y aplica lo que llega.
@@ -173,6 +174,17 @@ async function encolarPorTopic<T>(topic: string, tarea: () => Promise<T>): Promi
   return propia;
 }
 
+/**
+ * M2 (verifier, tercera tanda): timeout del envío individual, para que un
+ * `sendEnvelope` que nunca resuelve no deje la cola de `encolarPorTopic`
+ * trabada para siempre (nada volvería a publicarse en ESE grupo hasta
+ * reiniciar la app). Mismo orden de magnitud que el resto del motor
+ * (`STARTUP_TIMEOUT_MS`, `SESSION_TIMEOUT_MS`, `EJECUCION_TIMEOUT_MS` —
+ * `relayEngine.ts`/`relaySession.ts`/`relayQueue.ts`): un envío real nunca
+ * debería tardar esto.
+ */
+export const PUBLICACION_TIMEOUT_MS = 15_000;
+
 export async function publishToGroup(
   groupId: string,
   currentUserId: string,
@@ -184,15 +196,6 @@ export async function publishToGroup(
   const record = useGroupKeyStore.getState().getKey(groupId)!;
   const topic = await deriveTopic(key, record.epoch);
 
-  const doc = await adaptador.antesDePublicar(
-    adaptador.armar(groupId, currentUserId),
-    { groupId, deviceId, fromUserId: currentUserId },
-  );
-  const campos: CampoDoc[] = adaptador.campos.map(campo => ({
-    campo,
-    registros: (doc[campo] ?? []) as { id: string }[],
-  }));
-
   const enviar = async (ckey: string, json: string) => {
     const sealed = sealEnvelope(key, json);
     // La firma va POR FUERA del cifrado: autentica quién lo mandó sin exponer
@@ -200,7 +203,11 @@ export async function publishToGroup(
     const firmado = signEnvelope(sealed, ensureIdentity().privateKey);
     // Compactable: cada cubo (y el manifiesto) reemplaza al anterior con la
     // misma `ckey` de este mismo dispositivo (T-032 + ADR-007).
-    return sendEnvelope(topic, firmado, deviceId, true, ckey);
+    return withTimeout(
+      sendEnvelope(topic, firmado, deviceId, true, ckey),
+      PUBLICACION_TIMEOUT_MS,
+      { ok: false as const, reason: 'network' as const, detail: 'timeout' },
+    );
   };
 
   const onExcluidos = (campo: string, excluidos: { id: string }[]) => {
@@ -214,19 +221,38 @@ export async function publishToGroup(
     });
   };
 
-  // V3: sólo la fase de envío (lee/escribe el ledger) se serializa por topic.
-  const resultado = await encolarPorTopic(topic, () => publicarPorCubos(
-    campos,
-    (campo, registros) => adaptador.envolver(campo, registros, currentUserId),
-    key,
-    adaptador.almacen,
-    topic,
-    deviceId,
-    Date.now(),
-    enviar,
-    cederHilo,
-    onExcluidos,
-  ));
+  // M2 (verifier, tercera tanda): `armar`/`antesDePublicar` se mueven
+  // ADENTRO de la tarea encolada — antes corrían acá afuera, y si esta
+  // llamada se demoraba esperando `antesDePublicar` (`publishAvatarIfOwn`,
+  // red) mientras OTRA llamada más nueva para el mismo topic entraba a la
+  // cola primero (la encontraba vacía), el buzón terminaba con el estado
+  // MÁS VIEJO: esta llamada volvía después con su snapshot ya obsoleto y lo
+  // pisaba. Tomar el estado recién AL TURNO de la cola garantiza que lo que
+  // se envía es lo que el dispositivo cree AHORA, no lo que creía cuando se
+  // lo llamó.
+  const resultado = await encolarPorTopic(topic, async () => {
+    const doc = await adaptador.antesDePublicar(
+      adaptador.armar(groupId, currentUserId),
+      { groupId, deviceId, fromUserId: currentUserId },
+    );
+    const campos: CampoDoc[] = adaptador.campos.map(campo => ({
+      campo,
+      registros: (doc[campo] ?? []) as { id: string }[],
+    }));
+
+    return publicarPorCubos(
+      campos,
+      (campo, registros) => adaptador.envolver(campo, registros, currentUserId),
+      key,
+      adaptador.almacen,
+      topic,
+      deviceId,
+      Date.now(),
+      enviar,
+      cederHilo,
+      onExcluidos,
+    );
+  });
 
   if (!resultado.ok) {
     return { ok: false, reason: resultado.reason as PublishFailReason, detail: resultado.detail };
