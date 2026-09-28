@@ -1,5 +1,5 @@
 import React, { Profiler, type ProfilerOnRenderCallback } from 'react';
-import { act, render } from '@testing-library/react-native';
+import { act, fireEvent, render } from '@testing-library/react-native';
 
 import GroupDetailScreen from '@/app/groups/[id]';
 import { useAuthStore } from '@/src/store/authStore';
@@ -121,22 +121,16 @@ describe('T-204 — Detalle de grupo', () => {
   });
 
   /**
-   * **Hallazgo (no arreglado, va como recomendación en el reporte).**
-   * `app/groups/[id].tsx:90` — `const allUsers = useUserStore(s => s.users);`
-   * — sin selector angosto. Sólo lo usa `contactosDisponibles` (línea 96-104,
-   * la lista del modal "invitar por username"), pero la suscripción es a
-   * TODO `users`: cualquier alta/edición de un contacto EN CUALQUIER PARTE
-   * de la app (no sólo en este grupo) re-renderiza la pantalla completa —
-   * balances, timeline, todo. No es el mismo bug que T-202 (acá no se arma
-   * un array NUEVO en cada render; el array de verdad cambió), así que no
-   * hay memoización que lo arregle sin cambiar arquitectura: la lista de
-   * contactos disponibles NECESITA saber de altas ajenas para estar
-   * completa. El fix real es aislar `allUsers`/`contactosDisponibles` en un
-   * componente hijo que sólo se monte con el modal de invitar abierto — es
-   * un cambio de estructura, no un `useMemo`, así que queda para un ticket
-   * aparte en vez de tocarlo acá sin OK del PO.
+   * **T-209 — fix del hallazgo de arriba.**
+   * `contactosDisponibles`/`allUsers` (antes en `app/groups/[id].tsx:90-104`)
+   * vivían suscriptos en la pantalla aunque sólo los usa el modal "invitar
+   * por username". Un alta/edición de contacto ajeno al grupo re-renderizaba
+   * la pantalla ENTERA (medido 1→3 acá antes del fix). Ahora esa suscripción
+   * vive dentro de `InvitarPorUsernameSheet`
+   * (`src/screens/groups/components/InvitarPorUsernameSheet.tsx`), montado
+   * sólo con el modal abierto — la pantalla, cerrada, no se entera.
    */
-  it('(hallazgo) un contacto nuevo en cualquier parte de la app SÍ re-renderiza esta pantalla — medido, no arreglado', () => {
+  it('un contacto nuevo ajeno al grupo NO re-renderiza la pantalla (T-209)', () => {
     const estado = { renders: 0 };
     const onRender: ProfilerOnRenderCallback = () => { estado.renders += 1; };
 
@@ -151,11 +145,25 @@ describe('T-204 — Detalle de grupo', () => {
       useUserStore.setState(s => ({ users: [...s.users, usuario('contactoNuevo')] }));
     });
 
-    console.log('[T-204][Grupo][hallazgo] rendersTrasMontaje=%s rendersTrasContactoAjeno=%s (groups/[id].tsx:90)',
+    console.log('[T-209][Grupo] rendersTrasMontaje=%s rendersTrasContactoAjeno=%s',
       rendersTrasMontaje, estado.renders);
 
-    // Documenta el comportamiento ACTUAL (re-renderiza) — no es un gate de
-    // regresión, es la evidencia del hallazgo de arriba.
-    expect(estado.renders).toBeGreaterThan(rendersTrasMontaje);
+    expect(estado.renders).toBe(rendersTrasMontaje);
+  });
+
+  // T-209: el modal sigue mostrando altas ajenas mientras está ABIERTO — el
+  // fix es de suscripción (quién escucha y cuándo), no de que el dato deje
+  // de llegar.
+  it('con el modal de invitar abierto, el contacto nuevo SÍ aparece en la lista (T-209)', () => {
+    const r = render(<GroupDetailScreen />);
+
+    fireEvent.press(r.getByTestId('group-options'));
+    fireEvent.press(r.getByText('group_detail.add_person'));
+
+    act(() => {
+      useUserStore.setState(s => ({ users: [...s.users, usuario('contactoNuevo')] }));
+    });
+
+    expect(r.getByText('Nombre contactoNuevo')).toBeTruthy();
   });
 });

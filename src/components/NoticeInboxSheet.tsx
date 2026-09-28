@@ -18,6 +18,13 @@ type Tab = 'todo' | 'accion';
 
 type Trad = (key: string, opts?: Record<string, unknown>) => string;
 
+// Referencia estable (T-205): cerrada, la bandeja no necesita `groups` —lo
+// usa sólo `nombreGrupoNuevo`, al dibujar una fila `group_replaced`—.
+// Devolver siempre esta misma instancia mientras `visible` es false evita
+// que un alta de grupo en cualquier otra parte de la app re-renderice esto
+// (y, con ello, el header que lo monta) sin que la bandeja esté ni abierta.
+const SIN_GRUPOS: { id: string; name: string }[] = [];
+
 /**
  * El cuerpo de una fila de `group_replaced`, resuelto AHORA y no con el
  * `newGroupName` congelado del aviso (Minor de la revisión final, upgraded a
@@ -57,7 +64,7 @@ export function NoticeInboxSheet({
 }) {
   const c = useColors();
   const { t } = useTranslation();
-  const groups = useGroupStore(s => s.groups);
+  const groups = useGroupStore(s => (visible ? s.groups : SIN_GRUPOS));
   const haySinLeer = items.some(i => i.readAt === null);
 
   const [tab, setTab] = useState<Tab>('todo');
