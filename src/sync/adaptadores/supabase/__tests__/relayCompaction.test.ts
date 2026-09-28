@@ -1,4 +1,4 @@
-import { envelopeRow } from '../relay';
+import { envelopeRow } from '../relaySend';
 
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
 

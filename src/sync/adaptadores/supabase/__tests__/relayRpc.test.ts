@@ -6,6 +6,11 @@
  *
  * ⚠️ Mismo esqueleto de env + `resetModules` que `relayPrenda.test.ts`.
  */
+// T-206-A (D9): `RPC_REINTENTO_MS` es una constante pura (`relayErrors.ts`,
+// su dueño) — `relay.ts` dejó de re-exportarla por no tener consumidores de
+// producción. Import estático: no depende de env ni de `resetModules`.
+import { RPC_REINTENTO_MS } from '../relayErrors';
+
 process.env.EXPO_PUBLIC_SUPABASE_URL = 'https://prueba.local';
 process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = 'anon-de-prueba';
 
@@ -124,7 +129,7 @@ describe('fetchSince por RPC (D4)', () => {
     expect(mockRpc).toHaveBeenCalledTimes(1); // sólo el primer intento
 
     // Pasado `RPC_REINTENTO_MS`: la migración ya llegó, `fetch_since` existe.
-    ahora.mockReturnValue(1_000_000 + relay.RPC_REINTENTO_MS + 1);
+    ahora.mockReturnValue(1_000_000 + RPC_REINTENTO_MS + 1);
     rpcResp.fetch_since = { data: [{ seq: 1, payload: 'a', sender: 's', created_at: 'x', ckey: null, more: false }], error: null };
     const r = await relay.fetchSince('T', 0);
     expect(mockRpc).toHaveBeenCalledTimes(2); // reintentó

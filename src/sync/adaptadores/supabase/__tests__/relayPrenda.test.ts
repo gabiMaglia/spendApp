@@ -7,6 +7,11 @@
  * importa: si quedaran puestas, otro suite del mismo worker levanta el motor de
  * relectura con su `setInterval` y Jest no termina nunca. Pasó de verdad.
  */
+// T-206-A (D9): `envelopeRow` es pura (`relaySend.ts`, su dueño) — `relay.ts`
+// dejó de re-exportarla por no tener consumidores de producción. Import
+// estático: no depende de env ni de `resetModules`.
+import { envelopeRow } from '../relaySend';
+
 process.env.EXPO_PUBLIC_SUPABASE_URL = 'https://prueba.local';
 process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = 'anon-de-prueba';
 
@@ -82,27 +87,27 @@ describe('la fila que se inserta', () => {
   it('sin prenda NO lleva la clave: queda igual a la de antes de T-088', () => {
     // No alcanza con que sea `undefined`. Lo que importa es que la clave no
     // viaje: es lo que hace que un servidor sin la columna la acepte.
-    const fila = relay.envelopeRow('t', 'x', 'dev1');
+    const fila = envelopeRow('t', 'x', 'dev1');
     expect('owner_proof' in fila).toBe(false);
     expect(fila).toEqual({ topic: 't', payload: 'x', sender: 'dev1', compactable: false });
   });
 
   it('con prenda agrega UNA sola clave', () => {
     const proof = 'ab'.repeat(32);
-    expect(relay.envelopeRow('t', 'x', 'dev1', true, proof)).toEqual({
+    expect(envelopeRow('t', 'x', 'dev1', true, proof)).toEqual({
       topic: 't', payload: 'x', sender: 'dev1', compactable: true, owner_proof: proof,
     });
   });
 
   it('un proof vacío o nulo no agrega la clave', () => {
-    expect('owner_proof' in relay.envelopeRow('t', 'x', 'd', true, null)).toBe(false);
-    expect('owner_proof' in relay.envelopeRow('t', 'x', 'd', true, '')).toBe(false);
+    expect('owner_proof' in envelopeRow('t', 'x', 'd', true, null)).toBe(false);
+    expect('owner_proof' in envelopeRow('t', 'x', 'd', true, '')).toBe(false);
   });
 
   it('NUNCA lleva la huella: la tag la deriva el servidor', () => {
     // Si el cliente pudiera elegir la tag copiaría la ajena. El servidor la
     // pisa igual (008), pero mandarla declararía una intención equivocada.
-    expect('owner_tag' in relay.envelopeRow('t', 'x', 'd', true, 'ab'.repeat(32))).toBe(false);
+    expect('owner_tag' in envelopeRow('t', 'x', 'd', true, 'ab'.repeat(32))).toBe(false);
   });
 });
 

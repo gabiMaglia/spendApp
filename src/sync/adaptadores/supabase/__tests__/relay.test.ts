@@ -1,7 +1,10 @@
 import {
-  byteLength, MAX_PAYLOAD_BYTES, isRelayConfigured, sendEnvelope, fetchSince, subscribeTopic,
+  MAX_PAYLOAD_BYTES, isRelayConfigured, sendEnvelope, fetchSince, subscribeTopic,
   ENVELOPES_SELECT,
 } from '../relay';
+// T-206-A (D9): `byteLength` es pura (`relayErrors.ts`, su dueño) — `relay.ts`
+// dejó de re-exportarla por no tener consumidores de producción.
+import { byteLength } from '../relayErrors';
 
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
 

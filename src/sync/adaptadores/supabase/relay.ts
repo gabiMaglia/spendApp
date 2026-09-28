@@ -215,9 +215,14 @@ export function subscribeTopic(topic: string, onNews: () => void, onStatus?: (ok
   return () => { void supabase.removeChannel(privado); void supabase.removeChannel(publico); };
 }
 
-// T-192: `sendEnvelope`/`envelopeRow` salieron a `relaySend.ts`, la
-// clasificación de errores (`esFuncionAusente`, `RPC_REINTENTO_MS`,
-// `byteLength`) a `relayErrors.ts`. Re-exportados para que la ruta pública
-// `@/src/sync/relay` no cambie.
-export { sendEnvelope, envelopeRow, type SendResult } from './relaySend';
-export { esFuncionAusente, esLimiteDeRitmo, RPC_REINTENTO_MS, byteLength } from './relayErrors';
+// T-192: `sendEnvelope` salió a `relaySend.ts`, `esFuncionAusente` a
+// `relayErrors.ts`. Re-exportados para que la ruta pública `@/src/sync/relay`
+// no cambie — los dos tienen consumidores de producción reales (`publicar.ts`,
+// `contactChannel.ts`, etc. / `deviceKeys.ts`).
+//
+// T-206-A (D9): acá también re-exportaban `envelopeRow`, `esLimiteDeRitmo`,
+// `RPC_REINTENTO_MS` y `byteLength` — sin ningún consumidor de producción
+// (`esLimiteDeRitmo` no tenía ninguno en absoluto, ni de test). Sus 4 tests
+// pasan a importar del dueño (`relaySend.ts`/`relayErrors.ts`) directo.
+export { sendEnvelope, type SendResult } from './relaySend';
+export { esFuncionAusente } from './relayErrors';

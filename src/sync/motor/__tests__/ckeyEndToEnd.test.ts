@@ -36,13 +36,18 @@ jest.mock('@/src/sync/adaptadores/supabase/relay', () => {
   // Revisión final, Fix 5: el mock original aceptaba CUALQUIER payload sin
   // mirar su tamaño, así que `expect(result.ok).toBe(true)` pasaba igual de
   // "bien" con el slicing roto o directamente sacado — no probaba nada sobre
-  // el tope real. Acá se reusa el `byteLength`/`MAX_PAYLOAD_BYTES` REALES de
-  // `relay.ts` (vía `jest.requireActual`, no una copia local que se puede
-  // desalinear) para que `sendEnvelope` rechace de verdad cualquier sobre que
-  // exceda el tope — igual que el servidor real.
+  // el tope real. Acá se reusa el `byteLength`/`MAX_PAYLOAD_BYTES` REALES
+  // (vía `jest.requireActual`, no una copia local que se puede desalinear)
+  // para que `sendEnvelope` rechace de verdad cualquier sobre que exceda el
+  // tope — igual que el servidor real. T-206-A (D9): `byteLength` se lee de
+  // `relayErrors.ts` (su dueño) — `relay.ts` dejó de re-exportarlo por no
+  // tener consumidores de producción; `MAX_PAYLOAD_BYTES` sigue viniendo de
+  // `relay.ts`, que la re-exporta de `relayClient.ts` sin cambios.
   const real = jest.requireActual('@/src/sync/adaptadores/supabase/relay') as {
-    byteLength: (s: string) => number;
     MAX_PAYLOAD_BYTES: number;
+  };
+  const { byteLength } = jest.requireActual('@/src/sync/adaptadores/supabase/relayErrors') as {
+    byteLength: (s: string) => number;
   };
   const buzones = new Map<string, { seq: number; topic: string; payload: string; sender: string; compactable?: boolean; ckey?: string }[]>();
   let seq = 0;
@@ -53,7 +58,7 @@ jest.mock('@/src/sync/adaptadores/supabase/relay', () => {
     isRelayConfigured: () => true,
     subscribeTopic: () => () => {},
     sendEnvelope: async (topic: string, payload: string, sender: string, compactable = false, ckey?: string) => {
-      if (real.byteLength(payload) > real.MAX_PAYLOAD_BYTES) {
+      if (byteLength(payload) > real.MAX_PAYLOAD_BYTES) {
         return { ok: false, reason: 'too_large' as const };
       }
       const lista = buzones.get(topic) ?? [];
@@ -81,7 +86,8 @@ import { useExpenseStore } from '@/src/store/expenseStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { publishToGroup, drainGroup } from '../relaySync';
 import { manifestGapFor, clearManifestGaps } from '@/src/sync/nucleo/manifestHealth';
-import { byteLength, MAX_PAYLOAD_BYTES } from '@/src/sync/adaptadores/supabase/relay';
+import { MAX_PAYLOAD_BYTES } from '@/src/sync/adaptadores/supabase/relay';
+import { byteLength } from '@/src/sync/adaptadores/supabase/relayErrors';
 import type { Group, Expense } from '@/src/types/models';
 
 const relayMock = jest.requireMock('@/src/sync/adaptadores/supabase/relay') as {
