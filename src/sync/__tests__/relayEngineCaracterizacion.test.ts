@@ -68,7 +68,7 @@ import {
 import { drainGroup, publishToGroup } from '../relaySync';
 import { activeInvites } from '../inviteEngine';
 import { recordPublish, publishFailures, clearPublishFailures } from '../publishHealth';
-import { encolar, vaciarCola, __resetRelayQueue, QUEUE_INTERVAL_MS } from '../relayQueue';
+import { encolar, __resetRelayQueue, QUEUE_INTERVAL_MS } from '../relayQueue';
 import { __resetSessionStatus } from '../sessionStatus';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';

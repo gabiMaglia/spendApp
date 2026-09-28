@@ -10,17 +10,19 @@ import { processAllContactInvites } from './contactInviteEngine';
 import { verifyMyKeyRegistered } from './deviceKeys';
 import { withTimeout } from '@/src/utils/withTimeout';
 import { deviceId } from './relay/cursor';
-export { readCursor, writeCursor, olvidarCursor, deviceId } from './relay/cursor';
 import { marcarCanal, olvidarCanal, startPolling, stopPolling } from './relay/poll';
-export { POLL_OK_MS, POLL_CAIDO_MS, POLL_INTERVAL_MS, intervaloDePoll } from './relay/poll';
 import { syncableGroupIds, cancelPendingPublishes, reintentarPublicacionesConCuota } from './relay/publish';
-export { PUBLISH_DEBOUNCE_MS, syncableGroupIds, schedulePublish, publishNow, cancelPendingPublishes } from './relay/publish';
 import { drainNow, scheduleDrain, cancelPendingDrains, drainAll } from './relay/drain';
-export { DRAIN_DEBOUNCE_MS, drainNow, scheduleDrain, cancelPendingDrains, drainAll } from './relay/drain';
 import { anunciarMiTarjeta, reenviarClavesDeGrupo, drainContactsNow } from './relay/contactos';
-export { anunciarMiTarjeta, __resetReenvioClaves, announceGroupToContacts, drainContactsNow } from './relay/contactos';
 import { subscribeInvites, subscribeContacts, crearOnInviteNews } from './relay/invitaciones';
 import { vaciarCola } from './relayQueue';
+
+// ── API pública que sigue viviendo en esta ruta (13 importadores + 84 tests que la mockean) ──
+export { readCursor, writeCursor, olvidarCursor, deviceId } from './relay/cursor';
+export { POLL_OK_MS, POLL_CAIDO_MS, POLL_INTERVAL_MS, intervaloDePoll } from './relay/poll';
+export { PUBLISH_DEBOUNCE_MS, syncableGroupIds, schedulePublish, publishNow, cancelPendingPublishes } from './relay/publish';
+export { DRAIN_DEBOUNCE_MS, drainNow, scheduleDrain, cancelPendingDrains, drainAll } from './relay/drain';
+export { anunciarMiTarjeta, __resetReenvioClaves, announceGroupToContacts, drainContactsNow } from './relay/contactos';
 
 /**
  * Motor del sync en tiempo real (fachada, T-189). Dirección fija de imports:
