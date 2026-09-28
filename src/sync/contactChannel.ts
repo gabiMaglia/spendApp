@@ -142,7 +142,7 @@ export async function announceContact(peerSecret: string, deviceId: string): Pro
  * R4-2) — para que `relayQueue` pueda distinguir `rate_limited` (se
  * reintenta con el ritmo de la cuota, nunca se pierde) de un fallo real.
  */
-export async function announceContactResultado(
+async function announceContactResultado(
   peerSecret: string,
   deviceId: string,
 ): Promise<SendResult | { ok: false; reason: 'no_data' }> {

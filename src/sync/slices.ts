@@ -1,31 +1,6 @@
 import * as Crypto from 'expo-crypto';
 import type { GroupKey } from './envelopeCrypto';
 import { toHex } from './envelopeCrypto';
-import { excesoDe } from './topes';
-
-/**
- * Mide bytes UTF-8 reales, no unidades UTF-16 de `.length` (revisión final,
- * Fix 6: `.length` subestima acentos/emoji).
- *
- * Deliberadamente DUPLICADA de `relay.ts`'s `byteLength` (mismo algoritmo,
- * byte a byte) en vez de importada desde ahí: `slices.ts` es un módulo puro
- * a propósito (Task 2 del plan — sólo depende de `envelopeCrypto`), mientras
- * que `relay.ts` es la capa de transporte/red, mockeada por nombre en casi
- * todos los tests de `sync/__tests__` para no hablar con Supabase de
- * verdad. Importar `relay.ts` acá acoplaría un módulo puro a esos mocks —
- * cualquier test que mockee `../relay` sin re-exportar `byteLength`
- * rompería el slicing por una razón que no tiene nada que ver con lo que ese
- * test intenta probar. Diez líneas duplicadas salen más baratas que esa
- * fragilidad.
- */
-function byteLength(s: string): number {
-  let bytes = 0;
-  for (const ch of s) {
-    const cp = ch.codePointAt(0)!;
-    bytes += cp < 0x80 ? 1 : cp < 0x800 ? 2 : cp < 0x10000 ? 3 : 4;
-  }
-  return bytes;
-}
 
 /**
  * Objetivo de tamaño por rebanada (JSON, antes de sellar/firmar) y tope duro.
@@ -52,71 +27,4 @@ export async function deriveCkey(key: GroupKey, tipo: string, indice: string): P
     Crypto.CryptoDigestAlgorithm.SHA256,
     `${toHex(key)}:ckey:${tipo}:${indice}`,
   );
-}
-
-/**
- * Parte una lista de entidades en rebanadas, cada una intentando quedar bajo
- * `TARGET_SLICE_BYTES` de JSON. Greedy: acumula en orden hasta que agregar el
- * siguiente elemento cruzaría el objetivo, ahí cierra la rebanada y empieza
- * otra. Un elemento solo que supera el objetivo pero no el tope duro queda
- * solo en su propia rebanada.
- *
- * **Un elemento que supera `MAX_SLICE_BYTES` se EXCLUYE** (T-150, SEC-07) y
- * vuelve en `excluidos` para que el publicador deje rastro. Hasta acá se
- * mandaba «entero y señalado» con un `console.warn` — y como `sendEnvelope`
- * rechaza sobres por encima de `MAX_PAYLOAD_BYTES`, un solo registro
- * sobredimensionado hacía fallar la publicación de TODOS los peers honestos
- * que lo hubieran recibido: el grupo dejaba de sincronizar para siempre.
- * Excluirlo deja al grupo vivo; el registro sigue en el store local de quien
- * lo tiene, sólo no viaja.
- *
- * Partición puramente LOCAL: cada dispositivo decide la suya sin coordinarse
- * con otros (ADR-007 §3.1) — por eso el orden de entrada (por `id`) es lo
- * único que importa para que la partición sea estable entre publicaciones
- * sucesivas del MISMO dispositivo, no para que coincida con la de otro.
- *
- * El tamaño se mide en bytes UTF-8 reales (`byteLength`, `relay.ts`), no en
- * `.length` de JS (unidades UTF-16) — revisión final, hallazgo menor: contar
- * `.length` subestima el peso real de cualquier texto con acentos o emoji,
- * y es justamente lo que `relay.ts` usa para el tope real del sobre
- * (`MAX_PAYLOAD_BYTES`). Medir distinto acá que en el chequeo real desalinea
- * la contabilidad de rebanadas del límite que en verdad importa.
- */
-export function sliceEntities<T extends { id: string }>(
-  entities: T[],
-): { rebanadas: T[][]; excluidos: T[] } {
-  if (entities.length === 0) return { rebanadas: [], excluidos: [] };
-
-  const ordenadas = [...entities].sort((a, b) => a.id.localeCompare(b.id));
-  const rebanadas: T[][] = [];
-  const excluidos: T[] = [];
-  let actual: T[] = [];
-  let tamanoActual = 2; // '[' + ']'
-
-  for (const item of ordenadas) {
-    const itemJson = JSON.stringify(item);
-    const bytesItem = byteLength(itemJson);
-
-    // T-150 ronda 2 (D1, verifier): la exclusión usa EL MISMO predicado que
-    // `acotarDeltaAlGrupo` usa para descartar al recibir (`excesoDe`,
-    // `topes.ts`) — antes esta puerta sólo miraba bytes y la de recibir
-    // también medía caracteres, así que un registro honesto que pasaba acá
-    // se descartaba en silencio en todos los peers que lo recibían.
-    if (excesoDe(item) !== null) {
-      excluidos.push(item);
-      continue;
-    }
-
-    const tamanoItem = bytesItem + 1; // + coma/cierre
-    if (actual.length > 0 && tamanoActual + tamanoItem > TARGET_SLICE_BYTES) {
-      rebanadas.push(actual);
-      actual = [];
-      tamanoActual = 2;
-    }
-    actual.push(item);
-    tamanoActual += tamanoItem;
-  }
-  if (actual.length > 0) rebanadas.push(actual);
-
-  return { rebanadas, excluidos };
 }

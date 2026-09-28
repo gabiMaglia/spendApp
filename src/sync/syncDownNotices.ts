@@ -52,11 +52,11 @@ function guardar(todas: Record<string, string>): void {
 }
 
 /** ¿A este grupo ya le avisamos ESTA caída? */
-export function caidaYaAvisada(groupId: string, reason: BlockingReason): boolean {
+function caidaYaAvisada(groupId: string, reason: BlockingReason): boolean {
   return avisadas()[groupId] === reason;
 }
 
-export function marcarCaidaAvisada(groupId: string, reason: BlockingReason): void {
+function marcarCaidaAvisada(groupId: string, reason: BlockingReason): void {
   guardar({ ...avisadas(), [groupId]: reason });
 }
 

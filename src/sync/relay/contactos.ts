@@ -99,7 +99,7 @@ function leerAdopcionesRecientes(): Record<string, number> {
 
 /** Marca uno o más grupos como "recién adoptados" — prioridad alta hasta que
  *  venza el TTL, sobreviva o no un reinicio del proceso. */
-export function marcarAdopciones(ids: string[]): void {
+function marcarAdopciones(ids: string[]): void {
   if (ids.length === 0) return;
   const actuales = leerAdopcionesRecientes();
   const ahora = Date.now();

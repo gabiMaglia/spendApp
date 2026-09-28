@@ -1,14 +1,16 @@
 import { acotarDeltaAlGrupo, type LocalSnapshot } from '../acotarDeltaAlGrupo';
-import { sliceEntities } from '../slices';
 import { MAX_NOTA, MAX_MIEMBROS } from '../topes';
 import type { SyncDelta } from '../applyDelta';
 
 /**
- * SEC-07 (T-150), enmienda PO 2026-09-26 (ronda 2, tras QA+verifier
- * RECHAZADO): recibir (`acotarDeltaAlGrupo`) y publicar (`sliceEntities`)
- * usan el MISMO predicado — sólo bytes (`MAX_REGISTRO_BYTES`) y
- * `memberIds.length > MAX_MIEMBROS`. Los topes de caracteres (200/2.000) ya
- * NO se aplican acá.
+ * SEC-07 (T-150): recibir (`acotarDeltaAlGrupo`) usa un único predicado —
+ * sólo bytes (`MAX_REGISTRO_BYTES`) y `memberIds.length > MAX_MIEMBROS`. Los
+ * topes de caracteres (200/2.000) ya NO se aplican acá.
+ *
+ * T-193: la parte de "publicar" de esta comparación (`sliceEntities`) se
+ * borró — el publicador real es `relay/cubos.ts` desde T-191, sin uso de
+ * `sliceEntities` hace rato. El describe que comparaba las dos puertas se
+ * fue con ella.
  */
 const vacio: LocalSnapshot = {
   groupMemberIds: () => ['ana', 'beto'],
@@ -69,29 +71,6 @@ it('D2 — un tombstone con memberIds heredado > MAX_MIEMBROS de antes del borra
   const out = acotarDeltaAlGrupo(delta({ groups: [tombstoneGrupo] }), 'g1', vacio, desc);
   expect(out.groups).toEqual([tombstoneGrupo]);
   expect(desc.count).toBe(0);
-});
-
-describe('D1 — recibir y publicar concuerdan (mismo predicado, `excesoDe`)', () => {
-  it('un gasto legado con description de 300 caracteres pasa las dos puertas', () => {
-    const legado = gasto('legado', { description: 'x'.repeat(300) });
-
-    const recibido = acotarDeltaAlGrupo(delta({ expenses: [legado] }), 'g1', vacio);
-    expect(recibido.expenses).toEqual([legado]);
-
-    const { rebanadas, excluidos } = sliceEntities([legado]);
-    expect(excluidos).toEqual([]);
-    expect(rebanadas.flat()).toEqual([legado]);
-  });
-
-  it('un grupo con memberIds > MAX_MIEMBROS lo rechazan las dos puertas', () => {
-    const bomba = { id: 'g1', name: 'Viaje', memberIds: miembrosDeMas, updatedAt: 1, isDeleted: false } as never;
-
-    const recibido = acotarDeltaAlGrupo(delta({ groups: [bomba] }), 'g1', vacio);
-    expect(recibido.groups).toEqual([]);
-
-    const { excluidos } = sliceEntities([bomba]);
-    expect(excluidos).toEqual([bomba]);
-  });
 });
 
 it('pagos, recurrentes, comentarios y perfiles también se miden por bytes', () => {
