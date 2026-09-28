@@ -159,6 +159,14 @@ describe('publicarPorCubos — publicar sólo lo que cambió (T-191 Task 2)', ()
     expect(ckeyVieja).toBeDefined();
     expect(leerCubo(almacen, 'topic1', 'device1', ckeyVieja!.ckey)).toBeNull(); // se olvidó del ledger
 
+    // V5 (verifier, menor): los cubos NUEVOS salen ANTES que el `[]` de los
+    // viejos, y el manifiesto al final — si la red se corta a mitad de
+    // camino, un recién llegado ya vio los cubos nuevos de este campo.
+    const indiceVieja = fase2.piezas().findIndex(p => p.ckey === ckeyVieja!.ckey);
+    const indiceManifiesto = fase2.piezas().length - 1;
+    expect(indiceVieja).toBeGreaterThan(0); // no es la primera pieza
+    expect(indiceVieja).toBeLessThan(indiceManifiesto); // pero va antes del manifiesto
+
     // Fase 3: el registro B se va (el grupo vuelve a ser chico). La
     // profundidad NO baja, aunque a d=1 ya entraría bajo SPLIT de sobra.
     const fase3 = enviarFalso();
