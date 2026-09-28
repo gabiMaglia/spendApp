@@ -106,6 +106,34 @@ export function getFormatLocale(): string {
 }
 
 /**
+ * Cache a nivel de módulo de `Intl.NumberFormat`, clave `${locale}|${decimales}`
+ * (T-198, PO 2026-09-28: delay entre tecla y tecla en el Moto E40/Hermes).
+ *
+ * `formatAmount` construía una instancia NUEVA en cada llamada. Es barato en
+ * V8 de escritorio pero caro de construir en Hermes, y esta función se llama
+ * por CADA fila del preview de splits en `expense/new.tsx` — una tecla
+ * tipeada re-renderiza la pantalla y reformatea TODAS las filas.
+ *
+ * El espacio de claves es chico y fijo (3 idiomas × 2 cantidades de
+ * decimales con las monedas de hoy), así que el `Map` nunca crece sin
+ * límite; no hace falta invalidarlo.
+ */
+const numberFormatCache = new Map<string, Intl.NumberFormat>();
+
+export function getCachedNumberFormat(locale: string, decimales: number): Intl.NumberFormat {
+  const key = `${locale}|${decimales}`;
+  let formatter = numberFormatCache.get(key);
+  if (!formatter) {
+    formatter = new Intl.NumberFormat(locale, {
+      minimumFractionDigits: decimales,
+      maximumFractionDigits: decimales,
+    });
+    numberFormatCache.set(key, formatter);
+  }
+  return formatter;
+}
+
+/**
  * Formatea un monto (ENTERO en menor unidad) con `Intl.NumberFormat` — SIEMPRE
  * usar esto, nunca `.toFixed()` ni división/multiplicación manual.
  *
@@ -139,10 +167,7 @@ export function formatAmount(minor: number, code: CurrencyCode): string {
 
   const decimales = sinCentavos ? 0 : currency.decimals;
 
-  return new Intl.NumberFormat(LOCALE_DE_SALIDA[idiomaDeSalida], {
-    minimumFractionDigits: decimales,
-    maximumFractionDigits: decimales,
-  }).format(Math.abs(value));
+  return getCachedNumberFormat(LOCALE_DE_SALIDA[idiomaDeSalida], decimales).format(Math.abs(value));
 }
 
 // Devuelve símbolo + monto formateado, ej: "$1.500,00". `minor` es SIEMPRE el
