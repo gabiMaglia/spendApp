@@ -70,7 +70,13 @@ const relayMock = jest.requireMock('../relay') as {
 function grupo(): Group {
   return {
     id: 'G', name: 'Grupo', memberIds: ['u1'], currency: 'USD',
-    miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
+    // T-191 (V2b): con roster VACÍO, el merge de la rebanada `groups` (T-182,
+    // `mergeGroupsPure.ts`) recalcula `memberIds` a partir de `miembros` y lo
+    // deja en `[]` — la rebanada `users` queda entonces con una dependencia
+    // que NUNCA se resuelve (`u1` deja de ser miembro local), y el drenaje no
+    // completa nunca. El roster tiene que reflejar la misma membresía que
+    // `memberIds` para que el escenario sea el de un grupo real.
+    miembros: { u1: { estado: 'in', at: 1 } },
     createdAt: 1, createdById: 'u1',
     updatedAt: 1_000, isDeleted: false,
   } as Group;
