@@ -137,6 +137,42 @@ export type PublishResult =
  * manifiesto se manda siempre, al final, con el digest de todos los cubos
  * presentes.
  */
+/**
+ * V3 (verifier, T-191 segunda tanda): dos llamadas concurrentes a
+ * `publishToGroup` para el MISMO topic (una ráfaga de `schedulePublish` más
+ * un `publishNow` directo, o `reintentarPublicacionesConCuota` solapado con
+ * un cambio nuevo) podían tener sus `sendEnvelope` en vuelo A LA VEZ. Con
+ * respuestas de red en orden invertido, el ledger terminaba creyendo
+ * publicado el digest de la publicación más NUEVA mientras el buzón —
+ * compactado por quien llegó último— se quedaba con el contenido de la más
+ * VIEJA: una publicación siguiente sin cambios locales nunca volvía a mandar
+ * ese cubo, y la edición se perdía en silencio para el resto del grupo.
+ *
+ * Cola de promesas por topic — una publicación en vuelo por grupo, la
+ * siguiente espera a que la anterior TERMINE (éxito o fallo) antes de
+ * arrancar la suya. Mismo patrón que usa Jazz/CoJSON para serializar
+ * escrituras por CoValue (`feedback_jazz_referencia_sync.md`). Sólo se
+ * encola la fase de ENVÍO (`publicarPorCubos`, que lee y escribe el
+ * ledger) — el armado del documento (`adaptador.armar`/`antesDePublicar`,
+ * más abajo) corre SIN esperar la cola, porque leer el estado local no
+ * escribe nada compartido y encolarlo también demoraría sin necesidad la
+ * publicación de un grupo A por una publicación en curso de un grupo B (la
+ * cola es por topic, no global, así que esto último no pasaría de todos
+ * modos — pero armar tampoco necesita el turno).
+ */
+const colaPorTopic = new Map<string, Promise<unknown>>();
+
+async function encolarPorTopic<T>(topic: string, tarea: () => Promise<T>): Promise<T> {
+  const anterior = colaPorTopic.get(topic) ?? Promise.resolve();
+  const propia = anterior.then(tarea, tarea);
+  // Nunca deja la cola "trabada" en un rechazo: el siguiente turno arranca
+  // igual, pase lo que pase con éste. El resultado (o el error) de ESTA
+  // llamada lo sigue recibiendo quien la hizo — `propia`, no la promesa de
+  // encadenamiento — así que nada de esto oculta un fallo real.
+  colaPorTopic.set(topic, propia.catch(() => undefined));
+  return propia;
+}
+
 export async function publishToGroup(
   groupId: string,
   currentUserId: string,
@@ -178,7 +214,8 @@ export async function publishToGroup(
     });
   };
 
-  const resultado = await publicarPorCubos(
+  // V3: sólo la fase de envío (lee/escribe el ledger) se serializa por topic.
+  const resultado = await encolarPorTopic(topic, () => publicarPorCubos(
     campos,
     (campo, registros) => adaptador.envolver(campo, registros, currentUserId),
     key,
@@ -189,7 +226,7 @@ export async function publishToGroup(
     enviar,
     cederHilo,
     onExcluidos,
-  );
+  ));
 
   if (!resultado.ok) {
     return { ok: false, reason: resultado.reason as PublishFailReason, detail: resultado.detail };
