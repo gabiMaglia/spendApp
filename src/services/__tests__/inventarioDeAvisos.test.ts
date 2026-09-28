@@ -78,6 +78,13 @@ const INVENTARIO: Record<string, string> = {
    * enterarse de que una recurrente quedó bloqueada en el grupo archivado.
    */
   group_traspaso_recurring_blocked: 'una recurrente no se pudo mover al traspasar el grupo por falta de firma',
+  /**
+   * **T-194.** Comentaron un gasto compartido. Mismo casillero que `expenses`
+   * (agrega por grupo, nunca avisa lo propio) — antes el comentario llegaba y
+   * se mergeaba bien, pero `Snapshot`/`noticesFor` no lo miraban, así que
+   * nunca había nada que avisar.
+   */
+  comment: 'comentaron un gasto compartido',
 };
 
 /** Los `kind` declarados en la unión `Notice`, leídos del fuente. */

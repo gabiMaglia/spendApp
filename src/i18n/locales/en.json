@@ -640,6 +640,8 @@
   "notifications": {
     "new_expenses_one": "1 new expense was added",
     "new_expenses_other": "{{count}} new expenses were added",
+    "new_comments_one": "There's 1 new comment",
+    "new_comments_other": "There are {{count}} new comments",
     "restored": "«{{description}}» was restored",
     "joined_title": "You were added to a group",
     "joined_body": "You can now see “{{group}}”",

@@ -3,6 +3,7 @@ import { useGroupStore } from '@/src/store/groupStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { usePaymentStore } from '@/src/store/paymentStore';
+import { useCommentStore } from '@/src/store/commentStore';
 import { syncedNow } from '@/src/utils/syncedClock';
 import { snapshot, noticesFor, type Snapshot } from '@/src/services/syncNotices';
 import { announce } from '@/src/services/notifications';
@@ -39,7 +40,8 @@ export async function drainNow(groupId: string): Promise<number> {
     const r = await drainGroup(groupId, userId, deviceId(), readCursor(topic), {
       antesDeAplicar: () => {
         antes = snapshot(useExpenseStore.getState().expenses, syncedNow(),
-          useGroupStore.getState().groups, usePaymentStore.getState().payments);
+          useGroupStore.getState().groups, usePaymentStore.getState().payments,
+          useCommentStore.getState().comments);
       },
     });
     if (!r.ok) return 0;
@@ -62,7 +64,7 @@ export async function drainNow(groupId: string): Promise<number> {
 async function avisarDeLoNuevo(antes: Snapshot, userId: string): Promise<void> {
   try {
     const avisos = noticesFor(antes, useExpenseStore.getState().expenses, useGroupStore.getState().groups,
-      userId, syncedNow(), usePaymentStore.getState().payments);
+      userId, syncedNow(), usePaymentStore.getState().payments, useCommentStore.getState().comments);
     if (avisos.length > 0) await announce(avisos);
   } catch { /* nunca rompe el sync */ }
 }
