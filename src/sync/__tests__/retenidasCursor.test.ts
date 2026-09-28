@@ -220,19 +220,24 @@ it('T5 (tope de páginas): cobra cupo y devuelve incompleto, resuelve en la sigu
 
   const com = { id: 'c1', expenseId: E1, authorId: 'u1', text: 'hola', createdAt: 1, updatedAt: 1, isDeleted: false };
   empujar(topic, envolverCrudo('comments', [com]), 'devB', kc); // seq1
-  empujar(topic, envolverCrudo('comments', [{ ...com, id: 'relleno' }]), 'devB', 'k-relleno'); // seq2, sólo para llenar la página
-  empujar(topic, envolverCrudo('expenses', [gasto(E1)]), 'devA', ke); // seq3
+  empujar(topic, envolverCrudo('expenses', [gasto(E1)]), 'devA', ke); // seq2
 
-  const r1 = await drainGroup('G', 'u1', 'devR', 0, { pageLimit: 2, maxPages: 1 });
+  // Primer drenaje: tope de páginas ARTIFICIAL (1 página de 1 sobre) — sólo
+  // alcanza a ver seq1 (el comentario, retenido); seq2 queda fuera de
+  // alcance de ESTA llamada.
+  const r1 = await drainGroup('G', 'u1', 'devR', 0, { pageLimit: 1, maxPages: 1 });
   expect(r1.ok).toBe(true);
   if (!r1.ok) return;
-  expect(r1.cursor).toBe(0); // la retenida (seq1) sigue sin resolver
+  expect(r1.cursor).toBe(0); // la retenida (seq1) sigue sin resolver: cobra cupo
   expect(r1.completo).toBe(false);
 
-  const r2 = await drainGroup('G', 'u1', 'devR', r1.cursor, { pageLimit: 2, maxPages: 1 });
+  // Segundo drenaje: presupuesto normal (sin recortar) — esta vez ve seq1 Y
+  // seq2 en la MISMA llamada, así que la reaplicación final resuelve.
+  const r2 = await drainGroup('G', 'u1', 'devR', r1.cursor);
   expect(r2.ok).toBe(true);
   if (!r2.ok) return;
-  expect(r2.cursor).toBe(3);
+  expect(r2.cursor).toBe(2);
+  expect(r2.completo).toBe(true);
   expect(useCommentStore.getState().comments.find(c => c.id === 'c1')).toBeDefined();
 });
 

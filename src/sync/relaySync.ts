@@ -542,6 +542,10 @@ export async function drainGroup(
   // el normal. El chequeo de manifiesto sigue sin correr (`completo` queda
   // `false`, como antes): esta salida es parcial a propósito.
   let salidaTemprana: { cursor: number } | null = null;
+  // V2b (arquitecto, tercera ronda — spec §8 C2): distingue el corte de red
+  // en una página POSTERIOR (no cobra cupo a las retenidas, ajuste A) del
+  // tope de páginas alcanzado (si cobra). Ninguno de los dos es "completo".
+  let corteDeRed = false;
 
   paginas: for (let pagina = 0; pagina < maxPages; pagina++) {
     const r = await fetchSince(topic, cursor, deviceId, pageLimit);
@@ -550,6 +554,7 @@ export async function drainGroup(
       // posterior ya hay cosas aplicadas: se devuelve hasta dónde se llegó, y
       // `completo: false` deja la marca de T-089 puesta.
       if (pagina === 0) return { ok: false, reason: r.reason, detail: r.detail };
+      corteDeRed = true;
       break;
     }
 
@@ -750,25 +755,53 @@ export async function drainGroup(
     }
   }
 
-  // T-191 (Task 3, spec §8 C2): reaplicar al final lo que quedó retenido por
-  // dependencia en CUALQUIER página — recién ahora, después de la ÚLTIMA,
-  // `groups`/`expenses` de esta misma tanda tuvieron toda la chance que iban
-  // a tener de llegar (por su propio cubo, en otra página). Si la
-  // reaplicación queda SIN descartes por dependencia, se registra en
-  // `appliedSlices`; si no, la entrada del manifiesto sigue "faltante" y
-  // queda para la relectura (C6) de más abajo o para una vuelta de poll
-  // futura donde la dependencia ya esté resuelta.
+  // V2b (arquitecto, tercera ronda — spec §8 C2): reaplicar al final lo que
+  // quedó retenido por dependencia en CUALQUIER página. Si queda SIN
+  // descartes, se registra en `appliedSlices`. Si sigue con descartes (o la
+  // reaplicación tira), entra en `noResueltas` — y en `H` sólo si TODAVÍA
+  // tiene cupo en `drainFailures` (`(topic, seq)`). El cupo se cobra
+  // (ajuste A) sólo cuando este drenaje llega al fondo del buzón o al tope
+  // de páginas — NUNCA en una salida temprana ni en un corte de red: en esos
+  // dos casos la retenida ni tuvo la última chance real de resolverse hoy.
+  const debeCobrarCupo = !salidaTemprana && !corteDeRed;
+  const H: { seq: number; ckey?: string; sender: string }[] = [];
+  const noResueltas: { sender: string; ckey?: string }[] = [];
+
   for (const { seq, ckey, sender, delta, senderKey, json } of retenidasPorDependencia) {
+    let siguePendiente = false;
     try {
       const descartes = await aplicarDeltaAcotado(groupId, currentUserId, delta);
-      if (descartes.porDependencia === 0 && ckey) {
-        appliedSlices.registrar(adaptador.almacen, topic, sender, ckey, {
-          digest: await digestOfJson(json), seq, senderKey,
-        });
+      if (descartes.porDependencia === 0) {
+        if (ckey) {
+          appliedSlices.registrar(adaptador.almacen, topic, sender, ckey, {
+            digest: await digestOfJson(json), seq, senderKey,
+          });
+        }
+      } else {
+        siguePendiente = true;
+        if (debeCobrarCupo) registrarFalloDeAplicacion(topic, seq, new Error('dependencia_pendiente'));
       }
     } catch (e) {
       registrarFalloDeAplicacion(topic, seq, e);
+      siguePendiente = true;
     }
+
+    if (siguePendiente) {
+      noResueltas.push({ sender, ckey });
+      // Cupo agotado: sale de `H` (no bloquea el cursor) — el manifiesto la
+      // marca faltante igual (ajuste B, más abajo), como cualquier otro
+      // faltante permanente.
+      if (!agotoReintentos(topic, seq)) H.push({ seq, ckey, sender });
+    }
+  }
+
+  // Ajuste B: una retenida NO RESUELTA se saca de `recibidasPorRemitente`
+  // ANTES del chequeo de manifiesto — `entradaCumplida` la daría por
+  // cumplida sólo porque el sobre LLEGÓ, sin mirar si de verdad terminó de
+  // aplicarse. Con o sin cupo: las dos formas de "no resuelta" tienen que
+  // seguir figurando como faltantes para `manifestHealth`.
+  for (const { sender, ckey } of noResueltas) {
+    if (ckey) recibidasPorRemitente.get(sender)?.delete(ckey);
   }
 
   // Manifiesto: se chequea UNA vez, al final, y sólo si se leyó hasta el
@@ -808,12 +841,24 @@ export async function drainGroup(
           }
         }
 
+        // Ajuste C (V2b, arquitecto): una ckey retenida sin resolver NO
+        // dispara relectura — el sobre ya está en mano, releerlo de nuevo no
+        // cambia nada (el problema es la dependencia, no el transporte). Si
+        // TODOS los faltantes de este emisor son retenidas, se conserva el
+        // cupo de relectura (`permiteRelectura` no se consulta) — pero
+        // igual cuentan como faltantes más abajo, para `manifestHealth`.
+        const ckeysNoResueltasDeEsteSender = new Set(
+          noResueltas.filter(n => n.sender === sender && n.ckey).map(n => n.ckey!),
+        );
+        const todosSonRetenidas = faltantes.length > 0
+          && faltantes.every(f => ckeysNoResueltasDeEsteSender.has(f.ckey));
+
         // T-191 (Task 3, spec §7/§8 C6): faltó algo — como MUCHO una
         // relectura desde el cursor 0 por `(topic, sender, seq del
         // manifiesto)`. Si después de releer sigue faltando, se registra y
         // no se vuelve a intentar hasta que llegue un manifiesto con otro
         // `seq` (`relecturas.permite` no vuelve a dar `true` para esta terna).
-        if (faltantes.length > 0 && permiteRelectura(topic, sender, seqManifiesto)) {
+        if (faltantes.length > 0 && !todosSonRetenidas && permiteRelectura(topic, sender, seqManifiesto)) {
           const siguenFaltando = await releerFaltantes(
             groupId, currentUserId, deviceId, topic, key, record, sender, faltantes,
           );
@@ -836,8 +881,20 @@ export async function drainGroup(
   // que aprenda sirve para la próxima vuelta.
   void refreshPendingAuthors();
 
-  if (salidaTemprana) {
-    return { ok: true, applied, skipped, cursor: salidaTemprana.cursor, completo: false };
-  }
-  return { ok: true, applied, skipped, cursor, completo };
+  // V2b (arquitecto, tercera ronda — spec §8 C2): el cursor NUNCA pasa una
+  // retenida por dependencia que siga sin resolver Y con cupo — `base` es
+  // el cursor que este drenaje habría devuelto de no haber retenidas
+  // (`salidaTemprana.cursor` si la hubo, si no el último `r.cursor`); si
+  // `H` no está vacío, el cursor se recorta a justo ANTES de la más vieja
+  // de ellas, para que la próxima vuelta la vuelva a pedir. `completo`
+  // (original, sólo se puso en `true` en la lectura natural hasta el fondo)
+  // se apaga si queda algo en `H` — invariante: `cursor >= sinceSeq` siempre
+  // (la retenida más vieja nunca es anterior a `sinceSeq`, porque `H` sólo
+  // contiene rebanadas que este mismo drenaje leyó).
+  const base = salidaTemprana ? salidaTemprana.cursor : cursor;
+  const minHSeq = H.length > 0 ? Math.min(...H.map(h => h.seq)) : undefined;
+  const cursorFinal = minHSeq !== undefined ? Math.min(base, minHSeq - 1) : base;
+  const completoFinal = completo && H.length === 0;
+
+  return { ok: true, applied, skipped, cursor: cursorFinal, completo: completoFinal };
 }
