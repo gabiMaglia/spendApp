@@ -1,5 +1,5 @@
 import {
-  leerCubo, registrarCubo, olvidarCubo, ckeysDelTopic,
+  leerCubo, registrarCubo, olvidarCubo, __ckeysDelTopic,
   profundidad, subirProfundidad, olvidarTopic, type AlmacenPort,
 } from '../sliceLedger';
 
@@ -29,7 +29,7 @@ describe('sliceLedger — unidades del núcleo (T-191 Task 2)', () => {
     registrarCubo(a, 't1', 'd1', 'ck1', 'v1', 1_000);
     registrarCubo(a, 't1', 'd1', 'ck1', 'v2', 2_000);
     expect(leerCubo(a, 't1', 'd1', 'ck1')).toEqual({ digest: 'v2', publicadaEn: 2_000 });
-    expect(ckeysDelTopic(a, 't1', 'd1')).toEqual(['ck1']);
+    expect(__ckeysDelTopic(a, 't1', 'd1')).toEqual(['ck1']);
   });
 
   it('la clave es (topic, deviceId, ckey): mismo ckey en otro topic o dispositivo es independiente', () => {
@@ -42,13 +42,13 @@ describe('sliceLedger — unidades del núcleo (T-191 Task 2)', () => {
     expect(leerCubo(a, 'topicA', 'd2', 'ck1')?.digest).toBe('v-otroDevice');
   });
 
-  it('ckeysDelTopic sólo devuelve las del deviceId pedido', () => {
+  it('__ckeysDelTopic sólo devuelve las del deviceId pedido', () => {
     const a = memoria();
     registrarCubo(a, 't1', 'mio', 'ck1', 'v', 1);
     registrarCubo(a, 't1', 'mio', 'ck2', 'v', 1);
     registrarCubo(a, 't1', 'otro-device', 'ck3', 'v', 1);
-    expect(ckeysDelTopic(a, 't1', 'mio').sort()).toEqual(['ck1', 'ck2']);
-    expect(ckeysDelTopic(a, 't1', 'otro-device')).toEqual(['ck3']);
+    expect(__ckeysDelTopic(a, 't1', 'mio').sort()).toEqual(['ck1', 'ck2']);
+    expect(__ckeysDelTopic(a, 't1', 'otro-device')).toEqual(['ck3']);
   });
 
   it('olvidarCubo borra la entrada y la saca del índice', () => {
@@ -57,7 +57,7 @@ describe('sliceLedger — unidades del núcleo (T-191 Task 2)', () => {
     registrarCubo(a, 't1', 'd1', 'ck2', 'v', 1);
     olvidarCubo(a, 't1', 'd1', 'ck1');
     expect(leerCubo(a, 't1', 'd1', 'ck1')).toBeNull();
-    expect(ckeysDelTopic(a, 't1', 'd1')).toEqual(['ck2']);
+    expect(__ckeysDelTopic(a, 't1', 'd1')).toEqual(['ck2']);
   });
 
   it('profundidad default es 1 sin registro previo', () => {
@@ -85,7 +85,7 @@ describe('sliceLedger — unidades del núcleo (T-191 Task 2)', () => {
 
     expect(leerCubo(a, 't1', 'd1', 'ck1')).toBeNull();
     expect(leerCubo(a, 't1', 'd2-otro-aparato', 'ck2')).toBeNull();
-    expect(ckeysDelTopic(a, 't1', 'd1')).toEqual([]);
+    expect(__ckeysDelTopic(a, 't1', 'd1')).toEqual([]);
     expect(profundidad(a, 't1', 'expenses')).toBe(1);
     expect(profundidad(a, 't1', 'comments')).toBe(1);
 
@@ -97,9 +97,9 @@ describe('sliceLedger — unidades del núcleo (T-191 Task 2)', () => {
   it('dato corrupto en el índice se trata como ausente, no tira', () => {
     const a = memoria();
     a.set('sliceLedgerIndice\u0000t1', '{esto no es json válido');
-    expect(ckeysDelTopic(a, 't1', 'd1')).toEqual([]);
+    expect(__ckeysDelTopic(a, 't1', 'd1')).toEqual([]);
     // y registrar sigue funcionando después de una lectura corrupta
     registrarCubo(a, 't1', 'd1', 'ck1', 'v', 1);
-    expect(ckeysDelTopic(a, 't1', 'd1')).toEqual(['ck1']);
+    expect(__ckeysDelTopic(a, 't1', 'd1')).toEqual(['ck1']);
   });
 });

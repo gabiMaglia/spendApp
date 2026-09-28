@@ -207,7 +207,7 @@ const CORE_FIELDS: Record<CoreKind, readonly string[]> = {
 };
 
 /** La clasificación completa de una entidad, campo por campo. */
-export function slotsOf(kind: CoreKind): Readonly<Record<string, CoreSlot>> {
+export function __slotsOf(kind: CoreKind): Readonly<Record<string, CoreSlot>> {
   return SLOTS[kind] as Record<string, CoreSlot>;
 }
 

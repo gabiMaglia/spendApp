@@ -44,6 +44,6 @@ export function noticeDeReloj(): Notice | null {
 }
 
 /** Sólo para tests. */
-export function olvidarAvisoDeReloj(): void {
+export function __olvidarAvisoDeReloj(): void {
   storage.delete(KEY);
 }

@@ -1,6 +1,6 @@
 import { ed25519 } from '@noble/curves/ed25519.js';
 import { signCore, verifyCore } from '../recordSign';
-import { coreFieldsOf, slotsOf, CORE_KINDS } from '../recordCore';
+import { coreFieldsOf, __slotsOf, CORE_KINDS } from '../recordCore';
 import { toHex } from '@/src/sync/nucleo/hexBytes';
 import { FIXTURES, alter, EXPENSE } from '@/src/test-utils/recordFixtures';
 
@@ -50,7 +50,7 @@ describe.each(FIXTURES)('$kind — cada campo del núcleo, roto por separado', (
 
 describe.each(FIXTURES)('$kind — lo colaborativo NO puede invalidar la firma del autor', ({ kind, record }) => {
   const firmado = firmar(kind, record);
-  const fuera = Object.entries(slotsOf(kind))
+  const fuera = Object.entries(__slotsOf(kind))
     .filter(([campo, slot]) => slot === 'fuera' && campo !== 'k' && campo !== 's')
     .map(([campo]) => campo);
 

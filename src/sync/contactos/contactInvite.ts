@@ -350,7 +350,7 @@ export function contactInviteFromParams(params: Record<string, unknown>): Contac
   return { fromName, token, inviterFingerprint, inviterWrapPublicKey, expiresAt: Number(expiresAt) };
 }
 
-export function parseContactInviteLink(link: string): ContactInvite | null {
+export function __parseContactInviteLink(link: string): ContactInvite | null {
   const r = rutaDeEnlace(link);
   if (!r || r.ruta !== 'contact/claim') return null;
   return contactInviteFromParams(Object.fromEntries(r.params.entries()));

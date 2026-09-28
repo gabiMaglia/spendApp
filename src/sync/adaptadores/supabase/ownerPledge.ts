@@ -35,6 +35,6 @@ export function prendaDelAparato(): { secret: string; proof: string } | null {
 }
 
 /** Sólo para tests: el caché del módulo es de archivo y sobrevive entre casos. */
-export function olvidarPrendaEnCache(): void {
+export function __olvidarPrendaEnCache(): void {
   moduloCache = undefined;
 }

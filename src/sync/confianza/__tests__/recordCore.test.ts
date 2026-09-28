@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import {
-  CORE_VERSION, coreOf, canonicalCore, coreFieldsOf, slotsOf, CORE_KINDS,
+  CORE_VERSION, coreOf, canonicalCore, coreFieldsOf, __slotsOf, CORE_KINDS,
 } from '../recordCore';
 import { canonical } from '@/src/store/lww';
 import { EXPENSE, PAYMENT, RECURRING, GROUP, COMMENT, FIXTURES } from '@/src/test-utils/recordFixtures';
@@ -174,7 +174,7 @@ describe('guard de enumeración: ningún campo del modelo queda sin clasificar',
   });
 
   it.each(CORE_KINDS)('%s: cada campo está adentro o afuera, explícito', (kind) => {
-    const clasificados = Object.keys(slotsOf(kind));
+    const clasificados = Object.keys(__slotsOf(kind));
     const sinClasificar = camposDeclarados(DECLARADOS[kind]!)
       .filter(c => !clasificados.includes(c));
 
@@ -183,7 +183,7 @@ describe('guard de enumeración: ningún campo del modelo queda sin clasificar',
 
   it.each(CORE_KINDS)('%s: no se clasifica nada que el modelo no tenga', (kind) => {
     const declarados = camposDeclarados(DECLARADOS[kind]!);
-    const fantasmas = Object.keys(slotsOf(kind)).filter(c => !declarados.includes(c));
+    const fantasmas = Object.keys(__slotsOf(kind)).filter(c => !declarados.includes(c));
 
     expect(fantasmas).toEqual([]);
   });
@@ -193,7 +193,7 @@ describe('guard de enumeración: ningún campo del modelo queda sin clasificar',
 
 describe('coreOf ignora lo que no clasificó como núcleo', () => {
   it.each(FIXTURES)('$kind: tocar un campo de afuera no mueve el canónico', ({ kind, record }) => {
-    const fuera = Object.entries(slotsOf(kind))
+    const fuera = Object.entries(__slotsOf(kind))
       .filter(([, slot]) => slot === 'fuera')
       .map(([campo]) => campo);
 

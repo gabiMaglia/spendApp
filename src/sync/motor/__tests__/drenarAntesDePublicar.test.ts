@@ -3,7 +3,7 @@ import { useAuthStore } from '@/src/store/authStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import {
   marcarPendienteDeDrenaje, estaPendienteDeDrenaje, limpiarPendienteDeDrenaje,
-  gruposPendientesDeDrenaje,
+  __gruposPendientesDeDrenaje,
 } from '../pendingDrain';
 import { readCursor, writeCursor } from '../relayEngine';
 import type { User } from '@/src/types/models';
@@ -29,7 +29,7 @@ beforeEach(() => {
 describe('la marca', () => {
   it('empieza sin nada pendiente', () => {
     expect(estaPendienteDeDrenaje('G')).toBe(false);
-    expect(gruposPendientesDeDrenaje()).toEqual([]);
+    expect(__gruposPendientesDeDrenaje()).toEqual([]);
   });
 
   it('marca y limpia', () => {

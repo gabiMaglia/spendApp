@@ -190,11 +190,11 @@ describe('P16: borrar el grupo / cambiar de clave limpia appliedSlices y el ledg
     const topic = await topicDe();
     // Algo quedó registrado en las dos memorias (ledger propio de la
     // publicación, aplicadas del drenaje) — si no, el test no prueba nada.
-    expect(sliceLedger.ckeysDelTopic(almacen, topic, 'device1').length).toBeGreaterThan(0);
+    expect(sliceLedger.__ckeysDelTopic(almacen, topic, 'device1').length).toBeGreaterThan(0);
 
     marcarPendienteDeDrenaje('G', topic);
 
-    expect(sliceLedger.ckeysDelTopic(almacen, topic, 'device1')).toEqual([]);
+    expect(sliceLedger.__ckeysDelTopic(almacen, topic, 'device1')).toEqual([]);
     // appliedSlices no expone un listado directo por topic en su API pública
     // más que a través de `leer` puntual — se verifica indirectamente: tras
     // olvidar, el manifiesto de una republicación completa (sin cambios)
@@ -207,7 +207,7 @@ describe('P16: borrar el grupo / cambiar de clave limpia appliedSlices y el ledg
     await drainGroup('G', 'u2', 'deviceB', 0);
 
     const topic = await topicDe();
-    const ckeyDeUnCubo = sliceLedger.ckeysDelTopic(almacen, topic, 'device1')[0]!;
+    const ckeyDeUnCubo = sliceLedger.__ckeysDelTopic(almacen, topic, 'device1')[0]!;
     // Lo que el RECEPTOR ('deviceB') aplicó del sender 'device1' bajo esa ckey.
     expect(appliedSlices.leer(almacen, topic, 'device1', ckeyDeUnCubo)).not.toBeNull();
 
@@ -215,7 +215,7 @@ describe('P16: borrar el grupo / cambiar de clave limpia appliedSlices y el ledg
     // `deleteMyGroupEnvelopes` purga lo que ESTE dispositivo publicó — no las
     // aplicadas de otros. Se verifica que sigue existiendo (no es lo que este
     // test prueba) y que el ledger propio sí se limpió (P23, ya cubierto).
-    expect(sliceLedger.ckeysDelTopic(almacen, topic, 'device1')).toEqual([]);
+    expect(sliceLedger.__ckeysDelTopic(almacen, topic, 'device1')).toEqual([]);
   });
 });
 

@@ -117,7 +117,7 @@ export function olvidarCubo(almacen: AlmacenPort, topic: string, deviceId: strin
 }
 
 /** Todas las `ckey` que ESTE `deviceId` tiene registradas para `topic`, de cualquier campo. */
-export function ckeysDelTopic(almacen: AlmacenPort, topic: string, deviceId: string): string[] {
+export function __ckeysDelTopic(almacen: AlmacenPort, topic: string, deviceId: string): string[] {
   return leerIndice(almacen, topic).filter(e => e.deviceId === deviceId).map(e => e.ckey);
 }
 
@@ -149,7 +149,7 @@ export function subirProfundidad(almacen: AlmacenPort, topic: string, campo: str
  * se va de `users`, un gasto traspasado a otro grupo — `armar()` ya no lo
  * incluye, así que su prefijo deja de aparecer entre los cubos actuales,
  * pero nada lo vaciaba ni lo borraba del ledger). Distinto de
- * `ckeysDelTopic` (que lista TODO lo publicado, de cualquier campo, sin
+ * `__ckeysDelTopic` (que lista TODO lo publicado, de cualquier campo, sin
  * poder aislar uno): acá la lista es por campo a propósito.
  */
 export function ckeysDeCampo(almacen: AlmacenPort, topic: string, campo: string): string[] {

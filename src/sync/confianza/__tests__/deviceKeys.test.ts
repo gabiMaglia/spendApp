@@ -1,5 +1,5 @@
 import {
-  registerDeviceKey, fetchAccountKeys, queryAccountKeys, verifyMyKeyRegistered, myKeyPresence,
+  registerDeviceKey, fetchAccountKeys, queryAccountKeys, verifyMyKeyRegistered,
 } from '../deviceKeys';
 import { signIntoDirectory } from '@/src/sync/sesion/directoryAuth';
 import { useAuthStore } from '@/src/store/authStore';
@@ -251,7 +251,6 @@ describe('detectar al arrancar si mi clave falta', () => {
   it('si está en el directorio, registrada', async () => {
     estado.filasRpc = [{ public_key: ensureIdentity().publicKey }, { public_key: 'otra' }];
     expect(await verifyMyKeyRegistered()).toBe('registrada');
-    expect(myKeyPresence()).toBe('registrada');
   });
 
   // El caso que motiva todo esto: la cuenta tiene claves, pero no la mía.

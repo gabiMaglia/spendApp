@@ -1,6 +1,6 @@
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { ensureOwnerPledge } from '@/src/store/identityStore';
-import { prendaDelAparato, olvidarPrendaEnCache } from '../ownerPledge';
+import { prendaDelAparato, __olvidarPrendaEnCache } from '../ownerPledge';
 
 /**
  * T-088 · La prenda de escritura del buzón (ADR-009 D-1).
@@ -24,7 +24,7 @@ import { prendaDelAparato, olvidarPrendaEnCache } from '../ownerPledge';
 describe('la prenda del aparato', () => {
   beforeEach(() => {
     createSecureStorage('groupkeys').clearAll();
-    olvidarPrendaEnCache();
+    __olvidarPrendaEnCache();
   });
 
   it('son dos valores distintos, de 32 bytes cada uno', () => {

@@ -185,11 +185,6 @@ export type KeyPresence = 'registrada' | 'falta' | 'desconocido';
 
 let presencia: KeyPresence = 'desconocido';
 
-/** Último resultado conocido. Sin efectos: lo lee la UI. */
-export function myKeyPresence(): KeyPresence {
-  return presencia;
-}
-
 /**
  * Comprueba al arrancar si esta clave quedó registrada.
  *

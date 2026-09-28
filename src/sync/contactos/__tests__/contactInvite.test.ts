@@ -1,7 +1,7 @@
 import {
   createContactInvite, isContactInviteExpired, deriveContactInviteTopic,
   sealContactClaim, openContactClaim, sealContactGrant, openContactGrant,
-  contactInviteToLink, parseContactInviteLink,
+  contactInviteToLink, __parseContactInviteLink,
 } from '../contactInvite';
 import { generateIdentity, generateWrapKeypair, fingerprint, unwrapGroupKey } from '@/src/sync/invitaciones/groupInvite';
 import { sealEnvelope, openEnvelope, fromHex } from '@/src/sync/nucleo/envelopeCrypto';
@@ -274,12 +274,12 @@ async function reseal_sinFirmar(token: string, msg: Record<string, unknown>): Pr
   return sealEnvelope(await inviteKeyDeTest(token), JSON.stringify(msg));
 }
 
-describe('contactInviteToLink / parseContactInviteLink', () => {
+describe('contactInviteToLink / __parseContactInviteLink', () => {
   it('ida y vuelta, formato compacto', () => {
     const invite = createContactInvite('Ana', generateIdentity().publicKey, generateWrapKeypair().publicKey, 1000);
     const link = contactInviteToLink(invite);
     expect(link).toContain('#i');
-    const parsed = parseContactInviteLink(link);
+    const parsed = __parseContactInviteLink(link);
     expect(parsed).toEqual(invite);
   });
 

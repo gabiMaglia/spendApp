@@ -180,7 +180,7 @@ export function limpiarPendienteDeDrenaje(groupId: string): void {
 }
 
 /** Sólo para diagnóstico y tests. */
-export function gruposPendientesDeDrenaje(): string[] {
+export function __gruposPendientesDeDrenaje(): string[] {
   return [...leer()].sort();
 }
 

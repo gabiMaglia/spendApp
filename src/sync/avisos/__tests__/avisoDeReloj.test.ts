@@ -1,4 +1,4 @@
-import { noticeDeReloj, olvidarAvisoDeReloj } from '../clockNotice';
+import { noticeDeReloj, __olvidarAvisoDeReloj } from '../clockNotice';
 import { recordServerTime, clearClockOffset, SKEW_WARN_MS } from '@/src/utils/syncedClock';
 
 /**
@@ -23,7 +23,7 @@ function servidorDice(desfaseMs: number): void {
 
 beforeEach(() => {
   clearClockOffset();
-  olvidarAvisoDeReloj();
+  __olvidarAvisoDeReloj();
 });
 
 describe('cuándo avisa', () => {
