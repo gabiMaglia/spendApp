@@ -1,6 +1,6 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { recordServerTime } from '@/src/utils/syncedClock';
 import { prendaDelAparato } from './ownerPledge';
+import { tocaReintentar, esFuncionAusente } from './relayErrors';
+import { getRelayClient, isRelayConfigured as isRelayConfiguredImpl, type Envelope } from './relayClient';
 
 /**
  * Transporte del relay (ADR-003). Buzón store-and-forward.
@@ -21,309 +21,29 @@ import { prendaDelAparato } from './ownerPledge';
  *     los 30 días sin perder datos: un estado viejo lo reemplaza el nuevo. Si
  *     alguna vez se manda algo incremental ("sumale 500"), este diseño pasa a
  *     perder datos en silencio.
+ *
+ * Cliente Supabase, `MAX_PAYLOAD_BYTES` y el tipo `Envelope` viven en
+ * `relayClient.ts` (T-192): `relaySend.ts` los necesita también, y si los
+ * definiera acá crearía un ciclo (este archivo re-exporta `sendEnvelope` de
+ * `relaySend.ts`, más abajo).
  */
+export { getRelayClient, MAX_PAYLOAD_BYTES, type Envelope } from './relayClient';
 
-const URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
-const ANON = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
-
-/**
- * Tope del sobre: **1 MB**, replicado como CHECK en la tabla y en la policy de
- * INSERT (`supabase/006_payload_limit.sql`, corrida por el PO el 2026-09-01).
- *
- * **Este número tiene que moverse junto con los dos del SQL, y el servidor
- * primero.** Al revés, la app cree que puede mandar 1 MB, choca contra un
- * servidor más chico y el publish falla.
- *
- * **OJO: el presupuesto real de datos NO es 1 MB, son ~786 KB.** Lo que se mide
- * acá es el payload que llega a `publish`, y ése ya viene en base64:
- * `sealEnvelope` devuelve base64 (`envelopeCrypto.ts:61`), así que el JSON se
- * infla ×4/3 ANTES de compararse contra este número. Costó descubrirlo dos
- * veces (T-056/T-058) y no estaba escrito en ningún lado.
- *
- * **De dónde salían los 256 KB viejos:** de una línea del engram marcada «no
- * verificados, verificar en el spike», heredada de los límites de Supabase
- * *Realtime* — y los sobres no viajan por Realtime, se leen por REST. Se probó
- * el proyecto real con sondas de 1 KB a 8 MB y ninguna dio 413. **El tope
- * siempre fue nuestro.**
- *
- * Medido con arné real —stores sembrados, sellado y firmado—, no estimado
- * (`__tests__/tamanoDelSobre.bench.test.ts`):
- *
- * | Grupo                          | En el cable | % del tope |
- * |--------------------------------|-------------|------------|
- * | 5 personas, 30 gastos          |    86 KB    |      8 %   |
- * | 5 personas, 200 gastos (6 m)   |   313 KB    |     31 %   |
- * | 5 personas, 700 gastos         |   982 KB    |     96 %   |
- * | 8 personas, 700 gastos         |  1190 KB    |    116 %   |
- *
- * O sea: **la pared se corrió de ~160 gastos a ~720, no desapareció.** El sobre
- * sigue creciendo O(gastos) y sigue habiendo un número a partir del cual el
- * grupo deja de sincronizar para siempre. El arreglo de fondo es ADR-007; la
- * solución NO es filtrar por fecha (el sobre lleva ESTADO a propósito, y tres
- * mecanismos dependen de eso).
- */
-export const MAX_PAYLOAD_BYTES = 1_048_576;
-
-export type Envelope = {
-  seq: number;
-  topic: string;
-  payload: string;
-  sender: string;
-  created_at: string;
-  // Ausente en un servidor sin la migración 010 (ADR-007): esas filas llegan
-  // sin la columna, y el degradado es "no ckey" — igual que antes de que
-  // existiera la compactación por ckey.
-  ckey?: string;
-};
-
-let client: SupabaseClient | null = null;
-
-/**
- * `null` si el relay no está configurado: la app tiene que seguir andando.
- *
- * **T-147 (D1):** la sesión se persiste — ya no es "la identidad la maneja la
- * app, no Supabase". Sin sesión persistida, cerrar el buzón a `authenticated`
- * (011b) cortaría el sync a todo el mundo en la segunda apertura de la app, no
- * sólo al invitado. El storage es el mismo cifrado at-rest que el resto de los
- * datos sensibles (`relaySession.supabaseAuthStorage`); el refresco automático
- * NO se deja en manos del SDK (`autoRefreshToken: false` acá) — lo maneja
- * `bindAuthRefreshToAppState`, atado a primer plano/fondo.
- */
-export function getRelayClient(): SupabaseClient | null {
-  if (!URL || !ANON) return null;
-  if (!client) {
-    // Import perezoso: `relaySession` importa `getRelayClient` de este mismo
-    // archivo, y un `import` estático de arriba crearía un ciclo.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { supabaseAuthStorage } = require('./relaySession') as typeof import('./relaySession');
-    client = createClient(URL, ANON, {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: false,
-        detectSessionInUrl: false,
-        storage: supabaseAuthStorage(),
-      },
-      realtime: { params: { eventsPerSecond: 5 } },
-    });
-  }
-  return client;
-}
-
+// `isRelayConfigured` queda como función propia (no re-export directo): un
+// re-export vive de un getter no configurable, y `relayEngine.test.ts`
+// necesita poder `jest.spyOn(relay, 'isRelayConfigured')` — mismo
+// comportamiento de siempre, sólo delega en `relayClient.ts`.
 export function isRelayConfigured(): boolean {
-  return Boolean(URL && ANON);
+  return isRelayConfiguredImpl();
 }
 
 /**
- * La fila que se inserta. Está afuera de `sendEnvelope` para poder testearla
- * sin cliente ni credenciales: configurarlas en un test filtra `process.env` a
- * los demás suites del worker, y ahí el motor arranca su `setInterval` de
- * relectura y Jest no termina nunca. Pasó de verdad — 44 minutos colgado.
+ * El servidor no tiene la migración 011a: no existe `fetch_since` (T-147
+ * D4/H1). Mismo patrón de degradado por sesión que `servidorSinRpcPublish`
+ * (`relaySend.ts`) — ver ahí el porqué completo (D6, compatibilidad F2).
  */
-export function envelopeRow(
-  topic: string,
-  payload: string,
-  sender: string,
-  compactable = false,
-  ownerProof?: string | null,
-  ckey?: string,
-): { topic: string; payload: string; sender: string; compactable: boolean; owner_proof?: string; ckey?: string } {
-  const fila: { topic: string; payload: string; sender: string; compactable: boolean; owner_proof?: string; ckey?: string } =
-    { topic, payload, sender, compactable };
-  // Sin prenda la clave NO aparece: la fila queda idéntica a la de antes de
-  // T-088, y por eso un servidor sin la migración 008 la acepta igual.
-  if (ownerProof) fila.owner_proof = ownerProof;
-  // Sin ckey la fila queda igual que antes de la compactación por ckey
-  // (ADR-007): un servidor sin la migración correspondiente la acepta igual.
-  if (ckey) fila.ckey = ckey;
-  return fila;
-}
-
-/**
- * El servidor no conoce la columna de la prenda: migración 008 sin aplicar, o
- * un rollback. Se aprende del primer rechazo y se recuerda por lo que dura la
- * sesión — **no se persiste a propósito**: un flag pegado en el storage sería
- * una app que dejó de proteger sus sobres para siempre y nadie se entera.
- */
-let servidorSinPrenda = false;
-
-function esRechazoDeLaPrenda(mensaje: string): boolean {
-  // Por el TEXTO y no por el código: no está verificado cuál emite esta versión
-  // de PostgREST ante una columna que no existe (T-088 §8.1).
-  return /owner_proof/i.test(mensaje);
-}
-
-/**
- * El servidor no tiene la migración 011a: no existe `publish_envelope` ni
- * `fetch_since` (T-147 D4/H1). Igual que `servidorSinPrenda`, se aprende del
- * primer rechazo y NO se persiste — es el degradado de la sesión, nunca del
- * disco (compatibilidad F2: el cliente nuevo habla con la base de hoy).
- *
- * **Verifier D6.** Un booleano fijo por proceso es peligroso para `fetch`: el
- * SELECT de respaldo, DESPUÉS de que 011b corra, devuelve 0 filas SIN error
- * (la RLS lo filtra en silencio — 011b §3), y `fetchSince` lee eso como "no
- * hay más" (`more = length >= limit` = false). Si la migración se aplicó
- * ENTERA (011a + 011b) mientras la app seguía abierta con el flag ya prendido
- * de un rechazo anterior, el drenaje se marcaría `completo` sin haber leído
- * NADA, en silencio — justo el modo de falla que T-146 existe para cerrar.
- *
- * Por eso el flag no es un candado para siempre: pasado `RPC_REINTENTO_MS` se
- * vuelve a probar la RPC. Si sigue ausente, se re-marca y el costo es UNA
- * llamada de más cada tanto; si ya existe (011a llegó, o fue un falso
- * positivo), el camino correcto se recupera solo, sin reinstalar la app ni
- * reiniciar el proceso.
- */
-let servidorSinRpcPublish = false;
 let servidorSinRpcFetch = false;
-let momentoSinRpcPublish = 0;
 let momentoSinRpcFetch = 0;
-
-/** Cada cuánto se reintenta la RPC aunque el flag esté prendido. Generoso a
- *  propósito: es una migración rara, no un fallo de red — no hace falta
- *  probar cada pocos segundos. */
-export const RPC_REINTENTO_MS = 5 * 60_000;
-
-function tocaReintentar(momento: number): boolean {
-  return momento !== 0 && Date.now() - momento >= RPC_REINTENTO_MS;
-}
-
-/**
- * ¿Este error es "la función no existe en este proyecto"? — la RPC todavía no
- * se corrió (011a pendiente), no un fallo transitorio. `PGRST202` es el código
- * de PostgREST; `42883` el de Postgres directo; el texto es la red de
- * seguridad para versiones que no mandan ninguno de los dos.
- */
-export function esFuncionAusente(e: { code?: string; message: string }): boolean {
-  return e.code === 'PGRST202' || e.code === '42883'
-    || /could not find the function/i.test(e.message)
-    || /function .*does not exist/i.test(e.message);
-}
-
-/**
- * ¿Este error es el freno de la cuota (T-147 D3)? `PT429` es el código propio
- * que usa `relay_enforce_quota`; el texto es la red de seguridad si PostgREST
- * no llega a mapearlo. **No es un error de red**: reintentar en el momento
- * sólo empeora, por eso no cae a ningún fallback (H6).
- */
-export function esLimiteDeRitmo(e: { code?: string; message: string }): boolean {
-  return e.code === 'PT429' || /relay_quota_exceeded/i.test(e.message);
-}
-
-export type SendResult =
-  | { ok: true; seq: number }
-  | { ok: false; reason: 'not_configured' | 'too_large' | 'network' | 'rate_limited'; detail?: string };
-
-/**
- * Deja un sobre en el buzón del topic.
- * No espera a que nadie lo lea: si el destinatario está offline, queda encolado.
- */
-/**
- * `compactable`: este sobre REEMPLAZA a los anteriores del mismo remitente en
- * el mismo topic, y el servidor los borra (T-032).
- *
- * Sólo vale para los sobres de grupo, que llevan **estado completo**. Los de
- * contacto e invitación llevan MENSAJES distintos por el mismo canal —una
- * tarjeta y una entrega de clave— y compactarlos borraría el que el otro
- * todavía no leyó.
- */
-export async function sendEnvelope(
-  topic: string,
-  payload: string,
-  sender: string,
-  compactable = false,
-  ckey?: string,
-  // T-191 (verifier, cuarta tanda): quien llama con un presupuesto de tiempo
-  // (`publishToGroup`, `publishAvatarIfOwn`) puede pasar un `AbortSignal` —
-  // al vencer, cancela la request DE VERDAD en vez de sólo dejar de
-  // esperarla (`abortSignal`, soportado por `postgrest-js` 2.x en las dos
-  // builders que se usan acá: `PostgrestTransformBuilder.abortSignal`,
-  // `node_modules/@supabase/postgrest-js/src/PostgrestTransformBuilder.ts:642-645`,
-  // que tanto `.rpc()` como `.from().insert()` heredan). Sin esto, un envío
-  // que "venció" del lado del cliente podía aterrizar en el servidor de
-  // todos modos, más tarde, pisando una publicación más nueva del mismo
-  // dispositivo (T-191, hallazgo verifier tercera tanda sobre M2).
-  signal?: AbortSignal,
-): Promise<SendResult> {
-  const supabase = getRelayClient();
-  if (!supabase) return { ok: false, reason: 'not_configured' };
-
-  // Se chequea acá además del CHECK en la tabla: así el error es accionable en
-  // el cliente en vez de un 400 opaco de Postgres.
-  if (byteLength(payload) > MAX_PAYLOAD_BYTES) {
-    return { ok: false, reason: 'too_large' };
-  }
-
-  // La prenda de escritura (ADR-009 D-1): lo que viaja es la huella del
-  // secreto, nunca el secreto. Si no hay, se publica sin ella — un sobre sin
-  // prenda se comporta como los de antes de T-088.
-  const proof = servidorSinPrenda ? null : (prendaDelAparato()?.proof ?? null);
-
-  // La hora local ANTES del pedido: tomarla después metería la latencia dentro
-  // del desfase que vamos a calcular.
-  const antes = Date.now();
-
-  // T-147 (D4/H1): publicar por RPC — un INSERT directo con `.select()` exige
-  // la policy de SELECT sobre `envelopes`, y 011b la borra (PostgREST hace el
-  // INSERT con RETURNING por dentro). Se cae al insert de hoy SÓLO si la RPC
-  // no existe todavía (servidor sin 011a); cualquier otro error (red, cuota)
-  // se devuelve tal cual, sin fallback.
-  if (!servidorSinRpcPublish || tocaReintentar(momentoSinRpcPublish)) {
-    let builder = supabase.rpc('publish_envelope', {
-      p_topic: topic,
-      p_payload: payload,
-      p_sender: sender,
-      p_compactable: compactable,
-      p_owner_proof: proof,
-      p_ckey: ckey ?? null,
-    });
-    if (signal) builder = builder.abortSignal(signal);
-    const { data, error } = await builder;
-
-    if (!error) {
-      servidorSinRpcPublish = false; // D6: la RPC volvió — se abandona el degradado
-      const fila = (data as { seq: number; created_at?: string }[])[0]!;
-      if (fila.created_at) recordServerTime(fila.created_at, antes);
-      return { ok: true, seq: fila.seq };
-    }
-
-    if (esFuncionAusente(error)) {
-      servidorSinRpcPublish = true;
-      momentoSinRpcPublish = Date.now();
-      // sigue abajo por el camino viejo, sin volver a chequear la RPC
-    } else if (esLimiteDeRitmo(error)) {
-      return { ok: false, reason: 'rate_limited', detail: error.message };
-    } else {
-      return { ok: false, reason: 'network', detail: error.message };
-    }
-  }
-
-  let builderInsert = supabase
-    .from('envelopes')
-    .insert(envelopeRow(topic, payload, sender, compactable, proof, ckey))
-    .select('seq,created_at');
-  if (signal) builderInsert = builderInsert.abortSignal(signal);
-  const { data, error } = await builderInsert.single();
-
-  if (error) {
-    // Servidor sin la columna: el sobre no se insertó, así que reintentar no
-    // duplica nada. Sin esto, desplegar la app antes que la migración deja al
-    // grupo sin sincronizar.
-    if (proof && esRechazoDeLaPrenda(error.message)) {
-      servidorSinPrenda = true;
-      return sendEnvelope(topic, payload, sender, compactable, ckey, signal);
-    }
-    // La cuota (`relay_enforce_quota`) corre también sobre el INSERT directo:
-    // el trigger no distingue el camino de escritura.
-    if (esLimiteDeRitmo(error)) return { ok: false, reason: 'rate_limited', detail: error.message };
-    return { ok: false, reason: 'network', detail: error.message };
-  }
-
-  // El servidor estampó `created_at` al insertar: es un reloj único para todos
-  // los dispositivos, y llega gratis en la respuesta (ADR-005).
-  const fila = data as { seq: number; created_at?: string };
-  if (fila.created_at) recordServerTime(fila.created_at, antes);
-
-  return { ok: true, seq: fila.seq };
-}
 
 export type DeleteResult =
   | { ok: true; deleted: number }
@@ -495,15 +215,9 @@ export function subscribeTopic(topic: string, onNews: () => void, onStatus?: (ok
   return () => { void supabase.removeChannel(privado); void supabase.removeChannel(publico); };
 }
 
-function byteLength(s: string): number {
-  // `length` cuenta unidades UTF-16: con acentos o emoji miente respecto de los
-  // bytes que viajan, que es lo que el servidor limita.
-  let bytes = 0;
-  for (const ch of s) {
-    const cp = ch.codePointAt(0)!;
-    bytes += cp < 0x80 ? 1 : cp < 0x800 ? 2 : cp < 0x10000 ? 3 : 4;
-  }
-  return bytes;
-}
-
-export { byteLength };
+// T-192: `sendEnvelope`/`envelopeRow` salieron a `relaySend.ts`, la
+// clasificación de errores (`esFuncionAusente`, `RPC_REINTENTO_MS`,
+// `byteLength`) a `relayErrors.ts`. Re-exportados para que la ruta pública
+// `@/src/sync/relay` no cambie.
+export { sendEnvelope, envelopeRow, type SendResult } from './relaySend';
+export { esFuncionAusente, esLimiteDeRitmo, RPC_REINTENTO_MS, byteLength } from './relayErrors';

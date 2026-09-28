@@ -1,5 +1,5 @@
 import { buildGroupPayload } from '../relaySync';
-import { buildDelta, applyDelta } from '../useSyncQR';
+import { buildDelta, applyDelta } from '../applyDelta';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useExpenseStore } from '@/src/store/expenseStore';

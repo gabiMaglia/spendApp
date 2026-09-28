@@ -1,4 +1,4 @@
-import { buildDelta, applyDelta, peerIsOutdated, DELTA_FEATURE_VERSION } from '../useSyncQR';
+import { buildDelta, applyDelta, peerIsOutdated, DELTA_FEATURE_VERSION } from '../applyDelta';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useExpenseStore } from '@/src/store/expenseStore';

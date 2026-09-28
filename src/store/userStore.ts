@@ -84,7 +84,7 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
    *
    * **Lo que sí conviene saber, y la auditoría lo agregó:** el dueño **no se
    * entera**. Su propio teléfono filtra su perfil del sobre entrante
-   * (`useSyncQR.ts`, T-048), así que él sigue viendo su nombre correcto y el
+   * (`applyDelta.ts`, T-048), así que él sigue viendo su nombre correcto y el
    * vandalizado lo ve el resto del grupo.
    *
    * Firmarlo se auditó y **se descartó**: `avatar` no puede entrar al núcleo
@@ -98,7 +98,7 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
    * `now` se inyecta con default `syncedNow()` ACÁ, no dentro de
    * `mergeUsersLWW`: esa función es pura y no puede importar `syncedClock`
    * (abre almacenamiento nativo). Los tres caminos que sincronizan perfiles
-   * —relay y QR (comparten `applyDelta`, `useSyncQR.ts:145`) y backup
+   * —relay y QR (comparten `applyDelta`, `applyDelta.ts`) y backup
    * (`src/services/backup.ts:119`)— no pasan `now`, así que los tres heredan
    * este default.
    */

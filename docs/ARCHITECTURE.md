@@ -169,7 +169,7 @@ Residual (ADR-013): atar el `groupId` a su creador con firma daría un árbitro 
 | Canal | Cuándo usarlo | Librería |
 |---|---|---|
 | ~~WebRTC automático~~ | — | **SACADO el 2026-09-08 (T-083).** Nunca estuvo enchufado: la única entrada era un botón dentro de una pantalla huérfana. Arrastraba ocho permisos de Android y dos cadenas del `Info.plist` de iOS, incluida la de micrófono |
-| BLE | Usuarios cerca sin internet | `react-native-ble-plx` — **NO IMPLEMENTADO.** No está en `package.json` ni hay código que lo use. Para el caso sin internet queda la pantalla de sync por QR (`app/sync/index.tsx`), que **está apagada**: nadie navega a ella. Es T-085 |
+| BLE | Usuarios cerca sin internet | `react-native-ble-plx` — **NO IMPLEMENTADO.** No está en `package.json` ni hay código que lo use. La pantalla de sync por QR sin internet (T-085), que nadie navegaba, se borró en T-193 — tag `qr-sync-antes-de-T-193` |
 | Wi-Fi Local | Misma red local | mDNS / Bonjour |
 
 La sync se intenta automáticamente:

@@ -46,7 +46,7 @@ const DEFINIDOR = join('src', 'store', 'identityAlias.ts');
 /** Las dos raíces: el sobre del relay y el delta del QR / pairing P2P. */
 const RAICES = [
   join(RAIZ, 'src', 'sync', 'relaySync.ts'),   // buildGroupPayload
-  join(RAIZ, 'src', 'sync', 'useSyncQR.ts'),   // buildDelta
+  join(RAIZ, 'src', 'sync', 'applyDelta.ts'),  // buildDelta (T-192: salió de useSyncQR.ts)
 ];
 
 const EXTENSIONES = ['.ts', '.tsx', '.js', '.jsx'];

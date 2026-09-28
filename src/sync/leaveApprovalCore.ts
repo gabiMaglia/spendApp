@@ -14,7 +14,7 @@ import type { ApprovalEntry, LeaveApproval } from '@/src/types/models';
  * viven en `leaveApprovalSign.ts` (D9 de T-041).
  */
 
-export const LEAVE_APPROVAL_VERSION = 1;
+const LEAVE_APPROVAL_VERSION = 1;
 
 /** Una entrada vieja —un id pelado— vista como aprobación sin firma. */
 export function normalizarAprobacion(e: ApprovalEntry): LeaveApproval {
@@ -43,7 +43,7 @@ export function normalizarAprobaciones(entries: readonly ApprovalEntry[]): Leave
  * sin el plan firmado, quien se va junta las aprobaciones de todos y después
  * cambia quién absorbe cuánto, con las firmas intactas.
  */
-export function leaveApprovalStatement(
+function leaveApprovalStatement(
   groupId: string,
   request: { userId: string; requestedAt: number; plan: unknown },
   a: LeaveApproval,

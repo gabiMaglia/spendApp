@@ -1,4 +1,4 @@
-import type { SyncDelta } from './useSyncQR';
+import type { SyncDelta } from './applyDelta';
 import { excesoDe } from './topes';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useExpenseStore } from '@/src/store/expenseStore';

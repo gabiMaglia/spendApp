@@ -765,7 +765,7 @@ export const COBERTURA_FUSION: Record<string, string> = {
   'store/noticeInboxStore': 'aparte · mergeNotices (union por id; el acuse gana sobre el no-acuse). Decision del PO 2026-08-30: TODO se fusiona al enlazar cuentas.',
   'store/identityAlias':  'aparte · mergeAlias (alias_v1: unión de los alias del origen MÁS el id del origen, bajo el scope destino). Es lo que hace el alias transitivo A→B→C; sin la unión, la primera identidad se pierde en la segunda fusión.',
   'sync/pendingDrain':    'aparte · mergePendingDrain (pending_drain_v1: UNIÓN de las marcas de las dos cuentas). Unir es el lado seguro: heredar una marca de más cuesta un drenaje; perder una deja publicar un grupo heredado sin leer su buzón, que es el defecto de T-089.',
-  'sync/contactChannel':  'aparte · mergeContactPeers (contact_peers_v1: unión por userId, el destino gana campo por campo). El secreto propio y el acuse de tarjeta NO se fusionan — ver el docblock de mergeContactPeers.',
+  'sync/contactPeers':    'aparte · mergeContactPeers (contact_peers_v1: unión por userId, el destino gana campo por campo). El secreto propio y el acuse de tarjeta NO se fusionan — ver el docblock de mergeContactPeers.',
   'store/identityStore':  'aparte · mergeInvites/mergePendingJoins/mergeContactInvites/mergePendingContactClaims (invites_v1/pending_joins_v1/contact_invites_v1/contact_pending_claims_v1: unión por token, vencidas descartadas de los dos lados). Las privadas (identity_v1/owner_secret_v1/wrapkeys_v1) siguen siendo del APARATO y no pasan por writeScoped ni por ranura().',
 };
 
@@ -785,22 +785,24 @@ export const COBERTURA_FUSION: Record<string, string> = {
 export const EXCLUIDOS_FUSION: Record<string, string> = {
   'store/userScope':
     'No es data: es el mecanismo de scoping. `writeScoped` está acá porque este módulo lo DEFINE, no porque guarde algo propio.',
+  'sync/contactChannel':
+    'contact_secret_v1 es MI buzón de contacto, estable por diseño (T-192: separado de contact_peers_v1/card_sent_v1, que sí se fusionan — ver sync/contactPeers). Adoptar el secreto de la cuenta origen invalidaría los códigos QR que esa cuenta ya mostró en persona; cada cuenta conserva el propio.',
   'services/runMigrateReplicated':
     'Marca one-shot "esta cuenta ya migró sus réplicas" (ADR-006), no data del usuario. Fusionarla no aplica y heredarla no haría falta: todo scope que existe en este device llegó ahí por un `rehydrateForActiveUser`, y ése corre la migración. La cuenta origen ya migró lo suyo antes de que se fusione.',
   'sync/authorHealth':
     'Medición de la fase B de ADR-004: cuántos sobres verificaron y cuáles no. Diagnóstico, no data del usuario — el único consumidor es la pantalla DEV `app/debug/identity.tsx`, no gatea ni bloquea nada. Se vuelve a acumular con el uso; sumar los contadores de dos cuentas mezclaría observaciones sobre pares distintos.',
   'sync/verdictCache':
     'Caché de veredictos de firma ya calculados (T-041). Reconstruible verificando de nuevo: lo único que cuesta perderla es CPU en la próxima bajada, y los registros vuelven a viajar enteros en cada sobre.',
-  'sync/authorKeys':
-    'Caché de las públicas que el directorio ya devolvió (T-041). Reconstruible: se vuelve a consultar el directorio, que es la fuente de verdad. No contiene nada que el directorio no pueda volver a dar.',
+  'sync/authorKeysCache':
+    'Caché de las públicas que el directorio ya devolvió (T-041). Reconstruible: se vuelve a consultar el directorio, que es la fuente de verdad. No contiene nada que el directorio no pueda volver a dar. Storage salió de authorKeys.ts a este archivo en T-192.',
   'sync/ratchet':
     'Trinquete "a este autor ya le vimos firmar" (T-041). Hoy NO bloquea nada — decisión R1 del PO: se marca, no se rechaza; su único consumidor es el denominador de la medición en recordHealth. Se retraba solo con la primera firma válida que llegue. OJO: el día que el trinquete pase a gatillar rechazo, esta exclusión deja de ser válida y tiene que moverse a la cobertura.',
   'sync/syncDownNotices':
     'Acuse local "a este grupo ya le avisé que dejó de sincronizar", para no repetir el aviso en cada intento de publicación. Mismo caso que `card_sent_v1`: es el registro de algo que YA se le dijo a esta persona en este teléfono, no data suya. Si se pierde, el peor efecto es un aviso repetido; heredar el de otra cuenta sería peor — suprimiría el primer aviso de una caída que la cuenta destino todavía no vio.',
   'services/noticeDedupe':
     'Dedupe persistido de avisos por reintento (T-172, ítem 6: `group_invite_full`, `join_claim_stalled`). Mismo caso que `syncDownNotices` — es el registro de "esto YA se avisó", no data del usuario. Perderlo repite un aviso a lo sumo una vez; heredar el de otra cuenta sería peor — suprimiría el primer aviso de un reclamo que la cuenta destino todavía no vio.',
-  'sync/recordHealth':
-    'Medición de T-041: cuántos registros verificaron, fallaron o no eran verificables. Mismo caso que authorHealth — diagnóstico para decidir si se enciende el rechazo, no data del usuario, y se reacumula con el uso.',
+  'sync/recordHealthStore':
+    'Medición de T-041: cuántos registros verificaron, fallaron o no eran verificables. Mismo caso que authorHealth — diagnóstico para decidir si se enciende el rechazo, no data del usuario, y se reacumula con el uso. Storage y estado salieron de recordHealth.ts a este archivo en T-192.',
   'sync/groupKeyOffers':
     'Ofertas de clave de grupo por remitente (T-136, ADR-013): el estado de una decisión pendiente de ESTE teléfono. Heredar las de otra cuenta mezclaría conflictos ajenos. Perderlas es el lado seguro: sin oferta adoptada, claveLocalVinoDeContacto da false y ninguna clave queda elegible (S3-A1 sigue cerrado); un conflicto real vuelve a registrarse con el reenvío de cada arranque (relayEngine.reenviarClavesDeGrupo).',
   'sync/relay/adaptadorHushSplit':

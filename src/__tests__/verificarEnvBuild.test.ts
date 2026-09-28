@@ -65,7 +65,8 @@ describe('verificar-env-build', () => {
   });
 
   it('las 6 variables son las que usa el código', () => {
-    const relay = readFileSync(join(__dirname, '..', 'sync', 'relay.ts'), 'utf8');
+    // T-192: EXPO_PUBLIC_SUPABASE_* salieron de relay.ts a relayClient.ts.
+    const relay = readFileSync(join(__dirname, '..', 'sync', 'relayClient.ts'), 'utf8');
     const auth = readFileSync(join(__dirname, '..', '..', 'app', 'auth', 'index.tsx'), 'utf8');
     // T-147: las de Turnstile las lee el puente del captcha, no `relay.ts`.
     const captchaBridge = readFileSync(join(__dirname, '..', 'sync', 'captchaBridge.ts'), 'utf8');

@@ -48,7 +48,7 @@ export const MAX_CLAVES_DISTINTAS_POR_GRUPO = 5;
  */
 export const MAX_REMITENTES_POR_GRUPO = 50;
 export const BUCKET_OFERTAS = 'groupkeys';
-export const PREFIJO_OFERTA_INVITACION = 'invite:';
+const PREFIJO_OFERTA_INVITACION = 'invite:';
 
 const storage = createSecureStorage(BUCKET_OFERTAS);
 const K_OFERTAS = 'key_offers_v1';

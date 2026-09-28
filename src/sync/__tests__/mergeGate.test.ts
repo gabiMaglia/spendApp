@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { ed25519 } from '@noble/curves/ed25519.js';
-import { applyDelta, type SyncDelta } from '../useSyncQR';
+import { applyDelta, type SyncDelta } from '../applyDelta';
 import { signCore } from '../recordSign';
 import { toHex } from '../hexBytes';
 import * as recordHealth from '../recordHealth';
@@ -98,7 +98,7 @@ beforeEach(() => {
   mockGetPeer.mockImplementation(() => ({ secret: 's', identityPublicKey: ANA.pub }));
 });
 
-describe('las DOS puertas desembocan en `applyDelta`', () => {
+describe('la puerta del relay desemboca en `applyDelta`', () => {
   /**
    * Guard estructural, no de comportamiento: lo que hay que impedir es que
    * mañana alguien agregue una puerta que mergee por su cuenta. El caso de
@@ -107,18 +107,15 @@ describe('las DOS puertas desembocan en `applyDelta`', () => {
    */
   /**
    * Eran TRES hasta T-083: la de `pairing` se fue con WebRTC
-   * (`src/p2p/usePairingSession.ts`, borrado). **El invariante no se debilita —
-   * se refuerza**: el relay es ahora el único camino real, y lo que este guard
+   * (`src/p2p/usePairingSession.ts`, borrado). La del QR sin internet se fue
+   * en T-193 (T-085, pantalla inalcanzable desde ninguna otra — tag
+   * `qr-sync-antes-de-T-193`). **El invariante no se debilita — se
+   * refuerza**: el relay es ahora el ÚNICO camino real, y lo que este guard
    * impide sigue siendo lo mismo, que mañana alguien agregue una puerta que
    * mergee por su cuenta.
-   *
-   * `app/sync/index.tsx` sigue en la lista aunque hoy nadie la alcance: es la
-   * pantalla del QR que el PO pidió conservar (T-085). Si T-085 la borra, esta
-   * fila se va con ella y queda una sola.
    */
   const PUERTAS = [
-    { nombre: 'relay',   archivo: 'src/sync/relaySync.ts' },
-    { nombre: 'QR',      archivo: 'app/sync/index.tsx' },
+    { nombre: 'relay',   archivo: 'src/sync/relay/drenar.ts' },
   ];
 
   const MERGES = [
@@ -130,20 +127,19 @@ describe('las DOS puertas desembocan en `applyDelta`', () => {
    * T-191 (Task 0): `relaySync.ts` ya no llama a `applyDelta(` directo — pasa
    * por `adaptador.aplicar()` (`src/sync/relay/adaptadorHushSplit.ts`), la
    * única función que le pega a los stores desde el núcleo de rebanadas
-   * (frontera P15). El gate sigue siendo el mismo, con un salto más:
-   * `relaySync.ts` tiene que llamar a `adaptador.aplicar(`, y ese archivo
-   * tiene que llamar a `applyDelta(` — ningún otro camino entre los dos.
+   * (frontera P15). T-192 partió `relaySync.ts` en fachada + módulos: el gate
+   * sigue siendo el mismo, con tres saltos: `relay/drenar.ts` (dueño real del
+   * drenaje) llama a `aplicarDeltaAcotado` (`relay/aplicarAcotado.ts`), ese
+   * archivo llama a `adaptador.aplicar(`, y `adaptadorHushSplit.ts` llama a
+   * `applyDelta(` — ningún otro camino entre los tres.
    */
   it('relay aplica por `adaptador.aplicar`, que a su vez llama a `applyDelta`', () => {
-    const relay = fs.readFileSync(path.join(RAIZ, 'src/sync/relaySync.ts'), 'utf8');
-    expect(relay).toContain('adaptador.aplicar(');
+    const relay = fs.readFileSync(path.join(RAIZ, 'src/sync/relay/drenar.ts'), 'utf8');
+    expect(relay).toContain('aplicarDeltaAcotado(');
+    const acotadoSrc = fs.readFileSync(path.join(RAIZ, 'src/sync/relay/aplicarAcotado.ts'), 'utf8');
+    expect(acotadoSrc).toContain('adaptador.aplicar(');
     const adaptadorSrc = fs.readFileSync(path.join(RAIZ, 'src/sync/relay/adaptadorHushSplit.ts'), 'utf8');
     expect(adaptadorSrc).toContain('applyDelta(');
-  });
-
-  it('QR aplica por `applyDelta`', () => {
-    const src = fs.readFileSync(path.join(RAIZ, 'app/sync/index.tsx'), 'utf8');
-    expect(src).toContain('applyDelta(');
   });
 
   it.each(PUERTAS)('$nombre NO mergea por su cuenta (sería un bypass del gate)', ({ archivo }) => {

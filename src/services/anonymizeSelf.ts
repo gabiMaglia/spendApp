@@ -13,7 +13,7 @@ import { syncedNow } from '@/src/utils/syncedClock';
  * datos compartidos se quedan.
  *
  * Por qué es barato: los perfiles **ya viajan** dentro del sobre del grupo y se
- * aplican con `mergeByIdLWW` (`src/sync/useSyncQR.ts`, `src/store/lww.ts`), así
+ * aplican con `mergeByIdLWW` (`src/sync/applyDelta.ts`, `src/store/lww.ts`), así
  * que alcanza con escribir el propio `User` con `updatedAt` nuevo. Cero
  * `CoreKind` nuevo, cero regla de merge, cero migración.
  *

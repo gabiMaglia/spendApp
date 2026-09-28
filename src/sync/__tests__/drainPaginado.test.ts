@@ -33,8 +33,8 @@ jest.mock('../relay', () => {
 });
 jest.mock('../authorHealth', () => ({ observeAuthor: jest.fn(async () => 'ok'), RECHAZAR_AUTORES_NO_VERIFICADOS: false }));
 jest.mock('../authorKeys', () => ({ refreshPendingAuthors: jest.fn(async () => {}) }));
-jest.mock('../useSyncQR', () => {
-  const real = jest.requireActual('../useSyncQR');
+jest.mock('../applyDelta', () => {
+  const real = jest.requireActual('../applyDelta');
   return { ...real, applyDelta: jest.fn(real.applyDelta) };
 });
 
@@ -49,7 +49,7 @@ import { manifestGapFor, clearManifestGaps } from '../manifestHealth';
 import type { Group, Expense } from '@/src/types/models';
 
 const relayMock = jest.requireMock('../relay') as { __reset: () => void; __buzones: Map<string, { seq: number; sender: string }[]> };
-const { applyDelta } = jest.requireMock('../useSyncQR') as { applyDelta: jest.Mock };
+const { applyDelta } = jest.requireMock('../applyDelta') as { applyDelta: jest.Mock };
 
 const grupo = (): Group => ({
   id: 'G', name: 'Grupo', memberIds: ['u1'], currency: 'USD', createdAt: 1, createdById: 'u1',
@@ -81,7 +81,7 @@ beforeEach(() => {
   clearErrors();
   olvidarFallosDeAplicacion();
   applyDelta.mockClear();
-  applyDelta.mockImplementation(jest.requireActual('../useSyncQR').applyDelta);
+  applyDelta.mockImplementation(jest.requireActual('../applyDelta').applyDelta);
   useAuthStore.setState({ currentUser: { id: 'u1' } } as never); // `readScoped` necesita usuario activo
   useGroupKeyStore.setState({ keys: [] });
   useGroupKeyStore.getState().ensureKey('G');
@@ -124,7 +124,7 @@ describe('TEC-01 · una rebanada que falla al aplicarse', () => {
     await publicarDesdeOtroAparato(200);
     // Falla la SEGUNDA rebanada de datos que se aplique.
     applyDelta
-      .mockImplementationOnce(jest.requireActual('../useSyncQR').applyDelta)
+      .mockImplementationOnce(jest.requireActual('../applyDelta').applyDelta)
       .mockImplementationOnce(() => { throw new Error('memberIds.filter is not a function'); });
 
     const r = await drainGroup('G', 'u1', 'device2', 0);
@@ -139,7 +139,7 @@ describe('TEC-01 · una rebanada que falla al aplicarse', () => {
   it('la próxima vuelta la vuelve a pedir y, si ahora aplica, sigue de largo', async () => {
     const sobres = await publicarDesdeOtroAparato(200);
     applyDelta
-      .mockImplementationOnce(jest.requireActual('../useSyncQR').applyDelta)
+      .mockImplementationOnce(jest.requireActual('../applyDelta').applyDelta)
       .mockImplementationOnce(() => { throw new Error('transitorio'); });
 
     const primera = await drainGroup('G', 'u1', 'device2', 0);
@@ -155,7 +155,7 @@ describe('TEC-01 · una rebanada que falla al aplicarse', () => {
     const sobres = await publicarDesdeOtroAparato(200);
     // La rebanada con seq 2 falla SIEMPRE.
     applyDelta.mockImplementation((delta: unknown, uid: string) => {
-      const real = jest.requireActual('../useSyncQR').applyDelta;
+      const real = jest.requireActual('../applyDelta').applyDelta;
       const d = delta as { expenses: { id: string }[] };
       if (d.expenses.some(e => e.id === 'e000')) throw new Error('permanente'); // e000 vive en la 1.ª rebanada de expenses
       return real(delta, uid);

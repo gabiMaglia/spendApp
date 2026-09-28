@@ -64,7 +64,8 @@ describe('la prenda de escritura, del lado del cliente', () => {
   it('lo que se estampa en la fila es el proof, y sale de la prenda', () => {
     // Si alguien cableara un valor cualquiera acá, el borrado dejaría de
     // encontrar sus propios sobres sin que ningún test se caiga.
-    const relay = readFileSync(join(RAIZ, 'src', 'sync', 'relay.ts'), 'utf8');
+    // T-192: el envío (y este estampado) vive en relaySend.ts, no en relay.ts.
+    const relay = readFileSync(join(RAIZ, 'src', 'sync', 'relaySend.ts'), 'utf8');
     expect(relay).toMatch(/prendaDelAparato\(\)\?\.proof/);
   });
 });

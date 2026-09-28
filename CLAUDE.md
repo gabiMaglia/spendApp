@@ -18,7 +18,7 @@ App móvil de división de gastos (Expo / React Native) que funciona **sin backe
 | Lenguaje | TypeScript estricto |
 | Almacenamiento local | MMKV (rápido, sincrónico) + Zustand. **WatermelonDB se evaluó y se sacó el 2026-09-03** (decisión del PO): estuvo instalado seis semanas sin que nada lo importara. Si vuelve, es por una necesidad medida de queries reactivas, no por el plan viejo |
 | OCR (Pro) | `@react-native-ml-kit/text-recognition` — on-device, offline, sin API key |
-| Sincronización | **Relay cifrado (Supabase)** — es el único camino real. **WebRTC se SACÓ el 2026-09-08 (T-083)**: existía en el repo pero no se llegaba a él desde ninguna pantalla, y arrastraba ocho permisos de Android más dos cadenas del `Info.plist`. **BLE está PLANEADO, no implementado.** Queda apagada, sin borrar, la pantalla de sync por QR sin internet (`app/sync/index.tsx`) — es T-085 |
+| Sincronización | **Relay cifrado (Supabase)** — es el único camino real. **WebRTC se SACÓ el 2026-09-08 (T-083)**: existía en el repo pero no se llegaba a él desde ninguna pantalla, y arrastraba ocho permisos de Android más dos cadenas del `Info.plist`. **BLE está PLANEADO, no implementado.** La pantalla de sync por QR sin internet (T-085, inalcanzable desde ninguna otra) se borró en T-193 — tag `qr-sync-antes-de-T-193` si hiciera falta recuperarla |
 | Autenticación | Expo Auth Session → Google OAuth + Sign in with Apple |
 | Estado global | Zustand |
 | i18n | `expo-localization` + `i18next` + `react-i18next` |

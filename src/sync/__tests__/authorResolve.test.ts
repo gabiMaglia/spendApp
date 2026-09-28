@@ -30,7 +30,7 @@ import type { User } from '@/src/types/models';
  *     todos sus registros nuevos; la unión los salva por el directorio.
  *  2. **Cero red en el camino síncrono.** `applyDelta` es síncrono (§3) y el
  *     directorio se consulta fuera de banda, al drenar, sin `await` — el mismo
- *     patrón que `observeAuthor` en `relaySync.ts:162`.
+ *     patrón que `observeAuthor` en `relay/drenar.ts`.
  *  3. **Una clave que todavía no tenemos da `no_verificable`** —nunca un
  *     rechazo, decisión R1 del PO— **y dispara la consulta** que sirve para la
  *     próxima vuelta.
@@ -357,7 +357,7 @@ describe('está enchufado', () => {
     const fs: typeof import('fs') = require('fs');
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const path: typeof import('path') = require('path');
-    const src = fs.readFileSync(path.join(__dirname, '../relaySync.ts'), 'utf8');
+    const src = fs.readFileSync(path.join(__dirname, '../relay/drenar.ts'), 'utf8');
 
     const linea = src.split('\n').find(l => l.includes('refreshPendingAuthors('));
     expect(linea).toBeDefined();

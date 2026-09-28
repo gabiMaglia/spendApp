@@ -20,9 +20,10 @@ import { applyApprovedLeaves } from '@/src/services/applyLeave';
 import { useSettingsStore } from './settingsStore';
 import { useNoticeInboxStore } from './noticeInboxStore';
 import { reloadVerdictCache } from '@/src/sync/verdictCache';
-import { reloadAuthorKeys } from '@/src/sync/authorKeys';
+import { reloadAuthorKeys } from '@/src/sync/authorKeysCache';
+import { reloadAuthorRefreshQueue } from '@/src/sync/authorKeysRefresh';
 import { reloadRatchet } from '@/src/sync/ratchet';
-import { reloadRecordHealth } from '@/src/sync/recordHealth';
+import { reloadRecordHealth } from '@/src/sync/recordHealthStore';
 import { reloadAuthorHealth } from '@/src/sync/authorHealth';
 import { recargarAlias, sembrarAliasDesdeIndice } from './identityAlias';
 import { olvidarFallosDeAplicacion } from '@/src/sync/drainFailures';
@@ -69,6 +70,7 @@ export function rehydrateForActiveUser(): void {
    */
   reloadVerdictCache();
   reloadAuthorKeys();
+  reloadAuthorRefreshQueue();
   reloadRatchet();
   reloadRecordHealth();
   reloadAuthorHealth();

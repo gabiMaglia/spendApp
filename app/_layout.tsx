@@ -191,7 +191,6 @@ export default function RootLayout() {
         <Stack.Screen name="expense/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="settle/new"   options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="contact/add"   options={{ presentation: 'modal', headerShown: false }} />
-        <Stack.Screen name="sync/index"   options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="debug/identity" options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="debug/relay"    options={{ presentation: 'modal', headerShown: false }} />
       </Stack>
