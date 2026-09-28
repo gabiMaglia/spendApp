@@ -56,6 +56,7 @@ import { expulsar } from '@/src/services/expulsarDelGrupo';
 import { calculateBalancesByCurrency } from '@/src/algorithms/calculateBalances';
 import { pagosQueCuentan } from '@/src/algorithms/settlementStatus';
 import { useColors } from '@/src/skins/useSkin';
+import { useContadorDeRenders } from '@/src/hooks/useContadorDeRenders';
 
 type TimelineItem =
   | { type: 'expense'; data: Expense; ts: number }
@@ -163,6 +164,10 @@ export default function GroupDetailScreen() {
   const mainBalance = balances.find(b => b.currency === group?.currency)?.amount ?? 0;
 
   const [menuVisible, setMenuVisible] = useState(false);
+
+  useContadorDeRenders('Detalle de grupo', {
+    expenses: allExpenses.length, payments: allPayments.length, group,
+  });
 
   async function handleShareInvite() {
     if (!group || !currentUser) return;

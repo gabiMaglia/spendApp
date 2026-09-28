@@ -45,6 +45,7 @@ import { syncedNow } from '@/src/utils/syncedClock';
 import { esYo } from '@/src/store/identityAlias';
 import { MAX_TEXTO_CORTO, MAX_NOTA } from '@/src/sync/nucleo/topes';
 import { useColors, useSkinTokens } from '@/src/skins/useSkin';
+import { useContadorDeRenders } from '@/src/hooks/useContadorDeRenders';
 
 type CatMeta = { id: PersonalCategory; icon: React.ComponentProps<typeof Ionicons>['name']; label: string };
 
@@ -177,6 +178,8 @@ export default function NewExpenseScreen() {
   const [multiPayer, setMultiPayer] = useState(false);
   const [payers, setPayers] = useState<Payer[]>([]);
   const addRecurring = useRecurringStore(st => st.addRecurring);
+
+  useContadorDeRenders('Nuevo gasto', { amount, groupId, splitMode, description });
 
   // ── Derived ────────────────────────────────────────────────────────────────
   const group    = groups.find(g => g.id === groupId);

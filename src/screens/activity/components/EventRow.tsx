@@ -14,6 +14,7 @@ import { mismaPersona } from '@/src/store/identityAlias';
 import { PERSONAL_ACTIVITY_KEY, type ActivityKind } from '@/src/store/selectors';
 import { relativeTime, miParteDelGasto } from '@/src/screens/activity/utils/activityFormat';
 import { useColors } from '@/src/skins/useSkin';
+import { useContadorDeRenders } from '@/src/hooks/useContadorDeRenders';
 
 /**
  * Fila de evento. En el reskin todas las variantes comparten la MISMA caja
@@ -40,6 +41,10 @@ export const EventRow = React.memo(function EventRow({
 }) {
   const { t } = useTranslation();
   const c = useColors();
+
+  // Por TIPO, no por fila individual (mismo criterio que `GroupRow`, T-215):
+  // un feed largo no puede volcar una línea de log por movimiento.
+  useContadorDeRenders('Fila de evento', { event, trust });
 
   // El `groupName` de un movimiento sin grupo es el sentinel `PERSONAL_ACTIVITY_KEY`
   // (T-116) — hace falta para el FILTRO, pero mostrárselo crudo al usuario

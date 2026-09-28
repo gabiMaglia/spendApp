@@ -2,6 +2,7 @@ import React from 'react';
 import { useGroupBalance, useGroupExpenseCount } from '@/src/store/selectors';
 import { GroupCard } from '@/src/components/GroupCard';
 import type { Group } from '@/src/types/models';
+import { useContadorDeRenders } from '@/src/hooks/useContadorDeRenders';
 
 /**
  * Memoizada (PO 2026-09-22, rendimiento en gama baja): esta fila llama
@@ -17,6 +18,11 @@ export const GroupRow = React.memo(function GroupRow({
   const balances     = useGroupBalance(group.id, currentUserId);
   const expenseCount = useGroupExpenseCount(group.id);
   const mainBalance  = balances.find(b => b.currency === group.currency)?.amount ?? 0;
+
+  // Por TIPO, no por fila individual (decisión T-215): un grupo con 100 filas
+  // no puede volcar 100 líneas de log — se cuenta el total de re-renders de
+  // "Fila de grupo" en conjunto.
+  useContadorDeRenders('Fila de grupo', { group, expenseCount });
 
   return (
     <GroupCard

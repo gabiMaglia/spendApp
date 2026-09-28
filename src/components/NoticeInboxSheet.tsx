@@ -12,6 +12,7 @@ import { useGroupStore } from '@/src/store/groupStore';
 import { BottomSheet } from './Sheet';
 import { Segmented } from './Band';
 import { useColors } from '@/src/skins/useSkin';
+import { useContadorDeRenders } from '@/src/hooks/useContadorDeRenders';
 
 /** Todo = la bandeja de siempre. Acción = sólo lo que pide algo (T-062). */
 type Tab = 'todo' | 'accion';
@@ -68,6 +69,8 @@ export function NoticeInboxSheet({
   const haySinLeer = items.some(i => i.readAt === null);
 
   const [tab, setTab] = useState<Tab>('todo');
+
+  useContadorDeRenders('NoticeInboxSheet', { visible, itemsCount: items.length });
 
   /**
    * La pestaña es de ESTA apertura, no del historial de la bandeja.

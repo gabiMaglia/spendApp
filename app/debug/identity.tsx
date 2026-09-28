@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -30,6 +30,7 @@ import { Alert } from 'react-native';
 import { misIdentidades } from '@/src/store/identityAlias';
 import { SoloEnDesarrollo } from '@/src/components/SoloEnDesarrollo';
 import { useColors } from '@/src/skins/useSkin';
+import { activo as renderLogActivo, setActivo as setRenderLogActivo } from '@/src/dev/contadorDeRenders';
 
 /**
  * Diagnóstico del índice de identidad (solo DEV).
@@ -80,6 +81,10 @@ function PantallaIdentidad() {
   const [misClaves, setMisClaves] = React.useState<string[]>([]);
 
   const [alta, setAlta] = React.useState<string | null>(null);
+
+  // Log de re-renders (T-215): el flag vive en `contadorDeRenders.ts`, no acá
+  // — este estado sólo espeja lo persistido para que el Switch pinte bien.
+  const [logRenders, setLogRenders] = React.useState(renderLogActivo());
 
   // Firmas de registro (T-041 · S6). Modo MARCA: se cuenta, no se descarta —
   // todo lo que aparece acá se aplicó y sumó al balance igual.
@@ -329,6 +334,25 @@ function PantallaIdentidad() {
               );
             })
           )}
+        </Block>
+
+        <Block title="LOG DE RENDERS (DEV)" c={c}>
+          <Text style={[Typography.bodyS, { color: c.textSecondary }]}>
+            Imprime en consola, cada 2 s, cuántas veces se re-renderizó cada
+            pantalla/componente instrumentado y qué cambió. No hace nada en
+            producción — sólo sirve para chequear a mano en este teléfono.
+          </Text>
+          <View style={styles.row}>
+            <Text style={[Typography.bodyM, { color: c.text }]}>Log de renders (dev)</Text>
+            <Switch
+              value={logRenders}
+              onValueChange={(v) => {
+                setRenderLogActivo(v);
+                setLogRenders(v);
+                if (v) console.info('[renders] activo — resumen cada 2 s');
+              }}
+            />
+          </View>
         </Block>
 
         <Block title="EMPEZAR DE CERO" c={c}>

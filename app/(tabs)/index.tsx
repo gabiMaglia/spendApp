@@ -30,6 +30,7 @@ import { PersonalMonthNav } from '@/src/screens/personal/components/PersonalMont
 import { PersonalBudgetMeter } from '@/src/screens/personal/components/PersonalBudgetMeter';
 import { MovimientosHeader } from '@/src/screens/personal/components/MovimientosHeader';
 import { MovimientosList } from '@/src/screens/personal/components/MovimientosList';
+import { useContadorDeRenders } from '@/src/hooks/useContadorDeRenders';
 
 export default function PersonalScreen() {
   const skin = useSkinTokens();
@@ -59,6 +60,10 @@ export default function PersonalScreen() {
     totalIncome, positiveCarryover, totalSpent, owedToMe, youOwe,
   });
   const handleRemove = useRemoveEntry();
+
+  useContadorDeRenders('Inicio', {
+    activeMonth, entriesCount: monthEntries.length, misGruposCount: misGrupos.length, owedToMe, youOwe,
+  });
 
   // capitalizar (PO 2026-09-22): el nombre se guarda tal como se tipeó — si
   // alguien lo escribió en minúscula, el saludo lo mostraba así. La UI es

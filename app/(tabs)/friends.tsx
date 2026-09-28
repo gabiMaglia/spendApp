@@ -19,6 +19,7 @@ import { useAddContactSheet } from '@/src/screens/friends/hooks/useAddContactShe
 import { ContactsList } from '@/src/screens/friends/components/ContactsList';
 import { AddContactSheet } from '@/src/screens/friends/components/AddContactSheet';
 import { useColors } from '@/src/skins/useSkin';
+import { useContadorDeRenders } from '@/src/hooks/useContadorDeRenders';
 
 export default function FriendsScreen() {
   const { t } = useTranslation();
@@ -36,6 +37,8 @@ export default function FriendsScreen() {
   const { contacts, conHistorial, handleRemove, handleSettle } = useFriendsContacts();
   const addSheet = useAddContactSheet();
   const pendingCalculando = t('fx.calculating');
+
+  useContadorDeRenders('Amigos', { contactsCount: contacts.length, owedToYou, youOwe });
 
   // Sin 'bottom': la tab bar ya reserva el inset del sistema (_layout.tsx); contarlo acá dejaba una franja muerta entre el contenido y la barra.
   return (

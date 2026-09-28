@@ -5,6 +5,7 @@ import { Typography } from '@/src/constants/typography';
 import { getCurrency, type CurrencyCode } from '@/src/constants/currencies';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useColors } from '@/src/skins/useSkin';
+import { useContadorDeRenders } from '@/src/hooks/useContadorDeRenders';
 
 /**
  * **El monto grande editable** de «Nuevo gasto» y «Registrar pago» (T-113).
@@ -47,6 +48,9 @@ export const MontoEditable = forwardRef<TextInput, {
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 6,
   } : null;
+
+  useContadorDeRenders('MontoEditable', { value, currency, error });
+
   return (
     <Pressable
       testID={testID ? `${testID}-tap-area` : undefined}
