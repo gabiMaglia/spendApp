@@ -2,13 +2,13 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { Spacing } from '@/src/constants/spacing';
+import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { hapticLight } from '@/src/utils/haptics';
 import { Segmented } from '@/src/components/Band';
 import type { RecurrenceRule } from '@/src/types/models';
 import type { Ionicons } from '@expo/vector-icons';
-import { useColors } from '@/src/skins/useSkin';
+import { useColors, useSkinTokens } from '@/src/skins/useSkin';
 
 export type Frequency = RecurrenceRule['frequency'];
 
@@ -53,26 +53,52 @@ export function RecurrencePicker({
 }) {
   const { t } = useTranslation();
   const c = useColors();
+  const soft = useSkinTokens().flags.soft;
 
+  const selector = (
+    <Segmented
+      variant="tabs"
+      // Clásico: las pestañas quedan enmarcadas por la tarjeta, sin líneas
+      // propias arriba/abajo (la tarjeta ya pone el borde). Aero: píldora con
+      // margen, como siempre.
+      borde={soft ? 'ambos' : 'ninguno'}
+      scroll
+      value={toKey(value)}
+      onChange={k => { hapticLight(); onChange(toValue(k)); }}
+      options={OPTIONS.map(o => ({ key: o.key, label: t(o.labelKey), icon: o.icon }))}
+    />
+  );
+
+  // Aero ya dibuja el selector como píldora con margen: se deja como estaba.
+  if (soft) {
+    return (
+      <View style={styles.wrap}>
+        <Text style={[Typography.label, styles.pad, { color: c.textSecondary }]}>
+          {t('recurrence.label')}
+        </Text>
+        {selector}
+        {value !== null && (
+          <Text style={[Typography.bodyS, styles.pad, { color: c.textTertiary }]}>
+            {t('recurrence.hint')}
+          </Text>
+        )}
+      </View>
+    );
+  }
+
+  // Clásico (PO 2026-09-27): una tarjeta como la de la descripción, con margen
+  // lateral y borde redondeado, en vez de pestañas sueltas de borde a borde
+  // que rompían con el resto de la pantalla.
   return (
-    <View style={styles.wrap}>
-      <Text style={[Typography.label, styles.pad, { color: c.textSecondary }]}>
+    <View style={[styles.card, { borderColor: c.hair, backgroundColor: c.surface }]}>
+      <Text style={[Typography.label, styles.cardLabel, { color: c.textSecondary }]}>
         {t('recurrence.label')}
       </Text>
-
-      {/* `Segmented variant="tabs"` va de borde a borde por convención (T-118):
-          sin padding lateral acá, a diferencia de la etiqueta y la aclaración. */}
-      <Segmented
-        variant="tabs"
-        borde="ambos"
-        scroll
-        value={toKey(value)}
-        onChange={k => { hapticLight(); onChange(toValue(k)); }}
-        options={OPTIONS.map(o => ({ key: o.key, label: t(o.labelKey), icon: o.icon }))}
-      />
-
+      <View style={[styles.cardSelector, { borderTopColor: c.hair }]}>
+        {selector}
+      </View>
       {value !== null && (
-        <Text style={[Typography.bodyS, styles.pad, { color: c.textTertiary }]}>
+        <Text style={[Typography.bodyS, styles.cardHint, { color: c.textTertiary }]}>
           {t('recurrence.hint')}
         </Text>
       )}
@@ -83,4 +109,13 @@ export function RecurrencePicker({
 const styles = StyleSheet.create({
   wrap: { gap: Spacing[2] },
   pad:  { paddingHorizontal: Spacing.screenPad },
+  // Mismo marco que `descCard` en `app/expense/new.tsx`.
+  card: {
+    marginHorizontal: Spacing.screenPad,
+    borderRadius: Radius.xl, borderCurve: 'continuous', borderWidth: 1,
+    overflow: 'hidden',
+  },
+  cardLabel:    { paddingHorizontal: Spacing[4], paddingTop: 12, paddingBottom: 8 },
+  cardSelector: { borderTopWidth: 1 },
+  cardHint:     { paddingHorizontal: Spacing[4], paddingVertical: 10 },
 });
