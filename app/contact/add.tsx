@@ -32,6 +32,7 @@ import { syncedNow } from '@/src/utils/syncedClock';
 import { esYo } from '@/src/store/identityAlias';
 import { shortFingerprint } from '@/src/utils/keyFingerprint';
 import { useColors } from '@/src/skins/useSkin';
+import { useContacts } from '@/src/screens/friends/hooks/useContacts';
 
 type Mode = 'my_qr' | 'scan';
 
@@ -74,6 +75,31 @@ export default function AddContactScreen() {
       requestPerm();
     }
   }, [mode]);
+
+  /**
+   * **T-197**: quien MUESTRA el QR no se enteraba de nada — la tarjeta del otro
+   * llega por el buzón de contactos (`contactChannel.ts` → `addOrUpdateUser`,
+   * vía `useUserStore`) y esta pantalla se quedaba mirando el código sin
+   * reaccionar. Un id de contacto que no estaba en el store al MONTAR (no al
+   * último render: así una edición de un contacto ya conocido, mismo id, no
+   * cuenta como alta) es el alta del otro lado — cierra sola, una sola vez, y
+   * sólo mientras se muestra el QR (`mode === 'scan'` ya cierra por su cuenta
+   * en `persistirContacto`).
+   */
+  const contactosAlMostrarQR = useContacts();
+  const idsAlMontarRef = useRef<Set<string> | null>(null);
+  if (idsAlMontarRef.current === null) {
+    idsAlMontarRef.current = new Set(contactosAlMostrarQR.map(u => u.id));
+  }
+  const cerradoPorAltaRef = useRef(false);
+  useEffect(() => {
+    if (mode !== 'my_qr' || cerradoPorAltaRef.current) return;
+    const huboAlta = contactosAlMostrarQR.some(u => !idsAlMontarRef.current!.has(u.id));
+    if (huboAlta) {
+      cerradoPorAltaRef.current = true;
+      volverAContactos();
+    }
+  }, [mode, contactosAlMostrarQR]);
 
   // El secreto viaja en el código: es lo que permite que quien me escanee me
   // devuelva su tarjeta y el contacto quede en los dos teléfonos.
@@ -174,7 +200,13 @@ export default function AddContactScreen() {
      * sobre Contactos. Antes cerraba el «OK» del cartel, y en Android tocar fuera lo
      * descarta sin llamar a `onPress`: quedabas en la cámara, con el escaneo trabado.
      * Esto no cambia con el fix: el cierre sigue sin depender de la red.
+     *
+     * `cerradoPorAltaRef` marcado ACÁ (T-197): este `addOrUpdateUser` de más arriba
+     * es el propio alta local (QR presencial o link) — sin esto, el watcher de
+     * "mostrar QR" de abajo vería el mismo contacto nuevo en el store un instante
+     * después y volvería a cerrar (doble `router.back()`).
      */
+    cerradoPorAltaRef.current = true;
     volverAContactos();
 
     const cartelUnaDireccion = () => Alert.alert(

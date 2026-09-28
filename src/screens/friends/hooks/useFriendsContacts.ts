@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback } from 'react';
 import { Alert } from 'react-native';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -7,24 +7,18 @@ import { useAuthStore } from '@/src/store/authStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useContactosConHistorial } from '@/src/store/selectors';
 import { hapticWarning } from '@/src/utils/haptics';
-import { esYo } from '@/src/store/identityAlias';
+import { useContacts } from './useContacts';
 
 /** Lista de contactos (sin uno mismo) + acciones estables de borrar/saldar. */
 export function useFriendsContacts() {
   const { t } = useTranslation();
   const { currentUser } = useAuthStore();
-  const users = useUserStore(s => s.users);
   const removeUser = useUserStore(s => s.removeUser);
   const conHistorial = useContactosConHistorial(currentUser?.id ?? '');
 
-  const contacts = useMemo(
-    () => users.filter(u => !u.isDeleted && !esYo(u.id)),
-    // `currentUser` no aparece en el cuerpo pero la dependencia es REAL: `esYo`
-    // lee la sesión activa, así que cambiar de cuenta tiene que recalcular esto.
-    // El linter no puede ver esa dependencia.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [users, currentUser],
-  );
+  // Criterio compartido con `app/contact/add.tsx` (T-197): usuarios activos,
+  // sin uno mismo — ver `useContacts`.
+  const contacts = useContacts();
 
   // Callbacks ESTABLES (PO 2026-09-22, rendimiento en gama baja — mismo
   // patrón que `GroupRow` en Grupos): antes eran arrow functions inline
