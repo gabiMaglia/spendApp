@@ -120,24 +120,23 @@ function fuentes(dir: string): string[] {
  */
 describe('quién puede escribir en la bandeja', () => {
   /**
-   * T-189 (ronda 2): el motor de sync se partió en `relayEngine.ts`
-   * (fachada) + `sync/relay/*.ts` (módulos) — el aviso vive donde vive la
-   * lógica que lo dispara, no forzado a quedarse en la fachada. Esto corrige
-   * la RUTA que el guard reconoce como "el motor de sync", no debilita lo
-   * que verifica: sigue fallando por diferencia ante cualquier archivo FUERA
-   * de ese conjunto que empiece a llamar a `announce()`.
+   * T-189: el motor de sync se partió en `relayEngine.ts` (fachada) +
+   * `sync/relay/*.ts` — el aviso vive donde vive la lógica que lo dispara.
+   * La lista sigue siendo CERRADA y exacta (QA T-189): un módulo nuevo del
+   * motor que empiece a avisar tiene que agregarse acá a mano.
    */
-  const PERMITIDOS = new Set(['services/notifications', 'sync/relayEngine']);
-  const esModuloDelMotor = (ruta: string) => /^sync\/relay\/[^/]+$/.test(ruta);
-
-  it('sólo el motor de sync (fachada + sus módulos) llama a announce()', () => {
+  it('sólo el motor de sync llama a announce(): lista cerrada', () => {
     const llamadores = [...fuentes(SRC), ...fuentes(APP)]
       .filter(ruta => /(^|[^A-Za-z])announce\s*\(/.test(readFileSync(ruta, 'utf8')))
       .map(ruta => relative(SRC, ruta).replace(/\.tsx?$/, '').split(sep).join('/'))
       .sort();
 
-    const inesperados = llamadores.filter(r => !PERMITIDOS.has(r) && !esModuloDelMotor(r));
-    expect(inesperados).toEqual([]);
+    expect(llamadores).toEqual([
+      'services/notifications',
+      'sync/relay/contactos',
+      'sync/relay/drain',
+      'sync/relay/publish',
+    ]);
   });
 });
 
