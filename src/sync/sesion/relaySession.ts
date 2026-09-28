@@ -53,11 +53,11 @@ export function __resetRelaySession(): void {
  * Cierra la sesión LOCAL (auth-js + storage) sin importar si la red
  * responde.
  *
- * **T-175 (B1, verifier ronda 2):** `signOut({ scope: 'local' })` sigue
- * haciendo el viaje de red (ver comentario de `forceClearPersistedSession`
- * arriba) — sin tope, un logout colgado bloqueaba esta MISMA cola (la
- * comparte con `ensureRelaySession`/`encolarOperacionDeSesion`, fix D1) para
- * siempre: `reabrirSesionAnonima` (llamada por
+ * **T-175:** `signOut({ scope: 'local' })` sigue haciendo el viaje de red
+ * (ver comentario de `forceClearPersistedSession` arriba) — sin tope, un
+ * logout colgado bloqueaba esta MISMA cola (la comparte con
+ * `ensureRelaySession`/`encolarOperacionDeSesion`) para siempre:
+ * `reabrirSesionAnonima` (llamada por
  * `reiniciarSyncPorCambioDeCuenta` en cada cambio de cuenta) nunca
  * terminaba, y la cuenta B que entraba después se quedaba sin poder leer su
  * propia sesión. Se reusa `withTimeout` (T-138-bis) con la MISMA
@@ -204,8 +204,8 @@ function hacerEnsure(permitirCaptcha: boolean, ignorarCooldown: boolean): Promis
  * validada": es preferible mostrar la verificación de más (peor caso, un
  * paso extra) que saltarla sobre un estado incierto.
  *
- * **T-175 (verifier ronda 3, bloqueante): para CUENTA no alcanza con
- * `!is_anonymous`.** Antes de este fix, una sesión de cuenta persistida
+ * **T-175: para CUENTA no alcanza con `!is_anonymous`.** Antes de este fix,
+ * una sesión de cuenta persistida
  * pero SIN el marcador de dueño (`DUENO_KEY` — p.ej. instalación de un
  * build previo a B2, o cualquier residuo que `ensureRelaySession` todavía
  * no llegó a purgar) hacía que este chequeo devolviera `true`: el gate de
@@ -257,8 +257,8 @@ async function hacerEnsureSinCola(permitirCaptcha: boolean, ignorarCooldown: boo
 
     if (data.session?.user.is_anonymous) {
       /**
-       * Fix D2 (verifier, ronda 2, rechazo bloqueante): una cuenta puede
-       * tener una sesión ANÓNIMA residual — heredada del `main` actual
+       * T-175: una cuenta puede tener una sesión ANÓNIMA residual —
+       * heredada del `main` actual
        * (donde TODOS usaban anónima, sin excepción) o de un invitado→cuenta
        * a medio terminar. Nunca cuenta como `identity`, pero tampoco puede
        * quedarse guardada: si no se purga, el cliente unificado del buzón
@@ -275,8 +275,8 @@ async function hacerEnsureSinCola(permitirCaptcha: boolean, ignorarCooldown: boo
     if (!data.session) return 'none';
 
     /**
-     * T-175 (B2ii, verifier ronda 2 y 3): defensa general — la sesión
-     * guardada puede no ser de la cuenta activa. Pasa por ejemplo cuando un
+     * T-175: defensa general — la sesión guardada puede no ser de la cuenta
+     * activa. Pasa por ejemplo cuando un
      * login de A vence acá (`SESSION_TIMEOUT_MS`) pero auth-js la deja
      * persistida IGUAL cuando la respuesta de red llega tarde
      * (`_saveSession` no sabe de nuestro tope) — si para entonces ya entró
@@ -285,8 +285,8 @@ async function hacerEnsureSinCola(permitirCaptcha: boolean, ignorarCooldown: boo
      * `registrarDuenoDeSesionDeCuenta` arriba — no `esYo`, y por qué) en
      * vez de confiar ciegamente en `is_anonymous: false`.
      *
-     * **Ronda 3:** no alcanza con que la CUENTA coincida — hace falta que
-     * el marcador haya confirmado ESTA sesión puntual
+     * No alcanza con que la CUENTA coincida — hace falta que el marcador
+     * haya confirmado ESTA sesión puntual
      * (`data.session.user.id`). Si sólo se comparara la cuenta, B logueado
      * de verdad (marcador = B) seguido de una sesión de OTRO `user.id`
      * pisando el storage (p.ej. A, llegada tarde, sin pasar por el purgado

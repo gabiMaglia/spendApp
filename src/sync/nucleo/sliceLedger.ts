@@ -145,7 +145,7 @@ export function subirProfundidad(almacen: AlmacenPort, topic: string, campo: str
 /**
  * Últimas `ckey` publicadas del campo `(topic, campo)` — snapshot de la
  * publicación ANTERIOR, para que quien llama pueda detectar qué cubo quedó
- * VACÍO a la MISMA profundidad (hallazgo QA #1 sobre T-191: un miembro que
+ * VACÍO a la MISMA profundidad (T-191: un miembro que
  * se va de `users`, un gasto traspasado a otro grupo — `armar()` ya no lo
  * incluye, así que su prefijo deja de aparecer entre los cubos actuales,
  * pero nada lo vaciaba ni lo borraba del ledger). Distinto de
@@ -174,9 +174,9 @@ export function guardarCkeysDeCampo(almacen: AlmacenPort, topic: string, campo: 
  * registrado, reenvía TODO cubo actual — el mismo camino que un ledger
  * perdido por reinstalación (P9), y es correcto por la misma razón.
  *
- * **NO borra el snapshot de `ckeysDeCampo`** (hallazgo M4, verifier, tercera
- * tanda): ese snapshot es precisamente lo que permite detectar un cubo
- * VACIADO mientras el dispositivo estuvo afuera (miembro que se fue, gasto
+ * **NO borra el snapshot de `ckeysDeCampo`**: ese snapshot es precisamente
+ * lo que permite detectar un cubo VACIADO mientras el dispositivo estuvo
+ * afuera (miembro que se fue, gasto
  * traspasado) — sin él, la publicación completa que sigue no tiene con qué
  * compararse y no manda `[]` para lo que ya no está, dejándolo huérfano en
  * el buzón hasta el TTL. Conservarlo es seguro: la comparación es contra las

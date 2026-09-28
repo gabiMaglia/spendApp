@@ -22,8 +22,8 @@ function isManifestEntry(value: unknown): value is SliceManifestEntry {
 }
 
 /**
- * T-146, ronda 2 del verifier (defecto D3): antes sólo pedía `version === 2`
- * y `entries` array, sin mirar los ELEMENTOS. Un sobre firmado y cifrado con
+ * T-146: antes sólo pedía `version === 2` y `entries` array, sin mirar los
+ * ELEMENTOS. Un sobre firmado y cifrado con
  * la clave del grupo cuyo texto plano fuera `{"version":2,"entries":[null]}`
  * pasaba como manifiesto válido, y `entry.ckey` tiraba un TypeError DESPUÉS
  * del loop de rebanadas en `relaySync.ts` — fuera de cualquier `try`. Ahora

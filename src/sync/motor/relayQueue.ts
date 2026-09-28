@@ -1,15 +1,15 @@
 /**
- * Cola de envíos con ritmo por debajo de la cuota del servidor (T-147 D4,
- * ronda 2 — ruling del orquestador: "la cuota del PO (20 sobres/min) NO
- * cambia. El cliente se autolimita").
+ * Cola de envíos con ritmo por debajo de la cuota del servidor (T-147 D4 —
+ * ruling del orquestador: "la cuota del PO (20 sobres/min) NO cambia. El
+ * cliente se autolimita").
  *
  * Todo lo que manda un lote de sobres FUERA de la publicación normal de un
  * grupo —que ya es 1 pedido por grupo por vuelta de poll, ver
  * `relayEngine.reintentarPublicacionesConCuota`— pasa por acá: hoy,
  * `reenviarClavesDeGrupo` y `announceGroupToContacts`. Sin esto, un arranque
  * con varios grupos grandes manda todos los sobres de clave en una ráfaga
- * sin ritmo (medido en la ronda 2 del verifier: 5 grupos × 8 miembros = 35
- * sobres de una, contra una cuota de 20/min).
+ * sin ritmo (medido: 5 grupos × 8 miembros = 35 sobres de una, contra una
+ * cuota de 20/min).
  *
  * `QUEUE_INTERVAL_MS` separa cada envío REAL, así que la cola nunca puede
  * mandar más rápido que `60_000 / QUEUE_INTERVAL_MS` por minuto — sea cual
@@ -25,27 +25,24 @@
  * vuelve al FRENTE de su prioridad — nunca se pierde, y no revive antes de
  * la próxima vuelta del ritmo, así que reintentarlo no puede ráfaguear.
  *
- * **Verifier R3-3 (ronda 3): dos agujeros de robustez que el diseño de la
- * ronda 2 no cerraba.**
- *  - **(a) Bloqueo en cabeza.** Un trabajo que SIEMPRE falla (PoC real: una
+ * **Dos agujeros de robustez que el diseño original no cerraba (T-147):**
+ *  - **(a) Bloqueo en cabeza.** Un trabajo que SIEMPRE falla (p.ej. una
  *    `wrapPublicKey` inválida de un contacto hace tirar `wrapGroupKey`) volvía
- *    al frente para siempre — 901 reintentos en 1h del PoC, y los trabajos
- *    detrás (sanos) no avanzaban NADA. `MAX_INTENTOS_POR_TRABAJO` lo descarta
- *    con un rastro en el diagnóstico (`errorLog`) y la cola sigue.
+ *    al frente para siempre, y los trabajos detrás (sanos) no avanzaban NADA.
+ *    `MAX_INTENTOS_POR_TRABAJO` lo descarta con un rastro en el diagnóstico
+ *    (`errorLog`) y la cola sigue.
  *  - **(b) Cuelgue.** `ejecutar()` no tenía tope de tiempo, contra la regla de
  *    T-138-bis (todo el resto de `relayEngine` sí la sigue): un envío
  *    colgado dejaba `corriendo = true` para siempre y ningún `encolar`
- *    siguiente arrancaba (PoC: 0 hechos en 1h). `EJECUCION_TIMEOUT_MS` lo
- *    corta y lo trata como `'reintentar'` — no cancela la promesa original
- *    (JS no puede), pero deja de esperarla.
+ *    siguiente arrancaba. `EJECUCION_TIMEOUT_MS` lo corta y lo trata como
+ *    `'reintentar'` — no cancela la promesa original (JS no puede), pero
+ *    deja de esperarla.
  *
- * **Verifier R4-2 (ronda 4): el tope de reintentos descartaba fallos
- * TRANSITORIOS de cuota antes de que la cuota se renovara.** 8 intentos ×
- * `QUEUE_INTERVAL_MS` (4s) ≈ 32s — bastante menos que la ventana real
- * (el minuto de calendario, `011a:229-230`). PoC del verificador: 13
- * tarjetas + 11 claves `alta` en el mismo minuto → la clave #7 se
- * descartaba a los ~56s, justo antes de que la cuota volviera a estar
- * libre. `'reintentar_cuota'` es un resultado APARTE de `'reintentar'`:
+ * **El tope de reintentos descartaba fallos TRANSITORIOS de cuota antes de
+ * que la cuota se renovara** (T-147): 8 intentos × `QUEUE_INTERVAL_MS` (4s)
+ * ≈ 32s — bastante menos que la ventana real (el minuto de calendario,
+ * `011a:229-230`). `'reintentar_cuota'` es un resultado APARTE de
+ * `'reintentar'`:
  *  - No cuenta para `MAX_INTENTOS_POR_TRABAJO` — un `rate_limited` no es un
  *    fallo permanente, es "todavía no": el trabajo sigue siendo válido para
  *    siempre mientras la sesión lo sea.

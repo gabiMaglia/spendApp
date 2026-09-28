@@ -46,8 +46,8 @@ type PublishFailReason = Extract<PublishResult, { ok: false }>['reason'];
 
 /**
  * Timeout del envío individual: un `sendEnvelope` que nunca resuelve no debe
- * dejar la cola de `encolarPorTopic` trabada para siempre (ADR-007 §T-191,
- * verifier tercera tanda). T-206-A (D8): `TIMEOUT_ENVIO_MS` en `nucleo/limites.ts`.
+ * dejar la cola de `encolarPorTopic` trabada para siempre (ADR-007 §T-191).
+ * T-206-A (D8): `TIMEOUT_ENVIO_MS` en `nucleo/limites.ts`.
  */
 export const PUBLICACION_TIMEOUT_MS = TIMEOUT_ENVIO_MS;
 
@@ -58,16 +58,16 @@ export const PUBLICACION_TIMEOUT_MS = TIMEOUT_ENVIO_MS;
  * (`feedback_jazz_referencia_sync.md`). Sin esto, dos publicaciones
  * concurrentes del mismo topic podían responder en orden invertido y dejar
  * el ledger creyendo publicado el digest más nuevo mientras el buzón
- * compactado se quedaba con el contenido viejo (ADR-007 §T-191, verifier
- * segunda tanda). Sólo se encola la fase de ENVÍO — armar el documento no
- * escribe nada compartido y no necesita el turno.
+ * compactado se quedaba con el contenido viejo (ADR-007 §T-191). Sólo se
+ * encola la fase de ENVÍO — armar el documento no escribe nada compartido y
+ * no necesita el turno.
  */
 const colaPorTopic = new Map<string, Promise<unknown>>();
 
 /**
  * Envíos individuales que TODAVÍA no se asentaron cuando `enviar` (más abajo)
  * ya devolvió por timeout: el `AbortSignal` cancela casi siempre, pero sin
- * garantía absoluta (ADR-007 §T-191, verifier cuarta tanda). Mientras una
+ * garantía absoluta (ADR-007 §T-191). Mientras una
  * promesa cruda siga sin asentarse, la cola no deja arrancar la SIGUIENTE
  * publicación del mismo topic — si no, un envío tardío podría aterrizar
  * después de uno más nuevo y la compactación se quedaría con el viejo.
@@ -131,8 +131,7 @@ export async function publishToGroup(
     // `AbortSignal` real + registro en la cola (`registrarPendienteSinAsentar`)
     // para que el SIGUIENTE turno no arranque hasta que esta se asiente —
     // si el pedido viejo aterrizara después de uno más nuevo, la
-    // compactación se quedaría con el más viejo (ADR-007 §T-191, verifier
-    // cuarta tanda).
+    // compactación se quedaría con el más viejo (ADR-007 §T-191).
     const controller = new AbortController();
     const cruda = sendEnvelope(topic, firmado, deviceId, true, ckey, controller.signal);
     registrarPendienteSinAsentar(topic, cruda);
@@ -169,8 +168,7 @@ export async function publishToGroup(
 
   // `armar`/`antesDePublicar` corren ADENTRO de la tarea encolada, no antes:
   // tomar el estado recién al turno de la cola evita que una llamada vieja
-  // pise con un snapshot obsoleto a una más nueva (ADR-007 §T-191, verifier
-  // tercera tanda).
+  // pise con un snapshot obsoleto a una más nueva (ADR-007 §T-191).
   const resultado = await encolarPorTopic(topic, async () => {
     const doc = await adaptador.antesDePublicar(
       adaptador.armar(groupId, currentUserId),

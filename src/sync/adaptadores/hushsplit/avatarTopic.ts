@@ -21,10 +21,9 @@ import { TIMEOUT_ENVIO_MS, RENEWAL_WINDOW_MS } from '@/src/sync/nucleo/limites';
 const AVATAR_LEDGER_CKEY = 'propia';
 
 /**
- * Caché negativa de intentos de fetch (hallazgo #4 de la revisión de Task 9):
- * una foto que todavía no está en el buzón (el publicador no la mandó, o
- * expiró) no debe reintentarse en CADA drenaje (cada ~15min) — sólo
- * ocasionalmente, hasta que aparezca.
+ * Caché negativa de intentos de fetch: una foto que todavía no está en el
+ * buzón (el publicador no la mandó, o expiró) no debe reintentarse en CADA
+ * drenaje (cada ~15min) — sólo ocasionalmente, hasta que aparezca.
  *
  * T-206-A (D12): antes vivía en `sliceRenewal.ts` (MMKV, marcador
  * `avatar-attempt:...`), compartiendo storage con la renovación de rebanadas
@@ -127,14 +126,12 @@ export async function publishAvatarIfOwn(
   // del lado del transporte (`sendEnvelope`) — la `ckey` del ledger de arriba
   // es un concepto aparte, interno a este módulo.
   //
-  // T-191 (verifier, cuarta tanda): esta función corre DENTRO de
-  // `antesDePublicar`, que desde el fix de M2 corre al turno de
-  // `encolarPorTopic` (`relaySync.ts`) — un envío colgado acá trabaría la
-  // cola de publicación del GRUPO, no sólo la foto. Mismo timeout + cancelación
+  // T-191: esta función corre DENTRO de `antesDePublicar`, que corre al turno
+  // de `encolarPorTopic` (`motor/relaySync.ts`) — un envío colgado acá
+  // trabaría la cola de publicación del GRUPO, no sólo la foto. Mismo timeout
   // real que `publishToGroup#enviar` (`AVATAR_TIMEOUT_MS`, duplicado de
-  // `PUBLICACION_TIMEOUT_MS` — mismo valor, no se importa de `relaySync.ts`
-  // para no cerrar un ciclo: `relaySync.ts` → `adaptadorHushSplit.ts` →
-  // `avatarTopic.ts`).
+  // `PUBLICACION_TIMEOUT_MS`, no importado de `relaySync.ts` para no cerrar un
+  // ciclo: `relaySync.ts` → `adaptadorHushSplit.ts` → `avatarTopic.ts`).
   const controller = new AbortController();
   const cruda = sendEnvelope(topic, firmado, deviceId, false, undefined, controller.signal);
   const TIMEOUT = Symbol('avatar_timeout');
@@ -158,19 +155,16 @@ export async function publishAvatarIfOwn(
  * drenaje — la caché negativa de abajo (`intentosDeFetch`, en memoria) lo
  * espacía a lo sumo cada `AVATAR_FETCH_RETRY_WINDOW_MS`.
  *
- * **Hallazgo #1 de la revisión (Critical):** el guard de "¿ya la tengo?" NO
- * puede comparar contra `local.avatarDigest`. Para cuando esta función corre
- * dentro de `drainGroup`, la rebanada `users` YA se mergeó (`applyDelta` →
- * `mergeUsersLWW`, que reemplaza el registro entero) — así que
- * `local.avatarDigest` YA es el digest NUEVO que acaba de llegar, mientras
- * que `local.avatar` sigue teniendo los bytes VIEJOS (la foto nunca viaja en
- * esa rebanada). Comparar `avatarDigest` (parámetro) contra
- * `local.avatarDigest` da un empate trivial siempre, y la foto nueva nunca se
- * pide. La comparación correcta es contra el digest de los bytes que
+ * El guard de "¿ya la tengo?" NO puede comparar contra `local.avatarDigest`.
+ * Para cuando esta función corre dentro de `drainGroup`, la rebanada `users`
+ * YA se mergeó (`applyDelta` → `mergeUsersLWW`, que reemplaza el registro
+ * entero) — así que `local.avatarDigest` YA es el digest NUEVO que acaba de
+ * llegar, mientras que `local.avatar` sigue teniendo los bytes VIEJOS (la
+ * foto nunca viaja en esa rebanada). Comparar `avatarDigest` (parámetro)
+ * contra `local.avatarDigest` da un empate trivial siempre, y la foto nueva
+ * nunca se pide. La comparación correcta es contra el digest de los bytes que
  * REALMENTE están cacheados en `local.avatar` — recalculado acá con la MISMA
- * función que usa el lado de publicación (`digestOfJson`, consolidada en
- * `manifest.ts` — antes había una `digestAvatar` propia en este archivo,
- * bytealmente idéntica pero duplicada; hallazgo M1 de la revisión).
+ * función que usa el lado de publicación (`digestOfJson`, de `manifest.ts`).
  */
 export async function fetchAvatarIfMissing(
   groupId: string,
@@ -186,10 +180,10 @@ export async function fetchAvatarIfMissing(
   const digestDeBytesCacheados = local.avatar ? await digestOfJson(local.avatar) : undefined;
   if (digestDeBytesCacheados === avatarDigest) return; // los bytes que ya tengo son estos mismos
 
-  // Caché negativa (hallazgo #4): si el último intento de pedir ESTA MISMA
-  // versión (userId+digest) fue hace menos de la ventana corta, no se
-  // reintenta todavía — evita machacar la red cada ~15min con un fetch que ya
-  // sabemos que puede fallar (foto aún no publicada, o expirada).
+  // Caché negativa: si el último intento de pedir ESTA MISMA versión
+  // (userId+digest) fue hace menos de la ventana corta, no se reintenta
+  // todavía — evita machacar la red cada ~15min con un fetch que ya sabemos
+  // que puede fallar (foto aún no publicada, o expirada).
   const marcadorIntento = `${userId}:${avatarDigest}`;
   const ahora = Date.now();
   if (!fueraDeVentanaDeReintento(marcadorIntento, ahora)) return;

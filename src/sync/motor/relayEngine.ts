@@ -26,9 +26,11 @@ export { DRAIN_DEBOUNCE_MS, drainNow, scheduleDrain, cancelPendingDrains, drainA
 export { anunciarMiTarjeta, __resetReenvioClaves, announceGroupToContacts, drainContactsNow } from '@/src/sync/contactos/motorDeContactos';
 
 /**
- * Motor del sync en tiempo real (fachada, T-189). Dirección fija de imports:
- * fachada → `relay/invitaciones.ts` → `relay/contactos.ts` → `relay/drain.ts`
- * → `relay/publish.ts` → `relay/poll.ts`/`relay/cursor.ts`. Ningún módulo de
+ * Motor del sync en tiempo real (fachada, T-189). Dirección fija de imports
+ * (T-206-A: mudanza a carpetas, mismo orden): fachada (este archivo) →
+ * `invitaciones/suscripciones.ts` → `contactos/motorDeContactos.ts` →
+ * `motor/agendaDeDrenaje.ts` → `motor/agendaDePublicacion.ts` →
+ * `motor/poll.ts`/`motor/cursor.ts`. Ningún módulo de
  * abajo importa uno de arriba; lo único que necesita `startRelay` (definido
  * más abajo, declaración hoisteada) lo recibe como PARÁMETRO de la llamada
  * (`drainContactsNow(startRelay)`, `crearOnInviteNews(startRelay)`) — nunca
@@ -66,7 +68,7 @@ async function doStartRelay(permitirCaptcha: boolean): Promise<void> {
 }
 
 async function arrancarCadenaDeSync(permitirCaptcha: boolean): Promise<void> {
-  // Verifier D5: sin usuario (login en curso) no hay grupos que sincronizar
+  // T-147: sin usuario (login en curso) no hay grupos que sincronizar
   // — abrir sesión (y su captcha) sólo interrumpiría el login. El resto SÍ
   // corre sin usuario (T-096: invitaciones de CONTACTO no dependen de cuenta).
   if (useAuthStore.getState().currentUser) {

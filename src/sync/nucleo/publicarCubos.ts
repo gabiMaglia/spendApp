@@ -17,16 +17,15 @@ import {
  * `almacen` (`adaptador.almacen`) y el callback `enviar` (sella + firma +
  * `sendEnvelope`), y pasa el `Documento` ya armado.
  *
- * Reemplaza el loop viejo de `buildSlicedEnvelopes`/`publishToGroup`: en vez
- * de cortar por ÍNDICE y reenviar TODO siempre, corta por cubo estable
- * (`cubos.ts`) y sólo manda un cubo si cambió su digest o venció la ventana
- * de renovación (`RENEWAL_WINDOW_MS`, en `nucleo/limites.ts` — T-206-A D8:
- * antes se importaba de `adaptadores/hushsplit/sliceRenewal.ts`, que arrastra
- * `createStorage`/MMKV transitivamente al núcleo, spec §2.2 V3; ese módulo
- * sigue existiendo para las fotos, spec §8 respuesta (4), pero ya no es de
- * acá de donde este archivo saca la constante). El manifiesto se manda SIEMPRE, al
- * final, con el digest de TODOS los cubos presentes (se hayan mandado en
- * esta vuelta o no).
+ * Reemplaza el loop viejo de `publishToGroup`: en vez de cortar por ÍNDICE y
+ * reenviar TODO siempre, corta por cubo estable (`cubos.ts`) y sólo manda un
+ * cubo si cambió su digest o venció la ventana de renovación
+ * (`RENEWAL_WINDOW_MS`, en `nucleo/limites.ts` — T-206-A D8: antes vivía en
+ * `adaptadores/hushsplit/sliceRenewal.ts`, que arrastraba `createStorage`/MMKV
+ * transitivamente al núcleo; ese archivo se borró en D12, la foto propia
+ * también pasó a este mismo ledger de cubos, `avatarTopic.ts`). El manifiesto
+ * se manda SIEMPRE, al final, con el digest de TODOS los cubos presentes (se
+ * hayan mandado en esta vuelta o no).
  */
 
 export type EnviarPieza = (ckey: string, json: string) => Promise<
@@ -60,8 +59,7 @@ export async function publicarPorCubos(
 
   for (const { campo, registros: crudos } of campos) {
     // Un registro individual que supera el tope se excluye ANTES de cubar
-    // (T-150, SEC-07): mismo predicado que usaba `sliceEntities`, sólo
-    // reubicado — un registro así, dentro de un cubo, haría que
+    // (T-150, SEC-07): un registro así, dentro de un cubo, haría que
     // `sendEnvelope` rechace el cubo entero para todos los peers honestos.
     const excluidos = crudos.filter(r => excesoDe(r) !== null);
     const registros = excluidos.length > 0 ? crudos.filter(r => excesoDe(r) === null) : crudos;
@@ -93,24 +91,23 @@ export async function publicarPorCubos(
       registrarCubo(almacen, topic, deviceId, ckey, digest, ahora);
     }
 
-    // Cubos que YA NO existen para este campo — hallazgo QA #1 / V4 del
-    // verifier: antes esto sólo pasaba cuando la profundidad SUBÍA
-    // (histéresis, spec §7 C3); a la MISMA profundidad, un cubo que queda
-    // vacío porque un miembro se fue (`armar()` ya no lo incluye en `users`)
-    // o un gasto se traspasó a otro grupo (filtrado por `groupId`) nunca se
-    // vaciaba ni se borraba del ledger — quedaba colgado en el buzón hasta
-    // el TTL de 30 días, y un tercero que entrara desde el cursor 0 lo
-    // recibía igual (`acotarDeltaAlGrupo` no tiene con qué compararlo si
-    // nunca fue local). `ckeysDeCampo` guarda el snapshot de la publicación
-    // ANTERIOR; cualquier ckey que estaba ahí y no está en `ckeysNuevas` —ya
-    // sea porque el registro se fue (misma profundidad) o porque la
-    // profundidad subió (todas las ckeys viejas quedan afuera, distinto
-    // largo de prefijo)— se vacía con `[]` y se olvida del ledger.
+    // Cubos que YA NO existen para este campo: antes esto sólo pasaba cuando
+    // la profundidad SUBÍA (histéresis, spec §7 C3); a la MISMA profundidad,
+    // un cubo que queda vacío porque un miembro se fue (`armar()` ya no lo
+    // incluye en `users`) o un gasto se traspasó a otro grupo (filtrado por
+    // `groupId`) nunca se vaciaba ni se borraba del ledger — quedaba colgado
+    // en el buzón hasta el TTL de 30 días, y un tercero que entrara desde el
+    // cursor 0 lo recibía igual (`acotarDeltaAlGrupo` no tiene con qué
+    // compararlo si nunca fue local). `ckeysDeCampo` guarda el snapshot de la
+    // publicación ANTERIOR; cualquier ckey que estaba ahí y no está en
+    // `ckeysNuevas` —ya sea porque el registro se fue (misma profundidad) o
+    // porque la profundidad subió (todas las ckeys viejas quedan afuera,
+    // distinto largo de prefijo)— se vacía con `[]` y se olvida del ledger.
     //
-    // V5 (verifier, hallazgo menor): esto va DESPUÉS de los cubos nuevos, no
-    // antes — si la red se corta acá, un recién llegado ya vio los cubos
-    // nuevos de este campo, y el manifiesto (que se arma con `ckeysNuevas`
-    // más abajo) declara el hueco real en vez de no declarar nada.
+    // Esto va DESPUÉS de los cubos nuevos, no antes — si la red se corta acá,
+    // un recién llegado ya vio los cubos nuevos de este campo, y el
+    // manifiesto (que se arma con `ckeysNuevas` más abajo) declara el hueco
+    // real en vez de no declarar nada.
     const ckeysViejas = ckeysDeCampo(almacen, topic, campo);
     for (const ckeyVieja of ckeysViejas) {
       if (ckeysNuevas.includes(ckeyVieja)) continue;

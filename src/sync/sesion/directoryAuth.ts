@@ -27,8 +27,8 @@ import { withTimeout } from '@/src/utils/withTimeout';
  * propósito: ahora SÍ tiene que llevarlo, porque el captcha (que exige la
  * anónima) dejó de aplicar a las cuentas.
  *
- * **Fix D1 (verifier, ronda 2, rechazo bloqueante):** el login/logout ya NO
- * usa una cola propia — usa `encolarOperacionDeSesion` de `relaySession.ts`,
+ * **T-175:** el login/logout ya NO usa una cola propia — usa
+ * `encolarOperacionDeSesion` de `relaySession.ts`,
  * la MISMA cola que `ensureRelaySession`/`reabrirSesionAnonima`. Antes,
  * `app/auth/index.tsx` disparaba el login (`entrarAlDirectorio` →
  * `signIntoDirectory`) SIN `await` justo después de `setUser`, y
@@ -43,11 +43,11 @@ import { withTimeout } from '@/src/utils/withTimeout';
  * un ciclo (`relaySession.ts` → `authStore.ts` → `directoryAuth.ts`); sólo
  * hace falta en tiempo de ejecución, nunca al cargar el módulo.
  *
- * **T-175 (obs verifier T-147-b ronda 2):** `signInWithIdToken`/`signOut`
- * corrían acá SIN tope de tiempo. El tope de `SESSION_TIMEOUT_MS` que ya
- * existía vive DENTRO de `hacerEnsure` (`relaySession.ts`), envolviendo lo
- * que `ensureRelaySession` encola — nunca alcanza a lo que YA estaba
- * encolado ADELANTE en la MISMA cola (fix D1). Un fetch colgado acá
+ * **T-175:** `signInWithIdToken`/`signOut` corrían acá SIN tope de tiempo.
+ * El tope de `SESSION_TIMEOUT_MS` que ya existía vive DENTRO de
+ * `hacerEnsure` (`relaySession.ts`), envolviendo lo que `ensureRelaySession`
+ * encola — nunca alcanza a lo que YA estaba encolado ADELANTE en la MISMA
+ * cola. Un fetch colgado acá
  * bloqueaba la cola para siempre y `verify.tsx` quedaba en spinner sin
  * salida. Se reusa `withTimeout` (`src/utils/withTimeout.ts`, T-138-bis —
  * el mismo corte que ya usa `doStartRelay`) en vez de escribir otra copia,
@@ -58,9 +58,9 @@ import { withTimeout } from '@/src/utils/withTimeout';
  * login/logout de CUENTA nunca lo tocan; ese pausado (`withNetworkTimeout`)
  * es sólo del camino de invitado. Este helper genérico ahora sólo lo usa
  * `signOutOfDirectory` — `signIntoDirectory` (abajo) necesita quedarse con
- * la promesa CRUDA para el fix B2i (obs verifier ronda 2, respuesta tardía
- * que pisa otra sesión), así que arma su propio tope inline con la misma
- * `withTimeout`/`SESSION_TIMEOUT_MS`.
+ * la promesa CRUDA para vigilar una respuesta tardía que pisa otra sesión
+ * (ver `vigilarRespuestaTardia` abajo), así que arma su propio tope inline
+ * con la misma `withTimeout`/`SESSION_TIMEOUT_MS`.
  */
 function encolar<T>(fn: () => Promise<T>, alVencer: T): Promise<T> {
   const { encolarOperacionDeSesion, SESSION_TIMEOUT_MS } =
@@ -76,8 +76,8 @@ export type DirectorySignIn =
 type ClienteAuth = NonNullable<ReturnType<typeof getRelayClient>>;
 
 /**
- * T-175 (B2i, verifier ronda 2): cuando ESTA llamada vence, `withTimeout` deja
- * de esperar la promesa ORIGINAL — pero no la cancela (JS no puede) y auth-js
+ * T-175: cuando ESTA llamada vence, `withTimeout` deja de esperar la
+ * promesa ORIGINAL — pero no la cancela (JS no puede) y auth-js
  * tampoco se entera de nuestro tope: en cuanto la red conteste, igual corre
  * `_saveSession` y persiste esa respuesta tardía (`GoTrueClient.js:1685-1687`).
  * Si para entonces ya entró otra cuenta, esa respuesta tardía de A LE PISA la
@@ -140,7 +140,7 @@ export async function signIntoDirectory(
       vigilarRespuestaTardia(supabase, crudo);
       return { ok: false, reason: 'rejected', detail: 'timeout' };
     }
-    // T-175 (B2ii, ronda 3): sólo acá hay una confirmación REAL de Supabase
+    // T-175: sólo acá hay una confirmación REAL de Supabase
     // Auth detrás — se registra el PAR {cuenta, sesion} para que
     // `ensureRelaySession` (`relaySession.ts`) pueda confirmar después no
     // sólo QUIÉN está activo sino A QUÉ `session.user.id` puntual

@@ -51,9 +51,9 @@ export async function drainGroup(
   const pageLimit = opts.pageLimit ?? DRAIN_FETCH_LIMIT;
   const maxPages = opts.maxPages ?? DRAIN_MAX_PAGES;
 
-  // Verifier ciego (B3): foto de la SESIÓN ACTIVA al arrancar — se compara
-  // contra sí misma más abajo, justo antes de aplicar: importa si la sesión
-  // CAMBIÓ durante el drenaje, no si coincide con `currentUserId`.
+  // Foto de la SESIÓN ACTIVA al arrancar — se compara contra sí misma más
+  // abajo, justo antes de aplicar: importa si la sesión CAMBIÓ durante el
+  // drenaje, no si coincide con `currentUserId`.
   const sesionAlArrancar = useAuthStore.getState().currentUser?.id ?? null;
 
   const key = groupKeyBytes(groupId);
@@ -81,7 +81,7 @@ export async function drainGroup(
 
   // Un fallo con reintentos agotados rompe los DOS loops (`paginas:`) en vez
   // de retornar directo — la reaplicación de retenidas SIEMPRE corre antes
-  // de devolver (ADR-007 §T-191, verifier segunda tanda).
+  // de devolver (ADR-007 §T-191).
   let salidaTemprana: { cursor: number } | null = null;
   // Distingue el corte de red en página POSTERIOR (no cobra cupo a las
   // retenidas) del tope de páginas (si cobra) — spec §8 C2.
@@ -121,10 +121,10 @@ export async function drainGroup(
       }
     }
 
-    // Verifier ciego (B3): rechequeo justo antes de aplicar — la colección
-    // cedió el hilo varias veces y en ese hueco puede haber pasado un
-    // logout o un cambio de clave. Si algo cambió, la página se aborta
-    // ENTERA: nada se aplica ni se mueve el cursor.
+    // Rechequeo justo antes de aplicar — la colección cedió el hilo varias
+    // veces y en ese hueco puede haber pasado un logout o un cambio de
+    // clave. Si algo cambió, la página se aborta ENTERA: nada se aplica ni
+    // se mueve el cursor.
     if (rebanadas.length > 0) {
       const sesionSigueSiendoLaMisma = (useAuthStore.getState().currentUser?.id ?? null) === sesionAlArrancar;
       if (!sesionSigueSiendoLaMisma || !sigueSiendoLaClave(groupId, record)) {
@@ -140,9 +140,9 @@ export async function drainGroup(
     }
 
     for (const { seq, ckey, sender, delta, senderKey, json } of rebanadas) {
-      // Ronda 1 del verifier (D1): TODO lo que puede tirar por esta rebanada
-      // —incluida la observación de autoría— pasa por el MISMO camino de
-      // `drainFailures` (reintentos + rastro + skip).
+      // TODO lo que puede tirar por esta rebanada —incluida la observación
+      // de autoría— pasa por el MISMO camino de `drainFailures` (reintentos
+      // + rastro + skip).
       try {
         // 3. Autoría (ADR-004 fase B/T-033): modo AVISO por default, nunca
         // descarta salvo `RECHAZAR_AUTORES_NO_VERIFICADOS` + `clave_desconocida`.

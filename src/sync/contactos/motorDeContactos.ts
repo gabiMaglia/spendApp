@@ -34,8 +34,8 @@ const storage = createSecureStorage('groupkeys');
  * falló, el nombre nuevo no se reintentaba NUNCA. Mismo modo de falla
  * silenciosa que ya mordió con las claves de grupo.
  *
- * Verifier R4-2: pasa por `relayQueue` (prioridad `normal`) para no competir
- * sin ritmo con las claves de grupo por la misma cuota del uid.
+ * Pasa por `relayQueue` (prioridad `normal`) para no competir sin ritmo con
+ * las claves de grupo por la misma cuota del uid (T-147, ver `relayQueue.ts`).
  */
 export async function anunciarMiTarjeta(): Promise<void> {
   const card = myContactCard();
@@ -73,16 +73,16 @@ export async function anunciarMiTarjeta(): Promise<void> {
   }
 }
 
-/** Verifier D4: cooldown contra la cuota (20 sobres/min, 011a) — UN reenvío
- *  real cada `REENVIO_CLAVES_COOLDOWN_MS`, sea cual sea la cantidad de
- *  reinicios. Ronda 2: no alcanza solo contra la ráfaga de un único arranque
- *  (medido: 5×8 → 35 sobres); cada sobre pasa por `relayQueue`. */
+/** Cooldown contra la cuota (20 sobres/min, 011a) — UN reenvío real cada
+ *  `REENVIO_CLAVES_COOLDOWN_MS`, sea cual sea la cantidad de reinicios
+ *  (T-147: no alcanza solo contra la ráfaga de un único arranque, medido
+ *  5×8 → 35 sobres); cada sobre pasa por `relayQueue`. */
 const REENVIO_CLAVES_COOLDOWN_MS = 5 * 60_000;
 let ultimoReenvioClaves = 0;
 
-/** Verifier R3-3(c): la prioridad `alta` sobrevive a matar la app — se
- *  persiste qué grupos siguen "recién adoptados" (TTL generoso) junto a los
- *  cursores, para que un arranque en frío no los degrade a `normal`. */
+/** La prioridad `alta` sobrevive a matar la app (T-147) — se persiste qué
+ *  grupos siguen "recién adoptados" (TTL generoso) junto a los cursores,
+ *  para que un arranque en frío no los degrade a `normal`. */
 const ADOPCION_ALTA_PRIORIDAD_TTL_MS = 24 * 60 * 60_000;
 const ADOPCION_ALTA_PRIORIDAD_KEY = 'adopciones_alta_prioridad';
 
@@ -157,8 +157,8 @@ export async function reenviarClavesDeGrupo(adoptados: string[] = []): Promise<v
           try {
             const r = await sendGroupKeyResultado(memberId, group, deviceId());
             if (r.ok) return 'hecho';
-            // R4-2: `rate_limited` NO es un fallo permanente — cuenta contra
-            // un tope de horas, no de ~32s (ver `relayQueue.ts`).
+            // `rate_limited` NO es un fallo permanente — cuenta contra un
+            // tope de horas, no de ~32s (ver `relayQueue.ts`).
             if (r.reason === 'rate_limited') return 'reintentar_cuota';
             return r.reason === 'network' ? 'reintentar' : 'descartar';
           } catch {
@@ -172,9 +172,9 @@ export async function reenviarClavesDeGrupo(adoptados: string[] = []): Promise<v
 
 /**
  * Le manda la clave del grupo a cada miembro que ya sea contacto conocido —
- * a los que no son contactos les queda el link de invitación. Verifier
- * R3-3: pasa por `relayQueue` con prioridad `alta`; devuelve cuántos se
- * ENCOLARON (el envío es diferido).
+ * a los que no son contactos les queda el link de invitación. Pasa por
+ * `relayQueue` con prioridad `alta`; devuelve cuántos se ENCOLARON (el envío
+ * es diferido).
  */
 export async function announceGroupToContacts(groupId: string): Promise<number> {
   const me = useAuthStore.getState().currentUser;
