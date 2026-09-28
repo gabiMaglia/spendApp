@@ -19,7 +19,7 @@ import { vaciarCola } from './relayQueue';
 
 // ── API pública que sigue viviendo en esta ruta (13 importadores + 84 tests que la mockean) ──
 export { readCursor, writeCursor, olvidarCursor, deviceId } from './cursor';
-export { POLL_OK_MS, POLL_CAIDO_MS, POLL_INTERVAL_MS, intervaloDePoll } from './poll';
+export { POLL_OK_MS, POLL_CAIDO_MS, intervaloDePoll } from './poll';
 export { PUBLISH_DEBOUNCE_MS, syncableGroupIds, schedulePublish, publishNow, cancelPendingPublishes } from './agendaDePublicacion';
 export { DRAIN_DEBOUNCE_MS, drainNow, scheduleDrain, cancelPendingDrains, drainAll } from './agendaDeDrenaje';
 export { anunciarMiTarjeta, __resetReenvioClaves, announceGroupToContacts, drainContactsNow } from '@/src/sync/contactos/motorDeContactos';

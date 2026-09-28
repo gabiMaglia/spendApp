@@ -22,9 +22,9 @@ import { bindAuthRefreshToAppState } from '@/src/sync/sesion/relaySession';
  */
 export const POLL_OK_MS = 90_000;
 export const POLL_CAIDO_MS = 20_000;
-/** Compat: quien importaba el intervalo de siempre sigue viendo el mismo número —
- *  era, y sigue siendo, el de "canal caído" (el conservador). */
-export const POLL_INTERVAL_MS = POLL_CAIDO_MS;
+// T-206-A (D9): acá vivía `POLL_INTERVAL_MS`, un alias de compat de
+// `POLL_CAIDO_MS` sin ningún consumidor de producción — sólo tests, migrados
+// a `POLL_CAIDO_MS` directo.
 
 /**
  * Estado del canal PRIVADO de cada topic de GRUPO suscripto (T-158a). Sólo los

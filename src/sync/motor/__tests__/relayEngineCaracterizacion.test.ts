@@ -63,7 +63,7 @@ jest.mock('../relaySync', () => ({
 import {
   startRelay, stopRelay, drainAll, scheduleDrain, schedulePublish, cancelPendingPublishes,
   cancelPendingDrains, reiniciarSyncPorCambioDeCuenta, intervaloDePoll, deviceId,
-  POLL_INTERVAL_MS, POLL_OK_MS, PUBLISH_DEBOUNCE_MS, DRAIN_DEBOUNCE_MS, __resetReenvioClaves,
+  POLL_CAIDO_MS, POLL_OK_MS, PUBLISH_DEBOUNCE_MS, DRAIN_DEBOUNCE_MS, __resetReenvioClaves,
 } from '../relayEngine';
 import { drainGroup, publishToGroup } from '../relaySync';
 import { activeInvites } from '@/src/sync/invitaciones/inviteEngine';
@@ -147,7 +147,7 @@ describe('reintentarPublicacionesConCuota (vía el ciclo de poll)', () => {
     await startRelay();
     mockPublishToGroup.mockClear();
 
-    await jest.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
+    await jest.advanceTimersByTimeAsync(POLL_CAIDO_MS);
 
     expect(mockPublishToGroup).toHaveBeenCalledWith('g1', ME, deviceId());
     // `publishToGroup` mockeado devuelve `ok: true`: el reintento tuvo éxito
@@ -159,7 +159,7 @@ describe('reintentarPublicacionesConCuota (vía el ciclo de poll)', () => {
     await startRelay();
     mockPublishToGroup.mockClear();
 
-    await jest.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
+    await jest.advanceTimersByTimeAsync(POLL_CAIDO_MS);
 
     expect(mockPublishToGroup).not.toHaveBeenCalled();
   });
@@ -290,6 +290,6 @@ describe('reiniciarSyncPorCambioDeCuenta', () => {
 
     reiniciarSyncPorCambioDeCuenta();
 
-    expect(intervaloDePoll()).toBe(POLL_INTERVAL_MS); // vuelve a conservador
+    expect(intervaloDePoll()).toBe(POLL_CAIDO_MS); // vuelve a conservador
   });
 });

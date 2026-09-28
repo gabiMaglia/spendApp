@@ -1,7 +1,7 @@
 import {
   readCursor, writeCursor, deviceId, syncableGroupIds,
   schedulePublish, cancelPendingPublishes, PUBLISH_DEBOUNCE_MS, startRelay, publishNow,
-  stopRelay, POLL_INTERVAL_MS,
+  stopRelay, POLL_CAIDO_MS,
 } from '../relayEngine';
 import * as relay from '@/src/sync/adaptadores/supabase/relay';
 import { processAllContactInvites } from '@/src/sync/contactos/contactInviteEngine';
@@ -226,7 +226,7 @@ describe('invitaciones de contacto en el ciclo de sync (T-096)', () => {
     await startRelay();
     (processAllContactInvites as jest.Mock).mockClear();
 
-    await jest.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
+    await jest.advanceTimersByTimeAsync(POLL_CAIDO_MS);
 
     expect(processAllContactInvites).toHaveBeenCalledWith(deviceId());
   });

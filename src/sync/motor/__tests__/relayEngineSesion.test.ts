@@ -55,7 +55,7 @@ jest.mock('@/src/sync/contactos/contactChannel', () => ({
 }));
 jest.mock('@/src/sync/contactos/contactInviteEngine', () => ({ processAllContactInvites: jest.fn(async () => false) }));
 
-import { startRelay, stopRelay, POLL_INTERVAL_MS, __resetReenvioClaves, announceGroupToContacts } from '../relayEngine';
+import { startRelay, stopRelay, POLL_CAIDO_MS, __resetReenvioClaves, announceGroupToContacts } from '../relayEngine';
 import { sinSesionDeSync, __resetSessionStatus } from '@/src/sync/sesion/sessionStatus';
 import { recordPublish, publishFailures, clearPublishFailures } from '../publishHealth';
 import { __resetRelayQueue, QUEUE_INTERVAL_MS, REINTENTO_CUOTA_MS } from '../relayQueue';
@@ -151,7 +151,7 @@ it('si la sesión cambió entre vueltas, reinicia el motor', async () => {
   await startRelay();
   const llamadasAntes = mockSubscribeTopic.mock.calls.length;
 
-  await jest.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
+  await jest.advanceTimersByTimeAsync(POLL_CAIDO_MS);
   await jest.advanceTimersByTimeAsync(0);
 
   expect(mockSubscribeTopic.mock.calls.length).toBeGreaterThan(llamadasAntes);
@@ -164,7 +164,7 @@ it('con la misma sesión, la vuelta NO reinicia', async () => {
   await startRelay();
   const n = mockSubscribeTopic.mock.calls.length;
 
-  await jest.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
+  await jest.advanceTimersByTimeAsync(POLL_CAIDO_MS);
 
   expect(mockSubscribeTopic.mock.calls.length).toBe(n);
 });
@@ -181,7 +181,7 @@ it('sin sesión avisa; al recuperarla, se retira', async () => {
   await startRelay();
   expect(sinSesionDeSync()).toBe(true);
 
-  await jest.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
+  await jest.advanceTimersByTimeAsync(POLL_CAIDO_MS);
   await jest.advanceTimersByTimeAsync(0);
 
   expect(sinSesionDeSync()).toBe(false);
@@ -202,14 +202,14 @@ it('D5: en el poll tampoco, mientras siga sin usuario', async () => {
   await startRelay();
   mockEnsureRelaySession.mockClear();
 
-  await jest.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
+  await jest.advanceTimersByTimeAsync(POLL_CAIDO_MS);
 
   expect(mockEnsureRelaySession).not.toHaveBeenCalled();
 });
 
 /**
  * BUG (T-147 post-merge): el cartel de captcha aparecía "en cualquier
- * momento" — el reintento de fondo (poll cada `POLL_INTERVAL_MS`, o al volver
+ * momento" — el reintento de fondo (poll cada `POLL_CAIDO_MS`, o al volver
  * de background) pedía sesión igual que la entrada real, y si no había
  * ninguna terminaba pidiendo un captcha nuevo encima de cualquier pantalla.
  * Decisión del PO: el captcha es SÓLO de la entrada — el poll nunca debe
@@ -224,7 +224,7 @@ describe('BUG: el captcha nunca sale de la entrada', () => {
     await startRelay(true); // la entrada real
     mockEnsureRelaySession.mockClear();
 
-    await jest.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
+    await jest.advanceTimersByTimeAsync(POLL_CAIDO_MS);
 
     expect(mockEnsureRelaySession).toHaveBeenCalledWith(false);
   });
@@ -411,7 +411,7 @@ it('D4: un rate_limited se reintenta solo, sin que el usuario haga nada', async 
   recordPublish('G', { ok: false, reason: 'rate_limited' });
   expect(publishFailures().map(f => f.groupId)).toContain('G');
 
-  await jest.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
+  await jest.advanceTimersByTimeAsync(POLL_CAIDO_MS);
   // T-157b: el reintento pasa por `publishToGroup`, que ahora cede el hilo
   // entre rebanadas — ver `drenarTimersReales`.
   await drenarTimersReales();
