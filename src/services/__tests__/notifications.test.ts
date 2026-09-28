@@ -21,6 +21,7 @@ jest.mock('expo-notifications', () => ({
 const gastos: Notice = { kind: 'expenses', groupId: 'g1', groupName: 'Viaje', count: 2 };
 const borrado: Notice = { kind: 'restored', groupId: 'g1', groupName: 'Viaje', description: 'Pizza' };
 const unido: Notice = { kind: 'joined', groupId: 'g1', groupName: 'Viaje' };
+const comentado: Notice = { kind: 'comment', groupId: 'g1', groupName: 'Viaje', count: 1 };
 
 beforeEach(() => {
   mockSchedule.mockClear();
@@ -36,6 +37,17 @@ describe('preferencias', () => {
     expect(isEnabled(gastos)).toBe(false);
     expect(isEnabled(borrado)).toBe(true);
     expect(isEnabled(unido)).toBe(true);
+  });
+
+  /**
+   * T-194: un comentario es sobre un gasto ajeno — mismo dominio que
+   * `expenses`, sin sumar un toggle nuevo a Ajustes que el PO no pidió.
+   */
+  it('comment comparte el toggle de expenses (mismo dominio: gasto ajeno)', () => {
+    useSettingsStore.setState({ notifExpenses: false });
+    expect(isEnabled(comentado)).toBe(false);
+    useSettingsStore.setState({ notifExpenses: true });
+    expect(isEnabled(comentado)).toBe(true);
   });
 
   it('no entrega lo que el usuario apagó', async () => {
@@ -111,6 +123,12 @@ describe('texto', () => {
   it('cada tipo tiene su propio texto', () => {
     const cuerpos = [gastos, borrado, unido].map(n => textFor(n).body);
     expect(new Set(cuerpos).size).toBe(3);
+  });
+
+  it('comment: el grupo va en el título, el cuerpo dice cuántos comentarios (T-194)', () => {
+    expect(textFor(comentado).title).toBe('Viaje');
+    expect(textFor(comentado).body).toBeTruthy();
+    expect(textFor(comentado).body).not.toBe(textFor(gastos).body);
   });
 });
 

@@ -1,5 +1,5 @@
 import type { CurrencyCode } from '@/src/constants/currencies';
-import type { Expense, Group, Payment } from '@/src/types/models';
+import type { Expense, ExpenseComment, Group, Payment } from '@/src/types/models';
 // Sólo el tipo: `publishHealth` no puede entrar al grafo de módulos de acá.
 import type { BlockingReason } from '@/src/sync/publishHealth';
 import { mismaPersona } from '@/src/store/identityAlias';
@@ -105,7 +105,18 @@ export type Notice =
    * plantilla queda congelada en el grupo viejo, ya archivado. Informativo:
    * el traspaso del resto ya se aplicó, no hay nada que aprobar.
    */
-  | { kind: 'group_traspaso_recurring_blocked'; groupId: string; groupName: string; newGroupId: string };
+  | { kind: 'group_traspaso_recurring_blocked'; groupId: string; groupName: string; newGroupId: string }
+  /**
+   * Comentaron un gasto compartido (T-194).
+   *
+   * Mismo criterio que `expenses`: se agrega por grupo (regla 2 — un aviso, no
+   * uno por comentario) y nunca avisa lo propio (regla 1). Antes de esto el
+   * comentario llegaba y se mergeaba bien (`acotarDeltaAlGrupo`/`commentStore`
+   * ya andaban) — lo que faltaba era que `Snapshot`/`noticesFor` ni siquiera
+   * miraran `comments`, así que no había NADA que comparar para decidir "esto
+   * es nuevo".
+   */
+  | { kind: 'comment'; groupId: string; groupName: string; count: number };
 
 /**
  * ¿Este aviso pide que el usuario HAGA algo, o sólo informa? (T-062)
@@ -142,6 +153,9 @@ export function esAccionable(kind: Notice['kind']): boolean {
     case 'group_invite_full':
     // T-172 (ítem 3): el traspaso del resto ya se aplicó, no hay nada que aprobar.
     case 'group_traspaso_recurring_blocked':
+    // T-194: mismo criterio que `expenses` — enterarse de un comentario no
+    // pide ninguna acción.
+    case 'comment':
       return false;
   }
 }
@@ -182,6 +196,15 @@ export type Snapshot = {
    * traspasó recién" de "ya lo sabía" para el aviso `group_replaced`.
    */
   traspasosConocidos: Record<string, string>;
+  /**
+   * Ids de comentarios vivos conocidos ANTES de la bajada (T-194).
+   *
+   * Opcional para no romper snapshots armados a mano en tests viejos (sin
+   * esto, cualquier literal `{ expenseIds, paymentIds, borrados,
+   * traspasosConocidos }` dejaría de tipar). `noticesFor` lo trata como
+   * ausente = "ninguno conocido", nunca como error.
+   */
+  commentIds?: string[];
 };
 
 export function snapshot(
@@ -189,6 +212,7 @@ export function snapshot(
   now: number,
   groups: Group[],
   payments: Payment[] = [],
+  comments: ExpenseComment[] = [],
 ): Snapshot {
   const vivos = expenses.filter(e => !e.isDeleted);
   const traspasosConocidos: Record<string, string> = {};
@@ -200,6 +224,7 @@ export function snapshot(
     paymentIds: payments.filter(p => !p.isDeleted).map(p => p.id),
     borrados: expenses.filter(e => e.isDeleted).map(e => e.id),
     traspasosConocidos,
+    commentIds: comments.filter(c => !c.isDeleted).map(c => c.id),
   };
 }
 
@@ -216,6 +241,7 @@ export function noticesFor(
   currentUserId: string,
   now: number,
   paymentsAfter: Payment[] = [],
+  commentsAfter: ExpenseComment[] = [],
 ): Notice[] {
   /**
    * «¿Fui yo?» — con las identidades viejas incluidas (T-048 · D-3).
@@ -335,5 +361,36 @@ export function noticesFor(
     });
   }
 
-  return [...porGastos, ...restauraciones, ...saldos, ...traspasos];
+  /**
+   * Comentarios nuevos (T-194). Un comentario no sabe a qué grupo pertenece
+   * —cuelga del gasto (mismo criterio que `commentStore.ts`)— así que el
+   * grupo sale de buscar el gasto en `expensesAfter`: si ese gasto no es de
+   * ninguno de mis grupos (`mios`), tampoco lo es el comentario.
+   */
+  const conocidosComentarios = new Set(before.commentIds ?? []);
+  const grupoDelGasto = new Map(expensesAfter.map(e => [e.id, e.groupId]));
+  const nuevosComentariosPorGrupo = new Map<string, number>();
+
+  for (const c of commentsAfter) {
+    if (c.isDeleted) continue;
+    // Regla 1: lo que comenté yo no se avisa, aunque vuelva por el sync.
+    if (esMio(c.authorId)) continue;
+    // Regla 3: sólo lo que apareció en ESTA bajada.
+    if (conocidosComentarios.has(c.id)) continue;
+
+    const groupId = grupoDelGasto.get(c.expenseId);
+    if (!groupId || !mios.has(groupId)) continue;
+
+    nuevosComentariosPorGrupo.set(groupId, (nuevosComentariosPorGrupo.get(groupId) ?? 0) + 1);
+  }
+
+  // Regla 2: uno por grupo con el total, no uno por comentario.
+  const porComentarios: Notice[] = [...nuevosComentariosPorGrupo.entries()].map(([groupId, count]) => ({
+    kind: 'comment' as const,
+    groupId,
+    groupName: nombre(groupId),
+    count,
+  }));
+
+  return [...porGastos, ...restauraciones, ...saldos, ...traspasos, ...porComentarios];
 }

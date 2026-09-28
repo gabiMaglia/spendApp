@@ -1,7 +1,7 @@
 import {
   snapshot, noticesFor, esAccionable, nombreDeGrupoEnConflicto, type Notice,
 } from '../syncNotices';
-import type { Expense, Group, Payment } from '@/src/types/models';
+import type { Expense, ExpenseComment, Group, Payment } from '@/src/types/models';
 
 const YO = 'yo';
 const OTRO = 'ana';
@@ -23,6 +23,11 @@ const grupo = (over: Partial<Group> = {}): Group => ({
 
 const vacio = { expenseIds: [], paymentIds: [], borrados: [], traspasosConocidos: {} };
 const kinds = (n: Notice[]) => n.map(x => x.kind).sort();
+
+const comentario = (over: Partial<ExpenseComment> = {}): ExpenseComment => ({
+  id: 'c1', expenseId: 'e1', authorId: OTRO, text: 'Quedó bien',
+  createdAt: 0, updatedAt: 0, isDeleted: false, ...over,
+} as unknown as ExpenseComment);
 
 describe('gastos nuevos', () => {
   it('avisa lo que llegó de otro', () => {
@@ -277,6 +282,58 @@ describe('avisos de saldo', () => {
   });
 });
 
+/**
+ * T-194: el comentario SÍ llegaba y se veía (drainGroup/acotarDeltaAlGrupo ya
+ * lo mergean bien) — lo que faltaba era el AVISO. `Snapshot`/`noticesFor` sólo
+ * miraban gastos, pagos y grupos: un comentario nuevo podía aterrizar en el
+ * store sin que nada lo comparara contra un "antes", así que `avisarDeLoNuevo`
+ * (`sync/relay/drain.ts`) nunca podía enterarse de que había uno.
+ */
+describe('comentarios nuevos (T-194)', () => {
+  const grupos = [grupo()];
+
+  it('avisa un comentario ajeno en un gasto de mi grupo', () => {
+    const n = noticesFor(vacio, [gasto()], grupos, YO, AHORA, [], [comentario()]);
+    expect(n).toContainEqual({ kind: 'comment', groupId: 'g1', groupName: 'Viaje', count: 1 });
+  });
+
+  it('lo propio NO se avisa aunque vuelva por el sync', () => {
+    const n = noticesFor(vacio, [gasto()], grupos, YO, AHORA, [], [comentario({ authorId: YO })]);
+    expect(n.some(x => x.kind === 'comment')).toBe(false);
+  });
+
+  it('un comentario que ya conocía no vuelve a avisar', () => {
+    const antes = { ...vacio, commentIds: ['c1'] };
+    const n = noticesFor(antes, [gasto()], grupos, YO, AHORA, [], [comentario()]);
+    expect(n.some(x => x.kind === 'comment')).toBe(false);
+  });
+
+  it('un comentario borrado no avisa', () => {
+    const n = noticesFor(vacio, [gasto()], grupos, YO, AHORA, [], [comentario({ isDeleted: true })]);
+    expect(n.some(x => x.kind === 'comment')).toBe(false);
+  });
+
+  it('un comentario de un gasto que no es de ninguno de mis grupos no avisa', () => {
+    const n = noticesFor(vacio, [conOver({ groupId: 'ajeno' })], grupos, YO, AHORA, [], [comentario()]);
+    expect(n.some(x => x.kind === 'comment')).toBe(false);
+  });
+
+  it('agrega por grupo en vez de avisar uno por comentario', () => {
+    const gastos = [gasto(), conOver({ id: 'e2' })];
+    const comentarios = [
+      comentario({ id: 'c1', expenseId: 'e1' }),
+      comentario({ id: 'c2', expenseId: 'e2' }),
+    ];
+    const n = noticesFor(vacio, gastos, grupos, YO, AHORA, [], comentarios);
+    expect(n).toContainEqual({ kind: 'comment', groupId: 'g1', groupName: 'Viaje', count: 2 });
+  });
+
+  it('la foto previa marca los comentarios ya conocidos', () => {
+    const s = snapshot([gasto()], AHORA, [], [], [comentario(), comentario({ id: 'c2', isDeleted: true })]);
+    expect(s.commentIds).toEqual(['c1']);
+  });
+});
+
 describe('esAccionable (T-062)', () => {
   it('sync_down, clock_off, group_key_conflict y join_claim_stalled piden acción; el resto informa', () => {
     // `Record<Notice['kind'], boolean>` en vez de dos ejemplos sueltos: si se
@@ -294,6 +351,8 @@ describe('esAccionable (T-062)', () => {
       group_invite_full: esAccionable('group_invite_full'),
       join_claim_stalled: esAccionable('join_claim_stalled'),
       group_traspaso_recurring_blocked: esAccionable('group_traspaso_recurring_blocked'),
+      // T-194: mismo criterio que `expenses` — informa, no pide nada.
+      comment: esAccionable('comment'),
     };
     expect(clasificacion).toEqual({
       // `clock_off` es accionable aunque lo que hay que hacer esté FUERA de la
@@ -311,6 +370,8 @@ describe('esAccionable (T-062)', () => {
       group_invite_full: false,
       // T-172 (ítem 3): el traspaso del resto ya se aplicó, no hay nada que aprobar.
       group_traspaso_recurring_blocked: false,
+      // T-194: enterarse de que comentaron un gasto compartido no pide nada.
+      comment: false,
     });
   });
 });

@@ -165,6 +165,9 @@ export function isEnabled(notice: Notice): boolean {
     // T-172 (ítem 3): es sobre a qué grupo pertenecés de ahora en más, mismo
     // dominio que `group_replaced` (T-058).
     case 'group_traspaso_recurring_blocked': return s.notifInvites;
+    // T-194: comentaron un gasto ajeno — mismo dominio que `expenses`, sin
+    // sumar un toggle nuevo a Ajustes que el PO no pidió.
+    case 'comment': return s.notifExpenses;
   }
 }
 
@@ -242,6 +245,11 @@ export function textFor(notice: Notice): { title: string; body: string } {
       return {
         title: t('notifications.traspaso_recurring_blocked_title', { group: notice.groupName }),
         body: t('notifications.traspaso_recurring_blocked_body'),
+      };
+    case 'comment':
+      return {
+        title: notice.groupName,
+        body: t('notifications.new_comments', { count: notice.count }),
       };
   }
 }

@@ -620,6 +620,8 @@
   "notifications": {
     "new_expenses_one": "1 despesa nova foi adicionada",
     "new_expenses_other": "{{count}} despesas novas foram adicionadas",
+    "new_comments_one": "Há 1 comentário novo",
+    "new_comments_other": "Há {{count}} comentários novos",
     "restored": "«{{description}}» foi restaurado",
     "joined_title": "Você foi adicionado a um grupo",
     "joined_body": "Já pode ver “{{group}}”",
