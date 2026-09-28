@@ -63,6 +63,7 @@ import * as sliceLedger from '../relay/sliceLedger';
 import { almacen } from '../relay/adaptadorHushSplit';
 import { _reset as resetRelecturas } from '../relay/relecturas';
 import { olvidarFallosDeAplicacion } from '../drainFailures';
+import { applyBackup, BACKUP_FORMAT, BACKUP_VERSION, type BackupFile } from '@/src/services/backup';
 import type { Group, Expense, ExpenseComment } from '@/src/types/models';
 
 const relayMock = jest.requireMock('../relay') as {
@@ -74,10 +75,10 @@ const grupo = (): Group => ({
   id: 'G', name: 'Grupo', memberIds: ['u1'], currency: 'USD', createdAt: 1, createdById: 'u1',
   miembros: {}, updatedAt: 1_000, isDeleted: false,
 } as Group);
-const gasto = (id: string): Expense => ({
-  id, groupId: 'G', description: 'x', amount: 10, currency: 'USD', paidById: 'u1',
+const gasto = (id: string, description = 'x', updatedAt = 1_000): Expense => ({
+  id, groupId: 'G', description, amount: 10, currency: 'USD', paidById: 'u1',
   splits: [{ userId: 'u1', amount: 10, isPaid: false }], splitMode: 'equal', category: 'other',
-  date: 1, createdAt: 1, createdById: 'u1', updatedAt: 1_000, isDeleted: false,
+  date: 1, createdAt: 1, createdById: 'u1', updatedAt, isDeleted: false,
 } as Expense);
 
 async function topicDe(): Promise<string> {
@@ -384,5 +385,66 @@ describe('V2 (verifier, segunda tanda): una rebanada retenida por dependencia no
 
     expect(useExpenseStore.getState().expenses.find(e => e.id === 'e1')).toBeDefined();
     expect(useCommentStore.getState().comments.find(c => c.id === 'c1')).toBeDefined();
+  });
+});
+
+describe('V1 (verifier, segunda tanda): restaurar backup con la misma clave deja el teléfono incompleto', () => {
+  function backupVacio(): BackupFile {
+    return {
+      format: BACKUP_FORMAT, version: BACKUP_VERSION, exportedAt: Date.now(),
+      groups: [grupo()], expenses: [], payments: [], users: [],
+      personalEntries: [], personalBudget: { currency: 'ARS', monthlyAmount: 0, includeOwedToMe: false },
+      recurring: [], comments: [],
+      // Sin `ownerId`/`groupKeys`: no dispara el bloque de adopción de
+      // claves/re-entrada — lo que se prueba acá es el reset del drenaje,
+      // no ese camino (que sí llama a `marcarConTopic` cuando adopta algo).
+    };
+  }
+
+  it('appliedSlices/ledger/cursor se olvidan al restaurar — el próximo drenaje trae lo que el restore perdió', async () => {
+    const topic = await topicDe();
+    const key = groupKeyBytes('G')!;
+    const E1 = '11111111-1111-4111-8111-111111111111';
+    const E2 = '22222222-2222-4222-8222-222222222222';
+    const k1 = await deriveCkey(key, 'expenses', '1');
+    const k2 = await deriveCkey(key, 'expenses', '2');
+    const km = await deriveCkey(key, 'manifest', 'unica');
+
+    const j1 = envolverCrudo('expenses', [gasto(E1)]);
+    const j2 = envolverCrudo('expenses', [gasto(E2)]);
+    empujar(topic, j1, 'devA', k1);
+    empujar(topic, j2, 'devA', k2);
+    const manifiesto1 = await buildManifest([{ ckey: k1, json: JSON.stringify(j1) }, { ckey: k2, json: JSON.stringify(j2) }]);
+    empujar(topic, manifiesto1, 'devA', km);
+
+    const r1 = await drainGroup('G', 'u1', 'devR', 0);
+    expect(r1.ok).toBe(true);
+    if (!r1.ok) return;
+    expect(useExpenseStore.getState().expenses.map(e => e.id).sort()).toEqual([E1, E2]);
+
+    // Restauración de un backup (misma clave de grupo — `adoptKeys` no ve
+    // ningún cambio, así que antes del fix nada olvidaba el drenaje):
+    // reemplaza los stores, perdiendo E1/E2 localmente.
+    applyBackup(backupVacio());
+    expect(useExpenseStore.getState().expenses).toEqual([]);
+
+    // devA edita SÓLO E1 — publicación incremental real: el cubo de E2 no
+    // viaja de nuevo (no cambió), pero su ckey sigue en el manifiesto.
+    const j1b = envolverCrudo('expenses', [gasto(E1, 'editado', 2_000)]);
+    empujar(topic, j1b, 'devA', k1);
+    const manifiesto2 = await buildManifest([{ ckey: k1, json: JSON.stringify(j1b) }, { ckey: k2, json: JSON.stringify(j2) }]);
+    empujar(topic, manifiesto2, 'devA', km);
+
+    const r2 = await drainGroup('G', 'u1', 'devR', r1.cursor);
+    expect(r2.ok).toBe(true);
+
+    // Con el fix: `applyBackup` olvidó el cursor (vuelve a 0) y el ledger de
+    // aplicadas de este topic, así que el drenaje siguiente relee TODO desde
+    // el principio — recupera E2 (que el restore había perdido) y aplica la
+    // edición de E1.
+    const ids = useExpenseStore.getState().expenses.map(e => e.id).sort();
+    expect(ids).toEqual([E1, E2]);
+    expect(useExpenseStore.getState().expenses.find(e => e.id === E1)?.description).toBe('editado');
+    expect(manifestGapFor('G')).toBeNull();
   });
 });
