@@ -151,6 +151,7 @@
     "limit_warning_action": "Create new group",
     "limit_blocked_hint": "This group reached the 450-expense limit — transfer it to a new one from its detail screen",
     "traspaso_manual_action": "Transfer to a new group",
+    "traspaso_carry_over_hint": "Each person's pending balances carry over to the new group",
     "traspaso_confirm_title": "Transfer this group?",
     "traspaso_confirm_body": "A new group is created with the same members. This group ({{count}} expenses) becomes permanently read-only.",
     "traspaso_confirm_action": "Yes, transfer",

@@ -505,13 +505,18 @@ export default function GroupDetailScreen() {
             (T-058), salvo que el grupo YA esté archivado: re-traspasar uno ya
             traspasado pisaría su `supersededByGroupId` y crearía un duplicado. */}
         {group && currentUser && group.memberIds.some(esYo) && !grupoArchivado && (
-          <Band>
-            <BandRow testID="traspaso-manual-btn" onPress={() => setMostrarTraspaso(true)} last>
-              <Text style={[Typography.bodyL, { color: c.brand.primary, flex: 1, textAlign: 'center' }]}>
-                {t('groups.traspaso_manual_action')}
-              </Text>
-            </BandRow>
-          </Band>
+          <>
+            <Band>
+              <BandRow testID="traspaso-manual-btn" onPress={() => setMostrarTraspaso(true)} last>
+                <Text style={[Typography.bodyL, { color: c.brand.primary, flex: 1, textAlign: 'center' }]}>
+                  {t('groups.traspaso_manual_action')}
+                </Text>
+              </BandRow>
+            </Band>
+            <Text style={[Typography.caption, styles.traspasoHint, { color: c.textTertiary }]}>
+              {t('groups.traspaso_carry_over_hint')}
+            </Text>
+          </>
         )}
       </ScrollView>
 
@@ -792,6 +797,9 @@ const styles = StyleSheet.create({
   balancePad:  { paddingHorizontal: Spacing.screenPad, paddingTop: 18, paddingBottom: 18 },
   members:     { paddingHorizontal: Spacing.screenPad, paddingVertical: 14, gap: 14 },
   emptyBox:    { alignItems: 'center', justifyContent: 'center', padding: Spacing[6] },
+  traspasoHint: {
+    textAlign: 'center', paddingHorizontal: Spacing.screenPad, marginTop: Spacing[2],
+  },
   avisoTraspaso: {
     marginHorizontal: Spacing.screenPad, marginTop: Spacing[3],
     padding: Spacing[4], borderRadius: Radius.md, gap: Spacing[2],
