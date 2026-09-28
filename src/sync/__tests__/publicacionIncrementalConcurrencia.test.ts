@@ -54,17 +54,43 @@ jest.mock('../relay', () => {
 jest.mock('../authorHealth', () => ({ observeAuthor: jest.fn(async () => 'ok'), RECHAZAR_AUTORES_NO_VERIFICADOS: false }));
 jest.mock('../authorKeys', () => ({ refreshPendingAuthors: jest.fn(async () => {}) }));
 
+// M2 (verifier, tercera tanda): `adaptador.antesDePublicar` es la parte de
+// `publishToGroup` que puede demorar de verdad (espera `publishAvatarIfOwn`,
+// red) — se envuelve para poder demorarla A PROPÓSITO y ver qué pasa si el
+// estado local cambia DURANTE esa espera. La demora se ata al CONTENIDO del
+// documento (la descripción del gasto capturado), no a "la próxima llamada":
+// cuál de las dos publicaciones concurrentes llega primero a
+// `antesDePublicar` no está garantizado por el event loop, y atarlo a
+// contenido es lo único que hace el test determinista de verdad.
+jest.mock('../relay/adaptadorHushSplit', () => {
+  const actual = jest.requireActual('../relay/adaptadorHushSplit');
+  let demorarSiDescripcion: string | null = null;
+  return {
+    ...actual,
+    __demorarSiDescripcion: (desc: string | null) => { demorarSiDescripcion = desc; },
+    antesDePublicar: async (doc: { expenses?: { description?: string }[] }, ctx: unknown) => {
+      if (demorarSiDescripcion && doc?.expenses?.[0]?.description === demorarSiDescripcion) {
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+      return actual.antesDePublicar(doc, ctx);
+    },
+  };
+});
+
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
-import { publishToGroup, drainGroup } from '../relaySync';
+import { publishToGroup, drainGroup, PUBLICACION_TIMEOUT_MS } from '../relaySync';
 import { manifestGapFor, clearManifestGaps } from '../manifestHealth';
 import type { Group, Expense } from '@/src/types/models';
 
 const relayMock = jest.requireMock('../relay') as {
   __reset: () => void;
   __maxEnCurso: () => number;
+};
+const adaptadorMock = jest.requireMock('../relay/adaptadorHushSplit') as {
+  __demorarSiDescripcion: (desc: string | null) => void;
 };
 
 const grupo = (): Group => ({
@@ -110,4 +136,87 @@ it('V3: dos publishToGroup concurrentes del mismo grupo nunca tienen sends en vu
   expect(r.ok).toBe(true);
   expect(manifestGapFor('G')).toBeNull();
   expect(useExpenseStore.getState().expenses.find(e => e.id === 'e1')?.description).toBe('v2');
+});
+
+/**
+ * M2 (verifier, tercera tanda): el documento se armaba (`adaptador.armar` +
+ * `antesDePublicar`) ANTES de entrar a la cola por topic — si P1 toma el
+ * snapshot v1 y se demora ahí (esperando `publishAvatarIfOwn`, red), P2 puede
+ * tomar v2 y entrar a la cola PRIMERO (la encuentra vacía): el buzón termina
+ * con v2, y recién después P1 —que sigue con su snapshot viejo, v1— vuelve y
+ * lo pisa. Fix: `armar`/`antesDePublicar` se mueven ADENTRO de la tarea
+ * encolada — el estado se toma cuando a la publicación le toca el turno, no
+ * cuando se la llama.
+ */
+it('M2a: el estado se toma AL TURNO de la cola, no al llamar — el buzón termina con el más nuevo', async () => {
+  adaptadorMock.__demorarSiDescripcion('v1'); // la publicación que captura v1 es la que se demora
+  useExpenseStore.setState({ expenses: [gasto('e1', 'v1', 1_000)] } as never);
+  const p1 = publishToGroup('G', 'u1', 'device1');
+
+  // Deja que P1 llegue a `armar()` (captura v1) y arranque su demora de
+  // 50ms ANTES de mutar el estado — si no, la mutación síncrona de acá abajo
+  // corre ANTES que la continuación de P1 (que recién se reanuda como
+  // microtarea tras `await deriveTopic`), y P1 terminaría capturando v2 él
+  // también: no habría ninguna carrera que observar.
+  await new Promise(resolve => setTimeout(resolve, 5));
+
+  useExpenseStore.setState({ expenses: [gasto('e1', 'v2', 2_000)] } as never);
+  const p2 = publishToGroup('G', 'u1', 'device1');
+
+  const [r1, r2] = await Promise.all([p1, p2]);
+  adaptadorMock.__demorarSiDescripcion(null);
+  expect(r1.ok).toBe(true);
+  expect(r2.ok).toBe(true);
+
+  useExpenseStore.setState({ expenses: [] } as never);
+  const r = await drainGroup('G', 'u2', 'deviceNuevo', 0);
+  expect(r.ok).toBe(true);
+  expect(manifestGapFor('G')).toBeNull();
+  // Sin el fix, esto da 'v1': P1 (snapshot viejo) llega a la cola DESPUÉS de
+  // P2 y pisa el buzón con contenido más viejo que el estado local real.
+  expect(useExpenseStore.getState().expenses.find(e => e.id === 'e1')?.description).toBe('v2');
+});
+
+/**
+ * M2 (segunda parte): un `sendEnvelope` que nunca resuelve dejaba la cola del
+ * topic trabada para siempre — nada volvía a publicarse en ese grupo hasta
+ * reiniciar la app. `PUBLICACION_TIMEOUT_MS` (`withTimeout`, mismo patrón que
+ * `EJECUCION_TIMEOUT_MS`/`SESSION_TIMEOUT_MS`) corta la espera y libera la
+ * cola — la publicación colgada vuelve `{ok:false, reason:'network'}`.
+ */
+it('M2b: un envío colgado no bloquea la cola para siempre — la siguiente publicación pasa tras el timeout', async () => {
+  jest.useFakeTimers();
+  try {
+    const relayModule = jest.requireMock('../relay') as {
+      sendEnvelope: (...args: unknown[]) => Promise<unknown>;
+    };
+    const sendEnvelopeOriginal = relayModule.sendEnvelope;
+    let primeraLlamada = true;
+    relayModule.sendEnvelope = jest.fn((...args: unknown[]) => {
+      if (primeraLlamada) {
+        primeraLlamada = false;
+        return new Promise(() => {}); // nunca resuelve ni rechaza
+      }
+      return sendEnvelopeOriginal(...args);
+    });
+
+    useExpenseStore.setState({ expenses: [gasto('e1', 'v1', 1_000)] } as never);
+    const p1 = publishToGroup('G', 'u1', 'device1'); // su primer envío queda colgado
+
+    await jest.advanceTimersByTimeAsync(PUBLICACION_TIMEOUT_MS + 1_000);
+    const r1 = await p1;
+    expect(r1.ok).toBe(false); // el timeout lo corta
+
+    // La cola del topic quedó libre: la siguiente publicación NO espera al
+    // que se colgó — corre y termina normalmente.
+    useExpenseStore.setState({ expenses: [gasto('e1', 'v2', 2_000)] } as never);
+    const p2 = publishToGroup('G', 'u1', 'device1');
+    await jest.advanceTimersByTimeAsync(0);
+    const r2 = await p2;
+    expect(r2.ok).toBe(true);
+
+    relayModule.sendEnvelope = sendEnvelopeOriginal;
+  } finally {
+    jest.useRealTimers();
+  }
 });
