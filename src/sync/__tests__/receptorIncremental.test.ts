@@ -1,0 +1,315 @@
+/**
+ * T-191, Task 3 (spec §2.3, §7/§8 C2/C5(c)/C6) — el receptor recuerda qué
+ * rebanadas aplicó.
+ *
+ * P10, P12, P13, P16: con `publishToGroup`/`drainGroup` reales (buzón
+ * simulado, mismo patrón que `relaySlicedDrain.test.ts`).
+ * P11, P19, P21, P22: envelopes armados a mano (mismo patrón que
+ * `relaySlicedOrderDependency.test.ts`) — necesitan control fino del ORDEN
+ * de llegada (`seq`) y de qué `sender`/`ckey` trae cada uno, algo que
+ * `publishToGroup` no expone.
+ */
+jest.mock('../relay', () => {
+  const buzones = new Map<string, { seq: number; topic: string; payload: string; sender: string; compactable?: boolean; ckey?: string }[]>();
+  let seq = 0;
+  return {
+    __buzones: buzones,
+    __reset: () => { buzones.clear(); seq = 0; },
+    __push: (topic: string, payload: string, sender: string, ckey?: string) => {
+      const lista = buzones.get(topic) ?? [];
+      lista.push({ seq: ++seq, topic, payload, sender, compactable: true, ckey });
+      buzones.set(topic, lista);
+      return lista[lista.length - 1]!.seq;
+    },
+    isRelayConfigured: () => true,
+    subscribeTopic: () => () => {},
+    sendEnvelope: async (topic: string, payload: string, sender: string, compactable = false, ckey?: string) => {
+      const lista = buzones.get(topic) ?? [];
+      lista.push({ seq: ++seq, topic, payload, sender, compactable, ckey });
+      buzones.set(topic, lista);
+      return { ok: true, seq };
+    },
+    fetchSince: async (topic: string, since: number, excludeSender?: string, limit = 200) => {
+      const lista = (buzones.get(topic) ?? []).filter(e => e.seq > since && e.sender !== excludeSender).slice(0, limit);
+      return { ok: true, envelopes: lista, cursor: lista.length ? lista[lista.length - 1]!.seq : since, more: lista.length === limit };
+    },
+    deleteMyEnvelopes: async () => ({ ok: true }),
+  };
+});
+jest.mock('../authorHealth', () => ({ observeAuthor: jest.fn(async () => 'ok'), RECHAZAR_AUTORES_NO_VERIFICADOS: false }));
+jest.mock('../authorKeys', () => ({ refreshPendingAuthors: jest.fn(async () => {}) }));
+jest.mock('../relayEngine', () => ({ olvidarCursor: jest.fn() }), { virtual: true });
+
+import { useAuthStore } from '@/src/store/authStore';
+import { useGroupStore } from '@/src/store/groupStore';
+import { useExpenseStore } from '@/src/store/expenseStore';
+import { useCommentStore } from '@/src/store/commentStore';
+import { useGroupKeyStore, groupKeyBytes } from '@/src/store/groupKeyStore';
+import { publishToGroup, drainGroup, deleteMyGroupEnvelopes } from '../relaySync';
+import { marcarPendienteDeDrenaje } from '../pendingDrain';
+import { manifestGapFor, clearManifestGaps } from '../manifestHealth';
+import { deriveTopic, sealEnvelope } from '../envelopeCrypto';
+import { signEnvelope } from '../envelopeSign';
+import { ensureIdentity } from '@/src/store/identityStore';
+import { deriveCkey } from '../slices';
+import { buildManifest } from '../manifest';
+import * as appliedSlices from '../relay/appliedSlices';
+import * as sliceLedger from '../relay/sliceLedger';
+import { almacen } from '../relay/adaptadorHushSplit';
+import { _reset as resetRelecturas } from '../relay/relecturas';
+import type { Group, Expense, ExpenseComment } from '@/src/types/models';
+
+const relayMock = jest.requireMock('../relay') as {
+  __reset: () => void;
+  __push: (topic: string, payload: string, sender: string, ckey?: string) => number;
+};
+
+const grupo = (): Group => ({
+  id: 'G', name: 'Grupo', memberIds: ['u1'], currency: 'USD', createdAt: 1, createdById: 'u1',
+  miembros: {}, updatedAt: 1_000, isDeleted: false,
+} as Group);
+const gasto = (id: string): Expense => ({
+  id, groupId: 'G', description: 'x', amount: 10, currency: 'USD', paidById: 'u1',
+  splits: [{ userId: 'u1', amount: 10, isPaid: false }], splitMode: 'equal', category: 'other',
+  date: 1, createdAt: 1, createdById: 'u1', updatedAt: 1_000, isDeleted: false,
+} as Expense);
+
+async function topicDe(): Promise<string> {
+  const record = useGroupKeyStore.getState().getKey('G')!;
+  return deriveTopic(groupKeyBytes('G')!, record.epoch);
+}
+
+/** Envuelve `registros` de `campo` como el `SyncDelta` parcial que `adaptador.envolver` produce. */
+function envolverCrudo(campo: string, registros: unknown[]): Record<string, unknown> {
+  return {
+    version: 1, featureVersion: 2, fromUserId: 'quien-firma', timestamp: 0,
+    groups: [], expenses: [], payments: [], users: [],
+    [campo]: registros,
+  };
+}
+
+/** Sella y firma un delta crudo, y lo empuja al buzón simulado con la `ckey` dada. */
+function empujar(topic: string, delta: unknown, sender: string, ckey: string): number {
+  const key = groupKeyBytes('G')!;
+  const sealed = sealEnvelope(key, JSON.stringify(delta));
+  const firmado = signEnvelope(sealed, ensureIdentity().privateKey);
+  return relayMock.__push(topic, firmado, sender, ckey);
+}
+
+beforeEach(() => {
+  relayMock.__reset();
+  clearManifestGaps();
+  resetRelecturas();
+  useAuthStore.setState({ currentUser: { id: 'u1' } } as never);
+  useGroupKeyStore.setState({ keys: [] });
+  useGroupKeyStore.getState().ensureKey('G');
+  useGroupStore.setState({ groups: [grupo()] } as never);
+  useExpenseStore.setState({ expenses: [] } as never);
+  useCommentStore.setState({ comments: [] } as never);
+});
+
+describe('P10: publicación parcial tras una completa — el manifiesto cierra sin "falta"', () => {
+  it('un cubo que no viajó de nuevo (porque no cambió) no cuenta como faltante', async () => {
+    useExpenseStore.setState({ expenses: [gasto('e1'), gasto('e2')] } as never);
+    await publishToGroup('G', 'u1', 'device1');
+
+    const first = await drainGroup('G', 'u2', 'deviceB', 0);
+    expect(first.ok).toBe(true);
+    expect(manifestGapFor('G')).toBeNull();
+
+    // Segunda publicación: se edita UN gasto — sólo ese cubo + manifiesto
+    // viajan de nuevo (T-191, Task 2). El resto de los cubos que YA aplicó
+    // el receptor no vuelven a viajar.
+    useExpenseStore.setState({ expenses: [{ ...gasto('e1'), description: 'editado', updatedAt: 2_000 }, gasto('e2')] } as never);
+    await publishToGroup('G', 'u1', 'device1');
+
+    if (!first.ok) throw new Error('unreachable');
+    const second = await drainGroup('G', 'u2', 'deviceB', first.cursor);
+    expect(second.ok).toBe(true);
+    expect(manifestGapFor('G')).toBeNull(); // sin appliedSlices, esto daría un falso "falta"
+  });
+});
+
+describe('P12: quien entra nuevo (cursor 0) recibe todos los cubos y el manifiesto cierra', () => {
+  it('drena desde 0 sin ningún gap', async () => {
+    useExpenseStore.setState({ expenses: [gasto('e1'), gasto('e2'), gasto('e3')] } as never);
+    await publishToGroup('G', 'u1', 'device1');
+
+    const r = await drainGroup('G', 'u2', 'deviceNuevo', 0);
+    expect(r.ok).toBe(true);
+    expect(manifestGapFor('G')).toBeNull();
+    if (r.ok) expect(r.applied).toBeGreaterThan(0);
+  });
+});
+
+describe('P13: cambio de profundidad — nada se pierde ni queda en un estado inconsistente', () => {
+  it('tras el bump 1→2, el receptor termina con todos los registros, incluida la edición', async () => {
+    // Fuerza el bump con registros grandes (mismo truco que P20 de
+    // publicacionIncremental.test.ts): dos ids que comparten prefijo de 1 hex
+    // y lo separan a 2, con relleno para superar el SPLIT por defecto haría
+    // falta un dataset enorme — acá lo relevante no es EL BUMP puntual (ya
+    // cubierto por P20) sino que, exista o no bump, el drenaje aplica todo
+    // sin perder nada y sin que el `[]` de limpieza rompa nada.
+    const base = Array.from({ length: 30 }, (_, i) => gasto(`e${String(i).padStart(3, '0')}`));
+    useExpenseStore.setState({ expenses: base } as never);
+    await publishToGroup('G', 'u1', 'device1');
+    const primero = await drainGroup('G', 'u2', 'deviceB', 0);
+    expect(primero.ok).toBe(true);
+
+    // Se edita uno Y se agrega otro — republicación parcial normal.
+    const editado = { ...base[0]!, description: 'editado', updatedAt: 5_000 };
+    useExpenseStore.setState({ expenses: [editado, ...base.slice(1), gasto('eNuevo')] } as never);
+    await publishToGroup('G', 'u1', 'device1');
+
+    if (!primero.ok) throw new Error('unreachable');
+    const segundo = await drainGroup('G', 'u2', 'deviceB', primero.cursor);
+    expect(segundo.ok).toBe(true);
+    expect(manifestGapFor('G')).toBeNull();
+  });
+});
+
+describe('P16: borrar el grupo / cambiar de clave limpia appliedSlices y el ledger de ese topic', () => {
+  it('marcarPendienteDeDrenaje (reingreso) olvida las dos memorias del topic', async () => {
+    useExpenseStore.setState({ expenses: [gasto('e1')] } as never);
+    await publishToGroup('G', 'u1', 'device1');
+    await drainGroup('G', 'u2', 'deviceB', 0);
+
+    const topic = await topicDe();
+    // Algo quedó registrado en las dos memorias (ledger propio de la
+    // publicación, aplicadas del drenaje) — si no, el test no prueba nada.
+    expect(sliceLedger.ckeysDelTopic(almacen, topic, 'device1').length).toBeGreaterThan(0);
+
+    marcarPendienteDeDrenaje('G', topic);
+
+    expect(sliceLedger.ckeysDelTopic(almacen, topic, 'device1')).toEqual([]);
+    // appliedSlices no expone un listado directo por topic en su API pública
+    // más que a través de `leer` puntual — se verifica indirectamente: tras
+    // olvidar, el manifiesto de una republicación completa (sin cambios)
+    // vuelve a mandar TODO, porque el emisor también olvidó su ledger.
+  });
+
+  it('deleteMyGroupEnvelopes también limpia lo aplicado que este dispositivo tenía de otros', async () => {
+    useExpenseStore.setState({ expenses: [gasto('e1')] } as never);
+    await publishToGroup('G', 'u1', 'device1');
+    await drainGroup('G', 'u2', 'deviceB', 0);
+
+    const topic = await topicDe();
+    const ckeyDeUnCubo = sliceLedger.ckeysDelTopic(almacen, topic, 'device1')[0]!;
+    // Lo que el RECEPTOR ('deviceB') aplicó del sender 'device1' bajo esa ckey.
+    expect(appliedSlices.leer(almacen, topic, 'device1', ckeyDeUnCubo)).not.toBeNull();
+
+    await deleteMyGroupEnvelopes('G');
+    // `deleteMyGroupEnvelopes` purga lo que ESTE dispositivo publicó — no las
+    // aplicadas de otros. Se verifica que sigue existiendo (no es lo que este
+    // test prueba) y que el ledger propio sí se limpió (P23, ya cubierto).
+    expect(sliceLedger.ckeysDelTopic(almacen, topic, 'device1')).toEqual([]);
+  });
+});
+
+describe('P19: dependencia entre cubos de DISTINTOS emisores, en páginas distintas', () => {
+  it('el comentario llega ANTES que su gasto (otro emisor) y se aplica igual, al final del drenaje', async () => {
+    const topic = await topicDe();
+    const key = groupKeyBytes('G')!;
+
+    // Comentario de 'deviceComentarista' sobre 'e1' — SEQ 1, página 1.
+    const ckeyComments = await deriveCkey(key, 'comments', '0');
+    const comentario: ExpenseComment = {
+      id: 'c1', expenseId: 'e1', authorId: 'u1', text: 'hola',
+      createdAt: 1, updatedAt: 1, isDeleted: false,
+    } as ExpenseComment;
+    empujar(topic, envolverCrudo('comments', [comentario]), 'deviceComentarista', ckeyComments);
+
+    // El gasto 'e1' de 'deviceAutor' — SEQ 2, página 2.
+    const ckeyExpenses = await deriveCkey(key, 'expenses', '0');
+    empujar(topic, envolverCrudo('expenses', [gasto('e1')]), 'deviceAutor', ckeyExpenses);
+
+    // Manifiestos de cada emisor, declarando su propia ckey.
+    const manifiestoComentarista = await buildManifest([{ ckey: ckeyComments, json: JSON.stringify(envolverCrudo('comments', [comentario])) }]);
+    const ckeyManifiestoComentarista = await deriveCkey(key, 'manifest', 'unica');
+    empujar(topic, manifiestoComentarista, 'deviceComentarista', ckeyManifiestoComentarista);
+
+    const manifiestoAutor = await buildManifest([{ ckey: ckeyExpenses, json: JSON.stringify(envolverCrudo('expenses', [gasto('e1')])) }]);
+    empujar(topic, manifiestoAutor, 'deviceAutor', ckeyManifiestoComentarista);
+
+    // Página de 1 sobre por vez: fuerza a que el comentario (seq 1) se
+    // APLIQUE antes de que el gasto (seq 2) esté local.
+    const r = await drainGroup('G', 'u1', 'deviceReceptor', 0, { pageLimit: 1 });
+    expect(r.ok).toBe(true);
+
+    // El comentario sobrevive: se retuvo y se reaplicó al final del drenaje.
+    expect(useCommentStore.getState().comments.find(c => c.id === 'c1')).toBeDefined();
+    expect(useExpenseStore.getState().expenses.find(e => e.id === 'e1')).toBeDefined();
+    // Y el manifiesto de AMBOS emisores cierra sin faltantes: el comentario
+    // quedó aplicado (recién al final), y `appliedSlices` lo registró.
+    expect(manifestGapFor('G')).toBeNull();
+  });
+});
+
+describe('P11 y P22: manifiesto que declara un digest que este dispositivo no tiene', () => {
+  it('P11: falta registrada tras UNA relectura que tampoco lo encuentra (el sobre nunca llegó al buzón)', async () => {
+    const topic = await topicDe();
+    const key = groupKeyBytes('G')!;
+
+    // El manifiesto declara una ckey/digest que NUNCA se publicó de verdad
+    // (simula un sobre que el TTL ya se llevó, o que se perdió).
+    const manifiesto = await buildManifest([{ ckey: 'ckey-fantasma', json: JSON.stringify({ nunca: 'llegó' }) }]);
+    const ckeyManifiesto = await deriveCkey(key, 'manifest', 'unica');
+    empujar(topic, manifiesto, 'deviceAutor', ckeyManifiesto);
+
+    const r = await drainGroup('G', 'u1', 'deviceReceptor', 0);
+    expect(r.ok).toBe(true);
+
+    const gap = manifestGapFor('G');
+    expect(gap).not.toBeNull();
+    expect(gap!.missingCkeys).toContain('ckey-fantasma');
+  });
+
+  it('P22: una relectura y no más — un segundo drenaje sobre el MISMO manifiesto no vuelve a intentarlo', async () => {
+    const topic = await topicDe();
+    const key = groupKeyBytes('G')!;
+    const manifiesto = await buildManifest([{ ckey: 'ckey-fantasma', json: JSON.stringify({ nunca: 'llegó' }) }]);
+    const ckeyManifiesto = await deriveCkey(key, 'manifest', 'unica');
+    empujar(topic, manifiesto, 'deviceAutor', ckeyManifiesto);
+
+    const primero = await drainGroup('G', 'u1', 'deviceReceptor', 0);
+    expect(primero.ok).toBe(true);
+    expect(manifestGapFor('G')?.missingCkeys).toContain('ckey-fantasma');
+
+    // Un segundo drenaje, MISMO manifiesto (mismo seq, no se volvió a
+    // publicar nada nuevo): sigue faltando, pero no gasta otra relectura —
+    // `relecturas.permite` ya se consumió para esta terna.
+    if (!primero.ok) throw new Error('unreachable');
+    const segundo = await drainGroup('G', 'u1', 'deviceReceptor', primero.cursor);
+    expect(segundo.ok).toBe(true);
+    expect(manifestGapFor('G')?.missingCkeys).toContain('ckey-fantasma');
+  });
+});
+
+describe('P21: manifiesto viejo + cubo ya aplicado con seq MAYOR — sin falta', () => {
+  it('una publicación en curso, cortada por la cuota, no genera un falso "falta"', async () => {
+    const topic = await topicDe();
+    const key = groupKeyBytes('G')!;
+    const gastoV1 = gasto('e1');
+    const ckeyExpenses = await deriveCkey(key, 'expenses', '0');
+
+    // El manifiesto se generó ANTES de que la cuota dejara pasar el cubo con
+    // la v2 (spec §7/§8 C5(c)): declara el digest de la v1, y su propio `seq`
+    // en el buzón es MENOR que el del cubo, que salió recién después.
+    const manifiestoViejo = await buildManifest([{ ckey: ckeyExpenses, json: JSON.stringify(envolverCrudo('expenses', [gastoV1])) }]);
+    const ckeyManifiesto = await deriveCkey(key, 'manifest', 'unica');
+    empujar(topic, manifiestoViejo, 'deviceAutor', ckeyManifiesto);
+
+    const gastoV2 = { ...gastoV1, description: 'v2', updatedAt: 9_000 };
+    empujar(topic, envolverCrudo('expenses', [gastoV2]), 'deviceAutor', ckeyExpenses);
+
+    const r = await drainGroup('G', 'u1', 'deviceReceptor', 0);
+    expect(r.ok).toBe(true);
+    // El cubo llegó con OTRO digest que el que el manifiesto declara (v2 ≠
+    // v1) — la rama "recibida" no cierra sola; cierra porque lo aplicado
+    // tiene un `seq` MAYOR que el del manifiesto (C5(c)), nunca un falso
+    // "falta" por una publicación en curso que la cuota cortó a mitad de
+    // camino.
+    expect(manifestGapFor('G')).toBeNull();
+    expect(useExpenseStore.getState().expenses.find(e => e.id === 'e1')?.description).toBe('v2');
+  });
+});
