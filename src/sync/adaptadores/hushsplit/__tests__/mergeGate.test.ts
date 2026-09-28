@@ -267,3 +267,32 @@ describe('el gate mide, y mide lo que entra por cualquier puerta', () => {
     expect(recordStats().valida).toBe(1);
   });
 });
+
+/**
+ * D1 (`engram/plans/T-206-A.md` §Task 3): el único canal autenticado para
+ * adoptar `groupKeys` era el pairing QR (`buildDelta`/`useSyncQR.ts`), que se
+ * fue con T-083/T-192/T-193 — no queda ninguna pantalla que llegue a armarlo.
+ * `acotarDeltaAlGrupo` ya vacía `groupKeys` para todo lo que entra por el
+ * relay (`acotarDeltaAlGrupo.test.ts`), pero `applyDelta` en sí seguía
+ * teniendo la rama que adopta claves si alguien se las pasa — hoy sólo lo
+ * impide una puerta más afuera. Este test la prueba DIRECTO, sin pasar por
+ * `acotar`: aunque un delta traiga `groupKeys` (inyectado con `as any`, como
+ * en `drainGroupAcotado.test.ts`, porque el tipo ya no declara el campo),
+ * `applyDelta` no tiene ningún código que lo lea.
+ */
+describe('D1: applyDelta ya no adopta claves de grupo', () => {
+  it('un delta que trae `groupKeys` no cambia el groupKeyStore', () => {
+    useGroupKeyStore.getState().adoptKeys([{ groupId: 'g-1', key: 'aa'.repeat(32), epoch: 1 }]);
+    const antes = useGroupKeyStore.getState().getKey('g-1');
+
+    // Época absurdamente mayor: si `applyDelta` todavía la leyera, una
+    // rotación normal (`groupKeyStore.test.ts` — "época mayor SÍ reemplaza")
+    // la sustituiría sin más.
+    const conClaveAjena = {
+      ...delta(), groupKeys: [{ groupId: 'g-1', key: 'bb'.repeat(32), epoch: 99 }],
+    } as any;
+    applyDelta(conClaveAjena, YO);
+
+    expect(useGroupKeyStore.getState().getKey('g-1')).toEqual(antes);
+  });
+});
