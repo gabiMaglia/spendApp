@@ -3,13 +3,11 @@ import type { GroupKey } from './envelopeCrypto';
 import { toHex } from './envelopeCrypto';
 
 /**
- * Objetivo de tamaño por rebanada (JSON, antes de sellar/firmar) y tope duro.
- * El presupuesto real hoy es ~786.000 bytes de JSON (MAX_PAYLOAD_BYTES = 1 MB
- * en relay.ts, menos el ×4/3 del base64 y el esqueleto del sobre firmado).
- * 64 KB de objetivo y 256 KB de tope dejan margen de sobra para crecer entre
- * ciclos de renovación sin acercarse al acantilado.
+ * Tope duro por rebanada (JSON, antes de sellar/firmar). El presupuesto real
+ * hoy es ~786.000 bytes de JSON (MAX_PAYLOAD_BYTES = 1 MB en relay.ts, menos
+ * el ×4/3 del base64 y el esqueleto del sobre firmado): 256 KB deja margen de
+ * sobra. El objetivo por cubo (192 KB) vive en `relay/cubos.ts` (T-191).
  */
-export const TARGET_SLICE_BYTES = 65_536;
 export const MAX_SLICE_BYTES = 262_144;
 
 /**
