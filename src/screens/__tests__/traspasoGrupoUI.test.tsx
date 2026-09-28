@@ -78,6 +78,24 @@ describe('aviso y botón de traspaso en el detalle del grupo', () => {
     expect(grupos.find(g => g.id === 'g1')?.supersededByGroupId).toBeDefined();
   });
 
+  // U4 (lote UI 2026-09-28): el botón de traspaso no aclaraba qué pasa con
+  // los saldos pendientes — el PO pidió una línea debajo, junto al botón.
+  it('debajo del botón de traspaso manual aclara que los saldos pendientes se trasladan', () => {
+    useExpenseStore.setState({ expenses: gastos(2) });
+    const r = render(<GroupDetailScreen />);
+
+    expect(r.getByTestId('traspaso-manual-btn')).toBeTruthy();
+    expect(r.getByText('groups.traspaso_carry_over_hint')).toBeTruthy();
+  });
+
+  it('sin el botón manual (grupo archivado) tampoco aparece la aclaración', () => {
+    useExpenseStore.setState({ expenses: gastos(400) });
+    useArchiveStore.getState().setArchived('g1', true, 'limit');
+
+    const r = render(<GroupDetailScreen />);
+    expect(r.queryByText('groups.traspaso_carry_over_hint')).toBeNull();
+  });
+
   // Minor de la revisión final: un grupo YA archivado no puede ofrecer un
   // traspaso nuevo — re-traspasarlo pisaría su `supersededByGroupId` y
   // produciría un duplicado.
