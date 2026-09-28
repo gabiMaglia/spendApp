@@ -1,6 +1,6 @@
 import { act, renderHook } from '@testing-library/react-native';
 import { useRecordTrust } from '../useRecordTrust';
-import { checkRecord } from '@/src/sync/trustCheck';
+import { checkRecord } from '@/src/sync/confianza/trustCheck';
 import type { Expense } from '@/src/types/models';
 
 /**
@@ -22,10 +22,10 @@ import type { Expense } from '@/src/types/models';
  */
 
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
-jest.mock('@/src/sync/contactChannel', () => ({ getPeer: () => undefined }));
-jest.mock('@/src/sync/deviceKeys', () => ({ fetchAccountKeys: jest.fn(async () => []) }));
+jest.mock('@/src/sync/contactos/contactChannel', () => ({ getPeer: () => undefined }));
+jest.mock('@/src/sync/confianza/deviceKeys', () => ({ fetchAccountKeys: jest.fn(async () => []) }));
 
-jest.mock('@/src/sync/trustCheck', () => ({
+jest.mock('@/src/sync/confianza/trustCheck', () => ({
   checkRecord: jest.fn(() => {
     // `setSystemTime` mueve el reloj sin correr la cola de timers. Usar
     // `advanceTimersByTime`/`advanceTimersToNextTimer` ACÁ ADENTRO cascadea:

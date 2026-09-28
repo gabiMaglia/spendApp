@@ -29,7 +29,7 @@ jest.mock('expo-router', () => ({
   router: { back: (...args: unknown[]) => mockRouterBack(...args), push: jest.fn() },
   useLocalSearchParams: () => mockSearchParams,
 }));
-jest.mock('@/src/sync/relayEngine', () => ({
+jest.mock('@/src/sync/motor/relayEngine', () => ({
   announceGroupToContacts: jest.fn(),
   schedulePublish: jest.fn(),
   deviceId: () => 'dev-1',

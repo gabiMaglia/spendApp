@@ -1,16 +1,16 @@
 import { topicsDeLaCuenta } from '../deleteTopics';
 import { useGroupKeyStore, groupKeyBytes } from '@/src/store/groupKeyStore';
-import { deriveTopic } from '@/src/sync/envelopeCrypto';
-import { deriveContactTopic, savePeer } from '@/src/sync/contactChannel';
-import { deriveInviteTopic, createInvite } from '@/src/sync/groupInvite';
+import { deriveTopic } from '@/src/sync/nucleo/envelopeCrypto';
+import { deriveContactTopic, savePeer } from '@/src/sync/contactos/contactChannel';
+import { deriveInviteTopic, createInvite } from '@/src/sync/invitaciones/groupInvite';
 import { saveInvite } from '@/src/store/identityStore';
 import { useAuthStore } from '@/src/store/authStore';
 import { useUserStore } from '@/src/store/userStore';
-import { deriveAvatarTopic } from '@/src/sync/avatarTopic';
+import { deriveAvatarTopic } from '@/src/sync/adaptadores/hushsplit/avatarTopic';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import type { User } from '@/src/types/models';
 
-jest.mock('@/src/sync/relayEngine', () => ({ schedulePublish: jest.fn(), deviceId: () => 'dev' }));
+jest.mock('@/src/sync/motor/relayEngine', () => ({ schedulePublish: jest.fn(), deviceId: () => 'dev' }));
 
 /**
  * T-074 §3.4. **Son tres tipos de topic, no uno.**

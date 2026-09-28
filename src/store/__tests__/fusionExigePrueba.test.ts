@@ -1,6 +1,6 @@
 let mockRelayConfigurado = true;
 
-jest.mock('@/src/sync/relay', () => ({
+jest.mock('@/src/sync/adaptadores/supabase/relay', () => ({
   isRelayConfigured: () => mockRelayConfigurado,
   getRelayClient: () => null,
 }));

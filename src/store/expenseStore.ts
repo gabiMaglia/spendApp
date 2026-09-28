@@ -3,13 +3,13 @@ import { createSecureStorage } from '@/src/utils/secureStorage';
 import { readScoped, writeScopedLazy, activeUserId } from './userScope';
 import { siguienteUpdatedAt } from './relojDelMerge';
 import { mergeExpensesPure } from './mergeExpensesPure';
-import { signOnCreate, signOnEdit, coreChanged } from '@/src/sync/signOnWrite';
-import { schedulePublish } from '@/src/sync/relayEngine';
+import { signOnCreate, signOnEdit, coreChanged } from '@/src/sync/confianza/signOnWrite';
+import { schedulePublish } from '@/src/sync/motor/relayEngine';
 import { migrateExpenseAmounts } from './moneyMigration';
 import type { Expense } from '@/src/types/models';
 import { syncedNow } from '@/src/utils/syncedClock';
 import { recordError } from '@/src/services/errorLog';
-import { enDisputa } from '@/src/sync/autoriaTrust';
+import { enDisputa } from '@/src/sync/confianza/autoriaTrust';
 import { mismaPersona } from './identityAlias';
 
 const storage = createSecureStorage('expenses');

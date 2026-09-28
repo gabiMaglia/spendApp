@@ -1,11 +1,11 @@
 import { ed25519 } from '@noble/curves/ed25519.js';
 import { rehydrateForActiveUser } from '../session';
-import { observeRecord, recordStats, clearRecordHealth } from '@/src/sync/recordHealth';
-import { authorRatchet, clearRatchet } from '@/src/sync/ratchet';
-import { verdictCacheSize, clearVerdictCache } from '@/src/sync/verdictCache';
-import { knownAuthorKeys, rememberAuthorKey, forgetAuthorKeys } from '@/src/sync/authorKeys';
-import { signCore } from '@/src/sync/recordSign';
-import { toHex } from '@/src/sync/hexBytes';
+import { observeRecord, recordStats, clearRecordHealth } from '@/src/sync/confianza/recordHealth';
+import { authorRatchet, clearRatchet } from '@/src/sync/confianza/ratchet';
+import { verdictCacheSize, clearVerdictCache } from '@/src/sync/confianza/verdictCache';
+import { knownAuthorKeys, rememberAuthorKey, forgetAuthorKeys } from '@/src/sync/confianza/authorKeys';
+import { signCore } from '@/src/sync/confianza/recordSign';
+import { toHex } from '@/src/sync/nucleo/hexBytes';
 import { EXPENSE } from '@/src/test-utils/recordFixtures';
 import { useAuthStore } from '../authStore';
 import type { User } from '@/src/types/models';
@@ -22,7 +22,7 @@ import type { User } from '@/src/types/models';
  */
 
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
-jest.mock('@/src/sync/relayEngine', () => ({
+jest.mock('@/src/sync/motor/relayEngine', () => ({
   startRelay: jest.fn(() => () => {}), schedulePublish: jest.fn(), deviceId: () => 'dev',
 }));
 

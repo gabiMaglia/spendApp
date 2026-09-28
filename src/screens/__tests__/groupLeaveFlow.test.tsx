@@ -1,5 +1,5 @@
 import React from 'react';
-import { normalizarAprobacion } from '@/src/sync/leaveApprovalCore';
+import { normalizarAprobacion } from '@/src/sync/confianza/leaveApprovalCore';
 import { fireEvent, render } from '@testing-library/react-native';
 import { Alert } from 'react-native';
 import GroupDetailScreen from '@/app/groups/[id]';

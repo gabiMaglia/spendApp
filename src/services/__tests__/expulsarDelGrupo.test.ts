@@ -6,7 +6,7 @@ import { usePaymentStore } from '@/src/store/paymentStore';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import type { Expense, Group, User } from '@/src/types/models';
 
-jest.mock('@/src/sync/relayEngine', () => ({ schedulePublish: jest.fn(), deviceId: () => 'd' }));
+jest.mock('@/src/sync/motor/relayEngine', () => ({ schedulePublish: jest.fn(), deviceId: () => 'd' }));
 
 const AHORA = Date.UTC(2026, 8, 27, 12);
 

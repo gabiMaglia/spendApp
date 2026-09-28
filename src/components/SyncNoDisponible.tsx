@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 
 import { Typography } from '@/src/constants/typography';
 import { Band, BandRow, SectionLabel } from '@/src/components/Band';
-import { isRelayConfigured } from '@/src/sync/relay';
+import { isRelayConfigured } from '@/src/sync/adaptadores/supabase/relay';
 import { useColors } from '@/src/skins/useSkin';
 
 /**

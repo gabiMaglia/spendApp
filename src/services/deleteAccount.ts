@@ -6,8 +6,8 @@ import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { barrerScope, olvidarFusionesDe } from '@/src/store/accountLink';
 import { purgeUser } from '@/src/store/tierStore';
 import { readJournal, writeJournal, clearJournal, type DeleteJournal } from '@/src/store/deleteJournal';
-import { deleteMyEnvelopes } from '@/src/sync/relay';
-import { olvidarCursor } from '@/src/sync/relayEngine';
+import { deleteMyEnvelopes } from '@/src/sync/adaptadores/supabase/relay';
+import { olvidarCursor } from '@/src/sync/motor/relayEngine';
 import { destruirIdentidadDelAparato } from '@/src/store/identityStore';
 import { discardScopedWrites } from '@/src/store/userScope';
 import { clearErrors } from './errorLog';
@@ -265,7 +265,7 @@ function esLaUltimaCuenta(accountId: string): boolean {
 async function publicarGrupos(groupIds: string[]): Promise<void> {
   if (groupIds.length === 0) return;
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { publishNow } = require('@/src/sync/relayEngine') as typeof import('@/src/sync/relayEngine');
+  const { publishNow } = require('@/src/sync/motor/relayEngine') as typeof import('@/src/sync/motor/relayEngine');
   for (const id of groupIds) {
     /**
      * **`forzar` a propósito** (T-089): un grupo que este teléfono no drenó

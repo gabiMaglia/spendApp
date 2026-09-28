@@ -4,11 +4,11 @@ import {
   listContactInvites, savePendingContactClaim, listPendingContactClaims,
   removePendingContactClaim,
 } from '../identityStore';
-import { createInvite } from '@/src/sync/groupInvite';
+import { createInvite } from '@/src/sync/invitaciones/groupInvite';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { useAuthStore } from '@/src/store/authStore';
 import type { User } from '@/src/types/models';
-import type { ContactInvite } from '@/src/sync/contactInvite';
+import type { ContactInvite } from '@/src/sync/contactos/contactInvite';
 
 const AHORA = Date.now();
 // T-098 · SEC L-4: invitaciones y joins pendientes pasaron a ser de la CUENTA

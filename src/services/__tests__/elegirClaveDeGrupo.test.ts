@@ -1,6 +1,6 @@
 import { elegirClaveDeGrupo } from '../elegirClaveDeGrupo';
-import * as groupKeyOffersModule from '@/src/sync/groupKeyOffers';
-import * as pendingDrainModule from '@/src/sync/pendingDrain';
+import * as groupKeyOffersModule from '@/src/sync/invitaciones/groupKeyOffers';
+import * as pendingDrainModule from '@/src/sync/motor/pendingDrain';
 import { useAuthStore } from '@/src/store/authStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
@@ -11,7 +11,7 @@ import type { User } from '@/src/types/models';
 type KeyOffer = groupKeyOffersModule.KeyOffer;
 
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
-jest.mock('@/src/sync/relayEngine', () => ({
+jest.mock('@/src/sync/motor/relayEngine', () => ({
   schedulePublish: jest.fn(), deviceId: () => 'dev', olvidarCursor: jest.fn(),
   publishNow: jest.fn(async () => {}), drainNow: jest.fn(async () => 0), startRelay: jest.fn(async () => {}),
 }));
@@ -22,7 +22,7 @@ jest.mock('@/src/sync/relayEngine', () => ({
  * local del grupo: nada del grupo falso puede terminar publicado con la real.
  */
 
-const relayEngine = jest.requireMock('@/src/sync/relayEngine') as {
+const relayEngine = jest.requireMock('@/src/sync/motor/relayEngine') as {
   drainNow: jest.Mock; publishNow: jest.Mock;
 };
 
@@ -182,7 +182,7 @@ describe('T-136 fix round 1 · orden interno', () => {
     trasElAtaque();
 
     let claveYaEraLaRealAlMarcar: boolean | null = null;
-    const real = jest.requireActual<typeof import('@/src/sync/pendingDrain')>('@/src/sync/pendingDrain')
+    const real = jest.requireActual<typeof import('@/src/sync/motor/pendingDrain')>('@/src/sync/motor/pendingDrain')
       .marcarPendienteDeDrenaje;
     const spy = jest.spyOn(pendingDrainModule, 'marcarPendienteDeDrenaje')
       .mockImplementation((groupId: string, topic?: string) => {
@@ -204,7 +204,7 @@ describe('T-136 fix round 1 · orden interno', () => {
     trasElAtaque();
 
     let claveYaEraLaRealAlRegistrar: boolean | null = null;
-    const real = jest.requireActual<typeof import('@/src/sync/groupKeyOffers')>('@/src/sync/groupKeyOffers')
+    const real = jest.requireActual<typeof import('@/src/sync/invitaciones/groupKeyOffers')>('@/src/sync/invitaciones/groupKeyOffers')
       .registrarOferta;
     const spy = jest.spyOn(groupKeyOffersModule, 'registrarOferta')
       .mockImplementation((o: KeyOffer) => {

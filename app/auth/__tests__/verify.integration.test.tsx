@@ -37,7 +37,7 @@ jest.mock('@supabase/supabase-js', () => ({
 // `accountEntry.test.ts`; acá alcanza con un stub para que `verify.tsx` (que
 // ahora importa `accountEntry.ts`, y con él `@react-native-google-signin` /
 // `expo-apple-authentication`, nativos) pueda cargarse en Jest.
-jest.mock('@/src/sync/accountEntry', () => ({
+jest.mock('@/src/sync/sesion/accountEntry', () => ({
   reconectarGoogleSilencioso: jest.fn(),
   reconectarInteractivo: jest.fn(),
 }));
@@ -72,7 +72,7 @@ import { useEntryGateStore, __resetEntryGate } from '@/src/store/entryGateStore'
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const VerifyScreen = (require('../verify') as typeof import('../verify')).default;
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const { __resetRelaySession } = require('@/src/sync/relaySession') as typeof import('@/src/sync/relaySession');
+const { __resetRelaySession } = require('@/src/sync/sesion/relaySession') as typeof import('@/src/sync/sesion/relaySession');
 
 afterAll(() => {
   delete process.env.EXPO_PUBLIC_SUPABASE_URL;

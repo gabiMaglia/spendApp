@@ -1,8 +1,8 @@
 import { useGroupKeyStore, groupKeyBytes } from '@/src/store/groupKeyStore';
-import { deriveTopic } from '@/src/sync/envelopeCrypto';
-import { deriveContactTopic, listPeers } from '@/src/sync/contactChannel';
-import { deriveInviteTopic } from '@/src/sync/groupInvite';
-import { deriveAvatarTopic } from '@/src/sync/avatarTopic';
+import { deriveTopic } from '@/src/sync/nucleo/envelopeCrypto';
+import { deriveContactTopic, listPeers } from '@/src/sync/contactos/contactChannel';
+import { deriveInviteTopic } from '@/src/sync/invitaciones/groupInvite';
+import { deriveAvatarTopic } from '@/src/sync/adaptadores/hushsplit/avatarTopic';
 import { listInvites, listPendingJoins } from '@/src/store/identityStore';
 import { useAuthStore } from '@/src/store/authStore';
 import { useUserStore } from '@/src/store/userStore';

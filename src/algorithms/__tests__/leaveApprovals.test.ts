@@ -1,7 +1,7 @@
 import { ed25519 } from '@noble/curves/ed25519.js';
 import { isApprovedByAll, approvalProgress, aprobadoresValidos, mergeApprovals, yaAprobo } from '../leaveRequest';
-import { signLeaveApproval, verifyLeaveApproval } from '@/src/sync/leaveApprovalSign';
-import { toHex } from '@/src/sync/hexBytes';
+import { signLeaveApproval, verifyLeaveApproval } from '@/src/sync/confianza/leaveApprovalSign';
+import { toHex } from '@/src/sync/nucleo/hexBytes';
 import type { Group, LeaveApproval, LeaveRequest } from '@/src/types/models';
 
 const PRIV_BETO = 'b'.repeat(64);

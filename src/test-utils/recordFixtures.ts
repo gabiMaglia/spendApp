@@ -1,4 +1,4 @@
-import type { CoreKind } from '@/src/sync/recordCore';
+import type { CoreKind } from '@/src/sync/confianza/recordCore';
 import type {
   Expense, Payment, ExpenseComment, RecurringExpense, Group,
 } from '@/src/types/models';

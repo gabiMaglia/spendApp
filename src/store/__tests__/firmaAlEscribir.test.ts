@@ -5,8 +5,8 @@ import { usePaymentStore } from '../paymentStore';
 import { useCommentStore } from '../commentStore';
 import { useRecurringStore } from '../recurringStore';
 import { useGroupStore } from '../groupStore';
-import { verifyCore } from '@/src/sync/recordSign';
-import { applyDelta, type SyncDelta } from '@/src/sync/applyDelta';
+import { verifyCore } from '@/src/sync/confianza/recordSign';
+import { applyDelta, type SyncDelta } from '@/src/sync/adaptadores/hushsplit/applyDelta';
 import type {
   Expense, Payment, ExpenseComment, RecurringExpense, Group, User,
 } from '@/src/types/models';
@@ -36,7 +36,7 @@ import type {
  * que seguir funcionando.** `k`/`s`/`rev` son campos nuevos y opcionales.
  */
 
-jest.mock('@/src/sync/relayEngine', () => ({
+jest.mock('@/src/sync/motor/relayEngine', () => ({
   schedulePublish: jest.fn(),
   deviceId: () => 'dev-test',
 }));

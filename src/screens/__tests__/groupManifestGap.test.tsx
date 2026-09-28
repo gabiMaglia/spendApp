@@ -19,7 +19,7 @@ import type { Group, User } from '@/src/types/models';
  * `no_key`, T-058) cuando los dos aplican a la vez, porque ése es más
  * accionable y no hay que apilar dos avisos.
  */
-jest.mock('@/src/sync/relayEngine', () => ({
+jest.mock('@/src/sync/motor/relayEngine', () => ({
   schedulePublish: jest.fn(), deviceId: () => 'dev', startRelay: jest.fn(),
   announceGroupToContacts: jest.fn(),
 }));
@@ -29,14 +29,14 @@ jest.mock('expo-router', () => ({
 }));
 
 const mockUseManifestGap = jest.fn((_groupId: string) => false);
-jest.mock('@/src/sync/useManifestGap', () => ({
+jest.mock('@/src/sync/avisos/useManifestGap', () => ({
   useManifestGap: (groupId: string) => mockUseManifestGap(groupId),
 }));
 
 const mockUseGroupSyncFailure = jest.fn(
   (_groupId: string) => null as null | { reason: 'too_large' | 'no_key' },
 );
-jest.mock('@/src/sync/useSyncFailure', () => ({
+jest.mock('@/src/sync/avisos/useSyncFailure', () => ({
   useGroupSyncFailure: (groupId: string) => mockUseGroupSyncFailure(groupId),
   claveDeFalloDeSync: (reason: string) => `sync.failure_${reason}`,
 }));

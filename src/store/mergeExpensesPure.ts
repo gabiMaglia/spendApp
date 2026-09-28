@@ -1,5 +1,5 @@
 import { mergeByIdLevels } from './mergeLevels';
-import { preservarRecibo } from '@/src/sync/soloLocal';
+import { preservarRecibo } from '@/src/sync/adaptadores/hushsplit/soloLocal';
 import type { Expense } from '@/src/types/models';
 
 /**

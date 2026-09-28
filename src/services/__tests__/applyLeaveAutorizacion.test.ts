@@ -1,7 +1,7 @@
 import { ed25519 } from '@noble/curves/ed25519.js';
 import { applyApprovedLeaves } from '../applyLeave';
-import { signLeaveApproval } from '@/src/sync/leaveApprovalSign';
-import { toHex } from '@/src/sync/hexBytes';
+import { signLeaveApproval } from '@/src/sync/confianza/leaveApprovalSign';
+import { toHex } from '@/src/sync/nucleo/hexBytes';
 import { useGroupStore } from '@/src/store/groupStore';
 import { usePaymentStore } from '@/src/store/paymentStore';
 import type { Group, LeaveApproval, LeaveRequest } from '@/src/types/models';
@@ -16,7 +16,7 @@ const PUB = Object.fromEntries(
 // El directorio de claves: cada uno con la suya, que es el caso real. Todo se
 // resuelve ADENTRO de la factory —jest no deja mirar afuera— y el prefijo
 // `mock` es lo único que jest permite referenciar desde acá.
-jest.mock('@/src/sync/authorKeys', () => ({
+jest.mock('@/src/sync/confianza/authorKeys', () => ({
   authorKeysFor: (userId: string) => {
     const { ed25519: curva } = require('@noble/curves/ed25519.js');
     const hex = (b: Uint8Array) =>

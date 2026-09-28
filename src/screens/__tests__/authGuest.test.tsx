@@ -43,11 +43,11 @@ jest.mock('@react-native-google-signin/google-signin', () => ({
   statusCodes: { SIGN_IN_CANCELLED: 'cancel', IN_PROGRESS: 'in_progress' },
 }));
 
-jest.mock('@/src/sync/directoryAuth', () => ({
+jest.mock('@/src/sync/sesion/directoryAuth', () => ({
   signIntoDirectory: jest.fn(() => Promise.resolve({ ok: false })),
   signOutOfDirectory: jest.fn(() => Promise.resolve()),
 }));
-jest.mock('@/src/sync/deviceKeys', () => ({ registerDeviceKey: jest.fn(() => Promise.resolve({ ok: false })) }));
+jest.mock('@/src/sync/confianza/deviceKeys', () => ({ registerDeviceKey: jest.fn(() => Promise.resolve({ ok: false })) }));
 jest.mock('@/src/services/avatar', () => ({ adoptarAvatarDelProveedor: jest.fn(() => Promise.resolve(null)) }));
 jest.mock('@/src/store/miPerfil', () => ({ actualizarMiPerfil: jest.fn() }));
 

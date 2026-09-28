@@ -20,7 +20,7 @@ import type { Expense, Group, User } from '@/src/types/models';
  * la mitad «ver» justo en el evento donde más importa.
  */
 
-jest.mock('@/src/sync/relayEngine', () => ({ schedulePublish: jest.fn(), deviceId: () => 'dev' }));
+jest.mock('@/src/sync/motor/relayEngine', () => ({ schedulePublish: jest.fn(), deviceId: () => 'dev' }));
 
 const YO = 'ana';
 const T0 = Date.UTC(2026, 8, 1, 12);

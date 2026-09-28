@@ -10,7 +10,7 @@ import { useExpenseStore } from '@/src/store/expenseStore';
 import { usePaymentStore } from '@/src/store/paymentStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { createSecureStorage } from '@/src/utils/secureStorage';
-import { MAX_MIEMBROS } from '@/src/sync/topes';
+import { MAX_MIEMBROS } from '@/src/sync/nucleo/topes';
 import type { Group, User } from '@/src/types/models';
 
 /**

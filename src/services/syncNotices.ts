@@ -1,7 +1,7 @@
 import type { CurrencyCode } from '@/src/constants/currencies';
 import type { Expense, ExpenseComment, Group, Payment } from '@/src/types/models';
 // Sólo el tipo: `publishHealth` no puede entrar al grafo de módulos de acá.
-import type { BlockingReason } from '@/src/sync/publishHealth';
+import type { BlockingReason } from '@/src/sync/motor/publishHealth';
 import { mismaPersona } from '@/src/store/identityAlias';
 
 /**

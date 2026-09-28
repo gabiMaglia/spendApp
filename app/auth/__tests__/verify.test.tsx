@@ -14,7 +14,7 @@ const mockEnsureRelaySession = jest.fn();
 // contra el camino REAL, no mockeado); acá sólo importa que exista para que
 // `verify.tsx` no explote al importar el módulo mockeado.
 const mockHaySesionEnCurso = jest.fn(() => false);
-jest.mock('@/src/sync/relaySession', () => ({
+jest.mock('@/src/sync/sesion/relaySession', () => ({
   ensureRelaySession: (p?: boolean, o?: { ignorarCooldown?: boolean }) => mockEnsureRelaySession(p, o),
   haySesionEnCurso: () => mockHaySesionEnCurso(),
 }));
@@ -24,7 +24,7 @@ jest.mock('@/src/sync/relaySession', () => ({
 // sólo importa CÓMO reacciona la pantalla a cada resultado.
 const mockReconectarGoogleSilencioso = jest.fn();
 const mockReconectarInteractivo = jest.fn();
-jest.mock('@/src/sync/accountEntry', () => ({
+jest.mock('@/src/sync/sesion/accountEntry', () => ({
   reconectarGoogleSilencioso: () => mockReconectarGoogleSilencioso(),
   reconectarInteractivo: (p: string) => mockReconectarInteractivo(p),
 }));
@@ -43,7 +43,7 @@ import React from 'react';
 import { render, act, fireEvent } from '@testing-library/react-native';
 import VerifyScreen from '../verify';
 import { useEntryGateStore, __resetEntryGate } from '@/src/store/entryGateStore';
-import { sinSesionDeSync, __resetSessionStatus } from '@/src/sync/sessionStatus';
+import { sinSesionDeSync, __resetSessionStatus } from '@/src/sync/sesion/sessionStatus';
 import { useAuthStore } from '@/src/store/authStore';
 import type { User } from '@/src/types/models';
 

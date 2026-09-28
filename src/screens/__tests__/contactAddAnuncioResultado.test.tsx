@@ -48,7 +48,7 @@ jest.mock('expo-camera', () => ({
 }));
 
 const mockAnnounce = jest.fn();
-jest.mock('@/src/sync/contactChannel', () => ({
+jest.mock('@/src/sync/contactos/contactChannel', () => ({
   ensureContactSecret: () => 'mi-secreto',
   announceContact: (...a: unknown[]) => mockAnnounce(...a),
   savePeer: jest.fn(),
@@ -59,7 +59,7 @@ jest.mock('@/src/store/identityStore', () => ({
   ensureWrapKeypair: () => ({ publicKey: 'bb'.repeat(32), privateKey: 'bb'.repeat(32) }),
   saveContactInvite: jest.fn(),
 }));
-jest.mock('@/src/sync/relayEngine', () => ({ deviceId: () => 'dev-1' }));
+jest.mock('@/src/sync/motor/relayEngine', () => ({ deviceId: () => 'dev-1' }));
 
 const ANA  = { id: 'ana1',  name: 'Ana',  isDeleted: false } as User;
 const BETO = { id: 'beto1', name: 'Beto', isDeleted: false } as User;
@@ -129,7 +129,7 @@ describe('mensaje tras agregar por QR usa el resultado REAL de announceContact',
     // `marcarCardEnviada` vive en relayEngine, no en add.tsx: este screen NUNCA debe
     // llamarlo directamente, porque eso es lo que haría que el reintento automático
     // (que sólo reenvía a quien NO tiene la huella marcada) dejara de intentarlo.
-    const contactChannel = jest.requireMock('@/src/sync/contactChannel');
+    const contactChannel = jest.requireMock('@/src/sync/contactos/contactChannel');
     expect(contactChannel.marcarCardEnviada).toBeUndefined();
   });
 });

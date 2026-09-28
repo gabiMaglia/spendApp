@@ -17,7 +17,7 @@ import type { Expense, Group } from '@/src/types/models';
  * rendimiento, no sólo el resultado: cuántas veces se ejecuta el hook.
  */
 
-jest.mock('@/src/sync/relayEngine', () => ({ schedulePublish: jest.fn(), deviceId: () => 'dev' }));
+jest.mock('@/src/sync/motor/relayEngine', () => ({ schedulePublish: jest.fn(), deviceId: () => 'dev' }));
 
 const grupoA: Group = {
   id: 'gA', name: 'Grupo A', memberIds: ['ana', 'beto'], currency: 'ARS',

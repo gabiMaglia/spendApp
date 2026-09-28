@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { readScoped, writeScoped } from './userScope';
-import { generateGroupKey, toHex, fromHex } from '@/src/sync/envelopeCrypto';
+import { generateGroupKey, toHex, fromHex } from '@/src/sync/nucleo/envelopeCrypto';
 
 /**
  * Claves de cifrado de cada grupo (ADR-003).
@@ -17,7 +17,7 @@ import { generateGroupKey, toHex, fromHex } from '@/src/sync/envelopeCrypto';
  * arquitecturas se rompen (ADR-003 §1).
  */
 
-import { marcarConTopic } from '@/src/sync/pendingDrain';
+import { marcarConTopic } from '@/src/sync/motor/pendingDrain';
 const storage = createSecureStorage('groupkeys');
 const KEY = 'data_v1';
 

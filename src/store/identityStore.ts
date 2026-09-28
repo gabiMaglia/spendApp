@@ -2,9 +2,9 @@ import * as Crypto from 'expo-crypto';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { readScoped, writeScoped } from '@/src/store/userScope';
-import { toHex, utf8Bytes } from '@/src/sync/hexBytes';
-import { generateIdentity, generateWrapKeypair, type GroupInvite } from '@/src/sync/groupInvite';
-import type { ContactInvite } from '@/src/sync/contactInvite';
+import { toHex, utf8Bytes } from '@/src/sync/nucleo/hexBytes';
+import { generateIdentity, generateWrapKeypair, type GroupInvite } from '@/src/sync/invitaciones/groupInvite';
+import type { ContactInvite } from '@/src/sync/contactos/contactInvite';
 
 /**
  * Identidad criptográfica de ESTE dispositivo y las invitaciones que emitió.

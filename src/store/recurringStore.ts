@@ -3,7 +3,7 @@ import { createSecureStorage } from '@/src/utils/secureStorage';
 import { readScoped, writeScopedLazy } from './userScope';
 import { mergeByIdLevels } from './mergeLevels';
 import { siguienteUpdatedAt } from './relojDelMerge';
-import { signOnCreate, signOnEdit } from '@/src/sync/signOnWrite';
+import { signOnCreate, signOnEdit } from '@/src/sync/confianza/signOnWrite';
 import type { RecurringExpense } from '@/src/types/models';
 import { syncedNow } from '@/src/utils/syncedClock';
 import { recordError } from '@/src/services/errorLog';

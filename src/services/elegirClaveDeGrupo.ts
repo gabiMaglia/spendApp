@@ -1,8 +1,8 @@
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
-import { marcarConTopic, marcarPendienteDeDrenaje } from '@/src/sync/pendingDrain';
+import { marcarConTopic, marcarPendienteDeDrenaje } from '@/src/sync/motor/pendingDrain';
 import {
   claveLocalVinoDeContacto, conflictoForzado, esOfertaDeInvitacion, ofertasDe, registrarOferta,
-} from '@/src/sync/groupKeyOffers';
+} from '@/src/sync/invitaciones/groupKeyOffers';
 import { purgarGrupoLocalmente } from './salirDelGrupo';
 
 /**
@@ -88,7 +88,7 @@ export async function elegirClaveDeGrupo(groupId: string, fromUserId: string): P
   // importa a los stores que esto usa.
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { drainNow, startRelay } = require('@/src/sync/relayEngine') as typeof import('@/src/sync/relayEngine');
+    const { drainNow, startRelay } = require('@/src/sync/motor/relayEngine') as typeof import('@/src/sync/motor/relayEngine');
     await drainNow(groupId);
     void startRelay();
   } catch {

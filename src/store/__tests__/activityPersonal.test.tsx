@@ -22,7 +22,7 @@ import type { Expense, Group, PersonalEntry } from '@/src/types/models';
  * sentinel local.
  */
 
-jest.mock('@/src/sync/relayEngine', () => ({ schedulePublish: jest.fn(), deviceId: () => 'dev' }));
+jest.mock('@/src/sync/motor/relayEngine', () => ({ schedulePublish: jest.fn(), deviceId: () => 'dev' }));
 
 const YO = 'ana';
 const grupo = (over: Partial<Group> = {}): Group => ({

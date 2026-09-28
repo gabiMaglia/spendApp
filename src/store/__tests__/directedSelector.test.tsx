@@ -12,7 +12,7 @@ import type { Expense, Group } from '@/src/types/models';
  * El modelo viejo las neteaba a cero y saldar volcaba un neto global dentro de
  * un solo grupo. El nuevo conserva las dos.
  */
-jest.mock('@/src/sync/relayEngine', () => ({ schedulePublish: jest.fn(), deviceId: () => 'd' }));
+jest.mock('@/src/sync/motor/relayEngine', () => ({ schedulePublish: jest.fn(), deviceId: () => 'd' }));
 
 const grupo = (id: string): Group => ({
   id, name: id, memberIds: ['yo', 'beto'], currency: 'ARS',

@@ -8,7 +8,7 @@ import { Colors } from '@/src/constants/colors';
 import { Typography } from '@/src/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Band, BandRow } from '@/src/components/Band';
-import { sinSesionDeSync } from '@/src/sync/sessionStatus';
+import { sinSesionDeSync } from '@/src/sync/sesion/sessionStatus';
 import { useLiveValue } from '@/src/hooks/useLiveValue';
 import { useEntryGateStore } from '@/src/store/entryGateStore';
 

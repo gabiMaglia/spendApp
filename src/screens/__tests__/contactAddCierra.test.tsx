@@ -7,7 +7,7 @@ import { useAuthStore } from '@/src/store/authStore';
 import { useUserStore } from '@/src/store/userStore';
 import { buildContactPayload } from '@/src/utils/contactLink';
 import { codificarContacto } from '@/src/utils/linkCompacto';
-import { ensureContactSecret } from '@/src/sync/contactChannel';
+import { ensureContactSecret } from '@/src/sync/contactos/contactChannel';
 import type { User } from '@/src/types/models';
 
 /**
@@ -34,7 +34,7 @@ jest.mock('expo-camera', () => ({
   },
   useCameraPermissions: () => [{ granted: true }, jest.fn()],
 }));
-jest.mock('@/src/sync/contactChannel', () => ({
+jest.mock('@/src/sync/contactos/contactChannel', () => ({
   ensureContactSecret: () => 'mi-secreto',
   // `true`: estos tests cubren el camino en que el anuncio SÍ llega — el mensaje
   // ahora depende del resultado real (BUG «contacto por QR queda de un solo
@@ -55,7 +55,7 @@ jest.mock('@/src/store/identityStore', () => ({
   ensureWrapKeypair: () => ({ publicKey: 'bb'.repeat(32), privateKey: 'bb'.repeat(32) }),
   saveContactInvite: jest.fn(),
 }));
-jest.mock('@/src/sync/relayEngine', () => ({ deviceId: () => 'dev-1' }));
+jest.mock('@/src/sync/motor/relayEngine', () => ({ deviceId: () => 'dev-1' }));
 
 // T-124 · SEC L-B: `esIdDeCuenta` exige al menos un dígito (forma real de
 // Google/Apple/UUID) — 'ana'/'beto' eran sólo valores de prueba cómodos.
@@ -150,7 +150,7 @@ describe('agregar contacto por QR', () => {
   // siendo de un paso, pero si las claves no coinciden con lo pinneado, tampoco se pisa
   // SOLO — T-101 agrega la salida de "Reemplazar clave" (ver tests de abajo).
   it('claves distintas a las pinneadas: el QR avisa y no persiste hasta que se confirme', () => {
-    const { hasConflictingPinnedKeys, savePeer, announceContact } = jest.requireMock('@/src/sync/contactChannel');
+    const { hasConflictingPinnedKeys, savePeer, announceContact } = jest.requireMock('@/src/sync/contactos/contactChannel');
     (hasConflictingPinnedKeys as jest.Mock).mockReturnValueOnce(true);
 
     escanearCodigo(CON_SECRETO);
@@ -167,7 +167,7 @@ describe('agregar contacto por QR', () => {
   describe('T-101 · reemplazar clave de un contacto reinstalado (sólo por QR)', () => {
     it('un miembro YA activo (no borrado) con clave nueva llega al aviso de conflicto, no a "ya existe"', () => {
       useUserStore.setState({ users: [ANA, BETO] }); // Beto ya es un contacto/miembro activo
-      const { hasConflictingPinnedKeys } = jest.requireMock('@/src/sync/contactChannel');
+      const { hasConflictingPinnedKeys } = jest.requireMock('@/src/sync/contactos/contactChannel');
       (hasConflictingPinnedKeys as jest.Mock).mockReturnValueOnce(true);
 
       escanearCodigo(CON_SECRETO);
@@ -176,7 +176,7 @@ describe('agregar contacto por QR', () => {
     });
 
     it('tocar "Reemplazar clave" pide una SEGUNDA confirmación antes de tocar nada', () => {
-      const { hasConflictingPinnedKeys, savePeer, announceContact } = jest.requireMock('@/src/sync/contactChannel');
+      const { hasConflictingPinnedKeys, savePeer, announceContact } = jest.requireMock('@/src/sync/contactos/contactChannel');
       (hasConflictingPinnedKeys as jest.Mock).mockReturnValueOnce(true);
 
       escanearCodigo(CON_SECRETO);
@@ -194,7 +194,7 @@ describe('agregar contacto por QR', () => {
     });
 
     it('confirmar dos veces reemplaza la clave pinneada y anuncia mi tarjeta', () => {
-      const { hasConflictingPinnedKeys, savePeer, announceContact } = jest.requireMock('@/src/sync/contactChannel');
+      const { hasConflictingPinnedKeys, savePeer, announceContact } = jest.requireMock('@/src/sync/contactos/contactChannel');
       (hasConflictingPinnedKeys as jest.Mock).mockReturnValueOnce(true);
 
       escanearCodigo(CON_SECRETO);
@@ -210,7 +210,7 @@ describe('agregar contacto por QR', () => {
     });
 
     it('cancelar la primera confirmación no persiste nada', () => {
-      const { hasConflictingPinnedKeys, savePeer, announceContact } = jest.requireMock('@/src/sync/contactChannel');
+      const { hasConflictingPinnedKeys, savePeer, announceContact } = jest.requireMock('@/src/sync/contactos/contactChannel');
       (hasConflictingPinnedKeys as jest.Mock).mockReturnValueOnce(true);
 
       escanearCodigo(CON_SECRETO);
@@ -223,7 +223,7 @@ describe('agregar contacto por QR', () => {
     });
 
     it('por LINK, un conflicto de claves sigue sin ofrecer reemplazo (T-093/SEC H-1 se mantiene)', () => {
-      const { hasConflictingPinnedKeys, savePeer, announceContact } = jest.requireMock('@/src/sync/contactChannel');
+      const { hasConflictingPinnedKeys, savePeer, announceContact } = jest.requireMock('@/src/sync/contactos/contactChannel');
       (hasConflictingPinnedKeys as jest.Mock).mockReturnValueOnce(true);
       mockParams = { id: 'beto1', name: 'Beto', s: SEC, w: WRAP, k: IDK_NUEVA };
 
@@ -253,7 +253,7 @@ describe('agregar contacto por LINK', () => {
 
     expect(useUserStore.getState().users.map(u => u.id)).not.toContain('beto1');
     expect(router.back).not.toHaveBeenCalled();
-    const { announceContact, savePeer } = jest.requireMock('@/src/sync/contactChannel');
+    const { announceContact, savePeer } = jest.requireMock('@/src/sync/contactos/contactChannel');
     expect(announceContact).not.toHaveBeenCalled();
     expect(savePeer).not.toHaveBeenCalled();
     expect(r.getByTestId('contact-confirm-add')).toBeTruthy();
@@ -278,13 +278,13 @@ describe('agregar contacto por LINK', () => {
     fireEvent.press(r.getByTestId('contact-confirm-cancel'));
 
     expect(useUserStore.getState().users.map(u => u.id)).not.toContain('beto1');
-    const { announceContact, savePeer } = jest.requireMock('@/src/sync/contactChannel');
+    const { announceContact, savePeer } = jest.requireMock('@/src/sync/contactos/contactChannel');
     expect(announceContact).not.toHaveBeenCalled();
     expect(savePeer).not.toHaveBeenCalled();
   });
 
   it('el link guarda las TRES claves del contacto, no sólo el secreto, recién al confirmar', () => {
-    const { savePeer } = jest.requireMock('@/src/sync/contactChannel');
+    const { savePeer } = jest.requireMock('@/src/sync/contactos/contactChannel');
     mockParams = { id: 'beto1', name: 'Beto', s: SEC, w: WRAP, k: IDK };
     const r = render(<AddContactScreen />);
     fireEvent.press(r.getByTestId('contact-confirm-add'));
@@ -293,7 +293,7 @@ describe('agregar contacto por LINK', () => {
   });
 
   it('el link COMPACTO (?c=) agrega igual tras confirmar, con las tres claves', () => {
-    const { savePeer } = jest.requireMock('@/src/sync/contactChannel');
+    const { savePeer } = jest.requireMock('@/src/sync/contactos/contactChannel');
     const h = (b: string) => b.repeat(32);
     mockParams = { c: codificarContacto({ id: '112233445566778899001', name: 'Beto', secret: h('ab'), wrapPublicKey: h('cd'), identityPublicKey: h('ef') })! };
     const r = render(<AddContactScreen />);
@@ -332,7 +332,7 @@ describe('agregar contacto por LINK', () => {
   // incluso de un contacto borrado (tombstone)— no se persiste nada, ni por
   // link ni por QR. Se avisa y se corta antes de mostrar la confirmación.
   it('claves distintas a las pinneadas: no persiste, avisa, y ni siquiera llega a mostrar la confirmación', () => {
-    const { hasConflictingPinnedKeys, savePeer, announceContact } = jest.requireMock('@/src/sync/contactChannel');
+    const { hasConflictingPinnedKeys, savePeer, announceContact } = jest.requireMock('@/src/sync/contactos/contactChannel');
     (hasConflictingPinnedKeys as jest.Mock).mockReturnValueOnce(true);
     mockParams = { id: 'beto1', name: 'Beto', s: SEC, w: WRAP, k: IDK_NUEVA };
     const r = render(<AddContactScreen />);
@@ -350,7 +350,7 @@ describe('agregar contacto por LINK', () => {
   // `drainContacts` → `savePeerFromCard`, que SÍ pinnea porque no había previo), el
   // toque de confirmar pisaba esas claves recién pinneadas con las del link.
   it('carrera: si las claves se pinnean recién DESPUÉS de abrir el link, confirmar no persiste ni pisa', () => {
-    const { hasConflictingPinnedKeys, savePeer, announceContact } = jest.requireMock('@/src/sync/contactChannel');
+    const { hasConflictingPinnedKeys, savePeer, announceContact } = jest.requireMock('@/src/sync/contactos/contactChannel');
     // Al abrir el link no hay nadie pinneado todavía: sin conflicto.
     (hasConflictingPinnedKeys as jest.Mock).mockReturnValueOnce(false);
     mockParams = { id: 'beto1', name: 'Beto', s: SEC_ATACANTE, w: WRAP_ATACANTE, k: IDK_ATACANTE };

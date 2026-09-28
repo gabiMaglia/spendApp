@@ -19,7 +19,7 @@ import type { Expense, Group } from '@/src/types/models';
  * recent activity feed".
  */
 
-jest.mock('@/src/sync/relayEngine', () => ({ schedulePublish: jest.fn(), deviceId: () => 'dev' }));
+jest.mock('@/src/sync/motor/relayEngine', () => ({ schedulePublish: jest.fn(), deviceId: () => 'dev' }));
 
 const YO = 'ana';
 const grupo = (over: Partial<Group> = {}): Group => ({

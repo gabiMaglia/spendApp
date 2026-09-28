@@ -66,10 +66,11 @@ describe('verificar-env-build', () => {
 
   it('las 6 variables son las que usa el código', () => {
     // T-192: EXPO_PUBLIC_SUPABASE_* salieron de relay.ts a relayClient.ts.
-    const relay = readFileSync(join(__dirname, '..', 'sync', 'relayClient.ts'), 'utf8');
+    // T-206-A: relayClient.ts y captchaBridge.ts se mudaron a carpetas.
+    const relay = readFileSync(join(__dirname, '..', 'sync', 'adaptadores', 'supabase', 'relayClient.ts'), 'utf8');
     const auth = readFileSync(join(__dirname, '..', '..', 'app', 'auth', 'index.tsx'), 'utf8');
     // T-147: las de Turnstile las lee el puente del captcha, no `relay.ts`.
-    const captchaBridge = readFileSync(join(__dirname, '..', 'sync', 'captchaBridge.ts'), 'utf8');
+    const captchaBridge = readFileSync(join(__dirname, '..', 'sync', 'sesion', 'captchaBridge.ts'), 'utf8');
     // T-147 (rediseño): CaptchaHost se reemplazó por TurnstileWidget (inline en verify.tsx).
     const turnstileWidget = readFileSync(join(__dirname, '..', 'components', 'TurnstileWidget.tsx'), 'utf8');
     const usadas = new Set(

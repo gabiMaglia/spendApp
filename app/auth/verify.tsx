@@ -9,9 +9,9 @@ import { useColors } from '@/src/skins/useSkin';
 import { ActionButton } from '@/src/components/ActionButton';
 import { ButtonRack } from '@/src/components/ButtonRack';
 import { TurnstileWidget } from '@/src/components/TurnstileWidget';
-import { ensureRelaySession, haySesionEnCurso } from '@/src/sync/relaySession';
-import { reconectarGoogleSilencioso, reconectarInteractivo } from '@/src/sync/accountEntry';
-import { setUltimaSesionConocida } from '@/src/sync/sessionStatus';
+import { ensureRelaySession, haySesionEnCurso } from '@/src/sync/sesion/relaySession';
+import { reconectarGoogleSilencioso, reconectarInteractivo } from '@/src/sync/sesion/accountEntry';
+import { setUltimaSesionConocida } from '@/src/sync/sesion/sessionStatus';
 import { useEntryGateStore } from '@/src/store/entryGateStore';
 import { useAuthStore } from '@/src/store/authStore';
 

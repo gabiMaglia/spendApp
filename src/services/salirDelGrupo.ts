@@ -4,8 +4,8 @@ import { usePaymentStore } from '@/src/store/paymentStore';
 import { useCommentStore } from '@/src/store/commentStore';
 import { useRecurringStore } from '@/src/store/recurringStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
-import { marcarConTopic } from '@/src/sync/pendingDrain';
-import { olvidarOfertas } from '@/src/sync/groupKeyOffers';
+import { marcarConTopic } from '@/src/sync/motor/pendingDrain';
+import { olvidarOfertas } from '@/src/sync/invitaciones/groupKeyOffers';
 
 /**
  * **Salir de un grupo, en el orden que importa** (T-089 · §5).
@@ -43,7 +43,7 @@ export async function salirDelGrupo(groupId: string, userId: string): Promise<vo
   useGroupStore.getState().leaveGroup(groupId, userId);
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { publishNow } = require('@/src/sync/relayEngine') as typeof import('@/src/sync/relayEngine');
+    const { publishNow } = require('@/src/sync/motor/relayEngine') as typeof import('@/src/sync/motor/relayEngine');
     await publishNow(groupId);
   } catch {
     /**

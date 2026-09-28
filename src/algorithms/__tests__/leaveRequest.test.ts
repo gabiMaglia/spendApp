@@ -1,8 +1,8 @@
-import { normalizarAprobacion } from '@/src/sync/leaveApprovalCore';
+import { normalizarAprobacion } from '@/src/sync/confianza/leaveApprovalCore';
 import { approversNeeded, isApprovedByAll, approvalProgress, mergeApprovals } from '../leaveRequest';
 import type { Group, LeaveRequest } from '@/src/types/models';
 
-jest.mock('@/src/sync/relayEngine', () => ({ schedulePublish: jest.fn(), deviceId: () => 'd' }));
+jest.mock('@/src/sync/motor/relayEngine', () => ({ schedulePublish: jest.fn(), deviceId: () => 'd' }));
 
 const grupo = (memberIds: string[], leaveRequest?: LeaveRequest): Group => ({
   id: 'g1', name: 'Asado', memberIds, currency: 'ARS', createdAt: 0,

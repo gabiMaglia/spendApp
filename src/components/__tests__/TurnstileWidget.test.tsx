@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, act, fireEvent } from '@testing-library/react-native';
 import { TurnstileWidget, CAPTCHA_INTERACTIVE_STUCK_MS } from '../TurnstileWidget';
-import * as bridge from '@/src/sync/captchaBridge';
+import * as bridge from '@/src/sync/sesion/captchaBridge';
 
 let mockUltimoOnMessage: ((e: { nativeEvent: { data: string } }) => void) | null = null;
 let mockUltimoProps: { style?: unknown; scalesPageToFit?: boolean } | null = null;

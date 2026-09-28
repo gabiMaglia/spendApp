@@ -65,7 +65,8 @@ describe('la prenda de escritura, del lado del cliente', () => {
     // Si alguien cableara un valor cualquiera acá, el borrado dejaría de
     // encontrar sus propios sobres sin que ningún test se caiga.
     // T-192: el envío (y este estampado) vive en relaySend.ts, no en relay.ts.
-    const relay = readFileSync(join(RAIZ, 'src', 'sync', 'relaySend.ts'), 'utf8');
+    // T-206-A: relaySend.ts se mudó a adaptadores/supabase/.
+    const relay = readFileSync(join(RAIZ, 'src', 'sync', 'adaptadores', 'supabase', 'relaySend.ts'), 'utf8');
     expect(relay).toMatch(/prendaDelAparato\(\)\?\.proof/);
   });
 });

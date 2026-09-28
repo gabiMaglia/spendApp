@@ -10,7 +10,7 @@ import { useAuthStore } from '@/src/store/authStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useNoticeInboxStore } from '@/src/store/noticeInboxStore';
-import { registrarOferta } from '@/src/sync/groupKeyOffers';
+import { registrarOferta } from '@/src/sync/invitaciones/groupKeyOffers';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import type { KeyConflictNotice } from '@/src/services/syncNotices';
 import type { User } from '@/src/types/models';

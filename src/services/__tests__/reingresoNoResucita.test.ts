@@ -3,12 +3,12 @@ import { useAuthStore } from '@/src/store/authStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
-import { marcarPendienteDeDrenaje, estaPendienteDeDrenaje } from '@/src/sync/pendingDrain';
-import { applyDelta, buildDelta } from '@/src/sync/applyDelta';
+import { marcarPendienteDeDrenaje, estaPendienteDeDrenaje } from '@/src/sync/motor/pendingDrain';
+import { applyDelta, buildDelta } from '@/src/sync/adaptadores/hushsplit/applyDelta';
 import type { Expense, Group, User } from '@/src/types/models';
 
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
-jest.mock('@/src/sync/relayEngine', () => ({
+jest.mock('@/src/sync/motor/relayEngine', () => ({
   schedulePublish: jest.fn(),
   deviceId: () => 'dev',
   olvidarCursor: jest.fn(),

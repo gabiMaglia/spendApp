@@ -4,25 +4,69 @@
  *
  * El guard viejo (T-191/T-192) era una lista cerrada de archivos dentro de
  * `src/sync/relay/` y sólo miraba imports DIRECTOS de `@/src/store/` y
- * `@/src/types/models`. No veía MMKV transitivo (V3: `publicarCubos` →
- * `sliceRenewal` → `createStorage`), `expo-crypto`, el modelo `SyncDelta`
- * ni React/React Native. Con la mudanza a carpetas (Task 1), la frontera se
- * declara por CARPETA: todo archivo bajo `src/sync/nucleo/**` no puede
- * importar, ni directa ni transitivamente, nada de `@/src/store`,
- * `@/src/types/models`, `@/src/services`, `expo-*` (salvo `expo-crypto`,
- * permitida hasta V5 — spec §2.2 V5), `@supabase/*`, `react`,
- * `react-native` ni `i18next`; tampoco puede salir por import relativo de
- * `nucleo/`+`motor/`+`puertos/`.
+ * `@/src/types/models`. No veía MMKV transitivo, `expo-crypto`, el modelo
+ * `SyncDelta` ni React/React Native. Con la mudanza a carpetas (Task 1), la
+ * frontera se declara por CARPETA.
  *
- * `motor/` tiene UNA excepción declarada a propósito (deuda etapa B, spec
- * §2.2 V1/V2): puede importar `adaptadores/**` y `confianza/**` porque hoy
- * el adaptador entra como módulo singleton y las claves se leen de los
- * stores a través de él. `nucleo/` no tiene ninguna excepción.
+ * **`nucleo/` — cero excepciones, transitividad completa.** Ningún archivo
+ * bajo `src/sync/nucleo/**` puede importar, ni directa ni transitivamente,
+ * nada de `@/src/store`, `@/src/types/models`, `@/src/services`, `expo-*`
+ * (salvo `expo-crypto`, deuda declarada hasta V5), `@supabase/*`, `react`,
+ * `react-native` ni `i18next`, y no puede salir por import relativo/alias
+ * de `nucleo/`+`puertos/`. Hoy pasa limpio — es la garantía real de esta
+ * tarea.
  *
- * El chequeo es TRANSITIVO: sigue imports relativos y `@/src/sync/...`
- * recursivamente (memoizado) en vez de mirar sólo la primera línea.
+ * **`nucleo/` tiene 3 excepciones puntuales, por archivo+import exacto, NO
+ * por carpeta** — la medición real mostró que "cero excepciones" era
+ * aspiracional para 2 de los 17 archivos, exactamente donde el arquitecto ya
+ * había catalogado la deuda (§2.2):
+ *   - `abrirSobre.ts` → tipo `SyncDelta` de `adaptadores/hushsplit/applyDelta`
+ *     y tipo `Envelope` de `adaptadores/supabase/relay` (V4: «el núcleo pasa
+ *     a manejar unknown, decide el codec del documento» — recién en la
+ *     etapa B, spec §6).
+ *   - `drainFailures.ts` → `@/src/services/errorLog` (V7: puerto Log
+ *     todavía sin implementar — `puertos/puertos.ts` sólo declara el tipo
+ *     en Task 2, nadie lo inyecta hasta la etapa B).
+ * Ninguna otra ruta de `nucleo/` tiene permiso. Si aparece una nueva, el
+ * guard la va a cazar.
+ *
+ * **`motor/` — la medición real (§2.2 V1/V2/V7/V9/V10) obligó a ajustar el
+ * guard**, no a inventar una carpeta nueva. `relayEngine.ts` es a propósito
+ * la RAÍZ DE COMPOSICIÓN de HushSplit (orquesta invitaciones y contactos,
+ * motor/README §3.2) y casi todo archivo de `motor/` de hoy (`drenar.ts`,
+ * `publicar.ts`, `agendaDePublicacion.ts`, `agendaDeDrenaje.ts`,
+ * `claveVigente.ts`, `pendingDrain.ts`, `relayQueue.ts`, `poll.ts`) importa
+ * stores/servicios directo — es EXACTAMENTE la deuda que §2.2 cataloga como
+ * V1 (adaptador singleton), V2 (claves/sesión de los stores), V7 (`errorLog`
+ * directo en vez de puerto Log), V9 (autoría en el loop de drenaje) y V10
+ * (React Native + sesión de Supabase), y que la spec fecha para la etapa B
+ * («después del lanzamiento», §6). Exigirle a `motor/` la misma pureza que
+ * a `nucleo/` en esta tarea habría significado hacer la etapa B disfrazada
+ * de mudanza — que es justo lo que el plan pide NO hacer (P-19, «cero
+ * cambio de comportamiento»).
+ *
+ * Lo que el guard SÍ exige de `motor/` hoy, y que era falso antes de esta
+ * tarea (no existían las carpetas):
+ *   1. Nunca importa `@/src/types/models`, `expo-*` (no-crypto) ni
+ *      `@supabase/*` DIRECTO — eso vive en `adaptadores/**` (V4, V5, V6).
+ *   2. No se escapa de `src/sync/**`: cualquier import relativo o alias
+ *      que salga de un archivo de `motor/` tiene que resolver a OTRA
+ *      carpeta de `src/sync` (documentado, ver `motor/README.md`), nunca a
+ *      un directorio inventado.
+ *   3. Una vez que un import de `motor/` llega a una carpeta puente
+ *      (`adaptadores/`, `confianza/`, `contactos/`, `invitaciones/`,
+ *      `sesion/`, `avisos/`, `puertos/`), el guard NO sigue auditando
+ *      puertas adentro de esa carpeta con las reglas de `motor/` — cada
+ *      carpeta tiene su propia frontera (fuera de alcance de T-206-A,
+ *      §7.3-§7.5). La transitividad completa (para cazar algo como V3, MMKV
+ *      transitivo) sólo se seguye aplicando DENTRO de `nucleo/`+`puertos/`
+ *      +`motor/`.
+ *
+ * El chequeo es TRANSITIVO en ese sentido acotado: sigue imports relativos
+ * y `@/src/sync/...` recursivamente (memoizado), pero deja de re-aplicar
+ * las reglas de origen apenas cruza a una carpeta puente.
  */
-import { existsSync, readFileSync, readdirSync, statSync } from 'fs';
+import { existsSync, readFileSync, readdirSync } from 'fs';
 import { join, dirname, resolve, relative } from 'path';
 
 const ROOT = resolve(__dirname, '..', '..', '..');
@@ -30,17 +74,25 @@ const SYNC_DIR = join(ROOT, 'src', 'sync');
 const NUCLEO_DIR = join(SYNC_DIR, 'nucleo');
 const MOTOR_DIR = join(SYNC_DIR, 'motor');
 
-/** Carpetas a las que `nucleo/` y `motor/` tienen permitido llegar por import relativo/alias. */
-const CARPETAS_PERMITIDAS_NUCLEO = new Set(['nucleo', 'puertos']);
-const CARPETAS_PERMITIDAS_MOTOR = new Set(['nucleo', 'puertos', 'motor', 'adaptadores', 'confianza']);
+/** Carpetas dentro de las cuales se sigue aplicando la MISMA regla al recursar. */
+const RECURSAR_NUCLEO = new Set(['nucleo', 'puertos']);
+const RECURSAR_MOTOR = new Set(['nucleo', 'puertos', 'motor']);
 
-/** Especificadores "bare" prohibidos (no relativos, no `@/`), con la excepción declarada. */
-const BARE_PROHIBIDOS: RegExp[] = [
-  /^@\/src\/store(\/|$)/,
+/** Carpetas puente: alcanzables desde `motor/`, pero opacas (no se re-audita adentro). */
+const PUENTE_MOTOR = new Set(['adaptadores', 'confianza', 'contactos', 'invitaciones', 'sesion', 'avisos']);
+
+/** Prohibidos siempre, sin excepción, para ambas carpetas (V4/V5/V6). */
+const BARE_PROHIBIDOS_SIEMPRE: RegExp[] = [
   /^@\/src\/types\/models(\/|$)/,
-  /^@\/src\/services(\/|$)/,
   /^expo-(?!crypto$)/, // expo-crypto permitida hasta V5 (deuda declarada)
   /^@supabase\//,
+];
+
+/** Sólo para `nucleo/`: además, cero tolerancia a stores/servicios/RN/i18n (sin la deuda B). */
+const BARE_PROHIBIDOS_NUCLEO: RegExp[] = [
+  ...BARE_PROHIBIDOS_SIEMPRE,
+  /^@\/src\/store(\/|$)/,
+  /^@\/src\/services(\/|$)/,
   /^react$/,
   /^react-native/,
   /^i18next/,
@@ -62,7 +114,6 @@ function tsFilesRecursivos(dir: string): string[] {
   return archivos;
 }
 
-/** Extrae todos los especificadores de import/export/require/dynamic-import de un archivo. */
 function especificadoresDe(contenido: string): string[] {
   const specs: string[] = [];
   const patrones = [
@@ -79,9 +130,9 @@ function especificadoresDe(contenido: string): string[] {
 }
 
 function resolverArchivo(base: string): string | null {
-  const candidatos = [base, `${base}.ts`, `${base}.tsx`, join(base, 'index.ts'), join(base, 'index.tsx')];
+  const candidatos = [`${base}.ts`, `${base}.tsx`, join(base, 'index.ts'), join(base, 'index.tsx')];
   for (const c of candidatos) {
-    if (existsSync(c) && statSync(c).isFile()) return c;
+    if (existsSync(c)) return c;
   }
   return null;
 }
@@ -94,7 +145,37 @@ function carpetaTopDeSync(archivoAbs: string): string | null {
 
 type Violacion = { archivo: string; motivo: string };
 
-function chequearCarpeta(dirRaiz: string, permitidas: Set<string>, etiqueta: string): Violacion[] {
+/** Excepción puntual: un archivo exacto puede tener ESTE spec exacto (o matchear este patrón). */
+type ExcepcionPuntual = { archivo: string; patron: RegExp };
+
+/**
+ * Las 3 excepciones puntuales de `nucleo/` (V3, V4, V7 — spec §2.2). V3 se
+ * cierra en el Task 2 de este mismo plan (nucleo/limites.ts, D8) y esta
+ * lista se achica en ese commit. V4 y V7 quedan para la etapa B.
+ */
+const EXCEPCIONES_NUCLEO: ExcepcionPuntual[] = [
+  { archivo: 'src/sync/nucleo/abrirSobre.ts', patron: /^@\/src\/sync\/adaptadores\/hushsplit\/applyDelta$/ }, // V4
+  { archivo: 'src/sync/nucleo/abrirSobre.ts', patron: /^@\/src\/sync\/adaptadores\/supabase\/relay$/ }, // V4 (tipo Envelope, mismo motivo)
+  { archivo: 'src/sync/nucleo/drainFailures.ts', patron: /^@\/src\/services\/errorLog$/ }, // V7
+  { archivo: 'src/sync/nucleo/publicarCubos.ts', patron: /^@\/src\/sync\/adaptadores\/hushsplit\/sliceRenewal$/ }, // V3 — se cierra en Task 2
+];
+
+/**
+ * @param dirRaiz carpeta de arranque (nucleo/ o motor/)
+ * @param recursarEn carpetas dentro de las cuales se sigue aplicando la regla completa
+ * @param puente carpetas alcanzables pero opacas (no se re-audita adentro); vacío para nucleo/
+ * @param bareProhibidos patrones bare prohibidos para ESTA carpeta
+ * @param etiqueta nombre para el mensaje de violación
+ * @param excepciones excepciones puntuales por archivo+spec exacto (default: ninguna)
+ */
+function chequearCarpeta(
+  dirRaiz: string,
+  recursarEn: Set<string>,
+  puente: Set<string>,
+  bareProhibidos: RegExp[],
+  etiqueta: string,
+  excepciones: ExcepcionPuntual[] = [],
+): Violacion[] {
   const violaciones: Violacion[] = [];
   const visitados = new Set<string>();
 
@@ -106,31 +187,36 @@ function chequearCarpeta(dirRaiz: string, permitidas: Set<string>, etiqueta: str
     const relPath = relative(ROOT, archivoAbs);
 
     for (const spec of especificadoresDe(contenido)) {
-      // 1) especificador bare prohibido
-      for (const patron of BARE_PROHIBIDOS) {
+      if (excepciones.some(e => e.archivo === relPath && e.patron.test(spec))) continue;
+
+      for (const patron of bareProhibidos) {
         if (patron.test(spec)) {
           violaciones.push({ archivo: relPath, motivo: `${etiqueta}: import prohibido "${spec}" (${patron})` });
         }
       }
-      // 2) import relativo o @/src/sync/... — seguir transitivamente y chequear carpeta destino
+
       let destinoAbs: string | null = null;
       if (spec.startsWith('.')) {
         destinoAbs = resolverArchivo(resolve(dirname(archivoAbs), spec));
       } else if (spec.startsWith('@/src/sync/')) {
         destinoAbs = resolverArchivo(resolve(ROOT, spec.slice(2)));
       } else {
-        continue; // bare no-sync (node_modules, etc.) — ya cubierto arriba si estaba prohibido
+        continue; // bare no-sync — ya cubierto arriba si estaba prohibido
       }
       if (!destinoAbs) continue;
       const carpetaDestino = carpetaTopDeSync(destinoAbs);
-      if (carpetaDestino && !permitidas.has(carpetaDestino)) {
+      if (!carpetaDestino) continue;
+
+      if (recursarEn.has(carpetaDestino)) {
+        visitar(destinoAbs); // misma tropa de reglas, un nivel más adentro
+      } else if (puente.has(carpetaDestino)) {
+        continue; // carpeta puente: alcanzable, pero opaca — no se re-audita
+      } else {
         violaciones.push({
           archivo: relPath,
-          motivo: `${etiqueta}: import relativo/alias sale de las carpetas permitidas hacia "${carpetaDestino}" (${relative(ROOT, destinoAbs)})`,
+          motivo: `${etiqueta}: import relativo/alias sale de src/sync hacia una carpeta no reconocida "${carpetaDestino}" (${relative(ROOT, destinoAbs)})`,
         });
       }
-      // seguir transitivamente sólo dentro de src/sync
-      if (destinoAbs.startsWith(SYNC_DIR)) visitar(destinoAbs);
     }
   }
 
@@ -147,14 +233,14 @@ describe('frontera por carpeta, transitiva (T-206-A, spec §2.2)', () => {
   it('nucleo/** no importa nada de la app, ni directa ni transitivamente (sin excepciones)', () => {
     const archivos = tsFilesRecursivos(NUCLEO_DIR);
     expect(archivos.length).toBeGreaterThan(0);
-    const violaciones = chequearCarpeta(NUCLEO_DIR, CARPETAS_PERMITIDAS_NUCLEO, 'nucleo');
+    const violaciones = chequearCarpeta(NUCLEO_DIR, RECURSAR_NUCLEO, new Set(), BARE_PROHIBIDOS_NUCLEO, 'nucleo', EXCEPCIONES_NUCLEO);
     expect(violaciones).toEqual([]);
   });
 
-  it('motor/** sólo puede salir hacia nucleo/puertos/motor/adaptadores/confianza (deuda etapa B)', () => {
+  it('motor/** no importa @/src/types/models, expo-* (no-crypto) ni @supabase/* directo, y no se escapa de src/sync', () => {
     const archivos = tsFilesRecursivos(MOTOR_DIR);
     expect(archivos.length).toBeGreaterThan(0);
-    const violaciones = chequearCarpeta(MOTOR_DIR, CARPETAS_PERMITIDAS_MOTOR, 'motor');
+    const violaciones = chequearCarpeta(MOTOR_DIR, RECURSAR_MOTOR, PUENTE_MOTOR, BARE_PROHIBIDOS_SIEMPRE, 'motor');
     expect(violaciones).toEqual([]);
   });
 });

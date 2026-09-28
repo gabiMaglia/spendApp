@@ -1,5 +1,5 @@
 import { trustOf, isMarked, type TrustState } from '../recordTrust';
-import { recordStats, type RecordVerdict } from '@/src/sync/recordHealth';
+import { recordStats, type RecordVerdict } from '@/src/sync/confianza/recordHealth';
 
 /**
  * **Qué marca le corresponde a un veredicto** (T-041 · S10).

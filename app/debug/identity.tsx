@@ -9,19 +9,19 @@ import { Typography } from '@/src/constants/typography';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
-import { isRelayConfigured } from '@/src/sync/relay';
-import { ensureContactSecret, listPeers, peersIncompletos } from '@/src/sync/contactChannel';
+import { isRelayConfigured } from '@/src/sync/adaptadores/supabase/relay';
+import { ensureContactSecret, listPeers, peersIncompletos } from '@/src/sync/contactos/contactChannel';
 import {
   registerDeviceKey, fetchAccountKeys, verifyMyKeyRegistered,
-} from '@/src/sync/deviceKeys';
-import { unverifiedAuthors, authorStats } from '@/src/sync/authorHealth';
+} from '@/src/sync/confianza/deviceKeys';
+import { unverifiedAuthors, authorStats } from '@/src/sync/confianza/authorHealth';
 import {
   recordStats, verifyCost, unverifiableBreakdown, invalidRecords, benchmarkVerify,
-} from '@/src/sync/recordHealth';
-import { signingAuthors } from '@/src/sync/ratchet';
+} from '@/src/sync/confianza/recordHealth';
+import { signingAuthors } from '@/src/sync/confianza/ratchet';
 import { useLiveValue } from '@/src/hooks/useLiveValue';
-import { blockingFailures } from '@/src/sync/publishHealth';
-import { omittedCount } from '@/src/sync/recordHealth';
+import { blockingFailures } from '@/src/sync/motor/publishHealth';
+import { omittedCount } from '@/src/sync/confianza/recordHealth';
 import { clockOffsetMs, hasClockReference, clockIsOff } from '@/src/utils/syncedClock';
 import { ensureIdentity } from '@/src/store/identityStore';
 import { useExpenseStore } from '@/src/store/expenseStore';

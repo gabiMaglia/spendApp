@@ -1,5 +1,5 @@
 import { canonical, type Syncable } from './lww';
-import { canonicalCore, coreFieldsOf, type CoreKind, type CoreRecord } from '@/src/sync/recordCore';
+import { canonicalCore, coreFieldsOf, type CoreKind, type CoreRecord } from '@/src/sync/confianza/recordCore';
 import { mergeApprovals } from '@/src/algorithms/leaveRequest';
 import { envenenado } from './relojDelMerge';
 import { unirDisputa } from '@/src/algorithms/autoria';

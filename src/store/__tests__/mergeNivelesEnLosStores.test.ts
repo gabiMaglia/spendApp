@@ -1,6 +1,6 @@
 import { ed25519 } from '@noble/curves/ed25519.js';
-import { signCore, verifyCore } from '@/src/sync/recordSign';
-import { toHex } from '@/src/sync/hexBytes';
+import { signCore, verifyCore } from '@/src/sync/confianza/recordSign';
+import { toHex } from '@/src/sync/nucleo/hexBytes';
 import { useExpenseStore } from '../expenseStore';
 import { usePaymentStore } from '../paymentStore';
 import { useCommentStore } from '../commentStore';
@@ -23,7 +23,7 @@ import type { Expense, Payment, User } from '@/src/types/models';
  * viejos — sin falsificar ninguna firma, así que ninguna verificación lo ve.
  */
 
-jest.mock('@/src/sync/relayEngine', () => ({
+jest.mock('@/src/sync/motor/relayEngine', () => ({
   schedulePublish: jest.fn(),
   deviceId: () => 'dev',
 }));

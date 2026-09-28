@@ -33,7 +33,7 @@ const PATRON_LITERAL = /\bmemberIds\s*:/;
  */
 const ALLOWLIST = new Set<string>([
   'src/types/models.ts',           // declaración de tipo: Group Y RecurringExpense
-  'src/sync/recordCore.ts',        // GROUP_SLOTS: mapa de clasificación, no una instancia
+  'src/sync/confianza/recordCore.ts', // GROUP_SLOTS: mapa de clasificación, no una instancia (T-206-A: mudanza)
   'src/algorithms/buildSplits.ts', // parámetro de función (string[]), no un Group
   'src/algorithms/calculateBalances.ts', // idem
   'src/components/GroupCard.tsx',  // prop de componente (string[]), no un Group

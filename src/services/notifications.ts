@@ -3,8 +3,8 @@ import { formatMoney } from '@/src/constants/currencies';
 import { useSettingsStore } from '@/src/store/settingsStore';
 import { nombreDeGrupoEnConflicto, type KeyConflictNotice, type Notice } from './syncNotices';
 import { useNoticeInboxStore } from '@/src/store/noticeInboxStore';
-import { claveDeFalloDeSync } from '@/src/sync/publishHealth';
-import { MAX_MIEMBROS } from '@/src/sync/topes';
+import { claveDeFalloDeSync } from '@/src/sync/motor/publishHealth';
+import { MAX_MIEMBROS } from '@/src/sync/nucleo/topes';
 import { yaSeAviso, marcarAvisado } from './noticeDedupe';
 
 /**

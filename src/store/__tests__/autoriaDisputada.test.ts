@@ -1,13 +1,13 @@
 import { ed25519 } from '@noble/curves/ed25519.js';
 import { mergeRecord, mergeByIdLevels } from '../mergeLevels';
-import { toHex } from '@/src/sync/hexBytes';
-import { signCore } from '@/src/sync/recordSign';
-import { rememberAuthorKey, forgetAuthorKeys } from '@/src/sync/authorKeys';
+import { toHex } from '@/src/sync/nucleo/hexBytes';
+import { signCore } from '@/src/sync/confianza/recordSign';
+import { rememberAuthorKey, forgetAuthorKeys } from '@/src/sync/confianza/authorKeys';
 import * as errorLog from '@/src/services/errorLog';
 import { useExpenseStore } from '../expenseStore';
 import type { Expense, NucleoDisputado } from '@/src/types/models';
 
-jest.mock('@/src/sync/relayEngine', () => ({ schedulePublish: jest.fn(), deviceId: () => 'dev' }));
+jest.mock('@/src/sync/motor/relayEngine', () => ({ schedulePublish: jest.fn(), deviceId: () => 'dev' }));
 
 /**
  * T-170 · D-2. El literal del backlog («autor distinto → el entrante no gana») no

@@ -1,12 +1,12 @@
 import { useExpenseStore } from '../expenseStore';
 import { useGroupStore } from '../groupStore';
-import { applyDelta, type SyncDelta } from '@/src/sync/applyDelta';
+import { applyDelta, type SyncDelta } from '@/src/sync/adaptadores/hushsplit/applyDelta';
 import { syncedNow } from '@/src/utils/syncedClock';
 import { TOLERANCIA_RELOJ_MS } from '@/src/store/relojDelMerge';
 import type { Expense, Group } from '@/src/types/models';
 
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
-jest.mock('@/src/sync/relayEngine', () => ({ schedulePublish: jest.fn(), deviceId: () => 'dev' }));
+jest.mock('@/src/sync/motor/relayEngine', () => ({ schedulePublish: jest.fn(), deviceId: () => 'dev' }));
 /**
  * `syncedNow()` se mockea (D2 del verifier, `engram/qa/T-144-verifier.md`):
  * varios casos de abajo necesitan distinguir "el store usó SU default" de "el

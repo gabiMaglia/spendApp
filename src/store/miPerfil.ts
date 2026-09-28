@@ -46,7 +46,7 @@ export function actualizarMiPerfil(cambios: Partial<User>): User | null {
 function anunciar(): void {
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { anunciarMiTarjeta } = require('@/src/sync/relayEngine');
+    const { anunciarMiTarjeta } = require('@/src/sync/motor/relayEngine');
     void anunciarMiTarjeta();
   } catch {
     // Sin canal de contactos el perfil se guarda igual: el cambio llega por el

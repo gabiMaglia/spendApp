@@ -9,7 +9,7 @@ import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import {
   sendEnvelope, fetchSince, subscribeTopic, isRelayConfigured, type Envelope,
-} from '@/src/sync/relay';
+} from '@/src/sync/adaptadores/supabase/relay';
 import { SoloEnDesarrollo } from '@/src/components/SoloEnDesarrollo';
 import { useColors } from '@/src/skins/useSkin';
 

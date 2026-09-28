@@ -13,8 +13,8 @@ import { useAuthStore } from '@/src/store/authStore';
 import { useGroupKeyStore, type GroupKeyRecord } from '@/src/store/groupKeyStore';
 import { conAlta, rosterDe } from '@/src/algorithms/roster';
 import { esYo } from '@/src/store/identityAlias';
-import { schedulePublish } from '@/src/sync/relayEngine';
-import { marcarConTopic } from '@/src/sync/pendingDrain';
+import { schedulePublish } from '@/src/sync/motor/relayEngine';
+import { marcarConTopic } from '@/src/sync/motor/pendingDrain';
 import { syncedNow } from '@/src/utils/syncedClock';
 
 /**
