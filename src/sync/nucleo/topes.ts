@@ -4,7 +4,7 @@
  * Nada acotaba lo que un miembro puede meter en un registro: una `note` de
  * megabytes o un `memberIds` de miles entraba al merge sin medirse, se
  * republicaba «entero» desde todos los teléfonos honestos y, si pasaba de
- * `MAX_SLICE_BYTES`, cada uno fallaba `too_large` al publicar — el grupo
+ * `MAX_REGISTRO_BYTES`, cada uno fallaba `too_large` al publicar — el grupo
  * dejaba de sincronizar para siempre por culpa de un solo registro.
  *
  * **Ronda 2 — enmienda del PO 2026-09-26** (tras QA+verifier RECHAZADO,

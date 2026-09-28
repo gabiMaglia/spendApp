@@ -18,9 +18,11 @@ import { SPLIT_BYTES } from './limites';
  * Objetivo de tamaño por cubo (spec §8, C3 — decisión del PO, opción B):
  * 192 KB. Con esto un campo se queda en 16 cubos (d=1) hasta ~6.000 gastos;
  * subir a d=2 (256 cubos) recién hace falta para grupos mucho más grandes.
- * El tope duro sigue siendo `MAX_SLICE_BYTES` de `ckey.ts` (256 KB) — un
- * cubo que lo supera a profundidad máxima se publica igual y `sendEnvelope`
- * lo rechaza, como ya pasa hoy con un registro individual gigante.
+ * El tope duro sigue siendo `MAX_REGISTRO_BYTES` de `limites.ts` (256 KB;
+ * T-206-A/D3 sacó el alias `MAX_SLICE_BYTES` de `ckey.ts` — no tenía
+ * consumidores reales) — un cubo que lo supera a profundidad máxima se
+ * publica igual y `sendEnvelope` lo rechaza, como ya pasa hoy con un
+ * registro individual gigante.
  *
  * T-206-A (D8): la constante en sí vive en `limites.ts` (single source);
  * se re-exporta acá porque `SPLIT_BYTES` es la API pública de ESTE módulo

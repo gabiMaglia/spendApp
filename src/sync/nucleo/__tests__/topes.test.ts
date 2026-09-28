@@ -2,9 +2,8 @@ import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import {
   excesoDe, byteLengthUtf8, truncar, admiteUnMiembroMas,
-  MAX_TEXTO_CORTO, MAX_NOTA, MAX_MIEMBROS, MAX_REGISTRO_BYTES,
+  MAX_TEXTO_CORTO, MAX_NOTA, MAX_MIEMBROS,
 } from '../topes';
-import { MAX_SLICE_BYTES } from '../ckey';
 
 describe('byteLengthUtf8', () => {
   it('cuenta bytes reales, no unidades UTF-16', () => {
@@ -76,9 +75,11 @@ describe('excesoDe — qué tope viola un registro (ronda 2: sólo bytes + miemb
     expect(excesoDe({ id: 'e1', description: 123, memberIds: 'no-es-array' })).toBeNull();
   });
 
-  it('el tope duro es el mismo que el de las rebanadas', () => {
-    expect(MAX_REGISTRO_BYTES).toBe(MAX_SLICE_BYTES);
-  });
+  // T-206-A (D3): acá había un test que comparaba `MAX_REGISTRO_BYTES` contra
+  // `MAX_SLICE_BYTES` (`ckey.ts`) — dos nombres para el mismo valor, que
+  // podían separarse por error hasta D8 (Task 2), cuando los dos pasaron a
+  // importar la MISMA constante de `limites.ts`. D3 borró el alias por no
+  // tener consumidores reales; con un solo nombre no queda nada que comparar.
 
   // D2 (verifier): un tombstone nunca se excluye por contenido — ni texto (ya
   // cubierto arriba, es global) ni memberIds heredados de antes del borrado.

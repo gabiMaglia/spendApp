@@ -12,7 +12,11 @@
  * (spec §2.2 V3). Este archivo no importa nada: es una hoja.
  *
  * Cada sitio que antes declaraba su propia constante ahora la re-exporta
- * desde acá (mismo nombre, mismo valor — cero cambio de comportamiento).
+ * desde acá (mismo nombre, mismo valor — cero cambio de comportamiento),
+ * salvo `ckey.ts#MAX_SLICE_BYTES`: no tenía ningún consumidor real fuera de
+ * un test que comparaba los dos nombres entre sí, así que D3 lo borró en vez
+ * de re-exportarlo — quien necesite este tope importa `MAX_REGISTRO_BYTES`
+ * directo de acá.
  */
 
 /** Timeout de un envío (publicación de un cubo o de la foto de perfil). */
