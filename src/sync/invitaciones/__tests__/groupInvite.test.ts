@@ -2,8 +2,12 @@ import {
   generateIdentity, generateWrapKeypair, fingerprint,
   createInvite, inviteToLink, parseInviteLink, inviteFromParams, isInviteExpired,
   deriveInviteTopic, sealClaim, openClaim, sealGrant, openGrant,
-  wrapGroupKey, unwrapGroupKey, V1_ACEPTADO_HASTA, type InviteClaim, type UnsignedGrant,
+  wrapGroupKey, unwrapGroupKey, type InviteClaim, type UnsignedGrant,
 } from '../groupInvite';
+// T-206-A (D9): `V1_ACEPTADO_HASTA` es de `groupKeyWrap.ts` (su dueño) —
+// `groupInvite.ts` dejó de re-exportarla por no tener consumidores de
+// producción (sólo la usaba este test).
+import { V1_ACEPTADO_HASTA } from '../groupKeyWrap';
 import { openEnvelope, sealEnvelope, fromHex } from '@/src/sync/nucleo/envelopeCrypto';
 import * as Crypto from 'expo-crypto';
 import { x25519 } from '@noble/curves/ed25519.js';
