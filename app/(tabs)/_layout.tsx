@@ -87,6 +87,9 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
+        // T-202: pausa el re-render de las tabs que NO se ven (requiere
+        // `enableFreeze(true)` en `app/_layout.tsx`) — ver el comentario ahí.
+        freezeOnBlur: true,
         tabBarButton: HapticTab,
         tabBarActiveTintColor:   c.brand.primary,
         tabBarInactiveTintColor: c.textTertiary,

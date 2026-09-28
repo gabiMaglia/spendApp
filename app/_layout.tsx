@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { enableFreeze } from 'react-native-screens';
 import 'react-native-reanimated';
 import 'react-native-get-random-values';
 
@@ -41,6 +42,21 @@ installNotificationHandler();
  * —es API interna de React Native—, esto no hace nada y la app arranca igual.
  */
 installGlobalErrorHandler();
+
+/**
+ * T-202 (PO, rendimiento en gama baja): las cuatro tabs quedan MONTADAS
+ * después de la primera visita (`lazy` de expo-router/React Navigation, que
+ * es `true` por default, no cambia). Sin esto, una tab en segundo plano sigue
+ * re-renderizando con CUALQUIER cambio de store —un aviso, un gasto que
+ * llega por sync— aunque no se vea; en un aparato de gama baja esos renders
+ * de fondo compiten por el mismo hilo de JS con la animación de cambiar de
+ * tab, y eso es lo que se siente como demora al entrar. `enableFreeze()` es
+ * el interruptor global (react-native-screens); `freezeOnBlur` en cada
+ * `Tabs.Screen` (`app/(tabs)/_layout.tsx`) es lo que lo activa por pantalla.
+ * Sin cambio de comportamiento: la tab VISIBLE sigue actualizándose en vivo
+ * igual que siempre, esto sólo pausa las que no se ven.
+ */
+enableFreeze(true);
 
 export const unstable_settings = {
   anchor: '(tabs)',
