@@ -1,6 +1,6 @@
 import { renderHook, waitFor } from '@testing-library/react-native';
-import { recordManifestCheck, clearManifestGaps } from '../manifestHealth';
-import { useManifestGap } from '@/src/sync/avisos/useManifestGap';
+import { recordManifestCheck, clearManifestGaps } from '@/src/sync/nucleo/manifestHealth';
+import { useManifestGap } from '@/src/hooks/useManifestGap';
 
 describe('useManifestGap', () => {
   beforeEach(() => clearManifestGaps());

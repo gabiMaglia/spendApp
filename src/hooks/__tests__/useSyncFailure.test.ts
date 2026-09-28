@@ -1,4 +1,4 @@
-import { claveDeFalloDeSync } from '../useSyncFailure';
+import { claveDeFalloDeSync } from '@/src/hooks/useSyncFailure';
 import type { BlockingReason } from '@/src/sync/motor/publishHealth';
 import { recordPublish, clearPublishFailures, blockingFailures } from '@/src/sync/motor/publishHealth';
 

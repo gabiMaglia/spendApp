@@ -29,14 +29,14 @@ jest.mock('expo-router', () => ({
 }));
 
 const mockUseManifestGap = jest.fn((_groupId: string) => false);
-jest.mock('@/src/sync/avisos/useManifestGap', () => ({
+jest.mock('@/src/hooks/useManifestGap', () => ({
   useManifestGap: (groupId: string) => mockUseManifestGap(groupId),
 }));
 
 const mockUseGroupSyncFailure = jest.fn(
   (_groupId: string) => null as null | { reason: 'too_large' | 'no_key' },
 );
-jest.mock('@/src/sync/avisos/useSyncFailure', () => ({
+jest.mock('@/src/hooks/useSyncFailure', () => ({
   useGroupSyncFailure: (groupId: string) => mockUseGroupSyncFailure(groupId),
   claveDeFalloDeSync: (reason: string) => `sync.failure_${reason}`,
 }));
