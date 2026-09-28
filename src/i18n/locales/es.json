@@ -150,6 +150,7 @@
     "limit_warning_action": "Crear grupo nuevo",
     "limit_blocked_hint": "Este grupo llegó al límite de 450 gastos — traspasalo a uno nuevo desde su pantalla de detalle",
     "traspaso_manual_action": "Traspasar a grupo nuevo",
+    "traspaso_carry_over_hint": "Los saldos pendientes de cada persona se trasladan al grupo nuevo",
     "traspaso_confirm_title": "¿Traspasar este grupo?",
     "traspaso_confirm_body": "Se crea un grupo nuevo con los mismos miembros. Este grupo ({{count}} gastos) queda archivado y de solo lectura para siempre.",
     "traspaso_confirm_action": "Sí, traspasar",
