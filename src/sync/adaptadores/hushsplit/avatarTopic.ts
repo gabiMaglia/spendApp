@@ -6,17 +6,41 @@ import { sendEnvelope, fetchSince } from '../supabase/relay';
 import { ensureIdentity } from '@/src/store/identityStore';
 import { groupKeyBytes } from '@/src/store/groupKeyStore';
 import { useUserStore } from '@/src/store/userStore';
-import { recordSlicePublished, staleSliceCkeys } from './sliceRenewal';
+import { leerCubo, registrarCubo } from '@/src/sync/nucleo/sliceLedger';
+import { almacen } from './adaptadorHushSplit';
 import { digestOfJson } from '@/src/sync/nucleo/manifest';
-import { TIMEOUT_ENVIO_MS } from '@/src/sync/nucleo/limites';
+import { TIMEOUT_ENVIO_MS, RENEWAL_WINDOW_MS } from '@/src/sync/nucleo/limites';
 
 /**
- * Ventana de la caché negativa de intentos de fetch (hallazgo #4 de la
- * revisión de Task 9): una foto que todavía no está en el buzón (el
- * publicador no la mandó, o expiró) no debe reintentarse en CADA drenaje
- * (cada ~15min) — sólo ocasionalmente, hasta que aparezca.
+ * `ckey` fija dentro del topic de la foto propia (T-206-A D12): el topic ya
+ * es único por `(clave de grupo, userId, digest)`, así que no hay sub-cubos
+ * que distinguir — `leerCubo`/`registrarCubo` piden una `ckey` de todos modos
+ * porque comparten forma con el ledger de cubos de datos (`publicarCubos.ts`).
  */
+const AVATAR_LEDGER_CKEY = 'propia';
+
+/**
+ * Caché negativa de intentos de fetch (hallazgo #4 de la revisión de Task 9):
+ * una foto que todavía no está en el buzón (el publicador no la mandó, o
+ * expiró) no debe reintentarse en CADA drenaje (cada ~15min) — sólo
+ * ocasionalmente, hasta que aparezca.
+ *
+ * T-206-A (D12): antes vivía en `sliceRenewal.ts` (MMKV, marcador
+ * `avatar-attempt:...`), compartiendo storage con la renovación de rebanadas
+ * que ese archivo también resolvía. Con `sliceRenewal.ts` borrado (la
+ * renovación de la foto propia pasó al ledger de cubos, ver
+ * `publishAvatarIfOwn` más abajo), esto queda como lo que siempre fue: un
+ * freno de red, no un dato — no necesita sobrevivir un restart de la app (el
+ * peor caso de perderlo es reintentar un fetch que ya sabíamos que iba a
+ * fallar), así que pasa a un `Map` en memoria del módulo.
+ */
+const intentosDeFetch = new Map<string, number>();
 const AVATAR_FETCH_RETRY_WINDOW_MS = 5 * 60 * 1000;
+
+function fueraDeVentanaDeReintento(marcador: string, ahora: number): boolean {
+  const ultimo = intentosDeFetch.get(marcador);
+  return ultimo === undefined || ahora - ultimo > AVATAR_FETCH_RETRY_WINDOW_MS;
+}
 
 /**
  * T-206-A (D8): mismo valor que `PUBLICACION_TIMEOUT_MS` (`motor/publicar.ts`)
@@ -53,12 +77,24 @@ export async function deriveAvatarTopic(
 /**
  * Publica la foto propia en su topic si cambió desde la última vez.
  *
- * El "cambió" se mide por digest, no por contenido byte a byte: mismo digest
- * = misma foto = nada que hacer. La dedup reutiliza `sliceRenewal.ts` (Task 8)
- * con un marcador propio (`avatar:<userId>:<digest>`) en vez de una `ckey` —
- * es el mismo problema ("¿ya publiqué esto?") con una clave distinta, no una
- * rebanada de compactación: la foto no es compactable entre digests, cada uno
- * tiene su topic propio y nunca reemplaza al anterior.
+ * T-206-A (D12): antes la dedup vivía en `sliceRenewal.ts` (MMKV, marcador
+ * propio `avatar:<userId>:<digest>`). Ahora reutiliza el MISMO ledger de
+ * cubos que `nucleo/publicarCubos.ts` usa para los cubos de datos
+ * (`sliceLedger.ts#leerCubo`/`registrarCubo`, con el `almacen` del
+ * adaptador) — la regla es exactamente la que ya aplica
+ * `publicarCubos.ts:84-87`: se publica si "cambió el digest o venció
+ * `RENEWAL_WINDOW_MS`". Acá el `topic` de la foto YA es único por digest
+ * (`deriveAvatarTopic`), así que `leerCubo` sobre ese topic sólo puede
+ * encontrar una entrada con ESE mismo digest o ninguna — el chequeo de
+ * `cambio` queda para cuando el ledger todavía no vio este digest (primera
+ * vez, o tras perder el storage), y `vencido` para cuando sí lo vio pero hace
+ * más de `RENEWAL_WINDOW_MS`.
+ *
+ * Migración: el marcador viejo de `sliceRenewal.ts` (bucket `slice-renewal`)
+ * no se lee más — la primera publicación después de este cambio no encuentra
+ * nada en el ledger nuevo y republica la foto una vez, aunque no haya
+ * cambiado. Es inocuo (mismo mecanismo de "no reemplaza, sólo agrega" que ya
+ * usa cada digest) y no se repite en publicaciones siguientes.
  *
  * No-op silencioso si no hay clave de grupo, o si el usuario no tiene foto
  * propia — no hay nada que publicar.
@@ -75,14 +111,20 @@ export async function publishAvatarIfOwn(
   if (!propio?.avatar) return; // sin foto propia, nada que referenciar
 
   const digest = await digestOfJson(propio.avatar);
-  const marcador = `avatar:${currentUserId}:${digest}`;
-  if (staleSliceCkeys([marcador], Date.now()).length === 0) return; // ya publicada, sin cambios
-
   const topic = await deriveAvatarTopic(key, currentUserId, digest);
+
+  const ahora = Date.now();
+  const entradaLedger = leerCubo(almacen, topic, deviceId, AVATAR_LEDGER_CKEY);
+  const cambio = !entradaLedger || entradaLedger.digest !== digest;
+  const vencido = !!entradaLedger && (ahora - entradaLedger.publicadaEn > RENEWAL_WINDOW_MS);
+  if (!cambio && !vencido) return; // ya publicada, sin cambios ni vencimiento
+
   const sealed = sealEnvelope(key, propio.avatar);
   const firmado = signEnvelope(sealed, ensureIdentity().privateKey);
   // No compactable: distintos digests son distintos topics, nunca se
-  // reemplazan entre sí, así que no hace falta (ni corresponde) una `ckey`.
+  // reemplazan entre sí, así que no hace falta (ni corresponde) una `ckey`
+  // del lado del transporte (`sendEnvelope`) — la `ckey` del ledger de arriba
+  // es un concepto aparte, interno a este módulo.
   //
   // T-191 (verifier, cuarta tanda): esta función corre DENTRO de
   // `antesDePublicar`, que desde el fix de M2 corre al turno de
@@ -99,7 +141,9 @@ export async function publishAvatarIfOwn(
     setTimeout(() => { controller.abort(); resolve(TIMEOUT); }, AVATAR_TIMEOUT_MS);
   });
   const resultado = await Promise.race([cruda, venciendo]);
-  if (resultado !== TIMEOUT && resultado.ok) recordSlicePublished(marcador, Date.now());
+  if (resultado !== TIMEOUT && resultado.ok) {
+    registrarCubo(almacen, topic, deviceId, AVATAR_LEDGER_CKEY, digest, ahora);
+  }
 }
 
 /**
@@ -110,7 +154,7 @@ export async function publishAvatarIfOwn(
  * Si todavía no llegó al buzón (el publicador la mandó pero el sobre no
  * aterrizó, o el publicador nunca la mandó porque el usuario recién ahora la
  * está pidiendo otro miembro), no es un error: se reintenta, pero no en CADA
- * drenaje — la caché negativa de abajo (marcador `avatar-attempt:...`) lo
+ * drenaje — la caché negativa de abajo (`intentosDeFetch`, en memoria) lo
  * espacía a lo sumo cada `AVATAR_FETCH_RETRY_WINDOW_MS`.
  *
  * **Hallazgo #1 de la revisión (Critical):** el guard de "¿ya la tengo?" NO
@@ -145,9 +189,10 @@ export async function fetchAvatarIfMissing(
   // versión (userId+digest) fue hace menos de la ventana corta, no se
   // reintenta todavía — evita machacar la red cada ~15min con un fetch que ya
   // sabemos que puede fallar (foto aún no publicada, o expirada).
-  const marcadorIntento = `avatar-attempt:${userId}:${avatarDigest}`;
-  if (staleSliceCkeys([marcadorIntento], Date.now(), AVATAR_FETCH_RETRY_WINDOW_MS).length === 0) return;
-  recordSlicePublished(marcadorIntento, Date.now());
+  const marcadorIntento = `${userId}:${avatarDigest}`;
+  const ahora = Date.now();
+  if (!fueraDeVentanaDeReintento(marcadorIntento, ahora)) return;
+  intentosDeFetch.set(marcadorIntento, ahora);
 
   const topic = await deriveAvatarTopic(key, userId, avatarDigest);
   const resultado = await fetchSince(topic, 0);

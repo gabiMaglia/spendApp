@@ -17,13 +17,13 @@ import { join } from 'path';
 import { generateGroupKey } from '@/src/sync/nucleo/envelopeCrypto';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { useUserStore } from '@/src/store/userStore';
+import { useAuthStore } from '@/src/store/authStore';
 import { deriveAvatarTopic, publishAvatarIfOwn, fetchAvatarIfMissing } from '../avatarTopic';
 
 jest.mock('../../supabase/relay', () => ({
   sendEnvelope: jest.fn(async () => ({ ok: true, seq: 1 })),
   fetchSince: jest.fn(async () => ({ ok: true, envelopes: [] })),
 }));
-// eslint-disable-next-line @typescript-eslint/no-var-requires
 const relayMock = jest.requireMock('../../supabase/relay') as {
   sendEnvelope: jest.Mock;
   fetchSince: jest.Mock;
@@ -61,6 +61,7 @@ describe('publishAvatarIfOwn — dedup por ledger de cubos (D12)', () => {
     relayMock.sendEnvelope.mockResolvedValue({ ok: true, seq: 1 });
     groupId = `G-${Math.random()}`;
     userId = `u-${Math.random()}`;
+    useAuthStore.setState({ currentUser: { id: userId } } as never);
     useGroupKeyStore.setState({ keys: [] });
     useGroupKeyStore.getState().ensureKey(groupId);
   });
@@ -125,6 +126,7 @@ describe('fetchAvatarIfMissing — caché negativa de reintentos en memoria (D12
     relayMock.fetchSince.mockClear();
     relayMock.fetchSince.mockResolvedValue({ ok: true, envelopes: [] }); // sigue sin llegar al buzón
     userId = `u-${Math.random()}`;
+    useAuthStore.setState({ currentUser: { id: 'victima' } } as never);
     useGroupKeyStore.setState({ keys: [] });
     useGroupKeyStore.getState().ensureKey(groupId);
     useUserStore.getState().addOrUpdateUser({
