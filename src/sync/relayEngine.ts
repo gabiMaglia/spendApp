@@ -26,6 +26,8 @@ import { processAllContactInvites } from './contactInviteEngine';
 import { avisarConflictosDelDrenaje } from './keyConflictNotice';
 import { verifyMyKeyRegistered } from './deviceKeys';
 import { withTimeout } from '@/src/utils/withTimeout';
+import { readCursor, writeCursor, deviceId } from './relay/cursor';
+export { readCursor, writeCursor, olvidarCursor, deviceId } from './relay/cursor';
 
 /** T-138-bis: ver `anunciarMiTarjeta`. */
 const ANUNCIO_TIMEOUT_MS = 8_000;
@@ -55,7 +57,6 @@ import { encolar, vaciarCola } from './relayQueue';
  */
 
 const storage = createSecureStorage('groupkeys');
-const CURSOR_PREFIX = 'cursor::';
 
 /**
  * Cada cuánto se relee todo mientras la app está en primer plano.
@@ -101,34 +102,6 @@ export function intervaloDePoll(): number {
 
 /** Ventana de agrupación: suficiente para juntar una edición, imperceptible. */
 export const PUBLISH_DEBOUNCE_MS = 1_500;
-
-export function readCursor(topic: string): number {
-  const raw = storage.getString(CURSOR_PREFIX + topic);
-  const n = raw ? Number(raw) : 0;
-  return Number.isFinite(n) ? n : 0;
-}
-
-export function writeCursor(topic: string, seq: number): void {
-  storage.set(CURSOR_PREFIX + topic, String(seq));
-}
-
-/**
- * Olvida el cursor de un topic (T-074). Se llama al purgar el buzón de una
- * cuenta que se borra: sin esto queda un puntero a un grupo cuya clave ya no
- * está. No es un defecto —una relectura desde 0 es idempotente— pero es basura.
- */
-export function olvidarCursor(topic: string): void {
-  storage.delete(CURSOR_PREFIX + topic);
-}
-
-/** Id estable de este dispositivo, para no reprocesar lo propio. */
-export function deviceId(): string {
-  const existing = storage.getString('device_id');
-  if (existing) return existing;
-  const id = `d_${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
-  storage.set('device_id', id);
-  return id;
-}
 
 /**
  * Grupos vivos de los que tenemos clave: los únicos sincronizables.
