@@ -178,11 +178,16 @@ it('M2a: el estado se toma AL TURNO de la cola, no al llamar — el buzón termi
 });
 
 /**
- * M2 (segunda parte): un `sendEnvelope` que nunca resuelve dejaba la cola del
- * topic trabada para siempre — nada volvía a publicarse en ese grupo hasta
- * reiniciar la app. `PUBLICACION_TIMEOUT_MS` (`withTimeout`, mismo patrón que
- * `EJECUCION_TIMEOUT_MS`/`SESSION_TIMEOUT_MS`) corta la espera y libera la
- * cola — la publicación colgada vuelve `{ok:false, reason:'network'}`.
+ * M2 (segunda parte, ajustado tras el hallazgo de la cuarta tanda): un envío
+ * que NUNCA iba a resolver dejaba la cola del topic trabada para siempre.
+ * `PUBLICACION_TIMEOUT_MS` corta la ESPERA y además cancela de verdad
+ * (`AbortSignal` real hasta `sendEnvelope`/`postgrest-js`) — acá el mock
+ * respeta el `signal` (como una request real abortada: se asienta con
+ * `{ok:false}` en cuanto se cancela) para probar el camino real: si no lo
+ * respetara, estaría simulando un transporte que NO cancela nunca, y ESE
+ * caso a propósito deja la cola esperando (defensa del ajuste (b) del
+ * hallazgo: nunca arrancar el siguiente turno mientras un envío incierto
+ * siga sin asentarse) — no es el escenario que este test prueba.
  */
 it('M2b: un envío colgado no bloquea la cola para siempre — la siguiente publicación pasa tras el timeout', async () => {
   jest.useFakeTimers();
@@ -195,7 +200,12 @@ it('M2b: un envío colgado no bloquea la cola para siempre — la siguiente publ
     relayModule.sendEnvelope = jest.fn((...args: unknown[]) => {
       if (primeraLlamada) {
         primeraLlamada = false;
-        return new Promise(() => {}); // nunca resuelve ni rechaza
+        const signal = args[5] as AbortSignal | undefined;
+        return new Promise((resolve) => {
+          // Como una request real cancelada: nunca iba a resolver por sí
+          // sola, pero SÍ reacciona al abort (fetch real: AbortError).
+          signal?.addEventListener('abort', () => resolve({ ok: false, reason: 'network', detail: 'aborted' }));
+        });
       }
       return sendEnvelopeOriginal(...args);
     });
