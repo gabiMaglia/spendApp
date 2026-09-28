@@ -31,13 +31,13 @@ export default function GroupsScreen() {
   const { scrollHandler, progress, contenidoMinimo, alMedirScroll } = useHeaderColapsable();
 
   const {
-    currentUser, tabActual, setTab, visibles, idsActivos, gastos,
+    currentUser, tabActual, setTab, visibles, visibleGroupIds, idsActivos, gastos,
     canUnarchive, handleOpenGroup, handleArchiveAction,
   } = useGroupsList();
   const { cur, fx, owedToYou, youOwe } = useGroupsBalances(currentUser?.id ?? '');
   const netTotal = useGroupsNetTotal(
     currentUser?.id ?? '',
-    visibles.map(g => g.id),
+    visibleGroupIds,
     cur, fx,
   );
 

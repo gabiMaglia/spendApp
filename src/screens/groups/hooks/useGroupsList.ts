@@ -32,6 +32,20 @@ export function useGroupsList() {
     [myGroups, archivedIds, tabActual],
   );
 
+  /**
+   * Ids de `visibles`, memoizado (T-202, rendimiento en gama baja).
+   *
+   * Va a `useGroupsNetTotal`, que arma un `Set` con `useMemo(..., [ids])` y
+   * dispara `calculateBalancesByCurrency` para CADA grupo visible cuando esa
+   * referencia "cambia". Sin este memo, `visibles.map(g => g.id)` armaba un
+   * array NUEVO en cada render de la pantalla —incluyendo uno que no tiene
+   * nada que ver con los datos, como el segundo `onLayout` real del
+   * `ScrollView` (`useHeaderColapsable`)— y esa referencia nueva volvía a
+   * disparar el cálculo completo de balances de TODOS los grupos visibles
+   * otra vez, aunque nada hubiera cambiado.
+   */
+  const visibleGroupIds = useMemo(() => visibles.map(g => g.id), [visibles]);
+
   /** Los grupos activos. No depende de la pestaña, y eso es a propósito. */
   const idsActivos = useMemo(
     () => new Set(myGroups.filter(g => !archivedIds.includes(g.id)).map(g => g.id)),
@@ -59,7 +73,7 @@ export function useGroupsList() {
   }, [setArchived, tabActual]);
 
   return {
-    currentUser, myGroups, tabActual, setTab, visibles, idsActivos, gastos,
+    currentUser, myGroups, tabActual, setTab, visibles, visibleGroupIds, idsActivos, gastos,
     canUnarchive, handleOpenGroup, handleArchiveAction,
   };
 }
