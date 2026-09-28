@@ -157,7 +157,12 @@ describe('guard: los inputs de texto libre tienen maxLength', () => {
     ['app/expense/new.tsx', /onChangeText=\{setDescription\}[\s\S]{0,400}?maxLength=\{MAX_TEXTO_CORTO\}/],
     ['app/expense/new.tsx', /onChangeText=\{setNote\}[\s\S]{0,400}?maxLength=\{MAX_NOTA\}/],
     ['app/groups/new.tsx',  /onChangeText=\{setName\}[\s\S]{0,400}?maxLength=\{MAX_TEXTO_CORTO\}/],
-    ['app/groups/[id].tsx', /value=\{inviteName\}[\s\S]{0,400}?maxLength=\{MAX_TEXTO_CORTO\}/],
+    // T-209: el input "sin app" se mudó de `app/groups/[id].tsx` al
+    // componente que ahora lo dueña — mismo guard, nueva casa.
+    [
+      'src/screens/groups/components/InvitarPorUsernameSheet.tsx',
+      /value=\{inviteName\}[\s\S]{0,400}?maxLength=\{MAX_TEXTO_CORTO\}/,
+    ],
   ])('%s', (archivo, patron) => {
     // T-206-A: este test se mudó un nivel más adentro (nucleo/__tests__).
     const texto = readFileSync(resolve(__dirname, '../../../..', archivo), 'utf8');

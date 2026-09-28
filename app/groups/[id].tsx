@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
-  Alert, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View,
+  Alert, Pressable, ScrollView, Share, StyleSheet, Text, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -20,7 +20,7 @@ import { useUserStore } from '@/src/store/userStore';
 import { useGroupBalance, useGroupExpenseCount } from '@/src/store/selectors';
 import { debeAvisar } from '@/src/algorithms/groupExpenseLimit';
 import { traspasarGrupo } from '@/src/services/groupTraspaso';
-import { admiteUnMiembroMas, MAX_TEXTO_CORTO, MAX_MIEMBROS } from '@/src/sync/nucleo/topes';
+import { admiteUnMiembroMas, MAX_MIEMBROS } from '@/src/sync/nucleo/topes';
 import { motivoDeExceso } from '@/src/services/topeDeRegistro';
 import { useArchiveStore } from '@/src/store/archiveStore';
 import { UserAvatar } from '@/src/components/UserAvatar';
@@ -31,7 +31,8 @@ import { createInvite, inviteToLink } from '@/src/sync/invitaciones/groupInvite'
 import { ensureIdentity, saveInvite } from '@/src/store/identityStore';
 import { startRelay, announceGroupToContacts } from '@/src/sync/motor/relayEngine';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
-import { BottomSheet, SheetOption, SheetOptionAvatar } from '@/src/components/Sheet';
+import { BottomSheet, SheetOption } from '@/src/components/Sheet';
+import { InvitarPorUsernameSheet } from '@/src/screens/groups/components/InvitarPorUsernameSheet';
 import { Fab, FabRow } from '@/src/components/Fab';
 import { TrustMark } from '@/src/components/TrustMark';
 import { yaAprobo } from '@/src/algorithms/leaveRequest';
@@ -87,22 +88,8 @@ export default function GroupDetailScreen() {
   const allPayments = usePaymentStore(s => s.payments);
   const getUserName = useUserStore(s => s.getUserName);
   const addOrUpdateUser = useUserStore(s => s.addOrUpdateUser);
-  const allUsers = useUserStore(s => s.users);
 
   const [inviteVisible, setInviteVisible] = useState(false);
-  const [inviteName, setInviteName] = useState('');
-  const [sinApp, setSinApp] = useState(false);
-
-  const contactosDisponibles = useMemo(
-    () => allUsers.filter(u =>
-      !u.isDeleted && !esYo(u.id) && !(group?.memberIds ?? []).includes(u.id),
-    ),
-    // `currentUser` no aparece en el cuerpo pero la dependencia es REAL: `esYo`
-    // lee la sesión activa, así que cambiar de cuenta tiene que recalcular esto.
-    // El linter no puede ver esa dependencia.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [allUsers, group, currentUser],
-  );
 
   function handleAddContact(userId: string) {
     if (!group) return;
@@ -239,8 +226,8 @@ export default function GroupDetailScreen() {
     );
   }
 
-  function handleAddMember() {
-    const name = inviteName.trim();
+  function handleAddMemberSinApp(rawName: string) {
+    const name = rawName.trim();
     if (!name || !group) return;
     // T-150 ronda 2 (D4): mismo tope que handleAddContact, por este otro camino.
     if (!admiteUnMiembroMas(group.memberIds)) {
@@ -269,9 +256,7 @@ export default function GroupDetailScreen() {
     ensureKey(group.id);
     void announceGroupToContacts(group.id);
     hapticSuccess();
-    setInviteName('');
     setInviteVisible(false);
-    setSinApp(false);
     Alert.alert(t('group_detail.member_added_title'), t('group_detail.without_app_warning'));
   }
 
@@ -637,71 +622,23 @@ export default function GroupDetailScreen() {
         teclado tapaba la hoja entera, en iOS la empujaba de un salto. Migrar
         al `BottomSheet` compartido lo hereda arreglado, sin duplicar la
         lógica de teclado acá.
+
+        T-209: el contenido (que necesita `allUsers`) vive en
+        `InvitarPorUsernameSheet` — ver el comentario ahí de por qué sigue
+        montado siempre (para no perder la animación) en vez de condicionado
+        a `inviteVisible` en este JSX.
       */}
-      <BottomSheet
-        visible={inviteVisible}
-        onClose={() => setInviteVisible(false)}
-        title={t('group_detail.add_member_title')}
-      >
-        {contactosDisponibles.length > 0 && (
-          <>
-            <Text style={[Typography.bodyS, { color: c.textSecondary, marginBottom: 12 }]}>
-              {t('group_detail.add_from_contacts')}
-            </Text>
-            {contactosDisponibles.map(u => (
-              <SheetOptionAvatar
-                key={u.id}
-                userId={u.id}
-                name={u.name}
-                selected={false}
-                onPress={() => handleAddContact(u.id)}
-              />
-            ))}
-          </>
-        )}
-
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => setSinApp(v => !v)}
-          style={{ marginTop: contactosDisponibles.length > 0 ? Spacing[5] : 0, marginBottom: Spacing[2] }}
-        >
-          <Text style={{ fontSize: 12.5, fontWeight: '700', color: c.brand.primary }}>
-            {t('group_detail.add_without_app')}
-          </Text>
-        </Pressable>
-
-        {sinApp && (
-          <>
-            <Text style={[Typography.caption, { color: c.textSecondary, marginBottom: 12 }]}>
-              {t('group_detail.without_app_warning')}
-            </Text>
-            <TextInput
-              value={inviteName}
-              onChangeText={setInviteName}
-              placeholder={t('group_detail.name_placeholder')}
-              placeholderTextColor={c.textTertiary}
-              style={[styles.input, { backgroundColor: c.bgGrouped, color: c.text, borderColor: c.hair }]}
-              returnKeyType="done"
-              onSubmitEditing={handleAddMember}
-              maxLength={MAX_TEXTO_CORTO}
-            />
-            <Pressable
-              accessibilityRole="button"
-              onPress={handleAddMember}
-              style={[styles.confirmBtn, {
-                backgroundColor: inviteName.trim() ? c.brand.primary : c.bgGrouped,
-              }]}
-            >
-              <Text style={{
-                fontSize: 15, fontWeight: '700',
-                color: inviteName.trim() ? '#fff' : c.textTertiary,
-              }}>
-                {t('group_detail.add_to_group')}
-              </Text>
-            </Pressable>
-          </>
-        )}
-      </BottomSheet>
+      {group && (
+        <InvitarPorUsernameSheet
+          visible={inviteVisible}
+          onClose={() => setInviteVisible(false)}
+          title={t('group_detail.add_member_title')}
+          group={group}
+          currentUser={currentUser}
+          onAddContact={handleAddContact}
+          onAddWithoutApp={handleAddMemberSinApp}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -814,9 +751,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.screenPad, paddingVertical: 13,
   },
   approveRow:  { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  input:       {
-    height: 50, borderRadius: Radius.md, borderWidth: 1,
-    paddingHorizontal: 14, fontSize: 16, marginBottom: 14,
-  },
   confirmBtn:  { height: 50, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
 });
