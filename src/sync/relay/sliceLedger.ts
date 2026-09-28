@@ -39,6 +39,8 @@ const ledgerKey = (topic: string, deviceId: string, ckey: string) => `sliceLedge
 const indiceKey = (topic: string) => `sliceLedgerIndice${SEP}${topic}`;
 const depthKey = (topic: string, campo: string) => `sliceLedgerDepth${SEP}${topic}${SEP}${campo}`;
 const depthIndiceKey = (topic: string) => `sliceLedgerDepthIndice${SEP}${topic}`;
+const campoCkeysKey = (topic: string, campo: string) => `sliceLedgerCkeysCampo${SEP}${topic}${SEP}${campo}`;
+const campoCkeysIndiceKey = (topic: string) => `sliceLedgerCkeysCampoIndice${SEP}${topic}`;
 
 type IndiceEntrada = { deviceId: string; ckey: string };
 
@@ -140,9 +142,33 @@ export function subirProfundidad(almacen: AlmacenPort, topic: string, campo: str
 }
 
 /**
- * Olvida TODO lo que el ledger sabe de un `topic` — profundidades y cubos
- * de CUALQUIER `deviceId` (spec §7 C5(b)): reingreso a un grupo
- * (`marcarPendienteDeDrenaje`) o purga del buzón propio
+ * Últimas `ckey` publicadas del campo `(topic, campo)` — snapshot de la
+ * publicación ANTERIOR, para que quien llama pueda detectar qué cubo quedó
+ * VACÍO a la MISMA profundidad (hallazgo QA #1 sobre T-191: un miembro que
+ * se va de `users`, un gasto traspasado a otro grupo — `armar()` ya no lo
+ * incluye, así que su prefijo deja de aparecer entre los cubos actuales,
+ * pero nada lo vaciaba ni lo borraba del ledger). Distinto de
+ * `ckeysDelTopic` (que lista TODO lo publicado, de cualquier campo, sin
+ * poder aislar uno): acá la lista es por campo a propósito.
+ */
+export function ckeysDeCampo(almacen: AlmacenPort, topic: string, campo: string): string[] {
+  return leerJson(almacen, campoCkeysKey(topic, campo), esListaDeStrings) ?? [];
+}
+
+/** Persiste el snapshot de `ckeysDeCampo` — se llama tras confirmar TODOS los envíos del campo. */
+export function guardarCkeysDeCampo(almacen: AlmacenPort, topic: string, campo: string, ckeys: string[]): void {
+  almacen.set(campoCkeysKey(topic, campo), JSON.stringify(ckeys));
+  const indice = leerJson(almacen, campoCkeysIndiceKey(topic), esListaDeStrings) ?? [];
+  if (!indice.includes(campo)) {
+    indice.push(campo);
+    almacen.set(campoCkeysIndiceKey(topic), JSON.stringify(indice));
+  }
+}
+
+/**
+ * Olvida TODO lo que el ledger sabe de un `topic` — profundidades, cubos de
+ * CUALQUIER `deviceId` y los snapshots de `ckeysDeCampo` (spec §7 C5(b)):
+ * reingreso a un grupo (`marcarPendienteDeDrenaje`) o purga del buzón propio
  * (`deleteMyGroupEnvelopes`). La próxima publicación, sin nada en el
  * ledger, manda todo — el mismo camino que un ledger perdido por
  * reinstalación (P9), y es correcto por la misma razón.
@@ -157,4 +183,9 @@ export function olvidarTopic(almacen: AlmacenPort, topic: string): void {
     almacen.delete(depthKey(topic, campo));
   }
   almacen.delete(depthIndiceKey(topic));
+
+  for (const campo of leerJson(almacen, campoCkeysIndiceKey(topic), esListaDeStrings) ?? []) {
+    almacen.delete(campoCkeysKey(topic, campo));
+  }
+  almacen.delete(campoCkeysIndiceKey(topic));
 }

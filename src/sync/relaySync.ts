@@ -467,7 +467,20 @@ export async function drainGroup(
   // propio cubo. Sólo entonces se registran en `appliedSlices`.
   const retenidasPorDependencia: { seq: number; ckey?: string; sender: string; delta: SyncDelta; senderKey: string; json: string }[] = [];
 
-  for (let pagina = 0; pagina < maxPages; pagina++) {
+  // V2 (verifier, segunda tanda): un fallo de aplicación con reintentos
+  // agotados devolvía ANTES `return {...}` directo desde dentro del loop —
+  // eso saltaba ENTERO el paso de abajo que reaplica `retenidasPorDependencia`
+  // (líneas más abajo) y el chequeo de manifiesto. Una rebanada retenida por
+  // dependencia en una página anterior de ESTA MISMA llamada se perdía sin
+  // dejar rastro: el cursor ya había avanzado más allá de ella y nunca se
+  // volvía a pedir. Ahora ese caso guarda el resultado acá y **rompe los dos
+  // loops** (`paginas:` abajo) en vez de retornar — la reaplicación de
+  // retenidas SIEMPRE corre antes de devolver, la haya pedido este camino o
+  // el normal. El chequeo de manifiesto sigue sin correr (`completo` queda
+  // `false`, como antes): esta salida es parcial a propósito.
+  let salidaTemprana: { cursor: number } | null = null;
+
+  paginas: for (let pagina = 0; pagina < maxPages; pagina++) {
     const r = await fetchSince(topic, cursor, deviceId, pageLimit);
     if (!r.ok) {
       // Sin red en la primera página es un drenaje fallido. En una página
@@ -655,7 +668,8 @@ export async function drainGroup(
         registrarFalloDeAplicacion(topic, seq, e);
         if (!agotoReintentos(topic, seq)) {
           void refreshPendingAuthors();
-          return { ok: true, applied, skipped, cursor: seq - 1, completo: false };
+          salidaTemprana = { cursor: seq - 1 };
+          break paginas;
         }
         skipped++;
       }
@@ -759,5 +773,8 @@ export async function drainGroup(
   // que aprenda sirve para la próxima vuelta.
   void refreshPendingAuthors();
 
+  if (salidaTemprana) {
+    return { ok: true, applied, skipped, cursor: salidaTemprana.cursor, completo: false };
+  }
   return { ok: true, applied, skipped, cursor, completo };
 }
