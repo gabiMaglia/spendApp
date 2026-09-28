@@ -112,7 +112,7 @@ Estructura de tests:
 ```
 src/algorithms/__tests__/calculateBalances.test.ts
 src/algorithms/__tests__/simplifyDebts.test.ts
-src/sync/__tests__/SyncEngine.test.ts
+src/sync/nucleo/__tests__/manifest.test.ts
 src/components/__tests__/ExpenseCard.test.tsx
 src/components/__tests__/GroupCard.test.tsx
 ```
@@ -150,7 +150,12 @@ app/
 
 ```
 src/
-  sync/             ← SyncEngine (merge CRDT, tombstones, delta)
+  sync/             ← Sync cifrado por buzón tonto — ver src/sync/README.md
+    nucleo/         ← Protocolo puro (sobre, cubos, manifiesto)
+    puertos/        ← Tipos: lo que el núcleo/motor pide, la app provee
+    motor/          ← Cuándo y en qué orden se sincroniza un grupo
+    adaptadores/    ← supabase/ (transporte) y hushsplit/ (documento)
+    sesion/, confianza/, contactos/, invitaciones/, avisos/  ← capa de producto
   auth/             ← useAuth hook (Google, Apple)
   store/            ← Zustand stores (groups, expenses, balances)
   algorithms/       ← calculateBalances(), simplifyDebts()
