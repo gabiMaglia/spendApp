@@ -98,7 +98,7 @@ beforeEach(() => {
   mockGetPeer.mockImplementation(() => ({ secret: 's', identityPublicKey: ANA.pub }));
 });
 
-describe('las DOS puertas desembocan en `applyDelta`', () => {
+describe('la puerta del relay desemboca en `applyDelta`', () => {
   /**
    * Guard estructural, no de comportamiento: lo que hay que impedir es que
    * mañana alguien agregue una puerta que mergee por su cuenta. El caso de
@@ -107,18 +107,15 @@ describe('las DOS puertas desembocan en `applyDelta`', () => {
    */
   /**
    * Eran TRES hasta T-083: la de `pairing` se fue con WebRTC
-   * (`src/p2p/usePairingSession.ts`, borrado). **El invariante no se debilita —
-   * se refuerza**: el relay es ahora el único camino real, y lo que este guard
+   * (`src/p2p/usePairingSession.ts`, borrado). La del QR sin internet se fue
+   * en T-193 (T-085, pantalla inalcanzable desde ninguna otra — tag
+   * `qr-sync-antes-de-T-193`). **El invariante no se debilita — se
+   * refuerza**: el relay es ahora el ÚNICO camino real, y lo que este guard
    * impide sigue siendo lo mismo, que mañana alguien agregue una puerta que
    * mergee por su cuenta.
-   *
-   * `app/sync/index.tsx` sigue en la lista aunque hoy nadie la alcance: es la
-   * pantalla del QR que el PO pidió conservar (T-085). Si T-085 la borra, esta
-   * fila se va con ella y queda una sola.
    */
   const PUERTAS = [
     { nombre: 'relay',   archivo: 'src/sync/relay/drenar.ts' },
-    { nombre: 'QR',      archivo: 'app/sync/index.tsx' },
   ];
 
   const MERGES = [
@@ -143,11 +140,6 @@ describe('las DOS puertas desembocan en `applyDelta`', () => {
     expect(acotadoSrc).toContain('adaptador.aplicar(');
     const adaptadorSrc = fs.readFileSync(path.join(RAIZ, 'src/sync/relay/adaptadorHushSplit.ts'), 'utf8');
     expect(adaptadorSrc).toContain('applyDelta(');
-  });
-
-  it('QR aplica por `applyDelta`', () => {
-    const src = fs.readFileSync(path.join(RAIZ, 'app/sync/index.tsx'), 'utf8');
-    expect(src).toContain('applyDelta(');
   });
 
   it.each(PUERTAS)('$nombre NO mergea por su cuenta (sería un bypass del gate)', ({ archivo }) => {

@@ -118,7 +118,7 @@ export function envolver(campo: string, registros: { id: string }[], fromUserId:
 
 /**
  * Aplica un `SyncDelta` ya acotado a los stores — llama a `applyDelta`
- * (`useSyncQR.ts`) directo, sin envolver nada más: es el mismo gate de S6
+ * (`applyDelta.ts`) directo, sin envolver nada más: es el mismo gate de S6
  * (`mergeGate.test.ts`) que antes se invocaba desde `relaySync.ts`, sólo un
  * salto de indirección más lejos. `relaySync.ts` sigue siendo la única
  * "puerta" que este módulo alcanza, y `mergeGate.test.ts` verifica los dos

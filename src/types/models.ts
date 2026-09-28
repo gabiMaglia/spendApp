@@ -281,7 +281,7 @@ export interface Expense extends SyncMeta, CoreSigned {
    * usuario, así que los dos dispositivos van a mostrar balances **distintos**
    * para ese gasto. No es "razonable", es una limitación real: no hay forma de
    * arreglarlo desde este lado. Lo que sí se hace es detectarlo
-   * (`peerIsOutdated`, src/sync/useSyncQR.ts) y avisarle al usuario.
+   * (`peerIsOutdated`, src/sync/applyDelta.ts) y avisarle al usuario.
    */
   paidById: string;
   /**

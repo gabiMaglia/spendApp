@@ -9,7 +9,7 @@ jest.mock('@/src/sync/relayEngine', () => ({ schedulePublish: jest.fn(), deviceI
 /**
  * **T-137 (ADR-012) — el tope de `updatedAt` futuro llega por los TRES caminos**
  * que pasan por `mergeUsers`: relay y QR comparten `applyDelta`
- * (`src/sync/useSyncQR.ts:145`), y backup llama `mergeUsers` directo
+ * (`src/sync/applyDelta.ts`), y backup llama `mergeUsers` directo
  * (`src/services/backup.ts:119`). Ninguno de los tres pasa `now`
  * explícitamente, así que los tres dependen del default `syncedNow()` fijado
  * en el store — este test los prueba end-to-end, no la función pura.
