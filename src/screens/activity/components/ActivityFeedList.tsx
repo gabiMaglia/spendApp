@@ -52,11 +52,10 @@ export function ActivityFeedList({
         <View key={label}>
           <ActivitySectionHeader
             label={label}
-            // T-108: SOLO la primera agrupación (la que sigue al selector de
-            // filtro) dobla su aire de arriba (22 → 44, redondeado a
-            // Spacing[8]=40). Las siguientes son espacio INTERNO de la misma
-            // lista (un grupo de fecha del siguiente) y no cambian.
-            topOverride={seccionIdx === 0 ? Spacing[8] : undefined}
+            // PO 2026-09-28: la primera franja («Hoy») va PEGADA a la barra de
+            // búsqueda, sin aire arriba (antes T-108 le daba Spacing[8]=40).
+            // Las siguientes conservan su aire: son espacio INTERNO de la lista.
+            topOverride={seccionIdx === 0 ? 9 : undefined}
             right={
               label === t('activity.section_today') && todayNewCount > 0 ? (
                 <View style={[styles.unseenBadge, { backgroundColor: c.brand.primary }]}>

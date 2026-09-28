@@ -11,8 +11,9 @@ import { useColors, useSkinTokens } from '@/src/skins/useSkin';
  * **T-203 (PO):** en Clásico esto era una píldora con fondo y borde
  * redondeado — pensada para Aero, rompía con el resto de la pantalla (las
  * pestañas de arriba ya ponen `borde="abajo"` y hacen de techo). Clásico pasa
- * a ser "línea del libro": ancho completo, transparente, sólo un piso
- * (`borderBottomWidth`) que se tiñe de `c.brand.primary` al enfocar. Aero
+ * a ser "línea del libro": ancho completo, transparente, sin borde alguno
+ * (PO 2026-09-28: el piso hairline también se sacó; la franja «Hoy» que sigue
+ * cierra la línea). El foco se expone por `accessibilityState`. Aero
  * conserva la pastilla de siempre — mismo split que `RecurrencePicker.tsx`
  * (`useSkinTokens().flags.soft`).
  */
@@ -64,10 +65,7 @@ export function ActivitySearchBar({
     <View
       testID="activity-search-line"
       accessibilityState={{ selected: enfocado }}
-      style={[
-        styles.linea,
-        { borderBottomColor: enfocado ? c.brand.primary : c.hair },
-      ]}
+      style={styles.linea}
     >
       <Ionicons name="search-outline" size={15} color={c.textTertiary} />
       {input}
@@ -85,12 +83,12 @@ const styles = StyleSheet.create({
   },
   // "Línea del libro" (Clásico, T-203): sin fondo, sin radio, sin bordes
   // laterales ni techo — las pestañas de arriba ya hacen de techo. Sólo un
-  // piso, que se tiñe de `c.brand.primary` al enfocar (sin animación).
+  // Sin piso ni techo: las pestañas de arriba y la franja «Hoy» de abajo
+  // enmarcan la línea (PO 2026-09-28).
   linea: {
     flexDirection: 'row', alignItems: 'center', gap: 9,
     paddingHorizontal: Spacing.screenPad,
     height: 36,
-    marginTop: 0, marginBottom: 4,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    marginTop: 0, marginBottom: 0,
   },
 });
