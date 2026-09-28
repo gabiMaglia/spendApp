@@ -94,7 +94,7 @@ export function cardFingerprint(card: ContactCard): string {
   ].join('|');
 }
 
-function tarjetasEnviadas(): Record<string, string> {
+export function tarjetasEnviadas(): Record<string, string> {
   const raw = readScoped(storage, K_CARD_SENT);
   if (!raw) return {};
   try {
@@ -161,4 +161,24 @@ export function hasConflictingPinnedKeys(userId: string, incoming: PeerInfo): bo
 
 export function peerSecret(userId: string): string | undefined {
   return getPeer(userId)?.secret;
+}
+
+/**
+ * Todo lo que hace falta para reconstruir la lista de contactos en otro
+ * dispositivo (T-213): los peers y el acuse de tarjeta enviada. El secreto
+ * de contacto PROPIO no está acá — vive en `contactChannel.ts`, que compone
+ * este resultado con el suyo (`exportarContactos`).
+ */
+export function exportarPeers(): { peers: Record<string, PeerInfo>; cardSent: Record<string, string> } {
+  return { peers: listPeers(), cardSent: tarjetasEnviadas() };
+}
+
+/**
+ * Restaura peers + acuse de tarjeta tal cual vienen del backup —
+ * REEMPLAZO, no unión (mismo criterio RESTORE que el resto de `applyBackup`;
+ * a diferencia de `savePeer`/`savePeerFromCard`, que sólo completan huecos).
+ */
+export function restaurarPeers(peers: Record<string, PeerInfo>, cardSent: Record<string, string>): void {
+  writeScoped(storage, K_PEERS, JSON.stringify(peers));
+  writeScoped(storage, K_CARD_SENT, JSON.stringify(cardSent));
 }

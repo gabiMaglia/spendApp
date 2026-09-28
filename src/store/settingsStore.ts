@@ -22,9 +22,15 @@ const KEYS = {
  * su moneda original; esto es sólo cómo se los muestra (ver `services/fx.ts`).
  * Default ARS, igual que el presupuesto personal.
  */
-const DEFAULT_DISPLAY_CURRENCY: CurrencyCode = 'ARS';
+export const DEFAULT_DISPLAY_CURRENCY: CurrencyCode = 'ARS';
 
-function esMonedaSoportada(v: string | undefined): v is CurrencyCode {
+/**
+ * Exportada (no sólo usada acá): `backup.ts` la reusa para validar
+ * `settings.displayCurrency` al restaurar (T-213 · QA defecto 1) — mismo
+ * patrón que `skin` con `esSkinId`/`FALLBACK_SKIN` de `skins/registry.ts`,
+ * fuente única en vez de reimplementar el chequeo en el backup.
+ */
+export function esMonedaSoportada(v: string | undefined): v is CurrencyCode {
   return !!v && SUPPORTED_CURRENCIES.some(c => c.code === v);
 }
 

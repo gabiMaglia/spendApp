@@ -20,6 +20,7 @@ import type {
 
 jest.mock('@/src/sync/relayEngine', () => ({
   schedulePublish: jest.fn(),
+  anunciarMiTarjeta: jest.fn(),
 }));
 
 // ── Factories mínimas pero completas (TS estricto) ──────────────────────────
@@ -265,7 +266,9 @@ describe('T-188b · el backup restaura la sesión completa (claves + roster)', (
 
     expect(b.ownerId).toBe('u1');
     expect(b.groupKeys).toEqual([CLAVE_G1]);
-    expect(b.version).toBe(2);
+    // T-213 subió BACKUP_VERSION a 3 (archived/settings/contacts/aliases);
+    // acá sólo importa que sea LA versión vigente, no el número puntual.
+    expect(b.version).toBe(BACKUP_VERSION);
   });
 
   it('B2 · teléfono nuevo, mismo id (idEstable), importo mi backup: claves adoptadas, roster me incluye, se publica, la clave sirve para drenar (deriveTopic real)', async () => {

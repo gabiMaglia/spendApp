@@ -35,6 +35,13 @@ interface ArchiveState {
   canUnarchive: (groupId: string) => boolean;
   setArchived: (groupId: string, archived: boolean, reason?: ArchiveReason) => void;
   hydrate: () => void;
+  /**
+   * Reemplazo total (T-213 · backup): a diferencia de `setArchived`, no
+   * aplica ninguna regla de negocio (idempotencia, 'limit' pegajosa) —
+   * deja el store EXACTAMENTE como venga, igual que el resto del RESTORE
+   * de `applyBackup`. Sólo lo llama `backup.ts`.
+   */
+  restore: (archivedIds: string[], reasons: Record<string, ArchiveReason>) => void;
 }
 
 function persistIds(ids: string[]) {
@@ -89,6 +96,12 @@ export const useArchiveStore = create<ArchiveState>((set, get) => ({
     persistIds(ids);
     persistReasons(nuevasReasons);
     set({ archivedIds: ids, reasons: nuevasReasons });
+  },
+
+  restore: (archivedIds, reasons) => {
+    persistIds(archivedIds);
+    persistReasons(reasons);
+    set({ archivedIds, reasons });
   },
 
   hydrate: () => {

@@ -198,6 +198,27 @@ export function rosterCanonico(ids: readonly string[]): string[] {
  *
  * Es idempotente: sólo escribe si encontró algo que todavía no estaba.
  */
+/**
+ * Los alias tal cual persisten — SIN el id activo — para armar el backup
+ * (T-213). `misIdentidades()` antepone el id activo porque está pensada
+ * para lectura de UI; acá hace falta el conjunto crudo para poder
+ * restaurarlo después con `restaurarAlias`.
+ */
+export function aliasPersistidos(): string[] {
+  return [...cargar()];
+}
+
+/**
+ * Restaura el conjunto de alias tal cual venía en un backup PROPIO —
+ * REEMPLAZO, no unión (mismo criterio RESTORE que el resto de
+ * `applyBackup`; a diferencia de `mergeAlias`, que sí une). El id activo se
+ * filtra por las dudas: una cuenta nunca es alias de sí misma.
+ */
+export function restaurarAlias(aliases: readonly string[]): void {
+  const uid = activeUserId();
+  guardar(new Set(aliases.filter(id => id !== uid)));
+}
+
 export function sembrarAliasDesdeIndice(): void {
   const uid = activeUserId();
   if (uid === null) return;
