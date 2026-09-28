@@ -1,9 +1,8 @@
-import type { SyncDelta } from '@/src/sync/adaptadores/hushsplit/applyDelta';
-import { openEnvelope, type GroupKey } from '@/src/sync/nucleo/envelopeCrypto';
+import type { GroupKey } from '@/src/sync/nucleo/envelopeCrypto';
 import { fetchSince } from '@/src/sync/adaptadores/supabase/relay';
-import { verifyEnvelope } from '@/src/sync/nucleo/envelopeSign';
-import { isManifest, looksLikeManifest, digestOfJson } from '@/src/sync/nucleo/manifest';
+import { digestOfJson } from '@/src/sync/nucleo/manifest';
 import { registrarFalloDeAplicacion } from '@/src/sync/nucleo/drainFailures';
+import { abrirSobre } from '@/src/sync/nucleo/abrirSobre';
 import * as adaptador from '@/src/sync/adaptadores/hushsplit/adaptadorHushSplit';
 import * as appliedSlices from '@/src/sync/nucleo/appliedSlices';
 import { aplicarDeltaAcotado } from '@/src/sync/adaptadores/hushsplit/aplicarAcotado';
@@ -62,27 +61,29 @@ export async function releerFaltantes(
     for (const envelope of r.envelopes) {
       if (envelope.sender !== sender || !envelope.ckey || !pendientes.has(envelope.ckey)) continue;
 
-      const firmado = verifyEnvelope(envelope.payload);
-      if (!firmado) continue;
-      const plain = openEnvelope(key, firmado.sealed);
-      if (plain === null) continue;
-
-      let parsed: unknown;
-      try { parsed = JSON.parse(plain); } catch { continue; }
-      if (isManifest(parsed) || looksLikeManifest(parsed)) continue; // esta ckey es de datos
+      // T-206-A (D10): antes esto verificaba firma/cifrado/parseo/clasificación
+      // a mano, duplicando lo que `abrirSobre` (`nucleo/abrirSobre.ts`) ya hace
+      // para el drenaje normal (`drenar.ts`). Migrar acá trae un rastro nuevo
+      // que la versión manual no tenía: `abrirSobre` cuenta
+      // `manifest_malformado` (`registrarFalloDeAplicacion`) cuando algo
+      // LOOKS LIKE un manifiesto pero no pasa la validación completa —
+      // antes esta relectura lo descartaba en silencio, igual que si fuera
+      // una rebanada de datos cualquiera.
+      const abierto = abrirSobre(envelope, key, topic);
+      if (abierto.tipo !== 'rebanada') continue; // descartado, o esta ckey es de un manifiesto
 
       // Fix 4 (heredado de T-146): el contenido tiene que coincidir con el
       // digest que el manifiesto declaró para esta ckey — un sobre corrupto
       // o una versión equivocada bajo la misma ckey NUNCA se acepta como
       // "encontrado" sólo porque decodificó. Si no coincide, sigue faltante.
-      const digest = await digestOfJson(plain);
+      const digest = await digestOfJson(abierto.json);
       if (digest !== declarados.get(envelope.ckey)) continue;
 
       try {
-        const descartes = await aplicarDeltaAcotado(groupId, currentUserId, parsed as SyncDelta);
+        const descartes = await aplicarDeltaAcotado(groupId, currentUserId, abierto.delta);
         if (descartes.porDependencia === 0) {
           appliedSlices.registrar(adaptador.almacen, topic, sender, envelope.ckey, {
-            digest, seq: envelope.seq, senderKey: firmado.senderKey,
+            digest, seq: envelope.seq, senderKey: abierto.senderKey,
           });
           pendientes.delete(envelope.ckey);
         }
