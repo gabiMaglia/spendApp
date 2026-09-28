@@ -803,6 +803,8 @@ export const EXCLUIDOS_FUSION: Record<string, string> = {
     'Medición de T-041: cuántos registros verificaron, fallaron o no eran verificables. Mismo caso que authorHealth — diagnóstico para decidir si se enciende el rechazo, no data del usuario, y se reacumula con el uso.',
   'sync/groupKeyOffers':
     'Ofertas de clave de grupo por remitente (T-136, ADR-013): el estado de una decisión pendiente de ESTE teléfono. Heredar las de otra cuenta mezclaría conflictos ajenos. Perderlas es el lado seguro: sin oferta adoptada, claveLocalVinoDeContacto da false y ninguna clave queda elegible (S3-A1 sigue cerrado); un conflicto real vuelve a registrarse con el reenvío de cada arranque (relayEngine.reenviarClavesDeGrupo).',
+  'sync/relay/adaptadorHushSplit':
+    'Puerto `almacen` (T-191) que el núcleo de rebanadas usa para el ledger de "qué cubo publiqué con qué digest" y "qué rebanada apliqué" (`sliceLedger`/`appliedSlices`, Tasks 2-3). Es exactamente el mismo tipo de dato que `sliceRenewal.ts` (no scopeado) ya guarda para las fotos: un caché de "¿ya lo mandé/apliqué?". Perderlo es el camino explícito del alta (spec §2.2, §7 C5): sin ledger se republica el campo entero una vez, y sin `appliedSlices` un manifiesto que declara más de lo aplicado dispara como mucho UNA relectura acotada (C6). Heredar el de otra cuenta sería activamente peor — declararía cubos de OTRO grupo/dispositivo como ya publicados o ya aplicados.',
 };
 
 export { MERGEABLE_STORES };

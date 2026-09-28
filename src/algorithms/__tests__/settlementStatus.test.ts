@@ -54,7 +54,10 @@ describe('nadie vuelve a filtrar los pagos a mano', () => {
   const PERMITIDOS: Record<string, string> = {
     [join('src', 'algorithms', 'settlementStatus.ts')]:
       'es la fuente única',
-    [join('src', 'sync', 'relaySync.ts')]:
+    [join('src', 'sync', 'relay', 'adaptadorHushSplit.ts')]:
+      // T-191 (Task 0): este filtro vivía en relaySync.ts#buildGroupPayload y
+      // se movió acá (adaptador.armar) al dibujar la frontera núcleo/HushSplit
+      // — mismo código, mismo motivo, otro archivo.
       'el sobre lleva el ESTADO COMPLETO del grupo (regla #8 / ADR-007): un ' +
       'pago borrado tiene que viajar igual, o el tombstone no llega nunca al ' +
       'otro lado y cada teléfono deriva un estado distinto',

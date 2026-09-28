@@ -1,17 +1,10 @@
-import { applyDelta, DELTA_FEATURE_VERSION, type SyncDelta } from './useSyncQR';
-import { sinAvatarUrl, sinCamposLocales } from './soloLocal';
-import { acotarDeltaAlGrupo } from './acotarDeltaAlGrupo';
+import { DELTA_FEATURE_VERSION, type SyncDelta } from './useSyncQR';
 import { sealEnvelope, openEnvelope, deriveTopic, type GroupKey } from './envelopeCrypto';
 import { sendEnvelope, fetchSince, deleteMyEnvelopes, type DeleteResult } from './relay';
 import { groupKeyBytes, useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { ensureIdentity } from '@/src/store/identityStore';
 import { useAuthStore } from '@/src/store/authStore';
-import { useGroupStore } from '@/src/store/groupStore';
-import { useExpenseStore } from '@/src/store/expenseStore';
-import { usePaymentStore } from '@/src/store/paymentStore';
 import { useUserStore } from '@/src/store/userStore';
-import { useRecurringStore } from '@/src/store/recurringStore';
-import { useCommentStore } from '@/src/store/commentStore';
 import { signEnvelope, verifyEnvelope } from './envelopeSign';
 import { observeAuthor, RECHAZAR_AUTORES_NO_VERIFICADOS } from './authorHealth';
 import { refreshPendingAuthors } from './authorKeys';
@@ -19,10 +12,11 @@ import { sliceEntities, deriveCkey } from './slices';
 import { buildManifest, digestOfJson, isManifest, looksLikeManifest, type SliceManifest } from './manifest';
 import { recordManifestCheck } from './manifestHealth';
 import { recordSlicePublished } from './sliceRenewal';
-import { publishAvatarIfOwn, fetchAvatarIfMissing } from './avatarTopic';
+import { fetchAvatarIfMissing } from './avatarTopic';
 import { registrarFalloDeAplicacion, agotoReintentos } from './drainFailures';
 import { recordError } from '@/src/services/errorLog';
 import { cederHilo } from './cederHilo';
+import * as adaptador from './relay/adaptadorHushSplit';
 
 /**
  * Sync por el relay: arma el sobre cifrado, lo publica y aplica lo que llega.
@@ -71,13 +65,13 @@ import { cederHilo } from './cederHilo';
  * compara byte a byte contra la implementación vieja).
  */
 export function buildGroupPayload(groupId: string, currentUserId: string): SyncDelta {
-  const delGrupo = useGroupStore.getState().groups.filter(g => g.id === groupId);
-  const miembros = new Set(delGrupo[0]?.memberIds ?? []);
-
-  const expenses = sinCamposLocales(
-    useExpenseStore.getState().expenses.filter(e => e.groupId === groupId),
-  );
-  const idsDeGastos = new Set(expenses.map(e => e.id));
+  // T-191 (Task 0, refactor de frontera): el armado campo por campo —qué le
+  // pertenece a `groupId`, la elisión de mail y `avatarUrl`— vive ahora en
+  // `adaptador.armar`. Acá sólo se envuelve con el sobre (`version`,
+  // `featureVersion`, `fromUserId`, `timestamp`), exactamente como antes:
+  // `relayScopeFiltraPrimero.test.ts` compara el JSON resultante byte a byte
+  // contra una fixture con este mismo orden de claves.
+  const doc = adaptador.armar(groupId, currentUserId);
 
   return {
     version: 1,
@@ -85,26 +79,20 @@ export function buildGroupPayload(groupId: string, currentUserId: string): SyncD
     fromUserId: currentUserId,
     timestamp: Date.now(),
 
-    groups: delGrupo,
-    expenses,
-    payments: usePaymentStore.getState().payments.filter(p => p.groupId === groupId),
+    // `adaptador.armar` devuelve el `Documento` genérico del núcleo
+    // (`Record<campo, { id: string }[]>`); acá se re-tipa a lo que cada campo
+    // de `SyncDelta` es en verdad — el adaptador ya garantiza que cada lista
+    // salió del store correcto.
+    groups: doc.groups as SyncDelta['groups'],
+    expenses: doc.expenses as SyncDelta['expenses'],
+    payments: doc.payments as SyncDelta['payments'],
     // Los perfiles de los miembros SÍ hacen falta: sin ellos el otro ve ids en
-    // vez de nombres. Los de gente ajena al grupo, no.
-    //
-    // El email SÍ se saca (T-093 ronda 2 / R-2, hallazgo del verificador ciego):
-    // el registro ENTERO de cada usuario —incluido el propio, que `session.ts`
-    // persiste con el mail real de OAuth al loguear— trae el mail, y filtrar
-    // por `miembros` sólo decide QUÉ FILAS viajan, nunca qué CAMPOS. El mail
-    // viajaba tal cual a cualquiera que compartiera el grupo, y ningún receptor
-    // lo lee (sólo se muestra `currentUser.email`, la cuenta propia, en
-    // `user.tsx`/`debug/identity.tsx`; nunca el de otro usuario). Es lo que
-    // `plans/T-077.md` ya declaraba cierto ("Mail: NO recolectado") sin serlo:
-    // esto lo hace cierto, no cambia la fila de Data Safety.
-    users: sinAvatarUrl(useUserStore.getState().users.filter(u => miembros.has(u.id)))
-      .map(u => ({ ...u, email: '' })),
-    recurring: useRecurringStore.getState().recurring.filter(r => r.groupId === groupId),
+    // vez de nombres. Los de gente ajena al grupo, no. El email se saca en
+    // `adaptador.armar` (T-093 ronda 2 / R-2).
+    users: doc.users as SyncDelta['users'],
+    recurring: doc.recurring as SyncDelta['recurring'],
     // Un comentario no sabe de qué grupo es: cuelga del gasto.
-    comments: useCommentStore.getState().comments.filter(c => idsDeGastos.has(c.expenseId)),
+    comments: doc.comments as SyncDelta['comments'],
 
     // `personal` NO viaja: son movimientos sin grupo, de nadie más que su dueño.
     // `groupKeys` tampoco: si el relay pudiera entregar claves podría
@@ -201,29 +189,15 @@ async function buildSlicedEnvelopes(
   // frescura sobre SU PROPIA foto; para cualquier otro registro, el
   // `avatarDigest` que ya trae la fila local (puesto por un merge anterior)
   // se deja tal cual, nunca se toca.
-  const usuariosConDigest = await Promise.all(
-    (delta.users ?? []).map(async (u) => {
-      if (u.id !== delta.fromUserId) {
-        if (!u.avatar) return u; // sin foto cacheada: nada que elidir
-        // No es mi registro: se elide el blob (nunca se reenvían fotos ajenas
-        // completas) pero `avatarDigest` queda EXACTAMENTE como ya estaba en
-        // la fila local — nunca se recalcula a partir de bytes cacheados de
-        // otro usuario.
-        const { avatar: _avatarAjeno, ...sinFotoAjena } = u;
-        return sinFotoAjena;
-      }
-      if (!u.avatar) return u; // propio, sin foto (o tombstone real): nada que referenciar
-      const digest = await digestOfJson(u.avatar);
-      // Es mi propia foto: la publico (si cambió) en su topic aparte.
-      // Se espera acá, no fire-and-forget: si no se espera, nada garantiza
-      // que el sobre de la foto exista en el buzón para cuando otro
-      // miembro drene esta misma publicación y pida esta rebanada.
-      await publishAvatarIfOwn(groupId, delta.fromUserId, deviceId);
-      const { avatar: _avatar, ...sinFoto } = u;
-      return { ...sinFoto, avatarDigest: digest };
-    }),
+  // T-191 (Task 0): esta transformación —elidir `avatar` por `avatarDigest`,
+  // publicar la foto propia si cambió— es ahora `adaptador.antesDePublicar`.
+  // Mismo comportamiento exacto, sólo movido de lugar (spec §2.4, tabla de
+  // frontera).
+  const docConUsuarios = await adaptador.antesDePublicar(
+    { groups: delta.groups, expenses: delta.expenses, payments: delta.payments, users: delta.users ?? [], recurring: delta.recurring ?? [], comments: delta.comments ?? [] },
+    { groupId, deviceId, fromUserId: delta.fromUserId },
   );
-  const deltaConUsuarios: SyncDelta = { ...delta, users: usuariosConDigest };
+  const deltaConUsuarios: SyncDelta = { ...delta, users: docConUsuarios.users as SyncDelta['users'] };
 
   for (const campo of SLICED_FIELDS) {
     const lista = (deltaConUsuarios[campo] ?? []) as { id: string }[];
@@ -643,20 +617,26 @@ export async function drainGroup(
         // S3-A1: la firma y el cifrado sólo prueban quién lo mandó y que tiene
         // la clave del TOPIC — nunca acotan qué puede venir adentro. Se arma un
         // delta nuevo, campo por campo, con sólo lo que pertenece a `groupId`
-        // antes de tocar cualquier store (`acotarDeltaAlGrupo.ts`).
-        const descartados = { count: 0, motivos: [] as string[] };
-        const acotado = acotarDeltaAlGrupo(delta, groupId, undefined, descartados);
-        if (descartados.count > 0) {
+        // antes de tocar cualquier store (`adaptador.acotar`, T-191 Task 0 —
+        // hoy `acotarDeltaAlGrupo`).
+        //
+        // `descartes.porDependencia` (T-191, C2) NO se usa todavía acá: en
+        // Task 0 el comportamiento tiene que ser IDÉNTICO al de antes, y
+        // antes esos casos (comentario sin gasto local, usuario no miembro)
+        // no se contaban ni se reintentaban. La retención + reaplicación al
+        // final del drenaje es Task 3.
+        const { delta: acotado, descartes } = adaptador.acotar(delta, groupId);
+        if (descartes.porTope > 0) {
           // Rastro, no aviso al usuario (T-150, SEC-07): no hay nada que la
           // víctima pueda hacer con «un miembro mandó un registro demasiado
           // grande», y sí sirve en el diagnóstico exportado cuando alguien
           // pregunta «¿y mi gasto?».
           recordError({
-            message: `sync.registro_descartado topic=${topic.slice(0, 8)} n=${descartados.count} ${descartados.motivos.slice(0, 5).join(',')}`,
+            message: `sync.registro_descartado topic=${topic.slice(0, 8)} n=${descartes.porTope} ${descartes.motivos.slice(0, 5).join(',')}`,
             fatal: false, screen: 'sync',
           });
         }
-        applyDelta(acotado, currentUserId);
+        adaptador.aplicar(acotado, currentUserId);
         applied++;
 
         // Fotos por referencia (Task 9): se itera `acotado.users` (YA filtrado),
