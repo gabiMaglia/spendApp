@@ -368,7 +368,9 @@ export function noticesFor(
    * ninguno de mis grupos (`mios`), tampoco lo es el comentario.
    */
   const conocidosComentarios = new Set(before.commentIds ?? []);
-  const grupoDelGasto = new Map(expensesAfter.map(e => [e.id, e.groupId]));
+  // Sólo gastos vivos: un comentario sobre un gasto borrado no tiene nada que
+  // mostrar (mismo criterio que el loop de gastos; hallazgo QA de T-194).
+  const grupoDelGasto = new Map(expensesAfter.filter(e => !e.isDeleted).map(e => [e.id, e.groupId]));
   const nuevosComentariosPorGrupo = new Map<string, number>();
 
   for (const c of commentsAfter) {
