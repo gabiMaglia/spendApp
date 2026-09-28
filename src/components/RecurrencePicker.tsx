@@ -2,10 +2,11 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { Radius, Spacing } from '@/src/constants/spacing';
+import { Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { hapticLight } from '@/src/utils/haptics';
 import { Segmented } from '@/src/components/Band';
+import { TarjetaClasica } from '@/src/components/TarjetaClasica';
 import type { RecurrenceRule } from '@/src/types/models';
 import type { Ionicons } from '@expo/vector-icons';
 import { useColors, useSkinTokens } from '@/src/skins/useSkin';
@@ -88,34 +89,24 @@ export function RecurrencePicker({
 
   // Clásico (PO 2026-09-27): una tarjeta como la de la descripción, con margen
   // lateral y borde redondeado, en vez de pestañas sueltas de borde a borde
-  // que rompían con el resto de la pantalla.
+  // que rompían con el resto de la pantalla. T-210 extrajo el patrón a
+  // `TarjetaClasica` (se repitió en Pago/Reparto de `expense/new.tsx`).
   return (
-    <View style={[styles.card, { borderColor: c.hair, backgroundColor: c.surface }]}>
-      <Text style={[Typography.label, styles.cardLabel, { color: c.textSecondary }]}>
-        {t('recurrence.label')}
-      </Text>
-      <View style={[styles.cardSelector, { borderTopColor: c.hair }]}>
-        {selector}
-      </View>
-      {value !== null && (
+    <TarjetaClasica
+      label={t('recurrence.label')}
+      hint={value !== null && (
         <Text style={[Typography.bodyS, styles.cardHint, { color: c.textTertiary }]}>
           {t('recurrence.hint')}
         </Text>
       )}
-    </View>
+    >
+      {selector}
+    </TarjetaClasica>
   );
 }
 
 const styles = StyleSheet.create({
   wrap: { gap: Spacing[2] },
   pad:  { paddingHorizontal: Spacing.screenPad },
-  // Mismo marco que `descCard` en `app/expense/new.tsx`.
-  card: {
-    marginHorizontal: Spacing.screenPad,
-    borderRadius: Radius.xl, borderCurve: 'continuous', borderWidth: 1,
-    overflow: 'hidden',
-  },
-  cardLabel:    { paddingHorizontal: Spacing[4], paddingTop: 12, paddingBottom: 8 },
-  cardSelector: { borderTopWidth: 1 },
-  cardHint:     { paddingHorizontal: Spacing[4], paddingVertical: 10 },
+  cardHint: { paddingHorizontal: Spacing[4], paddingVertical: 10 },
 });

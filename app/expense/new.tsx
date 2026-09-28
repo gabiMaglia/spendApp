@@ -36,6 +36,7 @@ import { usePersonalStore, toMonthKey } from '@/src/store/personalStore';
 import { UserAvatar } from '@/src/components/UserAvatar';
 import { BottomSheet, SheetButton, SheetInput, SheetOption, SheetOptionAvatar } from '@/src/components/Sheet';
 import { Band, SectionLabel, Segmented } from '@/src/components/Band';
+import { TarjetaClasica } from '@/src/components/TarjetaClasica';
 import { DetailHeader } from '@/src/components/CollapsibleHeader';
 import { FondoMarmol } from '@/src/components/FondoMarmol';
 import { buildSplits } from '@/src/algorithms/buildSplits';
@@ -43,7 +44,7 @@ import type { ExpenseCategory, PersonalCategory } from '@/src/types/models';
 import { syncedNow } from '@/src/utils/syncedClock';
 import { esYo } from '@/src/store/identityAlias';
 import { MAX_TEXTO_CORTO, MAX_NOTA } from '@/src/sync/topes';
-import { useColors } from '@/src/skins/useSkin';
+import { useColors, useSkinTokens } from '@/src/skins/useSkin';
 
 type CatMeta = { id: PersonalCategory; icon: React.ComponentProps<typeof Ionicons>['name']; label: string };
 
@@ -84,6 +85,7 @@ export default function NewExpenseScreen() {
   const scheme = useColorScheme() ?? 'light';
   const { t } = useTranslation();
   const c = useColors();
+  const soft = useSkinTokens().flags.soft;
 
   const { currentUser, isPro } = useAuthStore();
   const requiresRewardedAd = useTierStore(s => s.requiresRewardedAd);
@@ -484,6 +486,137 @@ export default function NewExpenseScreen() {
   const groupName = group?.name ?? t('expense.no_group_short');
   const payerName = getUserName(payerId);
 
+  // T-210: arranca con el pagador actual poniendo todo (el usuario resta desde
+  // ahí, más rápido que cargar de cero) o vuelve a pagador único, según toque.
+  // Un solo handler para el link «pagaron varios» / «uno solo» — antes vivían
+  // repetidos en dos lugares (Aero suelto, Clásico dentro de la tarjeta).
+  function togglePayerMode() {
+    if (multiPayer) {
+      setMultiPayer(false);
+      setPayers([]);
+    } else {
+      setPayers(members.map(uid => ({
+        userId: uid,
+        amount: uid === (payerId || currentUser?.id) ? amount : 0,
+      })));
+      setMultiPayer(true);
+    }
+  }
+
+  const splitModeOptions: { key: typeof splitMode; label: string; icon: React.ComponentProps<typeof Ionicons>['name'] }[] = [
+    { key: 'equal',      label: t('expense.split_mode_equal'),      icon: 'people-outline' },
+    { key: 'percentage', label: t('expense.split_mode_percentage'), icon: 'pie-chart-outline' },
+  ];
+  const percentSubOptions: { key: typeof percentSub; label: string }[] = [
+    { key: 'same',   label: t('expense.percent_same') },
+    { key: 'custom', label: t('expense.percent_custom') },
+  ];
+
+  // Filas de miembros del reparto — compartidas entre el `Band noTop` de Aero y
+  // el `View` con borde propio de la tarjeta Clásica (T-210): mismo contenido,
+  // sólo cambia quién le pone el marco.
+  const memberRowsContent = (
+    <>
+      {splits.map((split, i) => {
+        const name    = getUserName(split.userId);
+        const isLast  = split.isLast;
+        const showRest = isLast && splitMode === 'percentage';
+
+        return (
+          <View
+            key={split.userId}
+            style={[
+              styles.memberRow,
+              {
+                backgroundColor: showRest ? c.brand.primarySoft : 'transparent',
+                borderBottomWidth: i === splits.length - 1 ? 0 : 1,
+                borderBottomColor: c.hair2,
+              },
+            ]}
+          >
+            <UserAvatar userId={split.userId} name={name} size={32} />
+            <Text style={[Typography.bodyM, { flex: 1, color: c.text, fontWeight: '600' }]}>
+              {name}
+            </Text>
+
+            {splitMode === 'percentage' && percentSub === 'custom' && !isLast && (
+              <View style={styles.percentBox}>
+                <TextInput
+                  value={customPercents[i] ?? ''}
+                  onChangeText={v => {
+                    const next = [...customPercents];
+                    next[i] = v;
+                    setCustomPercents(next);
+                  }}
+                  keyboardType="decimal-pad"
+                  placeholder="0"
+                  placeholderTextColor={c.textTertiary}
+                  style={[Typography.amountS, { color: c.text, textAlign: 'right', minWidth: 44 }]}
+                />
+                <Text style={[Typography.bodyM, { color: c.textTertiary }]}>%</Text>
+              </View>
+            )}
+
+            {showRest ? (
+              <View style={{ alignItems: 'flex-end' }}>
+                <Text style={[Typography.caption, { color: c.brand.primaryOnSoft }]}>
+                  {lastPercent < 0 ? t('expense.percent_exceeded') : t('expense.percent_rest', { pct: roundPct(lastPercent) })}
+                </Text>
+                <Text style={[Typography.amountS, {
+                  color: lastPercent >= 0 ? c.brand.primaryOnSoft : c.semantic.negative,
+                }]}>
+                  {formatMoney(Math.max(0, split.amount), currency)}
+                </Text>
+              </View>
+            ) : (
+              <View style={{ alignItems: 'flex-end' }}>
+                {splitMode === 'percentage' && percentSub === 'same' && (
+                  <Text style={[Typography.caption, { color: c.textTertiary }]}>
+                    {roundPct(parseFloat(samePercent) || 0)}%
+                  </Text>
+                )}
+                <Text style={[Typography.amountS, { color: c.text }]}>
+                  {formatMoney(split.amount, currency)}
+                </Text>
+              </View>
+            )}
+          </View>
+        );
+      })}
+
+      {percentError && (
+        <View style={[styles.errorRow, { backgroundColor: c.semantic.errorSoft, borderTopWidth: 1, borderTopColor: c.hair2 }]}>
+          <Ionicons name="warning-outline" size={16} color={c.semantic.error} />
+          <Text style={[Typography.bodyS, { color: c.semantic.error, flex: 1 }]}>
+            {t('expense.percent_over_100')}
+          </Text>
+        </View>
+      )}
+    </>
+  );
+
+  // T-127 (PO): en «mismo %» el campo del porcentaje va DEBAJO de los nombres.
+  // Compartido entre Aero y Clásico — la posición no cambió, sólo el marco de
+  // arriba (T-210).
+  const samePercentInput = splitMode === 'percentage' && percentSub === 'same' && (
+    <View style={[styles.samePercentRow, styles.afterSelectorsGap]}>
+      <View style={[styles.samePercentBox, { backgroundColor: c.bgGrouped, borderColor: c.hair }]}>
+        <TextInput
+          value={samePercent}
+          onChangeText={setSamePercent}
+          keyboardType="decimal-pad"
+          placeholder="0"
+          placeholderTextColor={c.textTertiary}
+          style={[Typography.amountM, { color: c.text, minWidth: 50, textAlign: 'center' }]}
+        />
+        <Text style={[Typography.h3, { color: c.textSecondary }]}>%</Text>
+      </View>
+      <Text style={[Typography.bodyS, { color: c.textTertiary }]}>
+        {t('expense.percent_same_hint')}
+      </Text>
+    </View>
+  );
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
@@ -628,192 +761,157 @@ export default function NewExpenseScreen() {
 
           {/* Payer: SOLO con grupo. Sin grupo = gasto personal. (F-G). El monto
               ya se movió a la tarjeta héroe de arriba (rediseño 2026-09-22) —
-              esta banda queda independiente, ya no comparte línea con nada. */}
-          {hasGroup && (multiPayer ? (
-            <Band>
-            <View style={[styles.row, { flexDirection: 'column', alignItems: 'stretch', gap: Spacing[2] }]}>
-              <PayerSplitter
-                members={members.map(uid => ({ id: uid, name: getUserName(uid) }))}
-                value={payers}
-                totalAmount={amount}
-                currency={currency}
-                onChange={setPayers}
-              />
-              <Pressable onPress={() => { setMultiPayer(false); setPayers([]); }} hitSlop={8}>
-                <Text style={[Typography.bodyS, { color: c.brand.primary }]}>{t('payers.single')}</Text>
-              </Pressable>
-            </View>
-            </Band>
-          ) : (
-            <Band>
-            <Pressable
-              onPress={() => setShowPayer(true)}
-              style={styles.row}
-            >
-              <Text style={[Typography.label, { color: c.textTertiary, textTransform: 'uppercase' }]}>{t('expense.payer_label')}</Text>
-              <View style={styles.rowRight}>
-                <UserAvatar userId={payerId} name={payerName} size={24} />
-                <Text style={[Typography.bodyM, { color: c.text, fontWeight: '600' }]}>{payerName}</Text>
-                <Ionicons name="chevron-down" size={16} color={c.textTertiary} />
+              esta banda queda independiente, ya no comparte línea con nada.
+              T-210 (PO 2026-09-28): en Clásico pasa a `TarjetaClasica`, con el
+              link «pagaron varios»/«uno solo» como PIE de la misma tarjeta —
+              antes quedaba de borde a borde, suelto afuera. Aero no cambia. */}
+          {hasGroup && (soft ? (
+            multiPayer ? (
+              <Band>
+              <View style={[styles.row, { flexDirection: 'column', alignItems: 'stretch', gap: Spacing[2] }]}>
+                <PayerSplitter
+                  members={members.map(uid => ({ id: uid, name: getUserName(uid) }))}
+                  value={payers}
+                  totalAmount={amount}
+                  currency={currency}
+                  onChange={setPayers}
+                />
+                <Pressable onPress={togglePayerMode} hitSlop={8}>
+                  <Text style={[Typography.bodyS, { color: c.brand.primary }]}>{t('payers.single')}</Text>
+                </Pressable>
               </View>
-            </Pressable>
-            </Band>
+              </Band>
+            ) : (
+              <Band>
+              <Pressable
+                onPress={() => setShowPayer(true)}
+                style={styles.row}
+              >
+                <Text style={[Typography.label, { color: c.textTertiary, textTransform: 'uppercase' }]}>{t('expense.payer_label')}</Text>
+                <View style={styles.rowRight}>
+                  <UserAvatar userId={payerId} name={payerName} size={24} />
+                  <Text style={[Typography.bodyM, { color: c.text, fontWeight: '600' }]}>{payerName}</Text>
+                  <Ionicons name="chevron-down" size={16} color={c.textTertiary} />
+                </View>
+              </Pressable>
+              </Band>
+            )
+          ) : (
+            <TarjetaClasica
+              testID="tarjeta-pago"
+              label={t('expense.payer_label')}
+              hint={
+                <Pressable onPress={togglePayerMode} hitSlop={8} style={styles.cardHintLink}>
+                  <Text style={[Typography.bodyS, { color: c.brand.primary }]}>
+                    {t(multiPayer ? 'payers.single' : 'payers.multiple')}
+                  </Text>
+                </Pressable>
+              }
+            >
+              {multiPayer ? (
+                <View style={[styles.row, { flexDirection: 'column', alignItems: 'stretch', gap: Spacing[2] }]}>
+                  <PayerSplitter
+                    members={members.map(uid => ({ id: uid, name: getUserName(uid) }))}
+                    value={payers}
+                    totalAmount={amount}
+                    currency={currency}
+                    onChange={setPayers}
+                  />
+                </View>
+              ) : (
+                <Pressable onPress={() => setShowPayer(true)} style={styles.row}>
+                  <Text style={[Typography.label, { color: c.textTertiary, textTransform: 'uppercase' }]}>{t('expense.payer_label')}</Text>
+                  <View style={styles.rowRight}>
+                    <UserAvatar userId={payerId} name={payerName} size={24} />
+                    <Text style={[Typography.bodyM, { color: c.text, fontWeight: '600' }]}>{payerName}</Text>
+                    <Ionicons name="chevron-down" size={16} color={c.textTertiary} />
+                  </View>
+                </Pressable>
+              )}
+            </TarjetaClasica>
           ))}
 
           {/* Repartos: SOLO con grupo. Sin grupo = gasto personal. (F-G) */}
           {hasGroup && (<>
-          {!multiPayer && (
-            <Pressable
-              onPress={() => {
-                // Arranca con el pagador actual poniendo todo: el usuario resta
-                // desde ahí, que es más rápido que cargar todo de cero.
-                setPayers(members.map(uid => ({
-                  userId: uid,
-                  amount: uid === (payerId || currentUser?.id) ? amount : 0,
-                })));
-                setMultiPayer(true);
-              }}
-              hitSlop={8}
-              style={styles.inlineLink}
-            >
+          {/* El link «pagaron varios» de Clásico ya vive DENTRO de la tarjeta
+              de pago de arriba (T-210) — acá sólo queda suelto en Aero, como
+              siempre. */}
+          {soft && !multiPayer && (
+            <Pressable onPress={togglePayerMode} hitSlop={8} style={styles.inlineLink}>
               <Text style={[Typography.bodyS, { color: c.brand.primary }]}>{t('payers.multiple')}</Text>
             </Pressable>
           )}
 
           {/* Split section */}
-          <View style={styles.splitSection}>
-            <SectionLabel label={t('expense.split_how')} />
+          {soft ? (
+            <View style={styles.splitSection}>
+              <SectionLabel label={t('expense.split_how')} />
 
-            {/* Los dos selectores van PEGADOS, sin gap — el mismo criterio que el
-                input de descripción con el bloque de arriba (`Band noTop`): la
-                línea divisoria de abajo del primero funciona como la única
-                línea entre los dos, sin duplicarla (PO 2026-09-13). */}
-            <Segmented
-              variant="tabs"
-              borde="ambos"
-              value={splitMode}
-              onChange={handleSplitModeChange}
-              options={[
-                { key: 'equal',      label: t('expense.split_mode_equal'),      icon: 'people-outline' },
-                { key: 'percentage', label: t('expense.split_mode_percentage'), icon: 'pie-chart-outline' },
-              ]}
-            />
-
-            {splitMode === 'percentage' && (
+              {/* Los dos selectores van PEGADOS, sin gap — el mismo criterio que el
+                  input de descripción con el bloque de arriba (`Band noTop`): la
+                  línea divisoria de abajo del primero funciona como la única
+                  línea entre los dos, sin duplicarla (PO 2026-09-13). */}
               <Segmented
                 variant="tabs"
-                compact
-                value={percentSub}
-                onChange={handlePercentSubChange}
-                options={[
-                  { key: 'same',   label: t('expense.percent_same') },
-                  { key: 'custom', label: t('expense.percent_custom') },
-                ]}
+                borde="ambos"
+                value={splitMode}
+                onChange={handleSplitModeChange}
+                options={splitModeOptions}
               />
-            )}
 
-            {/* Member rows — conservan su padding horizontal (PO 2026-09-13): sólo
-                los SELECTORES de arriba van de borde a borde, este bloque no. */}
-            {/* T-127 (PO): la lista de miembros va PEGADA al selector de arriba, sin gap,
-                compartiendo la línea divisoria. */}
-            <Band noTop>
-              {splits.map((split, i) => {
-                const name    = getUserName(split.userId);
-                const isLast  = split.isLast;
-                const showRest = isLast && splitMode === 'percentage';
-
-                return (
-                  <View
-                    key={split.userId}
-                    style={[
-                      styles.memberRow,
-                      {
-                        backgroundColor: showRest ? c.brand.primarySoft : 'transparent',
-                        borderBottomWidth: i === splits.length - 1 ? 0 : 1,
-                        borderBottomColor: c.hair2,
-                      },
-                    ]}
-                  >
-                    <UserAvatar userId={split.userId} name={name} size={32} />
-                    <Text style={[Typography.bodyM, { flex: 1, color: c.text, fontWeight: '600' }]}>
-                      {name}
-                    </Text>
-
-                    {splitMode === 'percentage' && percentSub === 'custom' && !isLast && (
-                      <View style={styles.percentBox}>
-                        <TextInput
-                          value={customPercents[i] ?? ''}
-                          onChangeText={v => {
-                            const next = [...customPercents];
-                            next[i] = v;
-                            setCustomPercents(next);
-                          }}
-                          keyboardType="decimal-pad"
-                          placeholder="0"
-                          placeholderTextColor={c.textTertiary}
-                          style={[Typography.amountS, { color: c.text, textAlign: 'right', minWidth: 44 }]}
-                        />
-                        <Text style={[Typography.bodyM, { color: c.textTertiary }]}>%</Text>
-                      </View>
-                    )}
-
-                    {showRest ? (
-                      <View style={{ alignItems: 'flex-end' }}>
-                        <Text style={[Typography.caption, { color: c.brand.primaryOnSoft }]}>
-                          {lastPercent < 0 ? t('expense.percent_exceeded') : t('expense.percent_rest', { pct: roundPct(lastPercent) })}
-                        </Text>
-                        <Text style={[Typography.amountS, {
-                          color: lastPercent >= 0 ? c.brand.primaryOnSoft : c.semantic.negative,
-                        }]}>
-                          {formatMoney(Math.max(0, split.amount), currency)}
-                        </Text>
-                      </View>
-                    ) : (
-                      <View style={{ alignItems: 'flex-end' }}>
-                        {splitMode === 'percentage' && percentSub === 'same' && (
-                          <Text style={[Typography.caption, { color: c.textTertiary }]}>
-                            {roundPct(parseFloat(samePercent) || 0)}%
-                          </Text>
-                        )}
-                        <Text style={[Typography.amountS, { color: c.text }]}>
-                          {formatMoney(split.amount, currency)}
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                );
-              })}
-
-              {percentError && (
-                <View style={[styles.errorRow, { backgroundColor: c.semantic.errorSoft, borderTopWidth: 1, borderTopColor: c.hair2 }]}>
-                  <Ionicons name="warning-outline" size={16} color={c.semantic.error} />
-                  <Text style={[Typography.bodyS, { color: c.semantic.error, flex: 1 }]}>
-                    {t('expense.percent_over_100')}
-                  </Text>
-                </View>
+              {splitMode === 'percentage' && (
+                <Segmented
+                  variant="tabs"
+                  compact
+                  value={percentSub}
+                  onChange={handlePercentSubChange}
+                  options={percentSubOptions}
+                />
               )}
-            </Band>
-            {/* T-127 (PO): en «mismo %» el campo del porcentaje va DEBAJO de los nombres. */}
-            {splitMode === 'percentage' && percentSub === 'same' && (
-              <View style={[styles.samePercentRow, styles.afterSelectorsGap]}>
-                <View style={[styles.samePercentBox, { backgroundColor: c.bgGrouped, borderColor: c.hair }]}>
-                  <TextInput
-                    value={samePercent}
-                    onChangeText={setSamePercent}
-                    keyboardType="decimal-pad"
-                    placeholder="0"
-                    placeholderTextColor={c.textTertiary}
-                    style={[Typography.amountM, { color: c.text, minWidth: 50, textAlign: 'center' }]}
-                  />
-                  <Text style={[Typography.h3, { color: c.textSecondary }]}>%</Text>
-                </View>
-                <Text style={[Typography.bodyS, { color: c.textTertiary }]}>
-                  {t('expense.percent_same_hint')}
-                </Text>
-              </View>
-            )}
 
-          </View>
+              {/* Member rows — conservan su padding horizontal (PO 2026-09-13): sólo
+                  los SELECTORES de arriba van de borde a borde, este bloque no. */}
+              {/* T-127 (PO): la lista de miembros va PEGADA al selector de arriba, sin gap,
+                  compartiendo la línea divisoria. */}
+              <Band noTop>
+                {memberRowsContent}
+              </Band>
+              {samePercentInput}
+            </View>
+          ) : (
+            <>
+            {/* Clásico (T-210, PO 2026-09-28): tarjeta cerrada, como Repetir/
+                descripción. `borde="ninguno"` en los dos `Segmented`: la tarjeta
+                ya pone el marco, no hace falta que las pestañas dibujen el suyo.
+                Las filas de miembros siguen PEGADAS al selector (T-127), ahora
+                separadas por un `View` con su propia línea en vez de `Band`. */}
+            <TarjetaClasica testID="tarjeta-reparto" label={t('expense.split_how')}>
+              <View>
+                <Segmented
+                  variant="tabs"
+                  borde="ninguno"
+                  value={splitMode}
+                  onChange={handleSplitModeChange}
+                  options={splitModeOptions}
+                />
+                {splitMode === 'percentage' && (
+                  <Segmented
+                    variant="tabs"
+                    compact
+                    borde="ninguno"
+                    value={percentSub}
+                    onChange={handlePercentSubChange}
+                    options={percentSubOptions}
+                  />
+                )}
+              </View>
+              <View style={[styles.cardMembersDivider, { borderTopColor: c.hair }]}>
+                {memberRowsContent}
+              </View>
+            </TarjetaClasica>
+            {samePercentInput}
+            </>
+          )}
           </>)}
 
           {/* El contador de gastos gratis del día.
@@ -1094,6 +1192,13 @@ const styles = StyleSheet.create({
   // el campo de "mismo %" o la lista de miembros (PO 2026-09-13). Mismo
   // token para los dos casos, así "iguales" y "porcentaje" quedan iguales.
   afterSelectorsGap: { marginTop: Spacing[3] },
+  // Pie de `TarjetaClasica` para los links de Pago (T-210): mismo padding que
+  // `cardHint` de `RecurrencePicker`, para que las tres tarjetas midan igual.
+  cardHintLink: { alignSelf: 'flex-start', paddingHorizontal: Spacing[4], paddingVertical: 10 },
+  // Divisor entre los selectores y la lista de miembros DENTRO de la tarjeta
+  // Clásica de reparto — reemplaza el `Band noTop` de Aero, que dibuja su
+  // propio fondo/hairlines; acá el fondo ya lo pone la tarjeta.
+  cardMembersDivider: { borderTopWidth: 1 },
   /**
    * `marginTop: 'auto'` empuja Guardar al fondo cuando sobra lugar.
    *
