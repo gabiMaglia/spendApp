@@ -488,7 +488,14 @@ export default function NewExpenseScreen() {
 
   return (
     <SafeAreaView edges={['bottom']} style={[styles.safe, { backgroundColor: c.bg }]}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      {/* B3 (lote 2026-09-28): sin `behavior` en Android. `app.json` no fija
+          `android.softwareKeyboardLayoutMode`, así que Expo deja el default de
+          `windowSoftInputMode` en `adjustResize` — el SO YA redimensiona la
+          ventana solo. Agregarle además `behavior="height"` hacía que dos
+          mecanismos (el resize nativo y la animación de este componente)
+          midieran y compitieran por el mismo espacio: la fila de chips subía
+          con el teclado y se quedaba arriba al cerrarlo, sin volver a bajar. */}
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
 
         <DetailHeader
           icon="close"
