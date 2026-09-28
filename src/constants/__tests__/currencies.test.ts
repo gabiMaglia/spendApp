@@ -279,7 +279,6 @@ describe('formatMoney — cachea el Intl.NumberFormat en vez de crear uno por ll
       fresh.formatMoney(99987, 'USD');    // USD también son 2 decimales, mismo locale de salida (es)
       expect(construcciones).toBe(1);
     } finally {
-      // @ts-expect-error — restaurar el global real
       global.Intl.NumberFormat = OriginalNumberFormat;
       jest.resetModules();
     }
@@ -306,7 +305,6 @@ describe('formatMoney — cachea el Intl.NumberFormat en vez de crear uno por ll
       fresh.formatMoney(2, 'CLP');       // reusa la de 0 decimales
       expect(construcciones).toBe(2);
     } finally {
-      // @ts-expect-error — restaurar el global real
       global.Intl.NumberFormat = OriginalNumberFormat;
       jest.resetModules();
     }
