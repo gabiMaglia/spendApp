@@ -37,6 +37,7 @@ const RELAY_DIR = join(__dirname, '..', 'relay');
 const NUCLEO = [
   'cubos.ts',
   'sliceLedger.ts',
+  'publicarCubos.ts',
   'appliedSlices.ts',
   'relecturas.ts',
   'documento.ts',

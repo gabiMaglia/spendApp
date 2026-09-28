@@ -68,7 +68,15 @@ export function marcarPendienteDeDrenaje(groupId: string, topic?: string): void 
   const set = leer();
   set.add(groupId);
   guardar(set);
-  if (topic) olvidarCursorDe(topic);
+  if (topic) {
+    olvidarCursorDe(topic);
+    // T-191 (spec §7/§8 C5(b)): reingreso a un grupo también olvida el ledger
+    // LOCAL de cubos publicados de ese topic. Sin esto, la próxima
+    // publicación creería que casi todo sigue "al día" (el ledger no sabe
+    // que se salió y volvió a entrar) y mandaría sólo el manifiesto sobre un
+    // buzón que, del lado del emisor, hay que republicar entero.
+    olvidarLedgerDe(topic);
+  }
 }
 
 /**
@@ -104,6 +112,19 @@ function olvidarCursorDe(topic: string): void {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { olvidarCursor } = require('./relayEngine') as typeof import('./relayEngine');
     olvidarCursor(topic);
+  } catch {
+    /* … */
+  }
+}
+
+/** Perezoso por el mismo motivo que `olvidarCursorDe`: evita el ciclo con `adaptadorHushSplit` (stores). */
+function olvidarLedgerDe(topic: string): void {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { olvidarTopic } = require('./relay/sliceLedger') as typeof import('./relay/sliceLedger');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { almacen } = require('./relay/adaptadorHushSplit') as typeof import('./relay/adaptadorHushSplit');
+    olvidarTopic(almacen, topic);
   } catch {
     /* … */
   }

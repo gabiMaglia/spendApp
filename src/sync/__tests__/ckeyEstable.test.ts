@@ -31,7 +31,7 @@ import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
-import { publishToGroup } from '../relaySync';
+import { publishToGroup, deleteMyGroupEnvelopes } from '../relaySync';
 import type { Group, Expense } from '@/src/types/models';
 
 const relayMock = jest.requireMock('../relay') as { __reset: () => void; __buzones: Map<string, { ckey?: string }[]> };
@@ -59,6 +59,18 @@ beforeEach(() => {
   useGroupStore.setState({ groups: [grupo()] } as never);
 });
 
+/**
+ * T-191 (Task 2): con cubos por prefijo de id (`relay/cubos.ts`) la ckey de
+ * un registro ya no depende del ORDEN de inserción ni de qué otros registros
+ * lo acompañan — depende sólo de su propio id (mismo id ⇒ mismo cubo ⇒ misma
+ * ckey, siempre). El caso que este test cubría (T-146: un id que ordena
+ * antes corría los límites de la rebanada de índice k y re-claveaba TODAS
+ * las siguientes) ya no puede pasar por construcción: no hay "límites" que
+ * correr. Lo que se verifica ahora es esa garantía más fuerte — agregar un
+ * gasto nuevo, ordene donde ordene, nunca cambia el CONTENIDO de un cubo que
+ * no lo contiene, y por lo tanto nunca dispara el reenvío de una ckey que no
+ * sea (a lo sumo) el propio cubo tocado + el manifiesto.
+ */
 it('agregar un gasto que ordena PRIMERO no cambia las ckeys de las rebanadas existentes', async () => {
   const base = Array.from({ length: 200 }, (_, i) => gasto(`e${String(i + 100)}`)); // e100..e299
   useExpenseStore.setState({ expenses: base } as never);
@@ -71,18 +83,43 @@ it('agregar un gasto que ordena PRIMERO no cambia las ckeys de las rebanadas exi
   await publishToGroup('G', 'u1', 'device1');
   const despues = ckeysPublicadas();
 
-  const nuevas = [...despues].filter(c => !antes.has(c));
-  // Como mucho UNA rebanada más (si el gasto extra desbordó la última). Con la
-  // ckey por seedId eran casi todas.
-  expect(nuevas.length).toBeLessThanOrEqual(1);
-  expect(despues.size).toBeGreaterThanOrEqual(antes.size);
+  // Publicación incremental (T-191): sólo se reenvía lo que cambió. Todo lo
+  // que salió en esta segunda vuelta tiene que ser una ckey YA CONOCIDA de la
+  // primera (el cubo de `expenses` que recibió al gasto nuevo, más el
+  // manifiesto, cuya ckey es la misma siempre) — nunca una ckey nueva, que
+  // sería la señal de que el alta corrió los límites de OTRO cubo.
+  for (const c of despues) expect(antes.has(c)).toBe(true);
+  // Como mucho el cubo tocado + el manifiesto salen de nuevo; nunca "casi
+  // todas" como con la ckey por índice de antes de T-146/T-191.
+  expect(despues.size).toBeLessThanOrEqual(2);
 });
 
-it('dos publicaciones idénticas producen exactamente las mismas ckeys', async () => {
+/**
+ * T-191: dos publicaciones IDÉNTICAS ya no mandan las mismas ckeys — la
+ * segunda no manda casi nada, porque nada cambió (spec §2.2, P6). Lo que
+ * sigue siendo cierto — y es lo que este test verifica — es que la ckey de
+ * cada cubo es una función DETERMINISTA de la clave del grupo, el campo y el
+ * prefijo: si se fuerza una republicación completa (`deleteMyGroupEnvelopes`
+ * olvida el ledger local, T-191 spec §7/§8 C5(b)) sobre el MISMO contenido,
+ * las ckeys que salen son EXACTAMENTE las mismas que la primera vez.
+ */
+it('el mismo contenido siempre deriva las mismas ckeys, incluso tras una republicación completa', async () => {
   useExpenseStore.setState({ expenses: Array.from({ length: 50 }, (_, i) => gasto(`e${i}`)) } as never);
   await publishToGroup('G', 'u1', 'device1');
   const a = ckeysPublicadas();
+  expect(a.size).toBeGreaterThan(1);
+
+  // Publicación idéntica: sin ledger que olvidar, sólo sale el manifiesto —
+  // y esa ckey ya es parte de `a` (siempre la misma, por grupo/época).
   relayMock.__reset();
+  await publishToGroup('G', 'u1', 'device1');
+  expect([...ckeysPublicadas()].every(c => a.has(c))).toBe(true);
+
+  // Se fuerza una republicación completa (simula T-088: purgar el buzón
+  // propio olvida el ledger local, spec C5(b)) — mismo contenido, mismas
+  // ckeys, sin faltar ni sobrar ninguna.
+  relayMock.__reset();
+  await deleteMyGroupEnvelopes('G');
   await publishToGroup('G', 'u1', 'device1');
   expect(ckeysPublicadas()).toEqual(a);
 });
