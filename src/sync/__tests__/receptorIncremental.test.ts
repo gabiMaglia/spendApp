@@ -9,6 +9,11 @@
  * de llegada (`seq`) y de qué `sender`/`ckey` trae cada uno, algo que
  * `publishToGroup` no expone.
  */
+// Compacta por (sender, ckey) AL LLEGAR — como hace el servidor real (T-032,
+// `010_ckey_compaction.sql`). Verifier, segunda tanda: sin esto, P13/P19 no
+// ejercitan la compactación de la que depende §2.3 (un `[]` de limpieza no
+// "borra" nada si la versión vieja del mismo ckey sigue en el buzón simulado
+// al lado).
 jest.mock('../relay', () => {
   const buzones = new Map<string, { seq: number; topic: string; payload: string; sender: string; compactable?: boolean; ckey?: string }[]>();
   let seq = 0;
@@ -16,7 +21,7 @@ jest.mock('../relay', () => {
     __buzones: buzones,
     __reset: () => { buzones.clear(); seq = 0; },
     __push: (topic: string, payload: string, sender: string, ckey?: string) => {
-      const lista = buzones.get(topic) ?? [];
+      const lista = (buzones.get(topic) ?? []).filter(e => !(e.sender === sender && e.ckey === ckey));
       lista.push({ seq: ++seq, topic, payload, sender, compactable: true, ckey });
       buzones.set(topic, lista);
       return lista[lista.length - 1]!.seq;
@@ -24,7 +29,7 @@ jest.mock('../relay', () => {
     isRelayConfigured: () => true,
     subscribeTopic: () => () => {},
     sendEnvelope: async (topic: string, payload: string, sender: string, compactable = false, ckey?: string) => {
-      const lista = buzones.get(topic) ?? [];
+      const lista = (buzones.get(topic) ?? []).filter(e => !(compactable && ckey && e.sender === sender && e.ckey === ckey));
       lista.push({ seq: ++seq, topic, payload, sender, compactable, ckey });
       buzones.set(topic, lista);
       return { ok: true, seq };
@@ -57,6 +62,7 @@ import * as appliedSlices from '../relay/appliedSlices';
 import * as sliceLedger from '../relay/sliceLedger';
 import { almacen } from '../relay/adaptadorHushSplit';
 import { _reset as resetRelecturas } from '../relay/relecturas';
+import { olvidarFallosDeAplicacion } from '../drainFailures';
 import type { Group, Expense, ExpenseComment } from '@/src/types/models';
 
 const relayMock = jest.requireMock('../relay') as {
@@ -311,5 +317,72 @@ describe('P21: manifiesto viejo + cubo ya aplicado con seq MAYOR — sin falta',
     // camino.
     expect(manifestGapFor('G')).toBeNull();
     expect(useExpenseStore.getState().expenses.find(e => e.id === 'e1')?.description).toBe('v2');
+  });
+});
+
+describe('QA#1/V4 (receptor): un tercero que entra tras un cubo vaciado no ve el registro viejo', () => {
+  it('gasto traspasado a otro grupo — el cubo vaciado se compacta y el tercero no lo recibe', async () => {
+    useExpenseStore.setState({ expenses: [gasto('e1')] } as never);
+    await publishToGroup('G', 'u1', 'device1');
+
+    // Traspaso: 'e1' deja de pertenecer a 'G' — `armar()` ya no lo incluye
+    // en la próxima publicación, y con el fix QA#1 el cubo que lo contenía
+    // se vacía con `[]` (spec §2.1, corregido).
+    useExpenseStore.setState({ expenses: [{ ...gasto('e1'), groupId: 'OTRO-GRUPO' }] } as never);
+    await publishToGroup('G', 'u1', 'device1');
+
+    // Tercero que entra desde el cursor 0 — store local vacío de verdad
+    // (mismo proceso de Jest que el "emisor", así que sin este reset el
+    // local ya tendría 'e1' de arriba y el test no probaría nada).
+    useExpenseStore.setState({ expenses: [] } as never);
+    // El buzón simulado compacta por (sender, ckey), así que sólo ve la
+    // versión VACÍA del cubo — nunca la que contenía 'e1'.
+    const r = await drainGroup('G', 'u2', 'deviceJoiner', 0);
+    expect(r.ok).toBe(true);
+    expect(manifestGapFor('G')).toBeNull();
+    expect(useExpenseStore.getState().expenses.find(e => e.id === 'e1')).toBeUndefined();
+  });
+});
+
+describe('V2 (verifier, segunda tanda): una rebanada retenida por dependencia no se pierde si el drenaje sale antes', () => {
+  it('el comentario retenido se reaplica ANTES de que un fallo de aplicación posterior corte el drenaje', async () => {
+    olvidarFallosDeAplicacion();
+    const topic = await topicDe();
+    const key = groupKeyBytes('G')!;
+
+    // seq1: comentario de devB sobre 'e1' — su gasto todavía no es local.
+    const kc = await deriveCkey(key, 'comments', '0');
+    const comentario = {
+      id: 'c1', expenseId: 'e1', authorId: 'u1', text: 'hola',
+      createdAt: 1, updatedAt: 1, isDeleted: false,
+    } as ExpenseComment;
+    empujar(topic, envolverCrudo('comments', [comentario]), 'devB', kc);
+
+    // seq2: gasto 'e1' de devA — resuelve la dependencia del comentario.
+    const ke = await deriveCkey(key, 'expenses', '1');
+    empujar(topic, envolverCrudo('expenses', [gasto('e1')]), 'devA', ke);
+
+    // seq3: rebanada rota de devZ (`expenses` no es un array) — tira dentro
+    // de `adaptador.acotar` y agota el presupuesto de reintentos recién al
+    // 3er intento (`DRAIN_MAX_REINTENTOS`), así que el PRIMER intento YA
+    // dispara el retorno temprano de `drainGroup` (verifier, repro V2).
+    empujar(topic, { version: 1, featureVersion: 2, fromUserId: 'q', timestamp: 0, groups: [], expenses: 5, payments: [], users: [] }, 'devZ', 'kz-rota');
+
+    // Antes del fix: el retorno temprano por el fallo de devZ saltaba la
+    // reaplicación de `retenidasPorDependencia` — el comentario de seq1
+    // (aplicado con dependencia pendiente en la MISMA página, YA con el
+    // gasto de seq2 disponible) se perdía para siempre: el cursor avanza
+    // más allá de seq1/seq2 y la próxima vuelta sólo repite seq3.
+    let cursor = 0;
+    for (let i = 0; i < 5; i++) {
+      const r = await drainGroup('G', 'u1', 'deviceReceptor', cursor);
+      expect(r.ok).toBe(true);
+      if (!r.ok) break;
+      cursor = r.cursor;
+      if (r.completo) break;
+    }
+
+    expect(useExpenseStore.getState().expenses.find(e => e.id === 'e1')).toBeDefined();
+    expect(useCommentStore.getState().comments.find(c => c.id === 'c1')).toBeDefined();
   });
 });

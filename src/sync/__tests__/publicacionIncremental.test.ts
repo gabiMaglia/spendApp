@@ -16,6 +16,7 @@ import { publicarPorCubos, type CampoDoc, type EnviarPieza } from '../relay/publ
 import { leerCubo, profundidad, type AlmacenPort } from '../relay/sliceLedger';
 import { generateGroupKey } from '../envelopeCrypto';
 import { RENEWAL_WINDOW_MS } from '../sliceRenewal';
+import { deriveCkey } from '../slices';
 
 function memoria(): AlmacenPort {
   const m = new Map<string, string>();
@@ -167,5 +168,55 @@ describe('publicarPorCubos — publicar sólo lo que cambió (T-191 Task 2)', ()
       undefined, SPLIT,
     );
     expect(profundidad(almacen, 'topic1', 'expenses')).toBe(2); // histéresis: no baja
+  });
+
+  /**
+   * Hallazgo QA #1 / V4 del verifier (bloqueante): a la MISMA profundidad,
+   * un cubo que queda VACÍO —un miembro que se va de `users`, un gasto
+   * traspasado a otro grupo— nunca recibía `[]` ni se borraba del ledger.
+   * Quedaba colgado en el buzón hasta el TTL de 30 días, y un tercero que
+   * entrara desde el cursor 0 lo recibía igual: un perfil de quien se fue,
+   * o un gasto que ya no es de este grupo, resucitaba para el que entra
+   * (ver `receptorIncremental.test.ts` para el lado receptor).
+   */
+  it('QA#1/V4: un cubo que queda vacío a la MISMA profundidad se vacía y se borra del ledger', async () => {
+    const key = generateGroupKey();
+    const almacen = memoria();
+    // Dos usuarios en cubos DISTINTOS a d=1 (prefijos 'a' y 'b').
+    const userA = { id: 'a0000000-0000-4000-8000-000000000001' };
+    const userB = { id: 'b0000000-0000-4000-8000-000000000002' };
+
+    const fase1 = enviarFalso();
+    await publicarPorCubos(
+      [{ campo: 'users', registros: [userA, userB] }],
+      envolver, key, almacen, 'topic1', 'device1', 1_000, fase1.enviar, NO_CEDER,
+    );
+    expect(fase1.piezas().length).toBe(3); // cubo A + cubo B + manifiesto
+
+    const ckeyB = await deriveCkey(key, 'users', 'b');
+    expect(leerCubo(almacen, 'topic1', 'device1', ckeyB)).not.toBeNull();
+
+    // B se va del grupo — `armar()` ya no lo incluye en `users`.
+    const fase2 = enviarFalso();
+    const r = await publicarPorCubos(
+      [{ campo: 'users', registros: [userA] }],
+      envolver, key, almacen, 'topic1', 'device1', 2_000, fase2.enviar, NO_CEDER,
+    );
+    expect(r.ok).toBe(true);
+    // El cubo de A no cambió (no se reenvía) — sólo el `[]` del cubo de B
+    // vaciado + el manifiesto: 2 sobres.
+    expect(fase2.piezas().length).toBe(2);
+    const vaciado = fase2.piezas().find(p => p.ckey === ckeyB);
+    expect(vaciado).toBeDefined();
+    expect(JSON.parse(vaciado!.json).registros).toEqual([]);
+    expect(leerCubo(almacen, 'topic1', 'device1', ckeyB)).toBeNull(); // se olvidó del ledger
+
+    // Una segunda publicación sin cambios no vuelve a mandar el `[]`.
+    const fase3 = enviarFalso();
+    await publicarPorCubos(
+      [{ campo: 'users', registros: [userA] }],
+      envolver, key, almacen, 'topic1', 'device1', 3_000, fase3.enviar, NO_CEDER,
+    );
+    expect(fase3.piezas().length).toBe(1); // sólo el manifiesto
   });
 });
