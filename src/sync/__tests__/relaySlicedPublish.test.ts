@@ -28,7 +28,7 @@ import { publishToGroup } from '../relaySync';
 import { isManifest } from '../manifest';
 import { openEnvelope } from '../envelopeCrypto';
 import { verifyEnvelope } from '../envelopeSign';
-import * as sliceRenewal from '../sliceRenewal';
+import * as sliceLedger from '../relay/sliceLedger';
 import type { Group, Expense, User } from '@/src/types/models';
 
 const relayMock = jest.requireMock('../relay') as {
@@ -246,18 +246,25 @@ describe('publishToGroup publica rebanadas + manifiesto', () => {
   });
 
   /**
-   * Revisión final, Fix 3: antes, `recordSlicePublished` se llamaba al ARMAR
-   * cada pieza (`buildSlicedEnvelopes`), antes de que `sendEnvelope` la
-   * mandara de verdad. Si el envío fallaba a mitad de camino, piezas que
-   * NUNCA llegaron al buzón quedaban igual marcadas como "recién publicadas"
-   * en el registro de renovación de 20 días — así que la renovación nunca las
-   * reintentaría.
+   * Revisión final, Fix 3 — mismo invariante, mecanismo distinto desde T-191:
+   * antes `recordSlicePublished` (`sliceRenewal.ts`) se llamaba recién
+   * después de que `sendEnvelope` confirmara cada pieza. Ese registro por
+   * rebanada-de-índice lo reemplazó el ledger de cubos
+   * (`relay/sliceLedger.ts#registrarCubo`, T-191 Task 2) — la garantía que
+   * este test protege sigue siendo la misma («si el envío falla a mitad de
+   * camino, las piezas que NO llegaron al buzón no quedan marcadas como
+   * publicadas»), sólo que ahora la marca vive en el ledger de cubos, no en
+   * el reloj de renovación de 20 días (que T-191 deja intacto para las
+   * fotos, spec §8 respuesta (4)).
    */
-  it('recordSlicePublished sólo se registra para las piezas cuyo envío se confirmó', async () => {
-    const renewalSpy = jest.spyOn(sliceRenewal, 'recordSlicePublished');
+  it('registrarCubo sólo se registra para las piezas cuyo envío se confirmó', async () => {
+    const ledgerSpy = jest.spyOn(sliceLedger, 'registrarCubo');
 
     // Se fuerza que el SEGUNDO envío de esta publicación falle — simula una
-    // red que se cae a mitad de una publicación con varias piezas.
+    // red que se cae a mitad de una publicación con varias piezas. Con el
+    // fixture de este archivo (grupo con 1 registro, sin usuarios en el
+    // store), la primera pieza es el cubo de `groups` y la segunda es el
+    // primer cubo de `expenses`.
     let llamados = 0;
     const relayModule = jest.requireMock('../relay') as {
       sendEnvelope: (topic: string, payload: string, sender: string, compactable?: boolean, ckey?: string) => Promise<{ ok: boolean; seq?: number; reason?: string }>;
@@ -273,10 +280,10 @@ describe('publishToGroup publica rebanadas + manifiesto', () => {
     expect(result.ok).toBe(false);
 
     // Sólo la primera pieza (la única cuyo envío se confirmó) quedó
-    // registrada como "recién publicada".
-    expect(renewalSpy).toHaveBeenCalledTimes(1);
+    // registrada en el ledger como "recién publicada".
+    expect(ledgerSpy).toHaveBeenCalledTimes(1);
 
     relayModule.sendEnvelope = sendEnvelopeOriginal;
-    renewalSpy.mockRestore();
+    ledgerSpy.mockRestore();
   });
 });

@@ -18,6 +18,13 @@ import { digestOfJson } from './manifest';
 const AVATAR_FETCH_RETRY_WINDOW_MS = 5 * 60 * 1000;
 
 /**
+ * T-191 (verifier, cuarta tanda): mismo valor que `PUBLICACION_TIMEOUT_MS`
+ * (`relaySync.ts`) — duplicado a propósito, no importado, para no cerrar el
+ * ciclo `relaySync.ts` → `adaptadorHushSplit.ts` → `avatarTopic.ts`.
+ */
+const AVATAR_TIMEOUT_MS = 15_000;
+
+/**
  * Fotos de perfil por referencia (Task 9): en vez de reenviar los bytes del
  * `avatar` de cada usuario en CADA publicación de la rebanada `users`
  * (`relaySync.ts`), la foto viaja UNA vez a su propio topic —derivado del
@@ -75,8 +82,23 @@ export async function publishAvatarIfOwn(
   const firmado = signEnvelope(sealed, ensureIdentity().privateKey);
   // No compactable: distintos digests son distintos topics, nunca se
   // reemplazan entre sí, así que no hace falta (ni corresponde) una `ckey`.
-  const resultado = await sendEnvelope(topic, firmado, deviceId, false);
-  if (resultado.ok) recordSlicePublished(marcador, Date.now());
+  //
+  // T-191 (verifier, cuarta tanda): esta función corre DENTRO de
+  // `antesDePublicar`, que desde el fix de M2 corre al turno de
+  // `encolarPorTopic` (`relaySync.ts`) — un envío colgado acá trabaría la
+  // cola de publicación del GRUPO, no sólo la foto. Mismo timeout + cancelación
+  // real que `publishToGroup#enviar` (`AVATAR_TIMEOUT_MS`, duplicado de
+  // `PUBLICACION_TIMEOUT_MS` — mismo valor, no se importa de `relaySync.ts`
+  // para no cerrar un ciclo: `relaySync.ts` → `adaptadorHushSplit.ts` →
+  // `avatarTopic.ts`).
+  const controller = new AbortController();
+  const cruda = sendEnvelope(topic, firmado, deviceId, false, undefined, controller.signal);
+  const TIMEOUT = Symbol('avatar_timeout');
+  const venciendo = new Promise<typeof TIMEOUT>((resolve) => {
+    setTimeout(() => { controller.abort(); resolve(TIMEOUT); }, AVATAR_TIMEOUT_MS);
+  });
+  const resultado = await Promise.race([cruda, venciendo]);
+  if (resultado !== TIMEOUT && resultado.ok) recordSlicePublished(marcador, Date.now());
 }
 
 /**

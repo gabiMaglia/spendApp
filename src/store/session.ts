@@ -26,6 +26,7 @@ import { reloadRecordHealth } from '@/src/sync/recordHealth';
 import { reloadAuthorHealth } from '@/src/sync/authorHealth';
 import { recargarAlias, sembrarAliasDesdeIndice } from './identityAlias';
 import { olvidarFallosDeAplicacion } from '@/src/sync/drainFailures';
+import { olvidarGeneraciones } from '@/src/sync/pendingDrain';
 
 // (Re)hidrata todos los stores scopeados por cuenta con los datos del usuario
 // activo. Con usuario nulo (deslogueado), cada hydrate lee un scope vacío y deja
@@ -74,6 +75,9 @@ export function rehydrateForActiveUser(): void {
   // Los intentos de drenaje (T-146) son por topic, y los topics son por
   // cuenta: mismo hueco que los de arriba si no se sueltan acá.
   olvidarFallosDeAplicacion();
+  // Las generaciones de "pendiente de drenaje" (T-191, hallazgo M3) son por
+  // groupId, y los grupos son por cuenta: mismo motivo.
+  olvidarGeneraciones();
 
   /**
    * Las identidades viejas de esta cuenta (T-048). Mismo motivo que las de

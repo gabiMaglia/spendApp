@@ -9,7 +9,7 @@ import { announce } from '@/src/services/notifications';
 import { applyApprovedLeaves } from '@/src/services/applyLeave';
 import { deriveTopic, fromHex } from '../envelopeCrypto';
 import { drainGroup, sigueSiendoLaClave } from '../relaySync';
-import { limpiarPendienteDeDrenaje } from '../pendingDrain';
+import { limpiarPendienteDeDrenaje, generacionDePendiente } from '../pendingDrain';
 import { readCursor, writeCursor, deviceId } from './cursor';
 import { syncableGroupIds } from './publish';
 
@@ -34,6 +34,14 @@ export async function drainNow(groupId: string): Promise<number> {
   // encuentra algo que aplicar — la mayoría de las vueltas no traen nada.
   let antes: Snapshot | undefined;
 
+  // M3 (verifier, tercera tanda): foto de la generación de "pendiente de
+  // drenaje" ANTES de esperar la red — si alguien vuelve a marcar pendiente
+  // ESE MISMO grupo mientras este drenaje sigue en vuelo (p. ej. un
+  // `applyBackup` concurrente, T-191 hallazgo V1), este drenaje sigue
+  // viviendo con datos de ANTES de ese reset: escribir su cursor o limpiar
+  // la marca pisaría lo que el reset acaba de poner.
+  const generacionAlArrancar = generacionDePendiente(groupId);
+
   try {
     const topic = await deriveTopic(fromHex(record.key), record.epoch);
     const r = await drainGroup(groupId, userId, deviceId(), readCursor(topic), {
@@ -45,6 +53,11 @@ export async function drainNow(groupId: string): Promise<number> {
     if (!r.ok) return 0;
     // T-136 · D-1: clave cambiada mientras esperaba => cursor del topic viejo.
     if (!sigueSiendoLaClave(groupId, record)) return 0;
+    // M3: alguien marcó pendiente este grupo DE NUEVO mientras se esperaba
+    // la red — este resultado es de antes de ese reset, se descarta entero
+    // (ni cursor ni marca), igual que el chequeo de clave de la línea de
+    // arriba.
+    if (generacionDePendiente(groupId) !== generacionAlArrancar) return 0;
     // T-146: `drainGroup` no devuelve un cursor por encima de una rebanada fallida.
     writeCursor(topic, r.cursor);
     // T-089: sólo se limpia con el buzón leído hasta el final (`r.completo`).

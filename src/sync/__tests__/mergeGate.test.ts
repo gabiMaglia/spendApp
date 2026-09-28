@@ -126,8 +126,23 @@ describe('las DOS puertas desembocan en `applyDelta`', () => {
     'mergeRecurring', 'mergeComments', 'mergeEntries',
   ];
 
-  it.each(PUERTAS)('$nombre aplica por `applyDelta`', ({ archivo }) => {
-    const src = fs.readFileSync(path.join(RAIZ, archivo), 'utf8');
+  /**
+   * T-191 (Task 0): `relaySync.ts` ya no llama a `applyDelta(` directo — pasa
+   * por `adaptador.aplicar()` (`src/sync/relay/adaptadorHushSplit.ts`), la
+   * única función que le pega a los stores desde el núcleo de rebanadas
+   * (frontera P15). El gate sigue siendo el mismo, con un salto más:
+   * `relaySync.ts` tiene que llamar a `adaptador.aplicar(`, y ese archivo
+   * tiene que llamar a `applyDelta(` — ningún otro camino entre los dos.
+   */
+  it('relay aplica por `adaptador.aplicar`, que a su vez llama a `applyDelta`', () => {
+    const relay = fs.readFileSync(path.join(RAIZ, 'src/sync/relaySync.ts'), 'utf8');
+    expect(relay).toContain('adaptador.aplicar(');
+    const adaptadorSrc = fs.readFileSync(path.join(RAIZ, 'src/sync/relay/adaptadorHushSplit.ts'), 'utf8');
+    expect(adaptadorSrc).toContain('applyDelta(');
+  });
+
+  it('QR aplica por `applyDelta`', () => {
+    const src = fs.readFileSync(path.join(RAIZ, 'app/sync/index.tsx'), 'utf8');
     expect(src).toContain('applyDelta(');
   });
 

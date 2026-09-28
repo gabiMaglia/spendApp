@@ -92,7 +92,11 @@ const mockApplyDelta = jest.requireMock('../useSyncQR').applyDelta as jest.Mock;
 function grupo(): Group {
   return {
     id: 'G', name: 'Grupo', memberIds: ['u1', 'u2'], currency: 'USD',
-    miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
+    // T-191 (V2b): el roster tiene que reflejar la misma membresía que
+    // `memberIds` — con roster vacío, el merge de `groups` (T-182) recalcula
+    // `memberIds` a `[]` y la rebanada `users` queda con una dependencia que
+    // nunca se resuelve, dejando el drenaje sin completar nunca.
+    miembros: { u1: { estado: 'in', at: 1 }, u2: { estado: 'in', at: 1 } },
     createdAt: 1, createdById: 'u1',
     updatedAt: 1_000, isDeleted: false,
   } as Group;

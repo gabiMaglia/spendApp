@@ -141,6 +141,22 @@ export function writeScoped(storage: SimpleStorage, base: string, value: string)
   storage.set(scopedKey(base, uid), value);
 }
 
+/**
+ * Borra un valor scopeado del usuario activo. Sin usuario → no-op (mismo
+ * criterio que `readScoped`/`writeScoped`: sin cuenta activa no hay scope al
+ * que aplicar la operación).
+ *
+ * T-191: lo necesita el puerto `almacen` que el núcleo de `relay` recibe del
+ * adaptador (`adaptadorHushSplit.ts`) — el ledger de rebanadas publicadas y
+ * el registro de rebanadas aplicadas necesitan poder OLVIDAR una entrada
+ * (borrar grupo, cambiar clave), no sólo leer/escribir.
+ */
+export function deleteScoped(storage: SimpleStorage, base: string): void {
+  const uid = activeUserId();
+  if (!uid) return;
+  storage.delete(scopedKey(base, uid));
+}
+
 /** Lee un booleano scopeado, con default si no hay valor / no hay usuario. */
 export function readScopedBool(storage: SimpleStorage, base: string, def: boolean): boolean {
   const uid = activeUserId();

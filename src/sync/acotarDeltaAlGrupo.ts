@@ -113,6 +113,17 @@ function snapshotFromStores(): LocalSnapshot {
 export type Descartados = { count: number; motivos: string[] };
 
 /**
+ * Acumulador opcional para los descartes POR DEPENDENCIA (T-191, spec §7 C2):
+ * un comentario cuyo gasto todavía no es local, o un perfil de usuario que
+ * todavía no es miembro local. A diferencia de los descartes por tope, éstos
+ * no son permanentes — dependen del ORDEN en que llegaron las rebanadas de
+ * esta misma publicación, y `drainGroup` los reintenta al final del drenaje
+ * una vez que `groups`/`expenses` ya se aplicaron. Antes de T-191 estos casos
+ * se tiraban sin contar nada (el bug que C2 describe).
+ */
+export type DescartesPorDependencia = { count: number };
+
+/**
  * Filtra por topes de tamaño (T-150, SEC-07). Va ANTES de los filtros de
  * pertenencia: un registro que pasa los topes no merece ni que se mire de
  * qué grupo dice ser. Se anota `tipo:campo` para el diagnóstico.
@@ -131,6 +142,7 @@ export function acotarDeltaAlGrupo(
   groupId: string,
   local: LocalSnapshot = snapshotFromStores(),
   descartados?: Descartados,
+  porDependencia?: DescartesPorDependencia,
 ): SyncDelta {
   const gruposDelGrupo = dentroDeTopes('group', delta.groups, descartados)
     .filter(g => g.id === groupId);
@@ -152,16 +164,30 @@ export function acotarDeltaAlGrupo(
     idsDeGastos.has(expenseId) || local.expenseGroupId(expenseId) === groupId;
 
   const comments = dentroDeTopes('comment', delta.comments ?? [], descartados).filter(c => {
-    if (!esGastoDelGrupo(c.expenseId)) return false;
+    if (!esGastoDelGrupo(c.expenseId)) {
+      // T-191 (C2): el gasto todavía no es local — puede ser porque la
+      // rebanada de `expenses` de esta misma publicación no llegó/aplicó
+      // todavía (dependencia de orden, reintentable), no necesariamente
+      // porque el comentario sea ilegítimo.
+      if (porDependencia) porDependencia.count++;
+      return false;
+    }
     const expenseLocalDelComentario = local.commentExpenseId(c.id);
     // El comentario ya existe colgado de un gasto que NO es de este grupo:
-    // no se puede "reasignar" reescribiéndolo con un expenseId de acá.
+    // no se puede "reasignar" reescribiéndolo con un expenseId de acá. Esto
+    // SÍ es definitivo (seguridad, T-132) — no se cuenta como dependencia.
     return expenseLocalDelComentario === undefined || esGastoDelGrupo(expenseLocalDelComentario);
   });
 
   const miembrosLocales = new Set(local.groupMemberIds(groupId) ?? []);
-  const users = dentroDeTopes('user', delta.users, descartados).filter(u =>
-    !local.knownUser(u.id) || miembrosLocales.has(u.id));
+  const users = dentroDeTopes('user', delta.users, descartados).filter(u => {
+    const pasa = !local.knownUser(u.id) || miembrosLocales.has(u.id);
+    // T-191 (C2): perfil de un usuario YA conocido que todavía no figura como
+    // miembro local — puede ser que la rebanada de `groups` de esta misma
+    // publicación no se haya aplicado todavía.
+    if (!pasa && porDependencia) porDependencia.count++;
+    return pasa;
+  });
 
   return {
     version: delta.version,

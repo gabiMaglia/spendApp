@@ -1,6 +1,6 @@
 import { MemoryStorage } from '@/src/utils/createStorage';
 import { useAuthStore } from '../authStore';
-import { readScoped, writeScoped, readScopedBool, writeScopedBool, activeUserId } from '../userScope';
+import { readScoped, writeScoped, readScopedBool, writeScopedBool, deleteScoped, activeUserId } from '../userScope';
 import type { User } from '@/src/types/models';
 
 const A = { id: 'userA' } as User;
@@ -62,5 +62,25 @@ describe('userScope — aislamiento de datos por cuenta', () => {
 
     setActive(B);
     expect(readScopedBool(st, 'flag', true)).toBe(true);     // B no ve el de A
+  });
+
+  it('deleteScoped borra sólo la entrada de la cuenta activa; sin usuario es no-op', () => {
+    const st = new MemoryStorage();
+    setActive(A);
+    writeScoped(st, 'data', '["A"]');
+    setActive(B);
+    writeScoped(st, 'data', '["B"]');
+
+    setActive(A);
+    deleteScoped(st, 'data');
+    expect(readScoped(st, 'data')).toBeUndefined();
+
+    setActive(B);
+    expect(readScoped(st, 'data')).toBe('["B"]');            // B no se vio afectada
+
+    setActive(null);
+    deleteScoped(st, 'data'); // no-op, no debe tirar
+    setActive(B);
+    expect(readScoped(st, 'data')).toBe('["B"]');
   });
 });

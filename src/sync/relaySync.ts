@@ -1,28 +1,24 @@
-import { applyDelta, DELTA_FEATURE_VERSION, type SyncDelta } from './useSyncQR';
-import { sinAvatarUrl, sinCamposLocales } from './soloLocal';
-import { acotarDeltaAlGrupo } from './acotarDeltaAlGrupo';
+import { DELTA_FEATURE_VERSION, type SyncDelta } from './useSyncQR';
 import { sealEnvelope, openEnvelope, deriveTopic, type GroupKey } from './envelopeCrypto';
 import { sendEnvelope, fetchSince, deleteMyEnvelopes, type DeleteResult } from './relay';
 import { groupKeyBytes, useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { ensureIdentity } from '@/src/store/identityStore';
 import { useAuthStore } from '@/src/store/authStore';
-import { useGroupStore } from '@/src/store/groupStore';
-import { useExpenseStore } from '@/src/store/expenseStore';
-import { usePaymentStore } from '@/src/store/paymentStore';
 import { useUserStore } from '@/src/store/userStore';
-import { useRecurringStore } from '@/src/store/recurringStore';
-import { useCommentStore } from '@/src/store/commentStore';
 import { signEnvelope, verifyEnvelope } from './envelopeSign';
 import { observeAuthor, RECHAZAR_AUTORES_NO_VERIFICADOS } from './authorHealth';
 import { refreshPendingAuthors } from './authorKeys';
-import { sliceEntities, deriveCkey } from './slices';
-import { buildManifest, digestOfJson, isManifest, looksLikeManifest, type SliceManifest } from './manifest';
+import { isManifest, looksLikeManifest, digestOfJson, type SliceManifest } from './manifest';
 import { recordManifestCheck } from './manifestHealth';
-import { recordSlicePublished } from './sliceRenewal';
-import { publishAvatarIfOwn, fetchAvatarIfMissing } from './avatarTopic';
+import { fetchAvatarIfMissing } from './avatarTopic';
 import { registrarFalloDeAplicacion, agotoReintentos } from './drainFailures';
 import { recordError } from '@/src/services/errorLog';
 import { cederHilo } from './cederHilo';
+import * as adaptador from './relay/adaptadorHushSplit';
+import { publicarPorCubos, type CampoDoc } from './relay/publicarCubos';
+import { olvidarTopic as olvidarTopicDelLedger, olvidarCubo } from './relay/sliceLedger';
+import * as appliedSlices from './relay/appliedSlices';
+import { permite as permiteRelectura } from './relay/relecturas';
 
 /**
  * Sync por el relay: arma el sobre cifrado, lo publica y aplica lo que llega.
@@ -71,13 +67,13 @@ import { cederHilo } from './cederHilo';
  * compara byte a byte contra la implementación vieja).
  */
 export function buildGroupPayload(groupId: string, currentUserId: string): SyncDelta {
-  const delGrupo = useGroupStore.getState().groups.filter(g => g.id === groupId);
-  const miembros = new Set(delGrupo[0]?.memberIds ?? []);
-
-  const expenses = sinCamposLocales(
-    useExpenseStore.getState().expenses.filter(e => e.groupId === groupId),
-  );
-  const idsDeGastos = new Set(expenses.map(e => e.id));
+  // T-191 (Task 0, refactor de frontera): el armado campo por campo —qué le
+  // pertenece a `groupId`, la elisión de mail y `avatarUrl`— vive ahora en
+  // `adaptador.armar`. Acá sólo se envuelve con el sobre (`version`,
+  // `featureVersion`, `fromUserId`, `timestamp`), exactamente como antes:
+  // `relayScopeFiltraPrimero.test.ts` compara el JSON resultante byte a byte
+  // contra una fixture con este mismo orden de claves.
+  const doc = adaptador.armar(groupId, currentUserId);
 
   return {
     version: 1,
@@ -85,26 +81,20 @@ export function buildGroupPayload(groupId: string, currentUserId: string): SyncD
     fromUserId: currentUserId,
     timestamp: Date.now(),
 
-    groups: delGrupo,
-    expenses,
-    payments: usePaymentStore.getState().payments.filter(p => p.groupId === groupId),
+    // `adaptador.armar` devuelve el `Documento` genérico del núcleo
+    // (`Record<campo, { id: string }[]>`); acá se re-tipa a lo que cada campo
+    // de `SyncDelta` es en verdad — el adaptador ya garantiza que cada lista
+    // salió del store correcto.
+    groups: doc.groups as SyncDelta['groups'],
+    expenses: doc.expenses as SyncDelta['expenses'],
+    payments: doc.payments as SyncDelta['payments'],
     // Los perfiles de los miembros SÍ hacen falta: sin ellos el otro ve ids en
-    // vez de nombres. Los de gente ajena al grupo, no.
-    //
-    // El email SÍ se saca (T-093 ronda 2 / R-2, hallazgo del verificador ciego):
-    // el registro ENTERO de cada usuario —incluido el propio, que `session.ts`
-    // persiste con el mail real de OAuth al loguear— trae el mail, y filtrar
-    // por `miembros` sólo decide QUÉ FILAS viajan, nunca qué CAMPOS. El mail
-    // viajaba tal cual a cualquiera que compartiera el grupo, y ningún receptor
-    // lo lee (sólo se muestra `currentUser.email`, la cuenta propia, en
-    // `user.tsx`/`debug/identity.tsx`; nunca el de otro usuario). Es lo que
-    // `plans/T-077.md` ya declaraba cierto ("Mail: NO recolectado") sin serlo:
-    // esto lo hace cierto, no cambia la fila de Data Safety.
-    users: sinAvatarUrl(useUserStore.getState().users.filter(u => miembros.has(u.id)))
-      .map(u => ({ ...u, email: '' })),
-    recurring: useRecurringStore.getState().recurring.filter(r => r.groupId === groupId),
+    // vez de nombres. Los de gente ajena al grupo, no. El email se saca en
+    // `adaptador.armar` (T-093 ronda 2 / R-2).
+    users: doc.users as SyncDelta['users'],
+    recurring: doc.recurring as SyncDelta['recurring'],
     // Un comentario no sabe de qué grupo es: cuelga del gasto.
-    comments: useCommentStore.getState().comments.filter(c => idsDeGastos.has(c.expenseId)),
+    comments: doc.comments as SyncDelta['comments'],
 
     // `personal` NO viaja: son movimientos sin grupo, de nadie más que su dueño.
     // `groupKeys` tampoco: si el relay pudiera entregar claves podría
@@ -113,169 +103,15 @@ export function buildGroupPayload(groupId: string, currentUserId: string): SyncD
 }
 
 /**
- * Campos de `SyncDelta` que se parten en rebanadas. `personal` y `groupKeys`
- * nunca aparecen en un payload de grupo (`buildGroupPayload` ya los excluye,
- * ver comentario ahí) así que no hace falta clasificarlos acá.
- *
- * **EL ORDEN DE ESTE ARRAY ES INVARIANTE, NO UN DETALLE ESTÉTICO.** Los
- * sobres se mandan y se drenan en este mismo orden (`buildSlicedEnvelopes` /
- * `drainGroup` procesan en `seq`), y `acotarDeltaAlGrupo` filtra `users` y
- * `comments` contra estado que se asume YA LOCAL:
- *  - `users` se filtra contra `local.groupMemberIds(groupId)` — necesita que
- *    el sobre de `groups` ya se haya aplicado.
- *  - `comments` sólo sobrevive si su `expenseId` está en el sobre de
- *    `expenses` **o ya es local** — necesita que `expenses` haya sido
- *    aplicado antes.
- * `groups` y `expenses` van primero a propósito. Si alguien reordena este
- * array (o cambia el drenaje para no respetar `seq`), un miembro nuevo puede
- * perder comentarios y perfiles en su primer sync **en silencio** — no hay
- * error, sólo datos que nunca llegan. Ver el JSDoc de `buildSlicedEnvelopes`
- * para el detalle de qué garantiza y qué no cada sobre.
+ * `SyncDelta` viejo (pre-T-191) ya no gobierna ni el orden de envío ni el de
+ * aplicación: cada campo se publica en su propio ritmo, por cubos
+ * independientes (`publicarCubos.ts`), y la garantía de dependencia
+ * (`groups`/`expenses` antes que `users`/`comments`) pasó a vivir del lado
+ * del RECEPTOR — `drainGroup` retiene y reaplica al final del drenaje lo que
+ * llegó fuera de orden (spec §8, C2 — Task 3). `adaptador.campos` declara ese
+ * orden de dependencia; acá sólo se usa como orden de ENVÍO por defecto (más
+ * predecible para leer un buzón a mano), no como garantía.
  */
-const SLICED_FIELDS = ['groups', 'expenses', 'payments', 'users', 'recurring', 'comments'] as const;
-
-/**
- * Parte el `SyncDelta` completo de un grupo en rebanadas —una por sub-lote de
- * cada tipo de entidad, vía `sliceEntities` (ADR-007)— más UN sobre de
- * manifiesto al final, que declara la `ckey` y el digest de cada rebanada
- * (`buildManifest`, Task 3).
- *
- * Cada rebanada es un `SyncDelta` válido por derecho propio: sólo trae la
- * porción de UN campo, todos los demás campos sliceables van vacíos. Cada
- * sobre se puede ABRIR y DESCIFRAR de forma independiente, sin esperar a que
- * lleguen los demás — pero **aplicarlo correctamente es otra cosa**: no es
- * cierto para todos los campos que mergearlo no dependa de qué otros sobres ya
- * se aplicaron. `acotarDeltaAlGrupo` filtra `users` contra la membresía local
- * del grupo y `comments` contra el conjunto de `expenses` ya conocidos —
- * ambos asumen que los sobres de `groups`/`expenses` de ESTA MISMA
- * publicación ya se procesaron. Por eso `SLICED_FIELDS` tiene a `groups` y
- * `expenses` antes de `users` y `comments`, y por eso ese orden es
- * load-bearing (ver el comentario sobre `SLICED_FIELDS` más abajo) — el
- * drenaje (`drainGroup`) tiene que respetar el orden de envío (`seq`) para
- * que esta garantía se sostenga.
- *
- * El manifiesto se manda AL FINAL a propósito: es el sobre que un lector
- * necesita ver para saber "esto es todo lo que hay", y por eso su `seq` es el
- * que identifica la publicación completa (ver `publishToGroup`).
- */
-async function buildSlicedEnvelopes(
-  delta: SyncDelta,
-  key: GroupKey,
-  groupId: string,
-  deviceId: string,
-): Promise<{ ckey: string; json: string }[]> {
-  const piezas: { ckey: string; json: string }[] = [];
-
-  // Fotos por referencia (Task 9): `users` se trata aparte, ANTES del loop de
-  // `SLICED_FIELDS`, para reemplazar los bytes de `avatar` por un
-  // `avatarDigest` — la foto real viaja en su propio topic (`avatarTopic.ts`),
-  // no en cada publicación de la rebanada `users`.
-  //
-  // El campo se elide con `undefined` (ausencia), NUNCA con `null`:
-  // `preservarAvatar` (`userAvatar.ts`) trata `avatar: null` como tombstone
-  // real («esta persona se sacó la foto») y adopta el registro entrante tal
-  // cual, borrando lo que el receptor ya tenía cacheado. `undefined` en
-  // cambio es exactamente la rama que esa función ya sabía resolver: "no
-  // traigo info, conservá lo que tenías" — que es lo que se quiere acá,
-  // porque la foto sigue siendo la misma, sólo que no viaja en este sobre.
-  //
-  // Precondición de flota (hallazgo #5 de la revisión de Task 9): esta
-  // elisión sólo es segura porque `preservarAvatar` ("fase A", T-056) ya
-  // resuelve `undefined` como "conservar" en vez de "borrar" — ver el
-  // docblock de `src/store/userAvatar.ts`, que documenta esto explícitamente
-  // como precondición de la fase B (no reenviar avatares ajenos). Un
-  // dispositivo que TODAVÍA corriera la lógica de merge anterior a esa fase
-  // vería el `avatar` ausente y se borraría su copia cacheada. Se asume que
-  // fase A ya está desplegada en toda la flota; si se descubre que no lo
-  // está, hay que revertir esta elisión hasta confirmarlo.
-  // Revisión final, hallazgo crítico (Fix 2): el digest sólo se RECALCULA para
-  // el propio registro (`u.id === delta.fromUserId`). Antes se recalculaba
-  // para CUALQUIER usuario con `avatar` cacheado localmente — incluidos otros
-  // miembros. Ese cálculo usa la copia local de ESTE dispositivo, que puede
-  // estar vieja: si este aparato tiene una foto stale de otro miembro y
-  // republica el grupo por cualquier motivo, declararía esa versión vieja
-  // como "la" versión, y un tercero que confía en el digest declarado
-  // adoptaría esos bytes viejos vía `fetchAvatarIfMissing` → `addOrUpdateUser`
-  // — que escribe DIRECTO al store, sin LWW ni chequeo de timestamp — pisando
-  // una foto más nueva que ya tenía. Un dispositivo sólo puede asegurar
-  // frescura sobre SU PROPIA foto; para cualquier otro registro, el
-  // `avatarDigest` que ya trae la fila local (puesto por un merge anterior)
-  // se deja tal cual, nunca se toca.
-  const usuariosConDigest = await Promise.all(
-    (delta.users ?? []).map(async (u) => {
-      if (u.id !== delta.fromUserId) {
-        if (!u.avatar) return u; // sin foto cacheada: nada que elidir
-        // No es mi registro: se elide el blob (nunca se reenvían fotos ajenas
-        // completas) pero `avatarDigest` queda EXACTAMENTE como ya estaba en
-        // la fila local — nunca se recalcula a partir de bytes cacheados de
-        // otro usuario.
-        const { avatar: _avatarAjeno, ...sinFotoAjena } = u;
-        return sinFotoAjena;
-      }
-      if (!u.avatar) return u; // propio, sin foto (o tombstone real): nada que referenciar
-      const digest = await digestOfJson(u.avatar);
-      // Es mi propia foto: la publico (si cambió) en su topic aparte.
-      // Se espera acá, no fire-and-forget: si no se espera, nada garantiza
-      // que el sobre de la foto exista en el buzón para cuando otro
-      // miembro drene esta misma publicación y pida esta rebanada.
-      await publishAvatarIfOwn(groupId, delta.fromUserId, deviceId);
-      const { avatar: _avatar, ...sinFoto } = u;
-      return { ...sinFoto, avatarDigest: digest };
-    }),
-  );
-  const deltaConUsuarios: SyncDelta = { ...delta, users: usuariosConDigest };
-
-  for (const campo of SLICED_FIELDS) {
-    const lista = (deltaConUsuarios[campo] ?? []) as { id: string }[];
-    const { rebanadas, excluidos } = sliceEntities(lista);
-    if (excluidos.length > 0) {
-      // Rastro para el diagnóstico (T-150, SEC-07): el registro sigue local,
-      // pero no viaja — mandarlo entero rompía la publicación de todos los
-      // peers honestos que lo recibieran (`sendEnvelope` rechaza sobres por
-      // encima de `MAX_PAYLOAD_BYTES`).
-      recordError({
-        message: `sync.registro_excluido campo=${campo} ids=${excluidos.slice(0, 5).map(e => e.id).join(',')}`,
-        fatal: false, screen: 'sync',
-      });
-    }
-    for (let i = 0; i < rebanadas.length; i++) {
-      const rebanada = rebanadas[i]!;
-      // La ckey va por ÍNDICE de rebanada, no por el primer id (T-146). Con el
-      // id, un registro nuevo que ordenaba antes corría todos los límites y
-      // re-claveaba cada rebanada siguiente: las viejas quedaban huérfanas en
-      // el buzón hasta el TTL de 30 días, una tanda por publicación. Con el
-      // índice, la rebanada k de `campo` es siempre la misma ckey y la
-      // compactación del servidor la pisa.
-      const ckey = await deriveCkey(key, campo, String(i));
-      const parcial: SyncDelta = {
-        version: delta.version,
-        featureVersion: delta.featureVersion,
-        fromUserId: delta.fromUserId,
-        timestamp: delta.timestamp,
-        groups: [], expenses: [], payments: [], users: [],
-        [campo]: rebanada,
-      } as SyncDelta;
-      piezas.push({ ckey, json: JSON.stringify(parcial) });
-      // Revisión final (Fix 3): `recordSlicePublished` YA NO se llama acá.
-      // Acá sólo se ARMA la lista de piezas — todavía no se mandó nada por la
-      // red. Registrar "publicada" en este punto marcaba una rebanada como
-      // fresca aunque `publishToGroup` fallara a mitad de camino (p. ej. la
-      // red se cae en la rebanada 3 de 5): esa rebanada nunca llegó al buzón,
-      // pero el reloj de renovación de 20 días (`sliceRenewal.ts`) ya la daba
-      // por publicada, así que el mecanismo de renovación nunca la
-      // reintentaría. El registro se movió a `publishToGroup`, después de que
-      // `sendEnvelope` confirma `{ok: true}` para esa pieza puntual — mismo
-      // patrón que `avatarTopic.ts`'s `publishAvatarIfOwn` ya usa
-      // correctamente.
-    }
-  }
-
-  const manifiesto = await buildManifest(piezas);
-  const manifiestoCkey = await deriveCkey(key, 'manifest', 'unica');
-  piezas.push({ ckey: manifiestoCkey, json: JSON.stringify(manifiesto) });
-
-  return piezas;
-}
 
 export type PublishResult =
   | { ok: true; seq: number }
@@ -291,7 +127,94 @@ export type PublishResult =
  * Publica el estado actual en el buzón del grupo, cifrado.
  * Sin la clave del grupo no se publica nada: mandar en claro "por esta vez"
  * es exactamente cómo se filtran los datos.
+ *
+ * T-191 (Task 2): ya no arma TODAS las rebanadas y las manda todas siempre.
+ * Arma el `Documento` del grupo (`adaptador.armar` + `antesDePublicar`, la
+ * elisión de fotos de antes) y se lo pasa a `publicarPorCubos`
+ * (`relay/publicarCubos.ts`, núcleo): corta cada campo en cubos ESTABLES por
+ * prefijo de id y sólo manda un cubo si cambió su digest contra el ledger
+ * local (`relay/sliceLedger.ts`) o venció la ventana de renovación. El
+ * manifiesto se manda siempre, al final, con el digest de todos los cubos
+ * presentes.
  */
+/**
+ * V3 (verifier, T-191 segunda tanda): dos llamadas concurrentes a
+ * `publishToGroup` para el MISMO topic (una ráfaga de `schedulePublish` más
+ * un `publishNow` directo, o `reintentarPublicacionesConCuota` solapado con
+ * un cambio nuevo) podían tener sus `sendEnvelope` en vuelo A LA VEZ. Con
+ * respuestas de red en orden invertido, el ledger terminaba creyendo
+ * publicado el digest de la publicación más NUEVA mientras el buzón —
+ * compactado por quien llegó último— se quedaba con el contenido de la más
+ * VIEJA: una publicación siguiente sin cambios locales nunca volvía a mandar
+ * ese cubo, y la edición se perdía en silencio para el resto del grupo.
+ *
+ * Cola de promesas por topic — una publicación en vuelo por grupo, la
+ * siguiente espera a que la anterior TERMINE (éxito o fallo) antes de
+ * arrancar la suya. Mismo patrón que usa Jazz/CoJSON para serializar
+ * escrituras por CoValue (`feedback_jazz_referencia_sync.md`). Sólo se
+ * encola la fase de ENVÍO (`publicarPorCubos`, que lee y escribe el
+ * ledger) — el armado del documento (`adaptador.armar`/`antesDePublicar`,
+ * más abajo) corre SIN esperar la cola, porque leer el estado local no
+ * escribe nada compartido y encolarlo también demoraría sin necesidad la
+ * publicación de un grupo A por una publicación en curso de un grupo B (la
+ * cola es por topic, no global, así que esto último no pasaría de todos
+ * modos — pero armar tampoco necesita el turno).
+ */
+const colaPorTopic = new Map<string, Promise<unknown>>();
+
+/**
+ * Envíos individuales que TODAVÍA no se asentaron cuando `enviar` (más abajo)
+ * ya devolvió por timeout — verifier, cuarta tanda: `AbortSignal` cancela la
+ * request en la inmensa mayoría de los casos, pero no hay garantía absoluta
+ * (una petición que ya cruzó al servidor cuando llega el abort, un
+ * transporte que no lo propaga). Mientras esa promesa cruda siga sin
+ * asentarse, la cola NO puede dejar arrancar la SIGUIENTE publicación del
+ * mismo topic — si la dejara, un envío tardío podría aterrizar DESPUÉS de
+ * uno más nuevo y la compactación del servidor se quedaría con el más viejo
+ * (exactamente el bug que esto cierra). Con el abort funcionando, esta
+ * promesa se asienta casi enseguida y no hay atasco real.
+ */
+const pendientesSinAsentarPorTopic = new Map<string, Promise<unknown>[]>();
+
+function registrarPendienteSinAsentar(topic: string, cruda: Promise<unknown>): void {
+  const lista = pendientesSinAsentarPorTopic.get(topic) ?? [];
+  lista.push(cruda);
+  pendientesSinAsentarPorTopic.set(topic, lista);
+}
+
+async function encolarPorTopic<T>(topic: string, tarea: () => Promise<T>): Promise<T> {
+  const anterior = colaPorTopic.get(topic) ?? Promise.resolve();
+  const propia = anterior.then(tarea, tarea);
+  // Nunca deja la cola "trabada" en un rechazo: el siguiente turno arranca
+  // igual, pase lo que pase con éste. El resultado (o el error) de ESTA
+  // llamada lo sigue recibiendo quien la hizo — `propia`, no la promesa de
+  // encadenamiento — así que nada de esto oculta un fallo real.
+  //
+  // El turno se libera recién cuando, ADEMÁS de `propia`, cualquier envío
+  // que quedó "incierto" por timeout (ver `registrarPendienteSinAsentar`) se
+  // asentó — se ignora si resolvió o rechazó, sólo importa que ya terminó.
+  const liberacion = propia.catch(() => undefined).then(async () => {
+    const pendientes = pendientesSinAsentarPorTopic.get(topic);
+    if (pendientes && pendientes.length > 0) {
+      pendientesSinAsentarPorTopic.delete(topic);
+      await Promise.allSettled(pendientes);
+    }
+  });
+  colaPorTopic.set(topic, liberacion);
+  return propia;
+}
+
+/**
+ * M2 (verifier, tercera tanda): timeout del envío individual, para que un
+ * `sendEnvelope` que nunca resuelve no deje la cola de `encolarPorTopic`
+ * trabada para siempre (nada volvería a publicarse en ESE grupo hasta
+ * reiniciar la app). Mismo orden de magnitud que el resto del motor
+ * (`STARTUP_TIMEOUT_MS`, `SESSION_TIMEOUT_MS`, `EJECUCION_TIMEOUT_MS` —
+ * `relayEngine.ts`/`relaySession.ts`/`relayQueue.ts`): un envío real nunca
+ * debería tardar esto.
+ */
+export const PUBLICACION_TIMEOUT_MS = 15_000;
+
 export async function publishToGroup(
   groupId: string,
   currentUserId: string,
@@ -303,52 +226,99 @@ export async function publishToGroup(
   const record = useGroupKeyStore.getState().getKey(groupId)!;
   const topic = await deriveTopic(key, record.epoch);
 
-  const delta = buildGroupPayload(groupId, currentUserId);
-  const piezas = await buildSlicedEnvelopes(delta, key, groupId, deviceId);
-
-  // Se manda cada rebanada (y al final el manifiesto) como su propio sobre,
-  // sellado y firmado individualmente — nunca se junta el JSON entero para
-  // sellarlo de una vez, porque eso sería volver a mandar el estado completo
-  // en un solo sobre (el problema que ADR-007 vino a resolver).
-  //
-  // El `seq` que se devuelve es el del ÚLTIMO sobre mandado (el manifiesto):
-  // con K+1 sobres por publicación, ningún `seq` individual representa "la"
-  // publicación, pero el manifiesto es el que un lector necesita ver para
-  // saber que ya llegó todo, y es el último en el orden de envío — por eso su
-  // `seq` es el que tiene sentido devolver en `PublishResult`.
-  let ultimoSeq: number | undefined;
-  for (let i = 0; i < piezas.length; i++) {
-    // T-157b: cede el hilo ENTRE piezas, nunca antes de la primera — sellar/
-    // firmar cada rebanada es trabajo síncrono, y una publicación grande
-    // encadena varias seguidas sin darle al event loop chance de atender un
-    // tap o un render de por medio.
-    if (i > 0) await cederHilo();
-    const pieza = piezas[i]!;
-    const sealed = sealEnvelope(key, pieza.json);
-
+  const enviar = async (ckey: string, json: string) => {
+    const sealed = sealEnvelope(key, json);
     // La firma va POR FUERA del cifrado: autentica quién lo mandó sin exponer
     // nada de lo que va adentro (T-033).
     const firmado = signEnvelope(sealed, ensureIdentity().privateKey);
+    // Compactable: cada cubo (y el manifiesto) reemplaza al anterior con la
+    // misma `ckey` de este mismo dispositivo (T-032 + ADR-007).
+    //
+    // Verifier, cuarta tanda: `withTimeout` (a secas) sólo deja de ESPERAR la
+    // request — no la cancela. Si vencía y la cola liberaba el turno, una
+    // publicación más nueva podía mandar y confirmar su cubo, y DESPUÉS el
+    // pedido viejo aterrizaba de verdad y lo pisaba (la compactación se queda
+    // con quien llega último), mientras el ledger seguía creyendo el digest
+    // nuevo. Acá se pasa un `AbortSignal` real (`sendEnvelope` lo reenvía a
+    // `postgrest-js`, que cancela la request) y, además, la promesa cruda se
+    // registra en la cola (`registrarPendienteSinAsentar`) para que el
+    // SIGUIENTE turno no arranque hasta que esta se asiente — defensa doble
+    // por si el abort no llega a tiempo.
+    const controller = new AbortController();
+    const cruda = sendEnvelope(topic, firmado, deviceId, true, ckey, controller.signal);
+    registrarPendienteSinAsentar(topic, cruda);
 
-    // Compactable: cada rebanada (y el manifiesto) reemplaza a la anterior con
-    // la misma `ckey` de este mismo dispositivo (T-032 + ADR-007).
-    const r = await sendEnvelope(topic, firmado, deviceId, true, pieza.ckey);
-    if (!r.ok) return { ok: false, reason: r.reason, detail: r.detail };
+    const TIMEOUT = Symbol('timeout');
+    const venciendo = new Promise<typeof TIMEOUT>((resolve) => {
+      setTimeout(() => { controller.abort(); resolve(TIMEOUT); }, PUBLICACION_TIMEOUT_MS);
+    });
 
-    // Fix 3: recién ACÁ, con el envío confirmado, se resetea el reloj de
-    // renovación de 20 días para esta rebanada puntual. Si `publishToGroup`
-    // corta antes (una pieza posterior falla), las piezas que sí salieron
-    // quedan correctamente marcadas como frescas, y las que no salieron
-    // nunca se marcaron — quedan elegibles para que la renovación las
-    // reintente, en vez de creer falsamente que ya están al día.
-    recordSlicePublished(pieza.ckey, Date.now());
-    ultimoSeq = r.seq;
+    const resultado = await Promise.race([cruda, venciendo]);
+    if (resultado === TIMEOUT) {
+      // El envío queda INCIERTO: no se sabe si el servidor llegó a
+      // recibirlo antes de que el abort surtiera efecto. Se olvida esta
+      // ckey del ledger (no se registró de todos modos, porque nunca hubo
+      // confirmación) para que la PRÓXIMA publicación la reenvíe sin
+      // confiar en un digest que puede no reflejar lo que de verdad quedó
+      // en el buzón.
+      olvidarCubo(adaptador.almacen, topic, deviceId, ckey);
+      return { ok: false as const, reason: 'network' as const, detail: 'timeout' };
+    }
+    return resultado;
+  };
+
+  const onExcluidos = (campo: string, excluidos: { id: string }[]) => {
+    // Rastro para el diagnóstico (T-150, SEC-07): el registro sigue local,
+    // pero no viaja — mandarlo entero rompía la publicación de todos los
+    // peers honestos que lo recibieran (`sendEnvelope` rechaza sobres por
+    // encima de `MAX_PAYLOAD_BYTES`).
+    recordError({
+      message: `sync.registro_excluido campo=${campo} ids=${excluidos.slice(0, 5).map(e => e.id).join(',')}`,
+      fatal: false, screen: 'sync',
+    });
+  };
+
+  // M2 (verifier, tercera tanda): `armar`/`antesDePublicar` se mueven
+  // ADENTRO de la tarea encolada — antes corrían acá afuera, y si esta
+  // llamada se demoraba esperando `antesDePublicar` (`publishAvatarIfOwn`,
+  // red) mientras OTRA llamada más nueva para el mismo topic entraba a la
+  // cola primero (la encontraba vacía), el buzón terminaba con el estado
+  // MÁS VIEJO: esta llamada volvía después con su snapshot ya obsoleto y lo
+  // pisaba. Tomar el estado recién AL TURNO de la cola garantiza que lo que
+  // se envía es lo que el dispositivo cree AHORA, no lo que creía cuando se
+  // lo llamó.
+  const resultado = await encolarPorTopic(topic, async () => {
+    const doc = await adaptador.antesDePublicar(
+      adaptador.armar(groupId, currentUserId),
+      { groupId, deviceId, fromUserId: currentUserId },
+    );
+    const campos: CampoDoc[] = adaptador.campos.map(campo => ({
+      campo,
+      registros: (doc[campo] ?? []) as { id: string }[],
+    }));
+
+    return publicarPorCubos(
+      campos,
+      (campo, registros) => adaptador.envolver(campo, registros, currentUserId),
+      key,
+      adaptador.almacen,
+      topic,
+      deviceId,
+      Date.now(),
+      enviar,
+      cederHilo,
+      onExcluidos,
+    );
+  });
+
+  if (!resultado.ok) {
+    return { ok: false, reason: resultado.reason as PublishFailReason, detail: resultado.detail };
   }
-
-  // `piezas` siempre tiene al menos el sobre de manifiesto, así que si se
-  // llegó hasta acá sin devolver antes, `ultimoSeq` está seteado.
-  return { ok: true, seq: ultimoSeq! };
+  return resultado;
 }
+
+/** Las razones de fallo que de verdad puede devolver `sendEnvelope` — `publicarPorCubos` las pasa tal cual. */
+type PublishFailReason = Extract<PublishResult, { ok: false }>['reason'];
 
 /**
  * Saca del buzón los sobres que ESTE aparato publicó para el grupo (T-088).
@@ -364,6 +334,11 @@ export async function publishToGroup(
  * Quién lo llama es T-074, y ese ticket tiene que purgar el buzón ANTES de
  * destruir la prenda: al revés, el secreto se pierde y los sobres quedan a
  * merced del TTL.
+ *
+ * T-191 (spec §7/§8 C5(b)): también olvida el ledger local de cubos
+ * publicados de este topic. Sin esto, tras purgar el buzón el ledger seguiría
+ * declarando cubos "ya publicados" sobre un buzón vacío, y la próxima
+ * publicación mandaría sólo el manifiesto sobre nada.
  */
 export async function deleteMyGroupEnvelopes(
   groupId: string,
@@ -373,7 +348,9 @@ export async function deleteMyGroupEnvelopes(
 
   const record = useGroupKeyStore.getState().getKey(groupId)!;
   const topic = await deriveTopic(key, record.epoch);
-  return deleteMyEnvelopes(topic);
+  const resultado = await deleteMyEnvelopes(topic);
+  olvidarTopicDelLedger(adaptador.almacen, topic);
+  return resultado;
 }
 
 export type DrainResult =
@@ -450,6 +427,120 @@ export type DrainOptions = {
   antesDeAplicar?: () => void;
 };
 
+/**
+ * Acota un delta recibido a `groupId` y lo aplica — compartido entre el
+ * primer intento (dentro del loop de páginas) y la reaplicación al final del
+ * drenaje (T-191, Task 3, spec §8 C2): mismo camino, para que un descarte
+ * por tope o la búsqueda de fotos por referencia se comporten IGUAL las dos
+ * veces. Devuelve los descartes de `adaptador.acotar` — quien llama decide
+ * qué hacer con `porDependencia` (retener y reintentar, o dar por aplicado).
+ */
+async function aplicarDeltaAcotado(
+  groupId: string,
+  currentUserId: string,
+  delta: SyncDelta,
+): Promise<{ porTope: number; porDependencia: number; motivos: string[] }> {
+  const { delta: acotado, descartes } = adaptador.acotar(delta, groupId);
+  if (descartes.porTope > 0) {
+    // Rastro, no aviso al usuario (T-150, SEC-07): no hay nada que la víctima
+    // pueda hacer con «un miembro mandó un registro demasiado grande», y sí
+    // sirve en el diagnóstico exportado cuando alguien pregunta «¿y mi gasto?».
+    recordError({
+      message: `sync.registro_descartado n=${descartes.porTope} ${descartes.motivos.slice(0, 5).join(',')}`,
+      fatal: false, screen: 'sync',
+    });
+  }
+  adaptador.aplicar(acotado, currentUserId);
+
+  // Fotos por referencia (Task 9): se itera `acotado.users` (YA filtrado),
+  // nunca `delta.users` crudo, y el digest a pedir se lee del STORE YA
+  // MERGEADO — si esta rebanada perdió el LWW, `acotado` trae el viejo.
+  await Promise.all(
+    (acotado.users ?? [])
+      .filter(u => u.avatarDigest && u.id !== currentUserId)
+      .map((u) => {
+        const digest = useUserStore.getState().getUserById(u.id)?.avatarDigest;
+        return digest ? fetchAvatarIfMissing(groupId, u.id, digest) : Promise.resolve();
+      }),
+  );
+
+  return descartes;
+}
+
+/**
+ * Relectura acotada (T-191, Task 3, spec §7/§8 C6): el manifiesto de `sender`
+ * declaró una `ckey` que este drenaje no pudo dar por cumplida (no llegó hoy
+ * y no estaba en `appliedSlices`). Se relee el topic desde el cursor 0 —el
+ * buzón conserva la última versión de cada cubo por emisor (compactación por
+ * `(topic, owner, ckey)`), así que un cubo viejo vuelve a estar ahí— y se
+ * aplica cualquier pieza de `sender` cuya `ckey` siga faltando. El llamador
+ * ya verificó con `relecturas.permite` que esto corre A LO SUMO una vez por
+ * `(topic, sender, seq del manifiesto)`.
+ *
+ * Devuelve las `ckey` que SIGUEN faltando después de este intento — pueden
+ * quedar si la relectura no encontró el sobre (se perdió de verdad), si
+ * seguía teniendo descartes por dependencia, o si la red falló a mitad de
+ * camino.
+ */
+async function releerFaltantes(
+  groupId: string,
+  currentUserId: string,
+  deviceId: string,
+  topic: string,
+  key: GroupKey,
+  record: { key: string; epoch: number },
+  sender: string,
+  faltantes: { ckey: string; digest: string }[],
+): Promise<string[]> {
+  const declarados = new Map(faltantes.map(f => [f.ckey, f.digest]));
+  const pendientes = new Set(faltantes.map(f => f.ckey));
+  let cursor = 0;
+
+  for (let pagina = 0; pagina < DRAIN_MAX_PAGES && pendientes.size > 0; pagina++) {
+    const r = await fetchSince(topic, cursor, deviceId, DRAIN_FETCH_LIMIT);
+    if (!r.ok) break; // sin red: queda faltante, se reintenta con el próximo manifiesto
+    if (!sigueSiendoLaClave(groupId, record)) break;
+
+    for (const envelope of r.envelopes) {
+      if (envelope.sender !== sender || !envelope.ckey || !pendientes.has(envelope.ckey)) continue;
+
+      const firmado = verifyEnvelope(envelope.payload);
+      if (!firmado) continue;
+      const plain = openEnvelope(key, firmado.sealed);
+      if (plain === null) continue;
+
+      let parsed: unknown;
+      try { parsed = JSON.parse(plain); } catch { continue; }
+      if (isManifest(parsed) || looksLikeManifest(parsed)) continue; // esta ckey es de datos
+
+      // Fix 4 (heredado de T-146): el contenido tiene que coincidir con el
+      // digest que el manifiesto declaró para esta ckey — un sobre corrupto
+      // o una versión equivocada bajo la misma ckey NUNCA se acepta como
+      // "encontrado" sólo porque decodificó. Si no coincide, sigue faltante.
+      const digest = await digestOfJson(plain);
+      if (digest !== declarados.get(envelope.ckey)) continue;
+
+      try {
+        const descartes = await aplicarDeltaAcotado(groupId, currentUserId, parsed as SyncDelta);
+        if (descartes.porDependencia === 0) {
+          appliedSlices.registrar(adaptador.almacen, topic, sender, envelope.ckey, {
+            digest, seq: envelope.seq, senderKey: firmado.senderKey,
+          });
+          pendientes.delete(envelope.ckey);
+        }
+      } catch (e) {
+        registrarFalloDeAplicacion(topic, envelope.seq, e);
+      }
+    }
+
+    cursor = r.cursor;
+    const hayMas = r.more ?? r.envelopes.length >= DRAIN_FETCH_LIMIT;
+    if (!hayMas) break;
+  }
+
+  return [...pendientes];
+}
+
 export async function drainGroup(
   groupId: string,
   currentUserId: string,
@@ -485,16 +576,42 @@ export async function drainGroup(
   // recalcular el digest) y qué manifiestos. Un manifiesto puede caer en una
   // página y sus rebanadas en otra.
   const recibidasPorRemitente = new Map<string, Map<string, string>>();
-  const manifiestos: { sender: string; manifest: SliceManifest }[] = [];
+  const manifiestos: { sender: string; manifest: SliceManifest; senderKey: string; seq: number }[] = [];
   let seLlamoAntesDeAplicar = false;
 
-  for (let pagina = 0; pagina < maxPages; pagina++) {
+  // T-191 (Task 3, spec §8 C2): rebanadas que se aplicaron pero dejaron
+  // descartes POR DEPENDENCIA (comentario sin su gasto todavía local, perfil
+  // de un usuario que todavía no es miembro local) — se reintentan al final
+  // del drenaje, después de la última página, cuando `groups`/`expenses` de
+  // esta misma tanda de publicaciones ya tuvieron chance de llegar por su
+  // propio cubo. Sólo entonces se registran en `appliedSlices`.
+  const retenidasPorDependencia: { seq: number; ckey?: string; sender: string; delta: SyncDelta; senderKey: string; json: string }[] = [];
+
+  // V2 (verifier, segunda tanda): un fallo de aplicación con reintentos
+  // agotados devolvía ANTES `return {...}` directo desde dentro del loop —
+  // eso saltaba ENTERO el paso de abajo que reaplica `retenidasPorDependencia`
+  // (líneas más abajo) y el chequeo de manifiesto. Una rebanada retenida por
+  // dependencia en una página anterior de ESTA MISMA llamada se perdía sin
+  // dejar rastro: el cursor ya había avanzado más allá de ella y nunca se
+  // volvía a pedir. Ahora ese caso guarda el resultado acá y **rompe los dos
+  // loops** (`paginas:` abajo) en vez de retornar — la reaplicación de
+  // retenidas SIEMPRE corre antes de devolver, la haya pedido este camino o
+  // el normal. El chequeo de manifiesto sigue sin correr (`completo` queda
+  // `false`, como antes): esta salida es parcial a propósito.
+  let salidaTemprana: { cursor: number } | null = null;
+  // V2b (arquitecto, tercera ronda — spec §8 C2): distingue el corte de red
+  // en una página POSTERIOR (no cobra cupo a las retenidas, ajuste A) del
+  // tope de páginas alcanzado (si cobra). Ninguno de los dos es "completo".
+  let corteDeRed = false;
+
+  paginas: for (let pagina = 0; pagina < maxPages; pagina++) {
     const r = await fetchSince(topic, cursor, deviceId, pageLimit);
     if (!r.ok) {
       // Sin red en la primera página es un drenaje fallido. En una página
       // posterior ya hay cosas aplicadas: se devuelve hasta dónde se llegó, y
       // `completo: false` deja la marca de T-089 puesta.
       if (pagina === 0) return { ok: false, reason: r.reason, detail: r.detail };
+      corteDeRed = true;
       break;
     }
 
@@ -550,7 +667,10 @@ export async function drainGroup(
       }
 
       if (isManifest(parsed)) {
-        manifiestos.push({ sender: envelope.sender, manifest: parsed });
+        manifiestos.push({
+          sender: envelope.sender, manifest: parsed,
+          senderKey: firmado.senderKey, seq: envelope.seq,
+        });
         continue;
       }
 
@@ -617,7 +737,7 @@ export async function drainGroup(
       seLlamoAntesDeAplicar = true;
     }
 
-    for (const { seq, delta, senderKey } of rebanadas) {
+    for (const { seq, ckey, sender, delta, senderKey, json } of rebanadas) {
       // Ronda 1 del verifier (D1): TODO lo que puede tirar por esta rebanada —
       // incluida la observación de autoría, que lee `delta.fromUserId` sin
       // haber comprobado que `delta` sea un objeto— tiene que pasar por el
@@ -643,33 +763,27 @@ export async function drainGroup(
         // S3-A1: la firma y el cifrado sólo prueban quién lo mandó y que tiene
         // la clave del TOPIC — nunca acotan qué puede venir adentro. Se arma un
         // delta nuevo, campo por campo, con sólo lo que pertenece a `groupId`
-        // antes de tocar cualquier store (`acotarDeltaAlGrupo.ts`).
-        const descartados = { count: 0, motivos: [] as string[] };
-        const acotado = acotarDeltaAlGrupo(delta, groupId, undefined, descartados);
-        if (descartados.count > 0) {
-          // Rastro, no aviso al usuario (T-150, SEC-07): no hay nada que la
-          // víctima pueda hacer con «un miembro mandó un registro demasiado
-          // grande», y sí sirve en el diagnóstico exportado cuando alguien
-          // pregunta «¿y mi gasto?».
-          recordError({
-            message: `sync.registro_descartado topic=${topic.slice(0, 8)} n=${descartados.count} ${descartados.motivos.slice(0, 5).join(',')}`,
-            fatal: false, screen: 'sync',
-          });
-        }
-        applyDelta(acotado, currentUserId);
+        // antes de tocar cualquier store (`adaptador.acotar`, T-191 Task 0 —
+        // hoy `acotarDeltaAlGrupo`).
+        const descartes = await aplicarDeltaAcotado(groupId, currentUserId, delta);
         applied++;
 
-        // Fotos por referencia (Task 9): se itera `acotado.users` (YA filtrado),
-        // nunca `delta.users` crudo, y el digest a pedir se lee del STORE YA
-        // MERGEADO — si esta rebanada perdió el LWW, `acotado` trae el viejo.
-        await Promise.all(
-          (acotado.users ?? [])
-            .filter(u => u.avatarDigest && u.id !== currentUserId)
-            .map((u) => {
-              const digest = useUserStore.getState().getUserById(u.id)?.avatarDigest;
-              return digest ? fetchAvatarIfMissing(groupId, u.id, digest) : Promise.resolve();
-            }),
-        );
+        if (descartes.porDependencia > 0) {
+          // T-191 (Task 3, spec §8 C2): esta rebanada perdió algo por
+          // dependencia (comentario sin su gasto todavía local, usuario no
+          // miembro todavía) — se retiene para reaplicar al final del
+          // drenaje, cuando `groups`/`expenses` de la MISMA tanda ya tuvieron
+          // chance de llegar (posiblemente en otra página). Recién si esa
+          // reaplicación queda sin descartes por dependencia se registra en
+          // `appliedSlices` — mientras tanto, un manifiesto que la declare
+          // «falta» está en lo cierto, y eso es lo que dispara la relectura
+          // (C6) si esta misma vuelta no alcanza a resolverla.
+          retenidasPorDependencia.push({ seq, ckey, sender, delta, senderKey, json });
+        } else if (ckey) {
+          appliedSlices.registrar(adaptador.almacen, topic, sender, ckey, {
+            digest: await digestOfJson(json), seq, senderKey,
+          });
+        }
       } catch (e) {
         // TEC-01: antes esto era `catch { skipped++ }` y el cursor avanzaba
         // igual — la rebanada no volvía a pedirse hasta que su emisor la
@@ -679,7 +793,8 @@ export async function drainGroup(
         registrarFalloDeAplicacion(topic, seq, e);
         if (!agotoReintentos(topic, seq)) {
           void refreshPendingAuthors();
-          return { ok: true, applied, skipped, cursor: seq - 1, completo: false };
+          salidaTemprana = { cursor: seq - 1 };
+          break paginas;
         }
         skipped++;
       }
@@ -697,6 +812,55 @@ export async function drainGroup(
     }
   }
 
+  // V2b (arquitecto, tercera ronda — spec §8 C2): reaplicar al final lo que
+  // quedó retenido por dependencia en CUALQUIER página. Si queda SIN
+  // descartes, se registra en `appliedSlices`. Si sigue con descartes (o la
+  // reaplicación tira), entra en `noResueltas` — y en `H` sólo si TODAVÍA
+  // tiene cupo en `drainFailures` (`(topic, seq)`). El cupo se cobra
+  // (ajuste A) sólo cuando este drenaje llega al fondo del buzón o al tope
+  // de páginas — NUNCA en una salida temprana ni en un corte de red: en esos
+  // dos casos la retenida ni tuvo la última chance real de resolverse hoy.
+  const debeCobrarCupo = !salidaTemprana && !corteDeRed;
+  const H: { seq: number; ckey?: string; sender: string }[] = [];
+  const noResueltas: { sender: string; ckey?: string }[] = [];
+
+  for (const { seq, ckey, sender, delta, senderKey, json } of retenidasPorDependencia) {
+    let siguePendiente = false;
+    try {
+      const descartes = await aplicarDeltaAcotado(groupId, currentUserId, delta);
+      if (descartes.porDependencia === 0) {
+        if (ckey) {
+          appliedSlices.registrar(adaptador.almacen, topic, sender, ckey, {
+            digest: await digestOfJson(json), seq, senderKey,
+          });
+        }
+      } else {
+        siguePendiente = true;
+        if (debeCobrarCupo) registrarFalloDeAplicacion(topic, seq, new Error('dependencia_pendiente'));
+      }
+    } catch (e) {
+      registrarFalloDeAplicacion(topic, seq, e);
+      siguePendiente = true;
+    }
+
+    if (siguePendiente) {
+      noResueltas.push({ sender, ckey });
+      // Cupo agotado: sale de `H` (no bloquea el cursor) — el manifiesto la
+      // marca faltante igual (ajuste B, más abajo), como cualquier otro
+      // faltante permanente.
+      if (!agotoReintentos(topic, seq)) H.push({ seq, ckey, sender });
+    }
+  }
+
+  // Ajuste B: una retenida NO RESUELTA se saca de `recibidasPorRemitente`
+  // ANTES del chequeo de manifiesto — `entradaCumplida` la daría por
+  // cumplida sólo porque el sobre LLEGÓ, sin mirar si de verdad terminó de
+  // aplicarse. Con o sin cupo: las dos formas de "no resuelta" tienen que
+  // seguir figurando como faltantes para `manifestHealth`.
+  for (const { sender, ckey } of noResueltas) {
+    if (ckey) recibidasPorRemitente.get(sender)?.delete(ckey);
+  }
+
   // Manifiesto: se chequea UNA vez, al final, y sólo si se leyó hasta el
   // fondo. Con una página recortada por delante, el manifiesto o sus rebanadas
   // pueden estar ahí y un gap acá sería un falso positivo sin mitigación. Se
@@ -705,6 +869,13 @@ export async function drainGroup(
   //
   // Por remitente: el servidor compacta por topic + prenda + ckey, o sea por
   // dispositivo — el manifiesto de A sólo se completa con rebanadas de A.
+  //
+  // T-191 (Task 3, spec §7/§8 C5(c)): una entrada se da por cumplida si
+  // llegó EN ESTE drenaje con el digest declarado, o si ya estaba en
+  // `appliedSlices` (mismo digest, o `seq` mayor — publicación en curso
+  // cortada por la cuota) con la MISMA `senderKey` que firmó el manifiesto.
+  // Antes de T-191 (publicación siempre completa) esto no hacía falta: todo
+  // lo que el manifiesto declaraba SIEMPRE viajaba en la misma tanda.
   if (completo && manifiestos.length > 0) {
     // T-146, ronda 2 del verifier (D3): `isManifest` ya valida cada entrada,
     // así que `entry.ckey`/`entry.digest` deberían ser siempre `string` acá.
@@ -714,23 +885,45 @@ export async function drainGroup(
     // librería de digest), se anota y el drenaje TERMINA igual: `applied`,
     // `skipped` y `cursor` de las rebanadas ya procesadas no se pierden.
     try {
-      const faltantes: string[] = [];
-      for (const { sender, manifest } of manifiestos) {
+      const faltantesTotales: string[] = [];
+      for (const { sender, manifest, senderKey: senderKeyManifiesto, seq: seqManifiesto } of manifiestos) {
         const recibidas = recibidasPorRemitente.get(sender) ?? new Map<string, string>();
+        let faltantes: { ckey: string; digest: string }[] = [];
         for (const entry of manifest.entries) {
           const json = recibidas.get(entry.ckey);
-          if (json === undefined) {
-            faltantes.push(entry.ckey);
-            continue;
+          const digestRecibido = json !== undefined ? await digestOfJson(json) : undefined;
+          const aplicada = appliedSlices.leer(adaptador.almacen, topic, sender, entry.ckey);
+          if (!appliedSlices.entradaCumplida(entry, seqManifiesto, senderKeyManifiesto, digestRecibido, aplicada)) {
+            faltantes.push(entry);
           }
-          // La ckey llegó, pero su CONTENIDO tiene que coincidir con el digest
-          // declarado: un sobre corrupto o una versión vieja bajo esa ckey se
-          // reporta como faltante. Nunca bloquea la aplicación de arriba.
-          const digest = await digestOfJson(json);
-          if (digest !== entry.digest) faltantes.push(entry.ckey);
         }
+
+        // Ajuste C (V2b, arquitecto): una ckey retenida sin resolver NO
+        // dispara relectura — el sobre ya está en mano, releerlo de nuevo no
+        // cambia nada (el problema es la dependencia, no el transporte). Si
+        // TODOS los faltantes de este emisor son retenidas, se conserva el
+        // cupo de relectura (`permiteRelectura` no se consulta) — pero
+        // igual cuentan como faltantes más abajo, para `manifestHealth`.
+        const ckeysNoResueltasDeEsteSender = new Set(
+          noResueltas.filter(n => n.sender === sender && n.ckey).map(n => n.ckey!),
+        );
+        const todosSonRetenidas = faltantes.length > 0
+          && faltantes.every(f => ckeysNoResueltasDeEsteSender.has(f.ckey));
+
+        // T-191 (Task 3, spec §7/§8 C6): faltó algo — como MUCHO una
+        // relectura desde el cursor 0 por `(topic, sender, seq del
+        // manifiesto)`. Si después de releer sigue faltando, se registra y
+        // no se vuelve a intentar hasta que llegue un manifiesto con otro
+        // `seq` (`relecturas.permite` no vuelve a dar `true` para esta terna).
+        if (faltantes.length > 0 && !todosSonRetenidas && permiteRelectura(topic, sender, seqManifiesto)) {
+          const siguenFaltando = await releerFaltantes(
+            groupId, currentUserId, deviceId, topic, key, record, sender, faltantes,
+          );
+          faltantes = faltantes.filter(f => siguenFaltando.includes(f.ckey));
+        }
+        faltantesTotales.push(...faltantes.map(f => f.ckey));
       }
-      recordManifestCheck(groupId, faltantes);
+      recordManifestCheck(groupId, faltantesTotales);
     } catch (e) {
       recordError({
         message: `sync.manifest_check_failed topic=${topic.slice(0, 8)}: ${e instanceof Error ? e.message : String(e)}`,
@@ -745,5 +938,20 @@ export async function drainGroup(
   // que aprenda sirve para la próxima vuelta.
   void refreshPendingAuthors();
 
-  return { ok: true, applied, skipped, cursor, completo };
+  // V2b (arquitecto, tercera ronda — spec §8 C2): el cursor NUNCA pasa una
+  // retenida por dependencia que siga sin resolver Y con cupo — `base` es
+  // el cursor que este drenaje habría devuelto de no haber retenidas
+  // (`salidaTemprana.cursor` si la hubo, si no el último `r.cursor`); si
+  // `H` no está vacío, el cursor se recorta a justo ANTES de la más vieja
+  // de ellas, para que la próxima vuelta la vuelva a pedir. `completo`
+  // (original, sólo se puso en `true` en la lectura natural hasta el fondo)
+  // se apaga si queda algo en `H` — invariante: `cursor >= sinceSeq` siempre
+  // (la retenida más vieja nunca es anterior a `sinceSeq`, porque `H` sólo
+  // contiene rebanadas que este mismo drenaje leyó).
+  const base = salidaTemprana ? salidaTemprana.cursor : cursor;
+  const minHSeq = H.length > 0 ? Math.min(...H.map(h => h.seq)) : undefined;
+  const cursorFinal = minHSeq !== undefined ? Math.min(base, minHSeq - 1) : base;
+  const completoFinal = completo && H.length === 0;
+
+  return { ok: true, applied, skipped, cursor: cursorFinal, completo: completoFinal };
 }

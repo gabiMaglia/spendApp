@@ -14,6 +14,7 @@ import { useGroupKeyStore, type GroupKeyRecord } from '@/src/store/groupKeyStore
 import { conAlta, rosterDe } from '@/src/algorithms/roster';
 import { esYo } from '@/src/store/identityAlias';
 import { schedulePublish } from '@/src/sync/relayEngine';
+import { marcarConTopic } from '@/src/sync/pendingDrain';
 import { syncedNow } from '@/src/utils/syncedClock';
 
 /**
@@ -155,6 +156,26 @@ export function applyBackup(backup: BackupFile): void {
 
   useCommentStore.setState({ comments: [] });
   useCommentStore.getState().mergeComments(backup.comments ?? []);
+
+  /**
+   * V1 (verifier, T-191 segunda tanda): un restore REEMPLAZA los stores de
+   * cada grupo — no es un merge incremental. El cursor del topic, el ledger
+   * de cubos publicados y las rebanadas ya aplicadas de otros emisores
+   * (`appliedSlices`) siguen apuntando al estado de ANTES del restore. Sin
+   * resetearlos, un manifiesto futuro que declare las MISMAS ckeys de
+   * siempre se da por cumplido contra aplicaciones de un mundo que el
+   * restore acaba de borrar — hasta 20 días de datos incompletos (la
+   * ventana de renovación), sin ningún error visible.
+   *
+   * `adoptKeys` (el camino de T-188b, más abajo) SÓLO llama a
+   * `marcarConTopic` cuando ve un cambio de clave/época — con la MISMA
+   * clave (el caso normal: restaurar un backup propio en el mismo
+   * dispositivo, o en uno nuevo pero ya emparejado) no ve ningún cambio y
+   * nunca dispara nada. Por eso esto corre ACÁ, incondicional al `ownerId`
+   * del backup: cualquier grupo con clave local, restaurado o no por T-188b,
+   * tiene sus stores recién reemplazados y necesita el mismo reset.
+   */
+  void marcarConTopic(backup.groups.map(g => g.id));
 
   // El nombre del perfil sale de authStore (no de userStore): refrescar el
   // usuario de sesión con su registro restaurado, si viene en el backup.
