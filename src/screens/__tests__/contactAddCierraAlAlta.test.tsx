@@ -1,5 +1,5 @@
 import React from 'react';
-import { act, render } from '@testing-library/react-native';
+import { act, fireEvent, render } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import AddContactScreen from '@/app/contact/add';
 import { useAuthStore } from '@/src/store/authStore';
@@ -12,12 +12,21 @@ import type { User } from '@/src/types/models';
  * mostraba el código se quedaba mirándolo sin enterarse de que ya quedaron
  * conectados. Ahora, mientras se muestra el QR, un alta nueva en `useUserStore`
  * cierra la pantalla y vuelve a Amigos — igual que ya hace el lado que escanea.
+ *
+ * **Defecto #1 (hallazgo QA, ronda de rechazo):** el baseline de ids se
+ * capturaba UNA sola vez al montar y no se reseteaba al cambiar de `mode`.
+ * Abrir en `mode=scan` (deep link «Validar miembro»), recibir un alta
+ * cualquiera por sync mientras se escanea (no debe cerrar: no se está
+ * mostrando el QR) y recién DESPUÉS pasar a «Mi QR» comparaba contra ese
+ * baseline viejo y cerraba solo, sin que hubiera pasado nada en «Mi QR». El
+ * baseline ahora se recaptura cada vez que se ENTRA a `my_qr`.
  */
 
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
+let mockParams: Record<string, string> = {};
 jest.mock('expo-router', () => ({
   router: { back: jest.fn(), push: jest.fn(), replace: jest.fn(), canGoBack: jest.fn(() => true) },
-  useLocalSearchParams: () => ({}),
+  useLocalSearchParams: () => mockParams,
 }));
 jest.mock('react-native-qrcode-svg', () => () => null);
 jest.mock('expo-camera', () => ({
@@ -42,6 +51,7 @@ const BETO = { id: 'beto1', name: 'Beto', isDeleted: false } as User;
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockParams = {};
   (router.canGoBack as jest.Mock).mockReturnValue(true);
   useAuthStore.setState({ currentUser: ANA });
   useUserStore.setState({ users: [ANA] });
@@ -82,20 +92,37 @@ describe('mostrar el QR: cerrar solo al detectar un alta del otro lado', () => {
     expect(router.replace).not.toHaveBeenCalled();
   });
 
-  it('en modo "scan" no reacciona al store (ese camino ya cierra por su cuenta)', () => {
+  it('en modo "scan" (de verdad) no reacciona al store: ese camino ya cierra por su cuenta', () => {
+    mockParams = { mode: 'scan' };
     render(<AddContactScreen />);
-    // Sin forma de tocar la pestaña "Escanear" acá sin la cámara real montada,
-    // se ejercita el guard directo: el mismo alta en modo my_qr ya cerró antes,
-    // así que un segundo alta (ya "cerrado por alta") no debe volver a cerrar.
+
     act(() => {
       useUserStore.getState().addOrUpdateUser(BETO);
     });
-    expect(router.back).toHaveBeenCalledTimes(1);
 
+    expect(router.back).not.toHaveBeenCalled();
+    expect(router.replace).not.toHaveBeenCalled();
+  });
+
+  // Defecto #1: el baseline viejo de "scan" no puede sobrevivir al cambio de tab.
+  it('alta en "scan" no cierra; al pasar a "Mi QR" tampoco (baseline recapturado); otra alta en "Mi QR" sí cierra', () => {
+    mockParams = { mode: 'scan' };
+    const r = render(<AddContactScreen />);
+
+    // Mientras se escanea, llega por sync un alta cualquiera — no reacciona.
+    act(() => {
+      useUserStore.getState().addOrUpdateUser(BETO);
+    });
+    expect(router.back).not.toHaveBeenCalled();
+
+    // El usuario pasa a "Mi QR": el baseline se recaptura ACÁ (con Beto ya adentro).
+    fireEvent.press(r.getByText('contact.tab_my_qr'));
+    expect(router.back).not.toHaveBeenCalled();
+
+    // Recién una alta NUEVA, ya mostrando el QR, cierra.
     act(() => {
       useUserStore.getState().addOrUpdateUser({ id: 'cata1', name: 'Cata', isDeleted: false } as User);
     });
-    // Ya se cerró una vez: no se llama de nuevo.
     expect(router.back).toHaveBeenCalledTimes(1);
   });
 });
