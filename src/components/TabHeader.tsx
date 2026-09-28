@@ -22,6 +22,7 @@ import { esAccionable, type KeyConflictNotice } from '@/src/services/syncNotices
 import { ofertasDe } from '@/src/sync/invitaciones/groupKeyOffers';
 import { hapticLight } from '@/src/utils/haptics';
 import { useColors } from '@/src/skins/useSkin';
+import { useContadorDeRenders } from '@/src/hooks/useContadorDeRenders';
 
 /**
  * **El header de las seis tabs. Uno solo, con lo mismo en todas.**
@@ -76,6 +77,8 @@ export function TabHeader({
   const [monedas, setMonedas] = useState(false);
   /** Aviso de claves en disputa abierto (T-136): el id para marcarlo leído al resolver. */
   const [conflicto, setConflicto] = useState<{ id: string; notice: KeyConflictNotice } | null>(null);
+
+  useContadorDeRenders('TabHeader', { title, currentUser, cur, sinLeer });
 
   /**
    * **Abrir la campana marca leídas las que NO piden acción** (PO 2026-09-13,

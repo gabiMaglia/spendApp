@@ -4,6 +4,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { useColors } from '@/src/skins/useSkin';
+import { useContadorDeRenders } from '@/src/hooks/useContadorDeRenders';
 
 /**
  * Tarjeta cerrada del skin Clásico: etiqueta arriba, contenido debajo separado
@@ -27,6 +28,9 @@ export function TarjetaClasica({
   testID?: string;
 }) {
   const c = useColors();
+
+  useContadorDeRenders('TarjetaClasica', { label });
+
   return (
     <View testID={testID} style={[styles.card, { borderColor: c.hair, backgroundColor: c.surface }]}>
       <Text style={[Typography.label, styles.label, { color: c.textSecondary }]}>

@@ -57,6 +57,10 @@ const VARIABLES_DEL_BINARIO = [
   // El hostname (para el `baseUrl` del WebView) es igual de público.
   'EXPO_PUBLIC_TURNSTILE_SITEKEY',
   'EXPO_PUBLIC_TURNSTILE_HOSTNAME',
+  // T-215: prende el log de re-renders (DEV-ONLY, `contadorDeRenders.ts`
+  // hace early-return si `!__DEV__`) sin pasar por la pantalla de
+  // diagnóstico — no es secreta, sólo un interruptor de depuración.
+  'EXPO_PUBLIC_RENDER_LOG',
 ] as const;
 
 describe('el formato del binario', () => {

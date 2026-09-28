@@ -58,7 +58,7 @@ export function registrarRender(nombre: string, motivo?: string): void {
 }
 
 /** Foto del estado acumulado, agregado por nombre. */
-export function resumen(): Array<{ nombre: string; renders: number; motivos: Record<string, number> }> {
+export function resumen(): { nombre: string; renders: number; motivos: Record<string, number> }[] {
   return [...estado.entries()].map(([nombre, e]) => ({
     nombre,
     renders: e.renders,
@@ -84,7 +84,6 @@ function formatearMotivos(motivos: Map<string, number>): string {
 function volcar(): void {
   for (const [nombre, e] of estado) {
     if (e.renders === 0) continue;
-    // eslint-disable-next-line no-console
     console.info(`[renders] ${nombre}: ${e.renders}${formatearMotivos(e.motivos)}`);
     e.renders = 0;
     e.motivos.clear();

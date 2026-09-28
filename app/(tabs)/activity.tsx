@@ -19,6 +19,7 @@ import { ActivitySearchBar } from '@/src/screens/activity/components/ActivitySea
 import { ActivityFilterTabs } from '@/src/screens/activity/components/ActivityFilterTabs';
 import { ActivityFeedList } from '@/src/screens/activity/components/ActivityFeedList';
 import { useColors } from '@/src/skins/useSkin';
+import { useContadorDeRenders } from '@/src/hooks/useContadorDeRenders';
 
 export default function ActivityScreen() {
   const { t } = useTranslation();
@@ -36,6 +37,10 @@ export default function ActivityScreen() {
   const { query, setQuery, activeFilter, setActiveFilter, allGroupNames, filteredFeed } = useActivityFilter(feed);
   const { sections, todayNewCount } = useActivitySections(filteredFeed);
   const trustFor = useActivityTrust(filteredFeed);
+
+  useContadorDeRenders('Actividad', {
+    feedCount: feed.length, filteredCount: filteredFeed.length, activeFilter, query,
+  });
 
   // Sin 'bottom': la tab bar ya reserva el inset del sistema (_layout.tsx); contarlo acá dejaba una franja muerta entre el contenido y la barra.
   return (

@@ -1,6 +1,6 @@
 import { renderHook } from '@testing-library/react-native';
 import { useContadorDeRenders } from '@/src/hooks/useContadorDeRenders';
-import { registrarRender, resumen, reset, setActivo } from '@/src/dev/contadorDeRenders';
+import { resumen, reset, setActivo } from '@/src/dev/contadorDeRenders';
 
 /**
  * T-215: el hook cuenta en el CUERPO del render (sin `useEffect`, con un

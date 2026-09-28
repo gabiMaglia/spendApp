@@ -18,7 +18,7 @@ describe('contadorDeRenders en producción (__DEV__ = false)', () => {
   it('registrarRender no acumula nada', () => {
     (global as unknown as { __DEV__?: boolean }).__DEV__ = false;
     jest.isolateModules(() => {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const mod = require('@/src/dev/contadorDeRenders');
       mod.registrarRender('Inicio', 'x');
       mod.registrarRender('Inicio', 'x');
@@ -30,7 +30,7 @@ describe('contadorDeRenders en producción (__DEV__ = false)', () => {
     (global as unknown as { __DEV__?: boolean }).__DEV__ = false;
     process.env.EXPO_PUBLIC_RENDER_LOG = '1';
     jest.isolateModules(() => {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const mod = require('@/src/dev/contadorDeRenders');
       expect(mod.activo()).toBe(false);
     });
@@ -42,7 +42,7 @@ describe('contadorDeRenders en producción (__DEV__ = false)', () => {
     jest.useFakeTimers();
     const salida = jest.spyOn(console, 'info').mockImplementation(() => {});
     jest.isolateModules(() => {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const mod = require('@/src/dev/contadorDeRenders');
       mod.setActivo(true);
       mod.registrarRender('Inicio');

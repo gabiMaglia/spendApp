@@ -20,6 +20,7 @@ import { GroupsTabSelector } from '@/src/screens/groups/components/GroupsTabSele
 import { GroupsList } from '@/src/screens/groups/components/GroupsList';
 import { GroupsNetTotal } from '@/src/screens/groups/components/GroupsNetTotal';
 import { useColors } from '@/src/skins/useSkin';
+import { useContadorDeRenders } from '@/src/hooks/useContadorDeRenders';
 
 export default function GroupsScreen() {
   const { t } = useTranslation();
@@ -40,6 +41,8 @@ export default function GroupsScreen() {
     visibleGroupIds,
     cur, fx,
   );
+
+  useContadorDeRenders('Grupos', { visiblesCount: visibles.length, tabActual, owedToYou, youOwe });
 
   // Sin 'bottom': la tab bar ya reserva el inset del sistema (_layout.tsx); contarlo acá dejaba una franja muerta entre el contenido y la barra.
   return (

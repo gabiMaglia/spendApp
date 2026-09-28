@@ -35,6 +35,7 @@ import { esYo, mismaPersona } from '@/src/store/identityAlias';
 import { useColors } from '@/src/skins/useSkin';
 import { enDisputa, autoresVerificados } from '@/src/sync/confianza/autoriaTrust';
 import { InlineWarningBanner } from '@/src/components/InlineWarningBanner';
+import { useContadorDeRenders } from '@/src/hooks/useContadorDeRenders';
 
 export default function ExpenseDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -77,6 +78,10 @@ export default function ExpenseDetailScreen() {
    */
   const marcaDeGasto = useRecordTrust('expense', expense ? [expense] : [])[expense?.id ?? ''];
   const isArchivedFn = useArchiveStore(s => s.isArchived);
+
+  useContadorDeRenders('Detalle de gasto', {
+    expense, commentsCount: comments.length, groupsCount: groups.length,
+  });
 
   if (!expense) {
     return (
