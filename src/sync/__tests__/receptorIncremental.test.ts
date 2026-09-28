@@ -195,7 +195,7 @@ describe('P16: borrar el grupo / cambiar de clave limpia appliedSlices y el ledg
     // vuelve a mandar TODO, porque el emisor también olvidó su ledger.
   });
 
-  it('deleteMyGroupEnvelopes también limpia lo aplicado que este dispositivo tenía de otros', async () => {
+  it('deleteMyGroupEnvelopes NO toca lo aplicado de otros, a propósito', async () => {
     useExpenseStore.setState({ expenses: [gasto('e1')] } as never);
     await publishToGroup('G', 'u1', 'device1');
     await drainGroup('G', 'u2', 'deviceB', 0);

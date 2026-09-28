@@ -166,12 +166,23 @@ export function guardarCkeysDeCampo(almacen: AlmacenPort, topic: string, campo: 
 }
 
 /**
- * Olvida TODO lo que el ledger sabe de un `topic` — profundidades, cubos de
- * CUALQUIER `deviceId` y los snapshots de `ckeysDeCampo` (spec §7 C5(b)):
- * reingreso a un grupo (`marcarPendienteDeDrenaje`) o purga del buzón propio
- * (`deleteMyGroupEnvelopes`). La próxima publicación, sin nada en el
- * ledger, manda todo — el mismo camino que un ledger perdido por
- * reinstalación (P9), y es correcto por la misma razón.
+ * Olvida lo que el ledger sabe PUBLICAR de un `topic` — los digests/
+ * `publicadaEn` de cada cubo (de CUALQUIER `deviceId`) y la profundidad —
+ * al reingresar a un grupo (`marcarPendienteDeDrenaje`) o purgar el buzón
+ * propio (`deleteMyGroupEnvelopes`). La próxima publicación, sin nada
+ * registrado, reenvía TODO cubo actual — el mismo camino que un ledger
+ * perdido por reinstalación (P9), y es correcto por la misma razón.
+ *
+ * **NO borra el snapshot de `ckeysDeCampo`** (hallazgo M4, verifier, tercera
+ * tanda): ese snapshot es precisamente lo que permite detectar un cubo
+ * VACIADO mientras el dispositivo estuvo afuera (miembro que se fue, gasto
+ * traspasado) — sin él, la publicación completa que sigue no tiene con qué
+ * compararse y no manda `[]` para lo que ya no está, dejándolo huérfano en
+ * el buzón hasta el TTL. Conservarlo es seguro: la comparación es contra las
+ * ckeys de la publicación ACTUAL, así que un snapshot "viejo" (de antes del
+ * reingreso) sigue describiendo correctamente qué había la última vez que
+ * ESTE dispositivo publicó — que es exactamente lo que hace falta para el
+ * diff.
  */
 export function olvidarTopic(almacen: AlmacenPort, topic: string): void {
   for (const { deviceId, ckey } of leerIndice(almacen, topic)) {
@@ -183,9 +194,4 @@ export function olvidarTopic(almacen: AlmacenPort, topic: string): void {
     almacen.delete(depthKey(topic, campo));
   }
   almacen.delete(depthIndiceKey(topic));
-
-  for (const campo of leerJson(almacen, campoCkeysIndiceKey(topic), esListaDeStrings) ?? []) {
-    almacen.delete(campoCkeysKey(topic, campo));
-  }
-  almacen.delete(campoCkeysIndiceKey(topic));
 }

@@ -59,6 +59,24 @@ function guardar(set: Set<string>): void {
 }
 
 /**
+ * Generación por grupo (T-191, hallazgo M3, verifier tercera tanda) — EN
+ * MEMORIA, no persistida: sólo hace falta distinguir "esta marca es más
+ * nueva que la que había cuando arrancó tal drenaje", DENTRO de la sesión
+ * corriendo de la app. Sube cada vez que `marcarPendienteDeDrenaje` marca un
+ * grupo. `drainNow` (`relay/drain.ts`) la lee al ARRANCAR y la vuelve a
+ * comparar antes de escribir el cursor / limpiar la marca — si cambió
+ * mientras esperaba la red (p. ej. un `applyBackup` corrió y volvió a
+ * marcar pendiente ESE MISMO grupo), ese drenaje viene de un mundo que el
+ * reset ya dejó atrás y no debe pisarlo.
+ */
+const generaciones = new Map<string, number>();
+
+/** Generación vigente de un grupo — 0 si nunca se marcó pendiente. */
+export function generacionDePendiente(groupId: string): number {
+  return generaciones.get(groupId) ?? 0;
+}
+
+/**
  * Marca un grupo como pendiente de drenaje **y olvida su cursor**.
  *
  * `topic` es opcional porque el llamador no siempre lo tiene a mano; cuando lo
@@ -68,6 +86,7 @@ export function marcarPendienteDeDrenaje(groupId: string, topic?: string): void 
   const set = leer();
   set.add(groupId);
   guardar(set);
+  generaciones.set(groupId, (generaciones.get(groupId) ?? 0) + 1);
   if (topic) {
     olvidarCursorDe(topic);
     // T-191 (spec §7/§8 C5(b)): reingreso a un grupo también olvida el ledger
@@ -160,4 +179,15 @@ export function limpiarPendienteDeDrenaje(groupId: string): void {
 /** Sólo para diagnóstico y tests. */
 export function gruposPendientesDeDrenaje(): string[] {
   return [...leer()].sort();
+}
+
+/**
+ * Suelta la caché en memoria de generaciones (guard `accountCoverage.test.ts`,
+ * misma clase de bug que las cachés de T-041/T-146): los `groupId` son por
+ * cuenta, y una cuenta que entra después de otra en el mismo arranque no
+ * puede heredar las generaciones de la anterior. Se llama desde
+ * `rehydrateForActiveUser` (`src/store/session.ts`).
+ */
+export function olvidarGeneraciones(): void {
+  generaciones.clear();
 }
