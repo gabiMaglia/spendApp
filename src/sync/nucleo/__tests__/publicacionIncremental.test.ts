@@ -15,7 +15,11 @@
 import { publicarPorCubos, type CampoDoc, type EnviarPieza } from '../publicarCubos';
 import { leerCubo, profundidad, olvidarTopic, type AlmacenPort } from '../sliceLedger';
 import { generateGroupKey } from '../envelopeCrypto';
-import { RENEWAL_WINDOW_MS } from '@/src/sync/adaptadores/hushsplit/sliceRenewal';
+// T-206-A (D12): `sliceRenewal.ts` se borró (la foto propia pasó al ledger de
+// cubos, `avatarTopic.ts`); esta constante ya vivía también en `../limites`
+// desde D8 — este test la importaba del módulo viejo, que era sólo un
+// re-export.
+import { RENEWAL_WINDOW_MS } from '../limites';
 import { deriveCkey } from '../ckey';
 
 function memoria(): AlmacenPort {
