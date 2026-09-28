@@ -1,8 +1,7 @@
-import { buildGroupPayload } from '../relaySync';
+import { armarComoDelta } from '@/src/test-utils/armarComoDelta';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { useGroupStore } from '@/src/store/groupStore';
-import { buildDelta } from '@/src/sync/adaptadores/hushsplit/applyDelta';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import type { User } from '@/src/types/models';
 
@@ -23,7 +22,7 @@ describe('LA CLAVE DEL GRUPO NUNCA SALE POR EL RELAY', () => {
   it('el payload del relay no incluye el campo groupKeys', () => {
     useGroupKeyStore.getState().ensureKey('g1');
 
-    const payload = buildGroupPayload('g1', ME);
+    const payload = armarComoDelta('g1', ME);
 
     expect('groupKeys' in payload).toBe(false);
   });
@@ -31,16 +30,17 @@ describe('LA CLAVE DEL GRUPO NUNCA SALE POR EL RELAY', () => {
   it('el material de la clave no aparece NI SERIALIZADO en el payload', () => {
     const record = useGroupKeyStore.getState().ensureKey('g1');
 
-    const serializado = JSON.stringify(buildGroupPayload('g1', ME));
+    const serializado = JSON.stringify(armarComoDelta('g1', ME));
 
     expect(serializado).not.toContain(record.key);
   });
 
-  it('el delta del pairing QR SÍ las lleva (ese canal está autenticado)', () => {
-    useGroupKeyStore.getState().ensureKey('g1');
-
-    expect(buildDelta(ME).groupKeys).toHaveLength(1);
-  });
+  // T-206-A (D1): acá había un tercer test — "el delta del pairing QR SÍ las
+  // lleva (ese canal está autenticado)" — que probaba `buildDelta(ME).groupKeys`.
+  // El canal QR se fue con T-193 y `groupKeys` dejó de ser un campo de
+  // `SyncDelta`: no hay delta, QR o relay, que pueda llevarlas. El lado
+  // receptor de esta misma invariante lo prueba `mergeGate.test.ts`
+  // ("D1: applyDelta ya no adopta claves de grupo").
 
   // Lo que el payload SÍ debe llevar, y lo que jamás, está en relayScope.test.ts.
 });

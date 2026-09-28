@@ -4,7 +4,8 @@ import { useExpenseStore } from '@/src/store/expenseStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { marcarPendienteDeDrenaje, estaPendienteDeDrenaje } from '@/src/sync/motor/pendingDrain';
-import { applyDelta, buildDelta } from '@/src/sync/adaptadores/hushsplit/applyDelta';
+import { applyDelta } from '@/src/sync/adaptadores/hushsplit/applyDelta';
+import { armarComoDelta } from '@/src/test-utils/armarComoDelta';
 import type { Expense, Group, User } from '@/src/types/models';
 
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
@@ -64,7 +65,7 @@ describe('el defecto que esto cierra (queda documentado, no arreglado acá)', ()
     useExpenseStore.setState({ expenses: [gasto()] });
 
     // Lo que yo publicaría ahora mismo.
-    const miSobre = buildDelta('yo');
+    const miSobre = armarComoDelta('G', 'yo');
 
     // El otro teléfono, que SÍ tiene el borrado.
     useExpenseStore.setState({ expenses: [BORRADO_POR_EL_GRUPO] });
@@ -80,7 +81,7 @@ describe('el defecto que esto cierra (queda documentado, no arreglado acá)', ()
     // Es el caso real: vuelvo, edito o cargo algo, mi registro sube de
     // `updatedAt`, y el sobre que publico le gana al tombstone del grupo.
     useExpenseStore.setState({ expenses: [gasto({ updatedAt: 9_000 })] });
-    const miSobre = buildDelta('yo');
+    const miSobre = armarComoDelta('G', 'yo');
 
     useExpenseStore.setState({ expenses: [BORRADO_POR_EL_GRUPO] });
     applyDelta(miSobre, 'yo');
@@ -114,13 +115,13 @@ describe('la guarda', () => {
     marcarPendienteDeDrenaje('G');
 
     // Dreno: llega el estado del grupo con el tombstone (updatedAt mayor).
-    applyDelta({ ...buildDelta('beto'), expenses: [BORRADO_POR_EL_GRUPO] }, 'beto');
+    applyDelta({ ...armarComoDelta('G', 'beto'), expenses: [BORRADO_POR_EL_GRUPO] }, 'beto');
 
     // El gasto ya está borrado acá: la pantalla no me lo va a ofrecer para tocar.
     expect(useExpenseStore.getState().expenses[0]!.isDeleted).toBe(true);
 
     // Y lo que publico a partir de ahora lleva el borrado, no la resurrección.
-    const eG = buildDelta('yo').expenses.find(e => e.id === 'e1')!;
+    const eG = armarComoDelta('G', 'yo').expenses.find(e => e.id === 'e1')!;
     expect(eG.isDeleted).toBe(true);
   });
 

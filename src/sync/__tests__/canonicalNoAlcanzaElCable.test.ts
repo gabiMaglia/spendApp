@@ -7,9 +7,10 @@ import { dirname, join, relative, resolve } from 'path';
  * `idCanonico()` traduce mis identidades viejas a la activa para que la
  * aritmética de saldos vea UNA persona y no dos. Es correcto adentro del
  * dispositivo y es una **migración destructiva** un centímetro más allá: un id
- * canonicalizado que entra a `buildDelta` o a `buildGroupPayload` sale del
- * teléfono, se propaga por LWW a peers que nunca supieron del enlace, y no se
- * puede volver atrás — el dato ya está en el aparato del otro (ADR-008 §11-A).
+ * canonicalizado que entra al armado del sobre del relay (`adaptador.armar`,
+ * `motor/relaySync.ts`) sale del teléfono, se propaga por LWW a peers que
+ * nunca supieron del enlace, y no se puede volver atrás — el dato ya está en
+ * el aparato del otro (ADR-008 §11-A).
  * Y como `createdById` está adentro del núcleo firmado de T-041, además
  * invalidaría la firma del autor honesto.
  *
@@ -43,10 +44,20 @@ const PROHIBIDOS = ['idCanonico', 'rosterCanonico'] as const;
 /** Quien las define las llama por dentro; no es una ofensa. */
 const DEFINIDOR = join('src', 'store', 'identityAlias.ts');
 
-/** Las dos raíces: el sobre del relay y el delta del QR / pairing P2P. */
+/**
+ * Las dos raíces del sobre. Hasta T-206-A (D1) eran "el sobre del relay" y
+ * "el delta del QR / pairing P2P" (`buildDelta`, `applyDelta.ts`) — ese
+ * segundo canal se fue con T-193 y su armador (`buildDelta`) se borró en D1.
+ * `applyDelta.ts` queda igual como raíz: sigue siendo donde vive `SyncDelta`
+ * y `applyDelta` (el lado que RECIBE el sobre), y ya estaba cubierto
+ * transitivamente por la otra raíz (`relaySync.ts` → `publicar.ts` →
+ * `adaptadorHushSplit.ts` → `applyDelta.ts`) — mantenerlo aparte es
+ * redundante a propósito: si algún día `applyDelta.ts` deja de ser
+ * alcanzable desde `relaySync.ts`, el guard lo sigue cubriendo igual.
+ */
 const RAICES = [
-  join(RAIZ, 'src', 'sync', 'motor', 'relaySync.ts'), // buildGroupPayload (T-206-A: mudanza)
-  join(RAIZ, 'src', 'sync', 'adaptadores', 'hushsplit', 'applyDelta.ts'), // buildDelta (T-192: salió de useSyncQR.ts)
+  join(RAIZ, 'src', 'sync', 'motor', 'relaySync.ts'), // adaptador.armar (T-206-A: buildGroupPayload borrado en D2)
+  join(RAIZ, 'src', 'sync', 'adaptadores', 'hushsplit', 'applyDelta.ts'), // applyDelta/SyncDelta
 ];
 
 const EXTENSIONES = ['.ts', '.tsx', '.js', '.jsx'];
@@ -119,7 +130,7 @@ function ofensores(grafo: Map<string, string>): string[] {
 }
 
 describe('el grafo del sobre no alcanza la canonicalización', () => {
-  it('ni buildGroupPayload ni buildDelta pueden llegar a idCanonico', () => {
+  it('el armado del sobre del relay no puede llegar a idCanonico', () => {
     const ofensa = ofensores(cierre(RAICES));
 
     expect(
@@ -127,7 +138,7 @@ describe('el grafo del sobre no alcanza la canonicalización', () => {
         ? []
         : [
             'La canonicalización llegó al cable. Estos módulos están en el grafo de',
-            'imports de buildGroupPayload/buildDelta y nombran idCanonico:',
+            'imports del armado del sobre (relaySync.ts/applyDelta.ts) y nombran idCanonico:',
             ...ofensa,
             '',
             'Un id canonicalizado que se publica reescribe la identidad de un',

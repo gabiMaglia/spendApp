@@ -1,5 +1,5 @@
-import { buildGroupPayload } from '../relaySync';
-import { buildDelta, applyDelta } from '@/src/sync/adaptadores/hushsplit/applyDelta';
+import { applyDelta } from '@/src/sync/adaptadores/hushsplit/applyDelta';
+import { armarComoDelta } from '@/src/test-utils/armarComoDelta';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
@@ -90,7 +90,7 @@ beforeEach(() => {
 });
 
 describe('el sobre de un grupo no filtra nada ajeno', () => {
-  const serializado = () => JSON.stringify(buildGroupPayload('G', YO));
+  const serializado = () => JSON.stringify(armarComoDelta('G', YO));
 
   it('NO lleva los otros grupos', () => {
     expect(serializado()).not.toContain('Terapia de pareja');
@@ -101,7 +101,7 @@ describe('el sobre de un grupo no filtra nada ajeno', () => {
   });
 
   it('NO lleva los pagos de otros grupos', () => {
-    expect(buildGroupPayload('G', YO).payments.map(p => p.id)).toEqual(['pG']);
+    expect(armarComoDelta('G', YO).payments.map(p => p.id)).toEqual(['pG']);
   });
 
   it('NO lleva los comentarios de otros grupos', () => {
@@ -113,9 +113,11 @@ describe('el sobre de un grupo no filtra nada ajeno', () => {
   });
 
   // Los movimientos personales no tienen grupo: no le corresponden a nadie más.
+  // T-206-A (D1): ya ni siquiera es un campo de `SyncDelta` — no hay `.personal`
+  // que pueda venir undefined ni por accidente.
   it('NO lleva los movimientos personales', () => {
     expect(serializado()).not.toContain('Sueldo');
-    expect(buildGroupPayload('G', YO).personal).toBeUndefined();
+    expect('personal' in armarComoDelta('G', YO)).toBe(false);
   });
 
   it('NO lleva los perfiles de gente ajena al grupo', () => {
@@ -132,7 +134,7 @@ describe('el sobre de un grupo no filtra nada ajeno', () => {
   it('NO lleva el email de los miembros', () => {
     expect(serializado()).not.toContain('ana@example.com');
     expect(serializado()).not.toContain('beto@example.com');
-    expect(buildGroupPayload('G', YO).users.every(u => !u.email)).toBe(true);
+    expect(armarComoDelta('G', YO).users.every(u => !u.email)).toBe(true);
   });
 
   // Si el relay pudiera entregar claves podría sustituirlas y leer todo.
@@ -144,7 +146,7 @@ describe('el sobre de un grupo no filtra nada ajeno', () => {
 
 describe('pero sí lleva todo lo del grupo', () => {
   it('el grupo, su gasto, su pago, su comentario y su plantilla', () => {
-    const p = buildGroupPayload('G', YO);
+    const p = armarComoDelta('G', YO);
 
     expect(p.groups.map(g => g.id)).toEqual(['G']);
     expect(p.expenses.map(e => e.id)).toEqual(['eG']);
@@ -155,11 +157,11 @@ describe('pero sí lleva todo lo del grupo', () => {
 
   // Sin los perfiles, el otro ve ids en vez de nombres.
   it('los perfiles de los miembros', () => {
-    expect(buildGroupPayload('G', YO).users.map(u => u.id).sort()).toEqual(['ana', 'beto']);
+    expect(armarComoDelta('G', YO).users.map(u => u.id).sort()).toEqual(['ana', 'beto']);
   });
 
   it('el receptor lo aplica sin perder lo suyo', () => {
-    const payload = buildGroupPayload('G', YO);
+    const payload = armarComoDelta('G', YO);
 
     // El receptor arranca con SUS propios datos de otro grupo.
     useGroupStore.setState({ groups: [] });
@@ -182,16 +184,23 @@ describe('pero sí lleva todo lo del grupo', () => {
  * `personal`). Acá se comparan las claves del delta completo contra la lista de
  * las que alguien ya clasificó: si aparece una nueva, este test falla y obliga
  * a decidir si va en el sobre del grupo o no.
+ *
+ * T-206-A (D1/D2): antes comparaba `buildDelta` (el delta completo del
+ * pairing QR) contra una lista que incluía `personal`/`groupKeys` como "NO
+ * van, a propósito" — dos campos que YA NO EXISTEN en `SyncDelta` (D1: el
+ * único canal que los justificaba, el QR, se fue con T-193). El guard sigue
+ * teniendo trabajo real —que nadie agregue una entidad nueva al Documento
+ * sin decidir si viaja— así que se migra a `armarComoDelta` (el armado REAL
+ * del relay) en vez de borrarse.
  */
 describe('nada se agrega al delta sin decidir si viaja', () => {
   const CLASIFICADAS = [
     'version', 'featureVersion', 'fromUserId', 'timestamp',  // metadatos
     'groups', 'expenses', 'payments', 'users', 'recurring', 'comments', // van
-    'personal', 'groupKeys',                                 // NO van, a propósito
   ];
 
   it('todas las claves del delta están clasificadas', () => {
-    const sinClasificar = Object.keys(buildDelta(YO)).filter(k => !CLASIFICADAS.includes(k));
+    const sinClasificar = Object.keys(armarComoDelta('G', YO)).filter(k => !CLASIFICADAS.includes(k));
     expect(sinClasificar).toEqual([]);
   });
 });

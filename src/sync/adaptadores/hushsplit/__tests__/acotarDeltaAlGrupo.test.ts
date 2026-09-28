@@ -58,13 +58,6 @@ function deltaBase(): SyncDelta {
       { id: 'cA', expenseId: 'eA', authorId: 'mallory', text: 'de A', createdAt: 0, ...meta } as any,
       { id: 'cB', expenseId: 'eB', authorId: 'mallory', text: 'de B', createdAt: 0, ...meta } as any,
     ],
-    personal: [
-      { id: 'p1', type: 'expense', amount: 999, currency: 'ARS', description: 'inyectado',
-        date: 0, updatedAt: 0, createdAt: 0, isDeleted: false } as any,
-    ],
-    groupKeys: [
-      { groupId: 'B', key: 'ab'.repeat(32), epoch: 1e9 },
-    ],
   };
 }
 
@@ -81,13 +74,12 @@ function limpiarStoresLocales() {
 describe('acotarDeltaAlGrupo — el receptor sólo aplica lo del grupo del topic', () => {
   beforeEach(limpiarStoresLocales);
 
-  it('NUNCA adopta groupKeys, venga lo que venga', () => {
-    expect(acotarDeltaAlGrupo(deltaBase(), 'A').groupKeys).toEqual([]);
-  });
-
-  it('NUNCA lleva movimientos personales', () => {
-    expect(acotarDeltaAlGrupo(deltaBase(), 'A').personal).toEqual([]);
-  });
+  // T-206-A (D1): `groupKeys`/`personal` ya no son campos de `SyncDelta` —
+  // el canal que los justificaba (pairing QR) se fue con T-193. Antes acá
+  // había dos tests ("NUNCA adopta groupKeys" / "NUNCA lleva movimientos
+  // personales") que comprobaban que este filtro los vaciaba a mano; ahora
+  // no hay campo que vaciar, así que se borran — lo que probaban pasó de
+  // garantía en tiempo de ejecución a imposibilidad en tiempo de compilación.
 
   it('sólo conserva el grupo propio, no otros ids', () => {
     const r = acotarDeltaAlGrupo(deltaBase(), 'A');
@@ -153,7 +145,7 @@ describe('acotarDeltaAlGrupo — el receptor sólo aplica lo del grupo del topic
       groups: [], expenses: [], payments: [], users: [],
     };
     const r = acotarDeltaAlGrupo(vacio, 'A');
-    expect(r).toMatchObject({ groups: [], expenses: [], payments: [], users: [], groupKeys: [], personal: [] });
+    expect(r).toMatchObject({ groups: [], expenses: [], payments: [], users: [] });
   });
 });
 

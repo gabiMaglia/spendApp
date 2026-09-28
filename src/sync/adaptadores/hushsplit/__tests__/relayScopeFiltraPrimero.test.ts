@@ -1,18 +1,24 @@
 /**
- * T-157a: `buildGroupPayload` armaba el sobre llamando a `buildDelta` —que
- * corre `sinCamposLocales`/`sinAvatarUrl` sobre el DISPOSITIVO ENTERO— y
- * recién DESPUÉS filtraba por `groupId`. Con 1000 gastos en 10 grupos, cada
+ * T-157a: `buildGroupPayload` (viejo, `motor/publicar.ts`, borrado en
+ * T-206-A/D2) armaba el sobre llamando a `buildDelta` —que corre
+ * `sinCamposLocales`/`sinAvatarUrl` sobre el DISPOSITIVO ENTERO— y recién
+ * DESPUÉS filtraba por `groupId`. Con 1000 gastos en 10 grupos, cada
  * publicación de UN grupo (100 gastos) hacía trabajo de JS sobre los otros
  * 900 para nada: se transformaban y se tiraban.
  *
  * El orden correcto es filtrar PRIMERO (qué pertenece a este grupo) y recién
- * aplicar `sinCamposLocales`/`sinAvatarUrl` sobre esa porción ya achicada.
- * Este archivo prueba dos cosas:
+ * aplicar `sinCamposLocales`/`sinAvatarUrl` sobre esa porción ya achicada —
+ * es lo que hace `adaptador.armar` HOY (filtra los stores por `groupId` antes
+ * de llamar a `sinCamposLocales`/`sinAvatarUrl`, `adaptadorHushSplit.ts:75-87`),
+ * el único armado que le sigue el rastro a `publishToGroup`. Este archivo
+ * prueba dos cosas:
  *
  *  1. `sinCamposLocales` recibe sólo los gastos DEL GRUPO, nunca los 1000.
- *  2. El nuevo `buildGroupPayload` produce EXACTAMENTE el mismo JSON que la
- *     implementación vieja (copiada acá tal cual, como fixture) — cambiar el
- *     ORDEN de las operaciones no puede cambiar el CONTENIDO del sobre.
+ *  2. `armar` produce EXACTAMENTE el mismo contenido que la implementación
+ *     vieja (reconstruida acá tal cual como fixture, con el `buildDelta` de
+ *     antes de T-192 inlineado —ya no existe como función— porque lo que
+ *     importa congelar es SU forma, no su nombre) — cambiar el ORDEN de las
+ *     operaciones no puede cambiar el CONTENIDO del sobre.
  */
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
 jest.mock('@/src/sync/motor/relayEngine', () => ({ schedulePublish: jest.fn(), deviceId: () => 'dev' }));
@@ -25,9 +31,9 @@ jest.mock('../soloLocal', () => {
   };
 });
 
-import { buildGroupPayload } from '@/src/sync/motor/relaySync';
-import { buildDelta, type SyncDelta } from '../applyDelta';
-import { sinCamposLocales } from '../soloLocal';
+import { armarComoDelta } from '@/src/test-utils/armarComoDelta';
+import { DELTA_FEATURE_VERSION, type SyncDelta } from '../applyDelta';
+import { sinCamposLocales, sinAvatarUrl } from '../soloLocal';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
@@ -42,10 +48,32 @@ import type { Expense, Group, User } from '@/src/types/models';
 
 const mockSinCamposLocales = sinCamposLocales as jest.Mock;
 
+/**
+ * `buildDelta` de antes de T-192 (`applyDelta.ts` en `main`), inlineado tal
+ * cual: sin filtrar por grupo, `sinCamposLocales`/`sinAvatarUrl` sobre TODO
+ * el dispositivo. `groupKeys`/`personal` no entraban en esta comparación (el
+ * viejo `buildGroupPayload` nunca los reusaba), así que salen sin cambiar el
+ * caso que este archivo prueba.
+ */
+function completoViejo(currentUserId: string): SyncDelta {
+  return {
+    version: 1,
+    featureVersion: DELTA_FEATURE_VERSION,
+    fromUserId: currentUserId,
+    timestamp: Date.now(),
+    groups: useGroupStore.getState().groups,
+    expenses: sinCamposLocales(useExpenseStore.getState().expenses),
+    payments: usePaymentStore.getState().payments,
+    users: sinAvatarUrl(useUserStore.getState().users),
+    recurring: useRecurringStore.getState().recurring,
+    comments: useCommentStore.getState().comments,
+  };
+}
+
 /** Implementación VIEJA de `buildGroupPayload`, copiada tal cual (pre-T-157a)
  *  como fixture: si el contenido del sobre cambia, esto lo detecta. */
 function buildGroupPayloadViejo(groupId: string, currentUserId: string): SyncDelta {
-  const completo = buildDelta(currentUserId);
+  const completo = completoViejo(currentUserId);
 
   const delGrupo = completo.groups.filter(g => g.id === groupId);
   const miembros = new Set(delGrupo[0]?.memberIds ?? []);
@@ -112,7 +140,7 @@ beforeEach(() => {
 });
 
 it('sinCamposLocales recibe SÓLO los gastos del grupo (100), nunca el dispositivo entero (1000)', () => {
-  buildGroupPayload('g3', YO);
+  armarComoDelta('g3', YO);
 
   expect(mockSinCamposLocales).toHaveBeenCalledTimes(1);
   const recibidos = mockSinCamposLocales.mock.calls[0]![0] as Expense[];
@@ -123,7 +151,7 @@ it('sinCamposLocales recibe SÓLO los gastos del grupo (100), nunca el dispositi
 it('produce EXACTAMENTE el mismo sobre que la implementación vieja (salida byte a byte idéntica)', () => {
   jest.spyOn(Date, 'now').mockReturnValue(123_456_789);
 
-  const nuevo = buildGroupPayload('g5', YO);
+  const nuevo = armarComoDelta('g5', YO);
   const viejo = buildGroupPayloadViejo('g5', YO);
 
   expect(JSON.stringify(nuevo)).toBe(JSON.stringify(viejo));

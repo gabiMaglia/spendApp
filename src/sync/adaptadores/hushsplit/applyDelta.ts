@@ -4,10 +4,7 @@ import { usePaymentStore } from '@/src/store/paymentStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useRecurringStore } from '@/src/store/recurringStore';
 import { useCommentStore } from '@/src/store/commentStore';
-import { usePersonalStore } from '@/src/store/personalStore';
-import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { observeRecords, type LocalCore } from '@/src/sync/confianza/recordHealth';
-import { sinAvatarUrl, sinCamposLocales } from './soloLocal';
 import { mismaPersona } from '@/src/store/identityAlias';
 
 /**
@@ -24,6 +21,18 @@ import { mismaPersona } from '@/src/store/identityAlias';
  */
 export const DELTA_FEATURE_VERSION = 2;
 
+/**
+ * T-206-A (D1): hasta acá `SyncDelta` también tenía `groupKeys?` y
+ * `personal?`. Los dos existían SÓLO para el pairing QR (`buildDelta`, este
+ * mismo archivo) — un canal autenticado por presencia física, distinto del
+ * relay, donde SÍ era correcto adoptar claves de grupo directo del sobre.
+ * Ese canal (`useSyncQR.ts` y su pantalla, `app/sync/index.tsx`) se fue
+ * entero con T-083/T-192/T-193: no queda ninguna pantalla que llegue a
+ * armar un delta con esos campos. `acotarDeltaAlGrupo.ts` ya los vaciaba
+ * siempre para lo que entra por el relay (S3-A1, `drainGroupAcotado.test.ts`)
+ * — la única vía real que queda —, así que sacarlos del tipo no cambia nada
+ * que corriera: sólo borra la posibilidad de que alguien la reabra.
+ */
 export interface SyncDelta {
   version: 1;
   /** Ausente ⇒ el peer es anterior a DELTA_FEATURE_VERSION. */
@@ -36,37 +45,8 @@ export interface SyncDelta {
   users: ReturnType<typeof useUserStore.getState>['users'];
   /** Plantillas recurrentes. Opcional: los deltas de versiones previas no la traen. */
   recurring?: ReturnType<typeof useRecurringStore.getState>['recurring'];
-  /**
-   * Claves de grupo. **SÓLO viajan por este delta**, que va por el pairing QR:
-   * un canal autenticado por presencia física. NUNCA por el relay — si el relay
-   * pudiera entregar claves podría sustituirlas por las suyas y leer todo
-   * (ADR-003 §1). El payload del relay se arma con `buildRelayPayload`, que no
-   * las incluye, y hay un test que lo verifica.
-   */
-  groupKeys?: ReturnType<typeof useGroupKeyStore.getState>['keys'];
   /** Comentarios. Opcional por la misma razón. */
   comments?: ReturnType<typeof useCommentStore.getState>['comments'];
-  /** Movimientos personales. Opcional por la misma razón. */
-  personal?: ReturnType<typeof usePersonalStore.getState>['entries'];
-}
-
-/** Genera el delta completo del dispositivo actual para compartir por QR. */
-export function buildDelta(currentUserId: string): SyncDelta {
-  return {
-    version:        1,
-    featureVersion: DELTA_FEATURE_VERSION,
-    fromUserId:  currentUserId,
-    timestamp:   Date.now(),
-    groups:      useGroupStore.getState().groups,
-    // Sin los campos que no significan nada en el otro teléfono. Ver `soloLocal`.
-    expenses:    sinCamposLocales(useExpenseStore.getState().expenses),
-    payments:    usePaymentStore.getState().payments,
-    users:       sinAvatarUrl(useUserStore.getState().users),
-    recurring:   useRecurringStore.getState().recurring,
-    comments:    useCommentStore.getState().comments,
-    groupKeys:   useGroupKeyStore.getState().keys,
-    personal:    usePersonalStore.getState().entries,
-  };
 }
 
 /**
@@ -110,10 +90,7 @@ function observeDelta(delta: SyncDelta): void {
     observeRecords('recurring', delta.recurring ?? [],
       revLocal(useRecurringStore.getState().recurring));
   } catch {
-    // `users`, `personal` y `groupKeys` no entran: los dos primeros no tienen
-    // núcleo económico firmable y los `PersonalEntry` no viajan por el relay
-    // (§9 del plan); las claves de grupo tienen su propia autenticación por el
-    // canal de contactos.
+    // `users` no entra: no tiene núcleo económico firmable.
   }
 }
 
@@ -148,16 +125,4 @@ export function applyDelta(delta: SyncDelta, currentUserId: string): void {
   // Los deltas viejos no las traen: se toleran con ?? [] en vez de romper.
   useRecurringStore.getState().mergeRecurring(delta.recurring ?? []);
   useCommentStore.getState().mergeComments(delta.comments ?? []);
-  usePersonalStore.getState().mergeEntries(delta.personal ?? []);
-  // Canal autenticado por QR: acá SÍ se adoptan claves (nunca desde el relay).
-  useGroupKeyStore.getState().adoptKeys(delta.groupKeys ?? []);
-}
-
-/**
- * ¿El otro dispositivo tiene una versión anterior?
- * Si es así, los gastos con varios pagadores se le van a ver distinto: ignora el
- * desglose y le acredita el total al pagador principal.
- */
-export function peerIsOutdated(delta: SyncDelta): boolean {
-  return (delta.featureVersion ?? 1) < DELTA_FEATURE_VERSION;
 }

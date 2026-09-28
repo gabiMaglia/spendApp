@@ -280,8 +280,15 @@ export interface Expense extends SyncMeta, CoreSigned {
    * OJO — un peer que no actualizó ignora `payers` y le acredita el TOTAL a este
    * usuario, así que los dos dispositivos van a mostrar balances **distintos**
    * para ese gasto. No es "razonable", es una limitación real: no hay forma de
-   * arreglarlo desde este lado. Lo que sí se hace es detectarlo
-   * (`peerIsOutdated`, src/sync/applyDelta.ts) y avisarle al usuario.
+   * arreglarlo desde este lado.
+   *
+   * T-206-A (D1): esto mencionaba `peerIsOutdated` (detectar la versión del
+   * peer por `featureVersion` del delta) como la mitigación — nunca estuvo
+   * conectada a ningún aviso real en la UI, y se borró junto con el canal que
+   * la motivaba (pairing QR, T-193). El campo `featureVersion` del sobre del
+   * relay sigue existiendo (`DELTA_FEATURE_VERSION`,
+   * `src/sync/adaptadores/hushsplit/applyDelta.ts`) para quien quiera retomar
+   * la detección — sólo la función que la leía se fue por no tener ningún uso.
    */
   paidById: string;
   /**

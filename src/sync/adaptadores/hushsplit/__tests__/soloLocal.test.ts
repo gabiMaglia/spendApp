@@ -2,7 +2,8 @@ import { sinCamposLocales, sinAvatarUrl, preservarRecibo } from '../soloLocal';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useAuthStore } from '@/src/store/authStore';
-import { buildDelta } from '../applyDelta';
+import { useGroupStore } from '@/src/store/groupStore';
+import * as adaptador from '../adaptadorHushSplit';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import type { Expense } from '@/src/types/models';
 
@@ -83,14 +84,26 @@ describe('de punta a punta por el store', () => {
 describe('el sobre REAL no los lleva (hueco que encontró la mutación M2)', () => {
   /**
    * Los tests de arriba probaban las funciones puras, pero **ninguno miraba el
-   * payload que sale de verdad**: volver a poner el recibo en `buildDelta`
-   * dejaba las 7 pruebas en verde. Un filtro que nadie verifica que esté
-   * conectado no filtra nada.
+   * payload que sale de verdad**: volver a poner el recibo en el armado del
+   * documento dejaba las 7 pruebas en verde. Un filtro que nadie verifica que
+   * esté conectado no filtra nada.
+   *
+   * T-206-A (D1/D2): antes se armaba con `buildDelta` (el delta completo del
+   * pairing QR, `useSyncQR.ts`, borrado en T-193). El único camino real que
+   * queda es el del relay — `adaptador.armar` + `adaptador.antesDePublicar`,
+   * lo mismo que arma `publishToGroup` (`motor/publicar.ts`) — así que se
+   * migra a eso. Es scopeado por grupo (`armar` filtra por `groupId` y por
+   * `memberIds`), de ahí el grupo `g1` sembrado abajo con `a` como único
+   * miembro.
    */
   beforeEach(() => {
     createSecureStorage('expenses').clearAll();
     createSecureStorage('users').clearAll();
     useAuthStore.setState({ currentUser: { id: 'a' } as never });
+    useGroupStore.setState({ groups: [
+      { id: 'g1', name: 'G', memberIds: ['a'], currency: 'ARS',
+        createdAt: 0, createdById: 'a', updatedAt: 1, isDeleted: false } as never,
+    ]});
     useExpenseStore.setState({
       expenses: [{ ...base, receiptImageUri: 'file:///private/var/mobile/recibo.jpg' }],
       isLoading: false,
@@ -102,20 +115,36 @@ describe('el sobre REAL no los lleva (hueco que encontró la mutación M2)', () 
     } as never);
   });
 
-  it('no hay ni un `receiptImageUri` en el delta serializado', () => {
-    expect(JSON.stringify(buildDelta('a'))).not.toContain('receiptImageUri');
+  /** Documento real de `g1`, tal como lo arma `publishToGroup` antes de envolverlo. */
+  async function docReal() {
+    return adaptador.antesDePublicar(
+      adaptador.armar('g1', 'a'),
+      { groupId: 'g1', deviceId: 'dev', fromUserId: 'a' },
+    );
+  }
+
+  it('no hay ni un `receiptImageUri` en el documento real', async () => {
+    expect(JSON.stringify(await docReal())).not.toContain('receiptImageUri');
   });
 
-  it('tampoco se filtra el path del filesystem por otro lado', () => {
+  it('tampoco se filtra el path del filesystem por otro lado', async () => {
     // El aserto anterior mira la CLAVE; éste mira el VALOR, por si algún día
     // el path se cuela dentro de otro campo.
-    expect(JSON.stringify(buildDelta('a'))).not.toContain('/private/var/mobile');
+    expect(JSON.stringify(await docReal())).not.toContain('/private/var/mobile');
   });
 
-  it('no hay ni un `avatarUrl`, pero la foto propia SÍ viaja', () => {
-    const json = JSON.stringify(buildDelta('a'));
+  /**
+   * Antes de esta migración (buildDelta/QR) la foto propia viajaba en bytes
+   * crudos: era el pairing por presencia física, sin fotos por referencia.
+   * El único camino que queda (relay) NUNCA manda los bytes en el sobre del
+   * grupo — viajan una vez a su propio topic (`avatarTopic.ts`, Task 9) y acá
+   * sólo queda la referencia (`avatarDigest`). Ver ese archivo para el porqué.
+   */
+  it('no hay ni un `avatarUrl` ni los bytes de la foto propia — sólo su digest', async () => {
+    const json = JSON.stringify(await docReal());
     expect(json).not.toContain('avatarUrl');
     expect(json).not.toContain('googleusercontent');
-    expect(json).toContain('data:image/jpeg;base64,AA');
+    expect(json).not.toContain('data:image/jpeg;base64,AA');
+    expect(json).toContain('avatarDigest');
   });
 });

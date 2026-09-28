@@ -65,9 +65,12 @@ function snapshotFromStores(): LocalSnapshot {
  * puede ser hostil, se queda sólo con lo que puede pertenecer al `groupId`
  * del topic — nunca confía en que el emisor haya sido honesto.
  *
- * `groupKeys` y `personal` **siempre** vuelven vacíos: ningún dato de esos dos
- * campos tiene razón de ser en un sobre del relay (ADR-003 §1 — las claves
- * sólo viajan por el pairing QR).
+ * `groupKeys` y `personal` ya ni siquiera son campos de `SyncDelta`
+ * (T-206-A/D1): el único canal que los justificaba, el pairing QR, se fue
+ * con T-193. Antes de D1 este filtro los vaciaba a mano en cada retorno; con
+ * el campo borrado del tipo, no hay nada que vaciar — lo que antes era una
+ * garantía en tiempo de ejecución pasó a ser una imposibilidad en tiempo de
+ * compilación (ADR-003 §1).
  *
  * **Ronda 2 (`engram/qa/T-132.md`, `engram/qa/T-132-verifier.md`):** la
  * primera versión filtraba por lo que el propio registro entrante DECLARABA
@@ -201,9 +204,5 @@ export function acotarDeltaAlGrupo(
     users,
     recurring,
     comments,
-
-    // Nunca desde el relay: ver comentario de arriba.
-    personal: [],
-    groupKeys: [],
   };
 }
