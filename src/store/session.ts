@@ -22,7 +22,7 @@ import { useNoticeInboxStore } from './noticeInboxStore';
 import { reloadVerdictCache } from '@/src/sync/verdictCache';
 import { reloadAuthorKeys } from '@/src/sync/authorKeys';
 import { reloadRatchet } from '@/src/sync/ratchet';
-import { reloadRecordHealth } from '@/src/sync/recordHealth';
+import { reloadRecordHealth } from '@/src/sync/recordHealthStore';
 import { reloadAuthorHealth } from '@/src/sync/authorHealth';
 import { recargarAlias, sembrarAliasDesdeIndice } from './identityAlias';
 import { olvidarFallosDeAplicacion } from '@/src/sync/drainFailures';
