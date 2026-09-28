@@ -9,6 +9,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { hapticSelection, hapticSuccess } from '@/src/utils/haptics';
 
 import { DetailHeader } from '@/src/components/CollapsibleHeader';
+import { ActionButton } from '@/src/components/ActionButton';
+import { ButtonRack } from '@/src/components/ButtonRack';
 
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
@@ -131,16 +133,6 @@ export default function NewGroupScreen() {
           icon="close"
           title={t('groups.new_title')}
           onBack={() => router.back()}
-          right={
-            <Pressable onPress={handleSave} disabled={!canSave} hitSlop={12}>
-              <Text style={{
-                fontSize: 15, fontWeight: '700', textAlign: 'right',
-                color: canSave ? c.brand.primary : c.textDisabled,
-              }}>
-                {t('common.create')}
-              </Text>
-            </Pressable>
-          }
         />
 
         <ScrollView
@@ -242,7 +234,19 @@ export default function NewGroupScreen() {
             </Text>
           )}
 
-          <View style={{ height: Spacing[8] }} />
+          {/* El botón de la app, no un Pressable con estilo propio: es la
+              regla del proyecto y lo que hace que «crear» se vea igual en
+              todas las pantallas de alta (Nuevo gasto, Registrar pago). */}
+          <ButtonRack>
+            <ActionButton
+              testID="group-new-save"
+              label={t('common.create')}
+              size="lg"
+              full
+              disabled={!canSave}
+              action={handleSave}
+            />
+          </ButtonRack>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
