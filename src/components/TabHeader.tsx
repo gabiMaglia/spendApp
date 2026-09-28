@@ -66,9 +66,7 @@ export function TabHeader({
   const currentUser = useAuthStore(s => s.currentUser);
   const cur         = useSettingsStore(s => s.displayCurrency);
   const setCurrency = useSettingsStore(s => s.setDisplayCurrency);
-  const groups      = useGroupStore(s => s.groups);
 
-  const inboxItems  = useNoticeInboxStore(s => s.items);
   const sinLeer     = useUnreadNoticeCount();
   const markRead      = useNoticeInboxStore(s => s.markRead);
   const markAllRead   = useNoticeInboxStore(s => s.markAllRead);
@@ -119,7 +117,10 @@ export function TabHeader({
     if (aviso.kind === 'group_replaced') {
       markRead(item.id);
       setBandeja(false);
-      const grupoNuevo = groups.find(g => g.id === aviso.newGroupId && !g.isDeleted);
+      // T-205: sin selector — se lee `getState()` al momento del toque, no
+      // hace falta que el header entero se re-renderice cada vez que un
+      // grupo cambia en cualquier parte de la app.
+      const grupoNuevo = useGroupStore.getState().groups.find(g => g.id === aviso.newGroupId && !g.isDeleted);
       if (!grupoNuevo) { alert(t('notifications.inbox_gone')); return; }
       router.push(`/groups/${grupoNuevo.id}` as never);
       return;
@@ -133,7 +134,7 @@ export function TabHeader({
     // pantalla adentro de la app donde arreglar la hora del teléfono.
     if (!('groupId' in aviso)) return;
 
-    const grupo = groups.find(g => g.id === aviso.groupId && !g.isDeleted);
+    const grupo = useGroupStore.getState().groups.find(g => g.id === aviso.groupId && !g.isDeleted);
     // El grupo pudo borrarse entre que llegó el aviso y que lo tocaron. Sin
     // esto la navegación deja una pantalla de detalle vacía sin explicación.
     if (!grupo) { alert(t('notifications.inbox_gone')); return; }
@@ -182,9 +183,8 @@ export function TabHeader({
         onChange={setCurrency}
         onClose={() => setMonedas(false)}
       />
-      <NoticeInboxSheet
+      <NoticeInboxConnected
         visible={bandeja}
-        items={inboxItems}
         onClose={() => setBandeja(false)}
         onOpenNotice={abrirAviso}
         onMarkAll={() => markAllRead()}
@@ -200,5 +200,42 @@ export function TabHeader({
         </BottomSheet>
       )}
     </>
+  );
+}
+
+// Referencia estable: cerrada, la bandeja no necesita `items`. Devolver
+// siempre esta misma instancia mientras `visible` es false evita que un
+// aviso nuevo en cualquier parte de la app re-renderice este puente — y, con
+// él, las seis tabs que montan `TabHeader`.
+const SIN_ITEMS: StoredNotice[] = [];
+
+/**
+ * Puente entre `TabHeader` y `NoticeInboxSheet` (T-205).
+ *
+ * `NoticeInboxSheet` recibe `items` como prop —así lo prueba su propio test
+ * unitario (`NoticeInbox.test.tsx`), y ese contrato no cambia acá. Lo que
+ * cambia es QUIÉN se suscribe a `useNoticeInboxStore`: antes era `TabHeader`
+ * (suscripción a TODO `items`, sin relación con si la bandeja estaba
+ * abierta); ahora es este componente aparte, que sólo le pasa la lista real
+ * cuando `visible` es true. Un aviso nuevo con la bandeja cerrada ya no hace
+ * re-renderizar `TabHeader` — sólo este puente, que no le pega a nada visible.
+ */
+function NoticeInboxConnected({
+  visible, onClose, onOpenNotice, onMarkAll,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onOpenNotice: (item: StoredNotice) => void;
+  onMarkAll: () => void;
+}) {
+  const items = useNoticeInboxStore(s => (visible ? s.items : SIN_ITEMS));
+  return (
+    <NoticeInboxSheet
+      visible={visible}
+      items={items}
+      onClose={onClose}
+      onOpenNotice={onOpenNotice}
+      onMarkAll={onMarkAll}
+    />
   );
 }
