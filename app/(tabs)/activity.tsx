@@ -22,7 +22,8 @@ import { useColors } from '@/src/skins/useSkin';
 
 export default function ActivityScreen() {
   const { t } = useTranslation();
-  const headerPad = useHeaderPadding();
+  // Pegado al header como en Grupos/Amigos (PO 2026-09-27): sin aire arriba.
+  const headerPad = useHeaderPadding(0);
   const limiteContenido = useLimiteContenido();
   const c = useColors();
   const { currentUser } = useAuthStore();

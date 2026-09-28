@@ -16,7 +16,7 @@ export function ActivityFilterTabs({
     <Segmented
       variant="tabs"
       scroll
-      borde="ambos"
+      borde="abajo"
       value={value}
       onChange={f => { hapticSelection(); onChange(f); }}
       options={allGroupNames.map(f => ({
