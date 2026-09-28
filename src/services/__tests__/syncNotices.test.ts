@@ -313,6 +313,11 @@ describe('comentarios nuevos (T-194)', () => {
     expect(n.some(x => x.kind === 'comment')).toBe(false);
   });
 
+  it('un comentario sobre un gasto BORRADO no avisa (QA T-194): no hay nada que mostrar', () => {
+    const n = noticesFor(vacio, [conOver({ isDeleted: true })], grupos, YO, AHORA, [], [comentario()]);
+    expect(n.some(x => x.kind === 'comment')).toBe(false);
+  });
+
   it('un comentario de un gasto que no es de ninguno de mis grupos no avisa', () => {
     const n = noticesFor(vacio, [conOver({ groupId: 'ajeno' })], grupos, YO, AHORA, [], [comentario()]);
     expect(n.some(x => x.kind === 'comment')).toBe(false);
