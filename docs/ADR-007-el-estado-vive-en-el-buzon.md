@@ -331,3 +331,13 @@ aprobado por · Arquitecto (NERV) · 2026-08-31
 - **P-13 (borrado por tercero con el topic):** ni (a) ni (b) tal como estaban planteadas — se extiende la prenda de escritura de `008_owner_tag.sql`/ADR-009 (hoy solo por `sender`) para que el compromiso cubra también `ckey`. Cierra el vector de raíz sin tocar ADR-003 (sigue sin ser verificación de firma del lado del servidor, es un hash de compromiso). Ver spec de implementación para el detalle.
 
 **Extensión aprobada junto con esto:** fotos de usuario por referencia (hash + fetch bajo demanda en topic separado), en vez de viajar el blob en la rebanada de `users`. Detalle en el spec.
+
+---
+
+**Implementado en T-191 (2026-09-28): cubos por prefijo con histéresis, SPLIT 192 KB, publicar sólo lo que cambió, receptor con aplicadas + relectura acotada.**
+
+Cierra el segundo problema que §1 dejaba abierto (rebanadas por ÍNDICE, T-146 sólo arregló la mitad): con cubos estables por prefijo de id (`src/sync/relay/cubos.ts`), un alta o una edición tocan un solo cubo por campo, nunca corren los límites de los demás. Un ledger local por `(topic, deviceId, ckey)` (`src/sync/relay/sliceLedger.ts`) recuerda el digest de lo último publicado y sólo se reenvía un cubo si cambió o venció la renovación de 20 días — el manifiesto se manda siempre. La profundidad del prefijo (`SPLIT_BYTES = 192 KB`, opción B de la revisión del arquitecto) se guarda por `(topic, campo)` con histéresis: sube cuando hace falta, nunca baja; al subir se publica `[]` en las ckeys de la profundidad vieja.
+
+Del lado receptor, `src/sync/relay/appliedSlices.ts` recuerda `(topic, sender, ckey) → {digest, seq, senderKey}` — sin esto, una publicación parcial (un cubo que no viajó porque no cambió) generaría un falso «falta» en el chequeo del manifiesto. Una entrada se da por cumplida si llegó en el drenaje, si ya estaba aplicada con el mismo digest, o si lo aplicado tiene `seq` mayor que el manifiesto (publicación en curso cortada por la cuota de `relayQueue`) — siempre con la misma `senderKey` firmante. La dependencia entre campos (`comments` cuelga de `expenses`, `users` de `groups`) ya no depende del orden de ENVÍO: una rebanada con descartes por dependencia se retiene y se reaplica al final del drenaje. Y una relectura desde el cursor 0 (`src/sync/relay/relecturas.ts`), acotada a una sola vez por `(topic, sender, seq del manifiesto)`, cierra el resto de los huecos genuinos sin poder ciclar.
+
+`sliceEntities`/`buildSlicedEnvelopes` (rebanadas por índice) dejan de gobernar la publicación; el formato del sobre, `MANIFEST_VERSION` y la compactación del servidor no cambiaron. Detalle: `docs/superpowers/specs/2026-09-28-publicacion-incremental-design.md`, `engram/plans/T-191.md`.

@@ -1,4 +1,27 @@
-import { buildGroupPayload } from '../relaySync';
+jest.mock('../relay', () => {
+  const actual = jest.requireActual('../relay') as typeof import('../relay');
+  const buzones = new Map<string, { seq: number; payload: string; sender: string; ckey?: string }[]>();
+  let seq = 0;
+  return {
+    ...actual,
+    __buzones: buzones,
+    __reset: () => { buzones.clear(); seq = 0; },
+    isRelayConfigured: () => true,
+    subscribeTopic: () => () => {},
+    sendEnvelope: async (topic: string, payload: string, sender: string, _c = false, ckey?: string) => {
+      const lista = buzones.get(topic) ?? [];
+      lista.push({ seq: ++seq, payload, sender, ckey });
+      buzones.set(topic, lista);
+      return { ok: true, seq };
+    },
+    fetchSince: async () => ({ ok: true, envelopes: [], cursor: 0 }),
+    deleteMyEnvelopes: async () => ({ ok: true }),
+  };
+});
+jest.mock('../authorHealth', () => ({ observeAuthor: jest.fn(async () => 'ok'), RECHAZAR_AUTORES_NO_VERIFICADOS: false }));
+jest.mock('../authorKeys', () => ({ refreshPendingAuthors: jest.fn(async () => {}) }));
+
+import { buildGroupPayload, publishToGroup } from '../relaySync';
 import { MAX_PAYLOAD_BYTES } from '../relay';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
@@ -9,7 +32,13 @@ import { useCommentStore } from '@/src/store/commentStore';
 import { useRecurringStore } from '@/src/store/recurringStore';
 import { usePersonalStore } from '@/src/store/personalStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
+import { SPLIT_BYTES } from '../relay/cubos';
 import type { User } from '@/src/types/models';
+
+const relayMock = jest.requireMock('../relay') as {
+  __reset: () => void;
+  __buzones: Map<string, { payload: string; ckey?: string }[]>;
+};
 
 /**
  * **Cuánto pesa un sobre de verdad.** T-058.
@@ -137,6 +166,70 @@ describe('presupuesto real del sobre', () => {
     // La pendiente es lo que hace que subir el tope compre tiempo pero no lo
     // arregle: cada gasto cuesta bytes para siempre.
     expect(porGasto).toBeGreaterThan(500);
+  });
+});
+
+/**
+ * P17 (T-191, spec §5/§8): el costo real de PUBLICAR una edición, no de
+ * ARMAR el delta completo (eso es lo que mide `medir()` arriba, y sigue
+ * siendo el número de ADR-007/T-058 — `buildGroupPayload` no cambió).
+ *
+ * Antes de T-191, cada publicación —edite lo que edite— mandaba TODAS las
+ * rebanadas de siempre. Con cubos por prefijo + ledger (Task 2), una edición
+ * de UN gasto en un grupo de 6 meses de uso manda exactamente el cubo que
+ * cambió más el manifiesto: **2 sobres**, sin importar cuántos gastos tenga
+ * el grupo — el costo por edición dejó de crecer con el tamaño del grupo.
+ */
+describe('P17: costo real de una edición con publicación incremental (T-191)', () => {
+  function publicarConClave(miembros: number, gastos: number) {
+    const yo = sembrar(miembros, gastos, false);
+    useGroupKeyStore.getState().ensureKey('G');
+    return yo;
+  }
+
+  it('la publicación inicial manda varios sobres; la edición de UN gasto manda sólo 2', async () => {
+    const yo = publicarConClave(5, 200);
+
+    const inicial = await publishToGroup('G', yo, 'device1');
+    expect(inicial.ok).toBe(true);
+    const [topic] = [...relayMock.__buzones.keys()];
+    const sobresIniciales = relayMock.__buzones.get(topic)!.length;
+    expect(sobresIniciales).toBeGreaterThan(2); // el grupo entero, en más de un cubo
+
+    relayMock.__reset();
+    const gastos = useExpenseStore.getState().expenses;
+    useExpenseStore.setState({
+      expenses: [{ ...gastos[0]!, description: 'editado', updatedAt: Date.now() }, ...gastos.slice(1)],
+    } as never);
+
+    const segunda = await publishToGroup('G', yo, 'device1');
+    expect(segunda.ok).toBe(true);
+    const sobresPorEdicion = relayMock.__buzones.get(topic)!.length;
+
+    // El número que importa: 2 sobres por edición (el cubo tocado + el
+    // manifiesto), sin importar que el grupo tenga 200 gastos.
+    expect(sobresPorEdicion).toBe(2);
+  });
+
+  it('los bytes de una edición quedan acotados por SPLIT_BYTES + el manifiesto, no por el tamaño del grupo', async () => {
+    const yo = publicarConClave(5, 200);
+    await publishToGroup('G', yo, 'device1');
+
+    relayMock.__reset();
+    const gastos = useExpenseStore.getState().expenses;
+    useExpenseStore.setState({
+      expenses: [{ ...gastos[0]!, description: 'editado', updatedAt: Date.now() }, ...gastos.slice(1)],
+    } as never);
+    await publishToGroup('G', yo, 'device1');
+
+    const [topic] = [...relayMock.__buzones.keys()];
+    const bytesPorEdicion = relayMock.__buzones.get(topic)!
+      .reduce((acc, s) => acc + Buffer.byteLength(s.payload, 'utf8'), 0);
+
+    // El sello (AEAD) + base64 + firma agregan overhead fijo por sobre —
+    // holgura generosa (×2 + 4 KB) para no acoplar el test a esa cuenta exacta.
+    const tope = 2 * (SPLIT_BYTES * 4 / 3) + 4_000;
+    expect(bytesPorEdicion).toBeLessThan(tope);
   });
 });
 
