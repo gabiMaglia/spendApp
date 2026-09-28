@@ -117,14 +117,26 @@ function olvidarCursorDe(topic: string): void {
   }
 }
 
-/** Perezoso por el mismo motivo que `olvidarCursorDe`: evita el ciclo con `adaptadorHushSplit` (stores). */
+/**
+ * Perezoso por el mismo motivo que `olvidarCursorDe`: evita el ciclo con
+ * `adaptadorHushSplit` (stores). Olvida las DOS memorias locales de T-191
+ * que dependen del topic — el ledger de lo que YO publiqué (emisor,
+ * `sliceLedger.ts`) y lo que ya di por APLICADO de cada emisor
+ * (`appliedSlices.ts`, Task 3, spec §8 C5(c)/(d)): un reingreso al grupo es
+ * "este topic es zona nueva" para las dos igual — sin borrar la segunda, un
+ * manifiesto futuro con las mismas ckeys (o un `[]` de limpieza) se daría por
+ * cumplido contra aplicaciones de antes de haberse ido.
+ */
 function olvidarLedgerDe(topic: string): void {
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { olvidarTopic } = require('./relay/sliceLedger') as typeof import('./relay/sliceLedger');
     // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { olvidarTopic: olvidarAplicadas } = require('./relay/appliedSlices') as typeof import('./relay/appliedSlices');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { almacen } = require('./relay/adaptadorHushSplit') as typeof import('./relay/adaptadorHushSplit');
     olvidarTopic(almacen, topic);
+    olvidarAplicadas(almacen, topic);
   } catch {
     /* … */
   }

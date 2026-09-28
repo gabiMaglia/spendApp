@@ -1,5 +1,5 @@
 import { DELTA_FEATURE_VERSION, type SyncDelta } from './useSyncQR';
-import { sealEnvelope, openEnvelope, deriveTopic } from './envelopeCrypto';
+import { sealEnvelope, openEnvelope, deriveTopic, type GroupKey } from './envelopeCrypto';
 import { sendEnvelope, fetchSince, deleteMyEnvelopes, type DeleteResult } from './relay';
 import { groupKeyBytes, useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { ensureIdentity } from '@/src/store/identityStore';
@@ -17,6 +17,8 @@ import { cederHilo } from './cederHilo';
 import * as adaptador from './relay/adaptadorHushSplit';
 import { publicarPorCubos, type CampoDoc } from './relay/publicarCubos';
 import { olvidarTopic as olvidarTopicDelLedger } from './relay/sliceLedger';
+import * as appliedSlices from './relay/appliedSlices';
+import { permite as permiteRelectura } from './relay/relecturas';
 
 /**
  * Sync por el relay: arma el sobre cifrado, lo publica y aplica lo que llega.
@@ -305,6 +307,120 @@ export type DrainOptions = {
   antesDeAplicar?: () => void;
 };
 
+/**
+ * Acota un delta recibido a `groupId` y lo aplica — compartido entre el
+ * primer intento (dentro del loop de páginas) y la reaplicación al final del
+ * drenaje (T-191, Task 3, spec §8 C2): mismo camino, para que un descarte
+ * por tope o la búsqueda de fotos por referencia se comporten IGUAL las dos
+ * veces. Devuelve los descartes de `adaptador.acotar` — quien llama decide
+ * qué hacer con `porDependencia` (retener y reintentar, o dar por aplicado).
+ */
+async function aplicarDeltaAcotado(
+  groupId: string,
+  currentUserId: string,
+  delta: SyncDelta,
+): Promise<{ porTope: number; porDependencia: number; motivos: string[] }> {
+  const { delta: acotado, descartes } = adaptador.acotar(delta, groupId);
+  if (descartes.porTope > 0) {
+    // Rastro, no aviso al usuario (T-150, SEC-07): no hay nada que la víctima
+    // pueda hacer con «un miembro mandó un registro demasiado grande», y sí
+    // sirve en el diagnóstico exportado cuando alguien pregunta «¿y mi gasto?».
+    recordError({
+      message: `sync.registro_descartado n=${descartes.porTope} ${descartes.motivos.slice(0, 5).join(',')}`,
+      fatal: false, screen: 'sync',
+    });
+  }
+  adaptador.aplicar(acotado, currentUserId);
+
+  // Fotos por referencia (Task 9): se itera `acotado.users` (YA filtrado),
+  // nunca `delta.users` crudo, y el digest a pedir se lee del STORE YA
+  // MERGEADO — si esta rebanada perdió el LWW, `acotado` trae el viejo.
+  await Promise.all(
+    (acotado.users ?? [])
+      .filter(u => u.avatarDigest && u.id !== currentUserId)
+      .map((u) => {
+        const digest = useUserStore.getState().getUserById(u.id)?.avatarDigest;
+        return digest ? fetchAvatarIfMissing(groupId, u.id, digest) : Promise.resolve();
+      }),
+  );
+
+  return descartes;
+}
+
+/**
+ * Relectura acotada (T-191, Task 3, spec §7/§8 C6): el manifiesto de `sender`
+ * declaró una `ckey` que este drenaje no pudo dar por cumplida (no llegó hoy
+ * y no estaba en `appliedSlices`). Se relee el topic desde el cursor 0 —el
+ * buzón conserva la última versión de cada cubo por emisor (compactación por
+ * `(topic, owner, ckey)`), así que un cubo viejo vuelve a estar ahí— y se
+ * aplica cualquier pieza de `sender` cuya `ckey` siga faltando. El llamador
+ * ya verificó con `relecturas.permite` que esto corre A LO SUMO una vez por
+ * `(topic, sender, seq del manifiesto)`.
+ *
+ * Devuelve las `ckey` que SIGUEN faltando después de este intento — pueden
+ * quedar si la relectura no encontró el sobre (se perdió de verdad), si
+ * seguía teniendo descartes por dependencia, o si la red falló a mitad de
+ * camino.
+ */
+async function releerFaltantes(
+  groupId: string,
+  currentUserId: string,
+  deviceId: string,
+  topic: string,
+  key: GroupKey,
+  record: { key: string; epoch: number },
+  sender: string,
+  faltantes: { ckey: string; digest: string }[],
+): Promise<string[]> {
+  const declarados = new Map(faltantes.map(f => [f.ckey, f.digest]));
+  const pendientes = new Set(faltantes.map(f => f.ckey));
+  let cursor = 0;
+
+  for (let pagina = 0; pagina < DRAIN_MAX_PAGES && pendientes.size > 0; pagina++) {
+    const r = await fetchSince(topic, cursor, deviceId, DRAIN_FETCH_LIMIT);
+    if (!r.ok) break; // sin red: queda faltante, se reintenta con el próximo manifiesto
+    if (!sigueSiendoLaClave(groupId, record)) break;
+
+    for (const envelope of r.envelopes) {
+      if (envelope.sender !== sender || !envelope.ckey || !pendientes.has(envelope.ckey)) continue;
+
+      const firmado = verifyEnvelope(envelope.payload);
+      if (!firmado) continue;
+      const plain = openEnvelope(key, firmado.sealed);
+      if (plain === null) continue;
+
+      let parsed: unknown;
+      try { parsed = JSON.parse(plain); } catch { continue; }
+      if (isManifest(parsed) || looksLikeManifest(parsed)) continue; // esta ckey es de datos
+
+      // Fix 4 (heredado de T-146): el contenido tiene que coincidir con el
+      // digest que el manifiesto declaró para esta ckey — un sobre corrupto
+      // o una versión equivocada bajo la misma ckey NUNCA se acepta como
+      // "encontrado" sólo porque decodificó. Si no coincide, sigue faltante.
+      const digest = await digestOfJson(plain);
+      if (digest !== declarados.get(envelope.ckey)) continue;
+
+      try {
+        const descartes = await aplicarDeltaAcotado(groupId, currentUserId, parsed as SyncDelta);
+        if (descartes.porDependencia === 0) {
+          appliedSlices.registrar(adaptador.almacen, topic, sender, envelope.ckey, {
+            digest, seq: envelope.seq, senderKey: firmado.senderKey,
+          });
+          pendientes.delete(envelope.ckey);
+        }
+      } catch (e) {
+        registrarFalloDeAplicacion(topic, envelope.seq, e);
+      }
+    }
+
+    cursor = r.cursor;
+    const hayMas = r.more ?? r.envelopes.length >= DRAIN_FETCH_LIMIT;
+    if (!hayMas) break;
+  }
+
+  return [...pendientes];
+}
+
 export async function drainGroup(
   groupId: string,
   currentUserId: string,
@@ -340,8 +456,16 @@ export async function drainGroup(
   // recalcular el digest) y qué manifiestos. Un manifiesto puede caer en una
   // página y sus rebanadas en otra.
   const recibidasPorRemitente = new Map<string, Map<string, string>>();
-  const manifiestos: { sender: string; manifest: SliceManifest }[] = [];
+  const manifiestos: { sender: string; manifest: SliceManifest; senderKey: string; seq: number }[] = [];
   let seLlamoAntesDeAplicar = false;
+
+  // T-191 (Task 3, spec §8 C2): rebanadas que se aplicaron pero dejaron
+  // descartes POR DEPENDENCIA (comentario sin su gasto todavía local, perfil
+  // de un usuario que todavía no es miembro local) — se reintentan al final
+  // del drenaje, después de la última página, cuando `groups`/`expenses` de
+  // esta misma tanda de publicaciones ya tuvieron chance de llegar por su
+  // propio cubo. Sólo entonces se registran en `appliedSlices`.
+  const retenidasPorDependencia: { seq: number; ckey?: string; sender: string; delta: SyncDelta; senderKey: string; json: string }[] = [];
 
   for (let pagina = 0; pagina < maxPages; pagina++) {
     const r = await fetchSince(topic, cursor, deviceId, pageLimit);
@@ -405,7 +529,10 @@ export async function drainGroup(
       }
 
       if (isManifest(parsed)) {
-        manifiestos.push({ sender: envelope.sender, manifest: parsed });
+        manifiestos.push({
+          sender: envelope.sender, manifest: parsed,
+          senderKey: firmado.senderKey, seq: envelope.seq,
+        });
         continue;
       }
 
@@ -472,7 +599,7 @@ export async function drainGroup(
       seLlamoAntesDeAplicar = true;
     }
 
-    for (const { seq, delta, senderKey } of rebanadas) {
+    for (const { seq, ckey, sender, delta, senderKey, json } of rebanadas) {
       // Ronda 1 del verifier (D1): TODO lo que puede tirar por esta rebanada —
       // incluida la observación de autoría, que lee `delta.fromUserId` sin
       // haber comprobado que `delta` sea un objeto— tiene que pasar por el
@@ -500,37 +627,25 @@ export async function drainGroup(
         // delta nuevo, campo por campo, con sólo lo que pertenece a `groupId`
         // antes de tocar cualquier store (`adaptador.acotar`, T-191 Task 0 —
         // hoy `acotarDeltaAlGrupo`).
-        //
-        // `descartes.porDependencia` (T-191, C2) NO se usa todavía acá: en
-        // Task 0 el comportamiento tiene que ser IDÉNTICO al de antes, y
-        // antes esos casos (comentario sin gasto local, usuario no miembro)
-        // no se contaban ni se reintentaban. La retención + reaplicación al
-        // final del drenaje es Task 3.
-        const { delta: acotado, descartes } = adaptador.acotar(delta, groupId);
-        if (descartes.porTope > 0) {
-          // Rastro, no aviso al usuario (T-150, SEC-07): no hay nada que la
-          // víctima pueda hacer con «un miembro mandó un registro demasiado
-          // grande», y sí sirve en el diagnóstico exportado cuando alguien
-          // pregunta «¿y mi gasto?».
-          recordError({
-            message: `sync.registro_descartado topic=${topic.slice(0, 8)} n=${descartes.porTope} ${descartes.motivos.slice(0, 5).join(',')}`,
-            fatal: false, screen: 'sync',
-          });
-        }
-        adaptador.aplicar(acotado, currentUserId);
+        const descartes = await aplicarDeltaAcotado(groupId, currentUserId, delta);
         applied++;
 
-        // Fotos por referencia (Task 9): se itera `acotado.users` (YA filtrado),
-        // nunca `delta.users` crudo, y el digest a pedir se lee del STORE YA
-        // MERGEADO — si esta rebanada perdió el LWW, `acotado` trae el viejo.
-        await Promise.all(
-          (acotado.users ?? [])
-            .filter(u => u.avatarDigest && u.id !== currentUserId)
-            .map((u) => {
-              const digest = useUserStore.getState().getUserById(u.id)?.avatarDigest;
-              return digest ? fetchAvatarIfMissing(groupId, u.id, digest) : Promise.resolve();
-            }),
-        );
+        if (descartes.porDependencia > 0) {
+          // T-191 (Task 3, spec §8 C2): esta rebanada perdió algo por
+          // dependencia (comentario sin su gasto todavía local, usuario no
+          // miembro todavía) — se retiene para reaplicar al final del
+          // drenaje, cuando `groups`/`expenses` de la MISMA tanda ya tuvieron
+          // chance de llegar (posiblemente en otra página). Recién si esa
+          // reaplicación queda sin descartes por dependencia se registra en
+          // `appliedSlices` — mientras tanto, un manifiesto que la declare
+          // «falta» está en lo cierto, y eso es lo que dispara la relectura
+          // (C6) si esta misma vuelta no alcanza a resolverla.
+          retenidasPorDependencia.push({ seq, ckey, sender, delta, senderKey, json });
+        } else if (ckey) {
+          appliedSlices.registrar(adaptador.almacen, topic, sender, ckey, {
+            digest: await digestOfJson(json), seq, senderKey,
+          });
+        }
       } catch (e) {
         // TEC-01: antes esto era `catch { skipped++ }` y el cursor avanzaba
         // igual — la rebanada no volvía a pedirse hasta que su emisor la
@@ -558,6 +673,27 @@ export async function drainGroup(
     }
   }
 
+  // T-191 (Task 3, spec §8 C2): reaplicar al final lo que quedó retenido por
+  // dependencia en CUALQUIER página — recién ahora, después de la ÚLTIMA,
+  // `groups`/`expenses` de esta misma tanda tuvieron toda la chance que iban
+  // a tener de llegar (por su propio cubo, en otra página). Si la
+  // reaplicación queda SIN descartes por dependencia, se registra en
+  // `appliedSlices`; si no, la entrada del manifiesto sigue "faltante" y
+  // queda para la relectura (C6) de más abajo o para una vuelta de poll
+  // futura donde la dependencia ya esté resuelta.
+  for (const { seq, ckey, sender, delta, senderKey, json } of retenidasPorDependencia) {
+    try {
+      const descartes = await aplicarDeltaAcotado(groupId, currentUserId, delta);
+      if (descartes.porDependencia === 0 && ckey) {
+        appliedSlices.registrar(adaptador.almacen, topic, sender, ckey, {
+          digest: await digestOfJson(json), seq, senderKey,
+        });
+      }
+    } catch (e) {
+      registrarFalloDeAplicacion(topic, seq, e);
+    }
+  }
+
   // Manifiesto: se chequea UNA vez, al final, y sólo si se leyó hasta el
   // fondo. Con una página recortada por delante, el manifiesto o sus rebanadas
   // pueden estar ahí y un gap acá sería un falso positivo sin mitigación. Se
@@ -566,6 +702,13 @@ export async function drainGroup(
   //
   // Por remitente: el servidor compacta por topic + prenda + ckey, o sea por
   // dispositivo — el manifiesto de A sólo se completa con rebanadas de A.
+  //
+  // T-191 (Task 3, spec §7/§8 C5(c)): una entrada se da por cumplida si
+  // llegó EN ESTE drenaje con el digest declarado, o si ya estaba en
+  // `appliedSlices` (mismo digest, o `seq` mayor — publicación en curso
+  // cortada por la cuota) con la MISMA `senderKey` que firmó el manifiesto.
+  // Antes de T-191 (publicación siempre completa) esto no hacía falta: todo
+  // lo que el manifiesto declaraba SIEMPRE viajaba en la misma tanda.
   if (completo && manifiestos.length > 0) {
     // T-146, ronda 2 del verifier (D3): `isManifest` ya valida cada entrada,
     // así que `entry.ckey`/`entry.digest` deberían ser siempre `string` acá.
@@ -575,23 +718,33 @@ export async function drainGroup(
     // librería de digest), se anota y el drenaje TERMINA igual: `applied`,
     // `skipped` y `cursor` de las rebanadas ya procesadas no se pierden.
     try {
-      const faltantes: string[] = [];
-      for (const { sender, manifest } of manifiestos) {
+      const faltantesTotales: string[] = [];
+      for (const { sender, manifest, senderKey: senderKeyManifiesto, seq: seqManifiesto } of manifiestos) {
         const recibidas = recibidasPorRemitente.get(sender) ?? new Map<string, string>();
+        let faltantes: { ckey: string; digest: string }[] = [];
         for (const entry of manifest.entries) {
           const json = recibidas.get(entry.ckey);
-          if (json === undefined) {
-            faltantes.push(entry.ckey);
-            continue;
+          const digestRecibido = json !== undefined ? await digestOfJson(json) : undefined;
+          const aplicada = appliedSlices.leer(adaptador.almacen, topic, sender, entry.ckey);
+          if (!appliedSlices.entradaCumplida(entry, seqManifiesto, senderKeyManifiesto, digestRecibido, aplicada)) {
+            faltantes.push(entry);
           }
-          // La ckey llegó, pero su CONTENIDO tiene que coincidir con el digest
-          // declarado: un sobre corrupto o una versión vieja bajo esa ckey se
-          // reporta como faltante. Nunca bloquea la aplicación de arriba.
-          const digest = await digestOfJson(json);
-          if (digest !== entry.digest) faltantes.push(entry.ckey);
         }
+
+        // T-191 (Task 3, spec §7/§8 C6): faltó algo — como MUCHO una
+        // relectura desde el cursor 0 por `(topic, sender, seq del
+        // manifiesto)`. Si después de releer sigue faltando, se registra y
+        // no se vuelve a intentar hasta que llegue un manifiesto con otro
+        // `seq` (`relecturas.permite` no vuelve a dar `true` para esta terna).
+        if (faltantes.length > 0 && permiteRelectura(topic, sender, seqManifiesto)) {
+          const siguenFaltando = await releerFaltantes(
+            groupId, currentUserId, deviceId, topic, key, record, sender, faltantes,
+          );
+          faltantes = faltantes.filter(f => siguenFaltando.includes(f.ckey));
+        }
+        faltantesTotales.push(...faltantes.map(f => f.ckey));
       }
-      recordManifestCheck(groupId, faltantes);
+      recordManifestCheck(groupId, faltantesTotales);
     } catch (e) {
       recordError({
         message: `sync.manifest_check_failed topic=${topic.slice(0, 8)}: ${e instanceof Error ? e.message : String(e)}`,
