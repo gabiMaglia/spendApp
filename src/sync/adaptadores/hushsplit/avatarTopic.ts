@@ -8,7 +8,7 @@ import { ensureIdentity } from '@/src/store/identityStore';
 import { groupKeyBytes } from '@/src/store/groupKeyStore';
 import { useUserStore } from '@/src/store/userStore';
 import { leerCubo, registrarCubo } from '@/src/sync/nucleo/sliceLedger';
-import { almacen } from './adaptadorHushSplit';
+import { almacen } from './almacen';
 import { digestOfJson } from '@/src/sync/nucleo/manifest';
 import { TIMEOUT_ENVIO_MS, RENEWAL_WINDOW_MS } from '@/src/sync/nucleo/limites';
 

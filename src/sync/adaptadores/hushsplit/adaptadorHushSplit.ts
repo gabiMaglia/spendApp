@@ -2,14 +2,13 @@ import { applyDelta, type SyncDelta } from './applyDelta';
 import { acotarDeltaAlGrupo, type Descartados, type DescartesPorDependencia } from './acotarDeltaAlGrupo';
 import { sinAvatarUrl, sinCamposLocales } from './soloLocal';
 import { publishAvatarIfOwn } from './avatarTopic';
+import { almacen } from './almacen';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { usePaymentStore } from '@/src/store/paymentStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useRecurringStore } from '@/src/store/recurringStore';
 import { useCommentStore } from '@/src/store/commentStore';
-import { createStorage } from '@/src/utils/createStorage';
-import { readScoped, writeScoped, deleteScoped } from '@/src/store/userScope';
 import { digestOfJson } from '@/src/sync/nucleo/manifest';
 
 /**
@@ -199,25 +198,9 @@ export async function antesDePublicar(
 }
 
 /**
- * Puerto de almacenamiento para el núcleo (ledger de rebanadas publicadas,
- * rebanadas aplicadas): `get`/`set`/`delete` por clave arbitraria, scopeado
- * por cuenta (`userScope.ts`) — el núcleo no importa `userScope` directo
- * (rompería el guard P15), así que recibe esto ya resuelto.
- *
- * Namespace propio (`sync-relay-core`), distinto del bucket `slice-renewal`
- * que sigue usando `sliceRenewal.ts` para las fotos (spec §8: no se
- * reemplaza, queda un mecanismo aparte).
+ * Re-exportado por compatibilidad: `almacen` vive en `./almacen.ts` (módulo
+ * hoja, T-206-A) para que `avatarTopic.ts` lo importe sin cerrar un ciclo con
+ * este archivo. Los tests que ya lo importaban de acá (`receptorIncremental.test.ts`)
+ * siguen andando por este re-export.
  */
-const storageNucleo = createStorage('sync-relay-core');
-
-export const almacen = {
-  get(k: string): string | undefined {
-    return readScoped(storageNucleo, k);
-  },
-  set(k: string, v: string): void {
-    writeScoped(storageNucleo, k, v);
-  },
-  delete(k: string): void {
-    deleteScoped(storageNucleo, k);
-  },
-};
+export { almacen };
