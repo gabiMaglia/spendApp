@@ -791,8 +791,8 @@ export const EXCLUIDOS_FUSION: Record<string, string> = {
     'Medición de la fase B de ADR-004: cuántos sobres verificaron y cuáles no. Diagnóstico, no data del usuario — el único consumidor es la pantalla DEV `app/debug/identity.tsx`, no gatea ni bloquea nada. Se vuelve a acumular con el uso; sumar los contadores de dos cuentas mezclaría observaciones sobre pares distintos.',
   'sync/verdictCache':
     'Caché de veredictos de firma ya calculados (T-041). Reconstruible verificando de nuevo: lo único que cuesta perderla es CPU en la próxima bajada, y los registros vuelven a viajar enteros en cada sobre.',
-  'sync/authorKeys':
-    'Caché de las públicas que el directorio ya devolvió (T-041). Reconstruible: se vuelve a consultar el directorio, que es la fuente de verdad. No contiene nada que el directorio no pueda volver a dar.',
+  'sync/authorKeysCache':
+    'Caché de las públicas que el directorio ya devolvió (T-041). Reconstruible: se vuelve a consultar el directorio, que es la fuente de verdad. No contiene nada que el directorio no pueda volver a dar. Storage salió de authorKeys.ts a este archivo en T-192.',
   'sync/ratchet':
     'Trinquete "a este autor ya le vimos firmar" (T-041). Hoy NO bloquea nada — decisión R1 del PO: se marca, no se rechaza; su único consumidor es el denominador de la medición en recordHealth. Se retraba solo con la primera firma válida que llegue. OJO: el día que el trinquete pase a gatillar rechazo, esta exclusión deja de ser válida y tiene que moverse a la cobertura.',
   'sync/syncDownNotices':
