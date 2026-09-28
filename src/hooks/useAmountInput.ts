@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { getCurrency, parseMoney } from '@/src/constants/currencies';
+import { getCachedNumberFormat, getCurrency, parseMoney } from '@/src/constants/currencies';
 import type { AppLang, CurrencyCode } from '@/src/constants/currencies';
 
 // Locale sintético usado SOLO para re-mostrar el texto del input mientras se
@@ -18,10 +18,10 @@ const EDIT_LOCALE: Record<AppLang, string> = { es: 'es-AR', en: 'en-US', pt: 'pt
 function formatForEditing(minor: number, code: CurrencyCode, lang: AppLang): string {
   const decimals = getCurrency(code).decimals;
   const value = minor / (10 ** decimals);
-  return new Intl.NumberFormat(EDIT_LOCALE[lang], {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  }).format(value);
+  // Mismo cache de módulo que `formatMoney` (T-198) — el locale de EDICIÓN
+  // es distinto del de salida, pero el espacio de claves sigue siendo chico
+  // y fijo, así que comparte el `Map` en vez de tener el suyo propio.
+  return getCachedNumberFormat(EDIT_LOCALE[lang], decimals).format(value);
 }
 
 /**
