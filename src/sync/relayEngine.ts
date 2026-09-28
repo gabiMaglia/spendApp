@@ -1,4 +1,3 @@
-import { createSecureStorage } from '@/src/utils/secureStorage';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
@@ -17,8 +16,7 @@ import { noticeDeCaida } from './syncDownNotices';
 import { noticeDeReloj } from './clockNotice';
 import { estaPendienteDeDrenaje, limpiarPendienteDeDrenaje } from './pendingDrain';
 import { applyApprovedLeaves } from '@/src/services/applyLeave';
-import { deriveInviteTopic, type GroupInvite } from './groupInvite';
-import { activeInvites, processInvite, processAllInvites } from './inviteEngine';
+import { processAllInvites } from './inviteEngine';
 import { processAllContactInvites } from './contactInviteEngine';
 import { avisarConflictosDelDrenaje } from './keyConflictNotice';
 import { verifyMyKeyRegistered } from './deviceKeys';
@@ -35,14 +33,10 @@ export {
 } from './relay/publish';
 import { scheduleDrain, cancelPendingDrains, drainAll, setDrainNowImpl } from './relay/drain';
 export { DRAIN_DEBOUNCE_MS, scheduleDrain, cancelPendingDrains, drainAll } from './relay/drain';
-
-/** T-138-bis: ver `anunciarMiTarjeta`. */
-const ANUNCIO_TIMEOUT_MS = 8_000;
-import {
-  ensureContactSecret, deriveContactTopic, drainContacts, sendGroupKeyResultado,
-  announceCardResultado, listPeers, myContactCard, cardFingerprint,
-  cardYaEnviada, marcarCardEnviada,
-} from './contactChannel';
+import { anunciarMiTarjeta, reenviarClavesDeGrupo, marcarAdopciones } from './relay/contactos';
+export { anunciarMiTarjeta, __resetReenvioClaves } from './relay/contactos';
+import { subscribeInvites, crearOnInviteNews } from './relay/invitaciones';
+import { ensureContactSecret, deriveContactTopic, drainContacts, sendGroupKeyResultado } from './contactChannel';
 import { encolar, vaciarCola } from './relayQueue';
 
 /**
@@ -62,8 +56,6 @@ import { encolar, vaciarCola } from './relayQueue';
  *  - **Nada de esto puede tirar.** Es una app offline-first: sin relay, sin
  *    internet o sin clave de grupo, todo tiene que seguir funcionando local.
  */
-
-const storage = createSecureStorage('groupkeys');
 
 /**
  * `./relay/publish.ts` no llama a `announce()` directamente — se lo avisa a
@@ -342,7 +334,7 @@ async function arrancarCadenaDeSync(permitirCaptcha: boolean): Promise<void> {
     } catch { /* un grupo que falla no debe impedir los demás */ }
   }
 
-  await subscribeInvites();
+  unsubs.push(...await subscribeInvites(invite => { void onInviteNews(invite); }));
   await subscribeContacts();
   await anunciarMiTarjeta();
 
@@ -404,222 +396,6 @@ async function releerTodo(): Promise<void> {
       await reintentarPublicacionesConCuota();
     } catch { /* offline: se reintenta en la próxima vuelta */ }
   })(), STARTUP_TIMEOUT_MS, undefined);
-}
-
-/**
- * Reparte la tarjeta propia a TODOS los contactos conocidos.
- *
- * Corre en DOS momentos, y los dos hacen falta:
- *
- *  1. Al cambiarse el nombre, para que llegue en el acto.
- *  2. **En cada arranque**, porque el punto 1 es un disparo único: si ese envío
- *     falló —sin red, o el sobre no entró— el nombre nuevo no se reintentaba
- *     NUNCA y el otro se quedaba con el viejo para siempre. Este es el mismo
- *     modo de falla silenciosa que ya nos mordió con las claves de grupo.
- *
- * Reemplaza al viejo `completarContactos`, que sólo le escribía a los contactos
- * INCOMPLETOS: un contacto completo es justamente el que se quedaba con el
- * nombre viejo. Sigue reparando lo que reparaba aquél —quien recibe una tarjeta
- * con claves que no tenía responde con la suya— porque es un superconjunto.
- *
- * Es además el único camino hacia los contactos con los que no se comparte
- * ningún grupo: a esos el delta de grupo nunca los alcanza.
- *
- * Cuesta un sobre chico por contacto por arranque. Se paga con gusto: la
- * alternativa demostró ser "el dato no llega y nadie se entera".
- */
-/**
- * Verifier R4-2 (ronda 4): el PoC combinaba 13 tarjetas + 11 claves en el
- * mismo minuto de cuota — con las tarjetas mandándose en un loop directo
- * (fuera de `relayQueue`), competían por la misma cuota del uid sin ningún
- * ritmo, empujando a las claves (que sí pasaban por la cola) a agotar su
- * cupo. Ahora las tarjetas también encolan, prioridad `normal` (nadie está
- * esperando activamente un contacto reparado, a diferencia de una clave de
- * grupo nueva).
- */
-export async function anunciarMiTarjeta(): Promise<void> {
-  const card = myContactCard();
-  if (!card) return;
-  const huella = cardFingerprint(card);
-  // T-147 (punto 4, simplificación): el DUEÑO de este trabajo se fija ACÁ, al
-  // encolar — igual que la tarjeta de arriba. Si la cuenta activa cambia
-  // antes de que el trabajo corra, se descarta sin mandar nada: la tarjeta
-  // de la cuenta anterior nunca sale con la sesión de la nueva.
-  const owner = useAuthStore.getState().currentUser?.id ?? null;
-
-  for (const [userId, peer] of Object.entries(listPeers())) {
-    if (!peer.secret) continue;
-    // Ya tiene esta versión: no se le manda nada. Es lo que hace que el costo
-    // converja a CERO cuando no cambió nada, en vez de un sobre por contacto
-    // por arranque para siempre.
-    if (cardYaEnviada(userId, huella)) continue;
-
-    const secret = peer.secret;
-    encolar({
-      prioridad: 'normal',
-      ejecutar: async () => {
-        if ((useAuthStore.getState().currentUser?.id ?? null) !== owner) return 'descartar';
-        try {
-          const r = await withTimeout(
-            announceCardResultado(card, secret, deviceId()),
-            ANUNCIO_TIMEOUT_MS,
-            { ok: false, reason: 'network' } as const,
-          );
-          if (r.ok) { marcarCardEnviada(userId, huella); return 'hecho'; }
-          if (r.reason === 'rate_limited') return 'reintentar_cuota';
-          return r.reason === 'network' ? 'reintentar' : 'descartar';
-        } catch {
-          return 'reintentar';
-        }
-      },
-    });
-  }
-}
-
-/**
- * Reenvía la clave de cada grupo propio a los contactos que son miembros.
- *
- * Es el reintento del reparto: si cuando se creó el grupo todavía no
- * conocíamos las públicas del otro, la entrega no salió y NADA volvía a
- * dispararla. Adoptar una clave que ya se tiene es un no-op, así que repetirlo
- * no cuesta nada más que unos pocos bytes por arranque.
- *
- * **Verifier D4: cooldown contra la cuota (20 sobres/min, 011a).** Esto corre
- * en CADA `startRelay()`, y este mismo ticket agrega reinicios nuevos (D1/D2:
- * el motor se reinicia entero si la sesión cambió entre vueltas). Sin freno,
- * un grupo de M miembros manda M-1 sobres por reinicio — con varios grupos
- * medianos y dos o tres reinicios seguidos durante un login normal (sesión
- * `none` → anónima → identidad), el total puede acercarse o pasar la cuota
- * SÓLO con esto, sin que el usuario haya tocado nada.
- *
- * Medido (peor caso realista, sin cooldown): 5 grupos de 8 miembros cada uno
- * = 5 × 7 = 35 sobres por `startRelay()`. Dos reinicios en el mismo minuto
- * (nada raro durante un login) ⇒ 70 sobres/min, **por encima** de las 20/min
- * de `relay_quota_config`. El cooldown de acá lo acota a UN reenvío real cada
- * `REENVIO_CLAVES_COOLDOWN_MS`, sea cual sea la cantidad de reinicios: no
- * cuesta nada perderse un reintento en ese lapso — el mismo reenvío se hace
- * de nuevo apenas se cumple.
- *
- * **Ronda 2 (ruling del orquestador): el cooldown solo no alcanza.** Frena
- * las REPETICIONES entre arranques, pero la ráfaga de UN SOLO arranque
- * (`relayQueue.ts` documenta la medición completa: 3×4→9, 5×5→20, 5×8→35
- * sobres) no tenía ningún ritmo — para 5×8 eso es 35 sobres de una, contra
- * una cuota de 20/min. Cada sobre se encola por `relayQueue` (≤15/min,
- * medido) en vez de mandarse en el loop directo: los grupos recién
- * ADOPTADOS en este mismo arranque van con prioridad `alta` (alguien está
- * esperando activamente entrar), el resto es reenvío de rutina (`normal`).
- * Un `rate_limited` de `sendGroupKeyResultado` no se descarta: la cola lo
- * reintenta sola, sin acción del usuario.
- */
-const REENVIO_CLAVES_COOLDOWN_MS = 5 * 60_000;
-let ultimoReenvioClaves = 0;
-
-/**
- * **Verifier R3-3(c): la prioridad `alta` sobrevive a matar la app.**
- * `relayQueue` vive sólo en memoria — lo pendiente se regenera solo en el
- * próximo arranque en frío (aceptado), pero ese arranque nuevo sólo conoce
- * los `adoptados` de ESE momento: un grupo adoptado hace 2 minutos, cuya
- * clave no llegó a salir porque la app se cerró antes, perdía la prioridad
- * al regenerarse — pasaba a competir en la cola `normal` como cualquier
- * reenvío de rutina. Se persiste qué grupos siguen "recién adoptados" (TTL
- * generoso: no hace falta borrar apenas se entrega, sólo que no quede
- * marcado para siempre) en el mismo bucket cifrado que ya guarda los
- * cursores — nada nuevo que journalear.
- */
-const ADOPCION_ALTA_PRIORIDAD_TTL_MS = 24 * 60 * 60_000;
-const ADOPCION_ALTA_PRIORIDAD_KEY = 'adopciones_alta_prioridad';
-
-function leerAdopcionesRecientes(): Record<string, number> {
-  const raw = storage.getString(ADOPCION_ALTA_PRIORIDAD_KEY);
-  if (!raw) return {};
-  try {
-    const v = JSON.parse(raw) as unknown;
-    return v && typeof v === 'object' ? (v as Record<string, number>) : {};
-  } catch {
-    return {};
-  }
-}
-
-/** Marca uno o más grupos como "recién adoptados" — prioridad alta hasta que
- *  venza el TTL, sobreviva o no un reinicio del proceso. */
-function marcarAdopciones(ids: string[]): void {
-  if (ids.length === 0) return;
-  const actuales = leerAdopcionesRecientes();
-  const ahora = Date.now();
-  for (const id of ids) actuales[id] = ahora;
-  storage.set(ADOPCION_ALTA_PRIORIDAD_KEY, JSON.stringify(actuales));
-}
-
-/** Grupos con prioridad alta vigente — poda perezosamente los vencidos. */
-function gruposConPrioridadAlta(): Set<string> {
-  const actuales = leerAdopcionesRecientes();
-  const ahora = Date.now();
-  const entradas = Object.entries(actuales);
-  const vigentes = entradas.filter(([, t]) => ahora - t < ADOPCION_ALTA_PRIORIDAD_TTL_MS);
-  if (vigentes.length !== entradas.length) {
-    storage.set(ADOPCION_ALTA_PRIORIDAD_KEY, JSON.stringify(Object.fromEntries(vigentes)));
-  }
-  return new Set(vigentes.map(([id]) => id));
-}
-
-/** Sólo tests. */
-export function __resetReenvioClaves(): void {
-  ultimoReenvioClaves = 0;
-  storage.delete(ADOPCION_ALTA_PRIORIDAD_KEY);
-}
-
-async function reenviarClavesDeGrupo(adoptados: string[] = []): Promise<void> {
-  const me = useAuthStore.getState().currentUser;
-  if (!me) return;
-  // T-147 (punto 4, simplificación): mismo criterio que `anunciarMiTarjeta`
-  // — el dueño se fija al encolar, y se revalida al ejecutar.
-  const owner = me.id;
-  marcarAdopciones(adoptados); // conserva la prioridad aunque el próximo arranque no los "adopte" de nuevo
-  if (Date.now() - ultimoReenvioClaves < REENVIO_CLAVES_COOLDOWN_MS) return;
-  ultimoReenvioClaves = Date.now();
-
-  const prioridadAlta = gruposConPrioridadAlta();
-  const ids = syncableGroupIds();
-  for (const groupId of ids) {
-    const group = useGroupStore.getState().getById(groupId);
-    if (!group) continue;
-
-    const prioridad = prioridadAlta.has(groupId) ? 'alta' : 'normal';
-    for (const memberId of group.memberIds) {
-      if (memberId === me.id) continue;
-      encolar({
-        prioridad,
-        ejecutar: async () => {
-          if ((useAuthStore.getState().currentUser?.id ?? null) !== owner) return 'descartar';
-          try {
-            const r = await sendGroupKeyResultado(memberId, group, deviceId());
-            if (r.ok) return 'hecho';
-            // R4-2: `rate_limited` NO es un fallo permanente — es "todavía
-            // no", y cuenta contra un tope de horas, no de ~32s (ver
-            // `relayQueue.ts`).
-            if (r.reason === 'rate_limited') return 'reintentar_cuota';
-            return r.reason === 'network' ? 'reintentar' : 'descartar';
-          } catch {
-            return 'reintentar';
-          }
-        },
-      });
-    }
-  }
-}
-
-/**
- * Escucha los buzones de invitación abiertos, en los dos roles: el que invita
- * espera reclamos, el que entra espera su clave. Sin esto, entrar a un grupo
- * exigiría que las dos personas reinicien la app en el orden correcto.
- */
-async function subscribeInvites(): Promise<void> {
-  for (const invite of activeInvites()) {
-    try {
-      const topic = await deriveInviteTopic(invite.token);
-      unsubs.push(subscribeTopic(topic, () => { void onInviteNews(invite); }));
-    } catch { /* una invitación rota no debe impedir las demás */ }
-  }
 }
 
 /**
@@ -744,15 +520,12 @@ export async function announceGroupToContacts(groupId: string): Promise<number> 
   return encolados;
 }
 
-async function onInviteNews(invite: GroupInvite): Promise<void> {
-  const adoptados = await processInvite(invite, deviceId()).catch(() => [] as string[]);
-  if (adoptados.length === 0) return;
-
-  // Adoptamos una clave nueva: hay que suscribirse al grupo. La recursión está
-  // acotada — el ingreso ya se marcó como resuelto, así que el `startRelay` de
-  // adentro no vuelve a adoptar nada.
-  await startRelay();
-}
+/**
+ * `startRelay` se define más abajo (declaración de función, hoisteada) —
+ * `crearOnInviteNews` lo recibe por parámetro para que `./relay/invitaciones.ts`
+ * no importe la fachada (evita el ciclo).
+ */
+const onInviteNews = crearOnInviteNews(startRelay);
 
 export function stopRelay(): void {
   for (const off of unsubs) { try { off(); } catch { /* ya cortado */ } }
