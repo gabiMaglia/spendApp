@@ -43,7 +43,7 @@ export function ActivitySearchBar({
 const styles = StyleSheet.create({
   searchBar: {
     flexDirection: 'row', alignItems: 'center', gap: 9,
-    marginHorizontal: Spacing.screenPad, marginBottom: 12,
+    marginHorizontal: Spacing.screenPad, marginTop: 12, marginBottom: 12,
     paddingHorizontal: 13, height: 40,
     borderRadius: Radius.md, borderWidth: 1,
   },

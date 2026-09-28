@@ -47,13 +47,14 @@ export default function ActivityScreen() {
         onScroll={scrollHandler}
         contentContainerStyle={[{ paddingTop: headerPad, paddingBottom: 120, flexGrow: 1 }, contenidoMinimo]}
       >
-        <ActivitySearchBar value={query} onChangeText={setQuery} />
-
         <ActivityFilterTabs
           allGroupNames={allGroupNames}
           value={activeFilter}
           onChange={setActiveFilter}
         />
+
+        {/* PO 2026-09-27: la búsqueda va debajo de las pestañas, no arriba. */}
+        <ActivitySearchBar value={query} onChangeText={setQuery} />
 
         <ActivityFeedList
           feedIsEmpty={feed.length === 0}
