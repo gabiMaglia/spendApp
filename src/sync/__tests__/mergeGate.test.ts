@@ -117,7 +117,7 @@ describe('las DOS puertas desembocan en `applyDelta`', () => {
    * fila se va con ella y queda una sola.
    */
   const PUERTAS = [
-    { nombre: 'relay',   archivo: 'src/sync/relaySync.ts' },
+    { nombre: 'relay',   archivo: 'src/sync/relay/drenar.ts' },
     { nombre: 'QR',      archivo: 'app/sync/index.tsx' },
   ];
 
@@ -130,13 +130,14 @@ describe('las DOS puertas desembocan en `applyDelta`', () => {
    * T-191 (Task 0): `relaySync.ts` ya no llama a `applyDelta(` directo — pasa
    * por `adaptador.aplicar()` (`src/sync/relay/adaptadorHushSplit.ts`), la
    * única función que le pega a los stores desde el núcleo de rebanadas
-   * (frontera P15). El gate sigue siendo el mismo, con dos saltos:
-   * `relaySync.ts` llama a `aplicarDeltaAcotado` (T-192, `relay/aplicarAcotado.ts`),
-   * ese archivo llama a `adaptador.aplicar(`, y `adaptadorHushSplit.ts`
-   * llama a `applyDelta(` — ningún otro camino entre los tres.
+   * (frontera P15). T-192 partió `relaySync.ts` en fachada + módulos: el gate
+   * sigue siendo el mismo, con tres saltos: `relay/drenar.ts` (dueño real del
+   * drenaje) llama a `aplicarDeltaAcotado` (`relay/aplicarAcotado.ts`), ese
+   * archivo llama a `adaptador.aplicar(`, y `adaptadorHushSplit.ts` llama a
+   * `applyDelta(` — ningún otro camino entre los tres.
    */
   it('relay aplica por `adaptador.aplicar`, que a su vez llama a `applyDelta`', () => {
-    const relay = fs.readFileSync(path.join(RAIZ, 'src/sync/relaySync.ts'), 'utf8');
+    const relay = fs.readFileSync(path.join(RAIZ, 'src/sync/relay/drenar.ts'), 'utf8');
     expect(relay).toContain('aplicarDeltaAcotado(');
     const acotadoSrc = fs.readFileSync(path.join(RAIZ, 'src/sync/relay/aplicarAcotado.ts'), 'utf8');
     expect(acotadoSrc).toContain('adaptador.aplicar(');

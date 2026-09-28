@@ -138,7 +138,7 @@ describe('está enchufado', () => {
   const leer = (rel: string) => fs.readFileSync(path.join(__dirname, rel), 'utf8');
 
   it('drainGroup observa cada sobre que aplica', () => {
-    const src = leer('../relaySync.ts');
+    const src = leer('../relay/drenar.ts');
     expect(src).toContain('observeAuthor(');
   });
 
@@ -148,7 +148,7 @@ describe('está enchufado', () => {
   // malo"; tratarlos igual dejaría gente legítima sin sincronizar en cuanto el
   // directorio tuviera un corte).
   it('drainGroup sólo descarta detrás de RECHAZAR_AUTORES_NO_VERIFICADOS, y nunca por sin_directorio', () => {
-    const src = leer('../relaySync.ts');
+    const src = leer('../relay/drenar.ts');
     expect(src).toContain('RECHAZAR_AUTORES_NO_VERIFICADOS && veredicto');
     expect(src).not.toMatch(/veredicto === 'sin_directorio'/);
   });
