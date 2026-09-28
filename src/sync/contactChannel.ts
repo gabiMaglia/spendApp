@@ -10,7 +10,7 @@ import { ensureIdentity, ensureWrapKeypair } from '@/src/store/identityStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { syncedNow } from '@/src/utils/syncedClock';
 import { estado, marcarAdoptada, ofertasDe } from './groupKeyOffers';
-import { getPeer, savePeerFromCard, listPeers } from './contactPeers';
+import { getPeer, savePeerFromCard, listPeers, exportarPeers, restaurarPeers, type PeerInfo } from './contactPeers';
 import { deriveContactTopic, contactKey } from './contactTopic';
 import { type GroupKeyDrop, registrarDropComoOferta } from './contactGroupKeyDrop';
 
@@ -74,6 +74,30 @@ export function ensureContactSecret(): string | null {
   const fresco = toHex(Crypto.getRandomBytes(32));
   writeScoped(storage, K_SECRET, fresco);
   return fresco;
+}
+
+/**
+ * Todo el canal de contactos de la cuenta activa, para el backup completo
+ * (T-213): el secreto PROPIO (`K_SECRET`), en claro, igual que el resto del
+ * archivo (`export_warning_body` ya avisa) — más los peers y el acuse de
+ * tarjeta, delegados a `contactPeers.ts` para no repetir sus claves `K_`.
+ */
+export function exportarContactos(): { secret: string | null; peers: Record<string, PeerInfo>; cardSent: Record<string, string> } {
+  const { peers, cardSent } = exportarPeers();
+  return { secret: readScoped(storage, K_SECRET) ?? null, peers, cardSent };
+}
+
+/**
+ * Restaura el canal de contactos completo — secreto propio + peers + acuse.
+ * Sólo tiene sentido llamarla para un backup PROPIO: `applyBackup` es quien
+ * decide eso (gate por `esYo(ownerId)`), este módulo no lo verifica de
+ * nuevo. Un `secret` ausente (backup v1/v2, o una cuenta que nunca mostró
+ * su QR) no borra el que ya hubiera — mismo criterio que el resto de este
+ * archivo con datos parciales.
+ */
+export function restaurarContactos(data: { secret: string | null; peers: Record<string, PeerInfo>; cardSent: Record<string, string> }): void {
+  if (data.secret) writeScoped(storage, K_SECRET, data.secret);
+  restaurarPeers(data.peers, data.cardSent);
 }
 
 export type ContactCard = {

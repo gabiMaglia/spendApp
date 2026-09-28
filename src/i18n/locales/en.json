@@ -426,7 +426,7 @@
     "export": "Export data",
     "import": "Import data",
     "export_warning_title": "Before exporting",
-    "export_warning_body": "The file includes data about the people in your groups (names, emails, expenses and comments) and your groups' encryption keys: whoever has it can read them. It is not encrypted — keep it somewhere private.",
+    "export_warning_body": "The file includes data about the people in your groups (names, emails, expenses and comments), your contacts and your groups' encryption keys: whoever has it can read them. It is not encrypted — keep it somewhere private.",
     "export_warning_confirm": "Export",
     "export_error": "Couldn’t export your data.",
     "import_confirm_title": "Import data",
