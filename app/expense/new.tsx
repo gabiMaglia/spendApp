@@ -1052,6 +1052,11 @@ const styles = StyleSheet.create({
     marginHorizontal: Spacing.screenPad,
     borderRadius: Radius['2xl'], borderCurve: 'continuous', borderWidth: 1,
     alignItems: 'center', overflow: 'hidden',
+    // Mismo paddingHorizontal que el resto de la card (U5, lote UI 2026-09-28):
+    // faltaba acá, así que `MontoEditable` (ancho 100%) llegaba a tocar el
+    // borde redondeado de la tarjeta — ahora el símbolo, el monto y el
+    // toggle Gasto/Ingreso comparten el mismo aire lateral.
+    paddingHorizontal: Spacing.screenPad,
     paddingTop: Spacing[6], paddingBottom: Spacing[4], gap: Spacing[3],
   },
   // El mármol «distendido» funde al color de fondo en su 38% inferior
