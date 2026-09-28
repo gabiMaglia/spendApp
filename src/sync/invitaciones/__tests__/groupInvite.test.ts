@@ -241,7 +241,6 @@ describe('envoltura de la clave del grupo', () => {
       const v1 = sealEnvelope(shared.slice(0, 32), gk);
 
       expect(unwrapGroupKey(v1, miembro.publicKey, invitado.privateKey)).toBeNull();
-      expect(unwrapGroupKey(v1, miembro.publicKey, invitado.privateKey, 0)).toBeNull();
     });
 
     it('receptor viejo ante v2 falla explícito (interoperabilidad hacia atrás, no deriva clave)', () => {

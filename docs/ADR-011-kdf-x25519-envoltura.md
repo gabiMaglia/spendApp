@@ -121,3 +121,9 @@ Estado actual, verificado por mí (no sólo declarado):
   errores. `npm run lint`: 127/0 (warnings preexistentes, ninguno en los archivos tocados).
 - `src/sync/__tests__/inviteEngine.test.ts` y `src/sync/__tests__/contactChannel.test.ts` (no
   tocados) siguen en verde sin aflojar ninguna aserción.
+
+## Enmienda T-208 · 2026-09-28
+
+La rama v1 (secreto crudo, sin prefijo) y la ventana de transición `V1_ACEPTADO_HASTA` (2026-10-14) se
+retiraron del código antes de la fecha: no hubo usuarios que emitieran sobres v1. `unwrapGroupKey` acepta
+sólo `v2:`; cualquier otra cosa devuelve `null`. El parámetro `ahora` desapareció de la firma.

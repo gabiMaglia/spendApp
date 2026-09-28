@@ -30,25 +30,9 @@ function utf8(s: string): Uint8Array {
  * hash, y no hacerlo es una debilidad de composición (no del algoritmo).
  */
 const WRAP_KDF_INFO_PREFIX = 'spendapp/grupo-clave/v2';
-/** Prefijo de formato: lo que distingue una envoltura nueva (v2) de una vieja (v1, sin marca). */
+/** Prefijo de formato de la envoltura (v2, ADR-011). Sin prefijo = formato retirado (T-208). */
 const WRAP_V2_PREFIX = 'v2:';
 
-/**
- * Corte de la ventana de transición v1 (QA T-129 ronda 2: la ventana "de 30
- * días" no estaba implementada, sólo documentada).
- *
- * Es una FECHA FIJA en código, no un reloj relativo (`Date.now() - emitidoEn
- * < 30dias` o similar): el reloj de quien VERIFICA (el receptor) es el único
- * que importa acá — igual que en `isInviteExpired` — y una fecha fija no le
- * da a nadie nada que ganar manipulándolo. Si alguien adelanta su propio
- * reloj, sólo logra que SU dispositivo deje de aceptar v1 antes; si lo
- * atrasa, sigue aceptando v1 un rato más, pero eso ya era cierto sin fecha de
- * corte (v1 abría siempre). No hay una fecha de emisión firmada en el sobre
- * v1 (es sólo el secreto crudo, sin metadata) de la que derivar un vencimiento
- * relativo sin tocar el formato del sobre — y tocar el formato está fuera de
- * alcance de este ticket ("sin cambios a sobres ni firmas").
- */
-export const V1_ACEPTADO_HASTA = Date.UTC(2026, 9, 14, 0, 0, 0); // 2026-10-14T00:00:00Z
 
 /**
  * Deriva la clave simétrica del secreto X25519 con HKDF-SHA256 (RFC 5869) y
@@ -84,33 +68,22 @@ export function wrapGroupKey(
 }
 
 /**
- * Abre una envoltura. Acepta v2 (HKDF) siempre, y v1 (secreto crudo, sin
- * prefijo) sólo hasta `V1_ACEPTADO_HASTA`. Pasado ese corte, un sobre v1
- * devuelve `null` — igual que si estuviera corrupto — en vez de intentar
- * abrirlo: la rama v1 sigue en el código (retirarla es un ticket aparte),
- * pero deja de ejecutarse.
- *
- * `ahora` es inyectable (default `Date.now()`) para poder testear los dos
- * lados del corte sin manipular el reloj real.
+ * Abre una envoltura v2 (HKDF, prefijo `v2:`). Un sobre sin prefijo (el v1
+ * de antes de ADR-011, secreto crudo) devuelve `null` como si estuviera
+ * corrupto: la rama v1 y su ventana de transición se retiraron en T-208
+ * (no hubo usuarios que la necesitaran).
  */
 export function unwrapGroupKey(
   wrapped: string,
   senderWrapPublicKey: string,
   recipientPrivateKey: string,
-  ahora: number = Date.now(),
 ): string | null {
   const shared = x25519.getSharedSecret(fromHex(recipientPrivateKey), fromHex(senderWrapPublicKey));
 
-  if (wrapped.startsWith(WRAP_V2_PREFIX)) {
-    const recipientPublicKey = toHex(x25519.getPublicKey(fromHex(recipientPrivateKey)));
-    const key = deriveWrapKey(shared, recipientPublicKey, senderWrapPublicKey);
-    return openEnvelope(key, wrapped.slice(WRAP_V2_PREFIX.length));
-  }
-
-  // v1: sin prefijo, secreto crudo. Deuda heredada de T-121 §1.3.4, en
-  // transición sólo hasta el corte fijo — ver `V1_ACEPTADO_HASTA`.
-  if (ahora >= V1_ACEPTADO_HASTA) return null;
-  return openEnvelope(shared.slice(0, 32), wrapped);
+  if (!wrapped.startsWith(WRAP_V2_PREFIX)) return null;
+  const recipientPublicKey = toHex(x25519.getPublicKey(fromHex(recipientPrivateKey)));
+  const key = deriveWrapKey(shared, recipientPublicKey, senderWrapPublicKey);
+  return openEnvelope(key, wrapped.slice(WRAP_V2_PREFIX.length));
 }
 
 /** Par X25519 para envolver claves. Separado del de firma, como manda el uso. */
