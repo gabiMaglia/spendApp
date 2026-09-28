@@ -16,10 +16,9 @@ import { recordError } from '@/src/services/errorLog';
 import { cederHilo } from './cederHilo';
 import * as adaptador from './relay/adaptadorHushSplit';
 import { publicarPorCubos, type CampoDoc } from './relay/publicarCubos';
-import { olvidarTopic as olvidarTopicDelLedger } from './relay/sliceLedger';
+import { olvidarTopic as olvidarTopicDelLedger, olvidarCubo } from './relay/sliceLedger';
 import * as appliedSlices from './relay/appliedSlices';
 import { permite as permiteRelectura } from './relay/relecturas';
-import { withTimeout } from '@/src/utils/withTimeout';
 
 /**
  * Sync por el relay: arma el sobre cifrado, lo publica y aplica lo que llega.
@@ -163,6 +162,26 @@ export type PublishResult =
  */
 const colaPorTopic = new Map<string, Promise<unknown>>();
 
+/**
+ * Envíos individuales que TODAVÍA no se asentaron cuando `enviar` (más abajo)
+ * ya devolvió por timeout — verifier, cuarta tanda: `AbortSignal` cancela la
+ * request en la inmensa mayoría de los casos, pero no hay garantía absoluta
+ * (una petición que ya cruzó al servidor cuando llega el abort, un
+ * transporte que no lo propaga). Mientras esa promesa cruda siga sin
+ * asentarse, la cola NO puede dejar arrancar la SIGUIENTE publicación del
+ * mismo topic — si la dejara, un envío tardío podría aterrizar DESPUÉS de
+ * uno más nuevo y la compactación del servidor se quedaría con el más viejo
+ * (exactamente el bug que esto cierra). Con el abort funcionando, esta
+ * promesa se asienta casi enseguida y no hay atasco real.
+ */
+const pendientesSinAsentarPorTopic = new Map<string, Promise<unknown>[]>();
+
+function registrarPendienteSinAsentar(topic: string, cruda: Promise<unknown>): void {
+  const lista = pendientesSinAsentarPorTopic.get(topic) ?? [];
+  lista.push(cruda);
+  pendientesSinAsentarPorTopic.set(topic, lista);
+}
+
 async function encolarPorTopic<T>(topic: string, tarea: () => Promise<T>): Promise<T> {
   const anterior = colaPorTopic.get(topic) ?? Promise.resolve();
   const propia = anterior.then(tarea, tarea);
@@ -170,7 +189,18 @@ async function encolarPorTopic<T>(topic: string, tarea: () => Promise<T>): Promi
   // igual, pase lo que pase con éste. El resultado (o el error) de ESTA
   // llamada lo sigue recibiendo quien la hizo — `propia`, no la promesa de
   // encadenamiento — así que nada de esto oculta un fallo real.
-  colaPorTopic.set(topic, propia.catch(() => undefined));
+  //
+  // El turno se libera recién cuando, ADEMÁS de `propia`, cualquier envío
+  // que quedó "incierto" por timeout (ver `registrarPendienteSinAsentar`) se
+  // asentó — se ignora si resolvió o rechazó, sólo importa que ya terminó.
+  const liberacion = propia.catch(() => undefined).then(async () => {
+    const pendientes = pendientesSinAsentarPorTopic.get(topic);
+    if (pendientes && pendientes.length > 0) {
+      pendientesSinAsentarPorTopic.delete(topic);
+      await Promise.allSettled(pendientes);
+    }
+  });
+  colaPorTopic.set(topic, liberacion);
   return propia;
 }
 
@@ -203,11 +233,38 @@ export async function publishToGroup(
     const firmado = signEnvelope(sealed, ensureIdentity().privateKey);
     // Compactable: cada cubo (y el manifiesto) reemplaza al anterior con la
     // misma `ckey` de este mismo dispositivo (T-032 + ADR-007).
-    return withTimeout(
-      sendEnvelope(topic, firmado, deviceId, true, ckey),
-      PUBLICACION_TIMEOUT_MS,
-      { ok: false as const, reason: 'network' as const, detail: 'timeout' },
-    );
+    //
+    // Verifier, cuarta tanda: `withTimeout` (a secas) sólo deja de ESPERAR la
+    // request — no la cancela. Si vencía y la cola liberaba el turno, una
+    // publicación más nueva podía mandar y confirmar su cubo, y DESPUÉS el
+    // pedido viejo aterrizaba de verdad y lo pisaba (la compactación se queda
+    // con quien llega último), mientras el ledger seguía creyendo el digest
+    // nuevo. Acá se pasa un `AbortSignal` real (`sendEnvelope` lo reenvía a
+    // `postgrest-js`, que cancela la request) y, además, la promesa cruda se
+    // registra en la cola (`registrarPendienteSinAsentar`) para que el
+    // SIGUIENTE turno no arranque hasta que esta se asiente — defensa doble
+    // por si el abort no llega a tiempo.
+    const controller = new AbortController();
+    const cruda = sendEnvelope(topic, firmado, deviceId, true, ckey, controller.signal);
+    registrarPendienteSinAsentar(topic, cruda);
+
+    const TIMEOUT = Symbol('timeout');
+    const venciendo = new Promise<typeof TIMEOUT>((resolve) => {
+      setTimeout(() => { controller.abort(); resolve(TIMEOUT); }, PUBLICACION_TIMEOUT_MS);
+    });
+
+    const resultado = await Promise.race([cruda, venciendo]);
+    if (resultado === TIMEOUT) {
+      // El envío queda INCIERTO: no se sabe si el servidor llegó a
+      // recibirlo antes de que el abort surtiera efecto. Se olvida esta
+      // ckey del ledger (no se registró de todos modos, porque nunca hubo
+      // confirmación) para que la PRÓXIMA publicación la reenvíe sin
+      // confiar en un digest que puede no reflejar lo que de verdad quedó
+      // en el buzón.
+      olvidarCubo(adaptador.almacen, topic, deviceId, ckey);
+      return { ok: false as const, reason: 'network' as const, detail: 'timeout' };
+    }
+    return resultado;
   };
 
   const onExcluidos = (campo: string, excluidos: { id: string }[]) => {

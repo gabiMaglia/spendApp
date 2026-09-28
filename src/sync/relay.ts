@@ -231,6 +231,17 @@ export async function sendEnvelope(
   sender: string,
   compactable = false,
   ckey?: string,
+  // T-191 (verifier, cuarta tanda): quien llama con un presupuesto de tiempo
+  // (`publishToGroup`, `publishAvatarIfOwn`) puede pasar un `AbortSignal` —
+  // al vencer, cancela la request DE VERDAD en vez de sólo dejar de
+  // esperarla (`abortSignal`, soportado por `postgrest-js` 2.x en las dos
+  // builders que se usan acá: `PostgrestTransformBuilder.abortSignal`,
+  // `node_modules/@supabase/postgrest-js/src/PostgrestTransformBuilder.ts:642-645`,
+  // que tanto `.rpc()` como `.from().insert()` heredan). Sin esto, un envío
+  // que "venció" del lado del cliente podía aterrizar en el servidor de
+  // todos modos, más tarde, pisando una publicación más nueva del mismo
+  // dispositivo (T-191, hallazgo verifier tercera tanda sobre M2).
+  signal?: AbortSignal,
 ): Promise<SendResult> {
   const supabase = getRelayClient();
   if (!supabase) return { ok: false, reason: 'not_configured' };
@@ -256,7 +267,7 @@ export async function sendEnvelope(
   // no existe todavía (servidor sin 011a); cualquier otro error (red, cuota)
   // se devuelve tal cual, sin fallback.
   if (!servidorSinRpcPublish || tocaReintentar(momentoSinRpcPublish)) {
-    const { data, error } = await supabase.rpc('publish_envelope', {
+    let builder = supabase.rpc('publish_envelope', {
       p_topic: topic,
       p_payload: payload,
       p_sender: sender,
@@ -264,6 +275,8 @@ export async function sendEnvelope(
       p_owner_proof: proof,
       p_ckey: ckey ?? null,
     });
+    if (signal) builder = builder.abortSignal(signal);
+    const { data, error } = await builder;
 
     if (!error) {
       servidorSinRpcPublish = false; // D6: la RPC volvió — se abandona el degradado
@@ -283,11 +296,12 @@ export async function sendEnvelope(
     }
   }
 
-  const { data, error } = await supabase
+  let builderInsert = supabase
     .from('envelopes')
     .insert(envelopeRow(topic, payload, sender, compactable, proof, ckey))
-    .select('seq,created_at')
-    .single();
+    .select('seq,created_at');
+  if (signal) builderInsert = builderInsert.abortSignal(signal);
+  const { data, error } = await builderInsert.single();
 
   if (error) {
     // Servidor sin la columna: el sobre no se insertó, así que reintentar no
@@ -295,7 +309,7 @@ export async function sendEnvelope(
     // grupo sin sincronizar.
     if (proof && esRechazoDeLaPrenda(error.message)) {
       servidorSinPrenda = true;
-      return sendEnvelope(topic, payload, sender, compactable, ckey);
+      return sendEnvelope(topic, payload, sender, compactable, ckey, signal);
     }
     // La cuota (`relay_enforce_quota`) corre también sobre el INSERT directo:
     // el trigger no distingue el camino de escritura.
