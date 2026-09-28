@@ -130,13 +130,16 @@ describe('las DOS puertas desembocan en `applyDelta`', () => {
    * T-191 (Task 0): `relaySync.ts` ya no llama a `applyDelta(` directo — pasa
    * por `adaptador.aplicar()` (`src/sync/relay/adaptadorHushSplit.ts`), la
    * única función que le pega a los stores desde el núcleo de rebanadas
-   * (frontera P15). El gate sigue siendo el mismo, con un salto más:
-   * `relaySync.ts` tiene que llamar a `adaptador.aplicar(`, y ese archivo
-   * tiene que llamar a `applyDelta(` — ningún otro camino entre los dos.
+   * (frontera P15). El gate sigue siendo el mismo, con dos saltos:
+   * `relaySync.ts` llama a `aplicarDeltaAcotado` (T-192, `relay/aplicarAcotado.ts`),
+   * ese archivo llama a `adaptador.aplicar(`, y `adaptadorHushSplit.ts`
+   * llama a `applyDelta(` — ningún otro camino entre los tres.
    */
   it('relay aplica por `adaptador.aplicar`, que a su vez llama a `applyDelta`', () => {
     const relay = fs.readFileSync(path.join(RAIZ, 'src/sync/relaySync.ts'), 'utf8');
-    expect(relay).toContain('adaptador.aplicar(');
+    expect(relay).toContain('aplicarDeltaAcotado(');
+    const acotadoSrc = fs.readFileSync(path.join(RAIZ, 'src/sync/relay/aplicarAcotado.ts'), 'utf8');
+    expect(acotadoSrc).toContain('adaptador.aplicar(');
     const adaptadorSrc = fs.readFileSync(path.join(RAIZ, 'src/sync/relay/adaptadorHushSplit.ts'), 'utf8');
     expect(adaptadorSrc).toContain('applyDelta(');
   });

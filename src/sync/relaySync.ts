@@ -1,26 +1,29 @@
 import type { SyncDelta } from './applyDelta';
-import { openEnvelope, deriveTopic, type GroupKey } from './envelopeCrypto';
+import { openEnvelope, deriveTopic } from './envelopeCrypto';
 import { fetchSince } from './relay';
 import { groupKeyBytes, useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { useAuthStore } from '@/src/store/authStore';
-import { useUserStore } from '@/src/store/userStore';
 import { verifyEnvelope } from './envelopeSign';
 import { observeAuthor, RECHAZAR_AUTORES_NO_VERIFICADOS } from './authorHealth';
 import { refreshPendingAuthors } from './authorKeys';
 import { isManifest, looksLikeManifest, digestOfJson, type SliceManifest } from './manifest';
 import { recordManifestCheck } from './manifestHealth';
-import { fetchAvatarIfMissing } from './avatarTopic';
 import { registrarFalloDeAplicacion, agotoReintentos } from './drainFailures';
 import { recordError } from '@/src/services/errorLog';
 import { cederHilo } from './cederHilo';
 import * as adaptador from './relay/adaptadorHushSplit';
 import * as appliedSlices from './relay/appliedSlices';
 import { permite as permiteRelectura } from './relay/relecturas';
+import { aplicarDeltaAcotado } from './relay/aplicarAcotado';
+import { releerFaltantes, DRAIN_FETCH_LIMIT, DRAIN_MAX_PAGES } from './relay/relectura';
+import { sigueSiendoLaClave } from './relay/claveVigente';
 
-// T-192 (Task 2, en curso): la publicación (payload + envío por cubos) salió
-// a `relay/publicar.ts`. Se re-exporta para que la ruta pública
-// `@/src/sync/relaySync` no cambie. El drenaje (`drainGroup` y todo lo que
-// usa) sigue acá — sale en las próximas tareas de T-192.
+// T-192 (en curso): la publicación (payload + envío por cubos) salió a
+// `relay/publicar.ts`; acotar/relectura/la clave vigente a
+// `relay/aplicarAcotado.ts`/`relay/relectura.ts`/`relay/claveVigente.ts`. Se
+// re-exporta para que la ruta pública `@/src/sync/relaySync` no cambie. El
+// loop de páginas de `drainGroup` sigue acá — sale a `relay/drenar.ts` en la
+// próxima tarea de T-192.
 export {
   buildGroupPayload,
   publishToGroup,
@@ -28,6 +31,8 @@ export {
   type PublishResult,
   PUBLICACION_TIMEOUT_MS,
 } from './relay/publicar';
+export { sigueSiendoLaClave } from './relay/claveVigente';
+export { DRAIN_FETCH_LIMIT, DRAIN_MAX_PAGES } from './relay/relectura';
 
 export type DrainResult =
   | {
@@ -42,19 +47,6 @@ export type DrainResult =
       completo: boolean;
     }
   | { ok: false; reason: 'no_key' | 'not_configured' | 'network' | 'key_changed'; detail?: string };
-
-/**
- * ¿La clave del grupo sigue siendo la de la foto? Compara material Y época.
- *
- * T-136 · D-1: un drenaje captura la clave al empezar y espera la red. Si en
- * ese `await` el usuario eligió otra clave (`elegirClaveDeGrupo`), lo que vuelve
- * es del topic VIEJO —en disputa, posiblemente del atacante— y no puede
- * tocar el grupo recién purgado ni dar por drenado el topic real.
- */
-export function sigueSiendoLaClave(groupId: string, foto: { key: string; epoch: number }): boolean {
-  const actual = useGroupKeyStore.getState().getKey(groupId);
-  return !!actual && actual.key.toLowerCase() === foto.key.toLowerCase() && actual.epoch === foto.epoch;
-}
 
 /**
  * Baja lo pendiente del grupo, lo descifra y lo aplica.
@@ -72,22 +64,6 @@ export function sigueSiendoLaClave(groupId: string, foto: { key: string; epoch: 
  * `drainNow` si puede limpiar la marca de T-089.
  */
 
-/**
- * Tamaño de página de `fetchSince`. Exportado para que el test lo fije.
- * Antes era la única lectura por drenaje: con K+1 sobres por dispositivo y
- * las huérfanas que dejaba la `ckey` por `seedId`, 200 se alcanzaba, y la
- * marca de T-089 se limpiaba igual (TEC-02).
- */
-export const DRAIN_FETCH_LIMIT = 200;
-
-/**
- * Techo de páginas por drenaje. 25 × 200 = 5.000 sobres; un buzón más grande
- * que eso es o un ataque de relleno (SEC-03, T-147) o un bug, y en los dos
- * casos lo correcto es aplicar lo leído, devolver `completo: false` y seguir
- * en la próxima vuelta en vez de colgar el hilo.
- */
-export const DRAIN_MAX_PAGES = 25;
-
 /** Sólo tests: páginas chicas para ejercitar la paginación sin 200 sobres. */
 export type DrainOptions = {
   pageLimit?: number;
@@ -102,120 +78,6 @@ export type DrainOptions = {
    */
   antesDeAplicar?: () => void;
 };
-
-/**
- * Acota un delta recibido a `groupId` y lo aplica — compartido entre el
- * primer intento (dentro del loop de páginas) y la reaplicación al final del
- * drenaje (T-191, Task 3, spec §8 C2): mismo camino, para que un descarte
- * por tope o la búsqueda de fotos por referencia se comporten IGUAL las dos
- * veces. Devuelve los descartes de `adaptador.acotar` — quien llama decide
- * qué hacer con `porDependencia` (retener y reintentar, o dar por aplicado).
- */
-async function aplicarDeltaAcotado(
-  groupId: string,
-  currentUserId: string,
-  delta: SyncDelta,
-): Promise<{ porTope: number; porDependencia: number; motivos: string[] }> {
-  const { delta: acotado, descartes } = adaptador.acotar(delta, groupId);
-  if (descartes.porTope > 0) {
-    // Rastro, no aviso al usuario (T-150, SEC-07): no hay nada que la víctima
-    // pueda hacer con «un miembro mandó un registro demasiado grande», y sí
-    // sirve en el diagnóstico exportado cuando alguien pregunta «¿y mi gasto?».
-    recordError({
-      message: `sync.registro_descartado n=${descartes.porTope} ${descartes.motivos.slice(0, 5).join(',')}`,
-      fatal: false, screen: 'sync',
-    });
-  }
-  adaptador.aplicar(acotado, currentUserId);
-
-  // Fotos por referencia (Task 9): se itera `acotado.users` (YA filtrado),
-  // nunca `delta.users` crudo, y el digest a pedir se lee del STORE YA
-  // MERGEADO — si esta rebanada perdió el LWW, `acotado` trae el viejo.
-  await Promise.all(
-    (acotado.users ?? [])
-      .filter(u => u.avatarDigest && u.id !== currentUserId)
-      .map((u) => {
-        const digest = useUserStore.getState().getUserById(u.id)?.avatarDigest;
-        return digest ? fetchAvatarIfMissing(groupId, u.id, digest) : Promise.resolve();
-      }),
-  );
-
-  return descartes;
-}
-
-/**
- * Relectura acotada (T-191, Task 3, spec §7/§8 C6): el manifiesto de `sender`
- * declaró una `ckey` que este drenaje no pudo dar por cumplida (no llegó hoy
- * y no estaba en `appliedSlices`). Se relee el topic desde el cursor 0 —el
- * buzón conserva la última versión de cada cubo por emisor (compactación por
- * `(topic, owner, ckey)`), así que un cubo viejo vuelve a estar ahí— y se
- * aplica cualquier pieza de `sender` cuya `ckey` siga faltando. El llamador
- * ya verificó con `relecturas.permite` que esto corre A LO SUMO una vez por
- * `(topic, sender, seq del manifiesto)`.
- *
- * Devuelve las `ckey` que SIGUEN faltando después de este intento — pueden
- * quedar si la relectura no encontró el sobre (se perdió de verdad), si
- * seguía teniendo descartes por dependencia, o si la red falló a mitad de
- * camino.
- */
-async function releerFaltantes(
-  groupId: string,
-  currentUserId: string,
-  deviceId: string,
-  topic: string,
-  key: GroupKey,
-  record: { key: string; epoch: number },
-  sender: string,
-  faltantes: { ckey: string; digest: string }[],
-): Promise<string[]> {
-  const declarados = new Map(faltantes.map(f => [f.ckey, f.digest]));
-  const pendientes = new Set(faltantes.map(f => f.ckey));
-  let cursor = 0;
-
-  for (let pagina = 0; pagina < DRAIN_MAX_PAGES && pendientes.size > 0; pagina++) {
-    const r = await fetchSince(topic, cursor, deviceId, DRAIN_FETCH_LIMIT);
-    if (!r.ok) break; // sin red: queda faltante, se reintenta con el próximo manifiesto
-    if (!sigueSiendoLaClave(groupId, record)) break;
-
-    for (const envelope of r.envelopes) {
-      if (envelope.sender !== sender || !envelope.ckey || !pendientes.has(envelope.ckey)) continue;
-
-      const firmado = verifyEnvelope(envelope.payload);
-      if (!firmado) continue;
-      const plain = openEnvelope(key, firmado.sealed);
-      if (plain === null) continue;
-
-      let parsed: unknown;
-      try { parsed = JSON.parse(plain); } catch { continue; }
-      if (isManifest(parsed) || looksLikeManifest(parsed)) continue; // esta ckey es de datos
-
-      // Fix 4 (heredado de T-146): el contenido tiene que coincidir con el
-      // digest que el manifiesto declaró para esta ckey — un sobre corrupto
-      // o una versión equivocada bajo la misma ckey NUNCA se acepta como
-      // "encontrado" sólo porque decodificó. Si no coincide, sigue faltante.
-      const digest = await digestOfJson(plain);
-      if (digest !== declarados.get(envelope.ckey)) continue;
-
-      try {
-        const descartes = await aplicarDeltaAcotado(groupId, currentUserId, parsed as SyncDelta);
-        if (descartes.porDependencia === 0) {
-          appliedSlices.registrar(adaptador.almacen, topic, sender, envelope.ckey, {
-            digest, seq: envelope.seq, senderKey: firmado.senderKey,
-          });
-          pendientes.delete(envelope.ckey);
-        }
-      } catch (e) {
-        registrarFalloDeAplicacion(topic, envelope.seq, e);
-      }
-    }
-
-    cursor = r.cursor;
-    const hayMas = r.more ?? r.envelopes.length >= DRAIN_FETCH_LIMIT;
-    if (!hayMas) break;
-  }
-
-  return [...pendientes];
-}
 
 export async function drainGroup(
   groupId: string,
