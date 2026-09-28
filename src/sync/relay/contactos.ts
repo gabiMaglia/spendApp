@@ -7,8 +7,24 @@ import {
   cardYaEnviada, marcarCardEnviada,
 } from '../contactChannel';
 import { encolar } from '../relayQueue';
+import { estaPendienteDeDrenaje } from '../pendingDrain';
 import { deviceId } from './cursor';
 import { syncableGroupIds } from './publish';
+
+/**
+ * `announceGroupToContacts` necesita `drainNow`/`publishNow`, que viven en la
+ * fachada (`drainNow` está atado ahí por `syncNotices.test.ts`, ver
+ * `relayEngine.ts`). Se inyectan una vez, mismo patrón que `setDrainNowImpl`
+ * en `./drain.ts` — para no importar la fachada y crear un ciclo.
+ */
+type DrainPublishImpl = {
+  drainNow: (groupId: string) => Promise<number>;
+  publishNow: (groupId: string) => Promise<void>;
+};
+let impl: DrainPublishImpl = { drainNow: async () => 0, publishNow: async () => {} };
+export function setDrainPublishImpl(fn: DrainPublishImpl): void {
+  impl = fn;
+}
 
 /**
  * Contactos (T-189: extraído de `relayEngine.ts`): reparto de tarjeta propia
@@ -172,4 +188,49 @@ export async function reenviarClavesDeGrupo(adoptados: string[] = []): Promise<v
       });
     }
   }
+}
+
+/**
+ * Le manda la clave del grupo a cada miembro que ya sea contacto conocido —
+ * a los que no son contactos les queda el link de invitación. Verifier
+ * R3-3: pasa por `relayQueue` con prioridad `alta`; devuelve cuántos se
+ * ENCOLARON (el envío es diferido).
+ */
+export async function announceGroupToContacts(groupId: string): Promise<number> {
+  const me = useAuthStore.getState().currentUser;
+  const group = useGroupStore.getState().getById(groupId);
+  if (!me || !group) return 0;
+
+  // El estado se publica ANTES de repartir claves (si no, el invitado abre un
+  // buzón vacío). T-089: se drena primero y no se fuerza — si la guarda lo
+  // bloquea, ni la publicación ni el reparto de claves salen.
+  await impl.drainNow(groupId);
+  if (estaPendienteDeDrenaje(groupId)) return 0;
+  await impl.publishNow(groupId);
+
+  marcarAdopciones([groupId]); // conserva prioridad alta si esto se regenera en un próximo arranque
+  const owner = me.id; // T-147 (punto 4): mismo criterio que `reenviarClavesDeGrupo`.
+
+  let encolados = 0;
+  for (const memberId of group.memberIds) {
+    if (memberId === me.id) continue;
+    encolados++;
+    encolar({
+      prioridad: 'alta',
+      ejecutar: async () => {
+        if ((useAuthStore.getState().currentUser?.id ?? null) !== owner) return 'descartar';
+        try {
+          const r = await sendGroupKeyResultado(memberId, group, deviceId());
+          if (r.ok) return 'hecho';
+          // R4-2: `rate_limited` no es un fallo permanente — no puede perderse.
+          if (r.reason === 'rate_limited') return 'reintentar_cuota';
+          return r.reason === 'network' ? 'reintentar' : 'descartar';
+        } catch {
+          return 'reintentar';
+        }
+      },
+    });
+  }
+
+  return encolados;
 }
