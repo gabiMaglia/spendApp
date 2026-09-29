@@ -68,7 +68,8 @@ describe('verificar-env-build', () => {
     // T-192: EXPO_PUBLIC_SUPABASE_* salieron de relay.ts a relayClient.ts.
     // T-206-A: relayClient.ts y captchaBridge.ts se mudaron a carpetas.
     const relay = readFileSync(join(__dirname, '..', 'sync', 'adaptadores', 'supabase', 'relayClient.ts'), 'utf8');
-    const auth = readFileSync(join(__dirname, '..', '..', 'app', 'auth', 'index.tsx'), 'utf8');
+    // T-223: la config de Google salió del login a su hook.
+    const auth = readFileSync(join(__dirname, '..', 'screens', 'auth', 'hooks', 'useProveedoresDeLogin.ts'), 'utf8');
     // T-147: las de Turnstile las lee el puente del captcha, no `relay.ts`.
     const captchaBridge = readFileSync(join(__dirname, '..', 'sync', 'sesion', 'captchaBridge.ts'), 'utf8');
     // T-147 (rediseño): CaptchaHost se reemplazó por TurnstileWidget (inline en verify.tsx).
