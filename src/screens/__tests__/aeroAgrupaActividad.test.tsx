@@ -16,14 +16,12 @@ import { createSecureStorage } from '@/src/utils/secureStorage';
 import { usuario, grupo, gasto } from './perfVistasFixtures';
 
 /**
- * T-154 (rechazo QA, defectos 1 y 2): Actividad pasó de "un Band compartido
- * por sección" a "un Band por FILA" para poder aplanar a FlashList — con el
- * skin Aero eso rompe la agrupación visual (cada fila se envuelve en su
- * PROPIO Panel flotante en vez de UNA tarjeta por sección). Y perdió
- * `flexGrow: 1` del `contentContainerStyle`, que el estado vacío necesita
- * para centrarse. El fix: el ítem de FlashList pasa a ser la SECCIÓN
- * (header + Band con TODOS sus eventos, el JSX original de `ff2c4eb`), y se
- * restaura `flexGrow: 1`.
+ * T-154 (3ra vuelta — decisión del orquestador): el ítem = SECCIÓN completa
+ * (2da vuelta) no dejaba virtualizar dentro de "Antes" — la única sección
+ * que puede crecer sin límite. Vuelve a ítem = FILA, pero con el panel Aero
+ * SEGMENTADO por fila (`Panel.tsx`, prop `segmento`): varias filas seguidas
+ * arman UNA tarjeta continua (radio sólo en las puntas, divisor entre
+ * filas), no una tarjeta por fila. `flexGrow: 1` se mantiene restaurado.
  */
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
 jest.mock('@/src/sync/motor/relayEngine', () => ({
@@ -67,10 +65,13 @@ describe('T-154 — Actividad: agrupación Aero por sección', () => {
     useSettingsStore.setState({ skin: 'default' });
   });
 
-  it('con Aero, 2 secciones de 3 filas dan exactamente 2 paneles (una tarjeta por sección)', () => {
+  it('con Aero, 2 secciones de 3 filas dan 2 primera + 2 media + 2 ultima + 4 divisores', () => {
     useSettingsStore.setState({ skin: 'aero' });
     const r = render(<ActivityScreen />);
-    expect(r.getAllByTestId('skin-panel')).toHaveLength(2);
+    expect(r.getAllByTestId('skin-panel-primera')).toHaveLength(2);
+    expect(r.getAllByTestId('skin-panel-media')).toHaveLength(2);
+    expect(r.getAllByTestId('skin-panel-ultima')).toHaveLength(2);
+    expect(r.getAllByTestId('band-stack-divisor')).toHaveLength(4);
   });
 
   it('el contentContainerStyle de la lista incluye flexGrow: 1 (centrado del estado vacío)', () => {
