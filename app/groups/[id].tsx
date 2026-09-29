@@ -1,66 +1,38 @@
 import React, { useMemo, useState } from 'react';
-import {
-  Alert, Pressable, ScrollView, Share, StyleSheet, Text, View,
-} from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { v4 as uuidv4 } from 'uuid';
-import { hapticLight, hapticSuccess } from '@/src/utils/haptics';
 
-import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { formatMoney } from '@/src/constants/currencies';
-import { MontoRodante } from '@/src/components/MontoRodante';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { usePaymentStore } from '@/src/store/paymentStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useGroupBalance, useGroupExpenseCount } from '@/src/store/selectors';
-import { debeAvisar } from '@/src/algorithms/groupExpenseLimit';
-import { traspasarGrupo } from '@/src/services/groupTraspaso';
-import { admiteUnMiembroMas, MAX_MIEMBROS } from '@/src/sync/nucleo/topes';
-import { motivoDeExceso } from '@/src/services/topeDeRegistro';
 import { useArchiveStore } from '@/src/store/archiveStore';
-import { UserAvatar } from '@/src/components/UserAvatar';
-import { SyncWarningBanner } from '@/src/components/SyncWarningBanner';
-import { useGroupSyncFailure, claveDeFalloDeSync } from '@/src/hooks/useSyncFailure';
+import { useGroupSyncFailure } from '@/src/hooks/useSyncFailure';
 import { useManifestGap } from '@/src/hooks/useManifestGap';
-import { createInvite, inviteToLink } from '@/src/sync/invitaciones/groupInvite';
-import { ensureIdentity, saveInvite } from '@/src/store/identityStore';
-import { startRelay, announceGroupToContacts } from '@/src/sync/motor/relayEngine';
-import { useGroupKeyStore } from '@/src/store/groupKeyStore';
-import { BottomSheet, SheetOption } from '@/src/components/Sheet';
 import { InvitarPorUsernameSheet } from '@/src/screens/groups/components/InvitarPorUsernameSheet';
-import { Fab, FabRow } from '@/src/components/Fab';
-import { TrustMark } from '@/src/components/TrustMark';
-import { yaAprobo } from '@/src/algorithms/leaveRequest';
-import { verifyLeaveApproval } from '@/src/sync/confianza/leaveApprovalSign';
-import { authorKeysFor } from '@/src/sync/confianza/authorKeys';
 import { useRecordTrust } from '@/src/hooks/useRecordTrust';
-import { isMarked, type TrustState } from '@/src/algorithms/recordTrust';
-import { canLeaveGroup } from '@/src/algorithms/canLeaveGroup';
-import { approvalProgress } from '@/src/algorithms/leaveRequest';
-import { applyApprovedLeaves } from '@/src/services/applyLeave';
-import { Band, BandRow, SectionLabel } from '@/src/components/Band';
 import { DetailHeader } from '@/src/components/CollapsibleHeader';
-import type { Expense, Payment } from '@/src/types/models';
 import { useTranslation } from 'react-i18next';
-import i18n from '@/src/i18n';
-import { syncedNow } from '@/src/utils/syncedClock';
-import { salirDelGrupo } from '@/src/services/salirDelGrupo';
-import { esYo, mismaPersona } from '@/src/store/identityAlias';
-import { conAlta } from '@/src/algorithms/roster';
-import { expulsar } from '@/src/services/expulsarDelGrupo';
-import { calculateBalancesByCurrency } from '@/src/algorithms/calculateBalances';
-import { pagosQueCuentan } from '@/src/algorithms/settlementStatus';
+import { esYo } from '@/src/store/identityAlias';
 import { useColors } from '@/src/skins/useSkin';
 import { useContadorDeRenders } from '@/src/hooks/useContadorDeRenders';
-
-type TimelineItem =
-  | { type: 'expense'; data: Expense; ts: number }
-  | { type: 'payment'; data: Payment; ts: number };
+import { armarTimeline } from '@/src/screens/groupDetail/detalleDeGrupo';
+import { useAltaDeMiembro } from '@/src/screens/groupDetail/hooks/useAltaDeMiembro';
+import { useAccionesDeGrupo } from '@/src/screens/groupDetail/hooks/useAccionesDeGrupo';
+import { AvisosDeGrupo } from '@/src/screens/groupDetail/components/AvisosDeGrupo';
+import { BalanceDeGrupo } from '@/src/screens/groupDetail/components/BalanceDeGrupo';
+import { MiembrosDeGrupo } from '@/src/screens/groupDetail/components/MiembrosDeGrupo';
+import { TimelineDeGrupo } from '@/src/screens/groupDetail/components/TimelineDeGrupo';
+import { PedidoDeSalida } from '@/src/screens/groupDetail/components/PedidoDeSalida';
+import { TraspasoManual } from '@/src/screens/groupDetail/components/TraspasoManual';
+import { BotonesDeGrupo } from '@/src/screens/groupDetail/components/BotonesDeGrupo';
+import { MenuDeGrupo } from '@/src/screens/groupDetail/components/MenuDeGrupo';
+import { HojaDeTraspaso } from '@/src/screens/groupDetail/components/HojaDeTraspaso';
 
 export default function GroupDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -70,13 +42,7 @@ export default function GroupDetailScreen() {
   const c = useColors();
 
   const { currentUser } = useAuthStore();
-  const ensureKey    = useGroupKeyStore(st => st.ensureKey);
-  const approveLeave = useGroupStore(st => st.approveLeave);
-  const cancelLeave  = useGroupStore(st => st.cancelLeave);
-  const deleteGroup  = useGroupStore(st => st.deleteGroup);
-  const leaveGroup   = useGroupStore(st => st.leaveGroup);
   const group        = useGroupStore(s => s.groups.find(g => g.id === id));
-  const updateGroup  = useGroupStore(s => s.updateGroup);
   const isArchivedFn  = useArchiveStore(s => s.isArchived);
   // Un grupo ya archivado (incluido el irrevocable por límite, T-058) no
   // puede seguir traspasándose: re-traspasarlo reescribiría
@@ -88,44 +54,11 @@ export default function GroupDetailScreen() {
 
   const allPayments = usePaymentStore(s => s.payments);
   const getUserName = useUserStore(s => s.getUserName);
-  const addOrUpdateUser = useUserStore(s => s.addOrUpdateUser);
 
   const [inviteVisible, setInviteVisible] = useState(false);
+  const { handleAddContact, handleAddMemberSinApp } = useAltaDeMiembro(group, () => setInviteVisible(false));
 
-  function handleAddContact(userId: string) {
-    if (!group) return;
-    // T-150 ronda 2 (D4): un grupo nunca supera MAX_MIEMBROS por un camino
-    // honesto de la UI.
-    if (!admiteUnMiembroMas(group.memberIds)) {
-      Alert.alert(t('group_detail.member_limit_title'), t('group_detail.member_limit_body', { max: MAX_MIEMBROS }));
-      return;
-    }
-    const conAltaResult = conAlta(group, userId, syncedNow());
-    // T-178 (6.4): mismo gate, defensa en profundidad además del tope de
-    // arriba (que ya cubre `memberIds`; esto cubre bytes de cualquier otro
-    // campo que el grupo traiga acumulado).
-    const motivo = motivoDeExceso(conAltaResult);
-    if (motivo) {
-      Alert.alert(t('sync.record_too_big_title'), t(motivo));
-      return;
-    }
-    hapticSuccess();
-    updateGroup(group.id, { miembros: conAltaResult.miembros });
-    ensureKey(group.id);
-    void announceGroupToContacts(group.id);
-    setInviteVisible(false);
-  }
-
-  const timeline = useMemo<TimelineItem[]>(() => {
-    const items: TimelineItem[] = [];
-    for (const e of allExpenses) {
-      if (e.groupId === id && !e.isDeleted) items.push({ type: 'expense', data: e, ts: e.date });
-    }
-    for (const p of allPayments) {
-      if (p.groupId === id && !p.isDeleted) items.push({ type: 'payment', data: p, ts: p.date });
-    }
-    return items.sort((a, b) => b.ts - a.ts);
-  }, [allExpenses, allPayments, id]);
+  const timeline = useMemo(() => armarTimeline(allExpenses, allPayments, id), [allExpenses, allPayments, id]);
 
   const gastosDelTimeline = timeline.flatMap(i => (i.type === 'expense' ? [i.data] : []));
   const pagosDelTimeline  = timeline.flatMap(i => (i.type === 'payment' ? [i.data] : []));
@@ -145,22 +78,6 @@ export default function GroupDetailScreen() {
   // T-113 (PO): sólo si YO debo — saldo negativo en alguna moneda. Si me deben, el pago
   // lo registra quien paga; el botón no aparece para el acreedor.
   const tieneDeudaViva = balances.some(b => b.amount < 0);
-
-  /**
-   * El «2 de 3» cuenta las aprobaciones que VERIFICAN (T-065), igual que el que
-   * decide aplicar la salida. Si contara las crudas, un pedido con aprobaciones
-   * forjadas mostraría «3 de 3» y no pasaría nada nunca — el peor de los
-   * mundos: la pantalla diciendo que está listo y la app sin moverse.
-   *
-   * Se memoiza contra el pedido: son como mucho tantas verificaciones como
-   * miembros, y sólo mientras hay una salida pendiente.
-   */
-  const avance = useMemo(() => {
-    if (!group?.leaveRequest) return { got: 0, need: 0 };
-    return approvalProgress(group, group.leaveRequest, a =>
-      verifyLeaveApproval(group.id, group.leaveRequest!, a, authorKeysFor(a.userId, a.k)) === 'valida',
-    );
-  }, [group]);
   const mainBalance = balances.find(b => b.currency === group?.currency)?.amount ?? 0;
 
   const [menuVisible, setMenuVisible] = useState(false);
@@ -169,141 +86,9 @@ export default function GroupDetailScreen() {
     expenses: allExpenses.length, payments: allPayments.length, group,
   });
 
-  async function handleShareInvite() {
-    if (!group || !currentUser) return;
-    hapticLight();
-    ensureKey(group.id);
-    const identidad = ensureIdentity();
-    const invite = createInvite(group.id, group.name, identidad.publicKey);
-    saveInvite(invite);
-    void startRelay();
-    try {
-      await Share.share({
-        message: t('group_detail.invite_message', { group: group.name, link: inviteToLink(invite) }),
-      });
-    } catch { /* el usuario canceló el share sheet */ }
-  }
-
-  function handleLeave() {
-    if (!group || !currentUser) return;
-
-    const otros = group.memberIds.filter(mid => !esYo(mid));
-    const veredicto = canLeaveGroup(
-      balances.map(b => ({ currency: b.currency, amount: b.amount })),
-      otros,
-    );
-
-    if (veredicto.kind === 'last_member_with_balance') {
-      Alert.alert(t('group_detail.leave_blocked_title'), t('group_detail.leave_last_member'));
-      return;
-    }
-
-    if (veredicto.kind === 'needs_absorption') {
-      Alert.alert(
-        t('group_detail.leave_blocked_title'),
-        t('group_detail.leave_needs_settle', { currencies: veredicto.currencies.join(', ') }),
-        [
-          { text: t('common.cancel'), style: 'cancel' },
-          { text: t('group_detail.settle_debts'), onPress: () => router.push(`/settle/new?groupId=${group.id}` as any) },
-          { text: t('leave.title'), onPress: () => router.push(`/groups/leave?id=${group.id}` as any) },
-        ],
-      );
-      return;
-    }
-
-    Alert.alert(
-      t('group_detail.leave_title'),
-      t('group_detail.leave_body'),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: t('group_detail.leave_confirm'),
-          style: 'destructive',
-          onPress: () => {
-            // Por el servicio y no por `leaveGroup` suelto: hay un orden que
-            // importa —publicar la salida, marcar, y recién ahí purgar la copia
-            // local— y está explicado en `salirDelGrupo` (T-089).
-            void salirDelGrupo(group.id, currentUser.id);
-            router.back();
-          },
-        },
-      ],
-    );
-  }
-
-  function handleAddMemberSinApp(rawName: string) {
-    const name = rawName.trim();
-    if (!name || !group) return;
-    // T-150 ronda 2 (D4): mismo tope que handleAddContact, por este otro camino.
-    if (!admiteUnMiembroMas(group.memberIds)) {
-      Alert.alert(t('group_detail.member_limit_title'), t('group_detail.member_limit_body', { max: MAX_MIEMBROS }));
-      return;
-    }
-
-    const newUser = {
-      id:           uuidv4(),
-      name,
-      email:        '',
-      authProvider: 'google' as const,
-      updatedAt:    syncedNow(),
-      isDeleted:    false,
-      createdAt:    Date.now(),
-    };
-    const conAltaResult = conAlta(group, newUser.id, syncedNow());
-    const motivo = motivoDeExceso(conAltaResult);
-    if (motivo) {
-      Alert.alert(t('sync.record_too_big_title'), t(motivo));
-      return;
-    }
-
-    addOrUpdateUser(newUser);
-    updateGroup(group.id, { miembros: conAltaResult.miembros });
-    ensureKey(group.id);
-    void announceGroupToContacts(group.id);
-    hapticSuccess();
-    setInviteVisible(false);
-    Alert.alert(t('group_detail.member_added_title'), t('group_detail.without_app_warning'));
-  }
-
-  /**
-   * Expulsar (T-182 Task 2). Sólo el creador la ve, y nunca sobre sí mismo —
-   * las dos condiciones se chequean acá Y de nuevo adentro de `expulsar()`
-   * (que es la autoridad real; esto es sólo para no ofrecer un botón que
-   * el servicio va a rechazar).
-   */
-  function handleExpel(uid: string) {
-    if (!group || !currentUser || !esYo(group.createdById) || uid === group.createdById) return;
-
-    const gastosDelGrupo = allExpenses.filter(e => e.groupId === group.id);
-    const pagosDelGrupo = pagosQueCuentan(allPayments, group);
-    const balances = calculateBalancesByCurrency(gastosDelGrupo, pagosDelGrupo, group.memberIds);
-    const saldoDelExpulsado = (balances.find(b => b.userId === uid)?.balances ?? [])
-      .filter(b => b.amount !== 0);
-
-    const nombre = getUserName(uid);
-    const cuerpo = saldoDelExpulsado.length > 0
-      ? t('group_detail.expel_body_with_balance', {
-          name: nombre,
-          amounts: saldoDelExpulsado.map(b => formatMoney(Math.abs(b.amount), b.currency)).join(', '),
-        })
-      : t('group_detail.expel_body', { name: nombre });
-
-    Alert.alert(
-      t('group_detail.expel_title', { name: nombre }),
-      cuerpo,
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: t('group_detail.expel_confirm'),
-          style: 'destructive',
-          onPress: () => {
-            const resultado = expulsar(group.id, uid);
-            if (resultado === 'ok') hapticSuccess();
-          },
-        },
-      ],
-    );
-  }
+  const { handleShareInvite, handleLeave, handleExpel } = useAccionesDeGrupo({
+    group, currentUser, balances, allExpenses, allPayments, getUserName,
+  });
 
   if (!group) {
     return (
@@ -316,9 +101,7 @@ export default function GroupDetailScreen() {
     );
   }
 
-  const balanceColor = mainBalance > 0 ? c.semantic.positive
-    : mainBalance < 0 ? c.semantic.negative
-    : c.textSecondary;
+  const soyMiembro = !!currentUser && group.memberIds.some(esYo);
 
   return (
     <SafeAreaView edges={['bottom']} style={[styles.safe, { backgroundColor: c.bg }]}>
@@ -339,287 +122,56 @@ export default function GroupDetailScreen() {
       />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 150 }}>
-        {falloDeSync && (
-          <SyncWarningBanner
-            title={t('sync.failure_title')}
-            body={t(claveDeFalloDeSync(falloDeSync.reason))}
-          />
+        <AvisosDeGrupo
+          falloDeSync={falloDeSync}
+          manifiestoIncompleto={manifiestoIncompleto}
+          cantidadGastos={cantidadGastos}
+          grupoArchivado={grupoArchivado}
+          onTraspasar={() => setMostrarTraspaso(true)}
+        />
+
+        <BalanceDeGrupo groupId={group.id} currency={group.currency} mainBalance={mainBalance} />
+
+        <MiembrosDeGrupo uids={group.memberIds} getUserName={getUserName} onPressMember={handleExpel} />
+
+        <TimelineDeGrupo
+          timeline={timeline}
+          currentUserId={currentUser?.id ?? ''}
+          getUserName={getUserName}
+          marcaDeGasto={marcaDeGasto}
+          marcaDePago={marcaDePago}
+        />
+
+        {group.leaveRequest && currentUser && (
+          <PedidoDeSalida group={group} currentUserId={currentUser.id} getUserName={getUserName} />
         )}
 
-        {manifiestoIncompleto && !falloDeSync && (
-          <SyncWarningBanner
-            title={t('sync.manifest_gap_title')}
-            body={t('sync.manifest_gap_body')}
-          />
-        )}
-
-        {debeAvisar(cantidadGastos) && !grupoArchivado && (
-          <View testID="traspaso-banner" style={[styles.avisoTraspaso, { backgroundColor: c.semantic.warningSoft }]}>
-            <Text style={[Typography.bodyS, { color: c.semantic.warning }]}>
-              {t('groups.limit_warning_body', { count: cantidadGastos })}
-            </Text>
-            <Pressable
-              onPress={() => setMostrarTraspaso(true)}
-              style={[styles.avisoBtn, { backgroundColor: c.brand.primary }]}
-            >
-              <Text style={{ color: '#fff', fontWeight: '700' }}>{t('groups.limit_warning_action')}</Text>
-            </Pressable>
-          </View>
-        )}
-
-        {/* Balance: banda, no tarjeta. La cifra es lo primero que se lee. */}
-        <Band>
-          <View style={styles.balancePad}>
-            <Text style={[Typography.label, styles.upper, { color: c.textTertiary }]}>
-              {t('group_detail.balance_label')}
-            </Text>
-            <MontoRodante
-              id={`groupDetail.balance:${group.id}`}
-              minor={mainBalance}
-              code={group.currency}
-              prefix={mainBalance > 0 ? '+' : ''}
-              style={[Typography.amountXL, { color: balanceColor, marginTop: 2 }]}
-            />
-            <Text style={[Typography.caption, { color: c.textTertiary, marginTop: 4 }]}>
-              {mainBalance > 0 ? t('group_detail.owe_you')
-                : mainBalance < 0 ? t('group_detail.you_owe_short')
-                : t('group_detail.settled_up')}
-            </Text>
-          </View>
-        </Band>
-
-        {/* Miembros */}
-        <SectionLabel label={t('group_detail.members_label', { count: group.memberIds.length })} />
-        <Band>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.members}>
-            {group.memberIds.map(uid => (
-              <Pressable
-                key={uid}
-                testID={`member-${uid}`}
-                onPress={() => handleExpel(uid)}
-                style={{ alignItems: 'center', gap: 5, width: 56 }}
-              >
-                <UserAvatar userId={uid} name={getUserName(uid)} size={40} />
-                <Text style={[Typography.caption, { color: c.textTertiary }]} numberOfLines={1}>
-                  {getUserName(uid).split(' ')[0]}
-                </Text>
-              </Pressable>
-            ))}
-          </ScrollView>
-        </Band>
-
-        {/* Timeline */}
-        <SectionLabel label={t('group_detail.activity_label', { count: timeline.length })} />
-        {timeline.length === 0 ? (
-          <Band>
-            <View style={styles.emptyBox}>
-              <Ionicons name="receipt-outline" size={26} color={c.textTertiary} />
-              <Text style={[Typography.bodyM, { color: c.textTertiary, marginTop: 8 }]}>
-                {t('group_detail.no_activity')}
-              </Text>
-            </View>
-          </Band>
-        ) : (
-          <Band>
-            {timeline.map((item, i) =>
-              item.type === 'expense' ? (
-                <ExpenseRow
-                  key={item.data.id}
-                  expense={item.data}
-                  currentUserId={currentUser?.id ?? ''}
-                  getUserName={getUserName}
-                  trust={marcaDeGasto[item.data.id]}
-                  last={i === timeline.length - 1}
-                />
-              ) : (
-                <PaymentRow
-                  key={item.data.id}
-                  payment={item.data}
-                  currentUserId={currentUser?.id ?? ''}
-                  getUserName={getUserName}
-                  trust={marcaDePago[item.data.id]}
-                  last={i === timeline.length - 1}
-                />
-              ),
-            )}
-          </Band>
-        )}
-
-        {/* Pedido de salida pendiente */}
-        {group?.leaveRequest && currentUser && (
-          <>
-            <SectionLabel label={t('leave.title')} />
-            <Band>
-              <View style={[styles.leaveNote, { backgroundColor: c.semantic.warningSoft }]}>
-                <Ionicons name="warning-outline" size={15} color={c.semantic.warning} />
-                <View style={{ flex: 1, gap: 2 }}>
-                  <Text style={[Typography.bodyS, { color: c.semantic.warning, fontWeight: '700' }]}>
-                    {esYo(group.leaveRequest.userId)
-                      ? t('leave.pending_mine', { got: avance.got, need: avance.need })
-                      : t('leave.pending_title', { name: getUserName(group.leaveRequest.userId) })}
-                  </Text>
-                  {!esYo(group.leaveRequest.userId) && (
-                    <Text style={[Typography.caption, { color: c.semantic.warning }]}>
-                      {t('leave.pending_body', { got: avance.got, need: avance.need })}
-                    </Text>
-                  )}
-                </View>
-              </View>
-
-              {esYo(group.leaveRequest.userId) ? (
-                <BandRow onPress={() => cancelLeave(group.id)} last>
-                  <Text style={[Typography.bodyL, { color: c.textSecondary, flex: 1, textAlign: 'center' }]}>
-                    {t('leave.withdraw')}
-                  </Text>
-                </BandRow>
-              ) : !yaAprobo(group.leaveRequest, currentUser.id) && (
-                <BandRow
-                  last
-                  onPress={() => {
-                    hapticSuccess();
-                    approveLeave(group.id, currentUser.id);
-                    applyApprovedLeaves();
-                  }}
-                >
-                  <View style={styles.approveRow}>
-                    <Ionicons name="checkmark-circle-outline" size={18} color={c.brand.primary} />
-                    <Text style={[Typography.bodyL, { color: c.brand.primary }]}>{t('leave.approve')}</Text>
-                  </View>
-                </BandRow>
-              )}
-            </Band>
-          </>
-        )}
-
-        {/* Traspaso manual — siempre disponible, no sólo cuando se llega al aviso
-            (T-058), salvo que el grupo YA esté archivado: re-traspasar uno ya
+        {/* Salvo que el grupo YA esté archivado: re-traspasar uno ya
             traspasado pisaría su `supersededByGroupId` y crearía un duplicado. */}
-        {group && currentUser && group.memberIds.some(esYo) && !grupoArchivado && (
-          <>
-            <Band>
-              <BandRow testID="traspaso-manual-btn" onPress={() => setMostrarTraspaso(true)} last>
-                <Text style={[Typography.bodyL, { color: c.brand.primary, flex: 1, textAlign: 'center' }]}>
-                  {t('groups.traspaso_manual_action')}
-                </Text>
-              </BandRow>
-            </Band>
-            <Text style={[Typography.caption, styles.traspasoHint, { color: c.textTertiary }]}>
-              {t('groups.traspaso_carry_over_hint')}
-            </Text>
-          </>
+        {soyMiembro && !grupoArchivado && (
+          <TraspasoManual onPress={() => setMostrarTraspaso(true)} />
         )}
       </ScrollView>
 
-      {group && currentUser && group.memberIds.some(esYo) && (
-        <FabRow>
-          {tieneDeudaViva && (
-            <Fab
-              testID="settle-debts"
-              variant="secondary"
-              icon="swap-horizontal-outline"
-              label={t('group_detail.settle_debts')}
-              onPress={() => { hapticLight(); router.push(`/settle/new?groupId=${group.id}` as any); }}
-              backgroundColor={c.brand.primarySoft}
-              borderColor={c.hair}
-              iconColor={c.brand.primary}
-              textColor={c.brand.primary}
-            />
-          )}
-          <Fab
-            testID="add-expense"
-            icon="add"
-            label={t('group_detail.add_expense')}
-            onPress={() => {
-              hapticLight();
-              router.push({ pathname: '/expense/new', params: { groupId: id } } as any);
-            }}
-            backgroundColor={c.brand.primary}
-          />
-        </FabRow>
-      )}
+      {soyMiembro && <BotonesDeGrupo groupId={id} tieneDeudaViva={tieneDeudaViva} />}
 
-      <BottomSheet visible={menuVisible} onClose={() => setMenuVisible(false)}>
-        {group && currentUser && group.memberIds.some(esYo) && (
-          <>
-            <SheetOption
-              icon="person-add-outline"
-              label={t('group_detail.add_person')}
-              selected={false}
-              onPress={() => { setMenuVisible(false); setInviteVisible(true); }}
-            />
-            <SheetOption
-              icon="link-outline"
-              label={t('group_detail.invite_link')}
-              selected={false}
-              onPress={() => { setMenuVisible(false); void handleShareInvite(); }}
-            />
-            {/* T-101: reconectar a un miembro que reinstaló y perdió su clave de grupo.
-                Abre la misma pantalla de escanear contacto, directo en modo cámara. */}
-            <SheetOption
-              icon="qr-code-outline"
-              label={t('group_detail.validate_member')}
-              selected={false}
-              onPress={() => { setMenuVisible(false); router.push('/contact/add?mode=scan' as any); }}
-            />
-          </>
-        )}
-        {group && currentUser && (
-          esYo(group.createdById) ? (
-            <SheetOption
-              icon="trash-outline"
-              label={t('group_detail.delete_group')}
-              selected={false}
-              onPress={() => {
-                setMenuVisible(false);
-                Alert.alert(
-                  t('group_detail.delete_title'),
-                  t('group_detail.delete_body', { name: group.name }),
-                  [
-                    { text: t('common.cancel'), style: 'cancel' },
-                    {
-                      text: t('common.delete'),
-                      style: 'destructive',
-                      onPress: () => { deleteGroup(group.id); router.back(); },
-                    },
-                  ],
-                );
-              }}
-            />
-          ) : (
-            <SheetOption
-              icon="exit-outline"
-              label={t('group_detail.leave_group')}
-              selected={false}
-              onPress={() => { setMenuVisible(false); handleLeave(); }}
-            />
-          )
-        )}
-      </BottomSheet>
+      <MenuDeGrupo
+        visible={menuVisible}
+        onClose={() => setMenuVisible(false)}
+        group={group}
+        currentUser={currentUser}
+        onAddPerson={() => setInviteVisible(true)}
+        onShareInvite={() => { void handleShareInvite(); }}
+        onLeave={handleLeave}
+      />
 
-      <BottomSheet visible={mostrarTraspaso} onClose={() => setMostrarTraspaso(false)}>
-        <Text style={[Typography.h3, { color: c.text, marginBottom: 8 }]}>
-          {t('groups.traspaso_confirm_title')}
-        </Text>
-        <Text style={[Typography.bodyM, { color: c.textSecondary, marginBottom: 20 }]}>
-          {t('groups.traspaso_confirm_body', { count: cantidadGastos })}
-        </Text>
-        <Pressable
-          testID="traspaso-confirmar-btn"
-          onPress={() => {
-            if (!group || !currentUser) return;
-            const nuevo = traspasarGrupo(
-              group,
-              t('groups.carryover_description', { name: group.name }),
-              currentUser.id,
-            );
-            setMostrarTraspaso(false);
-            router.replace(`/groups/${nuevo.id}` as any);
-          }}
-          style={[styles.confirmBtn, { backgroundColor: c.brand.primary }]}
-        >
-          <Text style={{ color: '#fff', fontWeight: '700' }}>{t('groups.traspaso_confirm_action')}</Text>
-        </Pressable>
-      </BottomSheet>
+      <HojaDeTraspaso
+        visible={mostrarTraspaso}
+        onClose={() => setMostrarTraspaso(false)}
+        group={group}
+        currentUser={currentUser}
+        cantidadGastos={cantidadGastos}
+      />
 
       {/*
         Antes era un `Modal` + `KeyboardAvoidingView` de mano, con el mismo
@@ -633,128 +185,19 @@ export default function GroupDetailScreen() {
         montado siempre (para no perder la animación) en vez de condicionado
         a `inviteVisible` en este JSX.
       */}
-      {group && (
-        <InvitarPorUsernameSheet
-          visible={inviteVisible}
-          onClose={() => setInviteVisible(false)}
-          title={t('group_detail.add_member_title')}
-          group={group}
-          currentUser={currentUser}
-          onAddContact={handleAddContact}
-          onAddWithoutApp={handleAddMemberSinApp}
-        />
-      )}
+      <InvitarPorUsernameSheet
+        visible={inviteVisible}
+        onClose={() => setInviteVisible(false)}
+        title={t('group_detail.add_member_title')}
+        group={group}
+        currentUser={currentUser}
+        onAddContact={handleAddContact}
+        onAddWithoutApp={handleAddMemberSinApp}
+      />
     </SafeAreaView>
   );
 }
 
-function ExpenseRow({
-  expense, currentUserId, getUserName, trust, last,
-}: {
-  expense: Expense;
-  currentUserId: string;
-  getUserName: (id: string) => string;
-  trust?: TrustState;
-  last?: boolean;
-}) {
-  const { t } = useTranslation();
-  const c = useColors();
-
-  const myShare   = expense.splits.find(s => mismaPersona(s.userId, currentUserId));
-  const isPayer   = mismaPersona(expense.paidById, currentUserId);
-  const dateLabel = new Date(expense.date).toLocaleDateString(i18n.language, { day: 'numeric', month: 'short' });
-  const netForMe  = isPayer
-    ? expense.amount - (myShare?.amount ?? 0)
-    : -(myShare?.amount ?? 0);
-
-  return (
-    <BandRow last={last} onPress={() => router.push(`/expense/${expense.id}` as any)}>
-      <View style={[styles.rowIcon, { backgroundColor: c.hair2 }]}>
-        <Ionicons name="receipt-outline" size={17} color={c.textTertiary} />
-      </View>
-      <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-        <Text style={[Typography.bodyL, { color: c.text }]} numberOfLines={1}>
-          {expense.description}
-        </Text>
-        <Text style={[Typography.caption, { color: c.textTertiary }]} numberOfLines={1}>
-          {getUserName(expense.paidById)} · {dateLabel}
-        </Text>
-        {isMarked(trust ?? 'pendiente') && <TrustMark label={t('trust.badge')} size="sm" />}
-      </View>
-      <View style={{ alignItems: 'flex-end', gap: 3 }}>
-        <Text style={[Typography.amountS, {
-          color: netForMe > 0 ? c.semantic.positive : netForMe < 0 ? c.semantic.negative : c.textTertiary,
-        }]}>
-          {netForMe > 0 ? '+' : ''}{formatMoney(netForMe, expense.currency)}
-        </Text>
-        <Text style={[Typography.caption, { color: c.textTertiary }]}>
-          {t('group_detail.total_suffix', { amount: formatMoney(expense.amount, expense.currency) })}
-        </Text>
-      </View>
-    </BandRow>
-  );
-}
-
-function PaymentRow({
-  payment, currentUserId, getUserName, trust, last,
-}: {
-  payment: Payment;
-  currentUserId: string;
-  getUserName: (id: string) => string;
-  trust?: TrustState;
-  last?: boolean;
-}) {
-  const { t } = useTranslation();
-  const c = useColors();
-
-  const fromName  = mismaPersona(payment.fromUserId, currentUserId) ? t('common.you') : getUserName(payment.fromUserId);
-  const toName    = mismaPersona(payment.toUserId, currentUserId)   ? t('common.you') : getUserName(payment.toUserId);
-  const dateLabel = new Date(payment.date).toLocaleDateString(i18n.language, { day: 'numeric', month: 'short' });
-
-  // T-186: sin acuse, un saldado declarado cuenta al instante.
-  return (
-    <BandRow last={last}>
-      <View style={[styles.rowIcon, { backgroundColor: c.semantic.positiveSoft }]}>
-        <Ionicons name="checkmark-circle-outline" size={17} color={c.semantic.positive} />
-      </View>
-      <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-        <Text style={[Typography.bodyL, { color: c.text }]} numberOfLines={1}>
-          {t('group_detail.paid_to', { from: fromName, to: toName })}
-        </Text>
-        <Text style={[Typography.caption, { color: c.textTertiary }]}>
-          {t('group_detail.payment_label')} · {dateLabel}
-        </Text>
-        {isMarked(trust ?? 'pendiente') && <TrustMark label={t('trust.badge')} size="sm" />}
-      </View>
-      <Text style={[Typography.amountS, { color: c.semantic.positive }]}>
-        {formatMoney(payment.amount, payment.currency)}
-      </Text>
-    </BandRow>
-  );
-}
-
 const styles = StyleSheet.create({
-  safe:        { flex: 1 },
-  upper:       { textTransform: 'uppercase' },
-  balancePad:  { paddingHorizontal: Spacing.screenPad, paddingTop: 18, paddingBottom: 18 },
-  members:     { paddingHorizontal: Spacing.screenPad, paddingVertical: 14, gap: 14 },
-  emptyBox:    { alignItems: 'center', justifyContent: 'center', padding: Spacing[6] },
-  traspasoHint: {
-    textAlign: 'center', paddingHorizontal: Spacing.screenPad, marginTop: Spacing[2],
-  },
-  avisoTraspaso: {
-    marginHorizontal: Spacing.screenPad, marginTop: Spacing[3],
-    padding: Spacing[4], borderRadius: Radius.md, gap: Spacing[2],
-  },
-  avisoBtn:    {
-    alignSelf: 'flex-start', paddingHorizontal: Spacing[4], paddingVertical: Spacing[2],
-    borderRadius: Radius.sm,
-  },
-  rowIcon:     { width: 36, height: 36, borderRadius: Radius.sm, alignItems: 'center', justifyContent: 'center' },
-  leaveNote:   {
-    flexDirection: 'row', alignItems: 'flex-start', gap: 9,
-    paddingHorizontal: Spacing.screenPad, paddingVertical: 13,
-  },
-  approveRow:  { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  confirmBtn:  { height: 50, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
+  safe: { flex: 1 },
 });
