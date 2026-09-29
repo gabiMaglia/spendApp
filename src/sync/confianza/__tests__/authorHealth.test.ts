@@ -154,7 +154,8 @@ describe('está enchufado', () => {
   });
 
   it('la pantalla de diagnóstico lo muestra, y EN VIVO', () => {
-    const pantalla = leer('../../../../app/debug/identity.tsx');
+    // T-223: el bloque salió de `app/debug/identity.tsx`.
+    const pantalla = leer('../../../../src/screens/debug/components/BloqueDirectorio.tsx');
     // No alcanza con que lo llame: `conteo` y `sospechas` son variables de
     // módulo que el sync actualiza por detrás, así que una lectura suelta en
     // el render deja la pantalla congelada en el valor del montaje — el PO vio

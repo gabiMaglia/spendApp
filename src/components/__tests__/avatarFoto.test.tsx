@@ -26,7 +26,8 @@ const PERMITIDOS = new Set([
   'src/components/Avatar.tsx',
   'src/components/UserAvatar.tsx',
   // El propio perfil: la foto sale de `authStore` y se pasa explícita.
-  'app/(tabs)/user.tsx',
+  // T-223: el bloque se mudó de `app/(tabs)/user.tsx` a su componente.
+  'src/screens/cuenta/components/TarjetaMiCuenta.tsx',
 ]);
 
 function archivos(dir: string): string[] {

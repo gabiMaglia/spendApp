@@ -141,20 +141,24 @@ describe('nadie edita su propio perfil por la izquierda', () => {
    * re-hidratación por cambio de cuenta ya alinea `userStore`.
    */
   const APP = path.join(__dirname, '../../../../app'); // T-206-A: un nivel más adentro
-  const PERMITIDOS = new Set(['auth/index.tsx']);
+  // T-223: las pantallas se partieron y su lógica vive en `src/screens/**`
+  // (hooks `.ts` incluidos); el login quedó en su hook.
+  const SCREENS = path.join(__dirname, '../../../screens');
+  const RAIZ = path.join(__dirname, '../../../..');
+  const PERMITIDOS = new Set(['src/screens/auth/hooks/useLoginSocial.ts']);
 
-  function tsx(dir: string): string[] {
+  function tsx(dir: string, ext: RegExp = /\.tsx$/): string[] {
     return fs.readdirSync(dir).flatMap(n => {
       const ruta = path.join(dir, n);
-      if (fs.statSync(ruta).isDirectory()) return tsx(ruta);
-      return /\.tsx$/.test(n) ? [ruta] : [];
+      if (fs.statSync(ruta).isDirectory()) return tsx(ruta, ext);
+      return ext.test(n) ? [ruta] : [];
     });
   }
 
   it('ninguna pantalla llama `setUser` fuera del login', () => {
     const culpables: string[] = [];
-    for (const ruta of tsx(APP)) {
-      const rel = path.relative(APP, ruta);
+    for (const ruta of [...tsx(APP), ...tsx(SCREENS, /\.tsx?$/)]) {
+      const rel = path.relative(RAIZ, ruta);
       if (PERMITIDOS.has(rel)) continue;
       fs.readFileSync(ruta, 'utf8').split('\n').forEach((linea, i) => {
         if (/\bsetUser\s*\(/.test(linea)) culpables.push(`${rel}:${i + 1}`);
@@ -166,7 +170,7 @@ describe('nadie edita su propio perfil por la izquierda', () => {
   it('el login usa `actualizarMiPerfil` para la foto del proveedor', () => {
     // Es la única escritura del login que NO es la creación de la sesión: pasa
     // después, cuando la re-hidratación ya corrió y no la va a alinear.
-    const src = fs.readFileSync(path.join(APP, 'auth/index.tsx'), 'utf8');
+    const src = fs.readFileSync(path.join(SCREENS, 'auth/hooks/useLoginSocial.ts'), 'utf8');
     expect(src).toContain('actualizarMiPerfil({ avatar: foto })');
   });
 });

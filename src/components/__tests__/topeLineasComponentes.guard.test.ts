@@ -15,7 +15,8 @@ const RAIZ = join(__dirname, '..');
 
 /** Archivo (relativo a src/components) → largo máximo tolerado hasta partirlo. */
 const EXCEPCIONES: Record<string, number> = {
-  'Sheet.tsx': 660, // T-223
+  // Vacía desde T-223 (Sheet.tsx se partió en sheet/). Si otro archivo pasa
+  // el tope, se parte; no se agrega acá.
 };
 
 function lineas(path: string): number {
