@@ -71,6 +71,18 @@ export function alturaHeaderColapsable(progreso: number, expandido: number, cola
 }
 
 /**
+ * **T-220: cuánto sube el header (traslado) en vez de achicarse.** Animar
+ * `height` desde Reanimated ensucia el nodo de Yoga y recalcula el layout del
+ * subárbol del header en cada frame de scroll (medido en T-216 en el Moto
+ * E40); `transform` no. El borde de abajo queda idéntico al de
+ * `alturaHeaderColapsable`: `expandido - desplazamiento` = alto de antes.
+ */
+export function desplazamientoHeader(progreso: number, expandido: number, colapsado: number): number {
+  'worklet';
+  return expandido - alturaHeaderColapsable(progreso, expandido, colapsado);
+}
+
+/**
  * Opacidad del título grande (y del saludo en Inicio): se desvanece en la primera mitad
  * del colapso, suave, en vez de cortarse contra la fila de botones (PO: «desaparece muy
  * abrupto», 2026-09-13). Totalmente transparente antes de que el recorte lo alcance.
