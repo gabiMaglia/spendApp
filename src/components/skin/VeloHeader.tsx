@@ -18,6 +18,16 @@ export function altoVelo(fondoBarra: number, altoTituloYAire: number): number {
 }
 
 /**
+ * **T-220:** cuánto sube el velo al colapsar. El velo tiene alto fijo
+ * (expandido) y se traslada: su borde de abajo queda idéntico al del velo
+ * que se achicaba, sin recalcular layout en cada frame.
+ */
+export function desplazamientoVelo(progreso: number): number {
+  'worklet';
+  return RECORRIDO_AERO * Math.min(1, Math.max(0, progreso));
+}
+
+/**
  * **Velo detrás del header Aero** (PO 2026-09-26): desde el borde superior
  * hasta 2pt debajo del header, el color del fondo al 30%. El contenido que
  * sube se sigue viendo, atenuado, en los huecos alrededor de las tarjetas;
@@ -36,14 +46,18 @@ export function VeloHeader({
 }) {
   const skin = useSkinTokens();
   const estilo = useAnimatedStyle(() => ({
-    height: altoVelo(fondoBarra, RECORRIDO_AERO * (1 - Math.min(1, Math.max(0, progress.value)))),
+    transform: [{ translateY: -desplazamientoVelo(progress.value) }],
   }));
 
   return (
     <Animated.View
       testID="velo-header"
       pointerEvents="none"
-      style={[styles.velo, { backgroundColor: conAlfa(skin.colors.bg, VELO_OPACIDAD) }, estilo]}
+      style={[
+        styles.velo,
+        { height: altoVelo(fondoBarra, RECORRIDO_AERO), backgroundColor: conAlfa(skin.colors.bg, VELO_OPACIDAD) },
+        estilo,
+      ]}
     />
   );
 }

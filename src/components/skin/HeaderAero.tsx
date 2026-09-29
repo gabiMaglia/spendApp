@@ -14,9 +14,19 @@ import {
 import { VidrioMarmol } from './VidrioMarmol';
 import { VeloHeader } from './VeloHeader';
 import {
-  AERO_RADIO, AERO_TOPE, aireEntreTarjetas, altoTarjetaTitulo, radioEnfrentado,
+  AERO_AIRE, AERO_RADIO, AERO_TOPE, desplazamientoTituloAero, opacidadTarjetaTitulo, radioEnfrentado,
   radioInferiorBarra, TITULO_AERO_H, unidas,
 } from './headerAeroGeometria';
+
+/**
+ * **T-220:** la ventana que recorta la tarjeta del título arranca en la curva
+ * de las esquinas de abajo de la barra (`AERO_RADIO` por encima de su borde):
+ * así, mientras la tarjeta sube por detrás, rellena esas esquinas y las dos se
+ * leen fundidas; más arriba la tapa la barra, que es opaca. Colchón abajo
+ * para la sombra de la tarjeta.
+ */
+const VENTANA_SOMBRA = 16;
+const VENTANA_TITULO_H = AERO_RADIO + AERO_AIRE + TITULO_AERO_H + VENTANA_SOMBRA;
 
 /** Dónde termina la barra, medido desde arriba de la pantalla. */
 export function fondoBarraAero(insetsTop: number): number {
@@ -67,17 +77,17 @@ export function HeaderAero({
     };
   });
 
+  // T-220: alto fijo + traslado (antes `top`/`height` animados, que
+  // recalculaban layout en cada frame). El borde de abajo sigue al contenido
+  // igual que antes (ver `desplazamientoTituloAero`).
   const tituloStyle = useAnimatedStyle(() => {
     const r = radioEnfrentado(progress.value);
-    const alto = altoTarjetaTitulo(progress.value, TITULO_AERO_H);
     return {
-      top: barraBottom + aireEntreTarjetas(progress.value),
-      height: alto,
+      transform: [{ translateY: -desplazamientoTituloAero(progress.value) }],
       borderTopLeftRadius: r,
       borderTopRightRadius: r,
       borderTopWidth: unidas(progress.value) ? 0 : 1,
-      // Sin alto no queda nada que mostrar, ni siquiera el borde.
-      opacity: alto < 1 ? 0 : 1,
+      opacity: opacidadTarjetaTitulo(progress.value),
     };
   });
 
@@ -98,23 +108,29 @@ export function HeaderAero({
       {/* Velo esmerilado detrás de todo (PO 2026-09-26). */}
       <VeloHeader progress={progress} fondoBarra={barraBottom} />
 
-      {/* Tarjeta del título: debajo de la barra en el orden de dibujo, así al fundirse la barra queda encima. */}
-      <Animated.View
-        testID="header-aero-titulo"
-        style={[styles.tarjeta, tarjeta, styles.titulo, tituloStyle]}
+      {/* Tarjeta del título: debajo de la barra en el orden de dibujo, así al fundirse la barra queda encima.
+          Ventana de recorte fija (T-220): la tarjeta sube por traslado adentro de ella. */}
+      <View
+        testID="header-aero-titulo-ventana"
+        style={[styles.ventanaTitulo, { top: barraBottom - AERO_RADIO }]}
         pointerEvents="none"
       >
-        <FondoMarmol style={styles.marmolTitulo} />
-        <VidrioMarmol />
-        <Animated.View style={[styles.bloqueTitulo, textoTituloStyle]}>
-          {subtitle ? (
-            <Text testID="header-subtitle" numberOfLines={1} style={[styles.subtitle, { color: c.textTertiary }]}>
-              {subtitle}
-            </Text>
-          ) : null}
-          <Text numberOfLines={1} style={[styles.title, { color: c.text }]}>{title}</Text>
+        <Animated.View
+          testID="header-aero-titulo"
+          style={[styles.tarjeta, tarjeta, styles.titulo, tituloStyle]}
+        >
+          <FondoMarmol style={styles.marmolTitulo} />
+          <VidrioMarmol />
+          <Animated.View style={[styles.bloqueTitulo, textoTituloStyle]}>
+            {subtitle ? (
+              <Text testID="header-subtitle" numberOfLines={1} style={[styles.subtitle, { color: c.textTertiary }]}>
+                {subtitle}
+              </Text>
+            ) : null}
+            <Text numberOfLines={1} style={[styles.title, { color: c.text }]}>{title}</Text>
+          </Animated.View>
         </Animated.View>
-      </Animated.View>
+      </View>
 
       <Animated.View
         testID="header-aero-barra"
@@ -148,7 +164,11 @@ const styles = StyleSheet.create({
     position: 'absolute', left: 0, right: 0,
     borderWidth: 1, borderRadius: AERO_RADIO, overflow: 'hidden',
   },
-  titulo: { zIndex: 0 },
+  // T-220: posición y alto fijos dentro de la ventana; sólo se traslada.
+  titulo: { zIndex: 0, top: AERO_RADIO + AERO_AIRE, height: TITULO_AERO_H },
+  ventanaTitulo: {
+    position: 'absolute', left: 0, right: 0, height: VENTANA_TITULO_H, overflow: 'hidden', zIndex: 0,
+  },
   // Alto fijo: la textura nunca se estira al achicarse la tarjeta, solo se ve menos.
   marmolTitulo: { top: 0, bottom: undefined, height: TITULO_AERO_H + 16 },
   bloqueTitulo: {

@@ -82,3 +82,26 @@ export function unidas(p: number): boolean {
   const q = clamp01(p);
   return q >= FUSION && q < REAPARECE;
 }
+
+/**
+ * **T-220:** la tarjeta del título tiene alto FIJO (`TITULO_AERO_H`) y sube
+ * por traslado, por detrás de la barra, en vez de achicarse (`height`/`top`
+ * animados recalculaban layout en cada frame). Su borde de abajo queda
+ * idéntico al de `aireEntreTarjetas + altoTarjetaTitulo`: arranca a
+ * `AERO_AIRE + TITULO_AERO_H` (= `RECORRIDO_AERO`) de la barra y sube
+ * `RECORRIDO_AERO` en todo el colapso.
+ */
+export function desplazamientoTituloAero(p: number): number {
+  'worklet';
+  return RECORRIDO_AERO * clamp01(p);
+}
+
+/**
+ * Opacidad de la tarjeta del título (mármol y borde): opaca mientras está
+ * fundida con la barra y se apaga cuando la barra vuelve a redondear sus
+ * esquinas, así colapsada no asoma detrás de ellas.
+ */
+export function opacidadTarjetaTitulo(p: number): number {
+  'worklet';
+  return 1 - clamp01((clamp01(p) - REAPARECE) / (1 - REAPARECE));
+}
