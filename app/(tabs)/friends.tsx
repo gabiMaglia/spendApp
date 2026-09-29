@@ -4,6 +4,7 @@ import Animated from 'react-native-reanimated';
 import { FlashList } from '@shopify/flash-list';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useHeaderColapsable } from '@/src/hooks/useHeaderColapsable';
+import { useRellenoBarraPestanas } from '@/src/hooks/useRellenoBarraPestanas';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
@@ -38,6 +39,8 @@ export default function FriendsScreen() {
   const { currentUser } = useAuthStore();
 
   const { scrollHandler, progress, contenidoMinimo, alMedirScroll } = useHeaderColapsable();
+  // Aero: la barra flota sobre el contenido; su alto queda libre abajo (T-227).
+  const barra = useRellenoBarraPestanas();
 
   const {
     cur, personBalances, owedToYou, youOwe, owedToYouPending, youOwePending,
@@ -62,7 +65,7 @@ export default function FriendsScreen() {
           showsVerticalScrollIndicator={false}
           scrollEventThrottle={16}
           onScroll={scrollHandler}
-          contentContainerStyle={[{ paddingBottom: 150, flexGrow: 1 }, contenidoMinimo]}
+          contentContainerStyle={[{ paddingBottom: 150 + barra, flexGrow: 1 }, contenidoMinimo]}
           data={items}
           keyExtractor={(it) => it.id}
           getItemType={(it) => it.kind}

@@ -4,6 +4,7 @@ import Animated from 'react-native-reanimated';
 import { FlashList } from '@shopify/flash-list';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useHeaderColapsable } from '@/src/hooks/useHeaderColapsable';
+import { useRellenoBarraPestanas } from '@/src/hooks/useRellenoBarraPestanas';
 import { useTranslation } from 'react-i18next';
 
 import { useSettingsStore } from '@/src/store/settingsStore';
@@ -42,6 +43,8 @@ export default function ActivityScreen() {
   const { currentUser } = useAuthStore();
   const getUserName = useUserStore(s => s.getUserName);
   const { scrollHandler, progress, contenidoMinimo, alMedirScroll } = useHeaderColapsable();
+  // Aero: la barra flota sobre el contenido; su alto queda libre abajo (T-227).
+  const barra = useRellenoBarraPestanas();
 
   const restaurar = useRestoreExpense(currentUser);
   const feed = useActivityFeed(currentUser?.id ?? '');
@@ -77,7 +80,7 @@ export default function ActivityScreen() {
           showsVerticalScrollIndicator={false}
           scrollEventThrottle={16}
           onScroll={scrollHandler}
-          contentContainerStyle={[{ paddingBottom: 120, flexGrow: 1 }, contenidoMinimo]}
+          contentContainerStyle={[{ paddingBottom: 120 + barra, flexGrow: 1 }, contenidoMinimo]}
           data={items}
           keyExtractor={(it) => it.id}
           getItemType={(it) => it.kind}

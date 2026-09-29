@@ -4,6 +4,7 @@ import { StyleSheet, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useHeaderColapsable } from '@/src/hooks/useHeaderColapsable';
+import { useRellenoBarraPestanas } from '@/src/hooks/useRellenoBarraPestanas';
 import { router } from 'expo-router';
 
 import { Spacing } from '@/src/constants/spacing';
@@ -51,6 +52,8 @@ export default function PersonalScreen() {
 
   /** Scroll del header colapsable. */
   const { scrollHandler, progress, contenidoMinimo, alMedirScroll } = useHeaderColapsable();
+  // Aero: la barra flota sobre el contenido; su alto queda libre abajo (T-227).
+  const barra = useRellenoBarraPestanas();
 
   const { cur, monthEntries, entriesOrdenadas, totalIncome, totalExpense, totalGroup,
     totalSpent, positiveCarryover, pendientes, personalPending } = usePersonalMonthTotals(activeMonth);
@@ -101,7 +104,7 @@ export default function PersonalScreen() {
         // contenido no se estira hasta el borde inferior y queda un hueco de
         // fondo desnudo antes de la tab bar (confirmado en el Motorola físico).
         contentContainerStyle={[
-          { paddingTop: headerPad, paddingBottom: FAB_BOTTOM_GAP + FAB_HEIGHT + Spacing[3], flexGrow: 1 },
+          { paddingTop: headerPad, paddingBottom: FAB_BOTTOM_GAP + FAB_HEIGHT + Spacing[3] + barra, flexGrow: 1 },
           contenidoMinimo,
         ]}
         // PO 2026-09-20: el encabezado de "Movimientos" queda pegado arriba

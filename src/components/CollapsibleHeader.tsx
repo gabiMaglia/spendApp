@@ -8,8 +8,8 @@ import { Spacing } from '@/src/constants/spacing';
 import { FondoMarmol } from '@/src/components/FondoMarmol';
 import { useSkinTokens, useColors } from '@/src/skins/useSkin';
 import { HeaderAero, fondoBarraAero } from '@/src/components/skin/HeaderAero';
-import { AERO_RADIO, AERO_TOPE, RECORRIDO_AERO } from '@/src/components/skin/headerAeroGeometria';
-import { VidrioMarmol } from '@/src/components/skin/VidrioMarmol';
+import { RECORRIDO_AERO } from '@/src/components/skin/headerAeroGeometria';
+import { DETAIL_BAR_H, DetailHeaderAero } from '@/src/components/skin/DetailHeaderAero';
 import { HEADER_BAR_H, TITLE_BOTTOM_GAP, TITLE_BLOCK_H } from '@/src/constants/header';
 import {
   desplazamientoHeader, opacidadTituloCompacto, opacidadTituloCompactoSinMovimiento,
@@ -46,6 +46,7 @@ import {
  */
 // Medidas del header en `src/constants/header.ts`: así el hook de colapso no importa este
 // componente y no se arma un ciclo de require (T-128). Se re-exportan por compatibilidad.
+export { RellenoDetailHeader, useRellenoDetailHeader } from '@/src/components/skin/DetailHeaderAero';
 export {
   HEADER_BAR_H, HEADER_TOTAL_H_T114, FACTOR_ALTO_HEADER, TITLE_BOTTOM_GAP, TITLE_BLOCK_H,
 } from '@/src/constants/header';
@@ -319,32 +320,18 @@ export function DetailHeader({
   const insets = useSafeAreaInsets();
   const skin = useSkinTokens();
 
-  // Aero (etapa 2): la misma tarjeta flotante que la barra de las tabs —
-  // fuera de la status bar, con margen, radio pronunciado, mármol y vidrio.
-  if (skin.flags.soft) {
-    return (
-      <View style={{ paddingTop: insets.top + AERO_TOPE, backgroundColor: c.bg }}>
-        <View
-          testID="detail-header-aero"
-          style={[
-            detail.tarjetaAero,
-            { marginHorizontal: skin.space.inset, backgroundColor: c.surface, borderColor: c.hair },
-            { boxShadow: skin.elevation.e2.boxShadow },
-          ]}
-        >
-          <FondoMarmol patron="franja" />
-          <VidrioMarmol />
-          <View style={[detail.bar, detail.barAero]}>
-            <Pressable onPress={onBack} hitSlop={12} style={detail.side}>
-              <Ionicons name={icon} size={22} color={c.text} />
-            </Pressable>
-            <Text numberOfLines={1} style={[detail.title, { color: c.text }]}>{title}</Text>
-            <View style={[detail.side, { alignItems: 'flex-end' }]}>{right}</View>
-          </View>
-        </View>
-      </View>
-    );
-  }
+  const barra = (
+    <View style={[detail.bar, skin.flags.soft && detail.barAero]}>
+      <Pressable onPress={onBack} hitSlop={12} style={detail.side}>
+        <Ionicons name={icon} size={22} color={c.text} />
+      </Pressable>
+      <Text numberOfLines={1} style={[detail.title, { color: c.text }]}>{title}</Text>
+      <View style={[detail.side, { alignItems: 'flex-end' }]}>{right}</View>
+    </View>
+  );
+
+  // Aero: la tarjeta flota sobre el contenido, con velo (T-227 punto 5).
+  if (skin.flags.soft) return <DetailHeaderAero>{barra}</DetailHeaderAero>;
 
   return (
     <View style={[detail.wrap, { paddingTop: insets.top, borderBottomColor: c.hair }]}>
@@ -360,23 +347,16 @@ export function DetailHeader({
         style={[StyleSheet.absoluteFill, { backgroundColor: c.bg, opacity: 0.35 }]}
         pointerEvents="none"
       />
-      <View style={detail.bar}>
-        <Pressable onPress={onBack} hitSlop={12} style={detail.side}>
-          <Ionicons name={icon} size={22} color={c.text} />
-        </Pressable>
-        <Text numberOfLines={1} style={[detail.title, { color: c.text }]}>{title}</Text>
-        <View style={[detail.side, { alignItems: 'flex-end' }]}>{right}</View>
-      </View>
+      {barra}
     </View>
   );
 }
 
 const detail = StyleSheet.create({
   wrap: { borderBottomWidth: 1 },
-  tarjetaAero: { borderWidth: 1, borderRadius: AERO_RADIO, overflow: 'hidden' },
   barAero: { paddingHorizontal: Spacing.screenPad - 8 },
   bar: {
-    height: 52, flexDirection: 'row', alignItems: 'center',
+    height: DETAIL_BAR_H, flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: Spacing.screenPad, gap: 12,
   },
   // 56, no 32: la acción derecha suele ser una palabra ("Crear", "Guardar").
