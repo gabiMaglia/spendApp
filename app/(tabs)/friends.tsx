@@ -42,7 +42,7 @@ export default function FriendsScreen() {
   const {
     cur, personBalances, owedToYou, youOwe, owedToYouPending, youOwePending,
   } = useFriendsBalances(currentUser?.id ?? '');
-  const { contacts, conHistorial, handleRemove, handleSettle } = useFriendsContacts();
+  const { contacts, conHistorial, aQuienesDebo, handleRemove, handleSettle } = useFriendsContacts();
   const addSheet = useAddContactSheet();
   const pendingCalculando = t('fx.calculating');
 
@@ -71,6 +71,7 @@ export default function FriendsScreen() {
               contacts={contacts}
               personBalances={personBalances}
               conHistorial={conHistorial}
+              aQuienesDebo={aQuienesDebo}
               onRemove={handleRemove}
               onSettle={handleSettle}
             />

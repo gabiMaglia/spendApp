@@ -268,7 +268,15 @@
     "outstanding_label": "Outstanding",
     "settle_all_sub": "{{count}} people · {{amount}}",
     "settle_one": "Settle with one person",
-    "split_note": "Not enough for everyone: split evenly"
+    "split_note": "Not enough for everyone: split evenly",
+    "friend_groups_label": "What you owe in each group",
+    "friend_total": "Total",
+    "friend_whole_only": "From Friends you settle everything you owe: one payment per group. To pay part of it, go to the group.",
+    "friend_nothing": "You don't owe them anything in any group.",
+    "friend_confirm_title": "Settle everything with {{name}}?",
+    "friend_confirm_body": "A payment to {{name}} will be recorded in each group:\n{{detalle}}",
+    "friend_confirm_line": "{{group}}: {{amount}}",
+    "friend_confirm_ok": "Settle all"
   },
   "activity": {
     "title": "Activity",

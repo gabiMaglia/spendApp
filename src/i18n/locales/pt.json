@@ -268,7 +268,15 @@
     "outstanding_label": "Dívida pendente",
     "settle_all_sub": "{{count}} pessoas · {{amount}}",
     "settle_one": "Quitar com uma pessoa",
-    "split_note": "Não dá para todos: divide-se igualmente"
+    "split_note": "Não dá para todos: divide-se igualmente",
+    "friend_groups_label": "O que você deve em cada grupo",
+    "friend_total": "Total",
+    "friend_whole_only": "Em Amigos você quita tudo o que deve: um pagamento em cada grupo. Para pagar uma parte, entre no grupo.",
+    "friend_nothing": "Você não deve nada em nenhum grupo.",
+    "friend_confirm_title": "Quitar tudo com {{name}}?",
+    "friend_confirm_body": "Será registrado um pagamento para {{name}} em cada grupo:\n{{detalle}}",
+    "friend_confirm_line": "{{group}}: {{amount}}",
+    "friend_confirm_ok": "Quitar tudo"
   },
   "activity": {
     "title": "Atividade",

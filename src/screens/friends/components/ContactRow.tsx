@@ -16,21 +16,22 @@ import { useColors } from '@/src/skins/useSkin';
  * referencias ESTABLES desde `FriendsScreen` (`useFriendsContacts`), no inline.
  */
 export const ContactRow = React.memo(function ContactRow({
-  userId, name, amount, currency, conHistorial, onRemove, onSettle, last,
+  userId, name, amount, currency, conHistorial, puedeSaldar, onRemove, onSettle, last,
 }: {
   userId: string; name: string;
   amount?: number; currency: string;
   /** Si hubo gastos o saldados entre los dos. Sin historial, un saldo en cero no es «Saldado». */
   conHistorial: boolean;
+  /** Si le debo algo (T-225): no depende del neto que muestra la fila. */
+  puedeSaldar: boolean;
   onRemove: (id: string, name: string) => void;
-  onSettle: (id: string, amount: number, currency: string) => void;
+  onSettle: (id: string) => void;
   last?: boolean;
 }) {
   const { t } = useTranslation();
   const c = useColors();
   const hasBalance = amount !== undefined && amount !== 0;
   const positive   = (amount ?? 0) > 0;
-  const canSettle  = amount !== undefined && amount < 0;
 
   return (
     <BandRow last={last}>
@@ -54,9 +55,9 @@ export const ContactRow = React.memo(function ContactRow({
           </Text>
         ) : null}
       </View>
-      {canSettle && (
+      {puedeSaldar && (
         <Pressable
-          onPress={() => onSettle(userId, amount!, currency)}
+          onPress={() => onSettle(userId)}
           style={[styles.actionChip, { backgroundColor: c.brand.primarySoft }]}
         >
           <Text style={{ fontSize: 11, fontWeight: '700', color: c.brand.primary }}>
