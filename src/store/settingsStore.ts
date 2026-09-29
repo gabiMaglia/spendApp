@@ -15,6 +15,7 @@ const KEYS = {
   DISPLAY_CURRENCY:'display_currency',
   REDUCE_ANIMATIONS:'reduce_animations',
   SKIN: 'skin',
+  ACTIVITY_SEEN_UNTIL: 'activity_seen_until',
 } as const;
 
 /**
@@ -53,6 +54,10 @@ interface SettingsState {
   skin: SkinId;
   setSkin: (id: SkinId) => void;
 
+  /** Última vez que salí de Actividad (ms). Define el «N sin ver» (PO 2026-09-29). */
+  actividadVistaHasta: number;
+  setActividadVistaHasta: (ms: number) => void;
+
   setDisplayCurrency: (code: CurrencyCode) => void;
   setNotifExpenses: (value: boolean) => void;
   setNotifDeletions: (value: boolean) => void;
@@ -75,6 +80,12 @@ export function createSettingsStore() {
     displayCurrency: DEFAULT_DISPLAY_CURRENCY,
     reduceAnimations: esDispositivoDeGamaBaja(),
     skin: FALLBACK_SKIN,
+    actividadVistaHasta: 0,
+
+    setActividadVistaHasta: (ms) => {
+      writeScoped(storage, KEYS.ACTIVITY_SEEN_UNTIL, String(ms));
+      set({ actividadVistaHasta: ms });
+    },
 
     setSkin: (id) => {
       writeScoped(storage, KEYS.SKIN, id);
@@ -130,6 +141,7 @@ export function createSettingsStore() {
           const guardado = readScoped(storage, KEYS.SKIN);
           return esSkinId(guardado) ? guardado : FALLBACK_SKIN;
         })(),
+        actividadVistaHasta: Number(readScoped(storage, KEYS.ACTIVITY_SEEN_UNTIL)) || 0,
       });
     },
   }));

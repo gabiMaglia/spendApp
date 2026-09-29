@@ -20,5 +20,6 @@ export function useActivitySections(filteredFeed: ActivityKind[]) {
   if (yesterdayEvents.length) sections.push({ label: t('activity.section_yesterday'), events: yesterdayEvents });
   if (olderEvents.length)     sections.push({ label: t('activity.section_older'),     events: olderEvents });
 
-  return { sections, todayNewCount: todayEvents.length };
+  // El «N sin ver» lo cuenta la pantalla (`contarSinVer`): acá sólo se agrupa.
+  return { sections, todayEvents };
 }
