@@ -53,31 +53,23 @@ export function sembrarDatasetRealista(): void {
   const contactUsers = Array.from({ length: 20 }, (_, i) => usuario(`contact${i}`));
   const groups = Array.from({ length: 8 }, (_, i) => grupo(`g${i}`, MEMBER_IDS.slice(0, 3 + (i % 4))));
 
-  // T-154 (2da vuelta, rechazo QA): fechas repartidas en ~60 días, no todas
-  // en `date: 0` — 200 gastos concentrados en UN solo día caía siempre en
-  // la sección "Antes" (`useActivitySections` sólo agrupa Hoy/Ayer/Antes,
-  // nunca por día calendario), lo cual no es realista: una cuenta usada
-  // ~2 meses reparte su actividad, no la vuelca entera en una fecha. Con el
-  // ítem de FlashList = SECCIÓN (no fila, ver `ActivityFeedList.tsx`),
-  // "Antes" sigue siendo una sola sección — eso es arquitectura existente,
-  // no algo que este ticket cambie — así que la mayoría de los eventos
-  // (días 2 a 59) siguen cayendo ahí.
-  const DIA_MS = 24 * 60 * 60 * 1000;
+  // T-154 (3ra vuelta): vuelve al fixture original (`date: 0` para todo).
+  // El repartido en ~60 días de la 2da vuelta no cambiaba nada — con el
+  // ítem = SECCIÓN de esa vuelta, virtualizar no puede recortar la sección
+  // "Antes" (única, sin importar cuántos días reales abarque). Ahora que
+  // el ítem vuelve a ser la FILA (panel Aero segmentado en vez de por
+  // sección), la ventana simulada del mock SÍ recorta filas dentro de
+  // "Antes" — no hace falta repartir fechas para que el tope se cumpla.
   const expenses: Expense[] = [];
   for (let i = 0; i < 200; i++) {
     const group = groups[i % groups.length];
-    const dia = i % 60;
-    expenses.push({
-      ...gasto(`e${i}`, group.id, group.memberIds, group.memberIds[i % group.memberIds.length]),
-      date: Date.now() - dia * DIA_MS,
-    });
+    expenses.push(gasto(`e${i}`, group.id, group.memberIds, group.memberIds[i % group.memberIds.length]));
   }
 
   const payments: Payment[] = [];
   for (let i = 0; i < 30; i++) {
     const group = groups[i % groups.length];
-    const dia = i % 60;
-    payments.push({ ...pago(`p${i}`, group.id, group.memberIds[0], group.memberIds[1]), date: Date.now() - dia * DIA_MS });
+    payments.push(pago(`p${i}`, group.id, group.memberIds[0], group.memberIds[1]));
   }
 
   useAuthStore.setState({ currentUser: memberUsers[0], isPro: false });
