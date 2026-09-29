@@ -46,13 +46,14 @@ const ALLOWLIST = new Set<string>([
 function archivosFuenteBajo(dir: string): string[] {
   const out: string[] = [];
   for (const nombre of readdirSync(dir)) {
-    if (nombre === 'node_modules' || nombre === '__tests__' || nombre.startsWith('.')) continue;
+    // `test-utils/`: fixtures y helpers de test, no escritores reales (T-218
+    // movió ahí los fixtures de perf, que arman grupos con `memberIds`).
+    if (nombre === 'node_modules' || nombre === '__tests__' || nombre === 'test-utils' || nombre.startsWith('.')) continue;
     const ruta = join(dir, nombre);
     const st = statSync(ruta);
     if (st.isDirectory()) {
       out.push(...archivosFuenteBajo(ruta));
     } else if (/\.(ts|tsx)$/.test(nombre) && !/\.test\.(ts|tsx)$/.test(nombre)) {
-      if (nombre === 'recordFixtures.ts') continue; // test-utils: fixture, no escritor real
       out.push(ruta);
     }
   }
