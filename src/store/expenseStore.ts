@@ -4,7 +4,7 @@ import { readScoped, writeScopedLazy, activeUserId } from './userScope';
 import { siguienteUpdatedAt } from './relojDelMerge';
 import { mergeExpensesPure } from './mergeExpensesPure';
 import { signOnCreate, signOnEdit, coreChanged } from '@/src/sync/confianza/signOnWrite';
-import { schedulePublish } from '@/src/sync/motor/relayEngine';
+import { schedulePublish } from '@/src/store/publicarGrupo';
 import { migrateExpenseAmounts } from './moneyMigration';
 import type { Expense } from '@/src/types/models';
 import { syncedNow } from '@/src/utils/syncedClock';
