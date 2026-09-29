@@ -63,7 +63,7 @@ export function SaldarConAmigo({ amigoId }: { amigoId: string }) {
           </>
         )}
 
-        <ButtonRack>
+        <ButtonRack style={styles.alFondo}>
           <ActionButton
             testID="settle-save"
             label={t('settle.title')}
@@ -80,6 +80,10 @@ export function SaldarConAmigo({ amigoId }: { amigoId: string }) {
 
 const styles = StyleSheet.create({
   safe:    { flex: 1 },
-  scroll:  { paddingHorizontal: Spacing.screenPad, paddingTop: Spacing[4], gap: Spacing[3] },
+  scroll:  { paddingHorizontal: Spacing.screenPad, paddingTop: Spacing[4], gap: Spacing[3], flexGrow: 1 },
   totales: { alignItems: 'flex-end' },
+  // «Registrar pago» al fondo de la pantalla, como «Crear» en Nuevo grupo (PO
+  // 2026-09-29): `marginTop: 'auto'` absorbe el alto que sobra; necesita el
+  // `flexGrow: 1` del contenedor del scroll.
+  alFondo: { marginTop: 'auto' },
 });

@@ -217,7 +217,7 @@ function SaldarEnGrupo() {
           {/* El botón de la app, no un Pressable con estilo propio: es la
               regla del proyecto y lo que hace que «guardar» se vea igual en
               todas las pantallas. */}
-          <ButtonRack>
+          <ButtonRack style={styles.alFondo}>
             <ActionButton
               testID="settle-save"
               label={t('settle.title')}
@@ -250,5 +250,9 @@ function SaldarEnGrupo() {
 
 const styles = StyleSheet.create({
   safe:           { flex: 1 },
-  scroll:         { paddingHorizontal: Spacing.screenPad, paddingTop: Spacing[4], gap: Spacing[3] },
+  scroll:         { paddingHorizontal: Spacing.screenPad, paddingTop: Spacing[4], gap: Spacing[3], flexGrow: 1 },
+  // «Registrar pago» al fondo de la pantalla, como «Crear» en Nuevo grupo (PO
+  // 2026-09-29): `marginTop: 'auto'` absorbe el alto que sobra; necesita el
+  // `flexGrow: 1` del contenedor del scroll.
+  alFondo: { marginTop: 'auto' },
 });
