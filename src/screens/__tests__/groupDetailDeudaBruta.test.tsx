@@ -102,7 +102,7 @@ describe('detalle de grupo: Te deben / Debés arriba, balance neto abajo', () =>
   it('orden: widget → timeline → balance → pedido de salida → traspasar', () => {
     useGroupStore.setState({ groups: [grupo({
       createdById: 'ana',
-      leaveRequest: { userId: 'ana', plan: [], requestedAt: 0, approvals: {} } as unknown as Group['leaveRequest'],
+      leaveRequest: { userId: 'ana', plan: [], requestedAt: 0, approvedBy: [] },
     })] });
     const arbol = JSON.stringify(render(<GroupDetailScreen />).toJSON());
     const posiciones = [

@@ -13,8 +13,8 @@ import type { Expense, Group, Payment, User } from '@/src/types/models';
  * cualquier moneda (PO, T-104). Antes se ofrecía con solo tener un gasto
  * cargado (PO 2026-08-30) y eso mandaba a la pantalla de saldar aun cuando ya
  * no había nada que saldar (gastos compensados, pagos hechos, multi-moneda en
- * cero). Usa la misma fuente que ya calcula el balance de la pantalla
- * (`useGroupBalance`, que corre `calculateBalancesByCurrency` + `pagosQueCuentan`).
+ * cero). Desde T-225 la fuente es la deuda sin compensar del grupo
+ * (`useTotalesDelGrupo`): el botón aparece si DEBO algo, aunque me deban más.
  */
 jest.mock('@/src/sync/motor/relayEngine', () => ({
   schedulePublish: jest.fn(), deviceId: () => 'dev', startRelay: jest.fn(),

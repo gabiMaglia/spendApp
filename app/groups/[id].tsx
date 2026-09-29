@@ -11,6 +11,7 @@ import { useExpenseStore } from '@/src/store/expenseStore';
 import { usePaymentStore } from '@/src/store/paymentStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useGroupBalance, useGroupExpenseCount } from '@/src/store/selectors';
+import { useTotalesDelGrupo } from '@/src/store/selectoresDeDeuda';
 import { useArchiveStore } from '@/src/store/archiveStore';
 import { useGroupSyncFailure } from '@/src/hooks/useSyncFailure';
 import { useManifestGap } from '@/src/hooks/useManifestGap';
@@ -26,6 +27,7 @@ import { useAltaDeMiembro } from '@/src/screens/groupDetail/hooks/useAltaDeMiemb
 import { useAccionesDeGrupo } from '@/src/screens/groupDetail/hooks/useAccionesDeGrupo';
 import { AvisosDeGrupo } from '@/src/screens/groupDetail/components/AvisosDeGrupo';
 import { BalanceDeGrupo } from '@/src/screens/groupDetail/components/BalanceDeGrupo';
+import { TotalesDeGrupo } from '@/src/screens/groupDetail/components/TotalesDeGrupo';
 import { MiembrosDeGrupo } from '@/src/screens/groupDetail/components/MiembrosDeGrupo';
 import { TimelineDeGrupo } from '@/src/screens/groupDetail/components/TimelineDeGrupo';
 import { PedidoDeSalida } from '@/src/screens/groupDetail/components/PedidoDeSalida';
@@ -70,15 +72,16 @@ export default function GroupDetailScreen() {
   const cantidadGastos = useGroupExpenseCount(id ?? '');
   const [mostrarTraspaso, setMostrarTraspaso] = useState(false);
 
-  // T-104: el botón «Saldar deuda» necesita DEUDA VIVA, no solo gastos
-  // cargados. `useGroupBalance` ya corre `calculateBalancesByCurrency` +
-  // `pagosQueCuentan` y descarta las monedas en cero, así que alcanza con
-  // mirar si queda algún saldo — en cualquier moneda.
-  //
-  // T-113 (PO): sólo si YO debo — saldo negativo en alguna moneda. Si me deben, el pago
-  // lo registra quien paga; el botón no aparece para el acreedor.
-  const tieneDeudaViva = balances.some(b => b.amount < 0);
-  const mainBalance = balances.find(b => b.currency === group?.currency)?.amount ?? 0;
+  // Te deben / Debés del grupo, sin compensar (T-225).
+  const totales = useTotalesDelGrupo(id ?? '', currentUser?.id ?? '');
+  // T-104/T-113: «Saldar deuda» sólo con deuda viva MÍA. Desde T-225 (PO
+  // 2026-09-29) eso es deber algo en alguna moneda, aunque me deban más: con
+  // 200 a favor y 60 en contra, los 60 se saldan igual.
+  const tieneDeudaViva = totales.some(x => x.youOwe > 0);
+  // Varias monedas: se muestra la del grupo, como antes (sin convertir).
+  const totalesDeMoneda = totales.find(x => x.currency === group?.currency);
+  const owedToYou = totalesDeMoneda?.owedToYou ?? 0;
+  const youOwe = totalesDeMoneda?.youOwe ?? 0;
 
   const [menuVisible, setMenuVisible] = useState(false);
 
@@ -130,7 +133,7 @@ export default function GroupDetailScreen() {
           onTraspasar={() => setMostrarTraspaso(true)}
         />
 
-        <BalanceDeGrupo groupId={group.id} currency={group.currency} mainBalance={mainBalance} />
+        <TotalesDeGrupo groupId={group.id} currency={group.currency} owedToYou={owedToYou} youOwe={youOwe} />
 
         <MiembrosDeGrupo uids={group.memberIds} getUserName={getUserName} onPressMember={handleExpel} />
 
@@ -141,6 +144,8 @@ export default function GroupDetailScreen() {
           marcaDeGasto={marcaDeGasto}
           marcaDePago={marcaDePago}
         />
+
+        <BalanceDeGrupo groupId={group.id} currency={group.currency} neto={owedToYou - youOwe} />
 
         {group.leaveRequest && currentUser && (
           <PedidoDeSalida group={group} currentUserId={currentUser.id} getUserName={getUserName} />
