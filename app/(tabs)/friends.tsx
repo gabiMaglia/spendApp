@@ -18,7 +18,7 @@ import { useFriendsBalances } from '@/src/screens/friends/hooks/useFriendsBalanc
 import { useFriendsContacts } from '@/src/screens/friends/hooks/useFriendsContacts';
 import { useAddContactSheet } from '@/src/screens/friends/hooks/useAddContactSheet';
 import {
-  buildContactsFlatItems, ContactsListItem, ContactsEmptyState, QrNote, type ContactsFlatItem,
+  buildContactsFlatItems, ContactsBlock, ContactsEmptyState, QrNote, type ContactsFlatItem,
 } from '@/src/screens/friends/components/ContactsList';
 import { ContactsCountHeader } from '@/src/screens/friends/components/ContactsCountHeader';
 import { AddContactSheet } from '@/src/screens/friends/components/AddContactSheet';
@@ -48,7 +48,7 @@ export default function FriendsScreen() {
 
   useContadorDeRenders('Amigos', { contactsCount: contacts.length, owedToYou, youOwe });
 
-  const items = buildContactsFlatItems(contacts, personBalances, conHistorial);
+  const items = buildContactsFlatItems(contacts);
 
   // Sin 'bottom': la tab bar ya reserva el inset del sistema (_layout.tsx); contarlo acá dejaba una franja muerta entre el contenido y la barra.
   return (
@@ -59,12 +59,18 @@ export default function FriendsScreen() {
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
         onScroll={scrollHandler}
-        contentContainerStyle={[{ paddingTop: headerPad, paddingBottom: 150 }, contenidoMinimo]}
+        contentContainerStyle={[{ paddingTop: headerPad, paddingBottom: 150, flexGrow: 1 }, contenidoMinimo]}
         data={items}
         keyExtractor={(it) => it.id}
-        getItemType={() => 'contact'}
-        renderItem={({ item }) => (
-          <ContactsListItem item={item} onRemove={handleRemove} onSettle={handleSettle} />
+        getItemType={(it) => it.kind}
+        renderItem={() => (
+          <ContactsBlock
+            contacts={contacts}
+            personBalances={personBalances}
+            conHistorial={conHistorial}
+            onRemove={handleRemove}
+            onSettle={handleSettle}
+          />
         )}
         ListHeaderComponent={
           <>

@@ -12,48 +12,55 @@ import type { PersonBalance } from '@/src/store/selectors';
 import { ContactRow } from './ContactRow';
 import { useColors } from '@/src/skins/useSkin';
 
-export type ContactsFlatItem = {
-  kind: 'contact'; id: string; contact: User; amount?: number; currency: string;
-  conHistorial: boolean; isLast: boolean;
-};
+/** El único ítem que arma `friends.tsx` para la `FlashList` — un bloque completo. */
+export type ContactsFlatItem = { kind: 'bloque'; id: 'bloque' };
 
-/** Aplana los contactos en ítems planos (T-154, FlashList). Resuelve el saldo por
- * contacto acá mismo — antes lo hacía el `.map()` de `ContactsList`. */
-export function buildContactsFlatItems(
-  contacts: User[], personBalances: PersonBalance[], conHistorial: Set<string>,
-): ContactsFlatItem[] {
-  return contacts.map((contact, i) => {
-    const balance = personBalances.find(b => b.userId === contact.id);
-    return {
-      kind: 'contact', id: contact.id, contact,
-      amount: balance?.amount, currency: balance?.currency ?? 'ARS',
-      conHistorial: conHistorial.has(idCanonico(contact.id)),
-      isLast: i === contacts.length - 1,
-    };
-  });
+/**
+ * T-154 (rechazo QA): el ítem de FlashList es el BLOQUE completo, no la
+ * fila — un `Band` por fila rompía el agrupamiento Aero (`Band` → `Panel`
+ * propio por fila en vez de UNA tarjeta para todo el bloque, ver
+ * `Band.tsx:83-88`). Con un solo bloque por pantalla, `friends.tsx` lo usa
+ * como el único ítem de la `FlashList` — la ganancia de virtualizar acá es
+ * de escala futura, no de este dataset.
+ */
+export function buildContactsFlatItems(contacts: User[]): ContactsFlatItem[] {
+  return contacts.length > 0 ? [{ kind: 'bloque', id: 'bloque' }] : [];
 }
 
-/** Fila de contacto, con su propio `Band` (mismo criterio que Grupos/Actividad:
- * antes era un `Band` compartido envolviendo todas las filas). */
-export function ContactsListItem({
-  item, onRemove, onSettle,
+/**
+ * El bloque de filas de contacto — EXACTAMENTE el JSX de `ff2c4eb`: un
+ * `Band` compartido envolviendo todos los `ContactRow`. `ContactsCountHeader`
+ * y `QrNote` viven fuera de este bloque (`ListHeaderComponent`/
+ * `ListFooterComponent` en `friends.tsx`), igual que en `ff2c4eb` estaban
+ * en el mismo componente pero antes/después de este `Band`.
+ */
+export function ContactsBlock({
+  contacts, personBalances, conHistorial, onRemove, onSettle,
 }: {
-  item: ContactsFlatItem;
+  contacts: User[];
+  personBalances: PersonBalance[];
+  conHistorial: Set<string>;
   onRemove: (id: string, name: string) => void;
   onSettle: (id: string, amount: number, currency: string) => void;
 }) {
   return (
-    <Band noTop noBottom={!item.isLast}>
-      <ContactRow
-        userId={item.contact.id}
-        name={item.contact.name}
-        amount={item.amount}
-        conHistorial={item.conHistorial}
-        currency={item.currency}
-        last={item.isLast}
-        onRemove={onRemove}
-        onSettle={onSettle}
-      />
+    <Band noTop>
+      {contacts.map((contact, i) => {
+        const balance = personBalances.find(b => b.userId === contact.id);
+        return (
+          <ContactRow
+            key={contact.id}
+            userId={contact.id}
+            name={contact.name}
+            amount={balance?.amount}
+            conHistorial={conHistorial.has(idCanonico(contact.id))}
+            currency={balance?.currency ?? 'ARS'}
+            last={i === contacts.length - 1}
+            onRemove={onRemove}
+            onSettle={onSettle}
+          />
+        );
+      })}
     </Band>
   );
 }

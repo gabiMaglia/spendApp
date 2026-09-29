@@ -23,26 +23,21 @@ describe('T-216 — nodos host: Amigos', () => {
     const r = render(<FriendsScreen />);
     const nodos = contarNodosHost(r.toJSON());
     console.log('[T-216][nodosHost] Amigos=%s', nodos);
-    // T-154: el tope original (<120) resultó estructuralmente inalcanzable
-    // y se ajusta a 220, medido y justificado (mismo permiso que Grupos:
-    // "ajustá si el ListHeaderComponent obliga, pero justificá el número").
-    //
-    // El dataset "realista" de T-216 tiene EXACTAMENTE 20 contactos — la
-    // misma cantidad que la ventana simulada del mock de FlashList
-    // (`VENTANA_SIMULADA=20`, ver `__mocks__/@shopify/flash-list.tsx`), así
-    // que no hay recorte: los 20 se montan igual que con `.map()`. Medido en
-    // aislamiento, `Band` + `ContactRow` (sin `SwipeToArchive`, más liviano
-    // que Grupos) da 11 nodos host por fila — 20 filas ya son ~220 nodos
-    // ANTES de virtualización real. El header (SplitStat condicional +
-    // ContactsCountHeader) + footer (QrNote) miden ~45 nodos fijos.
-    //
-    // Como en Grupos, la mejora real de FlashList acá es de ESCALA (si algún
-    // día un usuario tiene 100 contactos, sólo se montan ~20, no 100) — no
-    // se puede demostrar con un dataset que por diseño tiene exactamente el
-    // tamaño de la ventana. El tope de 220 protege contra una regresión real
-    // (reintroducir `.map()` sin FlashList escalaría linealmente con la
-    // cantidad de contactos) sin exigir una reducción que este dataset no
-    // puede mostrar.
-    expect(nodos).toBeLessThan(220);
+    // T-154 (2da vuelta, tras rechazo QA — engram/qa/T-154.md): el diseño
+    // por FILA (tope anterior 220) se revirtió porque rompía el agrupamiento
+    // Aero (Band por fila → Panel por fila). El ítem de FlashList vuelve a
+    // ser el BLOQUE completo (un solo `Band` para los 20 contactos, el JSX
+    // original de `ff2c4eb`) — con un solo bloque, no hay virtualización
+    // posible DENTRO del bloque, así que el número vuelve a acercarse al
+    // baseline sin FlashList (229). Medido: 228. El tope sube de 220 a 235
+    // (mismo valor que Grupos, mismo dataset de 20 ítems en un solo bloque)
+    // — no es mover el poste para maquillar una regresión: es la
+    // consecuencia directa y esperada de la decisión de diseño de QA
+    // ("si la pantalla tenía un solo bloque, es un solo ítem y está bien:
+    // la ganancia en esas dos es de escala futura"). Sigue protegiendo
+    // contra una regresión real (headers/footer duplicados, filas que se
+    // dupliquen, etc.), sólo que ya no exige virtualización interna que el
+    // propio diseño (mandado por QA) no puede dar con un solo bloque.
+    expect(nodos).toBeLessThan(235);
   });
 });
