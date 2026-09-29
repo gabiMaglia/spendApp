@@ -110,8 +110,9 @@ export default function TabLayout() {
       }}
     >
       {screen('index',     t('tabs.personal'), 'analytics-outline')}
-      {screen('friends',   t('tabs.friends'),  'people-outline')}
+      {/* Orden del PO (2026-09-29): Personal, Grupos, Amigos, Actividad. */}
       {screen('groups',    t('tabs.groups'),   'grid-outline')}
+      {screen('friends',   t('tabs.friends'),  'people-outline')}
       {screen('activity',  t('tabs.activity'), 'pulse-outline')}
       {/*
         T-115 (PO 2026-09-13): "Yo" sale del tab bar — a esa pantalla se llega
