@@ -36,9 +36,13 @@ export function FlashList(props: any) {
       {header}
       {empty}
       {visibles.map((item: any, index: number) => (
-        <View key={keyExtractor ? keyExtractor(item, index) : index}>
+        // Fragment, no View: un `CellContainer` real sí agrega un host node
+        // por celda, pero acá no queremos que el propio MOCK infle la
+        // métrica que mide el árbol del PRODUCTO — con Fragment, contar
+        // nodos host mide sólo lo que `renderItem` devuelve.
+        <React.Fragment key={keyExtractor ? keyExtractor(item, index) : index}>
           {renderItem({ item, index, target: 'Cell' })}
-        </View>
+        </React.Fragment>
       ))}
       {footer}
     </View>
