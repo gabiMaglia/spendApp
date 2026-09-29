@@ -12,7 +12,6 @@ const LIMITE_DURO = 400;
 const RAIZ = join(__dirname, '..', '..', 'app');
 
 const EXCEPCIONES: Record<string, number> = {
-  'groups/[id].tsx': 760,
   'expense/[id].tsx': 425,
   '(tabs)/user.tsx': 664,
   'settle/new.tsx': 635,
