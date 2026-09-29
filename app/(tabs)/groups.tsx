@@ -19,7 +19,7 @@ import { useGroupsNetTotal } from '@/src/screens/groups/hooks/useGroupsNetTotal'
 import { GroupsSummaryStats } from '@/src/screens/groups/components/GroupsSummaryStats';
 import { GroupsTabSelector } from '@/src/screens/groups/components/GroupsTabSelector';
 import {
-  buildGroupsFlatItems, GroupsListItem, ArchivedHint, type GroupsFlatItem,
+  buildGroupsFlatItems, GroupsList, type GroupsFlatItem,
 } from '@/src/screens/groups/components/GroupsList';
 import { GroupsNetTotal } from '@/src/screens/groups/components/GroupsNetTotal';
 import { useColors } from '@/src/skins/useSkin';
@@ -62,13 +62,13 @@ export default function GroupsScreen() {
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
         onScroll={scrollHandler}
-        contentContainerStyle={[{ paddingTop: headerPad, paddingBottom: 150 }, contenidoMinimo]}
+        contentContainerStyle={[{ paddingTop: headerPad, paddingBottom: 150, flexGrow: 1 }, contenidoMinimo]}
         data={items}
         keyExtractor={(it) => it.id}
-        getItemType={() => 'group'}
-        renderItem={({ item }) => (
-          <GroupsListItem
-            item={item}
+        getItemType={(it) => it.kind}
+        renderItem={() => (
+          <GroupsList
+            groups={visibles}
             tab={tabActual}
             currentUserId={currentUser?.id ?? ''}
             canUnarchive={canUnarchive}
@@ -100,12 +100,7 @@ export default function GroupsScreen() {
           />
         }
         ListFooterComponent={
-          visibles.length > 0 ? (
-            <>
-              <GroupsNetTotal netTotal={netTotal} cur={cur} />
-              <ArchivedHint tab={tabActual} />
-            </>
-          ) : undefined
+          visibles.length > 0 ? <GroupsNetTotal netTotal={netTotal} cur={cur} /> : undefined
         }
       />
 
