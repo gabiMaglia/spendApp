@@ -13,64 +13,40 @@ import { ActivitySectionHeader } from './ActivitySectionHeader';
 import { EventRow } from './EventRow';
 import { useColors } from '@/src/skins/useSkin';
 
-/** Id estable de un evento del feed — un mismo gasto puede aparecer dos veces
- * (agregado y borrado), así que el id solo no alcanza: hace falta `kind`. */
-function eventId(ev: ActivityKind): string {
-  if (ev.kind === 'payment_made') return ev.payment.id;
-  if (ev.kind === 'personal_entry') return ev.entry.id;
-  return ev.expense.id;
-}
-
-export type ActivityFlatItem =
-  | { kind: 'section-header'; id: string; label: string; topOverride?: number; showBadge: boolean }
-  | { kind: 'event'; id: string; event: ActivityKind; isLastInSection: boolean };
-
 /**
- * Aplana secciones + eventos en un solo array (T-154): FlashList necesita
- * ítems planos, no una `View` por sección con un `.map()` adentro. El
- * encabezado de sección pasa a ser un ítem más, distinguido por `kind` para
- * que `getItemType`/`renderItem` sepan cuál de las dos formas dibujar.
+ * T-154 (rechazo QA, engram/qa/T-154.md): el ítem de FlashList es la
+ * SECCIÓN (Hoy/Ayer/Antes), no la fila — un `Band` por fila rompía el
+ * agrupamiento Aero (`Band` → `Panel` propio por fila en vez de UNA tarjeta
+ * por sección, ver `Band.tsx:83-88`). Con las 3 secciones que arma
+ * `useActivitySections` (todoy/ayer/antes, nunca más de 3), la lista de
+ * `FlashList` recibe directamente `sections` — la virtualización acá corta
+ * SECCIONES fuera de la ventana, no filas dentro de una sección.
  */
-export function buildActivityFlatItems(
-  sections: ActivitySection[],
-  todayLabel: string,
-): ActivityFlatItem[] {
-  const items: ActivityFlatItem[] = [];
-  sections.forEach(({ label, events }, seccionIdx) => {
-    items.push({
-      kind: 'section-header',
-      id: `header:${label}`,
-      label,
-      // PO 2026-09-28: la primera franja («Hoy») va PEGADA a la barra de
-      // búsqueda, sin aire arriba (antes T-108 le daba Spacing[8]=40).
-      topOverride: seccionIdx === 0 ? 9 : undefined,
-      showBadge: label === todayLabel,
-    });
-    events.forEach((ev, i) => {
-      items.push({
-        kind: 'event',
-        id: `event:${eventId(ev)}:${ev.kind}`,
-        event: ev,
-        isLastInSection: i === events.length - 1,
-      });
-    });
-  });
-  return items;
+export type ActivitySectionItem = ActivitySection & { id: string; topOverride?: number; showBadge: boolean };
+
+export function buildActivitySectionItems(
+  sections: ActivitySection[], todayLabel: string,
+): ActivitySectionItem[] {
+  return sections.map((s, i) => ({
+    ...s,
+    id: s.label,
+    // PO 2026-09-28: la primera franja («Hoy») va PEGADA a la barra de
+    // búsqueda, sin aire arriba (antes T-108 le daba Spacing[8]=40).
+    topOverride: i === 0 ? 9 : undefined,
+    showBadge: s.label === todayLabel,
+  }));
 }
 
 /**
- * Ítem individual de la lista aplanada. Cada evento se envuelve en su PROPIO
- * `Band` (antes era un `Band` compartido por sección, con todos los
- * `EventRow` adentro) — visualmente idéntico: `noTop` siempre (la línea de
- * arriba la pone el encabezado de sección), y `noBottom` salvo en el último
- * evento de la sección, que cierra el bloque con la línea de abajo que antes
- * ponía el `Band` compartido. `EventRow` sigue dibujando su propio hairline
- * INTERNO entre filas via `last` (sin cambios en `EventRow.tsx`).
+ * Una sección completa — EXACTAMENTE el JSX de `ff2c4eb`: el encabezado +
+ * UN `Band` compartido envolviendo TODOS los `EventRow` de esa sección (no
+ * un `Band` por fila). `EventRow` no cambia — sigue dibujando su propio
+ * hairline interno entre filas via `last`.
  */
-export function ActivityFeedItem({
+export function ActivitySectionBlock({
   item, todayNewCount, getUserName, currentUserId, onRestore, trustFor,
 }: {
-  item: ActivityFlatItem;
+  item: ActivitySectionItem;
   todayNewCount: number;
   getUserName: (id: string) => string;
   currentUserId: string;
@@ -80,8 +56,8 @@ export function ActivityFeedItem({
   const { t } = useTranslation();
   const c = useColors();
 
-  if (item.kind === 'section-header') {
-    return (
+  return (
+    <View>
       <ActivitySectionHeader
         label={item.label}
         topOverride={item.topOverride}
@@ -95,20 +71,20 @@ export function ActivityFeedItem({
           ) : undefined
         }
       />
-    );
-  }
-
-  return (
-    <Band noTop noBottom={!item.isLastInSection}>
-      <EventRow
-        event={item.event}
-        last={item.isLastInSection}
-        trust={trustFor(item.event)}
-        getUserName={getUserName}
-        currentUserId={currentUserId}
-        onRestore={onRestore}
-      />
-    </Band>
+      <Band noTop>
+        {item.events.map((ev, i) => (
+          <EventRow
+            key={i}
+            event={ev}
+            last={i === item.events.length - 1}
+            trust={trustFor(ev)}
+            getUserName={getUserName}
+            currentUserId={currentUserId}
+            onRestore={onRestore}
+          />
+        ))}
+      </Band>
+    </View>
   );
 }
 

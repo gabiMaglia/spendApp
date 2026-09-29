@@ -19,7 +19,7 @@ import { useRestoreExpense } from '@/src/screens/activity/hooks/useRestoreExpens
 import { ActivitySearchBar } from '@/src/screens/activity/components/ActivitySearchBar';
 import { ActivityFilterTabs } from '@/src/screens/activity/components/ActivityFilterTabs';
 import {
-  buildActivityFlatItems, ActivityFeedItem, ActivityEmptyState, type ActivityFlatItem,
+  buildActivitySectionItems, ActivitySectionBlock, ActivityEmptyState, type ActivitySectionItem,
 } from '@/src/screens/activity/components/ActivityFeedList';
 import { useColors } from '@/src/skins/useSkin';
 import { useContadorDeRenders } from '@/src/hooks/useContadorDeRenders';
@@ -27,7 +27,7 @@ import { useContadorDeRenders } from '@/src/hooks/useContadorDeRenders';
 // FlashList (T-154) no es un componente Animated por sí solo — este es el
 // patrón estándar de la librería para engancharla al `useAnimatedScrollHandler`
 // de Reanimated que ya usa `useHeaderColapsable`, sin tocar ese hook.
-const AnimatedFlashList = Animated.createAnimatedComponent(FlashList<ActivityFlatItem>);
+const AnimatedFlashList = Animated.createAnimatedComponent(FlashList<ActivitySectionItem>);
 
 export default function ActivityScreen() {
   const { t } = useTranslation();
@@ -52,7 +52,9 @@ export default function ActivityScreen() {
 
   const feedIsEmpty = feed.length === 0;
   const filteredIsEmpty = feed.length > 0 && filteredFeed.length === 0;
-  const items = filteredIsEmpty || feedIsEmpty ? [] : buildActivityFlatItems(sections, t('activity.section_today'));
+  const items = filteredIsEmpty || feedIsEmpty
+    ? []
+    : buildActivitySectionItems(sections, t('activity.section_today'));
 
   // Sin 'bottom': la tab bar ya reserva el inset del sistema (_layout.tsx); contarlo acá dejaba una franja muerta entre el contenido y la barra.
   return (
@@ -63,12 +65,12 @@ export default function ActivityScreen() {
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
         onScroll={scrollHandler}
-        contentContainerStyle={[{ paddingTop: headerPad, paddingBottom: 120 }, contenidoMinimo]}
+        contentContainerStyle={[{ paddingTop: headerPad, paddingBottom: 120, flexGrow: 1 }, contenidoMinimo]}
         data={items}
         keyExtractor={(it) => it.id}
-        getItemType={(it) => it.kind}
+        getItemType={() => 'seccion'}
         renderItem={({ item }) => (
-          <ActivityFeedItem
+          <ActivitySectionBlock
             item={item}
             todayNewCount={todayNewCount}
             getUserName={getUserName}
