@@ -14,7 +14,6 @@ const RAIZ = join(__dirname, '..', '..', 'app');
 const EXCEPCIONES: Record<string, number> = {
   'groups/[id].tsx': 760,
   'expense/[id].tsx': 425,
-  '(tabs)/user.tsx': 664,
   'settle/new.tsx': 635,
   'contact/add.tsx': 621,
   'debug/identity.tsx': 442,
