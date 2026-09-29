@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet } from 'react-native';
 import Animated from 'react-native-reanimated';
+import { FlashList } from '@shopify/flash-list';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useHeaderColapsable } from '@/src/hooks/useHeaderColapsable';
 import { useTranslation } from 'react-i18next';
@@ -17,9 +18,16 @@ import { useActivityTrust } from '@/src/screens/activity/hooks/useActivityTrust'
 import { useRestoreExpense } from '@/src/screens/activity/hooks/useRestoreExpense';
 import { ActivitySearchBar } from '@/src/screens/activity/components/ActivitySearchBar';
 import { ActivityFilterTabs } from '@/src/screens/activity/components/ActivityFilterTabs';
-import { ActivityFeedList } from '@/src/screens/activity/components/ActivityFeedList';
+import {
+  buildActivityFlatItems, ActivityFeedItem, ActivityEmptyState, type ActivityFlatItem,
+} from '@/src/screens/activity/components/ActivityFeedList';
 import { useColors } from '@/src/skins/useSkin';
 import { useContadorDeRenders } from '@/src/hooks/useContadorDeRenders';
+
+// FlashList (T-154) no es un componente Animated por sí solo — este es el
+// patrón estándar de la librería para engancharla al `useAnimatedScrollHandler`
+// de Reanimated que ya usa `useHeaderColapsable`, sin tocar ese hook.
+const AnimatedFlashList = Animated.createAnimatedComponent(FlashList<ActivityFlatItem>);
 
 export default function ActivityScreen() {
   const { t } = useTranslation();
@@ -42,38 +50,49 @@ export default function ActivityScreen() {
     feedCount: feed.length, filteredCount: filteredFeed.length, activeFilter, query,
   });
 
+  const feedIsEmpty = feed.length === 0;
+  const filteredIsEmpty = feed.length > 0 && filteredFeed.length === 0;
+  const items = filteredIsEmpty || feedIsEmpty ? [] : buildActivityFlatItems(sections, t('activity.section_today'));
+
   // Sin 'bottom': la tab bar ya reserva el inset del sistema (_layout.tsx); contarlo acá dejaba una franja muerta entre el contenido y la barra.
   return (
     <SafeAreaView edges={[]} style={[styles.safe, { backgroundColor: c.bg }]}>
-      <Animated.ScrollView
+      <AnimatedFlashList
         style={limiteContenido}
         onLayout={alMedirScroll}
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
         onScroll={scrollHandler}
-        contentContainerStyle={[{ paddingTop: headerPad, paddingBottom: 120, flexGrow: 1 }, contenidoMinimo]}
-      >
-        <ActivityFilterTabs
-          allGroupNames={allGroupNames}
-          value={activeFilter}
-          onChange={setActiveFilter}
-        />
+        contentContainerStyle={[{ paddingTop: headerPad, paddingBottom: 120 }, contenidoMinimo]}
+        data={items}
+        keyExtractor={(it) => it.id}
+        getItemType={(it) => it.kind}
+        renderItem={({ item }) => (
+          <ActivityFeedItem
+            item={item}
+            todayNewCount={todayNewCount}
+            getUserName={getUserName}
+            currentUserId={currentUser?.id ?? ''}
+            onRestore={restaurar}
+            trustFor={trustFor}
+          />
+        )}
+        ListHeaderComponent={
+          <>
+            <ActivityFilterTabs
+              allGroupNames={allGroupNames}
+              value={activeFilter}
+              onChange={setActiveFilter}
+            />
 
-        {/* PO 2026-09-27: la búsqueda va debajo de las pestañas, no arriba. */}
-        <ActivitySearchBar value={query} onChangeText={setQuery} />
-
-        <ActivityFeedList
-          feedIsEmpty={feed.length === 0}
-          filteredIsEmpty={feed.length > 0 && filteredFeed.length === 0}
-          activeFilter={activeFilter}
-          sections={sections}
-          todayNewCount={todayNewCount}
-          getUserName={getUserName}
-          currentUserId={currentUser?.id ?? ''}
-          onRestore={restaurar}
-          trustFor={trustFor}
-        />
-      </Animated.ScrollView>
+            {/* PO 2026-09-27: la búsqueda va debajo de las pestañas, no arriba. */}
+            <ActivitySearchBar value={query} onChangeText={setQuery} />
+          </>
+        }
+        ListEmptyComponent={
+          <ActivityEmptyState feedIsEmpty={feedIsEmpty} activeFilter={activeFilter} />
+        }
+      />
 
       <TabHeader title={t('activity.title')} progress={progress} />
     </SafeAreaView>
