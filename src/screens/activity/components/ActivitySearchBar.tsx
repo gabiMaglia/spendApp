@@ -65,7 +65,9 @@ export function ActivitySearchBar({
     <View
       testID="activity-search-line"
       accessibilityState={{ selected: enfocado }}
-      style={styles.linea}
+      // Piso hairline (PO 2026-09-29, probando en el Moto): la línea vuelve a
+      // cerrarse abajo — antes (T-211) se apoyaba en la franja «Hoy» y quedaba abierta.
+      style={[styles.linea, { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.hair }]}
     >
       <Ionicons name="search-outline" size={15} color={c.textTertiary} />
       {input}
@@ -82,9 +84,8 @@ const styles = StyleSheet.create({
     borderRadius: Radius.md, borderWidth: 1,
   },
   // "Línea del libro" (Clásico, T-203): sin fondo, sin radio, sin bordes
-  // laterales ni techo — las pestañas de arriba ya hacen de techo. Sólo un
-  // Sin piso ni techo: las pestañas de arriba y la franja «Hoy» de abajo
-  // enmarcan la línea (PO 2026-09-28).
+  // laterales ni techo — las pestañas de arriba ya hacen de techo. El piso
+  // hairline se pone en el render (necesita el color del skin).
   linea: {
     flexDirection: 'row', alignItems: 'center', gap: 9,
     paddingHorizontal: Spacing.screenPad,
