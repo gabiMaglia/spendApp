@@ -92,12 +92,16 @@ describe('CollapsibleHeader — colapso al scrollear (T-128)', () => {
     expect(flat.height).toBe(HEADER_BAR_H + TITLE_BLOCK_H);
   });
 
-  it('con progreso 1 el header mide sólo la fila de botones (sin insets en test, insets.top = 0)', () => {
+  it('con progreso 1 el borde de abajo del header queda en la fila de botones (sin insets en test, insets.top = 0)', () => {
+    // T-220: el header ya no se achica (animar `height` recalculaba layout en
+    // cada frame); se traslada hacia arriba con alto fijo. El borde de abajo
+    // (alto + traslado) es el mismo que antes.
     const progress = crearProgress(1);
     const r = render(<CollapsibleHeader title="Tus cuentas" progress={progress} />);
     const wrap = r.getByTestId('header-wrap');
     const flat = Array.isArray(wrap.props.style) ? Object.assign({}, ...wrap.props.style.flat(Infinity)) : wrap.props.style;
-    expect(flat.height).toBe(HEADER_BAR_H);
+    const dy = (flat.transform ?? []).reduce((a: number, t: { translateY?: number }) => a + (t.translateY ?? 0), 0);
+    expect(flat.height + dy).toBe(HEADER_BAR_H);
   });
 
   it('el título chico junto a la foto de perfil arranca invisible (progreso 0)', () => {
@@ -116,12 +120,18 @@ describe('CollapsibleHeader — colapso al scrollear (T-128)', () => {
     expect(flat.opacity).toBe(1);
   });
 
-  it('en Inicio (con subtítulo) el saludo no tiene fade propio: es el mismo bloque título, recortado por el header — con progreso 1 el contenedor que lo recorta mide 0', () => {
+  it('en Inicio (con subtítulo) el saludo no tiene fade propio: es el mismo bloque título, recortado bajo la barra — con progreso 1 salió entero de su recorte', () => {
+    // T-220: el recorte es fijo (ventana de alto TITLE_BLOCK_H bajo la barra);
+    // lo que se mueve es el bloque, por traslado.
     const progress = crearProgress(1);
     const r = render(<CollapsibleHeader title="Tus cuentas" subtitle="Hola, Ana" progress={progress} />);
     const recorte = r.getByTestId('header-title-block-clip');
-    const flat = Array.isArray(recorte.props.style) ? Object.assign({}, ...recorte.props.style.flat(Infinity)) : recorte.props.style;
-    expect(flat.height).toBe(0);
+    const flatRecorte = Array.isArray(recorte.props.style) ? Object.assign({}, ...recorte.props.style.flat(Infinity)) : recorte.props.style;
+    expect(flatRecorte.height).toBe(TITLE_BLOCK_H);
+    const movil = r.getByTestId('header-title-block-movil');
+    const flat = Array.isArray(movil.props.style) ? Object.assign({}, ...movil.props.style.flat(Infinity)) : movil.props.style;
+    const dy = (flat.transform ?? []).reduce((a: number, t: { translateY?: number }) => a + (t.translateY ?? 0), 0);
+    expect(dy).toBe(-TITLE_BLOCK_H);
   });
 
   it('el bloque título grande no usa Animated.Text con opacidad propia (sin fade independiente, pedido del PO)', () => {
