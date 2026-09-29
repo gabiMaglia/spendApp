@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet } from 'react-native';
 import Animated from 'react-native-reanimated';
+import { FlashList } from '@shopify/flash-list';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useHeaderColapsable } from '@/src/hooks/useHeaderColapsable';
 import { router } from 'expo-router';
@@ -17,10 +18,16 @@ import { useGroupsList } from '@/src/screens/groups/hooks/useGroupsList';
 import { useGroupsNetTotal } from '@/src/screens/groups/hooks/useGroupsNetTotal';
 import { GroupsSummaryStats } from '@/src/screens/groups/components/GroupsSummaryStats';
 import { GroupsTabSelector } from '@/src/screens/groups/components/GroupsTabSelector';
-import { GroupsList } from '@/src/screens/groups/components/GroupsList';
+import {
+  buildGroupsFlatItems, GroupsListItem, ArchivedHint, type GroupsFlatItem,
+} from '@/src/screens/groups/components/GroupsList';
 import { GroupsNetTotal } from '@/src/screens/groups/components/GroupsNetTotal';
 import { useColors } from '@/src/skins/useSkin';
 import { useContadorDeRenders } from '@/src/hooks/useContadorDeRenders';
+
+// Mismo patrón que Actividad (T-154): FlashList no es Animated por sí sola,
+// se envuelve para seguir enganchada a `useHeaderColapsable` (Reanimated).
+const AnimatedFlashList = Animated.createAnimatedComponent(FlashList<GroupsFlatItem>);
 
 export default function GroupsScreen() {
   const { t } = useTranslation();
@@ -44,51 +51,63 @@ export default function GroupsScreen() {
 
   useContadorDeRenders('Grupos', { visiblesCount: visibles.length, tabActual, owedToYou, youOwe });
 
+  const items = buildGroupsFlatItems(visibles);
+
   // Sin 'bottom': la tab bar ya reserva el inset del sistema (_layout.tsx); contarlo acá dejaba una franja muerta entre el contenido y la barra.
   return (
     <SafeAreaView edges={[]} style={[styles.safe, { backgroundColor: c.bg }]}>
-      <Animated.ScrollView
+      <AnimatedFlashList
         style={limiteContenido}
         onLayout={alMedirScroll}
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
         onScroll={scrollHandler}
-        contentContainerStyle={[{ paddingTop: headerPad, paddingBottom: 150, flexGrow: 1 }, contenidoMinimo]}
-      >
-        {/* **Todo lo de arriba del segmentado no depende de la pestaña.**
-            Cambiar de pestaña tiene que cambiar sólo lo de abajo (pedido del
-            PO) — por eso el contador cuenta los grupos ACTIVOS, no los
-            visibles: los saldos de al lado son globales y no se mueven. */}
-        <GroupsSummaryStats
-          activeGroupCount={idsActivos.size}
-          expenseCount={gastos}
-          owedToYou={owedToYou}
-          youOwe={youOwe}
-          cur={cur}
-        />
-
-        <GroupsTabSelector value={tabActual} onChange={setTab} />
-
-        {visibles.length === 0 ? (
+        contentContainerStyle={[{ paddingTop: headerPad, paddingBottom: 150 }, contenidoMinimo]}
+        data={items}
+        keyExtractor={(it) => it.id}
+        getItemType={() => 'group'}
+        renderItem={({ item }) => (
+          <GroupsListItem
+            item={item}
+            tab={tabActual}
+            currentUserId={currentUser?.id ?? ''}
+            canUnarchive={canUnarchive}
+            onOpenGroup={handleOpenGroup}
+            onArchiveAction={handleArchiveAction}
+          />
+        )}
+        ListHeaderComponent={
+          <>
+            {/* **Todo lo de arriba del segmentado no depende de la pestaña.**
+                Cambiar de pestaña tiene que cambiar sólo lo de abajo (pedido del
+                PO) — por eso el contador cuenta los grupos ACTIVOS, no los
+                visibles: los saldos de al lado son globales y no se mueven. */}
+            <GroupsSummaryStats
+              activeGroupCount={idsActivos.size}
+              expenseCount={gastos}
+              owedToYou={owedToYou}
+              youOwe={youOwe}
+              cur={cur}
+            />
+            <GroupsTabSelector value={tabActual} onChange={setTab} />
+          </>
+        }
+        ListEmptyComponent={
           <EmptyState
             iconName={tabActual === 'archivados' ? 'archive-outline' : 'people-outline'}
             title={tabActual === 'archivados' ? t('groups.empty_archived_title') : t('groups.empty_title')}
             body={tabActual === 'archivados' ? t('groups.empty_archived_body') : t('groups.empty_body')}
           />
-        ) : (
-          <>
-            <GroupsList
-              groups={visibles}
-              tab={tabActual}
-              currentUserId={currentUser?.id ?? ''}
-              canUnarchive={canUnarchive}
-              onOpenGroup={handleOpenGroup}
-              onArchiveAction={handleArchiveAction}
-            />
-            <GroupsNetTotal netTotal={netTotal} cur={cur} />
-          </>
-        )}
-      </Animated.ScrollView>
+        }
+        ListFooterComponent={
+          visibles.length > 0 ? (
+            <>
+              <GroupsNetTotal netTotal={netTotal} cur={cur} />
+              <ArchivedHint tab={tabActual} />
+            </>
+          ) : undefined
+        }
+      />
 
       <TabHeader title={t('groups.title')} progress={progress} />
 

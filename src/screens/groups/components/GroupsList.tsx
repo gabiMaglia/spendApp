@@ -11,55 +11,60 @@ import type { GroupsTab } from '@/src/screens/groups/hooks/useGroupsList';
 import { GroupRow } from './GroupRow';
 import { useColors } from '@/src/skins/useSkin';
 
+export type GroupsFlatItem = { kind: 'group'; id: string; group: Group; isLast: boolean };
+
+/** Aplana la lista de grupos en ítems planos (T-154, FlashList). Un solo `kind` — a
+ * diferencia de Actividad no hay encabezados de sección acá. */
+export function buildGroupsFlatItems(groups: Group[]): GroupsFlatItem[] {
+  return groups.map((g, i) => ({ kind: 'group', id: g.id, group: g, isLast: i === groups.length - 1 }));
+}
+
 /**
- * Filas de grupos con swipe-to-archive + la leyenda de archivados. El estado
- * vacío es decisión de la pantalla (`groups.tsx`), no de este componente: el
- * "total" que va a continuación sólo se muestra junto con la lista, nunca
- * junto al estado vacío — más fácil de leer resuelto una vez arriba.
+ * Fila de grupo con swipe-to-archive. Cada ítem lleva su PROPIO `Band` (antes
+ * era un `Band` compartido envolviendo todas las filas) — `noTop` siempre (no
+ * hay nada arriba de la lista que ponga su propia línea, como en Actividad;
+ * acá el `Band` de la primera fila es el que abre el bloque, igual que
+ * antes) y `noBottom` salvo en la última fila, que cierra el bloque con la
+ * línea de abajo — visualmente idéntico al `Band` compartido de antes.
  */
-export function GroupsList({
-  groups, tab, currentUserId, canUnarchive, onOpenGroup, onArchiveAction,
+export function GroupsListItem({
+  item, tab, currentUserId, canUnarchive, onOpenGroup, onArchiveAction,
 }: {
-  groups: Group[];
+  item: GroupsFlatItem;
   tab: GroupsTab;
   currentUserId: string;
   canUnarchive: (id: string) => boolean;
   onOpenGroup: (id: string) => void;
   onArchiveAction: (id: string) => void;
 }) {
+  const g = item.group;
+  return (
+    <Band noTop noBottom={!item.isLast}>
+      <SwipeToArchive
+        archived={tab === 'archivados'}
+        disabled={tab === 'archivados' && !canUnarchive(g.id)}
+        onAction={() => onArchiveAction(g.id)}
+      >
+        <GroupRow
+          group={g}
+          currentUserId={currentUserId}
+          last={item.isLast}
+          onPress={onOpenGroup}
+        />
+      </SwipeToArchive>
+    </Band>
+  );
+}
+
+/** Leyenda "no suman al balance" — sólo en la pestaña archivados, pie de la lista. */
+export function ArchivedHint({ tab }: { tab: GroupsTab }) {
   const { t } = useTranslation();
   const c = useColors();
-
+  if (tab !== 'archivados') return null;
   return (
-    <>
-      <Band noTop>
-        {groups.map((g, i) => (
-          <SwipeToArchive
-            key={g.id}
-            archived={tab === 'archivados'}
-            disabled={tab === 'archivados' && !canUnarchive(g.id)}
-            onAction={() => onArchiveAction(g.id)}
-          >
-            <GroupRow
-              group={g}
-              currentUserId={currentUserId}
-              last={i === groups.length - 1}
-              onPress={onOpenGroup}
-            />
-          </SwipeToArchive>
-        ))}
-      </Band>
-      {/* La leyenda "deslizá para archivar" se sacó (PO 2026-09-22): con el
-          "total total" pegado abajo, la banda de grupos y la del total tienen
-          que leerse como UNA sola pieza, sin una leyenda de por medio
-          separándolas. La de archivados sigue — informa algo real (no suman
-          al balance), no es un tutorial de gesto. */}
-      {tab === 'archivados' && (
-        <Text style={[Typography.caption, styles.footnote, { color: c.textTertiary }]}>
-          {t('groups.archived_hint')}
-        </Text>
-      )}
-    </>
+    <Text style={[Typography.caption, styles.footnote, { color: c.textTertiary }]}>
+      {t('groups.archived_hint')}
+    </Text>
   );
 }
 
