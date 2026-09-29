@@ -25,11 +25,17 @@ beforeEach(() => {
 });
 
 describe('T-216 — nodos host: Cuenta', () => {
-  it('cuenta los nodos host del árbol montado', () => {
+  it('cuenta los nodos host del árbol montado (medición, sin tope — T-154: fuera de alcance)', () => {
+    // T-154 (decisión del PO/orquestador, 2026-09-29): Cuenta queda FUERA
+    // del alcance de la migración a FlashList — no es una lista de datos
+    // que crezca con el uso (como Actividad/Grupos/Amigos), es una pantalla
+    // de AJUSTES: perfil, plan, preferencias. Virtualizarla no tiene
+    // sentido — no hay nada que reciclar. Se deja la medición (para que
+    // T-216 siga teniendo el dato si hace falta comparar) pero sin `expect`
+    // de tope: no hay ningún cambio de producto pendiente que este número
+    // deba gatillar.
     const r = render(<UserScreen />);
     const nodos = contarNodosHost(r.toJSON());
-    console.log('[T-216][nodosHost] Cuenta=%s', nodos);
-    // T-154: tope de nodos host tras virtualizar con FlashList (dataset realista T-216).
-    expect(nodos).toBeLessThan(120);
+    console.log('[T-216][nodosHost] Cuenta=%s (sin tope, fuera de alcance T-154)', nodos);
   });
 });
