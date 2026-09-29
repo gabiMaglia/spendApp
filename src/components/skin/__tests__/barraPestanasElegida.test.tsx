@@ -10,6 +10,10 @@ import { useSettingsStore } from '@/src/store/settingsStore';
  * elegido». En Aero la pestaña elegida se marca como en las pestañas
  * `Segmented` del Aero — una píldora detrás del ícono y el label — y sin la
  * rayita debajo del label. En Clásico sigue la rayita (el punto).
+ *
+ * Revertido el mismo día (PO: «sacale ese bg cuadrado que le puso»): en Aero
+ * la elegida se distingue SOLO por el color de ícono y label — ni píldora ni
+ * rayita. El botón vuelve a ser el `HapticTab` pelado.
  */
 type Opciones = Record<string, any>;
 let mockScreenOptions: Opciones = {};
@@ -48,12 +52,11 @@ describe.each(['default', 'aero'] as const)('pestaña elegida con skin %s', skin
     expect(!!screen.queryByTestId('tab-indicador', { includeHiddenElements: true })).toBe(!aero);
   });
 
-  it(aero ? 'la elegida lleva la píldora detrás de ícono y label' : 'sin píldora', () => {
+  it('la elegida no lleva píldora detrás de ícono y label', () => {
     const Boton = mockScreenOptions.tabBarButton;
     render(conTema(<Boton aria-selected><Text>Personal</Text></Boton>));
-    const pildora = screen.queryByTestId('tab-pildora', { includeHiddenElements: true });
-    expect(!!pildora).toBe(aero);
-    if (aero) expect(screen.getByText('Personal')).toBeTruthy();
+    expect(screen.queryByTestId('tab-pildora', { includeHiddenElements: true })).toBeNull();
+    expect(screen.getByText('Personal')).toBeTruthy();
   });
 
   it('una pestaña no elegida nunca lleva píldora', () => {

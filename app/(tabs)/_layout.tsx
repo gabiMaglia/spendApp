@@ -7,7 +7,6 @@ import { useTranslation } from 'react-i18next';
 import { HapticTab } from '@/components/haptic-tab';
 import { useSkin, useColors } from '@/src/skins/useSkin';
 import { TabBarFondoAero } from '@/src/components/skin/TabBarFondoAero';
-import { TabButtonAero } from '@/src/components/skin/TabButtonAero';
 
 /**
  * Tab bar del reskin: 70 de contenido + el inset inferior del sistema, hairline superior, ícono 20, label 9.5/600 y
@@ -31,8 +30,9 @@ function TabLabel({ label, focused }: { label: string; focused: boolean }) {
   const c = useColors();
   const { skin } = useSkin();
   const color = focused ? c.brand.primary : c.textTertiary;
-  // Aero (T-227 punto 10): sin indicador debajo del label — la elegida la
-  // marca la píldora de `TabButtonAero`. Con el skin default, el punto de siempre.
+  // Aero (T-227 punto 10, y revertida la píldora el mismo día): sin indicador
+  // debajo del label — la elegida se distingue sólo por el color de ícono y
+  // label. Con el skin default, el punto de siempre.
   const soft = skin.flags.soft;
   return (
     <View style={styles.labelWrap}>
@@ -87,7 +87,7 @@ export default function TabLayout() {
         // T-202: pausa el re-render de las tabs que NO se ven (requiere
         // `enableFreeze(true)` en `app/_layout.tsx`) — ver el comentario ahí.
         freezeOnBlur: true,
-        tabBarButton: soft ? TabButtonAero : HapticTab,
+        tabBarButton: HapticTab,
         tabBarActiveTintColor:   c.brand.primary,
         tabBarInactiveTintColor: c.textTertiary,
         tabBarStyle: {
