@@ -15,7 +15,8 @@ const leer = (rel: string) => readFileSync(join(RAIZ, rel), 'utf8');
 
 /** Pantallas cuyo selector cambia TODO el contenido: van en pestañas. */
 const CON_PESTANAS = [
-  'app/expense/new.tsx',
+  // T-223: el selector de reparto de Nuevo gasto vive en su bloque.
+  'src/screens/expense/components/BloqueReparto.tsx',
   'app/contact/add.tsx',
   // Refactor 2026-09-23: los selectores de Grupos y Actividad viven en su
   // propio componente, no en la screen — ver `src/screens/groups/` y
