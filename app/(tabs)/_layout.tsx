@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { HapticTab } from '@/components/haptic-tab';
 import { useSkin, useColors } from '@/src/skins/useSkin';
 import { TabBarFondoAero } from '@/src/components/skin/TabBarFondoAero';
+import { TabButtonAero } from '@/src/components/skin/TabButtonAero';
 
 /**
  * Tab bar del reskin: 70 de contenido + el inset inferior del sistema, hairline superior, ícono 20, label 9.5/600 y
@@ -28,21 +29,17 @@ const PISO_INFERIOR = 12;
 
 function TabLabel({ label, focused }: { label: string; focused: boolean }) {
   const c = useColors();
-  const { skin, degradado } = useSkin();
+  const { skin } = useSkin();
   const color = focused ? c.brand.primary : c.textTertiary;
-  // Aero (PO 2026-09-26): el punto activo pasa a una píldora corta con brillo
-  // de marca. Con el skin default, el punto de siempre.
-  const indicador = skin.flags.soft
-    ? [
-        styles.pill,
-        focused && { backgroundColor: c.brand.primary },
-        focused && !degradado && { boxShadow: `0 0 8px ${skin.colors.glowStrong}` },
-      ]
-    : [styles.dot, { backgroundColor: focused ? c.brand.primary : 'transparent' }];
+  // Aero (T-227 punto 10): sin indicador debajo del label — la elegida la
+  // marca la píldora de `TabButtonAero`. Con el skin default, el punto de siempre.
+  const soft = skin.flags.soft;
   return (
     <View style={styles.labelWrap}>
       <Text numberOfLines={1} style={[styles.label, { color }]}>{label}</Text>
-      <View style={indicador} />
+      {soft ? null : (
+        <View testID="tab-indicador" style={[styles.dot, { backgroundColor: focused ? c.brand.primary : 'transparent' }]} />
+      )}
     </View>
   );
 }
@@ -90,7 +87,7 @@ export default function TabLayout() {
         // T-202: pausa el re-render de las tabs que NO se ven (requiere
         // `enableFreeze(true)` en `app/_layout.tsx`) — ver el comentario ahí.
         freezeOnBlur: true,
-        tabBarButton: HapticTab,
+        tabBarButton: soft ? TabButtonAero : HapticTab,
         tabBarActiveTintColor:   c.brand.primary,
         tabBarInactiveTintColor: c.textTertiary,
         tabBarStyle: {
@@ -138,5 +135,4 @@ const styles = StyleSheet.create({
   labelWrap: { alignItems: 'center', gap: 5 },
   label: { fontSize: 9.5, fontWeight: '600' },
   dot: { width: 4, height: 4, borderRadius: 2 },
-  pill: { width: 14, height: 4, borderRadius: 2 },
 });

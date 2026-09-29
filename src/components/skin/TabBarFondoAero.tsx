@@ -28,9 +28,10 @@ export const VELO_BARRA_OPACIDAD = 0.88;
 export function TabBarFondoAero({ inferior }: { inferior: number }) {
   const { skin, degradado } = useSkin();
   const c = skin.colors;
+  // Sombra corta y suave (T-227 punto 10, PO: «menos altura al shadow»).
   const sombra = degradado
-    ? { elevation: skin.elevation.e2.elevationFallback }
-    : { boxShadow: skin.elevation.e2.boxShadow };
+    ? { elevation: skin.elevation.e1.elevationFallback }
+    : { boxShadow: skin.elevation.e1.boxShadow };
   return (
     <View testID="tabbar-aero" style={StyleSheet.absoluteFill} pointerEvents="none">
       <View
