@@ -12,7 +12,7 @@ import { usePaymentStore } from '@/src/store/paymentStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useSettingsStore } from '@/src/store/settingsStore';
 import { createSecureStorage } from '@/src/utils/secureStorage';
-import { usuario } from './perfVistasFixtures';
+import { usuario } from '@/src/test-utils/perfVistasFixtures';
 
 /**
  * T-154 (rechazo QA, defectos 1 y 2): Amigos pasó de "un Band compartido

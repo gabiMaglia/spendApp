@@ -13,7 +13,7 @@ import { useUserStore } from '@/src/store/userStore';
 import { usePersonalStore } from '@/src/store/personalStore';
 import { useSettingsStore } from '@/src/store/settingsStore';
 import { createSecureStorage } from '@/src/utils/secureStorage';
-import { usuario, grupo, gasto } from './perfVistasFixtures';
+import { usuario, grupo, gasto } from '@/src/test-utils/perfVistasFixtures';
 
 /**
  * T-154 (3ra vuelta — decisión del orquestador): el ítem = SECCIÓN completa
