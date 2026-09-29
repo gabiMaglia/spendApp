@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet } from 'react-native';
 import Animated from 'react-native-reanimated';
+import { FlashList } from '@shopify/flash-list';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useHeaderColapsable } from '@/src/hooks/useHeaderColapsable';
 import { router } from 'expo-router';
@@ -16,10 +17,17 @@ import { useHeaderPadding, useLimiteContenido } from '@/src/components/Collapsib
 import { useFriendsBalances } from '@/src/screens/friends/hooks/useFriendsBalances';
 import { useFriendsContacts } from '@/src/screens/friends/hooks/useFriendsContacts';
 import { useAddContactSheet } from '@/src/screens/friends/hooks/useAddContactSheet';
-import { ContactsList } from '@/src/screens/friends/components/ContactsList';
+import {
+  buildContactsFlatItems, ContactsBlock, ContactsEmptyState, QrNote, type ContactsFlatItem,
+} from '@/src/screens/friends/components/ContactsList';
+import { ContactsCountHeader } from '@/src/screens/friends/components/ContactsCountHeader';
 import { AddContactSheet } from '@/src/screens/friends/components/AddContactSheet';
 import { useColors } from '@/src/skins/useSkin';
 import { useContadorDeRenders } from '@/src/hooks/useContadorDeRenders';
+
+// Mismo patrón que Actividad/Grupos (T-154): FlashList no es Animated por sí
+// sola, se envuelve para seguir enganchada a `useHeaderColapsable` (Reanimated).
+const AnimatedFlashList = Animated.createAnimatedComponent(FlashList<ContactsFlatItem>);
 
 export default function FriendsScreen() {
   const { t } = useTranslation();
@@ -40,43 +48,55 @@ export default function FriendsScreen() {
 
   useContadorDeRenders('Amigos', { contactsCount: contacts.length, owedToYou, youOwe });
 
+  const items = buildContactsFlatItems(contacts);
+
   // Sin 'bottom': la tab bar ya reserva el inset del sistema (_layout.tsx); contarlo acá dejaba una franja muerta entre el contenido y la barra.
   return (
     <SafeAreaView edges={[]} style={[styles.safe, { backgroundColor: c.bg }]}>
-      <Animated.ScrollView
+      <AnimatedFlashList
         style={limiteContenido}
         onLayout={alMedirScroll}
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
         onScroll={scrollHandler}
         contentContainerStyle={[{ paddingTop: headerPad, paddingBottom: 150, flexGrow: 1 }, contenidoMinimo]}
-      >
-        {(owedToYou > 0 || youOwe > 0) && (
-          <SplitStat
-            noTop
-            items={[
-              {
-                label: t('friends.owed_to_you'), value: formatMoney(owedToYou, cur), color: c.semantic.positive,
-                id: 'friends.owedToYou', minor: owedToYou, code: cur,
-                pending: owedToYouPending, pendingLabel: pendingCalculando,
-              },
-              {
-                label: t('friends.you_owe'), value: formatMoney(youOwe, cur), color: c.textSecondary,
-                id: 'friends.youOwe', minor: youOwe, code: cur,
-                pending: youOwePending, pendingLabel: pendingCalculando,
-              },
-            ]}
+        data={items}
+        keyExtractor={(it) => it.id}
+        getItemType={(it) => it.kind}
+        renderItem={() => (
+          <ContactsBlock
+            contacts={contacts}
+            personBalances={personBalances}
+            conHistorial={conHistorial}
+            onRemove={handleRemove}
+            onSettle={handleSettle}
           />
         )}
-
-        <ContactsList
-          contacts={contacts}
-          personBalances={personBalances}
-          conHistorial={conHistorial}
-          onRemove={handleRemove}
-          onSettle={handleSettle}
-        />
-      </Animated.ScrollView>
+        ListHeaderComponent={
+          <>
+            {(owedToYou > 0 || youOwe > 0) && (
+              <SplitStat
+                noTop
+                items={[
+                  {
+                    label: t('friends.owed_to_you'), value: formatMoney(owedToYou, cur), color: c.semantic.positive,
+                    id: 'friends.owedToYou', minor: owedToYou, code: cur,
+                    pending: owedToYouPending, pendingLabel: pendingCalculando,
+                  },
+                  {
+                    label: t('friends.you_owe'), value: formatMoney(youOwe, cur), color: c.textSecondary,
+                    id: 'friends.youOwe', minor: youOwe, code: cur,
+                    pending: youOwePending, pendingLabel: pendingCalculando,
+                  },
+                ]}
+              />
+            )}
+            {contacts.length > 0 && <ContactsCountHeader count={contacts.length} />}
+          </>
+        }
+        ListEmptyComponent={<ContactsEmptyState />}
+        ListFooterComponent={contacts.length > 0 ? <QrNote /> : undefined}
+      />
 
       <TabHeader title={t('friends.title')} progress={progress} />
 

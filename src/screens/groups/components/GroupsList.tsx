@@ -11,6 +11,23 @@ import type { GroupsTab } from '@/src/screens/groups/hooks/useGroupsList';
 import { GroupRow } from './GroupRow';
 import { useColors } from '@/src/skins/useSkin';
 
+/** El único ítem que arma `groups.tsx` para la `FlashList` — un bloque completo. */
+export type GroupsFlatItem = { kind: 'bloque'; id: 'bloque' };
+
+/**
+ * T-154 (rechazo QA): el ítem de FlashList es el BLOQUE completo, no la
+ * fila — un `Band` por fila rompía el agrupamiento Aero (`Band` → `Panel`
+ * propio por fila en vez de UNA tarjeta para todo el bloque, ver
+ * `Band.tsx:83-88`). `GroupsList` vuelve a ser exactamente el JSX de
+ * `ff2c4eb`: UN `Band` compartido envolviendo todas las filas. Con un solo
+ * bloque por pantalla, `groups.tsx` lo usa como el único ítem de la
+ * `FlashList` (`buildGroupsFlatItems`) — la ganancia de virtualizar acá es
+ * de escala futura (más bloques), no de este dataset.
+ */
+export function buildGroupsFlatItems(groups: Group[]): GroupsFlatItem[] {
+  return groups.length > 0 ? [{ kind: 'bloque', id: 'bloque' }] : [];
+}
+
 /**
  * Filas de grupos con swipe-to-archive + la leyenda de archivados. El estado
  * vacío es decisión de la pantalla (`groups.tsx`), no de este componente: el

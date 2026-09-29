@@ -1,6 +1,5 @@
 import React, { Profiler, type ProfilerOnRenderCallback } from 'react';
 import { render, fireEvent } from '@testing-library/react-native';
-import Animated from 'react-native-reanimated';
 
 import FriendsScreen from '@/app/(tabs)/friends';
 import GroupsScreen from '@/app/(tabs)/groups';
@@ -160,7 +159,15 @@ describe('T-202 — medición de perf de Amigos y Grupos (antes de arreglar)', (
     // Evento de layout real y distinto al alto semilla (useWindowDimensions) —
     // dispara `setAltoVisible` en `useHeaderColapsable`, un re-render de
     // `GroupsScreen` sin que cambie ningún dato de negocio.
-    const scroll = r.UNSAFE_getAllByType(Animated.ScrollView)[0];
+    //
+    // T-154: `groups.tsx` pasó de `Animated.ScrollView` a `FlashList`
+    // (`@shopify/flash-list`) — el root scrolleable ya no es ese tipo, así
+    // que el selector se actualiza al `testID` que expone el mock de Jest
+    // de FlashList (`flash-list-mock`, ver `__mocks__/@shopify/flash-list.tsx`),
+    // que reenvía `onLayout` igual que el `ScrollView` real. La ASERCIÓN no
+    // cambia: sigue siendo "un layout sin cambio de datos no recalcula
+    // balances" — sólo cambia CÓMO se dispara el evento en el test.
+    const scroll = r.getByTestId('flash-list-mock');
     fireEvent(scroll, 'layout', { nativeEvent: { layout: { height: 555, width: 400, x: 0, y: 0 } } });
 
     expect(spy.mock.calls.length).toBe(callsTrasMontaje);

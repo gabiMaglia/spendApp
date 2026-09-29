@@ -10,7 +10,7 @@ import type { CurrencyCode } from '@/src/constants/currencies';
 import { PanelContext } from '@/src/components/skin/PanelContext';
 import type { SkinColors } from '@/src/skins/types';
 import { useSkinTokens } from '@/src/skins/useSkin';
-import { Panel } from '@/src/components/skin/Panel';
+import { Panel, type PanelSegmento } from '@/src/components/skin/Panel';
 import { StatCards } from '@/src/components/skin/StatCards';
 
 /**
@@ -69,7 +69,7 @@ export function SectionLabel({
 
 /** Banda de ancho completo. `sunken` para el tono hundido (fila de neto, chips). */
 export function Band({
-  children, sunken, style, noBottom, noTop,
+  children, sunken, style, noBottom, noTop, segmento,
 }: {
   children: React.ReactNode; sunken?: boolean; style?: ViewStyle; noBottom?: boolean;
   /**
@@ -78,6 +78,14 @@ export function Band({
    * se verían 2pt donde tiene que haber una.
    */
   noTop?: boolean;
+  /**
+   * T-154: cuando esta `Band` es UNA FILA de una lista virtualizada (cada
+   * fila su propio ítem de FlashList, sin `Panel` padre compartido), pasa
+   * este prop al `Panel` que auto-crea — así varias filas seguidas se leen
+   * como una sola tarjeta continua en vez de una tarjeta por fila. Ver
+   * `Panel.tsx`. Sin este prop, comportamiento intacto.
+   */
+  segmento?: PanelSegmento;
 }) {
   const c = useC();
   const soft = useSkinTokens().flags.soft;
@@ -88,7 +96,7 @@ export function Band({
   // (es layout: flexGrow, márgenes). Bandas que deben ir juntas: `BandStack`.
   if (soft && !panel) {
     return (
-      <Panel style={style}>
+      <Panel style={style} segmento={segmento}>
         <Band sunken={sunken} noTop={noTop} noBottom={noBottom}>{children}</Band>
       </Panel>
     );
