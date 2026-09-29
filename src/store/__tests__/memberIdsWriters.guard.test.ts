@@ -37,7 +37,7 @@ const ALLOWLIST = new Set<string>([
   'src/algorithms/buildSplits.ts', // parámetro de función (string[]), no un Group
   'src/algorithms/calculateBalances.ts', // idem
   'src/components/GroupCard.tsx',  // prop de componente (string[]), no un Group
-  'app/expense/new.tsx',           // memberIds de RecurringExpense, otra entidad
+  'src/screens/expense/hooks/useGuardarGasto.ts', // memberIds de RecurringExpense, otra entidad (T-223: salió de app/expense/new.tsx)
   'src/store/groupStore.ts',       // destructuring para IGNORARLO + el único `rosterDe(...)` del store
   'app/groups/new.tsx',            // el único `memberIds: rosterDe(miembrosIniciales)` del alta
   'src/services/groupTraspaso.ts', // el único `memberIds: rosterDe(miembrosNuevo)` del traspaso

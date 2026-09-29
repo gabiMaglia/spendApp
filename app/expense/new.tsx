@@ -1,190 +1,98 @@
-import React, { useState, useMemo, useRef } from 'react';
-import {
-  Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
-} from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
-import * as DocumentPicker from 'expo-document-picker';
-import { v4 as uuidv4 } from 'uuid';
-import { hapticSelection, hapticSuccess } from '@/src/utils/haptics';
 import { useTranslation } from 'react-i18next';
 
-import { RecurrencePicker, type RecurrenceValue } from '@/src/components/RecurrencePicker';
-import { PayerSplitter } from '@/src/components/PayerSplitter';
-import { normalizePayers, validatePayers } from '@/src/algorithms/payers';
-import type { Payer } from '@/src/types/models';
-import { useRecurringStore } from '@/src/store/recurringStore';
-import { Radius, Spacing } from '@/src/constants/spacing';
-import { Typography } from '@/src/constants/typography';
-import { MontoEditable } from '@/src/components/MontoEditable';
-import { formatMoney } from '@/src/constants/currencies';
+import { hapticSelection } from '@/src/utils/haptics';
+import type { RecurrenceValue } from '@/src/components/RecurrencePicker';
+import { validatePayers } from '@/src/algorithms/payers';
+import { estaBloqueado } from '@/src/algorithms/groupExpenseLimit';
+import { Spacing } from '@/src/constants/spacing';
 import type { CurrencyCode } from '@/src/constants/currencies';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAmountInput } from '@/src/hooks/useAmountInput';
+import { useContadorDeRenders } from '@/src/hooks/useContadorDeRenders';
 import { useAuthStore } from '@/src/store/authStore';
-import { ADS_DISPONIBLES, useTierStore } from '@/src/store/tierStore';
+import { useTierStore } from '@/src/store/tierStore';
 import { useGroupStore } from '@/src/store/groupStore';
-import { useUserStore } from '@/src/store/userStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { useArchiveStore } from '@/src/store/archiveStore';
 import { useGroupExpenseCount } from '@/src/store/selectors';
-import { estaBloqueado } from '@/src/algorithms/groupExpenseLimit';
-import { motivoDeExceso } from '@/src/services/topeDeRegistro';
-import { usePersonalStore, toMonthKey } from '@/src/store/personalStore';
-import { UserAvatar } from '@/src/components/UserAvatar';
-import { BottomSheet, SheetButton, SheetInput, SheetOption, SheetOptionAvatar } from '@/src/components/Sheet';
-import { Band, SectionLabel, Segmented } from '@/src/components/Band';
-import { TarjetaClasica } from '@/src/components/TarjetaClasica';
 import { DetailHeader } from '@/src/components/CollapsibleHeader';
-import { FondoMarmol } from '@/src/components/FondoMarmol';
-import { buildSplits } from '@/src/algorithms/buildSplits';
-import type { ExpenseCategory, PersonalCategory } from '@/src/types/models';
-import { syncedNow } from '@/src/utils/syncedClock';
-import { esYo } from '@/src/store/identityAlias';
-import { MAX_TEXTO_CORTO, MAX_NOTA } from '@/src/sync/nucleo/topes';
-import { useColors, useSkinTokens } from '@/src/skins/useSkin';
-import { useContadorDeRenders } from '@/src/hooks/useContadorDeRenders';
+import { useColors } from '@/src/skins/useSkin';
+import type { Payer, PersonalCategory } from '@/src/types/models';
+import { useRepartoDeGasto } from '@/src/screens/expense/hooks/useRepartoDeGasto';
+import { useGuardarGasto } from '@/src/screens/expense/hooks/useGuardarGasto';
+import { HeroMonto } from '@/src/screens/expense/components/HeroMonto';
+import { CategoriaChips, DescripcionCard } from '@/src/screens/expense/components/DescripcionYCategorias';
+import { BloquePagador } from '@/src/screens/expense/components/BloquePagador';
+import { BloqueReparto } from '@/src/screens/expense/components/BloqueReparto';
+import { PieDeGuardar } from '@/src/screens/expense/components/PieDeGuardar';
+import { BarraUtilidades } from '@/src/screens/expense/components/BarraUtilidades';
+import { HojasDeGasto, type HojaAbierta } from '@/src/screens/expense/components/HojasDeGasto';
 
-type CatMeta = { id: PersonalCategory; icon: React.ComponentProps<typeof Ionicons>['name']; label: string };
-
-const CATEGORIES: CatMeta[] = [
-  { id: 'food',          icon: 'restaurant-outline',          label: 'Comida'        },
-  { id: 'transport',     icon: 'car-outline',                 label: 'Transporte'    },
-  { id: 'accommodation', icon: 'home-outline',                label: 'Alojamiento'   },
-  { id: 'entertainment', icon: 'game-controller-outline',     label: 'Ocio'          },
-  { id: 'utilities',     icon: 'flash-outline',               label: 'Servicios'     },
-  { id: 'health',        icon: 'medical-outline',             label: 'Salud'         },
-  { id: 'shopping',      icon: 'bag-outline',                 label: 'Compras'       },
-  { id: 'other',         icon: 'ellipsis-horizontal-outline', label: 'Otro'          },
-];
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-type SplitMode  = 'equal' | 'percentage';
-type PercentSub = 'same'  | 'custom';
-
-// Redondeo de PORCENTAJES para mostrar en UI (no es un monto — ADR-002 no
-// aplica acá; los splits reales se calculan en enteros vía buildSplits).
-function roundPct(n: number): number {
-  return Math.round(n * 100) / 100;
-}
-
-function formatDate(d: Date): string {
-  const today     = new Date(); today.setHours(0, 0, 0, 0);
-  const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
-  const dMid      = new Date(d);    dMid.setHours(0, 0, 0, 0);
-  if (dMid.getTime() === today.getTime())     return 'Hoy';
-  if (dMid.getTime() === yesterday.getTime()) return 'Ayer';
-  return d.toLocaleDateString('es-AR', { day: 'numeric', month: 'short' });
-}
-
-// ── Screen ───────────────────────────────────────────────────────────────────
-
+/**
+ * **Nuevo gasto / Editar gasto / Nuevo ingreso.**
+ *
+ * T-223 (PO 2026-09-29): esta pantalla tenía 1300 líneas. Acá queda el estado
+ * del formulario, lo que se deriva de él y el orden de los bloques; cada
+ * bloque, la lógica pura del reparto y el guardado viven en
+ * `src/screens/expense/`.
+ */
 export default function NewExpenseScreen() {
-  const scheme = useColorScheme() ?? 'light';
   const { t } = useTranslation();
   const c = useColors();
-  const soft = useSkinTokens().flags.soft;
 
   const { currentUser, isPro } = useAuthStore();
   const requiresRewardedAd = useTierStore(s => s.requiresRewardedAd);
   const superoElTope = useTierStore(s => s.superoElTope);
   const getDailyCount = useTierStore(s => s.getDailyCount);
-  const incrementCount = useTierStore(s => s.incrementCount);
-  const addExpense = useExpenseStore(s => s.addExpense);
-  const updateExpense = useExpenseStore(s => s.updateExpense);
-  const addPersonalEntry = usePersonalStore(s => s.addEntry);
-  const updateReplicatedEntry = usePersonalStore(s => s.updateReplicatedEntry);
-  const getUserName = useUserStore(s => s.getUserName);
   const allGroups = useGroupStore(s => s.groups);
   const groups = useMemo(() => allGroups.filter(g => !g.isDeleted), [allGroups]);
 
   const { groupId: paramGroupId, expenseId, allowIncome, kind: paramKind } =
     useLocalSearchParams<{ groupId?: string; expenseId?: string; allowIncome?: string; kind?: string }>();
 
-  // In edit mode: load existing expense to pre-fill form
+  // En edición: el gasto existente precarga el formulario.
   const existingExpense = useExpenseStore(s =>
     expenseId ? s.expenses.find(e => e.id === expenseId) : undefined,
   );
   const isEditMode = Boolean(expenseId);
 
-  // Pre-compute initial percentage state from existing expense splits (before useState)
-  let initSplitMode: SplitMode = 'equal';
-  let initPercentSub: PercentSub = 'same';
-  let initSamePercent = '';
-  let initCustomPercents: string[] = [];
-
-  if (existingExpense && existingExpense.splitMode === 'percentage' && existingExpense.amount > 0) {
-    initSplitMode = 'percentage';
-    const { amount, splits } = existingExpense;
-    const firstPct = roundPct((splits[0]?.amount / amount) * 100);
-    const percents = splits.slice(0, -1).map(s => String(roundPct((s.amount / amount) * 100)));
-    const allEqual = percents.every(p => parseFloat(p) === firstPct);
-    initPercentSub    = allEqual ? 'same' : 'custom';
-    initSamePercent   = String(firstPct);
-    initCustomPercents = percents;
-  }
-
   // ── Core inputs ────────────────────────────────────────────────────────────
-  const [description,    setDescription]    = useState(existingExpense?.description ?? '');
+  const [description, setDescription] = useState(existingExpense?.description ?? '');
   // Default: SIN grupo (gasto personal). Si viene por deep-link de un grupo
   // (paramGroupId) o en edición, se pre-selecciona ese grupo. (F-G, decisión PO)
-  const [groupId,        setGroupId]        = useState(
-    existingExpense?.groupId ?? paramGroupId ?? '',
-  );
+  const [groupId, setGroupId] = useState(existingExpense?.groupId ?? paramGroupId ?? '');
   // Moneda del grupo activo, resuelta temprano — el input de monto (entero,
   // menor unidad — ADR-002) la necesita para parsear/formatear correctamente.
-  const currencyForAmount: CurrencyCode =
-    groups.find(g => g.id === groupId)?.currency ?? 'ARS';
+  const currency: CurrencyCode = groups.find(g => g.id === groupId)?.currency ?? 'ARS';
   const {
-    text: amountStr,
-    minor: amount,
-    onChangeText: setAmountStr,
-    onBlur: onAmountBlur,
-    setMinor: setAmountMinor,
-  } = useAmountInput(currencyForAmount, existingExpense?.amount ?? 0);
-  const [payerId,        setPayerId]        = useState(
-    existingExpense?.paidById ?? currentUser?.id ?? '',
-  );
-  // Área táctil de todo el bloque del monto, no sólo los dígitos (PO 2026-09-22).
-  const montoRef = useRef<TextInput>(null);
-  const [date,           setDate]           = useState(
-    existingExpense ? new Date(existingExpense.date) : new Date(),
-  );
-  const [note,           setNote]           = useState(existingExpense?.note ?? '');
-  const [category,       setCategory]       = useState<PersonalCategory>(existingExpense?.category ?? 'other');
+    text: amountStr, minor: amount, onChangeText: setAmountStr, onBlur: onAmountBlur, setMinor: setAmountMinor,
+  } = useAmountInput(currency, existingExpense?.amount ?? 0);
+  const [payerId, setPayerId] = useState(existingExpense?.paidById ?? currentUser?.id ?? '');
+  const [date, setDate] = useState(existingExpense ? new Date(existingExpense.date) : new Date());
+  const [note, setNote] = useState(existingExpense?.note ?? '');
+  const [category, setCategory] = useState<PersonalCategory>(existingExpense?.category ?? 'other');
   // Modo Ingreso: SOLO habilitado cuando se abre desde Personal (allowIncome=1). (F-G2)
   const incomeAllowed = allowIncome === '1' && !isEditMode;
   const [entryKind, setEntryKind] = useState<'expense' | 'income'>(
     incomeAllowed && paramKind === 'income' ? 'income' : 'expense',
   );
   const isIncome = incomeAllowed && entryKind === 'income';
-  const [receiptUri,     setReceiptUri]     = useState<string | undefined>(existingExpense?.receiptImageUri);
-
-  // ── Split ──────────────────────────────────────────────────────────────────
-  const [splitMode,      setSplitMode]      = useState<SplitMode>(initSplitMode);
-  const [percentSub,     setPercentSub]     = useState<PercentSub>(initPercentSub);
-  const [samePercent,    setSamePercent]    = useState(initSamePercent);
-  const [customPercents, setCustomPercents] = useState<string[]>(initCustomPercents);
-
-  // ── Modals ─────────────────────────────────────────────────────────────────
-  const [showGroup,  setShowGroup]  = useState(false);
-  const [showPayer,  setShowPayer]  = useState(false);
-  const [showDate,   setShowDate]   = useState(false);
-  const [showNote,   setShowNote]   = useState(false);
+  const [receiptUri, setReceiptUri] = useState<string | undefined>(existingExpense?.receiptImageUri);
+  const [hoja, setHoja] = useState<HojaAbierta>(null);
   const [recurrence, setRecurrence] = useState<RecurrenceValue>(null);
   const [multiPayer, setMultiPayer] = useState(false);
   const [payers, setPayers] = useState<Payer[]>([]);
-  const addRecurring = useRecurringStore(st => st.addRecurring);
-
-  useContadorDeRenders('Nuevo gasto', { amount, groupId, splitMode, description });
 
   // ── Derived ────────────────────────────────────────────────────────────────
-  const group    = groups.find(g => g.id === groupId);
-  const members  = group?.memberIds ?? [];
-  const currency: CurrencyCode = currencyForAmount;
+  const group   = groups.find(g => g.id === groupId);
+  const members = group?.memberIds ?? [];
+  const reparto = useRepartoDeGasto(existingExpense, amount, members);
+
+  useContadorDeRenders('Nuevo gasto', { amount, groupId, splitMode: reparto.splitMode, description });
+
   const dailyCount = currentUser ? getDailyCount(currentUser.id) : 0;
   // Dos cosas distintas, y confundirlas era el bug: `superoElTope` es la REGLA
   // (pasaste los 4 del día) y sirve para contárselo al usuario; `needsAd` es si
@@ -193,1108 +101,180 @@ export default function NewExpenseScreen() {
   const pasoElTope = !isEditMode && currentUser ? superoElTope(currentUser.id, isPro) : false;
   const needsAd    = !isEditMode && currentUser ? requiresRewardedAd(currentUser.id, isPro) : false;
 
-  // ── Computed splits ────────────────────────────────────────────────────────
-  // Todos los montos de `splits` son ENTEROS en menor unidad (ADR-002),
-  // calculados vía `buildSplits` — única fuente de verdad del reparto, para
-  // que Σ splits === total EXACTO y sea reproducible entre dispositivos.
-  const splits = useMemo(() => {
-    if (members.length === 0) return [];
-
-    if (splitMode === 'equal') {
-      const built = buildSplits(amount, members, 'equal');
-      const evenPercent = roundPct(100 / members.length);
-      return built.map((s, i) => ({
-        ...s,
-        percent: evenPercent,
-        isLast: i === built.length - 1,
-      }));
-    }
-
-    // percentage mode — el usuario tipea el % de todos menos el último, que
-    // recibe el resto (100 - Σ). Los montos de los "no-últimos" se redondean
-    // desde su %; el último se calcula con buildSplits('custom') para que
-    // cierre EXACTO contra el total (nunca deriva por acumulación de redondeo).
-    const firstPercents = members.slice(0, -1).map((_, i) =>
-      percentSub === 'same'
-        ? parseFloat(samePercent.replace(',', '.')) || 0
-        : parseFloat(customPercents[i]?.replace(',', '.') ?? '') || 0,
-    );
-    const sumFirst    = firstPercents.reduce((a, b) => a + b, 0);
-    const lastPercent = roundPct(100 - sumFirst);
-    const firstAmounts = firstPercents.map(pct => Math.round(amount * pct / 100));
-
-    const built = buildSplits(amount, members, 'custom', firstAmounts);
-    return built.map((s, i) => {
-      const isLast = i === built.length - 1;
-      return { ...s, percent: isLast ? lastPercent : (firstPercents[i] ?? 0), isLast };
-    });
-  }, [amount, members, splitMode, percentSub, samePercent, customPercents]);
-
-  const lastPercent  = splits[splits.length - 1]?.percent ?? 0;
-  const percentError = splitMode === 'percentage' && amount > 0 && lastPercent < 0;
   // hasGroup=false ⇒ gasto PERSONAL (sin repartos, sin pagador). (F-G)
-  const hasGroup     = groupId !== '';
-  // PO 2026-09-20: un grupo archivado (cualquier razón) es de solo lectura —
-  // no acepta gastos nuevos ni ediciones.
-  const isArchivedFn  = useArchiveStore(s => s.isArchived);
+  const hasGroup = groupId !== '';
+  // PO 2026-09-20: un grupo archivado (cualquier razón) es de solo lectura.
+  const isArchivedFn = useArchiveStore(s => s.isArchived);
   const grupoArchivado = hasGroup && isArchivedFn(groupId);
   // T-058 (PO 2026-09-20): grupo que llegó a 450 gastos no acepta uno más.
-  // `!isEditMode` importa: editar uno de los 450 existentes no hace crecer
-  // el conteo, sólo cargar el #451 está bloqueado.
+  // `!isEditMode` importa: editar uno de los 450 no hace crecer el conteo.
   const cantidadGastosDelGrupo = useGroupExpenseCount(hasGroup ? groupId : '');
   const grupoBloqueadoPorLimite = hasGroup && !isEditMode && estaBloqueado(cantidadGastosDelGrupo);
   // Con varios pagadores la suma tiene que dar EXACTA contra el total: son
   // enteros en menor unidad (ADR-002), no hay redondeo que perdonar.
-  const payersOk     = !multiPayer || validatePayers(payers.filter(p => p.amount > 0), amount).ok;
-  const canSave      = description.trim().length > 0 && amount > 0 && !percentError && (!hasGroup || members.length > 0) && payersOk && !grupoArchivado && !grupoBloqueadoPorLimite;
+  const payersOk = !multiPayer || validatePayers(payers.filter(p => p.amount > 0), amount).ok;
+  const canSave = description.trim().length > 0 && amount > 0 && !reparto.percentError
+    && (!hasGroup || members.length > 0) && payersOk && !grupoArchivado && !grupoBloqueadoPorLimite;
+
+  const guardar = useGuardarGasto({
+    currentUser, isEditMode, expenseId, existingExpense, hasGroup, groupId, group,
+    description, amount, currency, category, date, note, receiptUri, isIncome,
+    payerId, multiPayer, payers, splits: reparto.splits, splitMode: reparto.splitMode,
+    recurrence, needsAd, canSave,
+  });
 
   // ── Handlers ───────────────────────────────────────────────────────────────
-
-  function handleSplitModeChange(mode: SplitMode) {
-    setSplitMode(mode);
-    if (mode === 'percentage' && members.length > 0) {
-      const equal = Math.floor(100 / members.length);
-      setSamePercent(String(equal));
-      setCustomPercents(members.slice(0, -1).map(() => String(equal)));
-    }
-  }
-
-  function handlePercentSubChange(sub: PercentSub) {
-    setPercentSub(sub);
-    if (members.length > 0) {
-      const equal = Math.floor(100 / members.length);
-      setSamePercent(String(equal));
-      setCustomPercents(members.slice(0, -1).map(() => String(equal)));
-    }
-  }
-
   function handleGroupChange(id: string) {
-    const newGroup   = groups.find(g => g.id === id);
-    const newMembers = newGroup?.memberIds ?? [];
+    const newMembers = groups.find(g => g.id === id)?.memberIds ?? [];
     setGroupId(id);
-    setCustomPercents(newMembers.slice(0, -1).map(() => ''));
-    setPayerId(
-      currentUser && newMembers.includes(currentUser.id)
-        ? currentUser.id
-        : (newMembers[0] ?? ''),
-    );
+    reparto.reiniciarParaMiembros(newMembers);
+    setPayerId(currentUser && newMembers.includes(currentUser.id) ? currentUser.id : (newMembers[0] ?? ''));
     // Re-normaliza el texto del input a las reglas de decimales de la nueva
     // moneda (p.ej. si el nuevo grupo es CLP/PYG, sin decimales).
     setAmountMinor(amount);
-    setShowGroup(false);
+    setHoja(null);
   }
 
   function switchEntryKind(k: 'expense' | 'income') {
     hapticSelection();
     setEntryKind(k);
-    // Ingreso no tiene selector de categoría (PO 2026-09-13): siempre "otros"
-    // hasta que exista una iteración con categorías de ingreso propias.
+    // Ingreso no tiene selector de categoría (PO 2026-09-13): siempre "otros".
     setCategory('other');
     if (k === 'income') setGroupId(''); // el ingreso no lleva grupo
   }
 
-  /**
-   * Si el usuario eligió repetición, además del gasto de hoy se guarda la
-   * PLANTILLA. `lastMaterializedAt` arranca en la fecha de este gasto para que
-   * el materializador no vuelva a crear el que se acaba de crear a mano.
-   */
-  function saveRecurringTemplate() {
-    if (recurrence === null || !currentUser) return;
-    const at = date.getTime();
-    addRecurring({
-      id:          uuidv4(),
-      groupId:     hasGroup ? groupId : '',
-      description: description.trim(),
-      amount,
-      currency,
-      ...payerFields(),
-      splitMode,
-      memberIds:   splits.map(sp => sp.userId),
-      category:    category as ExpenseCategory,
-      rule:        { frequency: recurrence, startDate: at },
-      lastMaterializedAt: at,
-      isActive:    true,
-      createdAt:   Date.now(),
-      createdById: currentUser.id,
-      updatedAt:   syncedNow(),
-      isDeleted:   false,
-    });
-  }
-
-  /** Desglose de pagadores listo para guardar (o el pagador único). */
-  function payerFields(): { paidById: string; payers: Payer[] | undefined } {
-    // `payers: undefined` explícito, no ausente: se aplica con spread al editar,
-    // y una clave ausente dejaría vivo el desglose anterior.
-    if (!multiPayer) return { paidById: payerId || currentUser!.id, payers: undefined };
-    return normalizePayers(payers);
-  }
-
-  function handleSave() {
-    if (!canSave || !currentUser) return;
-
-    // Sin grupo → entrada PERSONAL (gasto o ingreso). Sin ad gate/splits/pagador. (F-G/F-G2)
-    if (!hasGroup) {
-      hapticSuccess();
-      addPersonalEntry({
-        id:          uuidv4(),
-        kind:        isIncome ? 'income' : 'expense',
-        description: description.trim(),
-        amount,
-        currency,
-        // Sin selector para Ingreso, el estado ya llega en 'other' — pero se
-        // fuerza acá también para que un ingreso NUNCA pueda guardar otra
-        // cosa, sea cual sea el camino que trajo `category` hasta acá.
-        category:    isIncome ? 'other' : category,
-        date:        date.getTime(),
-        createdAt:   Date.now(),
-        updatedAt:   syncedNow(),
-        isDeleted:   false,
-      });
-      saveRecurringTemplate();
-      router.back();
-      return;
-    }
-
-    // Cuando exista el anuncio, acá va: mostrarlo y guardar recién al terminar.
-    // Hasta entonces `needsAd` es siempre false — un `return` seco dejaba el
-    // botón muerto y la app sin poder guardar gastos, en silencio.
-    if (needsAd) return;
-
-    const splitPayload = splits.map(s => ({
-      userId: s.userId,
-      amount: s.amount,
-      isPaid: payerId ? s.userId === payerId : esYo(s.userId),
-    }));
-
-    const myShare = splitPayload.find(s => esYo(s.userId))?.amount ?? 0;
-    const groupName = group?.name ?? '';
-
-    if (isEditMode && expenseId) {
-      const cambios = {
-        description:     description.trim(),
-        amount,
-        ...payerFields(),
-        splits:          splitPayload,
-        splitMode,
-        category:        category as ExpenseCategory,
-        date:            date.getTime(),
-        note:            note || undefined,
-        receiptImageUri: receiptUri,
-      };
-      // T-178 (6.4): el mismo predicado que hoy sólo corre al publicar/recibir
-      // corre ACÁ antes de escribir — si no, el registro queda huérfano en
-      // este teléfono, sin viajar nunca y sin que nadie se entere.
-      const motivo = motivoDeExceso({ ...existingExpense, ...cambios });
-      if (motivo) {
-        Alert.alert(t('sync.record_too_big_title'), t(motivo));
-        return;
-      }
-      const guardo = updateExpense(expenseId, cambios);
-      // T-152 · D2: si el núcleo ya estaba firmado y no se pudo re-firmar esta
-      // edición, el store la bloqueó — no la guardó — para no perderla en
-      // silencio contra la próxima republicación de la versión vieja. Se le
-      // avisa a quien editaba y la pantalla NO se cierra, como si hubiera
-      // guardado.
-      if (!guardo) {
-        Alert.alert(t('sync.sign_failed_title'), t('sync.sign_failed_body'));
-        return;
-      }
-      // T-172 (ítem 4): recién ACÁ se sabe que guardó de verdad. Antes el
-      // haptic sonaba junto con el gate del anuncio, así que un bloqueo por
-      // firma vibraba "éxito" un instante antes del Alert de error.
-      hapticSuccess();
-      // Keep personal replica in sync with edited values
-      if (myShare > 0) {
-        updateReplicatedEntry(expenseId, {
-          description:     description.trim(),
-          amount:          myShare,
-          category,
-          date:            date.getTime(),
-          sourceGroupName: groupName,
-        });
-      }
-    } else {
-      const newId = uuidv4();
-      const nuevo = {
-        id:              newId,
-        groupId,
-        description:     description.trim(),
-        amount,
-        currency,
-        ...payerFields(),
-        splits:          splitPayload,
-        splitMode,
-        category:        category as ExpenseCategory,
-        date:            date.getTime(),
-        createdAt:       Date.now(),
-        createdById:     currentUser.id,
-        note:            note || undefined,
-        receiptImageUri: receiptUri,
-        updatedAt:       syncedNow(),
-        isDeleted:       false,
-      };
-      // T-178 (6.4): mismo gate que en la edición, antes de escribir.
-      const motivo = motivoDeExceso(nuevo);
-      if (motivo) {
-        Alert.alert(t('sync.record_too_big_title'), t(motivo));
-        return;
-      }
-      addExpense(nuevo);
-      // Un alta nueva no tiene núcleo previo firmado que re-firmar: no puede
-      // bloquearse como una edición (T-152 · D2), así que el haptic va sin gate.
-      hapticSuccess();
-      // ADR-006: se replica lo que SALIÓ DE MI BOLSILLO, no mi porción.
-      // Si pagó otro, todavía no gasté nada — es una deuda, y se vuelve gasto
-      // recién cuando la salde. Antes se replicaba `myShare` siempre, que
-      // estaba mal en los dos sentidos: de menos si pagaba yo, y de más si
-      // pagaba otro.
-      if (esYo(payerFields().paidById)) {
-        addPersonalEntry({
-          id:                   uuidv4(),
-          kind:                 'group_replicated',
-          description:          description.trim(),
-          amount,
-          currency,
-          category,
-          date:                 date.getTime(),
-          createdAt:            Date.now(),
-          updatedAt:            syncedNow(),
-          isDeleted:            false,
-          sourceGroupExpenseId: newId,
-          sourceGroupId:        groupId,
-          sourceGroupName:      groupName,
-        });
-      }
-      incrementCount(currentUser.id);
-      saveRecurringTemplate();
-    }
-
-    router.back();
-  }
-
-  async function handleCamera() {
-    const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.8 });
-    if (!result.canceled && result.assets[0]) {
-      setReceiptUri(result.assets[0].uri);
-    }
-  }
-
-  async function handleFilePick() {
-    const result = await DocumentPicker.getDocumentAsync({ type: ['image/*', 'application/pdf'] });
-    if (!result.canceled && result.assets[0]) {
-      setReceiptUri(result.assets[0].uri);
-    }
-  }
-
-  const groupName = group?.name ?? t('expense.no_group_short');
-  const payerName = getUserName(payerId);
-
   // T-210: arranca con el pagador actual poniendo todo (el usuario resta desde
-  // ahí, más rápido que cargar de cero) o vuelve a pagador único, según toque.
-  // Un solo handler para el link «pagaron varios» / «uno solo» — antes vivían
-  // repetidos en dos lugares (Aero suelto, Clásico dentro de la tarjeta).
+  // ahí) o vuelve a pagador único.
   function togglePayerMode() {
     if (multiPayer) {
       setMultiPayer(false);
       setPayers([]);
     } else {
-      setPayers(members.map(uid => ({
-        userId: uid,
-        amount: uid === (payerId || currentUser?.id) ? amount : 0,
-      })));
+      setPayers(members.map(uid => ({ userId: uid, amount: uid === (payerId || currentUser?.id) ? amount : 0 })));
       setMultiPayer(true);
     }
   }
 
-  const splitModeOptions: { key: typeof splitMode; label: string; icon: React.ComponentProps<typeof Ionicons>['name'] }[] = [
-    { key: 'equal',      label: t('expense.split_mode_equal'),      icon: 'people-outline' },
-    { key: 'percentage', label: t('expense.split_mode_percentage'), icon: 'pie-chart-outline' },
-  ];
-  const percentSubOptions: { key: typeof percentSub; label: string }[] = [
-    { key: 'same',   label: t('expense.percent_same') },
-    { key: 'custom', label: t('expense.percent_custom') },
-  ];
-
-  // Filas de miembros del reparto — compartidas entre el `Band noTop` de Aero y
-  // el `View` con borde propio de la tarjeta Clásica (T-210): mismo contenido,
-  // sólo cambia quién le pone el marco.
-  const memberRowsContent = (
-    <>
-      {splits.map((split, i) => {
-        const name    = getUserName(split.userId);
-        const isLast  = split.isLast;
-        const showRest = isLast && splitMode === 'percentage';
-
-        return (
-          <View
-            key={split.userId}
-            style={[
-              styles.memberRow,
-              {
-                backgroundColor: showRest ? c.brand.primarySoft : 'transparent',
-                borderBottomWidth: i === splits.length - 1 ? 0 : 1,
-                borderBottomColor: c.hair2,
-              },
-            ]}
-          >
-            <UserAvatar userId={split.userId} name={name} size={32} />
-            <Text style={[Typography.bodyM, { flex: 1, color: c.text, fontWeight: '600' }]}>
-              {name}
-            </Text>
-
-            {splitMode === 'percentage' && percentSub === 'custom' && !isLast && (
-              <View style={styles.percentBox}>
-                <TextInput
-                  value={customPercents[i] ?? ''}
-                  onChangeText={v => {
-                    const next = [...customPercents];
-                    next[i] = v;
-                    setCustomPercents(next);
-                  }}
-                  keyboardType="decimal-pad"
-                  placeholder="0"
-                  placeholderTextColor={c.textTertiary}
-                  style={[Typography.amountS, { color: c.text, textAlign: 'right', minWidth: 44 }]}
-                />
-                <Text style={[Typography.bodyM, { color: c.textTertiary }]}>%</Text>
-              </View>
-            )}
-
-            {showRest ? (
-              <View style={{ alignItems: 'flex-end' }}>
-                <Text style={[Typography.caption, { color: c.brand.primaryOnSoft }]}>
-                  {lastPercent < 0 ? t('expense.percent_exceeded') : t('expense.percent_rest', { pct: roundPct(lastPercent) })}
-                </Text>
-                <Text style={[Typography.amountS, {
-                  color: lastPercent >= 0 ? c.brand.primaryOnSoft : c.semantic.negative,
-                }]}>
-                  {formatMoney(Math.max(0, split.amount), currency)}
-                </Text>
-              </View>
-            ) : (
-              <View style={{ alignItems: 'flex-end' }}>
-                {splitMode === 'percentage' && percentSub === 'same' && (
-                  <Text style={[Typography.caption, { color: c.textTertiary }]}>
-                    {roundPct(parseFloat(samePercent) || 0)}%
-                  </Text>
-                )}
-                <Text style={[Typography.amountS, { color: c.text }]}>
-                  {formatMoney(split.amount, currency)}
-                </Text>
-              </View>
-            )}
-          </View>
-        );
-      })}
-
-      {percentError && (
-        <View style={[styles.errorRow, { backgroundColor: c.semantic.errorSoft, borderTopWidth: 1, borderTopColor: c.hair2 }]}>
-          <Ionicons name="warning-outline" size={16} color={c.semantic.error} />
-          <Text style={[Typography.bodyS, { color: c.semantic.error, flex: 1 }]}>
-            {t('expense.percent_over_100')}
-          </Text>
-        </View>
-      )}
-    </>
-  );
-
-  // T-127 (PO): en «mismo %» el campo del porcentaje va DEBAJO de los nombres.
-  // Compartido entre Aero y Clásico — la posición no cambió, sólo el marco de
-  // arriba (T-210).
-  const samePercentInput = splitMode === 'percentage' && percentSub === 'same' && (
-    <View style={[styles.samePercentRow, styles.afterSelectorsGap]}>
-      <View style={[styles.samePercentBox, { backgroundColor: c.bgGrouped, borderColor: c.hair }]}>
-        <TextInput
-          value={samePercent}
-          onChangeText={setSamePercent}
-          keyboardType="decimal-pad"
-          placeholder="0"
-          placeholderTextColor={c.textTertiary}
-          style={[Typography.amountM, { color: c.text, minWidth: 50, textAlign: 'center' }]}
-        />
-        <Text style={[Typography.h3, { color: c.textSecondary }]}>%</Text>
-      </View>
-      <Text style={[Typography.bodyS, { color: c.textTertiary }]}>
-        {t('expense.percent_same_hint')}
-      </Text>
-    </View>
-  );
-
   // ── Render ─────────────────────────────────────────────────────────────────
-
   return (
     <SafeAreaView edges={['bottom']} style={[styles.safe, { backgroundColor: c.bg }]}>
-      {/* B3 (lote 2026-09-28): sin `behavior` en Android. `app.json` no fija
-          `android.softwareKeyboardLayoutMode`, así que Expo deja el default de
-          `windowSoftInputMode` en `adjustResize` — el SO YA redimensiona la
-          ventana solo. Agregarle además `behavior="height"` hacía que dos
-          mecanismos (el resize nativo y la animación de este componente)
-          midieran y compitieran por el mismo espacio: la fila de chips subía
-          con el teclado y se quedaba arriba al cerrarlo, sin volver a bajar. */}
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-
+      {/* B3 (lote 2026-09-28): sin `behavior` en Android — Expo deja
+          `windowSoftInputMode` en `adjustResize` y el SO ya redimensiona; sumarle
+          `behavior="height"` hacía competir dos mecanismos y la fila de chips
+          quedaba arriba al cerrar el teclado. */}
+      <KeyboardAvoidingView style={styles.safe} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <DetailHeader
           icon="close"
           title={isEditMode ? t('expense.edit_title') : isIncome ? t('expense.new_income_title') : t('expense.new_title')}
           onBack={() => router.back()}
         />
 
-        {/* Scrollable body */}
         <ScrollView
-          style={{ flex: 1 }}
+          style={styles.safe}
           contentContainerStyle={styles.scroll}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/**
-            * **El input de descripción va PEGADO al bloque de arriba** (PO, 2026-09-12): sin
-            * margen, y compartiendo la línea divisoria. Con pestañas, su línea de abajo es la
-            * de arriba del input; sin ellas (gasto de grupo, edición), la del encabezado. Por
-            * eso los dos van en un mismo bloque —el `gap` del scroll recién empieza después— y
-            * la banda va `noTop`.
-            */}
-          {/* Tarjeta héroe del monto (PO 2026-09-22, rediseño): el monto pasa a
-              ser lo primero que se ve, grande y con mármol de fondo — antes
-              vivía enterrado en una banda chica a mitad de pantalla. El
-              toggle Gasto/Ingreso es una píldora propia (no `Segmented`, a
-              propósito: es una decisión de "qué tipo de movimiento es",
-              distinta de un tab de contenido — `pestanasUnificadas.test.ts`
-              sólo exige que los `Segmented` que SÍ existan en el archivo
-              sean `variant="tabs"`, no que todo selector lo sea). */}
-          <View style={[styles.heroCard, { borderColor: c.hair, backgroundColor: c.surface }]}>
-            <FondoMarmol patron="distendida" style={styles.heroMarmol} />
-            <Text style={[Typography.label, styles.heroCurrency, {
-              color: c.textSecondary,
-              textShadowColor: scheme === 'dark' ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.95)',
-            }]}>
-              {currency}
-            </Text>
-            <MontoEditable
-              ref={montoRef}
-              testID="expense-amount"
-              sobreMarmol
-              currency={currency}
-              value={amountStr}
-              onChangeText={setAmountStr}
-              onBlur={onAmountBlur}
-            />
-            {incomeAllowed && (
-              <View style={[styles.heroToggle, { backgroundColor: c.bgGrouped }]}>
-                {(['expense', 'income'] as const).map(k => {
-                  const active = k === 'income' ? isIncome : !isIncome;
-                  const tint = k === 'income' ? c.semantic.positive : c.semantic.negative;
-                  const tintSoft = k === 'income' ? c.semantic.positiveSoft : c.semantic.negativeSoft;
-                  return (
-                    <Pressable
-                      key={k}
-                      onPress={() => switchEntryKind(k)}
-                      style={[styles.heroToggleBtn, active && { backgroundColor: tintSoft }]}
-                    >
-                      <Ionicons
-                        name={k === 'income' ? 'trending-up-outline' : 'trending-down-outline'}
-                        size={15}
-                        color={active ? tint : c.textTertiary}
-                      />
-                      <Text style={[Typography.bodyS, { fontWeight: '700', color: active ? tint : c.textTertiary }]}>
-                        {k === 'income' ? t('expense.kind_income') : t('expense.kind_expense')}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            )}
-          </View>
+          <HeroMonto
+            currency={currency}
+            value={amountStr}
+            onChangeText={setAmountStr}
+            onBlur={onAmountBlur}
+            incomeAllowed={incomeAllowed}
+            isIncome={isIncome}
+            onKindChange={switchEntryKind}
+          />
+          <DescripcionCard value={description} onChangeText={setDescription} isIncome={isIncome} />
+          {/* El ingreso no tiene categorías (PO 2026-09-13): se guarda con "otros". */}
+          {!isIncome && <CategoriaChips value={category} onChange={setCategory} />}
 
-          {/* Descripción: tarjeta propia, mismo lenguaje redondeado que el
-              héroe — ya no comparte línea con nada de arriba (T-117 quedó
-              obsoleto con este rediseño). */}
-          <View style={[styles.descCard, { borderColor: c.hair, backgroundColor: c.surface }]}>
-            <Ionicons name="create-outline" size={18} color={c.textTertiary} />
-            <TextInput
-              placeholder={isIncome ? t('expense.income_desc_placeholder') : t('expense.description_placeholder')}
-              placeholderTextColor={c.textTertiary}
-              value={description}
-              onChangeText={setDescription}
-              maxLength={MAX_TEXTO_CORTO}
-              style={[Typography.bodyL, styles.descInput, { color: c.text }]}
-              returnKeyType="next"
-            />
-          </View>
-
-          {/* Category chips — el ingreso no tiene selector (PO 2026-09-13):
-              "son absurdas"; se guarda con "otros" hasta nueva iteración. */}
-          {!isIncome && (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              // `flexGrow: 0` no es decorativo: el contenedor de la pantalla crece
-              // para poder empujar Guardar al fondo, y un ScrollView horizontal sin
-              // alto propio se come todo ese sobrante. Los tiles quedaban gigantes.
-              style={styles.categoryScrollBox}
-              contentContainerStyle={styles.categoryScroll}
-            >
-              {CATEGORIES.map(cat => {
-                const active = category === cat.id;
-                return (
-                  <Pressable
-                    key={cat.id}
-                    onPress={() => { hapticSelection(); setCategory(cat.id); }}
-                    style={styles.categoryTile}
-                  >
-                    <View style={[
-                      styles.categoryTileIcon,
-                      { backgroundColor: active ? c.brand.primary : c.bgGrouped },
-                    ]}>
-                      <Ionicons name={cat.icon} size={22} color={active ? '#fff' : c.textSecondary} />
-                    </View>
-                    <Text
-                      numberOfLines={1}
-                      style={[Typography.caption, {
-                        color:      active ? c.text : c.textTertiary,
-                        fontWeight: active ? '700' : '500',
-                      }]}
-                    >
-                      {t(`categories.${cat.id}`)}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-          )}
-
-          {/* Payer: SOLO con grupo. Sin grupo = gasto personal. (F-G). El monto
-              ya se movió a la tarjeta héroe de arriba (rediseño 2026-09-22) —
-              esta banda queda independiente, ya no comparte línea con nada.
-              T-210 (PO 2026-09-28): en Clásico pasa a `TarjetaClasica`, con el
-              link «pagaron varios»/«uno solo» como PIE de la misma tarjeta —
-              antes quedaba de borde a borde, suelto afuera. Aero no cambia. */}
-          {hasGroup && (soft ? (
-            multiPayer ? (
-              <Band>
-              <View style={[styles.row, { flexDirection: 'column', alignItems: 'stretch', gap: Spacing[2] }]}>
-                <PayerSplitter
-                  members={members.map(uid => ({ id: uid, name: getUserName(uid) }))}
-                  value={payers}
-                  totalAmount={amount}
-                  currency={currency}
-                  onChange={setPayers}
-                />
-                <Pressable onPress={togglePayerMode} hitSlop={8}>
-                  <Text style={[Typography.bodyS, { color: c.brand.primary }]}>{t('payers.single')}</Text>
-                </Pressable>
-              </View>
-              </Band>
-            ) : (
-              <Band>
-              <Pressable
-                onPress={() => setShowPayer(true)}
-                style={styles.row}
-              >
-                <Text style={[Typography.label, { color: c.textTertiary, textTransform: 'uppercase' }]}>{t('expense.payer_label')}</Text>
-                <View style={styles.rowRight}>
-                  <UserAvatar userId={payerId} name={payerName} size={24} />
-                  <Text style={[Typography.bodyM, { color: c.text, fontWeight: '600' }]}>{payerName}</Text>
-                  <Ionicons name="chevron-down" size={16} color={c.textTertiary} />
-                </View>
-              </Pressable>
-              </Band>
-            )
-          ) : (
-            <TarjetaClasica
-              testID="tarjeta-pago"
-              label={t('expense.payer_label')}
-              hint={
-                <Pressable onPress={togglePayerMode} hitSlop={8} style={styles.cardHintLink}>
-                  <Text style={[Typography.bodyS, { color: c.brand.primary }]}>
-                    {t(multiPayer ? 'payers.single' : 'payers.multiple')}
-                  </Text>
-                </Pressable>
-              }
-            >
-              {multiPayer ? (
-                <View style={[styles.row, { flexDirection: 'column', alignItems: 'stretch', gap: Spacing[2] }]}>
-                  <PayerSplitter
-                    members={members.map(uid => ({ id: uid, name: getUserName(uid) }))}
-                    value={payers}
-                    totalAmount={amount}
-                    currency={currency}
-                    onChange={setPayers}
-                  />
-                </View>
-              ) : (
-                <Pressable onPress={() => setShowPayer(true)} style={styles.row}>
-                  <Text style={[Typography.label, { color: c.textTertiary, textTransform: 'uppercase' }]}>{t('expense.payer_label')}</Text>
-                  <View style={styles.rowRight}>
-                    <UserAvatar userId={payerId} name={payerName} size={24} />
-                    <Text style={[Typography.bodyM, { color: c.text, fontWeight: '600' }]}>{payerName}</Text>
-                    <Ionicons name="chevron-down" size={16} color={c.textTertiary} />
-                  </View>
-                </Pressable>
-              )}
-            </TarjetaClasica>
-          ))}
-
-          {/* Repartos: SOLO con grupo. Sin grupo = gasto personal. (F-G) */}
-          {hasGroup && (<>
-          {/* El link «pagaron varios» de Clásico ya vive DENTRO de la tarjeta
-              de pago de arriba (T-210) — acá sólo queda suelto en Aero, como
-              siempre. */}
-          {soft && !multiPayer && (
-            <Pressable onPress={togglePayerMode} hitSlop={8} style={styles.inlineLink}>
-              <Text style={[Typography.bodyS, { color: c.brand.primary }]}>{t('payers.multiple')}</Text>
-            </Pressable>
-          )}
-
-          {/* Split section */}
-          {soft ? (
-            <View style={styles.splitSection}>
-              <SectionLabel label={t('expense.split_how')} />
-
-              {/* Los dos selectores van PEGADOS, sin gap — el mismo criterio que el
-                  input de descripción con el bloque de arriba (`Band noTop`): la
-                  línea divisoria de abajo del primero funciona como la única
-                  línea entre los dos, sin duplicarla (PO 2026-09-13). */}
-              <Segmented
-                variant="tabs"
-                borde="ambos"
-                value={splitMode}
-                onChange={handleSplitModeChange}
-                options={splitModeOptions}
-              />
-
-              {splitMode === 'percentage' && (
-                <Segmented
-                  variant="tabs"
-                  compact
-                  value={percentSub}
-                  onChange={handlePercentSubChange}
-                  options={percentSubOptions}
-                />
-              )}
-
-              {/* Member rows — conservan su padding horizontal (PO 2026-09-13): sólo
-                  los SELECTORES de arriba van de borde a borde, este bloque no. */}
-              {/* T-127 (PO): la lista de miembros va PEGADA al selector de arriba, sin gap,
-                  compartiendo la línea divisoria. */}
-              <Band noTop>
-                {memberRowsContent}
-              </Band>
-              {samePercentInput}
-            </View>
-          ) : (
+          {hasGroup && (
             <>
-            {/* Clásico (T-210, PO 2026-09-28): tarjeta cerrada, como Repetir/
-                descripción. `borde="ninguno"` en los dos `Segmented`: la tarjeta
-                ya pone el marco, no hace falta que las pestañas dibujen el suyo.
-                Las filas de miembros siguen PEGADAS al selector (T-127), ahora
-                separadas por un `View` con su propia línea en vez de `Band`. */}
-            <TarjetaClasica testID="tarjeta-reparto" label={t('expense.split_how')}>
-              <View>
-                <Segmented
-                  variant="tabs"
-                  borde="ninguno"
-                  value={splitMode}
-                  onChange={handleSplitModeChange}
-                  options={splitModeOptions}
-                />
-                {splitMode === 'percentage' && (
-                  <Segmented
-                    variant="tabs"
-                    compact
-                    borde="ninguno"
-                    value={percentSub}
-                    onChange={handlePercentSubChange}
-                    options={percentSubOptions}
-                  />
-                )}
-              </View>
-              <View style={[styles.cardMembersDivider, { borderTopColor: c.hair }]}>
-                {memberRowsContent}
-              </View>
-            </TarjetaClasica>
-            {samePercentInput}
+              <BloquePagador
+                members={members}
+                payerId={payerId}
+                multiPayer={multiPayer}
+                payers={payers}
+                amount={amount}
+                currency={currency}
+                onPayersChange={setPayers}
+                onOpenPayer={() => setHoja('pagador')}
+                onTogglePayerMode={togglePayerMode}
+              />
+              <BloqueReparto
+                splitMode={reparto.splitMode}
+                percentSub={reparto.percentSub}
+                samePercent={reparto.samePercent}
+                customPercents={reparto.customPercents}
+                splits={reparto.splits}
+                lastPercent={reparto.lastPercent}
+                percentError={reparto.percentError}
+                currency={currency}
+                onSplitModeChange={reparto.cambiarModo}
+                onPercentSubChange={reparto.cambiarSubModo}
+                onSamePercentChange={reparto.setSamePercent}
+                onCustomPercentsChange={reparto.setCustomPercents}
+              />
             </>
           )}
-          </>)}
 
-          {/* El contador de gastos gratis del día.
-              Oculto mientras no haya anuncios: lo que cuenta es cuántos gastos te
-              quedan ANTES de tener que ver uno, y sin anuncios no hay tope que
-              cruzar —`requiresRewardedAd` devuelve siempre false—. Mostrarlo
-              anuncia un límite que la app no aplica, en gastos y en ingresos por
-              igual. Vuelve solo el día que `ADS_DISPONIBLES` pase a true. */}
-          {ADS_DISPONIBLES && !isEditMode && !isPro && (
-            <View style={[styles.tierRow, {
-              backgroundColor: c.semantic.warningSoft,
-              borderTopWidth: 1, borderBottomWidth: 1, borderColor: c.hair,
-            }]}>
-              <Ionicons name="information-circle-outline" size={16} color={c.semantic.warning} />
-              <Text style={[Typography.bodyS, { color: c.semantic.warning, flex: 1 }]}>
-                {t('expense.free_count', { count: dailyCount })}{' '}
-                {pasoElTope ? t('expense.free_over') : ''}
-              </Text>
-            </View>
-          )}
-
-          {/* Repetición — sólo al crear; editar una ocurrencia no toca la serie.
-              Sin padding lateral acá (T-118): el selector es `Segmented variant="tabs"`
-              y ese estilo va de borde a borde — el padding de la etiqueta y de la
-              aclaración vive DENTRO de `RecurrencePicker`, no en este wrapper. */}
-          {!isEditMode && <RecurrencePicker value={recurrence} onChange={setRecurrence} />}
-
-          {grupoArchivado && (
-            <Text style={[Typography.caption, { color: c.semantic.negative, textAlign: 'center', marginBottom: 8 }]}>
-              {t('groups.archived_readonly_hint')}
-            </Text>
-          )}
-
-          {grupoBloqueadoPorLimite && (
-            <Text style={[Typography.caption, { color: c.semantic.negative, textAlign: 'center', marginBottom: 8 }]}>
-              {t('groups.limit_blocked_hint')}
-            </Text>
-          )}
-
-          {/* Save button — píldora con ícono (rediseño 2026-09-22), mismo testID
-              y misma lógica de habilitado/deshabilitado. */}
-          <Pressable
-            onPress={handleSave}
-            disabled={!canSave}
-            testID="expense-save-btn"
-            style={[styles.saveBtn, styles.savePad, { backgroundColor: canSave ? c.brand.primary : c.bgGrouped }]}
-          >
-            <Ionicons
-              name="checkmark-circle"
-              size={19}
-              color={canSave ? '#fff' : c.textDisabled}
-            />
-            <Text style={[Typography.bodyL, { color: canSave ? '#fff' : c.textDisabled, fontWeight: '700' }]}>
-              {/* El botón NO promete un anuncio que no existe. */}
-              {!isEditMode && needsAd ? t('expense.save_with_ad') : t('expense.save')}
-            </Text>
-          </Pressable>
-
+          <PieDeGuardar
+            isEditMode={isEditMode}
+            isPro={isPro}
+            dailyCount={dailyCount}
+            pasoElTope={pasoElTope}
+            recurrence={recurrence}
+            onRecurrenceChange={setRecurrence}
+            grupoArchivado={grupoArchivado}
+            grupoBloqueadoPorLimite={grupoBloqueadoPorLimite}
+            canSave={canSave}
+            needsAd={needsAd}
+            onSave={guardar}
+          />
         </ScrollView>
 
-        {/* Barra de utilidades — píldora flotante despegada del borde (rediseño
-            2026-09-22), mismos Pressables/handlers que antes, sólo cambia el
-            contenedor: de barra plana pegada al fondo a chips redondeados con
-            aire alrededor. */}
-        <View style={styles.utilityBarWrap}>
-          <View style={[styles.utilityBar, { backgroundColor: c.surface, borderColor: c.hair }]}>
-            <Pressable onPress={handleCamera} hitSlop={8} style={styles.utilityIconBtn}>
-              <Ionicons
-                name={receiptUri ? 'camera' : 'camera-outline'}
-                size={20}
-                color={receiptUri ? c.brand.primary : c.textSecondary}
-              />
-            </Pressable>
-            <Pressable onPress={handleFilePick} hitSlop={8} style={styles.utilityIconBtn}>
-              <Ionicons name="attach-outline" size={20} color={c.textSecondary} />
-            </Pressable>
-            <Pressable
-              onPress={() => setShowNote(true)}
-              hitSlop={8}
-              style={[styles.utilityChip, { backgroundColor: note ? c.brand.primarySoft : c.bgGrouped }]}
-            >
-              <Ionicons
-                name={note ? 'document-text' : 'document-text-outline'}
-                size={16}
-                color={note ? c.brand.primary : c.textSecondary}
-              />
-              <Text style={[Typography.bodyS, { fontWeight: '600', color: note ? c.brand.primary : c.textSecondary }]}>
-                {t('expense.note')}
-              </Text>
-            </Pressable>
-
-            {/* Selector de grupo — oculto en modo Ingreso (F-G2) */}
-            {!isIncome && (
-              <Pressable
-                onPress={isEditMode ? undefined : () => setShowGroup(true)}
-                style={[styles.utilityChip, { backgroundColor: c.bgGrouped, flex: 1 }]}
-              >
-                <Ionicons name="people-outline" size={14} color={c.textSecondary} />
-                <Text
-                  style={[Typography.bodyS, { color: c.text, fontWeight: '600', flex: 1 }]}
-                  numberOfLines={1}
-                >
-                  {groupName}
-                </Text>
-                {!isEditMode && <Ionicons name="chevron-up" size={14} color={c.textTertiary} />}
-              </Pressable>
-            )}
-
-            <Pressable
-              onPress={() => setShowDate(true)}
-              style={[styles.utilityChip, { backgroundColor: c.bgGrouped }]}
-            >
-              <Ionicons name="calendar-outline" size={16} color={c.textSecondary} />
-              <Text style={[Typography.bodyS, { color: c.text, fontWeight: '600' }]}>
-                {formatDate(date)}
-              </Text>
-            </Pressable>
-          </View>
-        </View>
-
+        <BarraUtilidades
+          receiptUri={receiptUri}
+          onReceiptChange={setReceiptUri}
+          note={note}
+          onOpenNote={() => setHoja('nota')}
+          isIncome={isIncome}
+          isEditMode={isEditMode}
+          groupName={group?.name ?? t('expense.no_group_short')}
+          onOpenGroup={() => setHoja('grupo')}
+          date={date}
+          onOpenDate={() => setHoja('fecha')}
+        />
       </KeyboardAvoidingView>
 
-      {/* ── Modals ─────────────────────────────────────────────────────────── */}
-
-      {/* Group picker — only shown in create mode */}
-      {!isEditMode && (
-        <BottomSheet
-          visible={showGroup}
-          onClose={() => setShowGroup(false)}
-          title={t('expense.select_group')}
-        >
-          <SheetOption
-            icon="person-outline"
-            label={t('expense.no_group')}
-            selected={groupId === ''}
-            onPress={() => handleGroupChange('')}
-            last={groups.length === 0}
-          />
-          {groups.map((g, i) => (
-            <SheetOption
-              key={g.id}
-              icon="people-outline"
-              label={g.name}
-              selected={g.id === groupId}
-              onPress={() => handleGroupChange(g.id)}
-              last={i === groups.length - 1}
-            />
-          ))}
-        </BottomSheet>
-      )}
-
-      {/* Payer picker */}
-      <BottomSheet
-        visible={showPayer}
-        onClose={() => setShowPayer(false)}
-        title={t('expense.who_paid')}
-      >
-        {members.map((userId, i) => (
-          <SheetOptionAvatar
-            key={userId}
-            userId={userId}
-            name={getUserName(userId)}
-            selected={userId === payerId}
-            onPress={() => { setPayerId(userId); setShowPayer(false); }}
-            last={i === members.length - 1}
-          />
-        ))}
-      </BottomSheet>
-
-      {/* Date picker */}
-      <BottomSheet
-        visible={showDate}
-        onClose={() => setShowDate(false)}
-        title={t('expense.expense_date')}
-      >
-        {Array.from({ length: 7 }, (_, i) => {
-          const d = new Date();
-          d.setDate(d.getDate() - i);
-          d.setHours(12, 0, 0, 0);
-          const label   = formatDate(d);
-          const longFmt = i > 1 ? d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' }) : undefined;
-          const isSel   = formatDate(date) === label;
-          return (
-            <SheetOption
-              key={i}
-              icon="calendar-outline"
-              label={label}
-              sublabel={longFmt}
-              selected={isSel}
-              onPress={() => { setDate(d); setShowDate(false); }}
-              last={i === 6}
-            />
-          );
-        })}
-      </BottomSheet>
-
-      {/* Note */}
-      <BottomSheet
-        visible={showNote}
-        onClose={() => setShowNote(false)}
-        title={t('expense.note')}
-        scroll={false}
-        footer={<SheetButton label={t('common.done')} onPress={() => setShowNote(false)} />}
-      >
-        <SheetInput
-          value={note}
-          onChangeText={setNote}
-          maxLength={MAX_NOTA}
-          placeholder={t('expense.note_placeholder')}
-          multiline
-          numberOfLines={4}
-        />
-      </BottomSheet>
-
+      <HojasDeGasto
+        abierta={hoja}
+        onClose={() => setHoja(null)}
+        isEditMode={isEditMode}
+        groups={groups}
+        groupId={groupId}
+        onGroupChange={handleGroupChange}
+        members={members}
+        payerId={payerId}
+        onPayerChange={setPayerId}
+        date={date}
+        onDateChange={setDate}
+        note={note}
+        onNoteChange={setNote}
+      />
     </SafeAreaView>
   );
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
-
 const styles = StyleSheet.create({
-  safe:         { flex: 1 },
-  // El scroll ya no tiene padding lateral: cada banda llega borde a borde y el
-  // aire vive adentro de la fila.
+  safe: { flex: 1 },
   /**
-   * El aire ENTRE bloques lo pone el contenedor, una sola vez.
-   *
-   * Antes cada banda era hija directa del scroll sin ninguna separación, y el
-   * poco aire que había eran paddings sueltos dentro de algunos wrappers: la
-   * pantalla quedaba toda apretada contra el borde de arriba. Con `gap` el
-   * ritmo es el mismo entre cualquier par de bloques, aparezcan o no —y acá
-   * aparecen o no según haya grupo, según sea edición y según el plan—, que es
-   * justo lo que una suma de márgenes por bloque no puede garantizar.
+   * El aire ENTRE bloques lo pone el contenedor, una sola vez, con `gap`: los
+   * bloques aparecen o no según haya grupo, sea edición o el plan, y una suma
+   * de márgenes por bloque no garantiza el mismo ritmo. Sin padding lateral:
+   * las bandas de grupo/reparto van borde a borde con el aire adentro de cada
+   * fila; las tarjetas (héroe, descripción) ponen su `marginHorizontal`.
+   * `flexGrow: 1` es lo que deja a Guardar irse al fondo (`marginTop: 'auto'`).
    */
-  // Sin padding lateral propio (a propósito, sin cambios): las bandas de
-  // grupo/reparto siguen yendo borde a borde con su aire adentro de cada fila
-  // — sólo mis tarjetas nuevas (héroe, descripción) piden su propio
-  // `marginHorizontal: screenPad`, así no le duplican el margen a esas bandas.
-  scroll:       { paddingTop: Spacing[3], paddingBottom: Spacing[4], gap: Spacing[3], flexGrow: 1 },
-  // Tarjeta héroe del monto (rediseño 2026-09-22): redondeada, con el mármol
-  // de fondo recortado por `overflow:hidden` y el toggle Gasto/Ingreso abajo.
-  heroCard: {
-    marginHorizontal: Spacing.screenPad,
-    borderRadius: Radius['2xl'], borderCurve: 'continuous', borderWidth: 1,
-    alignItems: 'center', overflow: 'hidden',
-    // Mismo paddingHorizontal que el resto de la card (U5, lote UI 2026-09-28):
-    // faltaba acá, así que `MontoEditable` (ancho 100%) llegaba a tocar el
-    // borde redondeado de la tarjeta — ahora el símbolo, el monto y el
-    // toggle Gasto/Ingreso comparten el mismo aire lateral.
-    paddingHorizontal: Spacing.screenPad,
-    paddingTop: Spacing[6], paddingBottom: Spacing[4], gap: Spacing[3],
-  },
-  // El mármol «distendido» funde al color de fondo en su 38% inferior
-  // (`scripts/generar-marmol-distendido.py`, fade_start 0.62). Estirado justo a
-  // la altura de la tarjeta, ese fundido queda adentro y el bloque del monto se
-  // ve «sin mármol» abajo (PO 2026-09-27). Se dibuja un 62% más alto y el
-  // `overflow:hidden` de la tarjeta recorta el fundido: la textura cubre todo.
-  heroMarmol: { top: 0, bottom: undefined, height: '162%' },
-  heroCurrency: {
-    textTransform: 'uppercase', fontWeight: '800',
-    textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 6,
-  },
-  heroToggle: {
-    flexDirection: 'row', borderRadius: Radius.full, padding: 3, gap: 3,
-  },
-  heroToggleBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 16, paddingVertical: 8, borderRadius: Radius.full,
-  },
-  // Descripción: tarjeta propia, mismo radio que el héroe (rediseño 2026-09-22).
-  descCard: {
-    marginHorizontal: Spacing.screenPad,
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    borderRadius: Radius.xl, borderCurve: 'continuous', borderWidth: 1,
-    paddingHorizontal: Spacing[4], paddingVertical: 14,
-  },
-  // Aire claro entre los selectores de modo de reparto y lo que eligen —
-  // el campo de "mismo %" o la lista de miembros (PO 2026-09-13). Mismo
-  // token para los dos casos, así "iguales" y "porcentaje" quedan iguales.
-  afterSelectorsGap: { marginTop: Spacing[3] },
-  // Pie de `TarjetaClasica` para los links de Pago (T-210): mismo padding que
-  // `cardHint` de `RecurrencePicker`, para que las tres tarjetas midan igual.
-  cardHintLink: { alignSelf: 'flex-start', paddingHorizontal: Spacing[4], paddingVertical: 10 },
-  // Divisor entre los selectores y la lista de miembros DENTRO de la tarjeta
-  // Clásica de reparto — reemplaza el `Band noTop` de Aero, que dibuja su
-  // propio fondo/hairlines; acá el fondo ya lo pone la tarjeta.
-  cardMembersDivider: { borderTopWidth: 1 },
-  /**
-   * `marginTop: 'auto'` empuja Guardar al fondo cuando sobra lugar.
-   *
-   * Un gasto personal tiene la mitad de bloques que uno de grupo —sin pagador y
-   * sin reparto—, así que el contenido terminaba a media pantalla y quedaba un
-   * vacío enorme debajo del botón. Con el margen automático, Guardar queda
-   * arriba de la barra inferior cuando el contenido es corto y fluye normal
-   * cuando es largo. Necesita el `flexGrow: 1` del contenedor: sin eso el
-   * contenido no ocupa el alto y no hay espacio libre que absorber.
-   */
-  savePad:      { marginHorizontal: Spacing.screenPad, marginTop: 'auto' },
-  inlineLink:   { alignSelf: 'flex-start', paddingHorizontal: Spacing.screenPad, paddingTop: 10 },
-
-  noGroupsState: {
-    flex: 1, alignItems: 'center', justifyContent: 'center',
-    paddingHorizontal: Spacing[8], gap: Spacing[4],
-  },
-  noGroupsIcon:  {
-    width: 80, height: 80, borderRadius: 40,
-    alignItems: 'center', justifyContent: 'center', marginBottom: Spacing[2],
-  },
-
-  // Las pastillas arrancaban pegadas al borde de la pantalla mientras todo lo
-  // demás respeta `screenPad`. Van con el mismo margen que el texto de arriba.
-  // El scroll no crece con el contenedor…
-  categoryScrollBox: { flexGrow: 0 },
-  // …y las pastillas se centran en vez de estirarse: en una fila, el
-  // `alignItems` por defecto es `stretch`, así que sin esto toman el alto de lo
-  // que las contenga.
-  categoryScroll: {
-    gap: Spacing[2], paddingHorizontal: Spacing.screenPad, paddingVertical: 2,
-    alignItems: 'center',
-  },
-  // Tiles de categoría, más grandes y táctiles que las pastillas viejas
-  // (rediseño 2026-09-22): ícono en círculo arriba, label abajo.
-  categoryTile: { alignItems: 'center', gap: 6, width: 64 },
-  categoryTileIcon: {
-    width: 52, height: 52, borderRadius: Radius.xl, borderCurve: 'continuous',
-    alignItems: 'center', justifyContent: 'center',
-  },
-
-  descInput:    { flex: 1, padding: 0, fontWeight: '500' },
-
-  row:          {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: Spacing.screenPad, paddingVertical: 15,
-  },
-  rowRight:     { flexDirection: 'row', alignItems: 'center', gap: 8 },
-
-  splitSection: {},
-  // El padding horizontal del bloque de división (box de %, cards de
-  // miembros) queda como estaba — sólo los SELECTORES van de borde a borde
-  // (PO 2026-09-13, revierte un paso intermedio que también se lo sacaba
-  // a estas filas).
-  samePercentRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 14,
-    paddingHorizontal: Spacing.screenPad, paddingBottom: 14,
-  },
-  samePercentBox: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 18, paddingVertical: 10,
-    borderRadius: Radius.lg, borderWidth: 1,
-  },
-  memberRow:    {
-    flexDirection: 'row', alignItems: 'center', gap: 11,
-    paddingHorizontal: Spacing.screenPad, paddingVertical: 13,
-  },
-  percentBox:   { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  errorRow:     {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingHorizontal: Spacing.screenPad, paddingVertical: 13,
-  },
-  tierRow:      {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingHorizontal: Spacing.screenPad, paddingVertical: Spacing.rowPadV,
-  },
-
-  saveBtn:      {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    borderRadius: Radius.full, borderCurve: 'continuous', height: 52,
-  },
-
-  // Barra de utilidades flotante (rediseño 2026-09-22): despegada del borde
-  // inferior, con aire alrededor, en vez de la barra plana pegada al fondo.
-  utilityBarWrap: { paddingHorizontal: Spacing.screenPad, paddingBottom: Spacing[3], paddingTop: Spacing[2] },
-  utilityBar:   {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    borderRadius: Radius.full, borderCurve: 'continuous', borderWidth: 1,
-    paddingHorizontal: 10, height: 52,
-  },
-  utilityIconBtn: { padding: 4 },
-  utilityChip:  {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 12, paddingVertical: 8, borderRadius: Radius.full,
-  },
+  scroll: { paddingTop: Spacing[3], paddingBottom: Spacing[4], gap: Spacing[3], flexGrow: 1 },
 });
