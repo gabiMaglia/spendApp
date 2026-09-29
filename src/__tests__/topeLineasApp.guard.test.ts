@@ -18,7 +18,6 @@ const EXCEPCIONES: Record<string, number> = {
   'settle/new.tsx': 635,
   'contact/add.tsx': 621,
   'debug/identity.tsx': 442,
-  'auth/index.tsx': 428,
 };
 
 function lineas(path: string): number {
