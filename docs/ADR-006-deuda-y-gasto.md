@@ -1,6 +1,6 @@
 # ADR-006 · Qué es una deuda, qué es un gasto y qué significa saldar
 
-**Estado:** ACEPTADO — decisiones del PO, 2026-08-30
+**Estado:** ACEPTADO — decisiones del PO, 2026-08-30 · **enmendado 2026-09-29 (T-225, decisión 1 dentro del grupo)**
 **Reemplaza:** el modelo de saldo neteado que regía hasta hoy
 **Origen:** bug con repro real (T-051) + especificación del PO
 
@@ -117,3 +117,34 @@ dejarlos como están es una decisión pendiente y **no debe resolverse en silenc
 ---
 
 decidido por · PO · 2026-08-30
+
+---
+
+## Enmienda 2026-09-29 (T-225) · Tampoco se compensa DENTRO del grupo
+
+La decisión 1 prohibió compensar entre grupos, pero la implementación siguió compensando
+dentro de cada grupo (`simplifyDebts` por grupo en `useDirectedDebts`). Con un grupo de dos
+personas, cuatro gastos a favor (200) y uno en contra (60), la app mostraba «Te deben 140 ·
+Debés 0»: los 60 que debía el PO no aparecían en ningún lado.
+
+**Decisión del PO:**
+
+- La deuda se lleva **por par y por moneda, en las dos direcciones**, también dentro del grupo
+  (`src/algorithms/deudasDelGrupo.ts`). Un gasto hace que cada participante le deba su parte a
+  quien pagó; con varios pagadores, la parte se reparte en proporción a lo que puso cada uno.
+- **Cada lado baja sólo con su propio pago.** Debo 140 y me deben 60: pago 140 → «Debés 0 · Te
+  deben 60». Se paga justo o una parte, nunca de más.
+- **Te deben − Debés = el neto de siempre** (invariante con test de propiedad). El total no
+  cambia.
+- Te deben / Debés en Grupos, Personal, Amigos y el detalle de grupo son **brutos**. La tarjeta
+  de cada amigo muestra **su neto** (me debe − le debo).
+- **Saldar en un grupo** es contra lo que le debo a esa persona en ese grupo (parcial permitido).
+  **Saldar desde Amigos** es la **totalidad** de lo que le debo, sin parcial, con **un pago por
+  cada grupo compartido**.
+- Las reglas de «saldado» (botón Saldar, salir o expulsar con saldo) miran si **debo** algo,
+  aunque me deban más. Las acciones que tocan deudas pendientes avisan con un modal que dice a
+  quién y cuánto.
+- `simplifyDebts` queda sólo como sugerencia; no define cuánto debe nadie.
+- Pendiente: el traspaso a grupo nuevo (T-058) sigue trasladando el neto hasta T-226.
+
+decidido por · PO · 2026-09-29
