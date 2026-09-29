@@ -35,10 +35,28 @@ const TIMING_RAPIDO = { duration: 350, easing: Easing.out(Easing.cubic) };
  */
 const SEMILLA_NEUTRA = 0;
 
+/**
+ * Colchón tras `TIMING_RAPIDO.duration` antes de desmontar `NumberFlow`
+ * (T-221): un poco más que la duración nominal de la animación para no
+ * cortarla a mitad de frame en gama baja, donde un frame puede tardar más
+ * que en el simulador donde se midió `TIMING_RAPIDO`.
+ */
+const MARGEN_FIN_DE_GIRO_MS = 60;
+
 type MostradoState =
   | { tipo: 'placeholder' }
   | {
       tipo: 'valor';
+      /**
+       * **T-221 (perf, causa raíz T-216)**: `NumberFlow` monta ~14
+       * `Animated.Text` por dígito (`DigitSlot`) — con 5-10 montos por
+       * pestaña eso son cientos de textos animados aunque nada esté
+       * rodando. `'girando'` es la ÚNICA fase en la que se monta la
+       * librería; apenas termina el giro se pasa a `'plano'` (un `<Text>`
+       * con el mismo valor) y `NumberFlow` se desmonta. Ver el efecto más
+       * abajo para cuándo se dispara cada transición.
+       */
+      fase: 'plano' | 'girando';
       value: number;
       format: Intl.NumberFormatOptions;
       prefix: string;
@@ -184,7 +202,9 @@ function MontoRodanteInterno({
   const [mostrado, setMostrado] = useState<MostradoState>(() => (
     pending
       ? { tipo: 'placeholder' }
-      : { tipo: 'valor', value: valorReal, format: opciones, prefix: prefijoCompleto, moneda: code, instancia: 0 }
+      : {
+          tipo: 'valor', fase: 'plano', value: valorReal, format: opciones, prefix: prefijoCompleto, moneda: code, instancia: 0,
+        }
   ));
 
   // Corrección EN RENDER (patrón oficial de React para derivar estado de
@@ -212,20 +232,50 @@ function MontoRodanteInterno({
 
     const cambio = debeRodar(registry, id, texto);
     const veniaDePlaceholder = mostrado.tipo === 'placeholder';
+    const estabaGirando = mostrado.tipo === 'valor' && mostrado.fase === 'girando';
     const esPrimeraVezDeVerdad = primeraVezRef.current;
     primeraVezRef.current = false;
 
-    if (!cambio && !veniaDePlaceholder) return; // nada que hacer
-
-    if (!veniaDePlaceholder && !esPrimeraVezDeVerdad) {
-      // Camino de siempre (T-106): misma moneda, el valor cambió estando ya
-      // montado — la librería anima el diff natural sola, sin semilla ni remount.
-      setMostrado({ tipo: 'valor', value: valorReal, format: opciones, prefix: prefijoCompleto, moneda: code, instancia: instanciaRef.current });
+    // T-221: "reducir movimiento" nunca monta `NumberFlow` — directo al
+    // valor final, plano. Antes esto igual pasaba por toda la lógica de
+    // semilla/timers de abajo (con `necesitaVuelta` en `false` por el
+    // `&& !reducido` de cada rama); ahora se corta acá porque además define
+    // que NUNCA se entra a la fase `'girando'`.
+    if (reducido) {
+      if (cambio || veniaDePlaceholder) {
+        setMostrado({
+          tipo: 'valor', fase: 'plano', value: valorReal, format: opciones, prefix: prefijoCompleto, moneda: code, instancia: instanciaRef.current,
+        });
+      }
       return;
     }
 
-    // Se está revelando un valor tras el placeholder: `instancia` nueva para
-    // que `NumberFlow` monte de cero (sin memoria de la moneda/valor viejo).
+    if (!cambio && !veniaDePlaceholder) return; // nada que hacer, ya está plano y correcto
+
+    const finalizarEnPlano = (instancia: number, delayMs: number) => setTimeout(
+      () => setMostrado(m => (m.tipo === 'valor' && m.instancia === instancia ? { ...m, fase: 'plano' } : m)),
+      delayMs,
+    );
+
+    if (estabaGirando) {
+      // `NumberFlow` YA está montado (giro en curso, mismo `instancia`): la
+      // librería anima el diff natural sola, sin semilla ni remount — igual
+      // que el "camino de siempre" de T-106, pero acá además reprograma el
+      // desmontaje para cuando termine ESTE giro.
+      setMostrado({
+        tipo: 'valor', fase: 'girando', value: valorReal, format: opciones, prefix: prefijoCompleto, moneda: code, instancia: instanciaRef.current,
+      });
+      const finTimer = finalizarEnPlano(instanciaRef.current, TIMING_RAPIDO.duration + MARGEN_FIN_DE_GIRO_MS);
+      return () => clearTimeout(finTimer);
+    }
+
+    // A partir de acá hace falta un MONTAJE NUEVO de `NumberFlow` (T-221):
+    // primera aparición, revelar tras placeholder, o el valor cambió
+    // mientras estaba en fase `'plano'` (desmontado — sin esto, ese último
+    // caso no tendría ningún estado previo del que la librería pudiera
+    // animar un diff, así que necesita el mismo truco de semilla que un
+    // remount limpio). `instancia` nueva siempre, para que `NumberFlow`
+    // monte de cero (sin memoria de la moneda/valor viejo).
     instanciaRef.current += 1;
     const instancia = instanciaRef.current;
     const razon = razonPlaceholderRef.current;
@@ -233,43 +283,43 @@ function MontoRodanteInterno({
 
     if (razon === 'pending') {
       // Innegociable: cero intermedios, ni siquiera una semilla neutra.
-      setMostrado({ tipo: 'valor', value: valorReal, format: opciones, prefix: prefijoCompleto, moneda: code, instancia });
-      return;
+      setMostrado({
+        tipo: 'valor', fase: 'girando', value: valorReal, format: opciones, prefix: prefijoCompleto, moneda: code, instancia,
+      });
+      const finTimer = finalizarEnPlano(instancia, TIMING_RAPIDO.duration + MARGEN_FIN_DE_GIRO_MS);
+      return () => clearTimeout(finTimer);
     }
 
-    if (razon === 'moneda') {
-      // Un solo giro desde la semilla NEUTRA (nunca la clásica: sería un
-      // número que se PARECE a un monto real) hasta el valor final.
-      const necesitaVuelta = SEMILLA_NEUTRA !== valorReal && !reducido;
-      setMostrado({ tipo: 'valor', value: necesitaVuelta ? SEMILLA_NEUTRA : valorReal, format: opciones, prefix: prefijoCompleto, moneda: code, instancia });
-      if (!necesitaVuelta) return;
-      const timer = setTimeout(
-        () => setMostrado(m => (m.tipo === 'valor' ? { ...m, value: valorReal } : m)),
-        proximoRetrasoDeEntrada(),
-      );
-      return () => clearTimeout(timer);
+    // Semilla: la clásica (dígitos invertidos) SÓLO en la primerísima
+    // aparición de este componente sin ningún motivo especial — es la única
+    // situación donde "un número que se parece a un monto" es aceptable,
+    // porque no hay ningún monto anterior real en pantalla con el que se
+    // pueda confundir. En cualquier otro camino que llega hasta acá (cambio
+    // de moneda, o el valor cambió estando en fase `'plano'` con un monto
+    // real ya visible) se usa la semilla NEUTRA, igual que T-109.
+    const usarSemillaClasica = razon === null && esPrimeraVezDeVerdad;
+    const semilla = usarSemillaClasica ? numeroSemilla(valorReal) : SEMILLA_NEUTRA;
+    const necesitaVuelta = semilla !== valorReal;
+
+    setMostrado({
+      tipo: 'valor', fase: 'girando', value: necesitaVuelta ? semilla : valorReal, format: opciones, prefix: prefijoCompleto, moneda: code, instancia,
+    });
+
+    if (!necesitaVuelta) {
+      const finTimer = finalizarEnPlano(instancia, TIMING_RAPIDO.duration + MARGEN_FIN_DE_GIRO_MS);
+      return () => clearTimeout(finTimer);
     }
-
-    // Sin `pending` ni cambio de moneda de por medio: la primerísima
-    // aparición clásica de T-106 (dígitos invertidos) — la única situación
-    // donde "un número que se parece a un monto" es aceptable, porque no hay
-    // ningún monto anterior real con el que se pueda confundir.
-    const usarSemillaClasica = esPrimeraVezDeVerdad && !reducido;
-    const semilla = usarSemillaClasica ? numeroSemilla(valorReal) : valorReal;
-    const necesitaVuelta = semilla !== valorReal && !reducido;
-
-    setMostrado({ tipo: 'valor', value: necesitaVuelta ? semilla : valorReal, format: opciones, prefix: prefijoCompleto, moneda: code, instancia });
-
-    if (!necesitaVuelta) return;
 
     // Escalonado (T-109, FPS bajos): si varios montos se revelan en el mismo
     // tick (abrir Home/Personal), no todos flipean a la vez — se reparte un
     // turno creciente por lote.
-    const timer = setTimeout(
-      () => setMostrado(m => (m.tipo === 'valor' ? { ...m, value: valorReal } : m)),
-      proximoRetrasoDeEntrada(),
+    const entryDelay = proximoRetrasoDeEntrada();
+    const swapTimer = setTimeout(
+      () => setMostrado(m => (m.tipo === 'valor' && m.instancia === instancia ? { ...m, value: valorReal } : m)),
+      entryDelay,
     );
-    return () => clearTimeout(timer);
+    const finTimer = finalizarEnPlano(instancia, entryDelay + TIMING_RAPIDO.duration + MARGEN_FIN_DE_GIRO_MS);
+    return () => { clearTimeout(swapTimer); clearTimeout(finTimer); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, texto, reducido, registry, pending, prefijoCompleto]);
 
@@ -281,6 +331,20 @@ function MontoRodanteInterno({
           style={StyleSheet.flatten(style)}
         >
           --
+        </Text>
+      </View>
+    );
+  }
+
+  if (mostrado.fase === 'plano') {
+    // T-221: nada rodando — `texto` es SIEMPRE el mismo string que llega a
+    // `NumberFlow` cuando sí gira (deriva de las mismas props, vía
+    // `formatMoney`), así que no hay riesgo de mostrar algo distinto al
+    // "valor final" que exige la paridad byte a byte.
+    return (
+      <View testID={testID}>
+        <Text accessibilityLabel={texto} style={StyleSheet.flatten(style)}>
+          {texto}
         </Text>
       </View>
     );

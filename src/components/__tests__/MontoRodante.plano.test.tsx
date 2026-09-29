@@ -1,6 +1,6 @@
 import React from 'react';
 import { AccessibilityInfo } from 'react-native';
-import { act, render } from '@testing-library/react-native';
+import { act, render, waitFor } from '@testing-library/react-native';
 
 import {
   crearRegistroDeMontos, __resetProximoRetrasoParaTests,
@@ -21,8 +21,9 @@ import { formatMoney } from '@/src/constants/currencies';
 const NUMBERFLOW_TESTID = '__numberflow_mock__';
 
 jest.mock('number-flow-react-native', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const ReactActual = require('react');
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { Text: RNText } = require('react-native');
   return {
     NumberFlow: (props: { value: number }) => ReactActual.createElement(
@@ -37,15 +38,19 @@ jest.mock('number-flow-react-native', () => {
 // eslint-disable-next-line import/first
 import { MontoRodante } from '../MontoRodante';
 
-/** Duración total de un giro completo con `turno` en 0 (ver `TIMING_RAPIDO`
- *  en `MontoRodante.tsx` + margen de cierre) — más colchón por las dudas del
- *  entorno de test. */
-const ESPERA_FIN_DE_GIRO_MS = 700;
-
-async function esperarFinDeGiro() {
-  await act(async () => {
-    await new Promise(resolve => setTimeout(resolve, ESPERA_FIN_DE_GIRO_MS));
-  });
+/**
+ * `waitFor` (con timers reales, polling) en vez de un `act(async () => await
+ * new Promise(setTimeout(...)))` de una sola espera larga: se probó esto
+ * último y quedaba en carrera con los `setTimeout` reales internos del
+ * componente — el estado terminaba actualizándose (con el warning de React
+ * de "update no envuelto en act") pero el árbol que ve el test no llegaba a
+ * reflejarlo antes de la aserción. `waitFor` reintenta la aserción a
+ * intervalos reales, cada uno ya envuelto en `act` por la librería.
+ */
+async function esperarQueTermineElGiro(getTree: () => unknown) {
+  await waitFor(() => {
+    expect(getTree()).toBeNull();
+  }, { timeout: 3000 });
 }
 
 describe('MontoRodante — plano vs. girando (T-221)', () => {
@@ -71,28 +76,29 @@ describe('MontoRodante — plano vs. girando (T-221)', () => {
     const registro = crearRegistroDeMontos();
     const r = render(<MontoRodante id="y" minor={123400} code="ARS" registry={registro} />);
 
-    // El efecto ya corrió (RTL lo flushea dentro de `render`): primera
-    // aparición de verdad → debe haber montado el giro.
-    expect(r.queryByTestId(NUMBERFLOW_TESTID)).toBeTruthy();
+    // El efecto que decide animar depende de `useAnimacionesReducidas`
+    // (async: consulta `AccessibilityInfo`) — hay que dejarlo resolver antes
+    // de esperar que `NumberFlow` ya esté montado.
+    await waitFor(() => {
+      expect(r.queryByTestId(NUMBERFLOW_TESTID)).toBeTruthy();
+    });
 
-    await esperarFinDeGiro();
+    await esperarQueTermineElGiro(() => r.queryByTestId(NUMBERFLOW_TESTID));
 
-    expect(r.queryByTestId(NUMBERFLOW_TESTID)).toBeNull();
     expect(r.getByText(formatMoney(123400, 'ARS'))).toBeTruthy();
   });
 
   it('c) cambio de valor estando ya plano: vuelve a montar NumberFlow y después vuelve a Text', async () => {
     const registro = crearRegistroDeMontos();
     const r = render(<MontoRodante id="z" minor={123400} code="ARS" registry={registro} />);
-    await esperarFinDeGiro();
-    expect(r.queryByTestId(NUMBERFLOW_TESTID)).toBeNull();
+    await waitFor(() => { expect(r.queryByTestId(NUMBERFLOW_TESTID)).toBeTruthy(); });
+    await esperarQueTermineElGiro(() => r.queryByTestId(NUMBERFLOW_TESTID));
 
     r.rerender(<MontoRodante id="z" minor={999900} code="ARS" registry={registro} />);
     expect(r.queryByTestId(NUMBERFLOW_TESTID)).toBeTruthy();
 
-    await esperarFinDeGiro();
+    await esperarQueTermineElGiro(() => r.queryByTestId(NUMBERFLOW_TESTID));
 
-    expect(r.queryByTestId(NUMBERFLOW_TESTID)).toBeNull();
     expect(r.getByText(formatMoney(999900, 'ARS'))).toBeTruthy();
   });
 
