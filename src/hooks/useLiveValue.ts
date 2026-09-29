@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
+import { NavigationContext } from '@react-navigation/native';
 
 /**
  * Relee un valor que vive FUERA de React y devuelve siempre el último.
@@ -27,6 +28,9 @@ function iguales<T>(a: T, b: T): boolean {
 
 export function useLiveValue<T>(read: () => T, intervalMs = 2000): T {
   const [valor, setValor] = useState<T>(read);
+  // T-222: `useContext` y no `useNavigation`/`useIsFocused`, que tiran sin
+  // navegador — acá la navegación es opcional (tests, componentes sueltos).
+  const navegacion = useContext(NavigationContext);
 
   useEffect(() => {
     // T-155: `read()` suele armar un objeto NUEVO en cada llamada aunque el
@@ -36,15 +40,36 @@ export function useLiveValue<T>(read: () => T, intervalMs = 2000): T {
       const next = read();
       setValor(prev => (iguales(prev, next) ? prev : next));
     };
-    // Una lectura inmediata además del intervalo: si el valor cambió entre el
-    // primer render y el efecto, no hay que esperar un ciclo para verlo.
-    actualizar();
-    const id = setInterval(actualizar, intervalMs);
-    return () => clearInterval(id);
+
+    let id: ReturnType<typeof setInterval> | null = null;
+    const arrancar = () => {
+      if (id !== null) return;
+      // Una lectura inmediata además del intervalo: si el valor cambió
+      // mientras no se miraba, no hay que esperar un ciclo para verlo.
+      actualizar();
+      id = setInterval(actualizar, intervalMs);
+    };
+    const parar = () => {
+      if (id === null) return;
+      clearInterval(id);
+      id = null;
+    };
+
+    // T-222 (medido en T-216, Moto E40): las pestañas quedan montadas y
+    // congeladas al salir, y el sondeo seguía corriendo — en Cuenta, un frame
+    // de 35 ms cada 2 s en reposo. Con navegador, sólo se sondea con foco.
+    if (!navegacion) {
+      arrancar();
+      return parar;
+    }
+    if (navegacion.isFocused()) arrancar();
+    const sinFocus = navegacion.addListener('focus', arrancar);
+    const sinBlur = navegacion.addListener('blur', parar);
+    return () => { sinFocus(); sinBlur(); parar(); };
     // `read` se recrea en cada render de quien llama; depender de ella
     // reiniciaría el intervalo constantemente.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [intervalMs]);
+  }, [intervalMs, navegacion]);
 
   return valor;
 }
