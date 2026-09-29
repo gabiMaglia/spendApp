@@ -65,7 +65,7 @@ export default function ActivityScreen() {
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
         onScroll={scrollHandler}
-        contentContainerStyle={[{ paddingTop: headerPad, paddingBottom: 120, flexGrow: 1 }, contenidoMinimo]}
+        contentContainerStyle={[{ paddingBottom: 120, flexGrow: 1 }, contenidoMinimo]}
         data={items}
         keyExtractor={(it) => it.id}
         getItemType={(it) => it.kind}
@@ -79,6 +79,11 @@ export default function ActivityScreen() {
             trustFor={trustFor}
           />
         )}
+        // T-219: el offset del header vive acá, no en contentContainerStyle —
+        // FlashList v2 posiciona su canvas virtualizado (la primera fila,
+        // "Hoy") midiendo dónde termina el ListHeaderComponent, no leyendo el
+        // padding de la lista como hacía Animated.ScrollView antes de T-154.
+        ListHeaderComponentStyle={{ paddingTop: headerPad }}
         ListHeaderComponent={
           <>
             <ActivityFilterTabs

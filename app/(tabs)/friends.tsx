@@ -59,7 +59,7 @@ export default function FriendsScreen() {
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
         onScroll={scrollHandler}
-        contentContainerStyle={[{ paddingTop: headerPad, paddingBottom: 150, flexGrow: 1 }, contenidoMinimo]}
+        contentContainerStyle={[{ paddingBottom: 150, flexGrow: 1 }, contenidoMinimo]}
         data={items}
         keyExtractor={(it) => it.id}
         getItemType={(it) => it.kind}
@@ -72,6 +72,10 @@ export default function FriendsScreen() {
             onSettle={handleSettle}
           />
         )}
+        // T-219: el offset del header vive acá, no en contentContainerStyle —
+        // mismo motivo que Actividad/Grupos (FlashList v2 mide dónde termina
+        // el ListHeaderComponent, no lee el padding de la lista).
+        ListHeaderComponentStyle={{ paddingTop: headerPad }}
         ListHeaderComponent={
           <>
             {(owedToYou > 0 || youOwe > 0) && (

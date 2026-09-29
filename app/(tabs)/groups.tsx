@@ -62,7 +62,7 @@ export default function GroupsScreen() {
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
         onScroll={scrollHandler}
-        contentContainerStyle={[{ paddingTop: headerPad, paddingBottom: 150, flexGrow: 1 }, contenidoMinimo]}
+        contentContainerStyle={[{ paddingBottom: 150, flexGrow: 1 }, contenidoMinimo]}
         data={items}
         keyExtractor={(it) => it.id}
         getItemType={(it) => it.kind}
@@ -76,6 +76,12 @@ export default function GroupsScreen() {
             onArchiveAction={handleArchiveAction}
           />
         )}
+        // T-219: el offset del header vive acá, no en contentContainerStyle —
+        // FlashList v2 mide dónde termina el ListHeaderComponent para
+        // posicionar el resto, no lee el padding de la lista como hacía
+        // Animated.ScrollView antes de T-154 (sin esto, el header tapaba la
+        // mitad de arriba de GroupsSummaryStats, el primer bloque).
+        ListHeaderComponentStyle={{ paddingTop: headerPad }}
         ListHeaderComponent={
           <>
             {/* **Todo lo de arriba del segmentado no depende de la pestaña.**
