@@ -4,7 +4,7 @@ import { readScoped, writeScopedLazy } from './userScope';
 import { mergeByIdLevels } from './mergeLevels';
 import { siguienteUpdatedAt } from './relojDelMerge';
 import { signOnCreate } from '@/src/sync/confianza/signOnWrite';
-import { schedulePublish } from '@/src/sync/motor/relayEngine';
+import { schedulePublish } from '@/src/store/publicarGrupo';
 import { useExpenseStore } from './expenseStore';
 
 /**

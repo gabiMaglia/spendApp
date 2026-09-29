@@ -4,7 +4,7 @@ import { readScoped, writeScopedLazy } from './userScope';
 import { siguienteUpdatedAt } from './relojDelMerge';
 import { mergeGroupsPure } from './mergeGroupsPure';
 import { signOnCreate, signOnEdit } from '@/src/sync/confianza/signOnWrite';
-import { schedulePublish } from '@/src/sync/motor/relayEngine';
+import { schedulePublish } from '@/src/store/publicarGrupo';
 import type { Group, LeaveRequest } from '@/src/types/models';
 import { syncedNow } from '@/src/utils/syncedClock';
 import { privadaDelAparato } from '@/src/sync/confianza/devicePrivateKey';

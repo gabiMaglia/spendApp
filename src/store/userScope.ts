@@ -1,5 +1,4 @@
 import type { SimpleStorage } from '@/src/utils/createStorage';
-import { useAuthStore } from './authStore';
 
 // Aislamiento de datos por cuenta: cada usuario logueado tiene su propio
 // namespace de persistencia. Sin esto, dos cuentas en el mismo device
@@ -7,6 +6,11 @@ import { useAuthStore } from './authStore';
 // scopeamos los stores de datos y settings.
 
 export function activeUserId(): string | null {
+  // T-217: `require` perezoso. `authStore` → `accountLink` → `identityStore`
+  // importan esta misma store; traer `authStore` arriba del archivo cerraba
+  // un ciclo de carga. Acá sólo se lee el usuario al LLAMAR, nunca al cargar.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { useAuthStore } = require('@/src/store/authStore') as typeof import('@/src/store/authStore');
   return useAuthStore.getState().currentUser?.id ?? null;
 }
 
