@@ -3,8 +3,6 @@ import { useShallow } from 'zustand/react/shallow';
 import type { CurrencyCode } from '@/src/constants/currencies';
 import type { Expense, Payment, PersonalEntry } from '@/src/types/models';
 import { calculateBalancesByCurrency } from '@/src/algorithms/calculateBalances';
-import { directedDebts, type DirectedDebt, type Transferencia } from '@/src/algorithms/directedDebts';
-import { simplifyDebts } from '@/src/algorithms/simplifyDebts';
 import { pagosQueCuentan } from '@/src/algorithms/settlementStatus';
 import { contactosConHistorial } from '@/src/algorithms/historialConContacto';
 import { idCanonico, mismaPersona } from './identityAlias';
@@ -12,7 +10,6 @@ import { useGroupStore } from './groupStore';
 import { useExpenseStore } from './expenseStore';
 import { usePaymentStore } from './paymentStore';
 import { useUserStore } from './userStore';
-import { useArchiveStore } from './archiveStore';
 import { usePersonalStore } from './personalStore';
 
 // ── Balance de un grupo específico para un usuario ───────────────────────────
@@ -61,47 +58,13 @@ export function useGroupExpenseCount(groupId: string): number {
   return useExpenseStore(s => s.expenses.filter(e => e.groupId === groupId && !e.isDeleted).length);
 }
 
-// ── Suma de balances de todos los grupos del usuario (sin simplificar) ───────
-// Consistente con lo que muestra cada GroupCard individualmente.
-
-export interface GroupsTotalBalance {
-  currency: CurrencyCode;
-  owedToYou: number;
-  youOwe: number;
-}
-
-export function useGroupsTotalBalance(userId: string): GroupsTotalBalance[] {
-  const groups   = useGroupStore(s => s.groups);
-  const expenses = useExpenseStore(s => s.expenses);
-  const payments = usePaymentStore(s => s.payments);
-  const archivedIds = useArchiveStore(s => s.archivedIds);
-
-  return useMemo(() => {
-    const totals = new Map<CurrencyCode, { owedToYou: number; youOwe: number }>();
-
-    for (const group of groups) {
-      if (group.isDeleted) continue;
-      // Un grupo archivado no suma al total global (promesa de
-      // `groups.archived_hint`): su saldo ya vive trasladado en el grupo que
-      // lo sucedió (T-058) o el usuario lo sacó a mano de la vista activa, y
-      // en los dos casos sumarlo de nuevo acá lo contaría dos veces.
-      if (archivedIds.includes(group.id)) continue;
-      const gExpenses = expenses.filter(e => e.groupId === group.id);
-      const gPayments = pagosQueCuentan(payments, group);
-      const balances  = calculateBalancesByCurrency(gExpenses, gPayments, group.memberIds);
-      const entry     = balances.find(b => b.userId === idCanonico(userId));
-      if (!entry) continue;
-
-      for (const { currency, amount } of entry.balances) {
-        const prev = totals.get(currency) ?? { owedToYou: 0, youOwe: 0 };
-        if (amount > 0) totals.set(currency, { ...prev, owedToYou: prev.owedToYou + amount });
-        else if (amount < 0) totals.set(currency, { ...prev, youOwe: prev.youOwe + Math.abs(amount) });
-      }
-    }
-
-    return Array.from(totals.entries()).map(([currency, vals]) => ({ currency, ...vals }));
-  }, [groups, expenses, payments, userId, archivedIds]);
-}
+// ── Te deben / Debés, deuda direccional y balances por persona ────────────────
+// T-225: viven en `selectoresDeDeuda.ts` (deuda por par sin compensar). Se
+// re-exportan acá para que ningún import cambie.
+export {
+  useGroupsTotalBalance, useTotalesDelGrupo, useDirectedDebts, useGlobalPersonBalances,
+  type GroupsTotalBalance, type PersonBalance,
+} from '@/src/store/selectoresDeDeuda';
 
 // ── Neto (te deben − debés) de un conjunto explícito de grupos ───────────────
 // Para el "total total" al pie de la lista de Grupos (PO 2026-09-22): a
@@ -139,158 +102,6 @@ export function useGroupsNetBalanceFor(userId: string, groupIds: ReadonlySet<str
 
     return Array.from(totals.entries()).map(([currency, net]) => ({ currency, net }));
   }, [groups, expenses, payments, userId, groupIds]);
-}
-
-// ── Balances globales entre el usuario actual y cada otro usuario ────────────
-// Aplica simplifyDebts a todos los grupos consolidados y filtra las
-// transacciones donde aparece currentUserId.
-
-export interface PersonBalance {
-  userId: string;
-  currency: CurrencyCode;
-  amount: number; // positivo = esa persona me debe, negativo = le debo yo
-}
-
-/**
- * Deuda DIRECCIONAL con cada persona (ADR-006).
- *
- * Diferencia clave con `useGlobalPersonBalances`: **simplifica GRUPO POR
- * GRUPO** y recién después agrega. Aquélla consolida todos los grupos en un
- * solo pozo y simplifica una vez, y eso es exactamente lo que netea entre
- * grupos: si en uno le debo 5.000 y en otro me debe 5.000, el pozo dice "cero"
- * y las dos deudas desaparecen. Acá sobreviven las dos, cada una de su lado.
- */
-export function useDirectedDebts(currentUserId: string): DirectedDebt[] {
-  const groups   = useGroupStore(s => s.groups);
-  const expenses = useExpenseStore(s => s.expenses);
-  const payments = usePaymentStore(s => s.payments);
-  const archivedIds = useArchiveStore(s => s.archivedIds);
-
-  return useMemo(() => {
-    const transferencias: Transferencia[] = [];
-
-    for (const group of groups) {
-      if (group.isDeleted) continue;
-      // Un grupo archivado no suma a la deuda direccional global — mismo
-      // motivo que en `useGroupsTotalBalance`: su saldo ya está trasladado o
-      // el usuario lo sacó a mano de la vista activa.
-      if (archivedIds.includes(group.id)) continue;
-      // `mismaPersona` y no `===`: un grupo heredado de una cuenta absorbida
-      // nombra a su dueño con la identidad VIEJA en `memberIds`, y ese roster no
-      // se reescribe nunca (T-048 · D-6). Sin esto el grupo entero desaparecía
-      // del dashboard, con sus saldos adentro.
-      if (!group.memberIds.some(m => mismaPersona(m, currentUserId))) continue;
-
-      const gExpenses = expenses.filter(e => e.groupId === group.id);
-      const gPayments = pagosQueCuentan(payments, group);
-      const balances  = calculateBalancesByCurrency(gExpenses, gPayments, group.memberIds);
-
-      // Una simplificación POR GRUPO: dentro de un grupo netear es correcto
-      // —es una misma cuenta compartida—; entre grupos no.
-      const porMoneda = new Map<CurrencyCode, { userId: string; amount: number }[]>();
-      for (const { userId, balances: bals } of balances) {
-        for (const { currency, amount } of bals) {
-          if (!porMoneda.has(currency)) porMoneda.set(currency, []);
-          porMoneda.get(currency)!.push({ userId, amount });
-        }
-      }
-
-      for (const [currency, saldos] of porMoneda) {
-        const vivos = saldos.filter(b => Math.abs(b.amount) >= 0.01);
-        for (const tx of simplifyDebts(vivos, currency)) {
-          transferencias.push({ ...tx, currency });
-        }
-      }
-    }
-
-    return directedDebts(transferencias, idCanonico(currentUserId));
-  }, [groups, expenses, payments, currentUserId, archivedIds]);
-}
-
-export function useGlobalPersonBalances(currentUserId: string): PersonBalance[] {
-  const groups   = useGroupStore(s => s.groups);
-  const expenses = useExpenseStore(s => s.expenses);
-  const payments = usePaymentStore(s => s.payments);
-  const archivedIds = useArchiveStore(s => s.archivedIds);
-
-  return useMemo(() => {
-    // Las transferencias salen con ids canónicos: hay que compararlas contra el
-    // canónico, no contra lo que el llamador haya pasado.
-    const yo = idCanonico(currentUserId);
-
-    // Acumula todos los balances globales por (userId, currency) sumando cada grupo
-    const globalMap = new Map<string, Map<CurrencyCode, number>>();
-
-    const addToGlobal = (userId: string, currency: CurrencyCode, delta: number) => {
-      if (!globalMap.has(userId)) globalMap.set(userId, new Map());
-      const m = globalMap.get(userId)!;
-      m.set(currency, (m.get(currency) ?? 0) + delta);
-    };
-
-    for (const group of groups) {
-      // Un grupo borrado NO puede seguir generando deuda: esa plata ya no se
-      // puede saldar (no hay pantalla donde hacerlo) y quedaba figurando para
-      // siempre en Amigos y en el resumen.
-      if (group.isDeleted) continue;
-      // Un grupo archivado, mismo motivo: su saldo ya está trasladado (T-058)
-      // o el usuario lo sacó a mano de la vista activa — sumarlo acá lo
-      // cuenta dos veces junto con el grupo que lo sucedió.
-      if (archivedIds.includes(group.id)) continue;
-      // Y un grupo del que no soy parte tampoco: sus saldos entrarían al pozo
-      // global y cambiarían con QUIÉN me empareja la simplificación.
-      // "Ser parte" incluye estar en el roster con la identidad vieja (T-048).
-      if (!group.memberIds.some(m => mismaPersona(m, currentUserId))) continue;
-
-      const gExpenses = expenses.filter(e => e.groupId === group.id);
-      const gPayments = pagosQueCuentan(payments, group);
-      const balances  = calculateBalancesByCurrency(gExpenses, gPayments, group.memberIds);
-
-      for (const { userId, balances: bals } of balances) {
-        for (const { currency, amount } of bals) {
-          addToGlobal(userId, currency, amount);
-        }
-      }
-    }
-
-    // Por cada moneda, corre simplifyDebts y extrae las transacciones del currentUser
-    const currencies = new Set<CurrencyCode>();
-    for (const m of globalMap.values()) {
-      for (const cur of m.keys()) currencies.add(cur);
-    }
-
-    const result: PersonBalance[] = [];
-
-    for (const currency of currencies) {
-      const balancesForCurrency = Array.from(globalMap.entries())
-        .map(([userId, m]) => ({ userId, amount: m.get(currency) ?? 0 }))
-        .filter(b => Math.abs(b.amount) >= 0.01);
-
-      const transactions = simplifyDebts(balancesForCurrency, currency);
-
-      for (const tx of transactions) {
-        if (tx.toUserId === yo) {
-          // Alguien me debe
-          result.push({ userId: tx.fromUserId, currency, amount: tx.amount });
-        } else if (tx.fromUserId === yo) {
-          // Le debo a alguien
-          result.push({ userId: tx.toUserId, currency, amount: -tx.amount });
-        }
-      }
-    }
-
-    // Agrupa por (userId, currency) por si hay múltiples entradas
-    const merged = new Map<string, PersonBalance>();
-    for (const entry of result) {
-      const key = `${entry.userId}:${entry.currency}`;
-      const prev = merged.get(key);
-      merged.set(key, prev
-        ? { ...prev, amount: prev.amount + entry.amount }
-        : entry,
-      );
-    }
-
-    return Array.from(merged.values()).sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount));
-  }, [groups, expenses, payments, currentUserId, archivedIds]);
 }
 
 /**

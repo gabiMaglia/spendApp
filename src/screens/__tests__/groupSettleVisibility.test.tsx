@@ -13,8 +13,8 @@ import type { Expense, Group, Payment, User } from '@/src/types/models';
  * cualquier moneda (PO, T-104). Antes se ofrecía con solo tener un gasto
  * cargado (PO 2026-08-30) y eso mandaba a la pantalla de saldar aun cuando ya
  * no había nada que saldar (gastos compensados, pagos hechos, multi-moneda en
- * cero). Usa la misma fuente que ya calcula el balance de la pantalla
- * (`useGroupBalance`, que corre `calculateBalancesByCurrency` + `pagosQueCuentan`).
+ * cero). Desde T-225 la fuente es la deuda sin compensar del grupo
+ * (`useTotalesDelGrupo`): el botón aparece si DEBO algo, aunque me deban más.
  */
 jest.mock('@/src/sync/motor/relayEngine', () => ({
   schedulePublish: jest.fn(), deviceId: () => 'dev', startRelay: jest.fn(),
@@ -75,9 +75,11 @@ describe('visibilidad de "saldar deuda" (T-104: deuda viva, no solo gastos)', ()
     expect(queryByTestId('settle-debts')).toBeNull();
   });
 
-  it('gastos que se compensan entre sí (deuda neta cero) NO se ofrece', () => {
+  it('gastos que se compensan entre sí (deuda neta cero) SÍ se ofrece: debo lo mío (T-225)', () => {
     // Ana paga 100.000 partido a medias, y luego Beto paga otros 100.000
-    // también partidos a medias: al neto nadie le debe nada a nadie.
+    // también partidos a medias. Al neto nadie le debe nada a nadie, pero
+    // desde T-225 (PO 2026-09-29) las deudas no se compensan: Ana le debe
+    // 50.000 a Beto (y él a ella), y Saldar mira si YO debo algo.
     useExpenseStore.setState({
       expenses: [
         gasto({ id: 'e1', paidById: 'ana', amount: 100_000 }),
@@ -87,8 +89,8 @@ describe('visibilidad de "saldar deuda" (T-104: deuda viva, no solo gastos)', ()
         }),
       ],
     });
-    const { queryByTestId } = render(<GroupDetailScreen />);
-    expect(queryByTestId('settle-debts')).toBeNull();
+    const { getByTestId } = render(<GroupDetailScreen />);
+    expect(getByTestId('settle-debts')).toBeTruthy();
   });
 
   it('un pago que salda la deuda por completo NO se ofrece (grupo open)', () => {

@@ -1,11 +1,11 @@
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { Alert } from 'react-native';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
 import { useAuthStore } from '@/src/store/authStore';
 import { useUserStore } from '@/src/store/userStore';
-import { useContactosConHistorial } from '@/src/store/selectors';
+import { useContactosConHistorial, useDirectedDebts } from '@/src/store/selectors';
 import { hapticWarning } from '@/src/utils/haptics';
 import { useContacts } from './useContacts';
 
@@ -15,6 +15,14 @@ export function useFriendsContacts() {
   const { currentUser } = useAuthStore();
   const removeUser = useUserStore(s => s.removeUser);
   const conHistorial = useContactosConHistorial(currentUser?.id ?? '');
+  const deudas = useDirectedDebts(currentUser?.id ?? '');
+
+  // T-225 (PO 2026-09-29): «Saldar» se ofrece si YO le debo algo, aunque el
+  // neto de la tarjeta diga que me debe más. Ids canónicos, como `conHistorial`.
+  const aQuienesDebo = useMemo(
+    () => new Set(deudas.filter(d => d.iOwe > 0).map(d => d.userId)),
+    [deudas],
+  );
 
   // Criterio compartido con `app/contact/add.tsx` (T-197): usuarios activos,
   // sin uno mismo — ver `useContacts`.
@@ -36,12 +44,11 @@ export function useFriendsContacts() {
     );
   }, [t, removeUser]);
 
-  const handleSettle = useCallback((id: string, amount: number, currency: string) => {
-    router.push({
-      pathname: '/settle/new',
-      params: { toId: id, maxAmount: String(Math.abs(amount)), currency },
-    } as any);
+  // Sin monto ni grupo: desde Amigos se salda el total en cada grupo compartido
+  // y la pantalla lo calcula sola (T-225).
+  const handleSettle = useCallback((id: string) => {
+    router.push({ pathname: '/settle/new', params: { toId: id } } as any);
   }, []);
 
-  return { contacts, conHistorial, handleRemove, handleSettle };
+  return { contacts, conHistorial, aQuienesDebo, handleRemove, handleSettle };
 }

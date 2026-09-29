@@ -14,7 +14,7 @@ export { RATE_SCALE };
  * no menor-unidad↔menor-unidad (las dos monedas pueden tener distinta cantidad
  * de decimales, p.ej. ARS↔CLP).
  */
-function convertMinorAmount(
+export function convertMinorAmount(
   amountMinor: number,
   fromCurrency: CurrencyCode,
   toCurrency: CurrencyCode,

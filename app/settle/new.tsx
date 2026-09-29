@@ -27,6 +27,7 @@ import { HeroSaldo } from '@/src/screens/settle/components/HeroSaldo';
 import { TarjetaTransferencia } from '@/src/screens/settle/components/TarjetaTransferencia';
 import { FilasGrupoYFecha } from '@/src/screens/settle/components/FilasGrupoYFecha';
 import { HojasDeSaldo } from '@/src/screens/settle/components/HojasDeSaldo';
+import { SaldarConAmigo } from '@/src/screens/settle/components/SaldarConAmigo';
 
 /**
  * **Saldar deuda.**
@@ -36,6 +37,14 @@ import { HojasDeSaldo } from '@/src/screens/settle/components/HojasDeSaldo';
  * par, el guardado y la lógica pura viven en `src/screens/settle/`.
  */
 export default function SettleNewScreen() {
+  const { toId, groupId } = useLocalSearchParams<{ toId?: string; groupId?: string }>();
+  // T-225: desde Amigos llega la persona sin grupo — se salda el total con
+  // ella en todos los grupos compartidos, no un monto en uno solo.
+  if (toId && !groupId) return <SaldarConAmigo amigoId={toId} />;
+  return <SaldarEnGrupo />;
+}
+
+function SaldarEnGrupo() {
   const { t } = useTranslation();
   const c = useColors();
 
