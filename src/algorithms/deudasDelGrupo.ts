@@ -56,8 +56,8 @@ function repartirEntrePagadores(
   return m;
 }
 
-export function deudasDelGrupo(expenses: Expense[], payments: Payment[], memberIds: string[]): DeudaPar[] {
-  const roster = new Set(rosterCanonico(memberIds));
+export function deudasDelGrupo(expenses: Expense[], payments: Payment[], miembros: string[]): DeudaPar[] {
+  const roster = new Set(rosterCanonico(miembros));
   const deudas = new Map<string, DeudaPar>();
   const clave = (a: string, b: string, c: CurrencyCode) => `${a}|${b}|${c}`;
   const sumar = (deudor: string, acreedor: string, currency: CurrencyCode, monto: number) => {
