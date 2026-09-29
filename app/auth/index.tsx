@@ -1,338 +1,26 @@
-import React, { useEffect, useState } from 'react';
-import { Alert, Linking, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React from 'react';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
-import { AppLogoMark } from '@/src/components/AppLogoMark';
-import { LEGAL_DISPONIBLE, urlDePrivacidad, urlDeTerminos } from '@/src/constants/legal';
-import { v4 as uuidv4 } from 'uuid';
-import { marcarProveedorProbado, recordGuestAccount, pendingGuestAccountId, clearGuestAccount } from '@/src/store/authStore';
-import { signIntoDirectory } from '@/src/sync/sesion/directoryAuth';
-import { registerDeviceKey } from '@/src/sync/confianza/deviceKeys';
-import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
-import { codigoDeErrorGoogle } from '@/src/utils/googleSignInError';
 import * as AppleAuthentication from 'expo-apple-authentication';
 
-import { Radius, Spacing } from '@/src/constants/spacing';
-import { Typography } from '@/src/constants/typography';
+import { Spacing } from '@/src/constants/spacing';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { adoptarAvatarDelProveedor } from '@/src/services/avatar';
-import { useAuthStore } from '@/src/store/authStore';
-import { useEntryGateStore } from '@/src/store/entryGateStore';
-import { mergeAccounts } from '@/src/store/accountLink';
-import { actualizarMiPerfil } from '@/src/store/miPerfil';
-import { mergeProviderUser } from '@/src/utils/mergeProviderUser';
-import { syncedNow } from '@/src/utils/syncedClock';
 import { Button } from '@/src/components/Button';
 import { useColors } from '@/src/skins/useSkin';
+import { HeroDeLogin } from '@/src/screens/auth/components/HeroDeLogin';
+import { LinksLegales } from '@/src/screens/auth/components/LinksLegales';
+import { useLoginSocial } from '@/src/screens/auth/hooks/useLoginSocial';
+import { useProveedoresDeLogin } from '@/src/screens/auth/hooks/useProveedoresDeLogin';
 
-type GoogleUser = {
-  id: string;
-  name?: string | null;
-  email: string;
-  photo?: string | null;
-  givenName?: string | null;
-};
-
+// T-223: la lógica de entrada vive en `src/screens/auth` (hooks + resolución
+// de cuenta + directorio); acá queda la composición.
 export default function AuthScreen() {
   const { t } = useTranslation();
   const scheme = useColorScheme() ?? 'light';
   const c = useColors();
-  const { setUser, getStoredProfile, resolveAccount, confirmAccountLink, keepAccountSeparate } = useAuthStore();
-
-  const [appleAvailable, setAppleAvailable] = useState(false);
-
-  useEffect(() => {
-    if (Platform.OS === 'ios') {
-      AppleAuthentication.isAvailableAsync().then(setAppleAvailable);
-    }
-  }, []);
-
-  // Google Sign-In nativo (@react-native-google-signin). En Android usa el
-  // cliente OAuth Android registrado en GCP (paquete + SHA-1) — no requiere ID
-  // en código. En iOS necesita iosClientId. webClientId es opcional (solo para
-  // idToken; acá el auth es serverless y usamos el perfil directo).
-  useEffect(() => {
-    GoogleSignin.configure({
-      webClientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_WEB || undefined,
-      iosClientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS || undefined,
-      offlineAccess: false,
-    });
-  }, []);
-
-
-  // Resuelve a qué cuenta entra este login. Si el proveedor no mandó email
-  // (Apple sólo lo manda la 1ª vez) y ya hay otras cuentas en el device, no se
-  // adivina: se le pregunta al usuario (decisión del PO). Devuelve el id de
-  // cuenta, o null si el usuario todavía tiene que decidir.
-  function accountIdFor(
-    providerId: string,
-    email: string | null | undefined,
-    onResolved: (accountId: string) => void,
-  ) {
-    const r = resolveAccount(providerId, email);
-
-    if (r.kind !== 'confirm') { onResolved(r.accountId); return; }
-
-    const candidate = r.candidates[0];
-
-    /**
-     * Fusionar exige probar el proveedor de la cuenta destino (T-042). Si no
-     * está probado, se le ofrece al usuario entrar con esa cuenta ahora.
-     *
-     * **Si no se puede probar, NO se registra «mantenerlas separadas».** Esa
-     * decisión es permanente —apunta el proveedor a su propia cuenta y el
-     * próximo login ya no pregunta— así que usarla como caída dejaría la fusión
-     * legítima imposible para siempre. Se entra sin unir y se vuelve a
-     * preguntar la próxima vez.
-     */
-    async function unir(): Promise<void> {
-      let r2 = confirmAccountLink(providerId, candidate.accountId);
-
-      if (!r2.ok) {
-        const proveedorDestino = getStoredProfile(candidate.accountId)?.authProvider;
-        // Un invitado (T-101-bis) nunca entra a este índice de candidatos
-        // (`setUser` no lo registra), así que esto es sólo para que el tipo
-        // cierre: `probarOtroProveedor` solo sabe entrar con Google o Apple.
-        const probado = (proveedorDestino === 'google' || proveedorDestino === 'apple')
-          ? await probarOtroProveedor(proveedorDestino)
-          : false;
-        r2 = probado
-          ? confirmAccountLink(providerId, candidate.accountId)
-          : { ok: false, reason: 'sin_prueba' };
-      }
-
-      if (!r2.ok) {
-        Alert.alert(t('auth.link_need_proof_title'), t('auth.link_need_proof_body'));
-        onResolved(providerId);   // entra sin unir; la próxima vez se vuelve a preguntar
-        return;
-      }
-      onResolved(candidate.accountId);
-    }
-
-    Alert.alert(
-      t('auth.link_title'),
-      `${t('auth.link_body', { account: candidate.label })}\n\n${t('auth.link_irreversible')}`,
-      [
-        {
-          text: t('auth.link_separate'),
-          style: 'cancel',
-          onPress: () => {
-            // Registrar la decisión, no sólo actuarla: sin esto el próximo
-            // login no encuentra el proveedor en el índice y, si el email
-            // coincide con otra cuenta, la absorbe sin preguntar. El usuario
-            // dijo «separadas» y la app las junta igual, un login después.
-            keepAccountSeparate(providerId, email);
-            onResolved(providerId);
-          },
-        },
-        {
-          text: t('auth.link_confirm'),
-          onPress: () => { void unir(); },
-        },
-      ],
-    );
-  }
-
-  /**
-   * **T-101-bis: modo invitado.** Entra sin Google ni Apple — un `User` local,
-   * sin proveedor real. El sync funciona igual (el buzón acepta clave `anon`,
-   * ver `supabase/001_mailbox.sql`); sólo se queda afuera del directorio de
-   * claves de ADR-004, que exige un `id_token` real y resuelve, para cualquiera
-   * que lo consulte, en el veredicto `sin_directorio` — el único que
-   * `authorHealth.ts` nunca usa para rechazar un sobre.
-   *
-   * Se anota como pendiente de fusión (`recordGuestAccount`): si esta persona
-   * entra después con una cuenta real, se le ofrece sumar estos datos.
-   */
-  function entrarComoInvitado() {
-    const id = uuidv4();
-    recordGuestAccount(id);
-    // T-147 (fila 9a, decisión del PO 2026-09-27): pide la verificación
-    // bloqueante ANTES de `setUser` — `AuthGuard` la lee en el mismo tick en
-    // que `currentUser` deja de ser `null`, así que nunca hay un instante en
-    // el que pudiera mandar directo a tabs sin haber pedido nada.
-    useEntryGateStore.getState().pedirVerificacion();
-    setUser({
-      id,
-      name:         t('auth.guest_name'),
-      email:        '',
-      authProvider: 'guest',
-      createdAt:    syncedNow(),
-      updatedAt:    syncedNow(),
-      isDeleted:    false,
-    });
-  }
-
-  /**
-   * Si este dispositivo tiene una cuenta invitada pendiente (T-101-bis), ofrece
-   * fusionarla con la cuenta real recién resuelta — mismo mecanismo que T-042
-   * (`mergeAccounts`), pero sin necesitar "probar" nada: pasar de invitado a una
-   * cuenta real en el mismo aparato ya es la prueba.
-   */
-  function ofrecerFusionDeInvitado(accountId: string, label: string) {
-    const guestId = pendingGuestAccountId();
-    if (!guestId || guestId === accountId) return;
-
-    Alert.alert(
-      t('auth.guest_merge_title'),
-      t('auth.guest_merge_body', { account: label }),
-      [
-        { text: t('auth.guest_merge_no'), style: 'cancel', onPress: clearGuestAccount },
-        {
-          text: t('auth.guest_merge_yes'),
-          onPress: () => { mergeAccounts(guestId, accountId); clearGuestAccount(); },
-        },
-      ],
-    );
-  }
-
-  /**
-   * Entra al directorio de claves y registra la de este dispositivo.
-   *
-   * Best effort de punta a punta: si Supabase Auth no está configurado, si el
-   * proveedor no mandó `id_token` o si la RLS rechaza, no pasa nada — la app
-   * funciona igual que antes de que esto existiera (ADR-004, fase A).
-   */
-  async function entrarAlDirectorio(
-    proveedor: 'google' | 'apple',
-    idToken: string | null | undefined,
-    providerId: string,
-  ): Promise<boolean> {
-    const entrada = await signIntoDirectory(proveedor, idToken);
-    if (!entrada.ok) return false;
-    // La prueba de T-042: el directorio aceptó el token de ESTE proveedor.
-    marcarProveedorProbado(providerId);
-    await registerDeviceKey();
-    return true;
-  }
-
-  /**
-   * Prueba el proveedor de la cuenta destino **sin cambiar de sesión**: corre su
-   * login y se lo presenta al directorio, nada más.
-   *
-   * Existe porque sin esto la fusión legítima sería imposible: la prueba es de
-   * la sesión, y la otra cuenta no se probó en ésta. Es el único momento en que
-   * pedirle al usuario que entre con la otra cuenta tiene sentido — está acá,
-   * decidiendo unirlas.
-   */
-  async function probarOtroProveedor(proveedor: 'google' | 'apple'): Promise<boolean> {
-    try {
-      if (proveedor === 'apple') {
-        const cred = await AppleAuthentication.signInAsync({
-          requestedScopes: [AppleAuthentication.AppleAuthenticationScope.EMAIL],
-        });
-        return entrarAlDirectorio('apple', cred.identityToken, cred.user);
-      }
-      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
-      const resp = (await GoogleSignin.signIn()) as unknown as {
-        data?: { user?: GoogleUser; idToken?: string | null };
-        user?: GoogleUser; idToken?: string | null;
-      };
-      const u = resp?.data?.user ?? resp?.user;
-      if (!u) return false;   // cancelado
-      return entrarAlDirectorio('google', resp?.data?.idToken ?? resp?.idToken, u.id);
-    } catch {
-      return false;   // cancelar no es un error: simplemente no se fusiona
-    }
-  }
-
-  async function handleGoogleLogin() {
-    try {
-      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
-      // La forma del retorno varía por versión; contemplamos {data:{user}} y {user}.
-      const response = (await GoogleSignin.signIn()) as unknown as {
-        data?: { user?: GoogleUser; idToken?: string | null };
-        user?: GoogleUser;
-        idToken?: string | null;
-      };
-      const u = response?.data?.user ?? response?.user;
-      if (!u) return; // cancelado
-
-      // Mismo mail ⇒ misma cuenta, entre con Google o con Apple.
-      accountIdFor(u.id, u.email, (accountId) => {
-        ofrecerFusionDeInvitado(accountId, u.email);
-        // T-147 (fila 9b): igual que en `entrarComoInvitado`, antes de `setUser`.
-        useEntryGateStore.getState().pedirVerificacion();
-        setUser(mergeProviderUser(getStoredProfile(accountId), {
-          id:           accountId,
-          authProvider: 'google',
-          name:         u.name ?? u.givenName,
-          email:        u.email,
-          avatarUrl:    u.photo,
-          // T-188a: este login es LA MISMA PERSONA (idEstable), aunque el
-          // perfil guardado esté anonimizado por un borrado anterior — pisa
-          // el «Cuenta borrada».
-          deletedAt:    undefined,
-        }));
-
-        // La foto de Google se adopta como bytes propios UNA vez. A partir de
-        // acá deja de depender de su CDN: no caduca, se dibuja sin internet y
-        // nadie afuera se entera de quién la mira. Va sin await: si falla o
-        // tarda, se entra igual y quedan las iniciales.
-        void adoptarAvatarDelProveedor(u.photo ?? undefined).then(foto => {
-          if (!foto) return;
-          const yo = useAuthStore.getState().currentUser;
-          if (!yo || yo.id !== accountId || yo.avatar) return; // ya eligió una: no se pisa
-          // Por `actualizarMiPerfil` y no `setUser` suelto: la foto tiene que
-          // llegar TAMBIÉN a userStore (que es lo que arma el delta de sync) y
-          // anunciarse a los contactos. Con `setUser` solo, la foto de Google
-          // la veía únicamente su dueño y nadie más, para siempre.
-          actualizarMiPerfil({ avatar: foto });
-        });
-
-        // Directorio de claves (ADR-004): se aprovecha el MISMO id_token del
-        // login, así que no hay una segunda pantalla para el usuario. Va sin
-        // await y sin bloquear: si falla, la app entra igual.
-        void entrarAlDirectorio('google', response?.data?.idToken ?? response?.idToken, u.id);
-      });
-    } catch (e) {
-      const code = (e as { code?: string })?.code;
-      if (code === statusCodes.SIGN_IN_CANCELLED || code === statusCodes.IN_PROGRESS) return;
-      // T-138: el código real va en el aviso — sin él no hay forma de saber
-      // si falta un SHA-1 (DEVELOPER_ERROR), si es la red o Play Services.
-      alert(t('auth.error_google_code', { code: codigoDeErrorGoogle(e) }));
-    }
-  }
-
-  async function handleAppleLogin() {
-    try {
-      const credential = await AppleAuthentication.signInAsync({
-        requestedScopes: [
-          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
-          AppleAuthentication.AppleAuthenticationScope.EMAIL,
-        ],
-      });
-
-      // Apple manda fullName y email SOLO en el primer login de cada Apple ID;
-      // después llegan null. Por eso NO se arma el User acá: mergeProviderUser
-      // combina lo que llegue con el perfil ya persistido (que sobrevive al
-      // signOut) y deja ganar al dato local. Ver src/utils/mergeProviderUser.ts.
-      const name = [
-        credential.fullName?.givenName,
-        credential.fullName?.familyName,
-      ].filter(Boolean).join(' ');
-
-      accountIdFor(credential.user, credential.email, (accountId) => {
-        ofrecerFusionDeInvitado(accountId, credential.email ?? name);
-        // T-147 (fila 9b): igual que en `entrarComoInvitado`, antes de `setUser`.
-        useEntryGateStore.getState().pedirVerificacion();
-        setUser(mergeProviderUser(getStoredProfile(accountId), {
-          id:           accountId,
-          authProvider: 'apple',
-          name,
-          email:        credential.email,
-          // T-188a: ídem Google — este login es la misma persona.
-          deletedAt:    undefined,
-        }));
-
-        void entrarAlDirectorio('apple', credential.identityToken, credential.user);
-      });
-    } catch (e: any) {
-      if (e.code !== 'ERR_REQUEST_CANCELED') {
-        alert(t('auth.error_apple'));
-      }
-    }
-  }
+  const { entrarComoInvitado, handleGoogleLogin, handleAppleLogin } = useLoginSocial();
+  const appleAvailable = useProveedoresDeLogin();
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: c.bg }]}>
@@ -340,18 +28,7 @@ export default function AuthScreen() {
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
       >
-        {/* Hero */}
-        <View style={styles.hero}>
-          <AppLogoMark size={84} />
-          <View style={styles.heroText}>
-            <Text style={[Typography.display, { color: c.text, textAlign: 'center', lineHeight: 40 }]}>
-              {t('auth.welcome_title')}
-            </Text>
-            <Text style={[Typography.bodyL, { color: c.textSecondary, textAlign: 'center', maxWidth: 280 }]}>
-              {t('auth.welcome_subtitle')}
-            </Text>
-          </View>
-        </View>
+        <HeroDeLogin />
 
         {/* CTAs */}
         <View style={styles.ctas}>
@@ -380,29 +57,7 @@ export default function AuthScreen() {
             {t('auth.continue_guest')}
           </Button>
 
-          {/*
-            * Los dos links ABREN. Hasta T-090 eran texto pintado del color de
-            * marca sin `onPress`: parecían links y no llevaban a ningún lado.
-            * Mientras `LEGAL_DISPONIBLE` esté apagado siguen siendo texto, que
-            * es lo honesto — la puerta se ofrece cuando existe.
-            */}
-          <Text style={[Typography.bodyS, { color: c.textTertiary, textAlign: 'center' }]}>
-            {t('auth.terms_prefix')}{' '}
-            <Text
-              style={{ color: c.brand.primary, fontWeight: '600' }}
-              onPress={LEGAL_DISPONIBLE ? () => void Linking.openURL(urlDeTerminos()) : undefined}
-            >
-              {t('auth.terms_link')}
-            </Text>
-            {' '}{t('auth.privacy_and')}{' '}
-            <Text
-              style={{ color: c.brand.primary, fontWeight: '600' }}
-              onPress={LEGAL_DISPONIBLE ? () => void Linking.openURL(urlDePrivacidad()) : undefined}
-            >
-              {t('auth.privacy_link')}
-            </Text>
-            {'. '}{t('auth.terms_suffix')}
-          </Text>
+          <LinksLegales />
 
         </View>
       </ScrollView>
@@ -421,8 +76,6 @@ const styles = StyleSheet.create({
     padding: Spacing.screenPad,
     paddingTop: Spacing[8],
   },
-  hero:        { alignItems: 'center', gap: 24, marginBottom: Spacing[8] },
-  heroText:    { alignItems: 'center', gap: 8 },
   ctas:        { gap: 10, paddingBottom: Spacing[4] },
   appleButton: { width: '100%', height: 50 },
 });
