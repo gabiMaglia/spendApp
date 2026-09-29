@@ -2,18 +2,28 @@ import React from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { FondoMarmol } from '@/src/components/FondoMarmol';
+import { conAlfa } from '@/src/skins/color';
 import { useSkin } from '@/src/skins/useSkin';
 import { VidrioMarmol } from './VidrioMarmol';
 import { AERO_RADIO } from './headerAeroGeometria';
+
+/**
+ * Opacidad del velo detrás de la barra de pestañas (T-227 punto 9, PO: «como
+ * el header pero con un blur muchísimo más intenso, que apenas se vea
+ * detrás»): apenas se ve lo de atrás. Es el sustituto del blur, que no se
+ * puede usar — `expo-blur` crashea en Android 11 (ver `VeloHeader`).
+ */
+export const VELO_BARRA_OPACIDAD = 0.88;
 
 /**
  * **Fondo de la barra de pestañas en el Aero** (PO 2026-09-26): la misma
  * tarjeta que el header — margen a los costados, radio pronunciado, mármol
  * con vidrio y borde fino — dibujada como `tabBarBackground`.
  *
- * Arranca en el borde de arriba de la barra (ahí se corta el contenido: nada
- * de franja "fantasma" entre el contenido y la tarjeta) y termina `inferior`
+ * La tarjeta arranca en el borde de arriba de la barra y termina `inferior`
  * puntos antes del final, que es la zona del sistema (gestos / tres botones).
+ * Desde T-227 la barra flota sobre el contenido: detrás de la tarjeta va un
+ * velo denso del color de fondo en vez del fondo opaco.
  */
 export function TabBarFondoAero({ inferior }: { inferior: number }) {
   const { skin, degradado } = useSkin();
@@ -22,7 +32,11 @@ export function TabBarFondoAero({ inferior }: { inferior: number }) {
     ? { elevation: skin.elevation.e2.elevationFallback }
     : { boxShadow: skin.elevation.e2.boxShadow };
   return (
-    <View testID="tabbar-aero" style={[StyleSheet.absoluteFill, { backgroundColor: c.bg }]} pointerEvents="none">
+    <View testID="tabbar-aero" style={StyleSheet.absoluteFill} pointerEvents="none">
+      <View
+        testID="velo-barra"
+        style={[StyleSheet.absoluteFill, { backgroundColor: conAlfa(c.bg, VELO_BARRA_OPACIDAD) }]}
+      />
       <View
         style={[
           styles.tarjeta,

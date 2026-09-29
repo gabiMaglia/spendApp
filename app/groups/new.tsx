@@ -8,7 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { v4 as uuidv4 } from 'uuid';
 import { hapticSelection, hapticSuccess } from '@/src/utils/haptics';
 
-import { DetailHeader } from '@/src/components/CollapsibleHeader';
+import { DetailHeader, useRellenoDetailHeader } from '@/src/components/CollapsibleHeader';
 import { ActionButton } from '@/src/components/ActionButton';
 import { ButtonRack } from '@/src/components/ButtonRack';
 
@@ -37,6 +37,8 @@ const PRIMARY_CURRENCIES: CurrencyCode[] = ['ARS', 'USD', 'EUR', 'BRL'];
 export default function NewGroupScreen() {
   const { t } = useTranslation();
   const c = useColors();
+  // Aero: el header flota y el contenido arranca debajo de su tarjeta (T-227).
+  const relleno = useRellenoDetailHeader();
 
   const { currentUser } = useAuthStore();
   const { addGroup } = useGroupStore();
@@ -136,7 +138,7 @@ export default function NewGroupScreen() {
         />
 
         <ScrollView
-          contentContainerStyle={styles.scroll}
+          contentContainerStyle={[styles.scroll, { paddingTop: Spacing[4] + relleno }]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >

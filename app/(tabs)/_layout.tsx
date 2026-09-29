@@ -101,8 +101,13 @@ export default function TabLayout() {
           borderTopWidth: 1,
           borderTopColor: c.hair,
           elevation: 0,
-          // Aero: sin hairline ni fondo propio; la tarjeta la dibuja `TabBarFondoAero`.
-          ...(soft && { borderTopWidth: 0, backgroundColor: 'transparent' }),
+          // Aero: sin hairline ni fondo propio; la tarjeta y el velo los dibuja
+          // `TabBarFondoAero`. La barra flota sobre el contenido (T-227 punto 9):
+          // cada pestaña deja su alto libre abajo con `useRellenoBarraPestanas`.
+          ...(soft && {
+            borderTopWidth: 0, backgroundColor: 'transparent',
+            position: 'absolute', left: 0, right: 0, bottom: 0,
+          }),
         },
         ...(soft && { tabBarBackground: () => <TabBarFondoAero inferior={bajoTarjeta} /> }),
         tabBarItemStyle: { paddingTop: 0 },

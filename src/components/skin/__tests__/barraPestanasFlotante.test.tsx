@@ -20,7 +20,7 @@ import { useSettingsStore } from '@/src/store/settingsStore';
 let opciones: Record<string, any> = {};
 jest.mock('expo-router', () => {
   const Tabs = (p: { screenOptions: Record<string, any> }) => { opciones = p.screenOptions; return null; };
-  Tabs.Screen = () => null;
+  Tabs.Screen = function Screen() { return null; };
   return { Tabs };
 });
 

@@ -5,7 +5,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
 import { Spacing } from '@/src/constants/spacing';
-import { DetailHeader } from '@/src/components/CollapsibleHeader';
+import { DetailHeader, useRellenoDetailHeader } from '@/src/components/CollapsibleHeader';
 import { Typography } from '@/src/constants/typography';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useArchiveStore } from '@/src/store/archiveStore';
@@ -37,6 +37,8 @@ export default function ExpenseDetailScreen() {
   // el orden de hooks entre renders. Lo atrapó el lint.
   const groups = useGroupStore(st => st.groups);
   const c = useColors();
+  // Aero: el header flota y el contenido arranca debajo de su tarjeta (T-227).
+  const relleno = useRellenoDetailHeader();
 
   const { currentUser } = useAuthStore();
   const expense = useExpenseStore(s => s.expenses.find(e => e.id === id));
@@ -124,7 +126,7 @@ export default function ExpenseDetailScreen() {
         ) : undefined}
       />
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingTop: Spacing[4] + relleno }]}>
         <HeroDelGasto expense={expense} dateStr={dateStr} marca={marcaDeGasto} nombreDe={nombreDe} />
 
         <MiBalanceEnGasto

@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
-import { DetailHeader } from '@/src/components/CollapsibleHeader';
+import { DetailHeader, useRellenoDetailHeader } from '@/src/components/CollapsibleHeader';
 import { ActionButton } from '@/src/components/ActionButton';
 import { ButtonRack } from '@/src/components/ButtonRack';
 import { Band, BandRow } from '@/src/components/Band';
@@ -24,13 +24,15 @@ import { useSaldoConAmigo } from '@/src/screens/settle/hooks/useSaldoConAmigo';
 export function SaldarConAmigo({ amigoId }: { amigoId: string }) {
   const { t } = useTranslation();
   const c = useColors();
+  // Aero: el header flota y el contenido arranca debajo de su tarjeta (T-227).
+  const relleno = useRellenoDetailHeader();
   const yo = useAuthStore(s => s.currentUser?.id ?? '');
   const { pagos, totales, confirmar, puedeGuardar } = useSaldoConAmigo(amigoId);
 
   return (
     <SafeAreaView edges={['bottom']} style={[styles.safe, { backgroundColor: c.bg }]}>
       <DetailHeader icon="close" title={t('settle.title')} onBack={() => router.back()} />
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView contentContainerStyle={[styles.scroll, { paddingTop: Spacing[4] + relleno }]}>
         <TarjetaTransferencia fromId={yo} toId={amigoId} onPressFrom={undefined} onPressTo={undefined} />
 
         {pagos.length === 0 ? (

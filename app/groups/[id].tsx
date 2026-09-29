@@ -17,7 +17,7 @@ import { useGroupSyncFailure } from '@/src/hooks/useSyncFailure';
 import { useManifestGap } from '@/src/hooks/useManifestGap';
 import { InvitarPorUsernameSheet } from '@/src/screens/groups/components/InvitarPorUsernameSheet';
 import { useRecordTrust } from '@/src/hooks/useRecordTrust';
-import { DetailHeader } from '@/src/components/CollapsibleHeader';
+import { DetailHeader, RellenoDetailHeader, useRellenoDetailHeader } from '@/src/components/CollapsibleHeader';
 import { useTranslation } from 'react-i18next';
 import { esYo } from '@/src/store/identityAlias';
 import { useColors } from '@/src/skins/useSkin';
@@ -42,6 +42,8 @@ export default function GroupDetailScreen() {
   const falloDeSync = useGroupSyncFailure(id as string);
   const manifiestoIncompleto = useManifestGap(id as string);
   const c = useColors();
+  // Aero: el header flota y el contenido arranca debajo de su tarjeta (T-227).
+  const relleno = useRellenoDetailHeader();
 
   const { currentUser } = useAuthStore();
   const group        = useGroupStore(s => s.groups.find(g => g.id === id));
@@ -97,6 +99,7 @@ export default function GroupDetailScreen() {
     return (
       <SafeAreaView edges={['bottom']} style={[styles.safe, { backgroundColor: c.bg }]}>
         <DetailHeader title="" onBack={() => router.back()} />
+        <RellenoDetailHeader />
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <Text style={[Typography.bodyM, { color: c.textTertiary }]}>{t('group_detail.not_found')}</Text>
         </View>
@@ -124,7 +127,7 @@ export default function GroupDetailScreen() {
         }
       />
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 150 }}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: relleno, paddingBottom: 150 }}>
         <AvisosDeGrupo
           falloDeSync={falloDeSync}
           manifiestoIncompleto={manifiestoIncompleto}
