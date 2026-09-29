@@ -3,7 +3,8 @@ import type { Expense, Group, Payment } from '@/src/types/models';
 import { deudasDelGrupo, type DeudaPar } from '@/src/algorithms/deudasDelGrupo';
 import type { Acreedor } from '@/src/algorithms/repartoSaldo';
 import { pagosQueCuentan } from '@/src/algorithms/settlementStatus';
-import { idCanonico, mismaPersona } from '@/src/store/identityAlias';
+import { idCanonico } from '@/src/store/identityAlias';
+import { gruposQueCuentan } from '@/src/algorithms/gruposQueCuentan';
 
 /**
  * **Saldar contra lo que YO debo, sin compensar** (T-225, PO 2026-09-29).
@@ -37,10 +38,9 @@ export type PagoConAmigo = {
  * compartido (y por moneda, si en un grupo le debo en más de una: convertir
  * sería decidir un tipo de cambio que nadie pidió).
  *
- * Qué grupos cuentan: el mismo criterio que `useDirectedDebts`
- * (`selectoresDeDeuda.ts`) — no borrado, no archivado y del que soy parte. Si
- * difirieran, la tarjeta de Amigos ofrecería saldar una deuda que esta
- * pantalla no encuentra, o al revés.
+ * Qué grupos cuentan: `gruposQueCuentan`, la MISMA regla que usa la tarjeta de
+ * Amigos — si difirieran, Amigos ofrecería saldar una deuda que esta pantalla
+ * no encuentra, o al revés.
  */
 export function pagosParaSaldarConAmigo({
   groups, expenses, payments, archivedIds, yo, amigo,
@@ -55,9 +55,7 @@ export function pagosParaSaldarConAmigo({
   const deudor = idCanonico(yo);
   const acreedor = idCanonico(amigo);
   const out: PagoConAmigo[] = [];
-  for (const group of groups) {
-    if (group.isDeleted || archivedIds.includes(group.id)) continue;
-    if (!group.memberIds.some(m => mismaPersona(m, yo))) continue;
+  for (const group of gruposQueCuentan(groups, archivedIds, yo)) {
     const toUserId = group.memberIds.find(m => idCanonico(m) === acreedor);
     if (!toUserId) continue;
 

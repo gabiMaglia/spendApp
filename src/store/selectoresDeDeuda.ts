@@ -4,7 +4,8 @@ import type { Expense, Group, Payment } from '@/src/types/models';
 import { directedDebts, type DirectedDebt } from '@/src/algorithms/directedDebts';
 import { deudasDelGrupo, totalesDeUsuario, type DeudaPar } from '@/src/algorithms/deudasDelGrupo';
 import { pagosQueCuentan } from '@/src/algorithms/settlementStatus';
-import { idCanonico, mismaPersona } from '@/src/store/identityAlias';
+import { idCanonico } from '@/src/store/identityAlias';
+import { gruposQueCuentan } from '@/src/algorithms/gruposQueCuentan';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { usePaymentStore } from '@/src/store/paymentStore';
@@ -31,27 +32,15 @@ export interface PersonBalance {
   amount: number; // positivo = esa persona me debe (neto), negativo = le debo yo
 }
 
-/**
- * Las deudas de cada grupo que cuenta para mí: no borrado, no archivado y del
- * que soy parte. Un grupo borrado no se puede saldar; uno archivado ya tiene su
- * saldo trasladado (T-058) o lo saqué a mano de la vista, y sumarlo lo contaría
- * dos veces; y «ser parte» incluye estar en el roster con la identidad vieja
- * (T-048 · D-6), si no un grupo heredado desaparecía con sus saldos adentro.
- */
+/** Las deudas de cada grupo que cuenta para mí (regla única: `gruposQueCuentan`). */
 function deudasDeMisGrupos(
   groups: Group[], expenses: Expense[], payments: Payment[], archivedIds: string[], userId: string,
 ): DeudaPar[][] {
-  const out: DeudaPar[][] = [];
-  for (const group of groups) {
-    if (group.isDeleted || archivedIds.includes(group.id)) continue;
-    if (!group.memberIds.some(m => mismaPersona(m, userId))) continue;
-    out.push(deudasDelGrupo(
-      expenses.filter(e => e.groupId === group.id),
-      pagosQueCuentan(payments, group),
-      group.memberIds,
-    ));
-  }
-  return out;
+  return gruposQueCuentan(groups, archivedIds, userId).map(group => deudasDelGrupo(
+    expenses.filter(e => e.groupId === group.id),
+    pagosQueCuentan(payments, group),
+    group.memberIds,
+  ));
 }
 
 function useDeudasDeMisGrupos(userId: string): DeudaPar[][] {
