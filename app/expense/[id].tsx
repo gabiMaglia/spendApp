@@ -1,69 +1,49 @@
 import React, { useMemo } from 'react';
-import {
-  Alert, Pressable, ScrollView, StyleSheet, Text, View,
-} from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
-import { v4 as uuidv4 } from 'uuid';
-import { hapticWarning } from '@/src/utils/haptics';
 import { useTranslation } from 'react-i18next';
-import { Ionicons } from '@expo/vector-icons';
 
-import { Radius, Spacing } from '@/src/constants/spacing';
+import { Spacing } from '@/src/constants/spacing';
 import { DetailHeader } from '@/src/components/CollapsibleHeader';
-import { FondoMarmol } from '@/src/components/FondoMarmol';
-import { Band, BandRow } from '@/src/components/Band';
 import { Typography } from '@/src/constants/typography';
-import { formatMoney } from '@/src/constants/currencies';
-import { MoneyText } from '@/src/components/MoneyText';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useArchiveStore } from '@/src/store/archiveStore';
 import { useAuthStore } from '@/src/store/authStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { useUserStore } from '@/src/store/userStore';
-import { useCommentStore } from '@/src/store/commentStore';
 import { CommentThread } from '@/src/components/CommentThread';
-import { CategoryIcon } from '@/src/components/CategoryIcon';
-import { UserAvatar } from '@/src/components/UserAvatar';
-import { TrustMark } from '@/src/components/TrustMark';
-import { motivoDeExceso } from '@/src/services/topeDeRegistro';
 import { useRecordTrust } from '@/src/hooks/useRecordTrust';
-import { isMarked } from '@/src/algorithms/recordTrust';
-import type { CategoryKind } from '@/src/constants/colors';
-import { syncedNow } from '@/src/utils/syncedClock';
 import { esYo, mismaPersona } from '@/src/store/identityAlias';
 import { useColors } from '@/src/skins/useSkin';
 import { enDisputa, autoresVerificados } from '@/src/sync/confianza/autoriaTrust';
 import { InlineWarningBanner } from '@/src/components/InlineWarningBanner';
 import { useContadorDeRenders } from '@/src/hooks/useContadorDeRenders';
+import { netoParaMi, permisosDeGasto } from '@/src/screens/expenseDetail/permisosDeGasto';
+import { useComentariosDelGasto } from '@/src/screens/expenseDetail/hooks/useComentariosDelGasto';
+import { useAccionesDeGasto } from '@/src/screens/expenseDetail/hooks/useAccionesDeGasto';
+import { GastoNoEncontrado } from '@/src/screens/expenseDetail/components/GastoNoEncontrado';
+import { AccionesDelHeader } from '@/src/screens/expenseDetail/components/AccionesDelHeader';
+import { HeroDelGasto } from '@/src/screens/expenseDetail/components/HeroDelGasto';
+import { MiBalanceEnGasto } from '@/src/screens/expenseDetail/components/MiBalanceEnGasto';
+import { DetalleDelReparto } from '@/src/screens/expenseDetail/components/DetalleDelReparto';
+import { SeccionDeGasto } from '@/src/screens/expenseDetail/components/SeccionDeGasto';
+import { FilaBorrarGasto } from '@/src/screens/expenseDetail/components/FilaBorrarGasto';
 
 export default function ExpenseDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { t } = useTranslation();
-  // ARRIBA del early return de la línea ~74: un hook después de un return
-  // condicional rompe el orden de hooks entre renders. Lo atrapó el lint.
+  // ARRIBA del early return: un hook después de un return condicional rompe
+  // el orden de hooks entre renders. Lo atrapó el lint.
   const groups = useGroupStore(st => st.groups);
   const c = useColors();
 
   const { currentUser } = useAuthStore();
   const expense = useExpenseStore(s => s.expenses.find(e => e.id === id));
-  const updateExpense = useExpenseStore(s => s.updateExpense);
   const getUserName = useUserStore(s => s.getUserName);
-  // OJO: NO seleccionar `st.forExpense(id)` acá. Ese método arma un array
-  // nuevo en cada llamada, y zustand compara por identidad: cada render produce
-  // una referencia distinta, React la ve como "cambió" y vuelve a renderizar,
-  // para siempre. Da "Maximum update depth exceeded" y la pantalla no abre.
-  // Se selecciona el array crudo (referencia estable) y se filtra en un useMemo.
-  const allComments = useCommentStore(st => st.comments);
-  const comments = useMemo(
-    () => allComments
-      .filter(cm => cm.expenseId === id && !cm.isDeleted)
-      .sort((a, b) => a.createdAt - b.createdAt),
-    [allComments, id],
-  );
-  const addComment = useCommentStore(st => st.addComment);
-  const removeComment = useCommentStore(st => st.removeComment);
-  const removeCommentsForExpense = useCommentStore(st => st.removeForExpense);
+  const {
+    comments, addComment, removeComment, removeCommentsForExpense,
+  } = useComentariosDelGasto(id);
 
   const dateStr = useMemo(() => {
     if (!expense) return '';
@@ -79,26 +59,18 @@ export default function ExpenseDetailScreen() {
   const marcaDeGasto = useRecordTrust('expense', expense ? [expense] : [])[expense?.id ?? ''];
   const isArchivedFn = useArchiveStore(s => s.isArchived);
 
+  // Se resuelven antes del early return porque las acciones (un hook) los usan.
+  const grupoDelGasto = expense ? groups.find(g => g.id === expense.groupId) : undefined;
+  const grupoArchivado = grupoDelGasto ? isArchivedFn(grupoDelGasto.id) : false;
+  const { handleAddComment, handleRequestDelete } = useAccionesDeGasto({
+    id, expense, currentUser, grupoArchivado, addComment, removeCommentsForExpense,
+  });
+
   useContadorDeRenders('Detalle de gasto', {
     expense, commentsCount: comments.length, groupsCount: groups.length,
   });
 
-  if (!expense) {
-    return (
-      <SafeAreaView style={[styles.safe, { backgroundColor: c.bg }]}>
-        <View style={styles.notFound}>
-          <Text style={[Typography.bodyL, { color: c.textSecondary }]}>
-            {t('expense.not_found')}
-          </Text>
-          <Pressable onPress={() => router.back()} style={styles.backBtn}>
-            <Text style={[Typography.bodyM, { color: c.brand.primary }]}>
-              {t('common.go_back')}
-            </Text>
-          </Pressable>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  if (!expense) return <GastoNoEncontrado />;
 
   const isCreator = esYo(expense.createdById);
   const disputada = enDisputa(expense);
@@ -114,93 +86,26 @@ export default function ExpenseDetailScreen() {
   // disputa»).
   const autoresDeLaDisputa = disputada ? [...autoresVerificados(expense)] : [];
 
-  // Cualquier miembro del grupo edita y borra al instante, igual que
-  // Splitwise (T-186: se sacó el modo «con acuerdo», ver
-  // docs/CONSENSO-PENDIENTE.md). La defensa no es impedir sino que quede
-  // visible en Actividad y se pueda restaurar de un toque.
-  const grupoDelGasto = groups.find(g => g.id === expense.groupId);
-  const grupoArchivado = grupoDelGasto ? isArchivedFn(grupoDelGasto.id) : false;
-
-  // Si el grupo no se puede resolver (todavía no sincronizó, dato a medias) se
-  // cae al comportamiento de siempre —el creador manda— y NO al más
-  // restrictivo: quitarle el override al creador por no encontrar el grupo
-  // sería una regresión silenciosa. Lo atrapó `expenseDetail.test.tsx`.
   const esMiembroDelGrupo = grupoDelGasto !== undefined
     && grupoDelGasto.memberIds.some(m => mismaPersona(m, currentUser?.id ?? ''));
-  const borradoDirecto = !currentUser ? false
-    : grupoDelGasto ? esMiembroDelGrupo
-    : isCreator;
-  const puedeEditar = !expense.isDeleted && (isCreator || (grupoDelGasto !== undefined && esMiembroDelGrupo));
+  const { borradoDirecto, puedeEditar } = permisosDeGasto({
+    hayUsuario: !!currentUser,
+    isCreator,
+    isDeleted: !!expense.isDeleted,
+    grupoResuelto: grupoDelGasto !== undefined,
+    esMiembroDelGrupo,
+  });
 
-  function handleAddComment(text: string) {
-    if (grupoArchivado) {
-      Alert.alert(t('groups.archived_readonly_title'), t('groups.archived_readonly_hint'));
-      return;
-    }
-    if (!currentUser || !id) return;
-    const now = syncedNow();
-    const nuevo = {
-      id:        uuidv4(),
-      expenseId: id,
-      authorId:  currentUser.id,
-      text,
-      createdAt: now,
-      updatedAt: now,
-      isDeleted: false,
-    };
-    // T-178 (6.4): mismo gate que en los otros formularios, antes de escribir.
-    const motivo = motivoDeExceso(nuevo);
-    if (motivo) {
-      Alert.alert(t('sync.record_too_big_title'), t(motivo));
-      return;
-    }
-    addComment(nuevo);
-  }
   // Un registro que llega por sync puede no traer estos campos (versión vieja
   // del otro lado, o dato a medio escribir). Sin los `?? []` la pantalla no
   // abre y no hay forma de ver el gasto ni de arreglarlo.
   const splits = expense.splits ?? [];
 
-  /**
-   * Se borra ya, sin ventana para objetar — cualquier miembro del grupo, o el
-   * creador (T-186: se sacó el modo «con acuerdo»).
-   */
-  function borrarGasto() {
-    if (!currentUser || !expense) return;
-    updateExpense(expense.id, {
-      isDeleted: true,
-      // Etiqueta LWW sin firma para que Actividad muestre quién borró.
-      deletedById: currentUser.id,
-    });
-    // Cascada: si no, los comentarios quedan huérfanos apuntando a un gasto
-    // inexistente y viajando en cada sync.
-    removeCommentsForExpense(expense.id);
-    router.back();
-  }
-
-  function handleRequestDelete() {
-    if (grupoArchivado) {
-      Alert.alert(t('groups.archived_readonly_title'), t('groups.archived_readonly_hint'));
-      return;
-    }
-    if (!currentUser || !expense) return;
-    hapticWarning();
-
-    Alert.alert(
-      t('expense.delete_title'),
-      t('expense.delete_body_open'),
-      [
-        { text: t('common.cancel'), style: 'cancel' as const },
-        { text: t('expense.delete_expense'), style: 'destructive' as const, onPress: borrarGasto },
-      ],
-    );
-  }
-
   const nombreDe = (uid: string) => (esYo(uid) ? t('common.you') : getUserName(uid));
 
   const myShare = splits.find(s => esYo(s.userId))?.amount ?? 0;
   const isPayer = esYo(expense.paidById);
-  const netForMe = isPayer ? expense.amount - myShare : -myShare;
+  const netForMe = netoParaMi({ amount: expense.amount, myShare, isPayer });
 
   return (
     <SafeAreaView edges={['bottom']} style={[styles.safe, { backgroundColor: c.bg }]}>
@@ -210,141 +115,31 @@ export default function ExpenseDetailScreen() {
         title={t('expense.detail_title')}
         onBack={() => router.back()}
         right={puedeEditar || (isCreator && !expense.isDeleted) ? (
-          <View style={styles.headerRight}>
-            {/* T-185: en `open`, cualquier miembro — no sólo el creador. El
-                borrado del creador (atajo rápido, distinto de la acción de
-                abajo que ven todos) sigue siendo sólo suyo. */}
-            {puedeEditar && (
-              <Pressable
-                testID="edit-expense-btn"
-                onPress={() => router.push(`/expense/new?expenseId=${expense.id}` as any)}
-                style={styles.iconBtn}
-              >
-                <Ionicons name="pencil-outline" size={20} color={c.brand.primary} />
-              </Pressable>
-            )}
-            {isCreator && !expense.isDeleted && (
-              <Pressable onPress={handleRequestDelete} style={styles.iconBtn}>
-                <Ionicons name="trash-outline" size={20} color={c.semantic.negative} />
-              </Pressable>
-            )}
-          </View>
+          <AccionesDelHeader
+            expenseId={expense.id}
+            puedeEditar={puedeEditar}
+            puedeBorrar={isCreator && !expense.isDeleted}
+            onBorrar={handleRequestDelete}
+          />
         ) : undefined}
       />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+        <HeroDelGasto expense={expense} dateStr={dateStr} marca={marcaDeGasto} nombreDe={nombreDe} />
 
-        {/* Hero */}
-        <View style={[styles.hero, { borderColor: c.hair, backgroundColor: c.surface }]}>
-          <FondoMarmol patron="distendida" style={styles.heroMarmol} />
-          <CategoryIcon kind={expense.category as CategoryKind} size={64} />
-          <Text style={[Typography.h1, { color: c.text, textAlign: 'center', marginTop: 12 }]}>
-            {expense.description}
-          </Text>
-          <MoneyText minor={expense.amount} code={expense.currency} style={[Typography.amountL, { color: c.text, marginTop: 4 }]} />
-          <Text style={[Typography.bodyS, { color: c.textTertiary, marginTop: 4 }]}>
-            {dateStr}
-          </Text>
-          {/* T-185: rastro de quién editó, sólo si NO fue el autor — un grupo
-              `open` deja que cualquiera edite, y esto es lo que lo hace visible
-              (Splitwise lo llama "editado por"). */}
-          {expense.editedById && expense.editedById !== expense.createdById && (
-            <Text style={[Typography.bodyS, { color: c.textTertiary, marginTop: 2 }]}>
-              {t('expense.edited_by', { name: nombreDe(expense.editedById) })}
-            </Text>
-          )}
-          {/* Marcado, pero se muestra entero y suma al balance igual: es la
-              invariante de R1. La marca informa, no esconde ni bloquea. */}
-          {isMarked(marcaDeGasto ?? 'pendiente') && (
-            <View style={{ marginTop: Spacing[2] }}>
-              <TrustMark label={t('trust.expense')} />
-            </View>
-          )}
-        </View>
+        <MiBalanceEnGasto
+          pagador={isPayer ? t('common.you') : getUserName(expense.paidById)}
+          myShare={myShare}
+          netForMe={netForMe}
+          currency={expense.currency}
+        />
 
-        {/* Mi balance en este gasto */}
-        <View style={[styles.section, { backgroundColor: c.surface, borderColor: c.hair }]}>
-          <Text style={[Typography.caption, { color: c.textTertiary, textTransform: 'uppercase', marginBottom: 12 }]}>
-            {t('expense.your_balance')}
-          </Text>
-          <View style={styles.balanceRow}>
-            <View style={styles.balanceCol}>
-              <Text style={[Typography.caption, { color: c.textTertiary }]}>
-                {t('expense.paid_by')}
-              </Text>
-              <Text style={[Typography.bodyM, { color: c.text, fontWeight: '600', marginTop: 2 }]}>
-                {isPayer ? t('common.you') : getUserName(expense.paidById)}
-              </Text>
-            </View>
-            <View style={[styles.balanceDivider, { backgroundColor: c.hair }]} />
-            <View style={styles.balanceCol}>
-              <Text style={[Typography.caption, { color: c.textTertiary }]}>
-                {t('expense.your_share')}
-              </Text>
-              <Text style={[Typography.bodyM, { color: c.text, fontWeight: '600', marginTop: 2 }]}>
-                {formatMoney(myShare, expense.currency)}
-              </Text>
-            </View>
-            <View style={[styles.balanceDivider, { backgroundColor: c.hair }]} />
-            <View style={styles.balanceCol}>
-              <Text style={[Typography.caption, { color: c.textTertiary }]}>
-                {t('expense.net')}
-              </Text>
-              <Text style={[Typography.amountS, {
-                color: netForMe >= 0 ? c.semantic.positive : c.semantic.negative,
-                marginTop: 2,
-              }]}>
-                {netForMe >= 0 ? '+' : ''}{formatMoney(netForMe, expense.currency)}
-              </Text>
-            </View>
-          </View>
-        </View>
+        <DetalleDelReparto expense={expense} splits={splits} getUserName={getUserName} />
 
-        {/* Splits */}
-        <View style={[styles.section, { backgroundColor: c.surface, borderColor: c.hair }]}>
-          <Text style={[Typography.caption, { color: c.textTertiary, textTransform: 'uppercase', marginBottom: 12 }]}>
-            {t('expense.split_detail')}
-          </Text>
-          {splits.map((split, i) => {
-            const name = esYo(split.userId)
-              ? t('common.you')
-              : getUserName(split.userId);
-            const isThisPayer = expense.paidById === split.userId;
-            return (
-              <View
-                key={split.userId}
-                style={[
-                  styles.splitRow,
-                  i < splits.length - 1 && { borderBottomWidth: 1, borderBottomColor: c.hair2 },
-                ]}
-              >
-                <UserAvatar userId={split.userId} name={name} size={36} />
-                <View style={{ flex: 1, marginLeft: 10 }}>
-                  <Text style={[Typography.bodyM, { color: c.text, fontWeight: '600' }]}>
-                    {name}
-                    {isThisPayer && (
-                      <Text style={{ color: c.textTertiary, fontWeight: '400' }}>
-                        {' '}· {t('expense.paid_label')}
-                      </Text>
-                    )}
-                  </Text>
-                </View>
-                <Text style={[Typography.amountS, { color: c.text }]}>
-                  {formatMoney(split.amount, expense.currency)}
-                </Text>
-              </View>
-            );
-          })}
-        </View>
-
-        {/* Nota */}
         {expense.note ? (
-          <View style={[styles.section, { backgroundColor: c.surface, borderColor: c.hair }]}>
-            <Text style={[Typography.caption, { color: c.textTertiary, textTransform: 'uppercase', marginBottom: 8 }]}>
-              {t('expense.note')}
-            </Text>
+          <SeccionDeGasto titulo={t('expense.note')} margenTitulo={8}>
             <Text style={[Typography.bodyM, { color: c.text }]}>{expense.note}</Text>
-          </View>
+          </SeccionDeGasto>
         ) : null}
 
         {/* Autoría en disputa (T-170 · D-3, decisión del PO): decir QUIÉN la
@@ -360,19 +155,10 @@ export default function ExpenseDetailScreen() {
           />
         )}
 
-        {/* Borrar. Va como fila de banda (T-107): borde a borde, sin relleno
-            ni radio, igual que las filas de Yo. El rojo queda sólo en el
-            ícono y el texto. T-186: cualquier miembro borra al instante, sin
-            ronda que abrir — sólo se muestra si el usuario puede borrar. */}
+        {/* T-186: cualquier miembro borra al instante, sin ronda que abrir —
+            sólo se muestra si el usuario puede borrar. */}
         {!expense.isDeleted && currentUser && borradoDirecto && (
-          <Band style={{ marginBottom: Spacing[4] }}>
-            <BandRow onPress={handleRequestDelete} last accessibilityRole="button">
-              <Ionicons name="trash-outline" size={19} color={c.semantic.negative} />
-              <Text style={[Typography.bodyL, { flex: 1, color: c.semantic.negative, fontWeight: '600' }]}>
-                {t('expense.delete_expense')}
-              </Text>
-            </BandRow>
-          </Band>
+          <FilaBorrarGasto onPress={handleRequestDelete} />
         )}
 
         {/* Comentarios. Con el mismo margen lateral que el resto del contenido: se
@@ -395,31 +181,5 @@ export default function ExpenseDetailScreen() {
 
 const styles = StyleSheet.create({
   safe:     { flex: 1 },
-  header:   {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: Spacing.screenPad, height: 52,
-    borderBottomWidth: 1,
-  },
-  backBtn:    { width: 40, height: 40, alignItems: 'flex-start', justifyContent: 'center' },
-  headerRight:{ flexDirection: 'row', alignItems: 'center' },
-  iconBtn:    { width: 36, height: 40, alignItems: 'center', justifyContent: 'center' },
   scroll:   { paddingTop: Spacing[4] },
-  hero: {
-    alignItems: 'center', overflow: 'hidden',
-    marginHorizontal: Spacing.screenPad, marginBottom: Spacing[5],
-    paddingHorizontal: Spacing.screenPad, paddingVertical: Spacing[6],
-    borderRadius: Radius['2xl'], borderCurve: 'continuous', borderWidth: 1,
-  },
-  heroMarmol: { top: 0, bottom: 0 },
-  // Banda, no tarjeta: borde a borde, hairline arriba y abajo, sin radio.
-  section:  {
-    marginBottom: Spacing[4],
-    borderTopWidth: 1, borderBottomWidth: 1,
-    paddingHorizontal: Spacing.screenPad, paddingVertical: Spacing[4],
-  },
-  balanceRow:    { flexDirection: 'row', alignItems: 'center' },
-  balanceCol:    { flex: 1, alignItems: 'center' },
-  balanceDivider:{ width: 1, height: 32 },
-  splitRow:      { flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
-  notFound:  { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
 });
