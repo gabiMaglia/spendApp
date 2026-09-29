@@ -35,13 +35,14 @@ export function buildContactsFlatItems(contacts: User[]): ContactsFlatItem[] {
  * en el mismo componente pero antes/después de este `Band`.
  */
 export function ContactsBlock({
-  contacts, personBalances, conHistorial, onRemove, onSettle,
+  contacts, personBalances, conHistorial, aQuienesDebo, onRemove, onSettle,
 }: {
   contacts: User[];
   personBalances: PersonBalance[];
   conHistorial: Set<string>;
+  aQuienesDebo: Set<string>;
   onRemove: (id: string, name: string) => void;
-  onSettle: (id: string, amount: number, currency: string) => void;
+  onSettle: (id: string) => void;
 }) {
   return (
     <Band noTop>
@@ -54,6 +55,7 @@ export function ContactsBlock({
             name={contact.name}
             amount={balance?.amount}
             conHistorial={conHistorial.has(idCanonico(contact.id))}
+            puedeSaldar={aQuienesDebo.has(idCanonico(contact.id))}
             currency={balance?.currency ?? 'ARS'}
             last={i === contacts.length - 1}
             onRemove={onRemove}

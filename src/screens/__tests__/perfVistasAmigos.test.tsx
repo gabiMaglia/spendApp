@@ -38,6 +38,12 @@ describe('T-216 — nodos host: Amigos', () => {
     // contra una regresión real (headers/footer duplicados, filas que se
     // dupliquen, etc.), sólo que ya no exige virtualización interna que el
     // propio diseño (mandado por QA) no puede dar con un solo bloque.
-    expect(nodos).toBeLessThan(235);
+    //
+    // T-225 (PO 2026-09-29): 235 → 240. «Saldar» de la tarjeta pasó a
+    // depender de si le debo algo (no del neto), así que en el dataset dos
+    // contactos con neto a favor pero deuda mía ganan su chip (Pressable +
+    // Text = 2 nodos cada uno): medido 231 → 235. Es la regla nueva, no una
+    // regresión; el tope sigue atajando duplicados de filas o headers.
+    expect(nodos).toBeLessThan(240);
   });
 });

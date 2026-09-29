@@ -10,7 +10,7 @@ import { useExpenseStore } from '@/src/store/expenseStore';
 import { usePaymentStore } from '@/src/store/paymentStore';
 import { useArchiveStore } from '@/src/store/archiveStore';
 import type { CurrencyCode } from '@/src/constants/currencies';
-import type { Expense, Group, Payment, User } from '@/src/types/models';
+import type { Expense, Group, User } from '@/src/types/models';
 
 /**
  * T-225 (PO 2026-09-29): Saldar va contra lo que YO le debo a esa persona, sin

@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef } from 'react';
 
 import type { CurrencyCode } from '@/src/constants/currencies';
-import { acreedoresDe, totalAdeudado } from '@/src/algorithms/repartoSaldo';
-import { suggestedSettlement } from '@/src/algorithms/settleSuggestion';
+import { totalAdeudado } from '@/src/algorithms/repartoSaldo';
+import { deudasDelGrupo, deudaEntre } from '@/src/algorithms/deudasDelGrupo';
+import { acreedoresSinCompensar } from '@/src/algorithms/saldoSinCompensar';
+import { pagosQueCuentan } from '@/src/algorithms/settlementStatus';
 import type { Balance, Expense, Group, Payment } from '@/src/types/models';
 import { balancesEnMoneda } from '@/src/screens/settle/saldoDeGrupo';
 
@@ -28,16 +30,23 @@ export function useDeudaDelPar({
     [group, allExpenses, allPayments, currency],
   );
 
-  /**
-   * Cuánto haría falta para saldar entre estas dos personas. Acotado por los
-   * dos lados: pagar de más movería la deuda en vez de saldarla.
-   */
-  const deudaTotal = useMemo(
-    () => suggestedSettlement(balancesDelGrupo, fromId, toId),
-    [balancesDelGrupo, fromId, toId],
+  // T-225 (PO 2026-09-29): la deuda por par SIN compensar. Si le debo 60 a Ana
+  // y ella me debe 200, saldar con ella son mis 60 — el neto decía 0.
+  const deudas = useMemo(
+    () => group
+      ? deudasDelGrupo(allExpenses.filter(e => e.groupId === group.id), pagosQueCuentan(allPayments, group), group.memberIds)
+      : [],
+    [group, allExpenses, allPayments],
   );
 
-  const todoSaldado = balancesDelGrupo.length > 0 && balancesDelGrupo.every(b => b.amount === 0);
+  /** Lo que `fromId` le debe a `toId` en este grupo: el sugerido y el máximo. */
+  const deudaTotal = useMemo(
+    () => deudaEntre(deudas, fromId, toId, currency),
+    [deudas, fromId, toId, currency],
+  );
+
+  // Con una sola deuda viva, en cualquier dirección, no está «todo saldado».
+  const todoSaldado = group !== undefined && deudas.length === 0;
 
   /**
    * El monto llega YA PUESTO al elegir a la persona, como en Splitwise: saldar
@@ -71,8 +80,8 @@ export function useDeudaDelPar({
    * cubre de una.
    */
   const acreedores = useMemo(
-    () => acreedoresDe(balancesDelGrupo, currentUserId),
-    [balancesDelGrupo, currentUserId],
+    () => acreedoresSinCompensar(deudas, currentUserId, currency),
+    [deudas, currentUserId, currency],
   );
   const deudaEnGrupo = totalAdeudado(acreedores);
 

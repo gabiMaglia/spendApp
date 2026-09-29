@@ -268,7 +268,15 @@
     "outstanding_label": "Deuda pendiente",
     "settle_all_sub": "{{count}} personas · {{amount}}",
     "settle_one": "Saldar a una persona",
-    "split_note": "No alcanza para todos: se reparte parejo"
+    "split_note": "No alcanza para todos: se reparte parejo",
+    "friend_groups_label": "Lo que le debés en cada grupo",
+    "friend_total": "Total",
+    "friend_whole_only": "Desde Amigos se salda todo lo que le debés: un pago en cada grupo. Para pagar una parte, entrá al grupo.",
+    "friend_nothing": "No le debés nada en ningún grupo.",
+    "friend_confirm_title": "¿Saldar todo con {{name}}?",
+    "friend_confirm_body": "Se registra un pago a {{name}} en cada grupo:\n{{detalle}}",
+    "friend_confirm_line": "{{group}}: {{amount}}",
+    "friend_confirm_ok": "Saldar todo"
   },
   "activity": {
     "title": "Actividad",
