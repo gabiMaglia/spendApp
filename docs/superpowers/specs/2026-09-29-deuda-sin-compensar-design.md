@@ -1,6 +1,6 @@
 # Deuda sin compensar dentro del grupo (T-225) — diseño
 
-**Estado:** BORRADOR para el PO · 2026-09-29
+**Estado:** DECISIONES DEL PO TOMADAS · 2026-09-29
 **Enmienda:** ADR-006, decisión 1 («saldar es direccional»), que ya prohibía compensar entre
 grupos pero seguía compensando DENTRO de cada grupo (`simplifyDebts` por grupo,
 `src/store/selectors.ts:188`).
@@ -42,32 +42,51 @@ es un neto. Lo mismo en Personal.
 | **Detalle de grupo, abajo** | — | **Balance neto debajo del último movimiento, antes de «Traspasar a grupo nuevo», con el estilo del Total de Grupos** (si hay pedido de salida, va entre el balance y el botón) |
 | Saldar: monto sugerido y máximo | neto entre los dos | **lo que yo le debo a esa persona**, completo |
 | Saldar modo «todo» | acreedores por el neto | cada acreedor por lo que le debo |
+| Amigos, casilleros | neto por persona | suma bruta: lo que me deben todos / lo que debo a todos |
+| Amigos, tarjeta del contacto | neto global | neto de esa persona (me debe − le debo) |
+| Saldar desde Amigos | monto en un solo grupo | **total** de lo que le debo, un pago por grupo compartido |
 | Total de Grupos (pie de la lista) | neto | sin cambios (es el neto) |
 
-## Decisiones que necesito del PO
+## Decisiones del PO (2026-09-29)
 
-1. **Amigos.** Los casilleros Te deben / Debés de Amigos, ¿también sin compensar? Y en la
-   fila de cada persona, si los dos se deben algo, ¿mostrar las dos cifras? *Recomiendo sí a
-   las dos: si no, Amigos contradice a Personal.*
-2. **Reglas que hoy usan «saldado» = neto 0:**
-   - Botón Saldar visible, «todo saldado», salir o expulsar con saldo (T-181): pasan a mirar
-     la deuda bruta (tengo deuda viva si **debo** algo, aunque me deban más). *Recomiendo sí.*
-   - **Traspaso a grupo nuevo (T-058):** hoy traslada el neto de cada uno. Con el modelo nuevo
-     tendría que trasladar las dos direcciones de cada par. *Recomiendo hacerlo en una
-     segunda etapa (T-226), porque toca el alta del grupo nuevo; mientras tanto el traspaso
-     sigue trasladando el neto.*
-3. **Datos que ya existen.** Si en algún grupo se saldó el neto con el modelo viejo (por
-   ejemplo pagaste 80 para cerrar 140 contra 60), con la regla nueva van a reaparecer
-   «Te deben 60 · Debés 60». No hay usuarios reales todavía, así que *recomiendo no migrar
-   nada*: sólo afecta datos de prueba.
+1. **Amigos.** Casillero *Te deben* = suma de lo que me debe cada amigo; *Debés* = suma de lo
+   que le debo a cada uno (sin compensar). La **tarjeta de cada contacto** muestra el balance
+   de esa persona: lo que me debe − lo que le debo (neto).
+2. **Saldar desde Amigos** = la **totalidad** de lo que le debo a esa persona, sí o sí (sin
+   parcial), y cancela lo que le debo **en todos los grupos que compartimos**: se registra un
+   pago por grupo, por lo que le debo en ese grupo. **Saldar desde un grupo** cancela sólo lo
+   que le debo en ese grupo (ahí sí se puede pagar una parte).
+   Reglas de «saldado» (botón Saldar visible, «todo saldado», salir/expulsar con saldo): miran
+   si **debo** algo, aunque me deban más (asumido: el PO no objetó la recomendación).
+3. **Traspaso a grupo nuevo** con las dos direcciones: queda trackeado como **T-226**; mientras
+   tanto traslada el neto.
+4. **No hay usuarios reales** (la app no está en producción): sin migración de datos.
+
+## Comparativa con Splitwise
+
+| Tema | Splitwise | HushSplit (decisión del PO) |
+|---|---|---|
+| Deuda entre dos personas en un grupo | Un solo número por par: se compensa (si le debo 60 y me debe 200, «me debe 140»). | **Sin compensar:** «me debe 200» y «le debo 60», cada uno baja con su pago. |
+| «Simplificar deudas» (cadenas A→B→C) | Opcional por grupo, apagado por defecto; nunca cambia el total de nadie. | No se aplica a la deuda; queda sólo como sugerencia (ADR-006). |
+| Totales del dashboard (*you owe* / *you are owed*) | Suma de los **netos por amigo**: cada amigo cae de un solo lado. | Suma **bruta**: lo que me deben todos y lo que debo a todos, por separado. |
+| Balance por amigo | Un número neto por amigo, en la moneda más grande. | **Igual**: neto por contacto (lo que me debe − lo que le debo). |
+| Saldar desde el amigo | Si se paga el total exacto, reparte el pago entre todos los grupos y los deja en cero; un parcial hay que cargarlo a mano por grupo. | **Igual en el total**, pero **sólo total** (sin parcial) y cancela únicamente **lo que yo debo**; lo que me deben queda. |
+| Saldar dentro de un grupo | Registra el pago en ese grupo, contra el neto del par. | Registra el pago en ese grupo, contra **lo que le debo** (se puede parcial). |
+| Multi-moneda | Balances por moneda; el dashboard muestra la mayor con asterisco. | Por moneda, nunca mezcladas (regla del repo); totales convertidos a la moneda de visualización como hoy. |
+
+**Diferencia de fondo:** Splitwise trata la relación con cada persona como **una cuenta
+corriente** que se compensa sola. HushSplit la trata como **dos deudas independientes**:
+«saldar» significa «yo no te debo más», no «estamos a mano» (ADR-006, decisión 1). La
+consecuencia visible es que dos personas pueden deberse mutuamente a la vez, y cada una lo ve.
 
 ## Cómo se construye (TDD)
 
 1. `src/algorithms/deudasDelGrupo.ts` + tests: el caso del PO, varios pagadores, pagos
    parciales y justos, varias monedas, miembros que salieron, gastos borrados, y la propiedad
    del invariante.
-2. Selectores (`useGroupsTotalBalance`, `useDirectedDebts`, y Amigos si el PO dice que sí)
-   pasan a usarla. Tests de pantalla con el caso del PO en Grupos y Personal.
-3. Saldar usa la deuda del par; tests de sugerido, máximo y modo «todo».
+2. Selectores (`useGroupsTotalBalance`, `useDirectedDebts`, `useGlobalPersonBalances`) pasan a
+   usarla. Tests de pantalla con el caso del PO en Grupos y Personal.
+3. Saldar usa la deuda del par; tests de sugerido, máximo y modo «todo». Saldar desde Amigos:
+   total obligatorio, un pago por grupo compartido.
 4. Detalle de grupo: widget arriba y balance abajo; tests de qué se muestra y dónde.
 5. Enmienda de ADR-006.
