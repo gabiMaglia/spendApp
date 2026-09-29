@@ -154,7 +154,8 @@ describe('la marca en la lista del grupo', () => {
   it('el gasto marcado se sigue mostrando y sigue sumando al balance', () => {
     useExpenseStore.setState({ expenses: [gasto()] });
 
-    const { getByText, getAllByText, queryAllByText } = render(<GroupDetailScreen />);
+    const r = render(<GroupDetailScreen />);
+    const { getByText, getAllByText, queryAllByText } = r;
     laColaEntera();
 
     expect(getByText('Nafta')).toBeTruthy();
@@ -165,7 +166,10 @@ describe('la marca en la lista del grupo', () => {
     // el usuario ve. Beto no puso nada y le tocan 500 de los 1.000 de Ana.
     // Sin los «,00»: los centavos en cero no se muestran (PO 2026-09-02).
     expect(getAllByText(/\b500\b/).length).toBeGreaterThan(0);
-    expect(getByText('group_detail.you_owe_short')).toBeTruthy();
+    // T-225: el balance grande con «debés» se fue; lo que debo lo dice el
+    // casillero Debés de arriba (y el neto de abajo), con el mismo monto.
+    expect(r.UNSAFE_getByProps({ id: 'groupDetail.youOwe:g1' }).props.minor).toBe(50_000);
+    expect(r.UNSAFE_getByProps({ id: 'groupDetail.balance:g1' }).props.minor).toBe(-50_000);
   });
 
   /**

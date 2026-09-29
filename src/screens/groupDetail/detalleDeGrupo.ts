@@ -1,5 +1,8 @@
 import { calculateBalancesByCurrency } from '@/src/algorithms/calculateBalances';
 import { pagosQueCuentan } from '@/src/algorithms/settlementStatus';
+import { deudasDelGrupo, type DeudaPar, type TotalesDeUsuario } from '@/src/algorithms/deudasDelGrupo';
+import type { BalanceEntry } from '@/src/algorithms/absorbBalance';
+import { idCanonico } from '@/src/store/identityAlias';
 import type { CurrencyCode } from '@/src/constants/currencies';
 import type { Expense, Group, Payment } from '@/src/types/models';
 
@@ -31,4 +34,60 @@ export function saldoPendienteDe(
   const pagosDelGrupo = pagosQueCuentan(payments, group);
   const balances = calculateBalancesByCurrency(gastosDelGrupo, pagosDelGrupo, group.memberIds);
   return (balances.find(b => b.userId === uid)?.balances ?? []).filter(b => b.amount !== 0);
+}
+
+/** Deuda por par del grupo (T-225), con los mismos pagos que cuentan que el resto del detalle. */
+export function deudasDeGrupo(
+  expenses: readonly Expense[], payments: readonly Payment[], group: Group,
+): DeudaPar[] {
+  return deudasDelGrupo(
+    expenses.filter(e => e.groupId === group.id), pagosQueCuentan(payments, group), group.memberIds,
+  );
+}
+
+type Monto = { currency: CurrencyCode; amount: number };
+export type CuentasConPersona = { userId: string; meDebe: Monto[]; leDebo: Monto[] };
+
+/**
+ * Con cada persona que tiene algo pendiente conmigo: lo que me debe y lo que le
+ * debo, por moneda y sin compensar (T-225). Es lo que dicen los avisos de
+ * expulsar y de salir: el PO quiere saber a quién le debe y quién le debe.
+ */
+export function cuentasPorPersona(deudas: readonly DeudaPar[], yo: string): CuentasConPersona[] {
+  const mio = idCanonico(yo);
+  const porPersona = new Map<string, CuentasConPersona>();
+  const de = (uid: string) => {
+    let c = porPersona.get(uid);
+    if (!c) { c = { userId: uid, meDebe: [], leDebo: [] }; porPersona.set(uid, c); }
+    return c;
+  };
+  for (const d of deudas) {
+    if (d.acreedor === mio) de(d.deudor).meDebe.push({ currency: d.currency, amount: d.monto });
+    else if (d.deudor === mio) de(d.acreedor).leDebo.push({ currency: d.currency, amount: d.monto });
+  }
+  return [...porPersona.values()];
+}
+
+/**
+ * Qué monedas cuentan como «saldo abierto» para salir del grupo (T-225).
+ *
+ * Abierta si DEBO algo en esa moneda, aunque me deban más (regla de «saldado»
+ * del PO), o si el neto no es cero. Lo segundo no es «saldado», son los libros:
+ * si me voy con neto a favor, los que quedan dejan de sumar cero, así que la
+ * absorción de siempre (`planAbsorption`, que reparte el neto) sigue haciendo
+ * falta. El monto es el neto cuando lo hay —es lo que la absorción mueve— y si
+ * no, lo que debo (en negativo), sólo para marcar la moneda.
+ */
+export function saldosParaSalir(
+  totales: readonly TotalesDeUsuario[], netos: readonly BalanceEntry[],
+): BalanceEntry[] {
+  const monedas = new Set<CurrencyCode>([...netos.map(n => n.currency), ...totales.map(t => t.currency)]);
+  const out: BalanceEntry[] = [];
+  for (const currency of monedas) {
+    const neto = netos.find(n => n.currency === currency)?.amount ?? 0;
+    const debo = totales.find(t => t.currency === currency)?.youOwe ?? 0;
+    if (neto !== 0) out.push({ currency, amount: neto });
+    else if (debo > 0) out.push({ currency, amount: -debo });
+  }
+  return out;
 }
