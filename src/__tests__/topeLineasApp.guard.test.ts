@@ -11,9 +11,9 @@ import { join, relative } from 'path';
 const LIMITE_DURO = 400;
 const RAIZ = join(__dirname, '..', '..', 'app');
 
-const EXCEPCIONES: Record<string, number> = {
-  'groups/[id].tsx': 760,
-};
+// T-223 terminado (2026-09-29): ninguna pantalla pasa el tope. Una excepción
+// nueva sólo con ticket y largo actual, y no puede crecer.
+const EXCEPCIONES: Record<string, number> = {};
 
 function lineas(path: string): number {
   const l = readFileSync(path, 'utf8').split('\n');
