@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { FlashList } from '@shopify/flash-list';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -59,47 +59,51 @@ export default function ActivityScreen() {
   // Sin 'bottom': la tab bar ya reserva el inset del sistema (_layout.tsx); contarlo acá dejaba una franja muerta entre el contenido y la barra.
   return (
     <SafeAreaView edges={[]} style={[styles.safe, { backgroundColor: c.bg }]}>
-      <AnimatedFlashList
-        style={limiteContenido}
-        onLayout={alMedirScroll}
-        showsVerticalScrollIndicator={false}
-        scrollEventThrottle={16}
-        onScroll={scrollHandler}
-        contentContainerStyle={[{ paddingBottom: 120, flexGrow: 1 }, contenidoMinimo]}
-        data={items}
-        keyExtractor={(it) => it.id}
-        getItemType={(it) => it.kind}
-        renderItem={({ item }) => (
-          <ActivityFeedItem
-            item={item}
-            todayNewCount={todayNewCount}
-            getUserName={getUserName}
-            currentUserId={currentUser?.id ?? ''}
-            onRestore={restaurar}
-            trustFor={trustFor}
-          />
-        )}
-        // T-219: el offset del header vive acá, no en contentContainerStyle —
-        // FlashList v2 posiciona su canvas virtualizado (la primera fila,
-        // "Hoy") midiendo dónde termina el ListHeaderComponent, no leyendo el
-        // padding de la lista como hacía Animated.ScrollView antes de T-154.
-        ListHeaderComponentStyle={{ paddingTop: headerPad }}
-        ListHeaderComponent={
-          <>
-            <ActivityFilterTabs
-              allGroupNames={allGroupNames}
-              value={activeFilter}
-              onChange={setActiveFilter}
+      {/* T-219b: el margen bajo la barra (`useLimiteContenido`) va en ESTE View,
+          nunca en el `style` del AnimatedFlashList — Reanimated le pasa `style`
+          como array y FlashList v2 lo mezcla con spread de objeto: el margen se pierde. */}
+      <View style={[styles.lista, limiteContenido]}>
+        <AnimatedFlashList
+          onLayout={alMedirScroll}
+          showsVerticalScrollIndicator={false}
+          scrollEventThrottle={16}
+          onScroll={scrollHandler}
+          contentContainerStyle={[{ paddingBottom: 120, flexGrow: 1 }, contenidoMinimo]}
+          data={items}
+          keyExtractor={(it) => it.id}
+          getItemType={(it) => it.kind}
+          renderItem={({ item }) => (
+            <ActivityFeedItem
+              item={item}
+              todayNewCount={todayNewCount}
+              getUserName={getUserName}
+              currentUserId={currentUser?.id ?? ''}
+              onRestore={restaurar}
+              trustFor={trustFor}
             />
+          )}
+          // T-219: el offset del header vive acá, no en contentContainerStyle —
+          // FlashList v2 posiciona su canvas virtualizado (la primera fila,
+          // "Hoy") midiendo dónde termina el ListHeaderComponent, no leyendo el
+          // padding de la lista como hacía Animated.ScrollView antes de T-154.
+          ListHeaderComponentStyle={{ paddingTop: headerPad }}
+          ListHeaderComponent={
+            <>
+              <ActivityFilterTabs
+                allGroupNames={allGroupNames}
+                value={activeFilter}
+                onChange={setActiveFilter}
+              />
 
-            {/* PO 2026-09-27: la búsqueda va debajo de las pestañas, no arriba. */}
-            <ActivitySearchBar value={query} onChangeText={setQuery} />
-          </>
-        }
-        ListEmptyComponent={
-          <ActivityEmptyState feedIsEmpty={feedIsEmpty} activeFilter={activeFilter} />
-        }
-      />
+              {/* PO 2026-09-27: la búsqueda va debajo de las pestañas, no arriba. */}
+              <ActivitySearchBar value={query} onChangeText={setQuery} />
+            </>
+          }
+          ListEmptyComponent={
+            <ActivityEmptyState feedIsEmpty={feedIsEmpty} activeFilter={activeFilter} />
+          }
+        />
+      </View>
 
       <TabHeader title={t('activity.title')} progress={progress} />
     </SafeAreaView>
@@ -108,4 +112,5 @@ export default function ActivityScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
+  lista: { flex: 1 },
 });
