@@ -56,7 +56,7 @@ export function BottomSheet({
 }) {
   const c = useColors();
   const insets = useSafeAreaInsets();
-  const alturaTeclado = useAlturaTeclado();
+  const alturaTeclado = useAlturaTeclado(insets.bottom);
   // Aero (etapa 2): la hoja flota como tarjeta — margen, radio en las cuatro
   // esquinas, borde y sombra; manija en color de marca y divisores suaves.
   // Con el default todo esto es `null` y la hoja es la de siempre.
