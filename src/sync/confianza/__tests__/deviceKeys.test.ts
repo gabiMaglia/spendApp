@@ -303,8 +303,10 @@ describe('la detección está enchufada', () => {
    * como si la clave faltara cuando está perfectamente registrada.
    */
   it('la pantalla muestra la lectura, no el intento de escritura', () => {
-    const src = fs.readFileSync(path.join(__dirname, '../../../../app/debug/identity.tsx'), 'utf8');
-    const efecto = src.slice(src.indexOf('React.useEffect'), src.indexOf('return ('));
+    // T-223: el efecto salió de `app/debug/identity.tsx` a su hook.
+    const src = fs.readFileSync(path.join(__dirname, '../../../../src/screens/debug/hooks/useDirectorioDeClaves.ts'), 'utf8');
+    const efecto = src.slice(src.indexOf('React.useEffect'), src.indexOf('return {'));
+    expect(efecto).not.toBe('');
     expect(efecto).toContain('verifyMyKeyRegistered()');
     // El alta sólo se intenta cuando de verdad falta.
     expect(efecto).toMatch(/if \(presente === 'falta'\)[\s\S]*registerDeviceKey\(\)/);
