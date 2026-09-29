@@ -72,15 +72,15 @@ beforeEach(() => {
 
 // En test insets.top = 0, así que el límite del contenido (Clásico) es HEADER_BAR_H.
 describe.each([
-  ['Actividad', <ActivityScreen />],
-  ['Grupos', <GroupsScreen />],
-  ['Amigos', <FriendsScreen />],
+  ['Actividad', () => <ActivityScreen />],
+  ['Grupos', () => <GroupsScreen />],
+  ['Amigos', () => <FriendsScreen />],
 ])('T-219b — %s: el margen bajo la barra no viaja en el style del FlashList', (_nombre, ui) => {
   it('el FlashList no recibe marginTop en style (Reanimated lo pasa como array y FlashList lo pierde)', () => {
-    expect(margenesDe(ui).enLaLista).toBeUndefined();
+    expect(margenesDe(ui()).enLaLista).toBeUndefined();
   });
 
   it('un View envolvente lleva el marginTop de useLimiteContenido', () => {
-    expect(margenesDe(ui).enElEnvolvente).toBe(HEADER_BAR_H);
+    expect(margenesDe(ui()).enElEnvolvente).toBe(HEADER_BAR_H);
   });
 });

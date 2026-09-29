@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { FlashList } from '@shopify/flash-list';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -53,54 +53,58 @@ export default function FriendsScreen() {
   // Sin 'bottom': la tab bar ya reserva el inset del sistema (_layout.tsx); contarlo acá dejaba una franja muerta entre el contenido y la barra.
   return (
     <SafeAreaView edges={[]} style={[styles.safe, { backgroundColor: c.bg }]}>
-      <AnimatedFlashList
-        style={limiteContenido}
-        onLayout={alMedirScroll}
-        showsVerticalScrollIndicator={false}
-        scrollEventThrottle={16}
-        onScroll={scrollHandler}
-        contentContainerStyle={[{ paddingBottom: 150, flexGrow: 1 }, contenidoMinimo]}
-        data={items}
-        keyExtractor={(it) => it.id}
-        getItemType={(it) => it.kind}
-        renderItem={() => (
-          <ContactsBlock
-            contacts={contacts}
-            personBalances={personBalances}
-            conHistorial={conHistorial}
-            onRemove={handleRemove}
-            onSettle={handleSettle}
-          />
-        )}
-        // T-219: el offset del header vive acá, no en contentContainerStyle —
-        // mismo motivo que Actividad/Grupos (FlashList v2 mide dónde termina
-        // el ListHeaderComponent, no lee el padding de la lista).
-        ListHeaderComponentStyle={{ paddingTop: headerPad }}
-        ListHeaderComponent={
-          <>
-            {(owedToYou > 0 || youOwe > 0) && (
-              <SplitStat
-                noTop
-                items={[
-                  {
-                    label: t('friends.owed_to_you'), value: formatMoney(owedToYou, cur), color: c.semantic.positive,
-                    id: 'friends.owedToYou', minor: owedToYou, code: cur,
-                    pending: owedToYouPending, pendingLabel: pendingCalculando,
-                  },
-                  {
-                    label: t('friends.you_owe'), value: formatMoney(youOwe, cur), color: c.textSecondary,
-                    id: 'friends.youOwe', minor: youOwe, code: cur,
-                    pending: youOwePending, pendingLabel: pendingCalculando,
-                  },
-                ]}
-              />
-            )}
-            {contacts.length > 0 && <ContactsCountHeader count={contacts.length} />}
-          </>
-        }
-        ListEmptyComponent={<ContactsEmptyState />}
-        ListFooterComponent={contacts.length > 0 ? <QrNote /> : undefined}
-      />
+      {/* T-219b: el margen bajo la barra (`useLimiteContenido`) va en ESTE View,
+          nunca en el `style` del AnimatedFlashList — Reanimated le pasa `style`
+          como array y FlashList v2 lo mezcla con spread de objeto: el margen se pierde. */}
+      <View style={[styles.lista, limiteContenido]}>
+        <AnimatedFlashList
+          onLayout={alMedirScroll}
+          showsVerticalScrollIndicator={false}
+          scrollEventThrottle={16}
+          onScroll={scrollHandler}
+          contentContainerStyle={[{ paddingBottom: 150, flexGrow: 1 }, contenidoMinimo]}
+          data={items}
+          keyExtractor={(it) => it.id}
+          getItemType={(it) => it.kind}
+          renderItem={() => (
+            <ContactsBlock
+              contacts={contacts}
+              personBalances={personBalances}
+              conHistorial={conHistorial}
+              onRemove={handleRemove}
+              onSettle={handleSettle}
+            />
+          )}
+          // T-219: el offset del header vive acá, no en contentContainerStyle —
+          // mismo motivo que Actividad/Grupos (FlashList v2 mide dónde termina
+          // el ListHeaderComponent, no lee el padding de la lista).
+          ListHeaderComponentStyle={{ paddingTop: headerPad }}
+          ListHeaderComponent={
+            <>
+              {(owedToYou > 0 || youOwe > 0) && (
+                <SplitStat
+                  noTop
+                  items={[
+                    {
+                      label: t('friends.owed_to_you'), value: formatMoney(owedToYou, cur), color: c.semantic.positive,
+                      id: 'friends.owedToYou', minor: owedToYou, code: cur,
+                      pending: owedToYouPending, pendingLabel: pendingCalculando,
+                    },
+                    {
+                      label: t('friends.you_owe'), value: formatMoney(youOwe, cur), color: c.textSecondary,
+                      id: 'friends.youOwe', minor: youOwe, code: cur,
+                      pending: youOwePending, pendingLabel: pendingCalculando,
+                    },
+                  ]}
+                />
+              )}
+              {contacts.length > 0 && <ContactsCountHeader count={contacts.length} />}
+            </>
+          }
+          ListEmptyComponent={<ContactsEmptyState />}
+          ListFooterComponent={contacts.length > 0 ? <QrNote /> : undefined}
+        />
+      </View>
 
       <TabHeader title={t('friends.title')} progress={progress} />
 
@@ -127,4 +131,5 @@ export default function FriendsScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
+  lista: { flex: 1 },
 });
