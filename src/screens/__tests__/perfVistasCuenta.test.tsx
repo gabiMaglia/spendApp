@@ -29,6 +29,7 @@ describe('T-216 — nodos host: Cuenta', () => {
     const r = render(<UserScreen />);
     const nodos = contarNodosHost(r.toJSON());
     console.log('[T-216][nodosHost] Cuenta=%s', nodos);
-    expect(nodos).toBeGreaterThan(0);
+    // T-154: tope de nodos host tras virtualizar con FlashList (dataset realista T-216).
+    expect(nodos).toBeLessThan(120);
   });
 });
