@@ -2,7 +2,7 @@ import React from 'react';
 import { render } from '@testing-library/react-native';
 
 import PersonalScreen from '@/app/(tabs)/index';
-import { sembrarDatasetRealista, contarNodosHost } from './perfVistasFixtures';
+import { sembrarDatasetRealista, contarNodosHost } from '@/src/test-utils/perfVistasFixtures';
 
 /**
  * T-216 — pregunta 2: nodos host que pinta la pestaña Inicio con datos

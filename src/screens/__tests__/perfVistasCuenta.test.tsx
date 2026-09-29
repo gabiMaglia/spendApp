@@ -2,7 +2,7 @@ import React from 'react';
 import { render } from '@testing-library/react-native';
 
 import UserScreen from '@/app/(tabs)/user';
-import { sembrarDatasetRealista, contarNodosHost } from './perfVistasFixtures';
+import { sembrarDatasetRealista, contarNodosHost } from '@/src/test-utils/perfVistasFixtures';
 
 /**
  * T-216 — pregunta 2: nodos host de la pestaña Cuenta. En archivo PROPIO

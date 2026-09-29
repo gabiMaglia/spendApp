@@ -2,7 +2,7 @@ import React from 'react';
 import { render } from '@testing-library/react-native';
 
 import GroupsScreen from '@/app/(tabs)/groups';
-import { sembrarDatasetRealista, contarNodosHost } from './perfVistasFixtures';
+import { sembrarDatasetRealista, contarNodosHost } from '@/src/test-utils/perfVistasFixtures';
 
 /** T-216 — pregunta 2: nodos host de la pestaña Grupos (8 grupos). */
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
