@@ -16,7 +16,6 @@ const EXCEPCIONES: Record<string, number> = {
   'expense/[id].tsx': 425,
   '(tabs)/user.tsx': 664,
   'settle/new.tsx': 635,
-  'contact/add.tsx': 621,
   'debug/identity.tsx': 442,
   'auth/index.tsx': 428,
 };
