@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
-import { DetailHeader } from '@/src/components/CollapsibleHeader';
+import { DetailHeader, useRellenoDetailHeader } from '@/src/components/CollapsibleHeader';
 import { Spacing } from '@/src/constants/spacing';
 import { ActionButton } from '@/src/components/ActionButton';
 import { ButtonRack } from '@/src/components/ButtonRack';
@@ -47,6 +47,8 @@ export default function SettleNewScreen() {
 function SaldarEnGrupo() {
   const { t } = useTranslation();
   const c = useColors();
+  // Aero: el header flota y el contenido arranca debajo de su tarjeta (T-227).
+  const relleno = useRellenoDetailHeader();
 
   const { currentUser } = useAuthStore();
   const { addPayment } = usePaymentStore();
@@ -172,7 +174,7 @@ function SaldarEnGrupo() {
 
         <DetailHeader icon="close" title={t('settle.title')} onBack={() => router.back()} />
 
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={[styles.scroll, { paddingTop: Spacing[4] + relleno }]} keyboardShouldPersistTaps="handled">
 
           {/* Con un solo acreedor no hay nada que elegir: mostrar el selector
               sería un paso vacío. Aparece recién cuando hay a quién repartir. */}
@@ -217,7 +219,7 @@ function SaldarEnGrupo() {
           {/* El botón de la app, no un Pressable con estilo propio: es la
               regla del proyecto y lo que hace que «guardar» se vea igual en
               todas las pantallas. */}
-          <ButtonRack>
+          <ButtonRack style={styles.alFondo}>
             <ActionButton
               testID="settle-save"
               label={t('settle.title')}
@@ -250,5 +252,9 @@ function SaldarEnGrupo() {
 
 const styles = StyleSheet.create({
   safe:           { flex: 1 },
-  scroll:         { paddingHorizontal: Spacing.screenPad, paddingTop: Spacing[4], gap: Spacing[3] },
+  scroll:         { paddingHorizontal: Spacing.screenPad, paddingTop: Spacing[4], gap: Spacing[3], flexGrow: 1 },
+  // «Registrar pago» al fondo de la pantalla, como «Crear» en Nuevo grupo (PO
+  // 2026-09-29): `marginTop: 'auto'` absorbe el alto que sobra; necesita el
+  // `flexGrow: 1` del contenedor del scroll.
+  alFondo: { marginTop: 'auto' },
 });

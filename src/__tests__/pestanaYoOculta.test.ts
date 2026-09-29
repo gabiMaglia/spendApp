@@ -37,4 +37,10 @@ describe('la pestaña "Yo" ya no está en el tab bar (T-115)', () => {
       expect(LAYOUT).toMatch(new RegExp(`screen\\(\\s*'${name}'`));
     }
   });
+
+  it('orden de la barra: Personal, Grupos, Amigos, Actividad (PO 2026-09-29)', () => {
+    const orden = ['index', 'groups', 'friends', 'activity'].map(n => LAYOUT.search(new RegExp(`screen\\(\\s*'${n}'`)));
+    expect(orden.every(i => i >= 0)).toBe(true);
+    expect([...orden].sort((a, b) => a - b)).toEqual(orden);
+  });
 });

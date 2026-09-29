@@ -4,8 +4,13 @@ import Animated from 'react-native-reanimated';
 import { FlashList } from '@shopify/flash-list';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useHeaderColapsable } from '@/src/hooks/useHeaderColapsable';
+import { useRellenoBarraPestanas } from '@/src/hooks/useRellenoBarraPestanas';
 import { useTranslation } from 'react-i18next';
 
+import { useSettingsStore } from '@/src/store/settingsStore';
+import { esYo } from '@/src/store/identityAlias';
+import { contarSinVer } from '@/src/screens/activity/utils/sinVer';
+import { useMarcarActividadVista } from '@/src/screens/activity/hooks/useMarcarActividadVista';
 import { useAuthStore } from '@/src/store/authStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useActivityFeed } from '@/src/store/selectors';
@@ -38,12 +43,19 @@ export default function ActivityScreen() {
   const { currentUser } = useAuthStore();
   const getUserName = useUserStore(s => s.getUserName);
   const { scrollHandler, progress, contenidoMinimo, alMedirScroll } = useHeaderColapsable();
+  // Aero: la barra flota sobre el contenido; su alto queda libre abajo (T-227).
+  const barra = useRellenoBarraPestanas();
 
   const restaurar = useRestoreExpense(currentUser);
   const feed = useActivityFeed(currentUser?.id ?? '');
 
   const { query, setQuery, activeFilter, setActiveFilter, allGroupNames, filteredFeed } = useActivityFilter(feed);
-  const { sections, todayNewCount } = useActivitySections(filteredFeed);
+  const { sections, todayEvents } = useActivitySections(filteredFeed);
+  // «N sin ver» (PO 2026-09-29): sólo lo de otros llegado después de la última
+  // vez que salí de esta pestaña; se marca al salir (`useMarcarActividadVista`).
+  const vistaHasta = useSettingsStore(s => s.actividadVistaHasta);
+  const todayNewCount = contarSinVer(todayEvents, vistaHasta, esYo);
+  useMarcarActividadVista();
   const trustFor = useActivityTrust(filteredFeed);
 
   useContadorDeRenders('Actividad', {
@@ -68,7 +80,7 @@ export default function ActivityScreen() {
           showsVerticalScrollIndicator={false}
           scrollEventThrottle={16}
           onScroll={scrollHandler}
-          contentContainerStyle={[{ paddingBottom: 120, flexGrow: 1 }, contenidoMinimo]}
+          contentContainerStyle={[{ paddingBottom: 120 + barra, flexGrow: 1 }, contenidoMinimo]}
           data={items}
           keyExtractor={(it) => it.id}
           getItemType={(it) => it.kind}

@@ -5,7 +5,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useCameraPermissions } from 'expo-camera';
 import { useTranslation } from 'react-i18next';
 
-import { DetailHeader } from '@/src/components/CollapsibleHeader';
+import { DetailHeader, RellenoDetailHeader } from '@/src/components/CollapsibleHeader';
 import { Segmented } from '@/src/components/Band';
 import { Fab, FabRow } from '@/src/components/Fab';
 
@@ -110,6 +110,7 @@ export default function AddContactScreen() {
     <SafeAreaView edges={['bottom']} style={[styles.safe, { backgroundColor: c.bg }]}>
 
       <DetailHeader icon="close" title={t('contact.title')} onBack={() => router.back()} />
+      <RellenoDetailHeader />
 
       {/* Mi QR / Escanear: las pestañas comunes de la app («T invertida»). */}
       <Segmented

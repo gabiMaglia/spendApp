@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next';
 
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { DetailHeader } from '@/src/components/CollapsibleHeader';
+import { DetailHeader, useRellenoDetailHeader } from '@/src/components/CollapsibleHeader';
 import { deleteAccount } from '@/src/services/deleteAccount';
 import { LEGAL_DISPONIBLE, urlDeBorrado } from '@/src/constants/legal';
 import { hapticWarning } from '@/src/utils/haptics';
@@ -26,6 +26,8 @@ import { useColors } from '@/src/skins/useSkin';
  */
 export default function BorrarCuentaScreen() {
   const c = useColors();
+  // Aero: el header flota y el contenido arranca debajo de su tarjeta (T-227).
+  const relleno = useRellenoDetailHeader();
   const { t } = useTranslation();
   const [borrando, setBorrando] = useState(false);
 
@@ -54,10 +56,10 @@ export default function BorrarCuentaScreen() {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }} edges={['top']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }} edges={relleno ? [] : ['top']}>
       <DetailHeader title={t('account_delete.title')} onBack={() => router.back()} />
 
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView contentContainerStyle={[styles.scroll, { paddingTop: Spacing[4] + relleno }]}>
         <Bloque titulo={t('account_delete.what_title')} color={c.text}>
           <Linea texto={t('account_delete.what_1')} color={c.textSecondary} />
           <Linea texto={t('account_delete.what_2')} color={c.textSecondary} />

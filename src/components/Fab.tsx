@@ -6,11 +6,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { hapticLight } from '@/src/utils/haptics';
+import { useRellenoBarraPestanas } from '@/src/hooks/useRellenoBarraPestanas';
 
 /**
  * FAB del reskin: rectángulo redondeado (Radius.lg), no pill, sin escala al
- * tocar. Igual que antes NO se suma `useBottomTabBarHeight()`: la tab bar no
- * es absolute, así que `bottom: 0` ya es su borde superior.
+ * tocar. En Clásico la tab bar no es absolute, así que `bottom: 0` ya es su
+ * borde superior; en Aero flota (T-227) y `FabRow` suma su alto.
  */
 /** Separación del FAB al borde inferior dentro de las pestañas, y alto de cada
  * botón (`styles.fab.height`) — expuestos para que una pantalla con lista corta
@@ -29,9 +30,14 @@ export const FAB_HEIGHT = 48;
  * tab bar ya ocupa esa franja, y sumarlo lo dejaría flotando de más.
  */
 export function separacionInferiorDelFab(
-  { dentroDePestanas, insetInferior }: { dentroDePestanas: boolean; insetInferior: number },
+  { dentroDePestanas, insetInferior, barraFlotante = 0 }: {
+    dentroDePestanas: boolean;
+    insetInferior: number;
+    /** Alto de la barra de pestañas cuando flota sobre el contenido (Aero). */
+    barraFlotante?: number;
+  },
 ): number {
-  return FAB_BOTTOM_GAP + (dentroDePestanas ? 0 : insetInferior);
+  return FAB_BOTTOM_GAP + (dentroDePestanas ? barraFlotante : insetInferior);
 }
 
 /** Posiciona uno o más `<Fab>` abajo: sobre la tab bar, o sobre la barra del sistema. */
@@ -39,9 +45,10 @@ export function FabRow({ children }: { children: React.ReactNode }) {
   // La tab bar publica su alto en este contexto; afuera de las pestañas es `undefined`.
   const dentroDePestanas = React.useContext(BottomTabBarHeightContext) !== undefined;
   const insets = useSafeAreaInsets();
-  const bottom = separacionInferiorDelFab({ dentroDePestanas, insetInferior: insets.bottom });
+  const barraFlotante = useRellenoBarraPestanas();
+  const bottom = separacionInferiorDelFab({ dentroDePestanas, insetInferior: insets.bottom, barraFlotante });
   return (
-    <View pointerEvents="box-none" style={[styles.row, { bottom }]}>
+    <View testID="fab-row" pointerEvents="box-none" style={[styles.row, { bottom }]}>
       {children}
     </View>
   );

@@ -18,7 +18,7 @@ import { useGroupStore } from '@/src/store/groupStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { useArchiveStore } from '@/src/store/archiveStore';
 import { useGroupExpenseCount } from '@/src/store/selectors';
-import { DetailHeader } from '@/src/components/CollapsibleHeader';
+import { DetailHeader, useRellenoDetailHeader } from '@/src/components/CollapsibleHeader';
 import { useColors } from '@/src/skins/useSkin';
 import type { Payer, PersonalCategory } from '@/src/types/models';
 import { useRepartoDeGasto } from '@/src/screens/expense/hooks/useRepartoDeGasto';
@@ -42,6 +42,8 @@ import { HojasDeGasto, type HojaAbierta } from '@/src/screens/expense/components
 export default function NewExpenseScreen() {
   const { t } = useTranslation();
   const c = useColors();
+  // Aero: el header flota y el contenido arranca debajo de su tarjeta (T-227).
+  const relleno = useRellenoDetailHeader();
 
   const { currentUser, isPro } = useAuthStore();
   const requiresRewardedAd = useTierStore(s => s.requiresRewardedAd);
@@ -171,7 +173,7 @@ export default function NewExpenseScreen() {
 
         <ScrollView
           style={styles.safe}
-          contentContainerStyle={styles.scroll}
+          contentContainerStyle={[styles.scroll, { paddingTop: Spacing[3] + relleno }]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >

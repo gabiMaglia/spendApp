@@ -80,7 +80,10 @@ const styles = StyleSheet.create({
   searchBar: {
     flexDirection: 'row', alignItems: 'center', gap: 9,
     marginHorizontal: Spacing.screenPad, marginTop: 12, marginBottom: 12,
-    paddingHorizontal: 13, height: 40,
+    // `minHeight` y no `height` (PO 2026-09-29, Aero): con alto fijo, el
+    // TextInput de Android —más alto que el hueco— quedaba encima del borde de
+    // abajo y la pastilla se veía sin piso (medido en píxeles en el Moto).
+    paddingHorizontal: 13, minHeight: 40,
     borderRadius: Radius.md, borderWidth: 1,
   },
   // "Línea del libro" (Clásico, T-203): sin fondo, sin radio, sin bordes

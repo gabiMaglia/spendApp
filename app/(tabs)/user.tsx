@@ -3,6 +3,7 @@ import { StyleSheet } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useHeaderColapsable } from '@/src/hooks/useHeaderColapsable';
+import { useRellenoBarraPestanas } from '@/src/hooks/useRellenoBarraPestanas';
 import { useTranslation } from 'react-i18next';
 
 import { Spacing } from '@/src/constants/spacing';
@@ -39,6 +40,8 @@ export default function UserScreen() {
   const { t } = useTranslation();
   const { currentUser, isPro, signOut } = useAuthStore();
   const { scrollHandler, progress, contenidoMinimo, alMedirScroll } = useHeaderColapsable();
+  // Aero: la barra flota sobre el contenido; su alto queda libre abajo (T-227).
+  const barra = useRellenoBarraPestanas();
 
   const perfil = useEditarPerfil(currentUser);
   const foto = useFotoDePerfil();
@@ -59,7 +62,7 @@ export default function UserScreen() {
         // de la versión quedaba con un salto enorme y vacío. La SafeAreaView
         // (`edges=['bottom']`) ya cubre el inset del sistema, y como la tab
         // bar no es `position:absolute` React Navigation ya reserva su alto.
-        contentContainerStyle={[{ paddingTop: headerPad, paddingBottom: Spacing[6] }, contenidoMinimo]}
+        contentContainerStyle={[{ paddingTop: headerPad, paddingBottom: Spacing[6] + barra }, contenidoMinimo]}
       >
 
         {/* Mi cuenta */}

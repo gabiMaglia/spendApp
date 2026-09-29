@@ -17,7 +17,16 @@ import { Animated, Easing, Keyboard, Platform } from 'react-native';
  * usa un valor prolijo). Se anima como `paddingBottom` del contenedor — la hoja
  * se ve crecer/deslizarse, no saltar.
  */
-export function useAlturaTeclado(): Animated.Value {
+/**
+ * `barraAndroid`: alto de la barra de navegación de Android (inset inferior).
+ * React Native en Android informa el alto del teclado SIN esa barra
+ * (`ReactRootView.java`: `imeInsets.bottom - barInsets.bottom`), pero la hoja
+ * vive en un `Modal` con `navigationBarTranslucent`, o sea que se dibuja DEBAJO
+ * de la barra: sin sumarla, la hoja quedaba justo esa altura por debajo del
+ * teclado y los botones del final se tapaban (PO 2026-09-29, Moto E40). En iOS
+ * el alto ya incluye la zona inferior: no se suma nada.
+ */
+export function useAlturaTeclado(barraAndroid = 0): Animated.Value {
   const altura = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -26,7 +35,7 @@ export function useAlturaTeclado(): Animated.Value {
 
     const alMostrar = (e: { endCoordinates?: { height?: number }; duration?: number }) => {
       Animated.timing(altura, {
-        toValue: e.endCoordinates?.height ?? 0,
+        toValue: (e.endCoordinates?.height ?? 0) + (Platform.OS === 'android' ? barraAndroid : 0),
         duration: e.duration && e.duration > 0 ? e.duration : 250,
         easing: Easing.out(Easing.quad),
         useNativeDriver: false,
@@ -44,7 +53,7 @@ export function useAlturaTeclado(): Animated.Value {
     const subMostrar = Keyboard.addListener(mostrar, alMostrar);
     const subOcultar = Keyboard.addListener(ocultar, alOcultar);
     return () => { subMostrar.remove(); subOcultar.remove(); };
-  }, [altura]);
+  }, [altura, barraAndroid]);
 
   return altura;
 }

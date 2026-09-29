@@ -30,8 +30,13 @@ interface AvatarProps {
   photo?: string | null;
 }
 
+const ANCHO_ANILLO = 2;
+
 export function Avatar({ name, size = 36, hue = 0, ring, photo }: AvatarProps) {
   const [bg, fg] = AVATAR_HUES[hue % AVATAR_HUES.length]!;
+  // La foto va ADENTRO del anillo (PO 2026-09-29): con el tamaño completo se
+  // dibujaba encima del borde y lo tapaba — con iniciales se veía, con foto no.
+  const foto = ring ? size - ANCHO_ANILLO * 2 : size;
   const initials = name
     .split(/\s+/)
     .slice(0, 2)
@@ -47,14 +52,14 @@ export function Avatar({ name, size = 36, hue = 0, ring, photo }: AvatarProps) {
           height: size,
           borderRadius: size / 2,
           backgroundColor: bg,
-          ...(ring ? { borderWidth: 2, borderColor: ring } : {}),
+          ...(ring ? { borderWidth: ANCHO_ANILLO, borderColor: ring } : {}),
         },
       ]}
     >
       {photo ? (
         <Image
           source={{ uri: photo }}
-          style={{ width: size, height: size, borderRadius: size / 2 }}
+          style={{ width: foto, height: foto, borderRadius: foto / 2 }}
           // La foto es un cuadrado ya recortado por `achicarAAvatar`; `cover`
           // evita que una imagen no cuadrada se deforme.
           resizeMode="cover"
