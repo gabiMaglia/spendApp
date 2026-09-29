@@ -3,7 +3,7 @@
  *
  * Hace falta desde que el `BottomSheet` monta su propio `GestureHandlerRootView`
  * (los gestos adentro de un `Modal` viven en otra jerarquía nativa, ver
- * `src/components/Sheet.tsx`). Sin esto, cualquier test que renderice un sheet
+ * `src/components/sheet/BottomSheet.tsx`). Sin esto, cualquier test que renderice un sheet
  * muere con `RNGestureHandlerModule.default.install is not a function`: en Jest
  * no hay módulo nativo que instalar.
  */
