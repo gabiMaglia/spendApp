@@ -17,9 +17,9 @@ App móvil de división de gastos (Expo / React Native) que funciona **sin backe
 | Framework | Expo SDK 54 + Expo Router v6 |
 | Lenguaje | TypeScript estricto |
 | Almacenamiento local | MMKV (rápido, sincrónico) + Zustand. **WatermelonDB se evaluó y se sacó el 2026-09-03** (decisión del PO): estuvo instalado seis semanas sin que nada lo importara. Si vuelve, es por una necesidad medida de queries reactivas, no por el plan viejo |
-| OCR (Pro) | `@react-native-ml-kit/text-recognition` — on-device, offline, sin API key |
+| OCR | **No existe.** La foto del ticket se guarda local, sin lectura |
 | Sincronización | **Relay cifrado (Supabase)** — es el único camino real. **WebRTC se SACÓ el 2026-09-08 (T-083)**: existía en el repo pero no se llegaba a él desde ninguna pantalla, y arrastraba ocho permisos de Android más dos cadenas del `Info.plist`. **BLE está PLANEADO, no implementado.** La pantalla de sync por QR sin internet (T-085, inalcanzable desde ninguna otra) se borró en T-193 — tag `qr-sync-antes-de-T-193` si hiciera falta recuperarla |
-| Autenticación | Expo Auth Session → Google OAuth + Sign in with Apple |
+| Autenticación | Expo Auth Session → Google OAuth + Sign in with Apple + modo invitado |
 | Estado global | Zustand |
 | i18n | `expo-localization` + `i18next` + `react-i18next` |
 | Notificaciones | `expo-notifications` (locales, post-sync — sin Firebase ni push real) |
@@ -132,18 +132,18 @@ Cada test debe cubrir:
 - `(tabs)/_layout.tsx` — Navegador de tabs inferior.
 - `modal.tsx` — Pantalla modal de ejemplo.
 
-**Pantallas planeadas:**
+**Pantallas reales** (la lógica de cada una vive en `src/screens/<pantalla>/`, tope 400 líneas por archivo):
 ```
 app/
-  auth/             ← Login con Google / Apple
-  (tabs)/
-    index.tsx       ← Dashboard de balances globales
-    groups.tsx      ← Lista de grupos
-    activity.tsx    ← Historial de actividad
-  groups/[id].tsx   ← Detalle de grupo + gastos
-  expense/new.tsx   ← Crear gasto
-  expense/[id].tsx  ← Detalle / editar gasto
-  settings.tsx      ← Plan free/pro, perfil
+  auth/index.tsx, verify.tsx     ← Google / Apple / invitado
+  (tabs)/index.tsx               ← Personal (presupuesto, Te deben / Debés)
+  (tabs)/groups.tsx, friends.tsx, activity.tsx, user.tsx
+  groups/[id].tsx, new.tsx, join.tsx, leave.tsx
+  expense/new.tsx, [id].tsx
+  settle/new.tsx                 ← Saldar (en grupo o con un amigo)
+  contact/add.tsx, claim.tsx     ← Contactos por QR
+  settings/borrar-cuenta.tsx
+  debug/identity.tsx, relay.tsx
 ```
 
 ### Estructura de módulos
@@ -159,9 +159,8 @@ src/
   auth/             ← useAuth hook (Google, Apple)
   store/            ← Zustand stores (groups, expenses, balances)
   algorithms/       ← calculateBalances(), simplifyDebts()
-  services/
-    ocr.ts          ← Escaneo de recibos (Pro)
-    currency.ts     ← Conversión de divisas (Pro)
+  services/         ← fx (cotizaciones para mostrar), backup, csvExport, deleteAccount, salirDelGrupo, expulsarDelGrupo, materializeRecurring, syncNotices…
+  screens/          ← lógica y componentes de cada pantalla de app/ (tope 400 líneas por archivo)
   components/       ← Componentes reutilizables de UI
 ```
 
@@ -194,10 +193,10 @@ Expo resuelve `.ios.tsx` / `.web.ts` automáticamente. Seguir ese patrón para c
 3. **Borrar ≠ liquidar, pero las dos son libres**: son dos acciones con lógica distinta, y desde T-186 ninguna de las dos pide acuerdo de nadie. Un saldado que declara quien paga cuenta al instante — no hay acuse de quien cobra (T-064, revertido) ni rechazo que lo devuelva a la deuda. Ver `docs/CONSENSO-PENDIENTE.md`.
 4. **Last-Write-Wins por `updatedAt`**: En conflictos de merge, gana el registro con mayor timestamp.
 5. **IDs generados en cliente**: Todos los `id` son UUIDs generados en el dispositivo, nunca en servidor.
-6. **Monetización por ads**: Primeros 4 gastos del día gratis. A partir del 5to, rewarded ad por cada gasto. Pro = sin ads + sin límite.
-7. **Multi-moneda**: Los balances se muestran separados por currency code, nunca se mezclan. Al liquidar, el usuario elige la moneda de pago (Free: tipo de cambio manual; Pro: automático).
+6. **Sin monetización**: lanzamiento gratis, sin anuncios ni Pro (PO 2026-09-03). `tierStore.ts` conserva el contador de 4 gastos de grupo por día con `ADS_DISPONIBLES = false` y `PRO_DISPONIBLE = false`; no bloquea nada y la UI no ofrece Pro.
+7. **Multi-moneda**: cada grupo tiene UNA moneda (elegida al crearlo) y todos sus gastos y pagos van en ella. Los balances se muestran por currency code y nunca se mezclan; los totales convertidos de Personal/Grupos/Amigos son de pantalla (`src/services/fx.ts`) y nunca entran a un registro. No hay conversión al liquidar (`Payment.targetCurrency` existe en el modelo sin UI).
 8. **Sync por grupo, con ESTADO — no con delta por fecha**: al sincronizar se publica el estado **completo** del grupo, filtrado por `groupId` (`buildGroupPayload`). **NO hay filtro por `updatedAt > lastSyncTimestamp`, y no debe haberlo.** Esta regla decía lo contrario hasta el 2026-08-31 y era falsa desde hacía tiempo: mandó a dos tickets por el camino equivocado antes de que alguien fuera a verificarla. El sobre lleva estado a propósito, y **tres** mecanismos dependen de eso — la compactación del buzón (`supabase/004_compaction.sql:10-14` advierte textual que volverla incremental la convierte en «pérdida de datos silenciosa»), el TTL de 30 días, y el descarte barato de sobres. Es además lo que satisface la promesa de que quien entra tarde a un grupo ve **todo** el historial, sin tener que entregarle claves viejas (`engram/02_architecture.md:659`). El costo de esto es real y está abierto en **T-058**: el sobre crece O(gastos) y ya se pasa del tope en un grupo ordinario. Cada publicación aporta sólo las rebanadas que cambiaron; el buzón sigue conteniendo el estado completo (T-191).
-9. **Invitación en 3 formas**: QR presencial, deep link (expira 48hs), username (solo para peers conocidos).
+9. **Invitación en 2 formas**: contacto por QR presencial (y la clave del grupo viaja por el canal de contacto, ADR-013) y deep link al grupo que expira a las 48 h. No hay username ni directorio.
 10. **Sync automática**: Al abrir la app, al recuperar internet, poll de respaldo cada 90s con Realtime conectado (20s si algún canal se cayó, DEC-04), **siempre por el relay**. (Los STUN/TURN de Google y Open Relay eran de WebRTC y se fueron con T-083.)
 
 ---
@@ -205,5 +204,5 @@ Expo resuelve `.ios.tsx` / `.web.ts` automáticamente. Seguir ese patrón para c
 ## Documentación de referencia
 
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — Motor de sync, protocolo, modelo de datos TypeScript
-- [docs/FEATURES.md](docs/FEATURES.md) — Matrix free/pro, fases de construcción, lógica de borrado consensuado
-- [docs/ALGORITHMS.md](docs/ALGORITHMS.md) — Balance calculation, simplificación de deudas (Greedy)
+- [docs/FEATURES.md](docs/FEATURES.md) — Lo que existe hoy y lo que no (sin ads, sin Pro, sin OCR)
+- [docs/ALGORITHMS.md](docs/ALGORITHMS.md) — Reparto, deuda por par sin compensar, saldar, salir, traspaso, recurrentes
