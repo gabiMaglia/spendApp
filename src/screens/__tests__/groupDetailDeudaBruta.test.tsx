@@ -204,3 +204,25 @@ describe('salir con saldo avisa a quién le debo y quién me debe (T-225)', () =
     );
   });
 });
+
+describe('borrar el grupo lista las cuentas abiertas (T-228)', () => {
+  const borrar = (r: ReturnType<typeof render>) => {
+    fireEvent.press(r.getByTestId('group-options'));
+    fireEvent.press(r.getByText('group_detail.delete_group'));
+  };
+
+  it('con deudas: el aviso dice quién le debe a quién', () => {
+    borrar(render(<GroupDetailScreen />));
+    const [, cuerpo] = (Alert.alert as jest.Mock).mock.calls.at(-1)!;
+    expect(cuerpo).toContain('group_detail.delete_body_with_debts');
+    expect(cuerpo).toContain('"from":"Ana"');
+    expect(cuerpo).toContain('"from":"Yo"');
+  });
+
+  it('sin deudas: el aviso de siempre', () => {
+    useExpenseStore.setState({ expenses: [] });
+    borrar(render(<GroupDetailScreen />));
+    const [, cuerpo] = (Alert.alert as jest.Mock).mock.calls.at(-1)!;
+    expect(cuerpo).toBe(`group_detail.delete_body(${JSON.stringify({ name: 'Viaje' })})`);
+  });
+});

@@ -1,5 +1,5 @@
 import {
-  armarTimeline, cuentasPorPersona, deudasDeGrupo,
+  armarTimeline, cuentasPorPersona, deudasDeGrupo, lineasDeDeudas,
 } from '@/src/screens/groupDetail/detalleDeGrupo';
 import type { Expense, Group, Payment } from '@/src/types/models';
 
@@ -98,5 +98,25 @@ describe('cuentasPorPersona', () => {
 
   it('sin deudas, lista vacía', () => {
     expect(cuentasPorPersona([], 'yo')).toEqual([]);
+  });
+});
+
+describe('lineasDeDeudas (T-228)', () => {
+  const t = (k: string, o: Record<string, string>) => `${k}(${JSON.stringify(o)})`;
+  const nombre = (id: string) => id.toUpperCase();
+
+  it('sin deudas: vacío', () => expect(lineasDeDeudas([], nombre, t)).toBe(''));
+
+  it('una línea por par, con las monedas juntas', () => {
+    const texto = lineasDeDeudas([
+      { deudor: 'a', acreedor: 'b', currency: 'ARS', monto: 1000 },
+      { deudor: 'a', acreedor: 'b', currency: 'USD', monto: 500 },
+      { deudor: 'c', acreedor: 'a', currency: 'ARS', monto: 200 },
+    ], nombre, t);
+    const lineas = texto.split('\n');
+    expect(lineas).toHaveLength(2);
+    expect(lineas[0]).toContain('"from":"A"');
+    expect(lineas[0]).toContain('"to":"B"');
+    expect(lineas[1]).toContain('"from":"C"');
   });
 });
