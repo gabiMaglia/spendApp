@@ -13,7 +13,7 @@ import type { Expense, Group, User } from '@/src/types/models';
 /**
  * Salir de un grupo con saldo abierto.
  *
- * `canLeaveGroup` existía y estaba testeado, pero NO LO LLAMABA NADIE — la misma
+ * (hasta T-228) `canLeaveGroup` existía y estaba testeado, pero NO LO LLAMABA NADIE — la misma
  * clase de bug que el plazo de borrado que nunca vencía. Se salía con deuda y
  * los números dejaban de cerrar EN SILENCIO: al sacarte de `memberIds`, tu
  * saldo desaparece del cálculo y las cuentas de los que quedan ya no suman.

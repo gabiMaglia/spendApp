@@ -108,7 +108,7 @@ describe('el núcleo de cada entidad', () => {
   });
 
   it.each(FIXTURES)('$kind: lo colaborativo queda afuera', ({ kind, record }) => {
-    const fuera = ['updatedAt', 'isDeleted', 'deletedById', 'leaveRequest', 'receiptImageUri', 'k', 's'];
+    const fuera = ['updatedAt', 'isDeleted', 'deletedById', 'receiptImageUri', 'k', 's'];
     for (const campo of fuera) {
       if (campo in record) expect(coreFieldsOf(kind)).not.toContain(campo);
     }
@@ -170,7 +170,7 @@ describe('guard de enumeración: ningún campo del modelo queda sin clasificar',
       'id', 'updatedAt', 'isDeleted', 'amount', 'splits', 'deletedById', 'note',
     ]));
     expect(campos.length).toBeGreaterThan(15);
-    expect(camposDeclarados('Group')).toContain('leaveRequest');
+    expect(camposDeclarados('Group')).toContain('supersededByGroupId');
   });
 
   it.each(CORE_KINDS)('%s: cada campo está adentro o afuera, explícito', (kind) => {

@@ -5,12 +5,8 @@ import { siguienteUpdatedAt } from './relojDelMerge';
 import { mergeGroupsPure } from './mergeGroupsPure';
 import { signOnCreate, signOnEdit } from '@/src/sync/confianza/signOnWrite';
 import { schedulePublish } from '@/src/store/publicarGrupo';
-import type { Group, LeaveRequest } from '@/src/types/models';
+import type { Group } from '@/src/types/models';
 import { syncedNow } from '@/src/utils/syncedClock';
-import { privadaDelAparato } from '@/src/sync/confianza/devicePrivateKey';
-import { signLeaveApproval } from '@/src/sync/confianza/leaveApprovalSign';
-import { yaAprobo } from '@/src/algorithms/leaveRequest';
-import type { LeaveApproval } from '@/src/types/models';
 import { recordError } from '@/src/services/errorLog';
 import { conBaja, rosterDe } from '@/src/algorithms/roster';
 
@@ -29,18 +25,10 @@ interface GroupStoreState {
   /**
    * Me saco del grupo sin borrarlo.
    *
-   * OJO: NO valida saldos. Salir con cuentas abiertas exige absorción y
-   * aprobación (ver `canLeaveGroup` y `src/algorithms/absorbBalance.ts`); la UI
-   * debe resolver eso ANTES de llamar acá. Se deja sin validar a propósito para
-   * que la salida siga funcionando cuando el plan ya se aplicó como pagos.
+   * OJO: NO valida saldos. La regla (nadie sale con deuda viva, T-228) la
+   * aplica la UI con `tieneDeudaViva` antes de llamar acá.
    */
   leaveGroup: (id: string, userId: string) => void;
-  /** Pide salir con saldo abierto, proponiendo quién absorbe. */
-  requestLeave: (id: string, userId: string, plan: LeaveRequest['plan']) => void;
-  /** Aprueba el pedido de salida pendiente. Idempotente. */
-  approveLeave: (id: string, userId: string) => void;
-  /** Retira el pedido (lo cancela quien se iba, o se limpia al aplicarlo). */
-  cancelLeave: (id: string) => void;
   mergeGroups: (incoming: Group[], now?: number) => void;
   hydrate: () => void;
 }
@@ -154,83 +142,6 @@ export const useGroupStore = create<GroupStoreState>((set, get) => ({
      * que esa publicación salga de verdad antes de trabar nada. **Salir del
      * grupo se hace por ahí**, no llamando a esto suelto.
      */
-  },
-
-  requestLeave: (id, userId, plan) => {
-    const ahora = syncedNow();
-    const groups = get().groups.map(g => g.id === id ? {
-      ...g,
-      leaveRequest: {
-        userId, plan,
-        // `syncedNow()` y no `Date.now()`: este timestamp identifica la ronda,
-        // va ADENTRO de cada firma de aprobación y forma parte del id derivado
-        // de los pagos de absorción. Un reloj adelantado acá los desalinea
-        // todos. Es la misma clase de T-059.
-        requestedAt: syncedNow(),
-        approvedBy: [],
-        // Marca el pedido como "las aprobaciones tienen que venir firmadas"
-        // (T-065). Los pedidos sin `v` siguen contando sin firma, para no
-        // trabar una salida ya en curso; se vencen solos.
-        v: 2 as const,
-      },
-      updatedAt: siguienteUpdatedAt(g.updatedAt, ahora),
-    } : g);
-    persist(groups);
-    set({ groups });
-    schedulePublish(id, 0); // sin debounce: los demás tienen que poder aprobar ya
-  },
-
-  approveLeave: (id, userId) => {
-    const ahora = syncedNow();
-    const groups = get().groups.map(g => {
-      if (g.id !== id || !g.leaveRequest) return g;
-      if (yaAprobo(g.leaveRequest, userId)) return g; // idempotente
-
-      /**
-       * La aprobación va FIRMADA (T-065). Sin firma, el conjunto se une sin
-       * preguntar quién escribió cada id y el que se va escribe los de todos
-       * los demás: `isApprovedByAll` da `true` sin una sola aprobación real y
-       * los pagos de absorción se materializan en el teléfono de todos.
-       *
-       * Si no hay privada, la aprobación se escribe igual pero sin firmar. En
-       * un pedido `v: 2` **no va a contar**, y eso es lo correcto: es preferible
-       * que la salida espere a que el dispositivo tenga identidad antes que
-       * mover plata con una autorización que nadie puede atribuir.
-       */
-      const aprobacion: LeaveApproval = { userId, approvedAt: syncedNow() };
-      const priv = privadaDelAparato();
-      const firmada = priv
-        ? (() => {
-            try {
-              return { ...aprobacion, ...signLeaveApproval(g.id, g.leaveRequest!, aprobacion, priv) };
-            } catch {
-              return aprobacion;
-            }
-          })()
-        : aprobacion;
-
-      return {
-        ...g,
-        leaveRequest: {
-          ...g.leaveRequest,
-          approvedBy: [...g.leaveRequest.approvedBy, firmada],
-        },
-        updatedAt: siguienteUpdatedAt(g.updatedAt, ahora),
-      };
-    });
-    persist(groups);
-    set({ groups });
-    schedulePublish(id, 0);
-  },
-
-  cancelLeave: (id) => {
-    const ahora = syncedNow();
-    const groups = get().groups.map(g =>
-      g.id === id ? { ...g, leaveRequest: undefined, updatedAt: siguienteUpdatedAt(g.updatedAt, ahora) } : g,
-    );
-    persist(groups);
-    set({ groups });
-    schedulePublish(id, 0);
   },
 
   /**

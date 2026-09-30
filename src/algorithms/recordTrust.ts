@@ -48,8 +48,8 @@ export function trustOf(verdict: RecordVerdict | undefined): TrustState {
    *  - `no_verificable` — falta de información. Es el caso masivo y va a serlo
    *    para siempre: por R2 (opción A) el histórico no se re-firma nunca.
    *  - `invalida` — hay firma y no cierra. Es la señal.
-   *  - `no_firmable` — nadie puede firmarlo por diseño (D4): los pagos de
-   *    absorción de `applyLeave` y los gastos materializados de una plantilla.
+   *  - `no_firmable` — nadie puede firmarlo por diseño (D4): los gastos
+   *    materializados de una plantilla (los pagos de absorción, hasta T-228).
    *    Llevan marca porque el copy es LITERALMENTE cierto para ellos; no
    *    marcarlos afirmaría en silencio una verificación que nadie hizo. Cuando
    *    S9 los ate a su origen firmado, dejarán de estar marcados solos.

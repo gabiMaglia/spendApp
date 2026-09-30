@@ -126,12 +126,6 @@ export const GROUP: Required<Group> = {
   createdAt: 1_690_000_000_000,
   createdById: 'ana',
   defaultSplitMode: 'equal',
-  leaveRequest: {
-    userId: 'beto',
-    plan: [{ fromUserId: 'beto', toUserId: 'ana', amount: 100, currency: 'ARS' }],
-    requestedAt: 4_500,
-    approvedBy: ['ana'],
-  },
   supersededByGroupId: 'g-2',
   rev: 2_000,
   k: '',

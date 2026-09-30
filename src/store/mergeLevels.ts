@@ -1,10 +1,9 @@
 import { canonical, type Syncable } from './lww';
 import { canonicalCore, coreFieldsOf, type CoreKind, type CoreRecord } from '@/src/sync/confianza/recordCore';
-import { mergeApprovals } from '@/src/algorithms/leaveRequest';
 import { envenenado } from './relojDelMerge';
 import { unirDisputa } from '@/src/algorithms/autoria';
 import { unirMiembros } from '@/src/algorithms/roster';
-import type { Group, LeaveRequest, NucleoDisputado } from '@/src/types/models';
+import type { Group, NucleoDisputado } from '@/src/types/models';
 
 /**
  * **Merge por niveles** (T-041 · S7).
@@ -23,8 +22,7 @@ import type { Group, LeaveRequest, NucleoDisputado } from '@/src/types/models';
  *    con firma y uno sin firma gana el que la trae (T-152); si no, gana el de
  *    `rev` mayor, que sólo sube el autor y va ADENTRO de la firma. Subirlo sin
  *    la privada del autor rompe la firma; ése es todo el mecanismo.
- * 2. **Colaborativo** — `leaveRequest.approvedBy`, `miembros` y
- *    `autoriaDisputada`. Son aportes de gente distinta: no se eligen, se unen.
+ * 2. **Colaborativo** — `miembros` y `autoriaDisputada`. Son aportes de gente distinta: no se eligen, se unen.
  * 3. **El resto** — `updatedAt`, `isDeleted`, el nombre del grupo, el URI local
  *    del recibo. Sigue siendo LWW por `updatedAt`, exactamente como hoy, con el
  *    tope de reloj de T-144: un `updatedAt` más de `TOLERANCIA_RELOJ_MS` en el
@@ -64,16 +62,6 @@ const CAMPOS_DE_FIRMA = ['k', 's'] as const;
  */
 type Union = (local: unknown, remoto: unknown, cur: Registro, inc: Registro, now: number) => unknown;
 
-const unirAprobaciones: Union = (local, remoto) => {
-  const a = local as LeaveRequest | undefined;
-  const unido = mergeApprovals(a, remoto as LeaveRequest | undefined);
-  if (unido === a) return a;
-  // `mergeApprovals` arma un pedido nuevo cada vez que une, aunque el conjunto
-  // de aprobaciones no haya cambiado. Sin esta comparación, cada drenado del
-  // relay produce un `Group` nuevo y con él un re-render de todo.
-  return a !== undefined && unido !== undefined && canonical(unido) === canonical(a) ? a : unido;
-};
-
 /**
  * `autoriaDisputada` (T-170 · D-2, ronda 2): unión de NÚCLEOS COMPETIDORES
  * (con su firma) cuando `createdById` difiere entre versiones.
@@ -83,8 +71,8 @@ const unirAprobaciones: Union = (local, remoto) => {
  * captura y une por contenido; la firma se revisa afuera
  * (`src/sync/autoriaTrust.ts`).
  *
- * Es colaborativo sólo en `expense`: en `payment` los registros derivados de
- * `applyLeave.ts` pueden dar falsos positivos, y el único poder de creador
+ * Es colaborativo sólo en `expense`: en `payment` no hay razón (los pagos
+ * derivados de salida existieron hasta T-228), y el único poder de creador
  * sobre pagos es el atajo D3, que se cierra por otro lado (`settlementStatus`,
  * Task 3). No hay ninguna razón de negocio para disputar autoría de
  * comentarios, recurrentes o grupos hoy.
@@ -117,7 +105,7 @@ const COLABORATIVOS: Record<CoreKind, readonly (readonly [string, Union])[]> = {
   payment: [],
   comment: [],
   recurring: [],
-  group: [['leaveRequest', unirAprobaciones], ['miembros', unirMiembrosDeGrupo]],
+  group: [['miembros', unirMiembrosDeGrupo]],
 };
 
 /** `rev` ausente cuenta como 0: es todo lo que existe desde antes de T-041. */

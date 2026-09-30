@@ -30,7 +30,6 @@ import { BalanceDeGrupo } from '@/src/screens/groupDetail/components/BalanceDeGr
 import { TotalesDeGrupo } from '@/src/screens/groupDetail/components/TotalesDeGrupo';
 import { MiembrosDeGrupo } from '@/src/screens/groupDetail/components/MiembrosDeGrupo';
 import { TimelineDeGrupo } from '@/src/screens/groupDetail/components/TimelineDeGrupo';
-import { PedidoDeSalida } from '@/src/screens/groupDetail/components/PedidoDeSalida';
 import { TraspasoManual } from '@/src/screens/groupDetail/components/TraspasoManual';
 import { BotonesDeGrupo } from '@/src/screens/groupDetail/components/BotonesDeGrupo';
 import { MenuDeGrupo } from '@/src/screens/groupDetail/components/MenuDeGrupo';
@@ -109,7 +108,8 @@ export default function GroupDetailScreen() {
   const soyMiembro = !!currentUser && group.memberIds.some(esYo);
   // T-228: borrar el grupo avisa quién le debe a quién.
   const avisoDeDeudas = lineasDeDeudas(
-    deudasDeGrupo(allExpenses, allPayments, group), getUserName, (k, o) => t(k, o),
+    deudasDeGrupo(allExpenses, allPayments, group), getUserName,
+    t as unknown as (k: string, o: Record<string, string>) => string,
   );
 
   return (
@@ -152,10 +152,6 @@ export default function GroupDetailScreen() {
         />
 
         <BalanceDeGrupo groupId={group.id} currency={group.currency} neto={owedToYou - youOwe} />
-
-        {group.leaveRequest && currentUser && (
-          <PedidoDeSalida group={group} currentUserId={currentUser.id} getUserName={getUserName} />
-        )}
 
         {/* Salvo que el grupo YA esté archivado: re-traspasar uno ya
             traspasado pisaría su `supersededByGroupId` y crearía un duplicado. */}
