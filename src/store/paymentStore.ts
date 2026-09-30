@@ -15,17 +15,10 @@ const KEY = 'data_v1';
 // Guard de idempotencia de la conversión float→entero de montos (ADR-002 §6).
 const MONEY_MIGRATION_KEY = 'money_int_v1_done';
 
-/**
- * Un pago DERIVADO no lo declara este dispositivo: sale de un plan de salida ya
- * aprobado y lo materializa cualquiera que corra la resolución. Ver S9 del plan
- * de T-041 (`derivedFrom`).
- */
-export interface AddPaymentOpts { derived?: boolean }
-
 interface PaymentStoreState {
   payments: Payment[];
   isLoading: boolean;
-  addPayment: (payment: Payment, opts?: AddPaymentOpts) => void;
+  addPayment: (payment: Payment) => void;
   /** `false` = la edición NO se guardó (T-152 · D2). Ver `expenseStore.updateExpense`. */
   updatePayment: (id: string, patch: Partial<Payment>) => boolean;
   mergePayments: (incoming: Payment[], now?: number) => void;
@@ -42,11 +35,8 @@ export const usePaymentStore = create<PaymentStoreState>((set, get) => ({
 
   // Saldar una deuda tiene que verse del otro lado igual que un gasto: si no,
   // el que pagó ve su saldo en cero y el otro le sigue reclamando.
-  addPayment: (payment, opts) => {
-    // `derived` = pago emitido en nombre de otro a partir de un plan de salida
-    // (`applyLeave`). No se firma: su autoría no es de este device aunque el
-    // `createdById` coincida con la sesión. Ver `signOnCreate`.
-    const nuevo = opts?.derived ? payment : signOnCreate('payment', payment);
+  addPayment: (payment) => {
+    const nuevo = signOnCreate('payment', payment);
     const payments = [...get().payments, nuevo];
     persist(payments);
     set({ payments });

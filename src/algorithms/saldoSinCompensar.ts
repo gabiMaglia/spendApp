@@ -20,7 +20,7 @@ export function acreedoresSinCompensar(deudas: DeudaPar[], me: string, currency:
   return deudas
     .filter(d => d.deudor === yo && d.currency === currency && d.monto > 0)
     .map(d => ({ userId: d.acreedor, amount: d.monto }))
-    // Orden estable y explicable, igual que `acreedoresDe`: la pantalla no baila.
+    // Orden estable y explicable (mayor deuda primero, el id desempata): la pantalla no baila.
     .sort((a, b) => b.amount - a.amount || a.userId.localeCompare(b.userId));
 }
 

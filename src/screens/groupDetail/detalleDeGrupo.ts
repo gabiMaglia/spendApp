@@ -1,9 +1,7 @@
-import { calculateBalancesByCurrency } from '@/src/algorithms/calculateBalances';
 import { pagosQueCuentan } from '@/src/algorithms/settlementStatus';
-import { deudasDelGrupo, type DeudaPar, type TotalesDeUsuario } from '@/src/algorithms/deudasDelGrupo';
-import type { BalanceEntry } from '@/src/algorithms/absorbBalance';
+import { deudasDelGrupo, type DeudaPar } from '@/src/algorithms/deudasDelGrupo';
 import { idCanonico } from '@/src/store/identityAlias';
-import type { CurrencyCode } from '@/src/constants/currencies';
+import { formatMoney, type CurrencyCode } from '@/src/constants/currencies';
 import type { Expense, Group, Payment } from '@/src/types/models';
 
 /** Lógica pura del detalle de grupo. T-223: salió de `app/groups/[id].tsx`. */
@@ -24,16 +22,6 @@ export function armarTimeline(
     if (p.groupId === groupId && !p.isDeleted) items.push({ type: 'payment', data: p, ts: p.date });
   }
   return items.sort((a, b) => b.ts - a.ts);
-}
-
-/** Lo que un miembro todavía debe o le deben en el grupo, sólo monedas con saldo. */
-export function saldoPendienteDe(
-  uid: string, expenses: readonly Expense[], payments: readonly Payment[], group: Group,
-): { currency: CurrencyCode; amount: number }[] {
-  const gastosDelGrupo = expenses.filter(e => e.groupId === group.id);
-  const pagosDelGrupo = pagosQueCuentan(payments, group);
-  const balances = calculateBalancesByCurrency(gastosDelGrupo, pagosDelGrupo, group.memberIds);
-  return (balances.find(b => b.userId === uid)?.balances ?? []).filter(b => b.amount !== 0);
 }
 
 /** Deuda por par del grupo (T-225), con los mismos pagos que cuentan que el resto del detalle. */
@@ -69,25 +57,22 @@ export function cuentasPorPersona(deudas: readonly DeudaPar[], yo: string): Cuen
 }
 
 /**
- * Qué monedas cuentan como «saldo abierto» para salir del grupo (T-225).
- *
- * Abierta si DEBO algo en esa moneda, aunque me deban más (regla de «saldado»
- * del PO), o si el neto no es cero. Lo segundo no es «saldado», son los libros:
- * si me voy con neto a favor, los que quedan dejan de sumar cero, así que la
- * absorción de siempre (`planAbsorption`, que reparte el neto) sigue haciendo
- * falta. El monto es el neto cuando lo hay —es lo que la absorción mueve— y si
- * no, lo que debo (en negativo), sólo para marcar la moneda.
+ * Las deudas vivas del grupo como texto de aviso, una línea por par (T-228):
+ * lo que se deja de ver si el creador borra el grupo.
  */
-export function saldosParaSalir(
-  totales: readonly TotalesDeUsuario[], netos: readonly BalanceEntry[],
-): BalanceEntry[] {
-  const monedas = new Set<CurrencyCode>([...netos.map(n => n.currency), ...totales.map(t => t.currency)]);
-  const out: BalanceEntry[] = [];
-  for (const currency of monedas) {
-    const neto = netos.find(n => n.currency === currency)?.amount ?? 0;
-    const debo = totales.find(t => t.currency === currency)?.youOwe ?? 0;
-    if (neto !== 0) out.push({ currency, amount: neto });
-    else if (debo > 0) out.push({ currency, amount: -debo });
+export function lineasDeDeudas(
+  deudas: readonly DeudaPar[],
+  nombre: (id: string) => string,
+  t: (k: string, o: Record<string, string>) => string,
+): string {
+  const porPar = new Map<string, DeudaPar[]>();
+  for (const d of deudas) {
+    const k = `${d.deudor}|${d.acreedor}`;
+    porPar.set(k, [...(porPar.get(k) ?? []), d]);
   }
-  return out;
+  return [...porPar.values()].map(ds => t('group_detail.debt_between', {
+    from: nombre(ds[0]!.deudor),
+    to: nombre(ds[0]!.acreedor),
+    amounts: ds.map(d => formatMoney(d.monto, d.currency)).join(', '),
+  })).join('\n');
 }

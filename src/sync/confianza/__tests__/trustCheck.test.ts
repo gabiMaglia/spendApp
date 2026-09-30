@@ -119,15 +119,14 @@ describe('checkRecord', () => {
     expect(observeRecord('expense', materializado as never)).toBe('no_firmable');
   });
 
-  it('un pago de absorción de salida: `no_firmable`, igual que en la medición', () => {
+  it('un pago con id `leave:` sin firma ya no es `no_firmable` (T-228)', () => {
     const pago = {
       id: 'leave:g-1:ana:500:0', groupId: 'g-1', fromUserId: 'ana', toUserId: 'beto',
       amount: 1_000, currency: 'ARS', date: 500, createdAt: 500, createdById: 'ana',
       updatedAt: 500, isDeleted: false,
     } as Payment;
 
-    expect(checkRecord('payment', pago as never)).toBe('no_firmable');
-    expect(observeRecord('payment', pago as never)).toBe('no_firmable');
+    expect(checkRecord('payment', pago as never)).toBe('no_verificable');
   });
 });
 

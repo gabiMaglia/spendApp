@@ -227,23 +227,6 @@ describe('los siete stores siguen mergeando', () => {
     expect(useRecurringStore.getState().recurring[0]!.lastMaterializedAt).toBe(7_000);
   });
 
-  it('groups: las aprobaciones de salida se siguen uniendo', () => {
-    const pedido = { userId: 'caro', plan: [], requestedAt: 500 };
-    useGroupStore.setState({ groups: [{
-      id: 'g1', name: 'Viaje', memberIds: ['ana', 'beto', 'caro'], currency: 'ARS',
-      createdAt: 0, createdById: 'ana', updatedAt: 1_000, isDeleted: false,
-      leaveRequest: { ...pedido, approvedBy: ['ana'] },
-    } as never] });
-    useGroupStore.getState().mergeGroups([{
-      id: 'g1', name: 'Viaje', memberIds: ['ana', 'beto', 'caro'], currency: 'ARS',
-      createdAt: 0, createdById: 'ana', updatedAt: 2_000, isDeleted: false,
-      leaveRequest: { ...pedido, approvedBy: ['beto'] },
-    } as never]);
-
-    expect(useGroupStore.getState().groups[0]!.leaveRequest?.approvedBy.sort())
-      .toEqual(['ana', 'beto']);
-  });
-
   it('users: sin núcleo económico, LWW como siempre', () => {
     const u = (over: Partial<User> = {}): User => ({
       id: 'u1', name: 'Ana', email: 'a@a', authProvider: 'google', createdAt: 0,

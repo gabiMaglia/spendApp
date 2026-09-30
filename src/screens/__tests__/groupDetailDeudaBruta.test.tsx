@@ -99,17 +99,15 @@ describe('detalle de grupo: Te deben / Debés arriba, balance neto abajo', () =>
     expect(monto(r, 'groupDetail.balance:g1').minor).toBe(0);
   });
 
-  it('orden: widget → timeline → balance → pedido de salida → traspasar', () => {
-    useGroupStore.setState({ groups: [grupo({
-      createdById: 'ana',
-      leaveRequest: { userId: 'ana', plan: [], requestedAt: 0, approvedBy: [] },
-    })] });
+  it('orden: widget → timeline → balance → traspasar, sin pedido de salida', () => {
+    useGroupStore.setState({ groups: [grupo({ createdById: 'ana' })] });
     const arbol = JSON.stringify(render(<GroupDetailScreen />).toJSON());
     const posiciones = [
-      'groups.stat_owed_to_you', 'Cena 1', '"group-net-balance"', 'leave.pending', '"traspaso-manual-btn"',
+      'groups.stat_owed_to_you', 'Cena 1', '"group-net-balance"', '"traspaso-manual-btn"',
     ].map(marca => arbol.indexOf(marca));
     expect(posiciones.every(p => p >= 0)).toBe(true);
     expect([...posiciones].sort((a, b) => a - b)).toEqual(posiciones);
+    expect(arbol).not.toContain('leave.pending');
   });
 
   it('el balance grande de antes ya no está arriba', () => {
@@ -133,25 +131,25 @@ describe('Saldar = si DEBO algo (T-225)', () => {
 });
 
 describe('expulsar avisa las dos direcciones (T-225)', () => {
-  it('dice lo que Ana me debe y lo que yo le debo, además del aviso de siempre', () => {
+  it('con deuda en las dos direcciones: bloquea, dice cuánto y no ofrece Expulsar', () => {
     const r = render(<GroupDetailScreen />);
     fireEvent.press(r.getByTestId('member-ana'));
 
-    const [titulo, cuerpo] = (Alert.alert as jest.Mock).mock.calls[0];
-    expect(titulo).toContain('group_detail.expel_title');
-    expect(cuerpo).toContain('group_detail.expel_body_with_balance');
+    const [titulo, cuerpo, botones] = (Alert.alert as jest.Mock).mock.calls[0];
+    expect(titulo).toBe(`group_detail.expel_blocked_title(${JSON.stringify({ name: 'Ana' })})`);
+    expect(cuerpo).toContain('group_detail.expel_blocked_body');
     expect(cuerpo).toContain(lineaMeDebe('Ana', 20_000));
     expect(cuerpo).toContain(lineaLeDebo('Ana', 6_000));
+    expect((botones as { text: string }[]).map(b => b.text)).toEqual(['common.cancel']);
   });
 
-  it('deudas cruzadas que se compensan (neto 0): igual avisa las dos', () => {
+  it('deudas cruzadas que se compensan (neto 0): bloquea igual', () => {
     useExpenseStore.setState({ expenses: [gasto('a1', 'yo', 12_000), gasto('b1', 'ana', 12_000)] });
     const r = render(<GroupDetailScreen />);
     fireEvent.press(r.getByTestId('member-ana'));
 
-    const [, cuerpo] = (Alert.alert as jest.Mock).mock.calls[0];
-    expect(cuerpo).toContain(lineaMeDebe('Ana', 6_000));
-    expect(cuerpo).toContain(lineaLeDebo('Ana', 6_000));
+    const [titulo] = (Alert.alert as jest.Mock).mock.calls[0];
+    expect(titulo).toContain('group_detail.expel_blocked_title');
   });
 
   it('sin saldo en ninguna dirección: el texto de hoy, sin líneas de deuda', () => {
@@ -181,7 +179,7 @@ describe('salir con saldo avisa a quién le debo y quién me debe (T-225)', () =
     expect(cuerpo).toContain('group_detail.leave_needs_settle');
     expect(cuerpo).toContain(lineaMeDebe('Ana', 20_000));
     expect(cuerpo).toContain(lineaLeDebo('Ana', 6_000));
-    expect(botones()).toEqual(['common.cancel', 'group_detail.settle_debts', 'leave.title']);
+    expect(botones()).toEqual(['common.cancel', 'group_detail.settle_debts']);
   });
 
   it('deudas cruzadas con neto 0: ya no sale libre — debo algo', () => {
@@ -191,8 +189,7 @@ describe('salir con saldo avisa a quién le debo y quién me debe (T-225)', () =
     const [titulo, cuerpo] = (Alert.alert as jest.Mock).mock.calls.at(-1)!;
     expect(titulo).toBe('group_detail.leave_blocked_title');
     expect(cuerpo).toContain(lineaLeDebo('Ana', 6_000));
-    // Sin neto no hay nada que repartir: la pantalla de absorción no podría
-    // cerrar el plan, así que no se ofrece; queda Saldar.
+    // Nadie sale con deuda viva (T-228): queda Saldar.
     expect(botones()).toEqual(['common.cancel', 'group_detail.settle_debts']);
   });
 
@@ -203,5 +200,29 @@ describe('salir con saldo avisa a quién le debo y quién me debe (T-225)', () =
     expect(Alert.alert).toHaveBeenLastCalledWith(
       'group_detail.leave_title', 'group_detail.leave_body', expect.anything(),
     );
+  });
+});
+
+describe('borrar el grupo lista las cuentas abiertas (T-228)', () => {
+  const borrar = (r: ReturnType<typeof render>) => {
+    fireEvent.press(r.getByTestId('group-options'));
+    fireEvent.press(r.getByText('group_detail.delete_group'));
+  };
+
+  it('con deudas: el aviso dice quién le debe a quién', () => {
+    borrar(render(<GroupDetailScreen />));
+    const [, cuerpo] = (Alert.alert as jest.Mock).mock.calls.at(-1)!;
+    expect(cuerpo).toContain('group_detail.delete_body_with_debts');
+    // Las líneas viajan dentro del JSON del mock de i18n: van escapadas.
+    const escapado = (x: string) => JSON.stringify(x).slice(1, -1);
+    expect(cuerpo).toContain(escapado('"from":"Ana","to":"Yo"'));
+    expect(cuerpo).toContain(escapado('"from":"Yo","to":"Ana"'));
+  });
+
+  it('sin deudas: el aviso de siempre', () => {
+    useExpenseStore.setState({ expenses: [] });
+    borrar(render(<GroupDetailScreen />));
+    const [, cuerpo] = (Alert.alert as jest.Mock).mock.calls.at(-1)!;
+    expect(cuerpo).toBe(`group_detail.delete_body(${JSON.stringify({ name: 'Viaje' })})`);
   });
 });

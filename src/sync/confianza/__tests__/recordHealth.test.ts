@@ -9,7 +9,7 @@ import { clearVerdictCache, verdictCacheSize } from '../verdictCache';
 import { forgetAuthorKeys, reloadAuthorKeys, refreshPendingAuthors, __resetAuthorSources } from '../authorKeys';
 import { authorRatchet, clearRatchet } from '../ratchet';
 import { toHex } from '@/src/sync/nucleo/hexBytes';
-import { EXPENSE, PAYMENT } from '@/src/test-utils/recordFixtures';
+import { EXPENSE } from '@/src/test-utils/recordFixtures';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { useAuthStore } from '@/src/store/authStore';
 import type { User } from '@/src/types/models';
@@ -116,13 +116,10 @@ describe('los cuatro contadores se mueven POR SEPARADO', () => {
     expect(recordStats()).toEqual({ ...CEROS, invalida: 1 });
   });
 
-  it('`no_firmable`: el pago de absorción que ningún device puede firmar', () => {
+  it('`no_firmable`: el gasto materializado que ningún device puede firmar', () => {
     peerConClave(ANA.pub);
-    const pago = {
-      ...PAYMENT, id: 'leave:g-1:beto:4500:0', groupId: 'g-1', createdById: 'beto',
-      k: undefined, s: undefined,
-    };
-    expect(observeRecord('payment', pago as never)).toBe('no_firmable');
+    const materializado = sinFirmar({ id: 'rec_t1_4500', date: 4500, createdAt: 4500 });
+    expect(observeRecord('expense', materializado as never)).toBe('no_firmable');
     expect(recordStats()).toEqual({ ...CEROS, no_firmable: 1 });
   });
 
@@ -131,10 +128,7 @@ describe('los cuatro contadores se mueven POR SEPARADO', () => {
     observeRecord('expense', firmadoPor(ANA) as never);
     observeRecord('expense', sinFirmar({ id: 'e-viejo' }) as never);
     observeRecord('expense', { ...firmadoPor(ANA, { id: 'e-roto' }), amount: 7 } as never);
-    observeRecord('payment', {
-      ...PAYMENT, id: 'leave:g-1:beto:4500:0', groupId: 'g-1', createdById: 'beto',
-      k: undefined, s: undefined,
-    } as never);
+    observeRecord('expense', sinFirmar({ id: 'rec_t1_4500', date: 4500, createdAt: 4500 }) as never);
 
     expect(recordStats()).toEqual({ valida: 1, no_verificable: 1, invalida: 1, no_firmable: 1 });
   });
@@ -148,11 +142,8 @@ describe('D4 · `no_firmable` no contamina a `no_verificable` NI AL REVÉS', () 
     expect(recordStats().no_verificable).toBe(1);
   });
 
-  it('un pago de salida no cuenta `no_verificable` aunque no traiga firma', () => {
-    observeRecord('payment', {
-      ...PAYMENT, id: 'leave:g-1:beto:4500:0', groupId: 'g-1', createdById: 'beto',
-      k: undefined, s: undefined,
-    } as never);
+  it('un gasto materializado no cuenta `no_verificable` aunque no traiga firma', () => {
+    observeRecord('expense', sinFirmar({ id: 'rec_t1_4500', date: 4500, createdAt: 4500 }) as never);
     expect(recordStats().no_verificable).toBe(0);
   });
 

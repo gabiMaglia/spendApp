@@ -1,5 +1,5 @@
 import {
-  armarTimeline, cuentasPorPersona, deudasDeGrupo, saldoPendienteDe, saldosParaSalir,
+  armarTimeline, cuentasPorPersona, deudasDeGrupo, lineasDeDeudas,
 } from '@/src/screens/groupDetail/detalleDeGrupo';
 import type { Expense, Group, Payment } from '@/src/types/models';
 
@@ -55,24 +55,6 @@ describe('armarTimeline', () => {
   });
 });
 
-describe('saldoPendienteDe', () => {
-  it('devuelve el saldo vivo del miembro, por moneda', () => {
-    expect(saldoPendienteDe('beto', [gasto()], [], grupo())).toEqual([{ currency: 'ARS', amount: -500 }]);
-  });
-
-  it('un pago que salda deja al miembro sin saldo', () => {
-    expect(saldoPendienteDe('beto', [gasto()], [pago()], grupo())).toEqual([]);
-  });
-
-  it('ignora gastos de otros grupos', () => {
-    expect(saldoPendienteDe('beto', [gasto({ groupId: 'g2' })], [], grupo())).toEqual([]);
-  });
-
-  it('un miembro sin movimientos no tiene saldo', () => {
-    expect(saldoPendienteDe('caro', [gasto()], [], grupo(['ana', 'beto', 'caro']))).toEqual([]);
-  });
-});
-
 /**
  * T-225 (PO 2026-09-29): lo que me deben y lo que debo, sin compensar. Caso del
  * PO: con Ana, cuatro gastos a favor (200) y uno en contra (60).
@@ -119,36 +101,22 @@ describe('cuentasPorPersona', () => {
   });
 });
 
-describe('saldosParaSalir', () => {
-  it('abierto si debo algo, aunque el neto me dé a favor (caso del PO)', () => {
-    expect(saldosParaSalir(
-      [{ currency: 'ARS', owedToYou: 20_000, youOwe: 6_000 }],
-      [{ currency: 'ARS', amount: 14_000 }],
-    )).toEqual([{ currency: 'ARS', amount: 14_000 }]);
-  });
+describe('lineasDeDeudas (T-228)', () => {
+  const t = (k: string, o: Record<string, string>) => `${k}(${JSON.stringify(o)})`;
+  const nombre = (id: string) => id.toUpperCase();
 
-  it('deudas cruzadas que se compensan (neto 0) SIGUEN abiertas: debo algo', () => {
-    expect(saldosParaSalir(
-      [{ currency: 'ARS', owedToYou: 6_000, youOwe: 6_000 }],
-      [],
-    )).toEqual([{ currency: 'ARS', amount: -6_000 }]);
-  });
+  it('sin deudas: vacío', () => expect(lineasDeDeudas([], nombre, t)).toBe(''));
 
-  it('con un neto distinto de cero queda abierto aunque no deba nada (los libros tienen que cerrar)', () => {
-    expect(saldosParaSalir(
-      [{ currency: 'USD', owedToYou: 500, youOwe: 0 }],
-      [{ currency: 'USD', amount: 500 }],
-    )).toEqual([{ currency: 'USD', amount: 500 }]);
-  });
-
-  it('sin deudas ni neto, nada abierto', () => {
-    expect(saldosParaSalir([{ currency: 'ARS', owedToYou: 0, youOwe: 0 }], [])).toEqual([]);
-  });
-
-  it('una moneda por entrada, aunque venga sólo de un lado', () => {
-    expect(saldosParaSalir(
-      [{ currency: 'USD', owedToYou: 0, youOwe: 300 }],
-      [{ currency: 'ARS', amount: -100 }],
-    )).toEqual([{ currency: 'ARS', amount: -100 }, { currency: 'USD', amount: -300 }]);
+  it('una línea por par, con las monedas juntas', () => {
+    const texto = lineasDeDeudas([
+      { deudor: 'a', acreedor: 'b', currency: 'ARS', monto: 1000 },
+      { deudor: 'a', acreedor: 'b', currency: 'USD', monto: 500 },
+      { deudor: 'c', acreedor: 'a', currency: 'ARS', monto: 200 },
+    ], nombre, t);
+    const lineas = texto.split('\n');
+    expect(lineas).toHaveLength(2);
+    expect(lineas[0]).toContain('"from":"A"');
+    expect(lineas[0]).toContain('"to":"B"');
+    expect(lineas[1]).toContain('"from":"C"');
   });
 });

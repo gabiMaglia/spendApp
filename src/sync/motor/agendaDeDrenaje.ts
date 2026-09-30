@@ -7,7 +7,6 @@ import { useCommentStore } from '@/src/store/commentStore';
 import { syncedNow } from '@/src/utils/syncedClock';
 import { snapshot, noticesFor, type Snapshot } from '@/src/services/syncNotices';
 import { announce } from '@/src/services/notifications';
-import { applyApprovedLeaves } from '@/src/services/applyLeave';
 import { deriveTopic } from '@/src/sync/nucleo/envelopeCrypto';
 import { fromHex } from '@/src/sync/nucleo/hexBytes';
 import { drainGroup, sigueSiendoLaClave } from './relaySync';
@@ -65,7 +64,6 @@ export async function drainNow(groupId: string): Promise<number> {
     writeCursor(topic, r.cursor);
     // T-089: sólo se limpia con el buzón leído hasta el final (`r.completo`).
     if (r.completo) limpiarPendienteDeDrenaje(groupId);
-    if (r.applied > 0) applyApprovedLeaves();
     // T-010: `antes` siempre está seteado si `r.applied > 0` (ver `antesDeAplicar`).
     if (r.applied > 0 && antes) void avisarDeLoNuevo(antes, userId);
     return r.applied;

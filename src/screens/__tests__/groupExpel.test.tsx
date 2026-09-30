@@ -66,7 +66,7 @@ describe('expulsar (T-182 Task 2)', () => {
     expect(useGroupStore.getState().getById('g1')!.memberIds).toEqual(['ana']);
   });
 
-  it('nombra el saldo absorbido cuando el expulsado debe plata', () => {
+  it('con deuda no se expulsa ni se crean pagos (T-228)', () => {
     useAuthStore.setState({ currentUser: ANA });
     useGroupStore.setState({ groups: [grupo()] });
     useExpenseStore.setState({ expenses: [gasto()] }); // beto debe 500.000 a ana
@@ -74,13 +74,11 @@ describe('expulsar (T-182 Task 2)', () => {
     const r = render(<GroupDetailScreen />);
     fireEvent.press(r.getByTestId('member-beto'));
 
-    const [, cuerpo] = (Alert.alert as jest.Mock).mock.calls[0];
-    expect(cuerpo).toEqual(expect.stringContaining('group_detail.expel_body_with_balance'));
-
-    expect(usePaymentStore.getState().payments).toHaveLength(1);
-    expect(usePaymentStore.getState().payments[0]).toMatchObject({
-      fromUserId: 'beto', toUserId: 'ana', amount: 500_000,
-    });
+    const [titulo, , botones] = (Alert.alert as jest.Mock).mock.calls[0];
+    expect(titulo).toEqual(expect.stringContaining('group_detail.expel_blocked_title'));
+    expect((botones as { text: string }[]).map(b => b.text)).toEqual(['common.cancel']);
+    expect(usePaymentStore.getState().payments).toHaveLength(0);
+    expect(useGroupStore.getState().getById('g1')!.memberIds).toContain('beto');
   });
 
   it('sin saldo, el cuerpo del aviso es el simple (sin montos)', () => {

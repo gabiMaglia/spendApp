@@ -63,12 +63,8 @@ describe('pestañas unificadas', () => {
 
   it('ninguna pantalla arma un selector a mano con Pressables y fondo de pastilla', () => {
     // La firma de la copia: un contenedor `segmented`/`tabs` con `padding: 4, gap: 4`.
-    for (const archivo of ['app/contact/add.tsx', 'app/groups/leave.tsx']) {
+    for (const archivo of ['app/contact/add.tsx']) {
       expect(leer(archivo)).not.toMatch(/padding:\s*4,\s*gap:\s*4/);
     }
-  });
-
-  it('Salir del grupo usa el componente común en su versión de formulario', () => {
-    expect(leer('app/groups/leave.tsx')).toMatch(/<Segmented/);
   });
 });

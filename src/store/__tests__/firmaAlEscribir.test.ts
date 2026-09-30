@@ -298,25 +298,6 @@ describe('sólo se firma lo propio', () => {
 
     expect(elGasto().k).toBeUndefined();
   });
-
-  /**
-   * `applyApprovedLeaves` crea pagos con `createdById` del que SE VA, en el
-   * device de cualquiera que corra la resolución. Cuando el que resuelve es el
-   * propio saliente, `createdById` coincide con la sesión y la regla de arriba
-   * no alcanza: hay que declararlos derivados explícitamente. Firmarlos haría
-   * que el mismo id circule firmado desde un teléfono y sin firma desde los
-   * otros. El modelo de estos pagos es `derivedFrom` y es S9.
-   */
-  it('los pagos derivados de una salida no se firman, aunque el autor sea yo', () => {
-    usePaymentStore.getState().addPayment(
-      pago({ id: 'leave:g1:ana:1:0', createdById: YO }), { derived: true },
-    );
-
-    const rec = elPago();
-    expect(rec.k).toBeUndefined();
-    expect(rec.s).toBeUndefined();
-    expect(rec.rev).toBeUndefined();
-  });
 });
 
 // ── 5 · la firma no puede romper la creación ────────────────────────────────

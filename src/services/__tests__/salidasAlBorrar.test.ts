@@ -2,8 +2,8 @@ import { gruposParaSalir } from '../salidasAlBorrar';
 import type { Group, Expense, Payment } from '@/src/types/models';
 
 /**
- * T-187 · Qué grupos abandona quien borra la cuenta: sólo aquellos donde su
- * saldo neto es CERO en todas las monedas — no debe ni le deben. Donde tiene
+ * T-187 · Qué grupos abandona quien borra la cuenta: sólo aquellos donde no
+ * tiene deuda viva en ninguna dirección ni moneda (T-228). Donde tiene
  * saldo distinto de cero, el grupo lo sigue viendo (como «Cuenta borrada») con
  * la deuda visible; salir ahí le rompería las cuentas a los demás (regla #3).
  */
@@ -84,5 +84,16 @@ describe('gruposParaSalir', () => {
     const expenses = [expense('e1', 'g1'), expense('e2', 'g2')];
     const payments = [payment('p1', 'g1')]; // sólo g1 se salda
     expect(gruposParaSalir('u1', groups, expenses, payments)).toEqual(['g1']);
+  });
+  it('D4 · deudas cruzadas con neto 0 ⇒ NO sale (T-228: cualquier deuda viva bloquea)', () => {
+    const groups = [group('g1')];
+    const expenses = [expense('e1', 'g1'), expense('e2', 'g1', { paidById: 'u2' })];
+    expect(gruposParaSalir('u1', groups, expenses, [])).toEqual([]);
+  });
+
+  it('D5 · debo algo ⇒ NO sale', () => {
+    const groups = [group('g1')];
+    const expenses = [expense('e1', 'g1', { paidById: 'u2' })];
+    expect(gruposParaSalir('u1', groups, expenses, [])).toEqual([]);
   });
 });

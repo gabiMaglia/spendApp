@@ -18,7 +18,7 @@ import type {
  *  - **adentro** (`core`) va lo que decide plata y autoría, y lo que escribe
  *    únicamente el autor;
  *  - **afuera** (`fuera`) va todo lo que escriben terceros legítimamente
- *    (`updatedAt`, `isDeleted`, `deletedById`, `leaveRequest`,
+ *    (`updatedAt`, `isDeleted`, `deletedById`,
  *    `lastMaterializedAt`) y lo que es local del aparato (`receiptImageUri`).
  *    Meter cualquiera de esos adentro rompería la restauración libre, la
  *    materialización de recurrentes o las dos.
@@ -158,7 +158,7 @@ const RECURRING_SLOTS: Record<keyof RecurringExpense, CoreSlot> = {
 /**
  * Del grupo se firma **sólo la creación**.
  *
- * `memberIds`, `name` y `leaveRequest` los escribe cualquier miembro por
+ * `memberIds` y `name` los escribe cualquier miembro por
  * diseño: no hay una sola persona que pueda firmarlos sin mentir. Protegerlos
  * es un ticket propio (roster/admin firmado, riesgo 2 del §QUÉ).
  */
@@ -176,7 +176,6 @@ const GROUP_SLOTS: Record<keyof Group, CoreSlot> = {
   miembros: 'fuera',
   currency: 'fuera',
   defaultSplitMode: 'fuera',
-  leaveRequest: 'fuera',
   updatedAt: 'fuera',
   isDeleted: 'fuera',
   supersededByGroupId: 'fuera',

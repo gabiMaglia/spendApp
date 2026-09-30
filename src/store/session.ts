@@ -16,7 +16,6 @@ import { haySesionAnonimaValida } from '@/src/sync/sesion/relaySession';
 import { useEntryGateStore } from './entryGateStore';
 import { materializeRecurring } from '@/src/services/materializeRecurring';
 import { estaBloqueado } from '@/src/algorithms/groupExpenseLimit';
-import { applyApprovedLeaves } from '@/src/services/applyLeave';
 import { useSettingsStore } from './settingsStore';
 import { useNoticeInboxStore } from './noticeInboxStore';
 import { reloadVerdictCache } from '@/src/sync/confianza/verdictCache';
@@ -98,11 +97,6 @@ export function rehydrateForActiveUser(): void {
   // recurrentes vencidos. Va acá y no en el arranque de la app porque depende
   // de QUÉ cuenta está activa: cada una tiene sus propias plantillas.
   applyDueRecurring();
-
-  // Salidas de grupo que ya juntaron todas las aprobaciones. Misma razón que
-  // arriba: la firma que faltaba pudo haber llegado por sync mientras la app
-  // estaba cerrada.
-  applyApprovedLeaves();
 
   // Migración one-shot de las réplicas de grupo (ADR-006). Va DESPUÉS de que
   // los stores hidrataron: necesita los gastos y los movimientos ya cargados.

@@ -49,45 +49,20 @@ describe('E1 · el creador expulsa a alguien sin saldo', () => {
   });
 });
 
-describe('E2 · el creador expulsa a alguien que DEBE 100', () => {
-  beforeEach(() => {
-    // Beto pagó 0, le tocan 500.000 de un gasto de Ana → Beto debe 500.000 a Ana.
-    useExpenseStore.setState({ expenses: [gasto()] });
-  });
-
-  it('genera un pago derivado beto→ana, y el neto de beto queda en cero', () => {
-    expect(expulsar('g1', 'beto', AHORA)).toBe('ok');
-
-    const pagos = usePaymentStore.getState().payments;
-    expect(pagos).toHaveLength(1);
-    expect(pagos[0]).toMatchObject({
-      groupId: 'g1', fromUserId: 'beto', toUserId: 'ana', amount: 500_000, currency: 'ARS',
-    });
-    expect(pagos[0]!.id).toBe(`expel:g1:beto:${AHORA}:0`);
-  });
-
-  it('el pago derivado cuenta para el balance (T-186: sin acuse)', () => {
-    expulsar('g1', 'beto', AHORA);
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { pagosQueCuentan } = require('@/src/algorithms/settlementStatus');
-    const pagos = usePaymentStore.getState().payments;
-    const g = useGroupStore.getState().getById('g1')!;
-    expect(pagosQueCuentan(pagos, g)).toHaveLength(1);
+describe('E2 · el creador intenta expulsar a alguien que DEBE', () => {
+  it("devuelve 'con_deuda', beto sigue adentro y no hay pagos", () => {
+    useExpenseStore.setState({ expenses: [gasto()] }); // beto le debe 500.000 a ana
+    expect(expulsar('g1', 'beto', AHORA)).toBe('con_deuda');
+    expect(useGroupStore.getState().getById('g1')!.memberIds).toEqual(['ana', 'beto']);
+    expect(usePaymentStore.getState().payments).toHaveLength(0);
   });
 });
 
-describe('E3 · el creador expulsa a alguien a quien le DEBEN 100', () => {
-  it('genera un pago derivado ana→beto', () => {
-    // Beto pagó todo (1.000.000), le toca la mitad (500.000) → le deben 500.000.
-    useExpenseStore.setState({ expenses: [gasto({ paidById: 'beto' })] });
-
-    expect(expulsar('g1', 'beto', AHORA)).toBe('ok');
-
-    const pagos = usePaymentStore.getState().payments;
-    expect(pagos).toHaveLength(1);
-    expect(pagos[0]).toMatchObject({
-      groupId: 'g1', fromUserId: 'ana', toUserId: 'beto', amount: 500_000, currency: 'ARS',
-    });
+describe('E3 · el creador intenta expulsar a alguien a quien le DEBEN', () => {
+  it("devuelve 'con_deuda'", () => {
+    useExpenseStore.setState({ expenses: [gasto({ paidById: 'beto' })] }); // ana le debe a beto
+    expect(expulsar('g1', 'beto', AHORA)).toBe('con_deuda');
+    expect(usePaymentStore.getState().payments).toHaveLength(0);
   });
 });
 
@@ -108,23 +83,22 @@ describe('E5 · expulsar a alguien que ya no es miembro', () => {
   });
 });
 
-describe('E6 · Z expulsado con saldo en DOS monedas', () => {
-  it('un pago derivado por moneda', () => {
-    useGroupStore.setState({ groups: [grupo({ memberIds: ['ana', 'beto'] })] });
-    useExpenseStore.setState({
-      expenses: [
-        gasto({ id: 'e1', currency: 'ARS' }), // beto debe 500.000 ARS
-        gasto({ id: 'e2', currency: 'USD', paidById: 'beto', splits: [
-          { userId: 'ana', amount: 20_000, isPaid: false }, { userId: 'beto', amount: 20_000, isPaid: false },
-        ] }), // ana le debe 20.000 USD a beto
-      ],
-    });
+describe('E6 · deudas cruzadas con neto 0', () => {
+  it("igual devuelve 'con_deuda'", () => {
+    useExpenseStore.setState({ expenses: [gasto({ id: 'e1' }), gasto({ id: 'e2', paidById: 'beto' })] });
+    expect(expulsar('g1', 'beto', AHORA)).toBe('con_deuda');
+  });
+});
 
+describe('E7 · deuda saldada con un pago', () => {
+  it("devuelve 'ok' y no crea pagos nuevos", () => {
+    useExpenseStore.setState({ expenses: [gasto()] });
+    usePaymentStore.setState({ payments: [{
+      id: 'p1', groupId: 'g1', fromUserId: 'beto', toUserId: 'ana', amount: 500_000, currency: 'ARS',
+      date: 1, createdAt: 1, createdById: 'beto', updatedAt: 1, isDeleted: false,
+    }] });
     expect(expulsar('g1', 'beto', AHORA)).toBe('ok');
-
-    const pagos = usePaymentStore.getState().payments;
-    expect(pagos).toHaveLength(2);
-    expect(pagos.map(p => p.currency).sort()).toEqual(['ARS', 'USD']);
+    expect(usePaymentStore.getState().payments).toHaveLength(1);
   });
 });
 

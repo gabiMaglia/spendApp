@@ -148,11 +148,10 @@ export function siguienteRev(previo: number | undefined): number {
 /**
  * Al crear. Devuelve el registro firmado, o el mismo si no es mío o no se pudo.
  *
- * Los registros DERIVADOS —los pagos que `applyLeave` emite en nombre del que
- * se va— no pasan por acá: su `createdById` puede coincidir con la sesión (si
- * el que resuelve es el propio saliente) y quedarían firmados en un teléfono y
- * sin firma en todos los demás, para el mismo id. Su modelo es `derivedFrom` y
- * es S9; hasta entonces el llamador los marca y no se firman.
+ * Los gastos materializados por una recurrente no pasan por acá: los crea el
+ * primer device que abre la app, no su autor (ver `derivedRecords.ts`). Los
+ * pagos de absorción de salida, que también eran derivados, existieron hasta
+ * T-228.
  */
 export function signOnCreate<K extends CoreKind>(kind: K, record: CoreRecord[K]): CoreRecord[K] {
   if (!esMio(kind, record)) return record;

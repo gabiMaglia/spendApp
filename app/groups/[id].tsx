@@ -10,7 +10,7 @@ import { useGroupStore } from '@/src/store/groupStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { usePaymentStore } from '@/src/store/paymentStore';
 import { useUserStore } from '@/src/store/userStore';
-import { useGroupBalance, useGroupExpenseCount } from '@/src/store/selectors';
+import { useGroupExpenseCount } from '@/src/store/selectors';
 import { useTotalesDelGrupo } from '@/src/store/selectoresDeDeuda';
 import { useArchiveStore } from '@/src/store/archiveStore';
 import { useGroupSyncFailure } from '@/src/hooks/useSyncFailure';
@@ -22,7 +22,7 @@ import { useTranslation } from 'react-i18next';
 import { esYo } from '@/src/store/identityAlias';
 import { useColors } from '@/src/skins/useSkin';
 import { useContadorDeRenders } from '@/src/hooks/useContadorDeRenders';
-import { armarTimeline } from '@/src/screens/groupDetail/detalleDeGrupo';
+import { armarTimeline, deudasDeGrupo, lineasDeDeudas } from '@/src/screens/groupDetail/detalleDeGrupo';
 import { useAltaDeMiembro } from '@/src/screens/groupDetail/hooks/useAltaDeMiembro';
 import { useAccionesDeGrupo } from '@/src/screens/groupDetail/hooks/useAccionesDeGrupo';
 import { AvisosDeGrupo } from '@/src/screens/groupDetail/components/AvisosDeGrupo';
@@ -30,7 +30,6 @@ import { BalanceDeGrupo } from '@/src/screens/groupDetail/components/BalanceDeGr
 import { TotalesDeGrupo } from '@/src/screens/groupDetail/components/TotalesDeGrupo';
 import { MiembrosDeGrupo } from '@/src/screens/groupDetail/components/MiembrosDeGrupo';
 import { TimelineDeGrupo } from '@/src/screens/groupDetail/components/TimelineDeGrupo';
-import { PedidoDeSalida } from '@/src/screens/groupDetail/components/PedidoDeSalida';
 import { TraspasoManual } from '@/src/screens/groupDetail/components/TraspasoManual';
 import { BotonesDeGrupo } from '@/src/screens/groupDetail/components/BotonesDeGrupo';
 import { MenuDeGrupo } from '@/src/screens/groupDetail/components/MenuDeGrupo';
@@ -69,7 +68,6 @@ export default function GroupDetailScreen() {
   const marcaDeGasto = useRecordTrust('expense', gastosDelTimeline);
   const marcaDePago  = useRecordTrust('payment', pagosDelTimeline);
 
-  const balances    = useGroupBalance(id ?? '', currentUser?.id ?? '');
   // T-058 (PO 2026-09-20): aviso de traspaso entre 350 y 450 gastos.
   const cantidadGastos = useGroupExpenseCount(id ?? '');
   const [mostrarTraspaso, setMostrarTraspaso] = useState(false);
@@ -92,7 +90,7 @@ export default function GroupDetailScreen() {
   });
 
   const { handleShareInvite, handleLeave, handleExpel } = useAccionesDeGrupo({
-    group, currentUser, balances, allExpenses, allPayments, getUserName,
+    group, currentUser, allExpenses, allPayments, getUserName,
   });
 
   if (!group) {
@@ -108,6 +106,11 @@ export default function GroupDetailScreen() {
   }
 
   const soyMiembro = !!currentUser && group.memberIds.some(esYo);
+  // T-228: borrar el grupo avisa quién le debe a quién.
+  const avisoDeDeudas = lineasDeDeudas(
+    deudasDeGrupo(allExpenses, allPayments, group), getUserName,
+    t as unknown as (k: string, o: Record<string, string>) => string,
+  );
 
   return (
     <SafeAreaView edges={['bottom']} style={[styles.safe, { backgroundColor: c.bg }]}>
@@ -150,10 +153,6 @@ export default function GroupDetailScreen() {
 
         <BalanceDeGrupo groupId={group.id} currency={group.currency} neto={owedToYou - youOwe} />
 
-        {group.leaveRequest && currentUser && (
-          <PedidoDeSalida group={group} currentUserId={currentUser.id} getUserName={getUserName} />
-        )}
-
         {/* Salvo que el grupo YA esté archivado: re-traspasar uno ya
             traspasado pisaría su `supersededByGroupId` y crearía un duplicado. */}
         {soyMiembro && !grupoArchivado && (
@@ -171,6 +170,7 @@ export default function GroupDetailScreen() {
         onAddPerson={() => setInviteVisible(true)}
         onShareInvite={() => { void handleShareInvite(); }}
         onLeave={handleLeave}
+        lineasDeDeudas={avisoDeDeudas}
       />
 
       <HojaDeTraspaso

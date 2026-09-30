@@ -7,7 +7,6 @@ Firma por REGISTRO (T-041) y medición en modo aviso (R1: ver, no bloquear).
 - `deviceKeys`: directorio de claves por cuenta (ADR-004).
 - `authorHealth`: autoría del SOBRE (fase B, aviso).
 - `trustCheck`, `autoriaTrust`, `derivedRecords`: veredicto para la UI.
-- `leaveApproval*`: aprobación firmada de salida de un grupo (T-065).
 Producto: depende del modelo de gastos (`types/models`). No va al paquete.
 Depende de: `store/*` (authStore, groupKeyStore, identityStore, lww), `nucleo/hexBytes`, `sesion/directoryAuth`, `invitaciones/groupInvite`. Lo usan: `algorithms/`, `hooks/useRecordTrust`, `store/*` (comment/expense/group/payment/recurring), `motor/`, `sesion/`.
 

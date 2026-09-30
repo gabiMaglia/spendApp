@@ -15,25 +15,6 @@ import type { CurrencyCode } from '@/src/constants/currencies';
 export type Acreedor = { userId: string; amount: number };
 export type Reparto = { userId: string; amount: number };
 
-/**
- * A quiénes les debo en este grupo, de mayor a menor.
- *
- * El orden es estable y explicable —la deuda más grande primero, y el id
- * desempata— para que la pantalla no baile entre renders.
- */
-export function acreedoresDe(
-  balances: { userId: string; amount: number }[],
-  me: string,
-): Acreedor[] {
-  const yo = balances.find(b => b.userId === me);
-  if (!yo || yo.amount >= 0) return [];   // no debo nada: no hay a quién pagarle
-
-  return balances
-    .filter(b => b.userId !== me && b.amount > 0)
-    .map(b => ({ userId: b.userId, amount: b.amount }))
-    .sort((a, b) => b.amount - a.amount || a.userId.localeCompare(b.userId));
-}
-
 /** Lo que hace falta para saldar TODO lo que debo en el grupo. */
 export function totalAdeudado(acreedores: Acreedor[]): number {
   return acreedores.reduce((s, a) => s + a.amount, 0);

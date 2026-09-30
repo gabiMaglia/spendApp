@@ -154,7 +154,7 @@ export function idCanonico(id: string): string {
  * Colapsa una lista de ids y **de-duplica**.
  *
  * La de-duplicación no es prolijidad: el roster también alimenta el quórum de
- * aprobaciones para salir de un grupo (`canLeaveGroup`), así que un miembro
+ * aprobaciones para salir de un grupo (`tieneDeudaViva`, T-228), así que un miembro
  * contado dos veces cambia quién tiene que aprobar. Y en `calculateBalances`
  * dos claves para la misma persona son exactamente los dos nodos que el
  * canonicalizado existe para impedir.

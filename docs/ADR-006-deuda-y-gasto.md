@@ -145,6 +145,6 @@ Debés 0»: los 60 que debía el PO no aparecían en ningún lado.
   aunque me deban más. Las acciones que tocan deudas pendientes avisan con un modal que dice a
   quién y cuánto.
 - `simplifyDebts` queda sólo como sugerencia; no define cuánto debe nadie.
-- Pendiente: el traspaso a grupo nuevo (T-058) sigue trasladando el neto hasta T-226.
+- T-226 se cerró sin hacerse: T-228 prohíbe salir o expulsar con deuda viva en cualquier dirección, así que el traspaso del neto coincide con el par.
 
 decidido por · PO · 2026-09-29
