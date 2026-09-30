@@ -199,7 +199,9 @@ describe('la caja de deudas', () => {
             { userId: 'ana', amount: 500_000, isPaid: false },
             { userId: 'carla', amount: 500_000, isPaid: false },
           ],
-          memberIds: ['ana', 'carla'], category: 'food', date: Date.now(), createdAt: Date.now(),
+          // Fecha de un mes pasado: desde T-229 lo que Ana puso cuenta como gastado
+          // del mes del gasto, y este test mide sólo la caja de deudas.
+          memberIds: ['ana', 'carla'], category: 'food', date: 0, createdAt: 0,
           createdById: 'ana', updatedAt: 0, isDeleted: false,
         },
       ] as never,

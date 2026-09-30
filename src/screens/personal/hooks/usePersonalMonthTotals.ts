@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
-import { usePersonalStore, toMonthKey } from '@/src/store/personalStore';
+import { toMonthKey } from '@/src/store/personalStore';
+import { useMovimientosPersonales } from '@/src/screens/personal/hooks/useMovimientosPersonales';
 import { repartirDelMes, type BucketPersonal } from '@/src/algorithms/personalMonth';
 import { useFx } from '@/src/store/useFx';
 import { sumConverted } from '@/src/services/fxTotals';
@@ -7,7 +8,8 @@ import type { PersonalEntry } from '@/src/types/models';
 
 /** Movimientos del mes activo, ordenados, y sus totales por balde (ingreso/gasto/grupo/carryover). */
 export function usePersonalMonthTotals(activeMonth: string) {
-  const entries = usePersonalStore(s => s.entries);
+  // T-229: guardados + derivados de gastos y pagos.
+  const entries = useMovimientosPersonales();
   const { fx, display: cur, loading: fxLoading } = useFx();
 
   const monthEntries = useMemo(

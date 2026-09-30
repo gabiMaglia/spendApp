@@ -26,6 +26,7 @@ import { usePersonalDebtsAndGroups } from '@/src/screens/personal/hooks/usePerso
 import { usePersonalMonthTotals } from '@/src/screens/personal/hooks/usePersonalMonthTotals';
 import { useMonthRollover } from '@/src/screens/personal/hooks/useMonthRollover';
 import { useBudgetSummary } from '@/src/screens/personal/hooks/useBudgetSummary';
+import { useMovimientosPersonales } from '@/src/screens/personal/hooks/useMovimientosPersonales';
 import { useRemoveEntry } from '@/src/screens/personal/hooks/useRemoveEntry';
 import { PersonalMonthNav } from '@/src/screens/personal/components/PersonalMonthNav';
 import { PersonalBudgetMeter } from '@/src/screens/personal/components/PersonalBudgetMeter';
@@ -58,7 +59,8 @@ export default function PersonalScreen() {
   const { cur, monthEntries, entriesOrdenadas, totalIncome, totalExpense, totalGroup,
     totalSpent, positiveCarryover, pendientes, personalPending } = usePersonalMonthTotals(activeMonth);
   const { currentUser, owedToMe, youOwe, misGrupos } = usePersonalDebtsAndGroups(cur);
-  useMonthRollover(usePersonalStore(s => s.lastSeenMonth), owedToMe);
+  const movimientos = useMovimientosPersonales();
+  useMonthRollover(usePersonalStore(s => s.lastSeenMonth), owedToMe, movimientos);
   const { budget, effectiveBudget, remaining, pct, hasBudget, disponibleTrasSaldar } = useBudgetSummary({
     totalIncome, positiveCarryover, totalSpent, owedToMe, youOwe,
   });
