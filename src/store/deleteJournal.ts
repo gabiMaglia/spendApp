@@ -31,6 +31,12 @@ export type DeleteJournal = {
   /** `true` si era la última cuenta: al terminar hay que destruir la prenda. */
   ultimaCuenta: boolean;
   startedAt: number;
+  /**
+   * La cuenta en el servidor (auditoría pre-tiendas, B-1). `'pendiente'` = no
+   * se pudo borrar (sin red): la sesión del buzón se conserva y se reintenta al
+   * arrancar. Ausente en diarios anteriores: se trata como ya resuelta.
+   */
+  cuentaEnServidor?: 'pendiente' | 'borrada';
 };
 
 export function readJournal(): DeleteJournal | null {

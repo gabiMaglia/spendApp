@@ -188,7 +188,12 @@ interface AuthState {
   keepAccountSeparate: (providerId: string, email?: string | null) => void;
   setIsPro: (isPro: boolean) => void;
   setLoading: (loading: boolean) => void;
-  signOut: () => void;
+  /**
+   * `conservarSesionDelBuzon`: el borrado de cuenta que no pudo borrar la cuenta
+   * en el servidor (sin red) necesita esa sesión para reintentarlo al arrancar
+   * (auditoría pre-tiendas, B-1). Todo lo demás del logout pasa igual.
+   */
+  signOut: (opts?: { conservarSesionDelBuzon?: boolean }) => void;
   hydrate: () => void;
 }
 
@@ -300,7 +305,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   setLoading: (loading) => set({ isLoading: loading }),
 
-  signOut: () => {
+  signOut: (opts) => {
     storage.delete(KEYS.USER);
     // Las pruebas de proveedor son de ESTA sesión: heredarlas sería dejarle al
     // próximo la credencial del anterior.
@@ -312,7 +317,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     // También la sesión del directorio de claves (ADR-004). Va sin await: el
     // logout local no puede quedar esperando a la red.
-    void signOutOfDirectory();
+    if (!opts?.conservarSesionDelBuzon) void signOutOfDirectory();
   },
 
   hydrate: () => {
