@@ -338,7 +338,12 @@ export interface Payment extends SyncMeta, CoreSigned {
 
 // ── Gastos personales & presupuesto ──────────────────────────────────────────
 
-export type PersonalEntryKind = 'expense' | 'income' | 'group_replicated' | 'carryover';
+export type PersonalEntryKind =
+  | 'expense' | 'income' | 'group_replicated' | 'carryover'
+  /** Lo que pagué al saldar (T-229, ADR-006 d3). Derivado de un `Payment`. */
+  | 'payment_out'
+  /** Lo que me pagaron (T-229). Derivado de un `Payment`. */
+  | 'payment_in';
 
 export type PersonalCategory = ExpenseCategory | 'income' | 'salary' | 'freelance';
 
@@ -353,6 +358,8 @@ export interface PersonalEntry extends SyncMeta {
   sourceGroupExpenseId?: string; // solo cuando kind === 'group_replicated'
   sourceGroupId?: string;
   sourceGroupName?: string;
+  sourcePaymentId?: string;      // sólo payment_out / payment_in
+  counterpartId?: string;        // la otra persona del pago
   isPositiveCarryover?: boolean; // solo cuando kind === 'carryover'
 }
 
