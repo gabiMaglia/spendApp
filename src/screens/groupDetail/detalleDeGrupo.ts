@@ -1,4 +1,3 @@
-import { calculateBalancesByCurrency } from '@/src/algorithms/calculateBalances';
 import { pagosQueCuentan } from '@/src/algorithms/settlementStatus';
 import { deudasDelGrupo, type DeudaPar } from '@/src/algorithms/deudasDelGrupo';
 import { idCanonico } from '@/src/store/identityAlias';
@@ -23,16 +22,6 @@ export function armarTimeline(
     if (p.groupId === groupId && !p.isDeleted) items.push({ type: 'payment', data: p, ts: p.date });
   }
   return items.sort((a, b) => b.ts - a.ts);
-}
-
-/** Lo que un miembro todavía debe o le deben en el grupo, sólo monedas con saldo. */
-export function saldoPendienteDe(
-  uid: string, expenses: readonly Expense[], payments: readonly Payment[], group: Group,
-): { currency: CurrencyCode; amount: number }[] {
-  const gastosDelGrupo = expenses.filter(e => e.groupId === group.id);
-  const pagosDelGrupo = pagosQueCuentan(payments, group);
-  const balances = calculateBalancesByCurrency(gastosDelGrupo, pagosDelGrupo, group.memberIds);
-  return (balances.find(b => b.userId === uid)?.balances ?? []).filter(b => b.amount !== 0);
 }
 
 /** Deuda por par del grupo (T-225), con los mismos pagos que cuentan que el resto del detalle. */

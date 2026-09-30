@@ -1,5 +1,5 @@
 import {
-  armarTimeline, cuentasPorPersona, deudasDeGrupo, saldoPendienteDe,
+  armarTimeline, cuentasPorPersona, deudasDeGrupo,
 } from '@/src/screens/groupDetail/detalleDeGrupo';
 import type { Expense, Group, Payment } from '@/src/types/models';
 
@@ -52,24 +52,6 @@ describe('armarTimeline', () => {
 
   it('sin id de grupo no matchea nada', () => {
     expect(armarTimeline([gasto()], [pago()], undefined)).toEqual([]);
-  });
-});
-
-describe('saldoPendienteDe', () => {
-  it('devuelve el saldo vivo del miembro, por moneda', () => {
-    expect(saldoPendienteDe('beto', [gasto()], [], grupo())).toEqual([{ currency: 'ARS', amount: -500 }]);
-  });
-
-  it('un pago que salda deja al miembro sin saldo', () => {
-    expect(saldoPendienteDe('beto', [gasto()], [pago()], grupo())).toEqual([]);
-  });
-
-  it('ignora gastos de otros grupos', () => {
-    expect(saldoPendienteDe('beto', [gasto({ groupId: 'g2' })], [], grupo())).toEqual([]);
-  });
-
-  it('un miembro sin movimientos no tiene saldo', () => {
-    expect(saldoPendienteDe('caro', [gasto()], [], grupo(['ana', 'beto', 'caro']))).toEqual([]);
   });
 });
 

@@ -13,7 +13,7 @@ import { esYo, idCanonico } from '@/src/store/identityAlias';
 import { expulsar } from '@/src/services/expulsarDelGrupo';
 import { deudasDe, monedasConDeuda, tieneDeudaViva } from '@/src/algorithms/deudaViva';
 import {
-  cuentasPorPersona, deudasDeGrupo, saldoPendienteDe, type CuentasConPersona,
+  cuentasPorPersona, deudasDeGrupo, type CuentasConPersona,
 } from '@/src/screens/groupDetail/detalleDeGrupo';
 import type { Expense, Group, Payment, User } from '@/src/types/models';
 
@@ -111,42 +111,38 @@ export function useAccionesDeGrupo({
   }
 
   /**
-   * Expulsar (T-182 Task 2). Sólo el creador la ve, y nunca sobre sí mismo —
-   * las dos condiciones se chequean acá Y de nuevo adentro de `expulsar()`
-   * (que es la autoridad real; esto es sólo para no ofrecer un botón que
-   * el servicio va a rechazar).
+   * Expulsar (T-182). Sólo el creador la ve, y nunca sobre sí mismo — las dos
+   * condiciones se chequean acá Y de nuevo adentro de `expulsar()`.
    */
   function handleExpel(uid: string) {
     if (!group || !currentUser || !esYo(group.createdById) || uid === group.createdById) return;
 
-    // El neto es lo que mueve el pago automático de `expulsar()`; las dos
-    // direcciones conmigo (T-225) son lo que el PO quiere ver antes de decidir.
-    const saldoDelExpulsado = saldoPendienteDe(uid, allExpenses, allPayments, group);
-    const conmigo = cuentasPorPersona(deudasDeGrupo(allExpenses, allPayments, group), currentUser.id)
-      .filter(c => c.userId === idCanonico(uid));
-
     const nombre = getUserName(uid);
-    const cuerpo = conLineas(
-      saldoDelExpulsado.length > 0
-        ? t('group_detail.expel_body_with_balance', {
-            name: nombre,
-            amounts: saldoDelExpulsado.map(b => formatMoney(Math.abs(b.amount), b.currency)).join(', '),
-          })
-        : t('group_detail.expel_body', { name: nombre }),
-      lineasDeCuentas(conmigo),
-    );
+    const deudas = deudasDeGrupo(allExpenses, allPayments, group);
+    // T-228: con deuda viva no se expulsa; se muestra cuánto y con quién.
+    if (tieneDeudaViva(deudas, uid)) {
+      const conmigo = cuentasPorPersona(deudas, currentUser.id).filter(c => c.userId === idCanonico(uid));
+      Alert.alert(
+        t('group_detail.expel_blocked_title', { name: nombre }),
+        conLineas(
+          t('group_detail.expel_blocked_body', { currencies: monedasConDeuda(deudas, uid).join(', ') }),
+          lineasDeCuentas(conmigo),
+        ),
+        [{ text: t('common.cancel'), style: 'cancel' }],
+      );
+      return;
+    }
 
     Alert.alert(
       t('group_detail.expel_title', { name: nombre }),
-      cuerpo,
+      t('group_detail.expel_body', { name: nombre }),
       [
         { text: t('common.cancel'), style: 'cancel' },
         {
           text: t('group_detail.expel_confirm'),
           style: 'destructive',
           onPress: () => {
-            const resultado = expulsar(group.id, uid);
-            if (resultado === 'ok') hapticSuccess();
+            if (expulsar(group.id, uid) === 'ok') hapticSuccess();
           },
         },
       ],
