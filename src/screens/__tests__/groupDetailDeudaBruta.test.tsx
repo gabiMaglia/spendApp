@@ -133,25 +133,25 @@ describe('Saldar = si DEBO algo (T-225)', () => {
 });
 
 describe('expulsar avisa las dos direcciones (T-225)', () => {
-  it('dice lo que Ana me debe y lo que yo le debo, además del aviso de siempre', () => {
+  it('con deuda en las dos direcciones: bloquea, dice cuánto y no ofrece Expulsar', () => {
     const r = render(<GroupDetailScreen />);
     fireEvent.press(r.getByTestId('member-ana'));
 
-    const [titulo, cuerpo] = (Alert.alert as jest.Mock).mock.calls[0];
-    expect(titulo).toContain('group_detail.expel_title');
-    expect(cuerpo).toContain('group_detail.expel_body_with_balance');
+    const [titulo, cuerpo, botones] = (Alert.alert as jest.Mock).mock.calls[0];
+    expect(titulo).toBe(`group_detail.expel_blocked_title(${JSON.stringify({ name: 'Ana' })})`);
+    expect(cuerpo).toContain('group_detail.expel_blocked_body');
     expect(cuerpo).toContain(lineaMeDebe('Ana', 20_000));
     expect(cuerpo).toContain(lineaLeDebo('Ana', 6_000));
+    expect((botones as { text: string }[]).map(b => b.text)).toEqual(['common.cancel']);
   });
 
-  it('deudas cruzadas que se compensan (neto 0): igual avisa las dos', () => {
+  it('deudas cruzadas que se compensan (neto 0): bloquea igual', () => {
     useExpenseStore.setState({ expenses: [gasto('a1', 'yo', 12_000), gasto('b1', 'ana', 12_000)] });
     const r = render(<GroupDetailScreen />);
     fireEvent.press(r.getByTestId('member-ana'));
 
-    const [, cuerpo] = (Alert.alert as jest.Mock).mock.calls[0];
-    expect(cuerpo).toContain(lineaMeDebe('Ana', 6_000));
-    expect(cuerpo).toContain(lineaLeDebo('Ana', 6_000));
+    const [titulo] = (Alert.alert as jest.Mock).mock.calls[0];
+    expect(titulo).toContain('group_detail.expel_blocked_title');
   });
 
   it('sin saldo en ninguna dirección: el texto de hoy, sin líneas de deuda', () => {
