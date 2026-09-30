@@ -92,4 +92,13 @@ describe('verificar (requisitos de tienda)', () => {
     const problemas = verificarPermisos(appJson.expo);
     expect(problemas.some((p) => p.includes('CAMERA'))).toBe(true);
   });
+
+  // Auditoría pre-tiendas 2026-09-29 (B-3): Android elige la foto con el
+  // selector del sistema, sin READ_MEDIA_IMAGES; iOS conserva su texto de fotos.
+  it('fotos: el texto de iOS sin READ_MEDIA_IMAGES en Android no es un problema', () => {
+    const appJson = appJsonBase();
+    appJson.expo.android.permissions = ['android.permission.CAMERA'];
+    const problemas = verificarPermisos(appJson.expo);
+    expect(problemas.filter((p) => p.includes('READ_MEDIA_IMAGES'))).toEqual([]);
+  });
 });
