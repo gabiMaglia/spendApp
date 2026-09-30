@@ -213,3 +213,46 @@ describe('la política de privacidad sigue siendo cierta', () => {
     }
   });
 });
+/**
+ * Auditoría pre-tiendas 2026-09-29 (B-2). Cuatro afirmaciones que la app y la
+ * política hacían y el código desmentía. Se miran en los tres idiomas de la
+ * app, en `docs/PRIVACIDAD.md` y en las tres páginas web de privacidad, que
+ * son las que leen las tiendas.
+ */
+describe('auditoría pre-tiendas: lo que ya no se puede prometer', () => {
+  const WEB = ['es', 'en', 'pt'].map(l => join(RAIZ, 'docs', 'web', `privacidad.${l}.html`));
+  const documentos = () => [
+    readFileSync(POLITICA, 'utf8'),
+    ...WEB.map(p => readFileSync(p, 'utf8').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ')),
+  ];
+  const todo = () => [...Object.values(DICTS).flatMap(d => textos(d)), ...documentos()];
+  const culpables = (patrones: RegExp[]) => todo().filter(t => patrones.some(r => r.test(t)));
+
+  it('no se dice que no tenemos tu mail ni tu cuenta, mientras la sesión del buzón sea con Google/Apple', () => {
+    const auth = readFileSync(join(RAIZ, 'src', 'sync', 'sesion', 'directoryAuth.ts'), 'utf8');
+    if (!/signInWithIdToken/.test(auth)) return;
+    expect(culpables([
+      /no tenemos (una base de datos con[^.]*)?tu mail/i, /no se guarda tu mail/i,
+      /no existe en ning[uú]n servidor/i, /no (lo )?mandamos a ning[uú]n servidor/i,
+      /don'?t have your e-?mail/i, /(isn'?t|is not) stored/i, /doesn'?t exist on any server/i,
+      /n[aã]o temos o seu e-?mail/i, /n[aã]o existe em nenhum servidor/i,
+    ])).toEqual([]);
+  });
+
+  it('no se promete sincronizar por QR sin servidor: se sacó en T-193', () => {
+    expect(culpables([
+      /QR[^.]*ning[uú]n servidor/i, /QR[^.]*any server/i, /QR[^.]*nenhum servidor/i,
+    ])).toEqual([]);
+  });
+
+  it('las notificaciones no avisan pedidos de borrado: el modo con acuerdo se sacó en T-186', () => {
+    expect(culpables([/pidi[oó] borrar/i, /asked to delete/i, /pediu para (apagar|excluir)/i])).toEqual([]);
+  });
+
+  it('si hay captcha de Cloudflare, la política lo dice', () => {
+    const hayTurnstile = /challenges\.cloudflare\.com/.test(
+      readFileSync(join(RAIZ, 'src', 'sync', 'sesion', 'turnstileHtml.ts'), 'utf8'));
+    if (!hayTurnstile) return;
+    for (const d of documentos()) expect(d).toMatch(/Cloudflare/);
+  });
+});
