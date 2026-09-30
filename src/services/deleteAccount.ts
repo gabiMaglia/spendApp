@@ -6,7 +6,8 @@ import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { barrerScope, olvidarFusionesDe } from '@/src/store/accountLink';
 import { purgeUser } from '@/src/store/tierStore';
 import { readJournal, writeJournal, clearJournal, type DeleteJournal } from '@/src/store/deleteJournal';
-import { deleteMyEnvelopes } from '@/src/sync/adaptadores/supabase/relay';
+import { deleteMyAccount, deleteMyEnvelopes } from '@/src/sync/adaptadores/supabase/relay';
+import { signOutOfDirectory } from '@/src/sync/sesion/directoryAuth';
 import { olvidarCursor } from '@/src/sync/motor/relayEngine';
 import { destruirIdentidadDelAparato } from '@/src/store/identityStore';
 import { discardScopedWrites } from '@/src/store/userScope';
@@ -124,9 +125,13 @@ export async function deleteAccount(opts: Opciones = {}): Promise<DeleteOutcome>
   aviso('purgando');
   await conTimeout(purgar(diario), opts.timeoutMs ?? TIMEOUT_PURGA_MS);
 
+  // ── Fase 2b · La cuenta en el servidor (auditoría pre-tiendas, B-1) ──────
+  // Después de purgar y antes de cerrar la sesión: la necesita.
+  await conTimeout(borrarCuentaDelServidor(diario).then(() => undefined), opts.timeoutMs ?? TIMEOUT_PURGA_MS);
+
   // ── Fase 3 · Borrar lo local (siempre, aunque la 2 haya fallado) ─────────
   aviso('borrando');
-  borrarLoLocal(accountId);
+  borrarLoLocal(accountId, diario.cuentaEnServidor === 'pendiente');
 
   // ── Fase 4 · Destruir la identidad del aparato (sólo si corresponde) ─────
   const puedeDestruir = diario.ultimaCuenta && diario.pendientes.length === 0;
@@ -142,7 +147,7 @@ export async function deleteAccount(opts: Opciones = {}): Promise<DeleteOutcome>
     try { clearErrors(); } catch { /* … */ }
   }
 
-  if (diario.pendientes.length === 0) {
+  if (terminado(diario)) {
     try { clearJournal(); } catch { /* … */ }
   }
 
@@ -166,12 +171,18 @@ export async function resumePendingDeletion(): Promise<DeleteOutcome | null> {
   if (diario.pendientes.length > 0) {
     await purgar(diario);
   }
+  if (diario.cuentaEnServidor === 'pendiente') {
+    // Recién ahora se cierra la sesión que se conservó para este reintento.
+    if (await borrarCuentaDelServidor(diario)) {
+      try { await signOutOfDirectory(); } catch { /* … */ }
+    }
+  }
 
   const puedeDestruir = diario.ultimaCuenta && diario.pendientes.length === 0;
   if (puedeDestruir) {
     try { destruirIdentidadDelAparato(); } catch { /* … */ }
   }
-  if (diario.pendientes.length === 0) {
+  if (terminado(diario)) {
     try { clearJournal(); } catch { /* … */ }
   }
 
@@ -227,8 +238,38 @@ function guardar(diario: DeleteJournal): void {
   try { writeJournal(diario); } catch { /* … */ }
 }
 
+/** ¿Ya no queda nada por reintentar? Ni sobres ni la cuenta en el servidor. */
+function terminado(diario: DeleteJournal): boolean {
+  return diario.pendientes.length === 0 && diario.cuentaEnServidor !== 'pendiente';
+}
+
+/**
+ * Borra la cuenta en el servidor (B-1). Se anota `'pendiente'` ANTES de llamar:
+ * si el tiempo se agota o la app muere en el medio, el arranque siguiente
+ * reintenta. `not_configured` = no hay buzón, no hay cuenta que borrar. Un
+ * «sin sesión» en el reintento significa que el primer intento sí llegó y el
+ * usuario ya no existe: también está terminado.
+ */
+async function borrarCuentaDelServidor(diario: DeleteJournal): Promise<boolean> {
+  diario.cuentaEnServidor = 'pendiente';
+  guardar(diario);
+  let r;
+  try {
+    r = await deleteMyAccount();
+  } catch {
+    return false;
+  }
+  const yaNoExiste = !r.ok && r.reason === 'network' && /sin sesión/i.test(r.detail ?? '');
+  if (r.ok || r.reason === 'not_configured' || yaNoExiste) {
+    diario.cuentaEnServidor = 'borrada';
+    guardar(diario);
+    return true;
+  }
+  return false;
+}
+
 /** El barrido local. Todo lo que lleva el id de la cuenta, de todos los buckets. */
-function borrarLoLocal(accountId: string): void {
+function borrarLoLocal(accountId: string, conservarSesionDelBuzon = false): void {
   // 0 · escrituras diferidas (T-156) ANTES que nada: una que vaciara después
   //     del barrido resucitaría el dato que se acaba de borrar.
   intentar(() => discardScopedWrites());
@@ -243,7 +284,7 @@ function borrarLoLocal(accountId: string): void {
   // 4 · el log de fusiones, que es una lista sin scope.
   intentar(() => olvidarFusionesDe(accountId));
   // 5 · la sesión.
-  intentar(() => useAuthStore.getState().signOut());
+  intentar(() => useAuthStore.getState().signOut({ conservarSesionDelBuzon }));
 }
 
 function intentar(fn: () => void): void {

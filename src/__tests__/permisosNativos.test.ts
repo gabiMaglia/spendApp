@@ -45,10 +45,16 @@ const BLOQUEADOS_OBLIGATORIOS = [
   'android.permission.MODIFY_AUDIO_SETTINGS',
   'android.permission.BLUETOOTH',
   'android.permission.SYSTEM_ALERT_WINDOW',
+  // Auditoría pre-tiendas 2026-09-29 (B-3): la foto de perfil se elige con el
+  // selector del sistema, que no pide permiso. La política de fotos de Google
+  // Play no admite pedir la galería entera para un uso puntual.
+  'android.permission.READ_MEDIA_IMAGES',
+  'android.permission.READ_EXTERNAL_STORAGE',
+  'android.permission.WRITE_EXTERNAL_STORAGE',
 ];
 
 describe('permisos nativos de Android', () => {
-  it('bloquea los cuatro que meten los plugins y la app no usa', () => {
+  it('bloquea los que meten los plugins y la app no usa', () => {
     const bloqueados = app.expo.android.blockedPermissions ?? [];
     for (const permiso of BLOQUEADOS_OBLIGATORIOS) {
       expect(bloqueados).toContain(permiso);
@@ -90,8 +96,21 @@ describe('permisos nativos de Android', () => {
       'android.permission.ACCESS_NETWORK_STATE',   // relay: saber si hay red
       'android.permission.CAMERA',                 // QR de contacto y foto del recibo
       'android.permission.INTERNET',               // relay
-      'android.permission.READ_MEDIA_IMAGES',      // elegir foto de perfil / recibo
       'android.permission.RECEIVE_BOOT_COMPLETED', // notificaciones locales
     ]);
+  });
+});
+
+describe('permisos nativos de iOS', () => {
+  const plugins = (JSON.parse(readFileSync(resolve(__dirname, '../../app.json'), 'utf8')) as {
+    expo: { plugins: (string | [string, Record<string, unknown>])[] };
+  }).expo.plugins;
+
+  // Auditoría pre-tiendas 2026-09-29 (M-1): la app no usa Face ID; sin esto
+  // expo-secure-store declara un texto genérico en inglés que Apple objeta.
+  it('no declara Face ID: la app no lo usa', () => {
+    const secureStore = plugins.find(p => (Array.isArray(p) ? p[0] : p) === 'expo-secure-store');
+    expect(Array.isArray(secureStore)).toBe(true);
+    expect((secureStore as [string, Record<string, unknown>])[1].faceIDPermission).toBe(false);
   });
 });

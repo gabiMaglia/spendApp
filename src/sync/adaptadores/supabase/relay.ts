@@ -80,6 +80,25 @@ export async function deleteMyEnvelopes(topic: string): Promise<DeleteResult> {
   return { ok: true, deleted: typeof data === 'number' ? data : 0 };
 }
 
+export type DeleteAccountResult =
+  | { ok: true }
+  | { ok: false; reason: 'not_configured' | 'network'; detail?: string };
+
+/**
+ * Borra la cuenta en el servidor (auditoría pre-tiendas, B-1): el usuario de
+ * Supabase, sus `device_keys` y sus contadores (`supabase/012_borrar_mi_cuenta.sql`).
+ * Usa la sesión persistida del buzón: por eso quien llama NO la cierra antes.
+ * Sin degradado, como `deleteMyEnvelopes`: si la función no existe, es error.
+ */
+export async function deleteMyAccount(): Promise<DeleteAccountResult> {
+  const supabase = getRelayClient();
+  if (!supabase) return { ok: false, reason: 'not_configured' };
+
+  const { error } = await supabase.rpc('delete_my_account');
+  if (error) return { ok: false, reason: 'network', detail: error.message };
+  return { ok: true };
+}
+
 export type FetchResult =
   | { ok: true; envelopes: Envelope[]; cursor: number; more?: boolean }
   | { ok: false; reason: 'not_configured' | 'network'; detail?: string };

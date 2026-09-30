@@ -45,7 +45,7 @@ export function manipuladorDisponible(): boolean {
 }
 
 /** Por qué no salió la foto. `cancelado` NO es un error: el usuario decidió. */
-export type FalloAvatar = 'cancelado' | 'sin_permiso' | 'sin_modulo' | 'no_procesable';
+export type FalloAvatar = 'cancelado' | 'sin_modulo' | 'no_procesable';
 
 export type ResultadoAvatar =
   | { ok: true; dataUri: string }
@@ -61,7 +61,6 @@ export type ResultadoAvatar =
 export function claveDeFallo(motivo: FalloAvatar): string | null {
   switch (motivo) {
     case 'cancelado':     return null;
-    case 'sin_permiso':   return 'profile.photo_error_permission';
     case 'sin_modulo':    return 'profile.photo_error_unavailable';
     case 'no_procesable': return 'profile.photo_error_failed';
   }
@@ -143,9 +142,9 @@ export type ElegidaParaRecortar =
  * contra un tamaño falso y saldría corrido, en silencio.
  */
 export async function elegirAvatarDeGaleria(): Promise<ElegidaParaRecortar> {
-  const permiso = await ImagePicker.requestMediaLibraryPermissionsAsync();
-  if (!permiso.granted) return { ok: false, motivo: 'sin_permiso' };
-
+  // Sin pedir permiso de galería (auditoría pre-tiendas, B-3): el selector del
+  // sistema —Android 13+ y PHPicker en iOS 14+— no lo necesita, y Google Play
+  // no admite pedir la galería entera para elegir una sola foto.
   const r = await ImagePicker.launchImageLibraryAsync({
     mediaTypes: ['images'],
     allowsEditing: false,

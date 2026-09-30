@@ -36,61 +36,67 @@
 <body>
 <p class="idiomas"><a href="privacidad.en.html">English</a> <a href="privacidad.pt.html">Português</a></p>
 <h1>Política de privacidad</h1>
-<p class="fecha">HushSplit</p>
+<p class="fecha">HushSplit · actualizada el 29 de septiembre de 2026</p>
 
 <h2>Lo corto</h2>
 <p>
-  HushSplit funciona <strong>en tu teléfono</strong>. No tenemos una base de datos con tus gastos, ni
-  con tu nombre, ni con tu mail. No podemos ver lo que cargás, ni queremos.
+  HushSplit funciona <strong>en tu teléfono</strong>. Tus gastos, tus grupos y tus contactos no están
+  en ninguna base de datos nuestra: viajan <strong>cifrados de punta a punta</strong> entre los
+  teléfonos de tu grupo, a través de un buzón que no los puede abrir.
 </p>
 <p>
-  Lo único que sale de tu teléfono son <strong>paquetes cifrados</strong> dirigidos a la gente de
-  tus grupos, y ni siquiera nosotros podemos abrirlos: la llave la tienen los teléfonos, nunca el
-  servidor.
+  Del lado del servidor guardamos sólo lo necesario para que el buzón reconozca tu cuenta: si entrás
+  con Google o Apple, <strong>tu mail y tu identificador de cuenta</strong>. Si entrás como invitado,
+  ni eso.
 </p>
 
 <h2>Qué datos existen, y dónde</h2>
-<p><strong>En tu teléfono, y sólo ahí:</strong> tus gastos, grupos, pagos y movimientos personales;
-tu nombre, tu foto y tus preferencias; las claves criptográficas de tus grupos y la identidad de tu
+<p><strong>En tu teléfono:</strong> tus gastos, grupos, pagos y movimientos personales; tu nombre,
+tu foto y tus preferencias; las claves criptográficas de tus grupos y la identidad de tu
 dispositivo. Si desinstalás la app sin exportar un respaldo, se pierde: no hay ninguna copia
-nuestra desde la cual restaurarlo. Ese archivo de respaldo incluye, sin cifrar, tus datos y las
+nuestra desde la cual restaurarlo. El archivo de respaldo incluye, sin cifrar, tus datos y las
 claves de tus grupos: guardalo como algo privado.</p>
 <p><strong>En los teléfonos de la gente de tus grupos:</strong> cuando compartís un grupo, sus
 gastos —y tu nombre y tu foto— quedan guardados en el teléfono de cada integrante. Una vez que un
 dato llegó ahí, ni vos ni nosotros lo podemos borrar.</p>
-<p><strong>En nuestro servidor de paso («el buzón»):</strong> para que dos teléfonos se sincronicen
-sin estar juntos, la app deja paquetes en un buzón temporal. De cada uno se guarda una etiqueta
-derivada de la clave del grupo, el contenido <strong>cifrado</strong>, un identificador del
-dispositivo emisor —que no es tu nombre ni tu mail— y las fechas de llegada y de vencimiento.
-<strong>No se guarda tu mail, tu nombre, tu foto ni ningún gasto en claro</strong>, y los paquetes
-se borran solos a los <strong>30 días</strong>, hayan sido leídos o no.</p>
-<p>
-  Hay que decir algo más, porque es cierto: quien tiene o tuvo la clave de un grupo puede leer sus
-  paquetes. Alguien de afuera no puede, porque sin la clave la etiqueta no se adivina ni el
-  contenido se descifra.
-</p>
+<p><strong>En el buzón de sincronización</strong> (alojado en Supabase), de cada paquete se guarda:
+una etiqueta derivada de la clave del grupo, el contenido <strong>cifrado</strong>, un
+identificador del dispositivo que lo mandó, una marca que le permite a ese dispositivo borrarlo
+después, y las fechas de llegada y de vencimiento. Los paquetes se borran solos a los
+<strong>30 días</strong>. Quien tiene o tuvo la clave de un grupo puede leer sus paquetes; alguien
+de afuera no, porque sin la clave la etiqueta no se adivina ni el contenido se descifra.</p>
+<p><strong>Tu cuenta en el buzón:</strong></p>
+<ul>
+  <li>Si entrás con <strong>Google o Apple</strong>: tu mail, tu identificador en ese proveedor y lo
+      que el proveedor incluye al iniciar sesión (con Google, tu nombre y la dirección de tu foto).</li>
+  <li>Si entrás como <strong>invitado</strong>: una cuenta anónima, sin mail ni nombre.</li>
+  <li>En los dos casos, la <strong>clave pública</strong> de tu dispositivo, para que tus grupos
+      puedan verificar que lo que escribís es tuyo, y <strong>contadores de uso</strong> (cuántos
+      paquetes y bytes mandás) para frenar abusos. Los contadores se borran solos en un día como
+      máximo.</li>
+</ul>
+<p>Esos datos se usan <strong>sólo para que la sincronización funcione</strong>. No te mandamos
+mails, no los usamos para publicidad y no los compartimos con nadie.</p>
 
-<h2>Cotizaciones de monedas</h2>
-<p>
-  Si tenés gastos en más de una moneda, la app pide la tabla de cotizaciones del día a un servicio
-  público de terceros. Esa llamada <strong>no manda ningún dato tuyo</strong>: pide la tabla
-  completa, sin decir quién sos ni qué gastos tenés. Como cualquier pedido a internet, ese servicio
-  ve tu dirección IP. Si usás una sola moneda, esa llamada no se hace nunca.
-</p>
-
-<h2>Iniciar sesión</h2>
-<p>
-  Podés entrar con Google o con Apple. De ahí llegan tu identificador de proveedor, tu mail y —si lo
-  compartís— tu nombre y foto. Ese dato se guarda <strong>en tu teléfono</strong>. No lo mandamos a
-  ningún servidor nuestro ni lo usamos para contactarte: no tenemos una lista de usuarios.
-</p>
+<h2>Servicios de terceros</h2>
+<ul>
+  <li><strong>Supabase</strong> aloja el buzón y las cuentas del buzón.</li>
+  <li><strong>Google y Apple</strong>, si iniciás sesión con ellos. Con Google, la app descarga una
+      vez tu foto de perfil desde los servidores de Google.</li>
+  <li><strong>Cloudflare Turnstile</strong>, si entrás como invitado: una verificación contra bots.
+      Cloudflare ve tu dirección IP y datos técnicos del navegador interno de la app.</li>
+  <li><strong>Cotizaciones de monedas</strong>: si tenés gastos en más de una moneda, la app pide la
+      tabla del día a un servicio público (open.er-api.com). No manda ningún dato tuyo; como
+      cualquier pedido a internet, ese servicio ve tu IP. Con una sola moneda, no se hace nunca.</li>
+</ul>
 
 <h2>Permisos</h2>
 <ul>
   <li><strong>Cámara:</strong> escanear el QR de un contacto y sacarle la foto a un recibo.</li>
-  <li><strong>Fotos:</strong> elegir tu foto de perfil o la de un recibo.</li>
-  <li><strong>Notificaciones:</strong> avisarte que llegó un gasto nuevo o que alguien pidió borrar
-      uno. Se generan en tu teléfono, no las manda un servidor.</li>
+  <li><strong>Fotos:</strong> elegir tu foto de perfil, con el selector del sistema. En Android no
+      pide permiso de galería.</li>
+  <li><strong>Notificaciones:</strong> avisarte de gastos nuevos, comentarios, pagos, restauraciones
+      e invitaciones. Se generan en tu teléfono, no las manda un servidor.</li>
   <li><strong>Internet:</strong> dejar y buscar paquetes en el buzón.</li>
 </ul>
 <p>La app <strong>no pide micrófono, no pide Bluetooth y no pide ubicación</strong>.</p>
@@ -98,19 +104,17 @@ se borran solos a los <strong>30 días</strong>, hayan sido leídos o no.</p>
 <h2>Lo que no hacemos</h2>
 <p>
   No hay publicidad ni identificadores de publicidad. No hay analítica: no medimos qué pantallas ves
-  ni cuánto usás la app. No vendemos ni compartimos datos con nadie —no hay con quién: no los
-  tenemos—. No hay rastreo entre apps.
+  ni cuánto usás la app. No vendemos ni compartimos datos con nadie. No hay rastreo entre apps.
 </p>
 
 <h2>Borrar tu cuenta</h2>
 <p>
-  Desde <strong>Yo → Borrar cuenta</strong> se borra de tu teléfono todo lo de esa cuenta, y del
-  buzón se sacan los paquetes que dejó ese teléfono. Los detalles, y lo que no se puede borrar,
-  están en la <a href="borrar-cuenta.es.html">página de borrado de cuenta</a>.
-</p>
-<p>
-  <strong>Período de retención adicional:</strong> los paquetes cifrados del buzón se borran solos a
-  los <strong>30 días</strong> de haber llegado, se hayan leído o no.
+  Desde <strong>Yo → Borrar cuenta</strong> se borra de tu teléfono todo lo de esa cuenta; del
+  buzón, los paquetes que dejó ese teléfono; y <strong>tu cuenta del buzón</strong>: mail,
+  identificador, clave pública y contadores. Si no hay internet en ese momento, lo del servidor se
+  completa la próxima vez que abras la app con conexión. Si ya no tenés la app, escribinos desde el
+  mail de tu cuenta y la borramos. Los detalles, y lo que no se puede borrar, están en la
+  <a href="borrar-cuenta.es.html">página de borrado de cuenta</a>.
 </p>
 
 <h2>Preguntas</h2>

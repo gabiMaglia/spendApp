@@ -44,6 +44,9 @@ const PARES_PERMISO_DESCRIPCION = [
   {
     permiso: 'android.permission.READ_MEDIA_IMAGES',
     nombre: 'READ_MEDIA_IMAGES',
+    // Una sola dirección (auditoría pre-tiendas 2026-09-29): Android usa el
+    // selector del sistema sin este permiso, e iOS conserva su texto de fotos.
+    soloSiDeclarado: true,
     obtenerDescripcion: (expo) =>
       (expo.ios && expo.ios.infoPlist && expo.ios.infoPlist.NSPhotoLibraryUsageDescription) ||
       (configDePlugin(expo.plugins, 'expo-image-picker') || {}).photosPermission,
@@ -97,7 +100,7 @@ function verificarPermisos(expo) {
     if (declarado && !tieneDescripcion) {
       problemas.push(`Permiso ${par.nombre} declarado en Android sin descripción de uso en iOS`);
     }
-    if (!declarado && tieneDescripcion) {
+    if (!declarado && tieneDescripcion && !par.soloSiDeclarado) {
       problemas.push(`Descripción de uso de ${par.nombre} presente en iOS sin el permiso Android declarado`);
     }
   }

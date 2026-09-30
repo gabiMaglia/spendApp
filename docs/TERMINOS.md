@@ -13,8 +13,8 @@
 
 ## 1 · Qué es HushSplit
 
-Una app para anotar y dividir gastos entre personas. **Funciona en tu teléfono**: no hay una
-cuenta en un servidor nuestro con tus datos, y nosotros no vemos lo que cargás.
+Una app para anotar y dividir gastos entre personas. **Funciona en tu teléfono**: tus gastos no
+están en ningún servidor nuestro: viajan cifrados, y nosotros no vemos lo que cargás.
 
 ## 2 · Es una herramienta de registro, no un medio de pago
 

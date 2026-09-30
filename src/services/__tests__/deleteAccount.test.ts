@@ -36,6 +36,17 @@ jest.mock('@/src/sync/adaptadores/supabase/relay', () => ({
     mockLlamadas.push(`delete:${topic}`);
     return mockRespuesta(topic);
   }),
+  deleteMyAccount: jest.fn(async () => {
+    mockLlamadas.push('cuenta');
+    return mockRespuestaCuenta();
+  }),
+}));
+
+let mockRespuestaCuenta: () => unknown = () => ({ ok: true });
+
+jest.mock('@/src/sync/sesion/directoryAuth', () => ({
+  ...jest.requireActual('@/src/sync/sesion/directoryAuth'),
+  signOutOfDirectory: jest.fn(async () => { mockLlamadas.push('cerrar-sesion-buzon'); }),
 }));
 
 jest.mock('@/src/sync/motor/relayEngine', () => ({
@@ -70,6 +81,7 @@ function cuentasConocidas(...ids: string[]): void {
 beforeEach(() => {
   mockLlamadas.length = 0;
   mockRespuesta = () => ({ ok: true, deleted: 1 });
+  mockRespuestaCuenta = () => ({ ok: true });
   groupkeys.clearAll();
   auth.clearAll();
   clearJournal();
@@ -399,5 +411,49 @@ describe('lo que el barrido por sufijo NO alcanza', () => {
     expect(auth.getString('acct::p:google:123')).toBeFalsy();
     expect(auth.getString('acct::e:g@x.com')).toBeFalsy();
     expect(auth.getString('acct::p:apple:999')).toBe('u2');   // la de la otra cuenta queda
+  });
+});
+
+/**
+ * Auditoría pre-tiendas 2026-09-29 (B-1): la cuenta también se borra en el
+ * servidor (`delete_my_account`: usuario de Supabase, `device_keys` y cuotas).
+ * Necesita la sesión del buzón, así que va después de purgar los sobres y, si
+ * no hay red, la sesión NO se cierra: se conserva para reintentar al arrancar.
+ */
+describe('la cuenta también se borra del servidor (B-1)', () => {
+  it('se borra después de purgar el buzón, y con eso se cierra la sesión', async () => {
+    await deleteAccount({ timeoutMs: 200 });
+    const ultimaPurga = mockLlamadas.map(l => l.startsWith('delete:')).lastIndexOf(true);
+    const cuenta = mockLlamadas.indexOf('cuenta');
+    expect(cuenta).toBeGreaterThan(ultimaPurga);
+    expect(mockLlamadas.indexOf('cerrar-sesion-buzon')).toBeGreaterThan(cuenta);
+    expect(readJournal()).toBeNull();
+  });
+
+  it('sin red: el borrado local sigue, la sesión del buzón se conserva y queda pendiente', async () => {
+    mockRespuestaCuenta = () => ({ ok: false, reason: 'network' });
+    await deleteAccount({ timeoutMs: 200 });
+
+    expect(useAuthStore.getState().currentUser).toBeNull();
+    expect(mockLlamadas).not.toContain('cerrar-sesion-buzon');
+    expect(readJournal()).toMatchObject({ cuentaEnServidor: 'pendiente' });
+  });
+
+  it('al arrancar con red, se reintenta, se cierra la sesión y se limpia el diario', async () => {
+    mockRespuestaCuenta = () => ({ ok: false, reason: 'network' });
+    await deleteAccount({ timeoutMs: 200 });
+    mockLlamadas.length = 0;
+    mockRespuestaCuenta = () => ({ ok: true });
+
+    await resumePendingDeletion();
+
+    expect(mockLlamadas).toEqual(['cuenta', 'cerrar-sesion-buzon']);
+    expect(readJournal()).toBeNull();
+  });
+
+  it('sin relay configurado no hay cuenta que borrar: no queda pendiente', async () => {
+    mockRespuestaCuenta = () => ({ ok: false, reason: 'not_configured' });
+    await deleteAccount({ timeoutMs: 200 });
+    expect(readJournal()).toBeNull();
   });
 });

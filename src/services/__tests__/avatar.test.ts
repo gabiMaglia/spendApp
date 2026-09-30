@@ -96,7 +96,7 @@ describe('claveDeFallo', () => {
   it('todo fallo REAL tiene un mensaje propio, y ninguno se repite', () => {
     // El defecto que este código corrige era mostrar lo mismo (o nada) ante
     // causas distintas: el usuario no puede saber si reintentar sirve.
-    const reales: FalloAvatar[] = ['sin_permiso', 'sin_modulo', 'no_procesable'];
+    const reales: FalloAvatar[] = ['sin_modulo', 'no_procesable'];
     const claves = reales.map(claveDeFallo);
     expect(claves.every(c => typeof c === 'string' && c.length > 0)).toBe(true);
     expect(new Set(claves).size).toBe(reales.length);
@@ -104,10 +104,12 @@ describe('claveDeFallo', () => {
 });
 
 describe('elegirAvatarDeGaleria', () => {
-  it('sin permiso: lo dice, y NO abre la galería', async () => {
-    mockPermiso.mockResolvedValue({ granted: false });
-    expect(await elegirAvatarDeGaleria()).toEqual({ ok: false, motivo: 'sin_permiso' });
-    expect(mockGaleria).not.toHaveBeenCalled();
+  // Auditoría pre-tiendas (B-3): el selector del sistema (Android 13+, PHPicker
+  // en iOS 14+) no necesita permiso de galería, y Play no admite pedirlo acá.
+  it('no pide permiso de galería: abre el selector del sistema directo', async () => {
+    await elegirAvatarDeGaleria();
+    expect(mockPermiso).not.toHaveBeenCalled();
+    expect(mockGaleria).toHaveBeenCalled();
   });
 
   it('cancelar se distingue de fallar', async () => {
