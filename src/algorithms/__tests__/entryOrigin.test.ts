@@ -40,4 +40,10 @@ describe('por que no se puede editar', () => {
   it('el resto de lo derivado tiene su propio motivo', () => {
     expect(reasonKey({ kind: 'carryover' })).toBe('personal.locked_derived');
   });
+
+  it('los pagos son derivados y no se editan desde Personal (T-229)', () => {
+    expect(isEditable({ kind: 'payment_out' })).toBe(false);
+    expect(isEditable({ kind: 'payment_in' })).toBe(false);
+    expect(reasonKey({ kind: 'payment_out' })).toBe('personal.locked_from_payment');
+  });
 });

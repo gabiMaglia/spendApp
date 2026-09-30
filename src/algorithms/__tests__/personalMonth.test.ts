@@ -80,3 +80,12 @@ describe('repartirDelMes', () => {
     expect(Object.keys(r).sort()).toEqual(['carryNeg', 'carryPos', 'expense', 'group', 'income']);
   });
 });
+
+describe('los pagos entran a Personal (T-229, ADR-006 d3)', () => {
+  it('lo que pagué al saldar es gastado', () => {
+    expect(bucketDe(e({ kind: 'payment_out' }))).toBe('expense');
+  });
+  it('lo que me pagaron es ingreso', () => {
+    expect(bucketDe(e({ kind: 'payment_in' }))).toBe('income');
+  });
+});
