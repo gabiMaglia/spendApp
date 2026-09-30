@@ -14,6 +14,11 @@ import { useExpenseStore } from '@/src/store/expenseStore';
 import { usePaymentStore } from '@/src/store/paymentStore';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import type { User } from '@/src/types/models';
+import { useSettingsStore } from '@/src/store/settingsStore';
+
+// Este archivo prueba el skin Clásico. Desde 2026-09-29 el skin inicial es Aero,
+// así que se fija Clásico explícitamente.
+beforeEach(() => { useSettingsStore.setState({ skin: 'default' }); });
 
 /**
  * T-219 (regresión de T-154, PO en el Moto, Clásico): la franja "Hoy" en

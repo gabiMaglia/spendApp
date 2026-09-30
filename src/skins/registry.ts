@@ -13,6 +13,14 @@ export type SkinId = (typeof SKIN_IDS)[number];
  */
 export const FALLBACK_SKIN: SkinId = 'default';
 
+/**
+ * **Skin inicial** (PO 2026-09-29): el que ve quien no eligió ninguno, y al que
+ * cae un valor guardado inválido. Es distinto de `FALLBACK_SKIN` a propósito:
+ * ése es la BASE con la que `resolveSkin` completa huecos, y si fuera Aero,
+ * Clásico heredaría de Aero lo que no declara (Clásico es intocable).
+ */
+export const SKIN_INICIAL: SkinId = 'aero';
+
 export const SKINS: Record<SkinId, SkinDefinition> = {
   default: DEFAULT_SKIN,
   aero: AERO_SKIN,

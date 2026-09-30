@@ -7,6 +7,11 @@ import { render, renderHook, within } from '@testing-library/react-native';
 import {
   CollapsibleHeader, useHeaderPadding, HEADER_BAR_H, TITLE_BLOCK_H, HEADER_TOTAL_H_T114, FACTOR_ALTO_HEADER, TITLE_BOTTOM_GAP,
 } from '../CollapsibleHeader';
+import { useSettingsStore } from '@/src/store/settingsStore';
+
+// Este archivo prueba el skin Clásico. Desde 2026-09-29 el skin inicial es Aero,
+// así que se fija Clásico explícitamente.
+beforeEach(() => { useSettingsStore.setState({ skin: 'default' }); });
 
 /**
  * T-128 (PO 2026-09-13) — header colapsable al scrollear. Reemplaza la spec

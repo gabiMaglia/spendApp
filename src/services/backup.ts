@@ -15,7 +15,7 @@ import { useArchiveStore, type ArchiveReason } from '@/src/store/archiveStore';
 import { useSettingsStore, esMonedaSoportada, DEFAULT_DISPLAY_CURRENCY } from '@/src/store/settingsStore';
 import { useLangStore, type LanguageChoice } from '@/src/store/langStore';
 import { SUPPORTED_LANGUAGES, type SupportedLanguage } from '@/src/i18n';
-import { esSkinId, FALLBACK_SKIN, type SkinId } from '@/src/skins/registry';
+import { esSkinId, SKIN_INICIAL, type SkinId } from '@/src/skins/registry';
 import type { CurrencyCode } from '@/src/constants/currencies';
 import { conAlta, rosterDe } from '@/src/algorithms/roster';
 import { esYo, aliasPersistidos, restaurarAlias } from '@/src/store/identityAlias';
@@ -354,9 +354,9 @@ export function applyBackup(backup: BackupFile): void {
         esMonedaSoportada(s.displayCurrency) ? s.displayCurrency : DEFAULT_DISPLAY_CURRENCY,
       );
       // Un skin desconocido (backup corrupto, o de una versión futura con un
-      // skin que ésta no tiene) cae al fallback — mismo criterio que
+      // skin que ésta no tiene) cae al skin inicial — mismo criterio que
       // `settingsStore.hydrate()` con un skin guardado inválido.
-      useSettingsStore.getState().setSkin(esSkinId(s.skin) ? s.skin : FALLBACK_SKIN);
+      useSettingsStore.getState().setSkin(esSkinId(s.skin) ? s.skin : SKIN_INICIAL);
       useSettingsStore.getState().setNotifExpenses(s.notifExpenses);
       useSettingsStore.getState().setNotifDeletions(s.notifDeletions);
       useSettingsStore.getState().setNotifInvites(s.notifInvites);

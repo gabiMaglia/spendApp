@@ -12,6 +12,11 @@ import {
   desplazamientoTituloAero, opacidadTarjetaTitulo,
 } from '@/src/components/skin/headerAeroGeometria';
 import { altoVelo, desplazamientoVelo } from '@/src/components/skin/VeloHeader';
+import { useSettingsStore } from '@/src/store/settingsStore';
+
+// Este archivo prueba el skin Clásico. Desde 2026-09-29 el skin inicial es Aero,
+// así que se fija Clásico explícitamente.
+beforeEach(() => { useSettingsStore.setState({ skin: 'default' }); });
 
 /**
  * **T-220 (PO 2026-09-29, Moto E40): el header colapsable sólo anima
