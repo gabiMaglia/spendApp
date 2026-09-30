@@ -4,6 +4,9 @@ import { usePaymentStore } from '@/src/store/paymentStore';
 import { useCommentStore } from '@/src/store/commentStore';
 import { useRecurringStore } from '@/src/store/recurringStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
+import { usePersonalStore } from '@/src/store/personalStore';
+import { activeUserId } from '@/src/store/userScope';
+import { derivadosDelGrupo } from '@/src/algorithms/movimientosDerivados';
 import { marcarConTopic } from '@/src/sync/motor/pendingDrain';
 import { olvidarOfertas } from '@/src/sync/invitaciones/groupKeyOffers';
 
@@ -73,6 +76,22 @@ export async function salirDelGrupo(groupId: string, userId: string): Promise<vo
  * falta agregarle un método nuevo a cada store.
  */
 export function purgarGrupoLocalmente(groupId: string): void {
+  /**
+   * T-229: Personal deriva de los gastos y pagos que hay en el teléfono. Antes
+   * de borrarlos, lo que puse, pagué y cobré en este grupo se congela en
+   * `personalStore` con los mismos ids: salir del grupo no borra lo que gasté.
+   */
+  const me = activeUserId();
+  if (me) {
+    const congelados = derivadosDelGrupo({
+      expenses: useExpenseStore.getState().expenses,
+      payments: usePaymentStore.getState().payments,
+      groups: useGroupStore.getState().groups,
+      me, groupId,
+    });
+    if (congelados.length > 0) usePersonalStore.getState().mergeEntries(congelados);
+  }
+
   /**
    * Los comentarios no tienen `groupId`: cuelgan del gasto. Así que los ids de
    * los gastos de este grupo se calculan **antes** de purgarlos — después ya no
