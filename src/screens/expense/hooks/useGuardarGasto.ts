@@ -56,7 +56,6 @@ export function useGuardarGasto(f: FormularioDeGasto): () => void {
   const addExpense = useExpenseStore(s => s.addExpense);
   const updateExpense = useExpenseStore(s => s.updateExpense);
   const addPersonalEntry = usePersonalStore(s => s.addEntry);
-  const updateReplicatedEntry = usePersonalStore(s => s.updateReplicatedEntry);
   const addRecurring = useRecurringStore(st => st.addRecurring);
 
   /** Desglose de pagadores listo para guardar (o el pagador único). */
@@ -118,7 +117,7 @@ export function useGuardarGasto(f: FormularioDeGasto): () => void {
   }
 
   /** Devuelve false si no guardó (la pantalla queda abierta con el aviso). */
-  function guardarEdicion(splitPayload: Expense['splits'], myShare: number, groupName: string): boolean {
+  function guardarEdicion(splitPayload: Expense['splits']): boolean {
     const cambios = {
       description:     f.description.trim(),
       amount:          f.amount,
@@ -152,21 +151,11 @@ export function useGuardarGasto(f: FormularioDeGasto): () => void {
     // haptic sonaba junto con el gate del anuncio, así que un bloqueo por
     // firma vibraba "éxito" un instante antes del Alert de error.
     hapticSuccess();
-    // Keep personal replica in sync with edited values
-    if (myShare > 0) {
-      updateReplicatedEntry(f.expenseId!, {
-        description:     f.description.trim(),
-        amount:          myShare,
-        category:        f.category,
-        date:            f.date.getTime(),
-        sourceGroupName: groupName,
-      });
-    }
     return true;
   }
 
   /** Devuelve false si no guardó (la pantalla queda abierta con el aviso). */
-  function guardarAlta(splitPayload: Expense['splits'], groupName: string): boolean {
+  function guardarAlta(splitPayload: Expense['splits']): boolean {
     const newId = uuidv4();
     const nuevo = {
       id:              newId,
@@ -196,28 +185,7 @@ export function useGuardarGasto(f: FormularioDeGasto): () => void {
     // Un alta nueva no tiene núcleo previo firmado que re-firmar: no puede
     // bloquearse como una edición (T-152 · D2), así que el haptic va sin gate.
     hapticSuccess();
-    // ADR-006: se replica lo que SALIÓ DE MI BOLSILLO, no mi porción.
-    // Si pagó otro, todavía no gasté nada — es una deuda, y se vuelve gasto
-    // recién cuando la salde. Antes se replicaba `myShare` siempre, que
-    // estaba mal en los dos sentidos: de menos si pagaba yo, y de más si
-    // pagaba otro.
-    if (esYo(payerFields().paidById)) {
-      addPersonalEntry({
-        id:                   uuidv4(),
-        kind:                 'group_replicated',
-        description:          f.description.trim(),
-        amount:               f.amount,
-        currency:             f.currency,
-        category:             f.category,
-        date:                 f.date.getTime(),
-        createdAt:            Date.now(),
-        updatedAt:            syncedNow(),
-        isDeleted:            false,
-        sourceGroupExpenseId: newId,
-        sourceGroupId:        f.groupId,
-        sourceGroupName:      groupName,
-      });
-    }
+    // ADR-006 d3 / T-229: lo que puse se DERIVA en Personal (movimientosDerivados); no se guarda réplica.
     incrementCount(f.currentUser!.id);
     saveRecurringTemplate();
     return true;
@@ -237,12 +205,10 @@ export function useGuardarGasto(f: FormularioDeGasto): () => void {
       amount: s.amount,
       isPaid: f.payerId ? s.userId === f.payerId : esYo(s.userId),
     }));
-    const myShare = splitPayload.find(s => esYo(s.userId))?.amount ?? 0;
-    const groupName = f.group?.name ?? '';
 
     const guardo = f.isEditMode && f.expenseId
-      ? guardarEdicion(splitPayload, myShare, groupName)
-      : guardarAlta(splitPayload, groupName);
+      ? guardarEdicion(splitPayload)
+      : guardarAlta(splitPayload);
     if (guardo) router.back();
   };
 }

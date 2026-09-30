@@ -26,7 +26,6 @@ interface PersonalStoreState {
   lastSeenMonth:  string;
   addEntry:               (entry: PersonalEntry) => void;
   removeEntry:            (id: string) => void;
-  updateReplicatedEntry:  (sourceGroupExpenseId: string, patch: Partial<PersonalEntry>) => void;
   setBudget:              (budget: PersonalBudget) => void;
   setLastSeenMonth:       (month: string) => void;
   mergeEntries:           (incoming: PersonalEntry[], now?: number) => void;
@@ -68,16 +67,6 @@ export const usePersonalStore = create<PersonalStoreState>((set, get) => ({
   removeEntry: (id) => {
     const entries = get().entries.map(e =>
       e.id === id ? { ...e, isDeleted: true, updatedAt: syncedNow() } : e,
-    );
-    persistEntries(entries);
-    set({ entries });
-  },
-
-  updateReplicatedEntry: (sourceGroupExpenseId, patch) => {
-    const entries = get().entries.map(e =>
-      e.sourceGroupExpenseId === sourceGroupExpenseId && !e.isDeleted
-        ? { ...e, ...patch, updatedAt: syncedNow() }
-        : e,
     );
     persistEntries(entries);
     set({ entries });
