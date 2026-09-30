@@ -15,7 +15,7 @@ No hay servidor con lógica de negocio ni base de datos compartida en claro.
 | Entidad | Campos que deciden negocio | Notas |
 |---|---|---|
 | `User` | `name`, `email`, `avatar` (data URI; `null` = tombstone), `authProvider` google/apple/guest, `deletedAt` | `deletedAt` hace que cada peer muestre «Cuenta borrada» en su idioma |
-| `Group` | `name`, `currency` (una por grupo), `createdById`, `miembros: {userId: {estado: in/out, at}}`, `memberIds` **derivado**, `defaultSplitMode`, `supersededByGroupId` (traspaso) | `leaveRequest` existe hoy y se elimina con la absorción (auditoría H-1) |
+| `Group` | `name`, `currency` (una por grupo), `createdById`, `miembros: {userId: {estado: in/out, at}}`, `memberIds` **derivado**, `defaultSplitMode`, `supersededByGroupId` (traspaso) | sin `leaveRequest`: la absorción se eliminó en T-228 |
 | `Expense` | `groupId`, `amount` entero, `currency`, `paidById` + `payers?`, `splits[{userId, amount, isPaid}]`, `splitMode`, `category`, `date`, `createdById`, `editedById`, `deletedById`/`restoredById` (LWW, sin firma), `autoriaDisputada` | id `rec_<plantilla>_<vencimiento>` si lo materializó una recurrente |
 | `Payment` | `groupId`, `fromUserId`, `toUserId`, `amount`, `currency`, `date`, `createdById` | `targetCurrency`/`exchangeRate` sin UI |
 | `ExpenseComment` | `expenseId`, `authorId`, `text` | entidad propia para que dos comentarios simultáneos sobrevivan al LWW |
@@ -92,7 +92,7 @@ Con tombstones (`isDeleted: true`, `updatedAt` actualizado):
 - **Borrar un gasto**: cualquier miembro del grupo lo borra al instante (`isDeleted: true` + `deletedById`, tombstone de siempre). Cualquier miembro lo restaura desde Actividad (`isDeleted: false` + `restoredById`). `deletedById`/`restoredById` son campos del nivel "resto" — LWW, sin firma, no una prueba — sólo para que Actividad muestre quién hizo qué.
 - **Liquidar una deuda**: cualquier miembro **declara** un `Payment` y cuenta para el balance al instante. No hay acuse de quien cobra ni estado `pendiente`/`rechazado` — `src/algorithms/settlementStatus.ts` se reduce a `pagosQueCuentan(payments, group)`, que sólo filtra por grupo y por tombstone.
 
-Lo que **no** cambió: la firma del núcleo (`recordCore`/`recordSign`), la disputa de autoría (`autoriaTrust`), el merge por niveles y `leaveRequest` con sus aprobaciones firmadas.
+Lo que **no** cambió: la firma del núcleo (`recordCore`/`recordSign`), la disputa de autoría (`autoriaTrust`), y el merge por niveles. (`leaveRequest` con sus aprobaciones firmadas también se quedó en T-186, y se eliminó después en T-228.)
 
 El mapa completo de lo que se sacó, dónde vivía cada pieza y cómo volver a traer el modo «con acuerdo» si hiciera falta está en **`docs/CONSENSO-PENDIENTE.md`** — no se repite acá para no tener dos fuentes de verdad.
 

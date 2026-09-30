@@ -34,7 +34,7 @@ La fuente es siempre `deudasDelGrupo` sobre los gastos del grupo y `pagosQueCuen
 | Borrar cuenta | `salidasAlBorrar.gruposParaSalir` | El grupo no entra en la lista | Sale |
 | Borrar grupo | `MenuDeGrupo` | Modal `delete_body_with_debts` con las líneas | `delete_body` de siempre |
 
-Las líneas de deuda salen de un helper puro `lineasDeCuentas(cuentas, getUserName, t)` en `detalleDeGrupo.ts`, compartido por los tres modales.
+Salir y expulsar usan `lineasDeCuentas` del hook (me debe / le debo); borrar el grupo usa `lineasDeDeudas` en `detalleDeGrupo.ts` (X le debe a Y), porque ahí las deudas no me involucran necesariamente.
 
 **Lo que se elimina:** `app/groups/leave.tsx`, `absorbBalance.ts`, `canLeaveGroup.ts`, `leaveRequest.ts`, `applyLeave.ts`, `PedidoDeSalida.tsx`, `leaveApprovalCore.ts`, `leaveApprovalSign.ts`, `settleSuggestion.ts`, `acreedoresDe` (en `repartoSaldo.ts`), `saldosParaSalir`; en el modelo, `Group.leaveRequest`, `LeaveRequest`, `LeaveApproval`, `ApprovalEntry`; en `groupStore`, `requestLeave`/`approveLeave`/`cancelLeave`; en `paymentStore`, la opción `derived`; en el sync, la unión colaborativa de `approvedBy` (`mergeLevels`), el slot `leaveRequest` de `GROUP_SLOTS` (`recordCore`) y la clase `leave` de `derivedRecords`; las llamadas a `applyApprovedLeaves` en `session.ts` y `agendaDeDrenaje.ts`; la ruta `groups/leave` en `app/_layout.tsx` y en los guards `pestanasUnificadas` e `intencionNativa`; las claves i18n `leave.*`, `group_detail.leave_last_member` y `group_detail.expel_body_with_balance`.
 

@@ -60,4 +60,4 @@
 | WebRTC / BLE / Wi-Fi local | WebRTC sacado (T-083); BLE y mDNS nunca implementados |
 | Invitación por username | No hay directorio: sólo QR y deep link |
 | Modo «con acuerdo» (rondas de borrado, acuse de pago) | Sacado en T-186; mapa para volver en `docs/CONSENSO-PENDIENTE.md` |
-| Absorción de saldo al salir/expulsar | Eliminada (auditoría 2026-09-29, H-1): nadie sale con deuda viva |
+| Absorción de saldo al salir/expulsar | Eliminada en T-228: nadie sale con deuda viva |
