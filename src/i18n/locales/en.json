@@ -77,7 +77,7 @@
   },
   "auth": {
     "welcome_title": "Split expenses\nwith friends.",
-    "welcome_subtitle": "No server. No cloud. P2P sync only between group members.",
+    "welcome_subtitle": "Clear accounts between friends. No one else can read them, not even us.",
     "continue_google": "Continue with Google",
     "terms_prefix": "By continuing you accept the",
     "terms_link": "Terms",
@@ -306,7 +306,6 @@
     "daily_reset_note": "The 5th expense requires an ad or Pro. Resets daily at 00:00.",
     "try_pro": "Try Pro · 7 days free",
     "section_sync": "Sync & data",
-    "sync_p2p": "P2P sync",
     "offline_mode": "Offline-only mode",
     "export_data": "Export data",
     "restore_backup": "Restore backup",
