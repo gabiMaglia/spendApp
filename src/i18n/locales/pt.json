@@ -72,7 +72,6 @@
     "reduce_animations": "Reduzir animações",
     "reduce_animations_sub": "Desliga o número rolando e as animações das planilhas — útil em aparelhos mais antigos",
     "photo_error_title": "Não foi possível trocar a foto",
-    "photo_error_permission": "O app não tem permissão para ver suas fotos. Ative nas configurações do telefone.",
     "photo_error_unavailable": "A versão instalada do app ainda não consegue processar imagens. É preciso reinstalá-lo a partir de uma compilação nova.",
     "photo_error_failed": "Não foi possível processar essa imagem. Tente outra."
   },

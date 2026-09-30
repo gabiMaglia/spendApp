@@ -53,7 +53,6 @@
       "allowBackup": false,
       "permissions": [
         "android.permission.CAMERA",
-        "android.permission.READ_MEDIA_IMAGES",
         "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.INTERNET",
         "android.permission.ACCESS_NETWORK_STATE"
@@ -62,7 +61,10 @@
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.BLUETOOTH",
-        "android.permission.SYSTEM_ALERT_WINDOW"
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
       ]
     },
     "web": {
@@ -82,7 +84,7 @@
           "imageWidth": 1
         }
       ],
-      "expo-secure-store",
+      ["expo-secure-store", { "faceIDPermission": false }],
       "expo-localization",
       "./plugins/withCadenasAndroidPorDefecto",
       [

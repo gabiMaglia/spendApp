@@ -72,7 +72,6 @@
     "reduce_animations": "Reduce animations",
     "reduce_animations_sub": "Turns off the rolling number and sheet animations — useful on older devices",
     "photo_error_title": "Couldn't change the photo",
-    "photo_error_permission": "The app has no permission to see your photos. Turn it on in your phone settings.",
     "photo_error_unavailable": "The installed version of the app can't process images yet. It needs to be reinstalled from a new build.",
     "photo_error_failed": "That image couldn't be processed. Try another one."
   },
