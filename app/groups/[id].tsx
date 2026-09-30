@@ -10,7 +10,7 @@ import { useGroupStore } from '@/src/store/groupStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { usePaymentStore } from '@/src/store/paymentStore';
 import { useUserStore } from '@/src/store/userStore';
-import { useGroupBalance, useGroupExpenseCount } from '@/src/store/selectors';
+import { useGroupExpenseCount } from '@/src/store/selectors';
 import { useTotalesDelGrupo } from '@/src/store/selectoresDeDeuda';
 import { useArchiveStore } from '@/src/store/archiveStore';
 import { useGroupSyncFailure } from '@/src/hooks/useSyncFailure';
@@ -69,7 +69,6 @@ export default function GroupDetailScreen() {
   const marcaDeGasto = useRecordTrust('expense', gastosDelTimeline);
   const marcaDePago  = useRecordTrust('payment', pagosDelTimeline);
 
-  const balances    = useGroupBalance(id ?? '', currentUser?.id ?? '');
   // T-058 (PO 2026-09-20): aviso de traspaso entre 350 y 450 gastos.
   const cantidadGastos = useGroupExpenseCount(id ?? '');
   const [mostrarTraspaso, setMostrarTraspaso] = useState(false);
@@ -92,7 +91,7 @@ export default function GroupDetailScreen() {
   });
 
   const { handleShareInvite, handleLeave, handleExpel } = useAccionesDeGrupo({
-    group, currentUser, balances, allExpenses, allPayments, getUserName,
+    group, currentUser, allExpenses, allPayments, getUserName,
   });
 
   if (!group) {

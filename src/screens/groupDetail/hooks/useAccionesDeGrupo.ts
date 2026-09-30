@@ -3,18 +3,17 @@ import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
 import { hapticLight, hapticSuccess } from '@/src/utils/haptics';
-import { formatMoney, type CurrencyCode } from '@/src/constants/currencies';
+import { formatMoney } from '@/src/constants/currencies';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { createInvite, inviteToLink } from '@/src/sync/invitaciones/groupInvite';
 import { ensureIdentity, saveInvite } from '@/src/store/identityStore';
 import { startRelay } from '@/src/sync/motor/relayEngine';
-import { canLeaveGroup } from '@/src/algorithms/canLeaveGroup';
 import { salirDelGrupo } from '@/src/services/salirDelGrupo';
 import { esYo, idCanonico } from '@/src/store/identityAlias';
 import { expulsar } from '@/src/services/expulsarDelGrupo';
-import { totalesDeUsuario } from '@/src/algorithms/deudasDelGrupo';
+import { deudasDe, monedasConDeuda, tieneDeudaViva } from '@/src/algorithms/deudaViva';
 import {
-  cuentasPorPersona, deudasDeGrupo, saldoPendienteDe, saldosParaSalir, type CuentasConPersona,
+  cuentasPorPersona, deudasDeGrupo, saldoPendienteDe, type CuentasConPersona,
 } from '@/src/screens/groupDetail/detalleDeGrupo';
 import type { Expense, Group, Payment, User } from '@/src/types/models';
 
@@ -23,11 +22,10 @@ import type { Expense, Group, Payment, User } from '@/src/types/models';
  * confirman con un `Alert`. T-223: salió de `app/groups/[id].tsx`.
  */
 export function useAccionesDeGrupo({
-  group, currentUser, balances, allExpenses, allPayments, getUserName,
+  group, currentUser, allExpenses, allPayments, getUserName,
 }: {
   group: Group | undefined;
   currentUser: User | null;
-  balances: { currency: CurrencyCode; amount: number }[];
   allExpenses: Expense[];
   allPayments: Payment[];
   getUserName: (id: string) => string;
@@ -71,36 +69,21 @@ export function useAccionesDeGrupo({
   function handleLeave() {
     if (!group || !currentUser) return;
 
-    const otros = group.memberIds.filter(mid => !esYo(mid));
-    // T-225: salir «con saldo» mira la deuda sin compensar — si debo algo,
-    // aunque el neto sea cero — además del neto (ver `saldosParaSalir`).
+    // T-228 (PO 2026-09-29): nadie sale con deuda viva, en ninguna dirección.
     const deudas = deudasDeGrupo(allExpenses, allPayments, group);
-    const veredicto = canLeaveGroup(
-      saldosParaSalir(totalesDeUsuario(deudas, currentUser.id), balances),
-      otros,
-    );
-
-    if (veredicto.kind === 'last_member_with_balance') {
-      Alert.alert(t('group_detail.leave_blocked_title'), t('group_detail.leave_last_member'));
-      return;
-    }
-
-    if (veredicto.kind === 'needs_absorption') {
-      // Repartir entre los que quedan sólo tiene sentido con neto: la pantalla
-      // de salida absorbe el neto, y con deudas cruzadas que dan cero no podría
-      // cerrar el plan. Ahí queda Saldar lo que debo.
-      const hayNeto = balances.some(b => b.amount !== 0);
+    if (tieneDeudaViva(deudas, currentUser.id)) {
+      const yo = idCanonico(currentUser.id);
+      const debo = deudasDe(deudas, currentUser.id).some(d => d.deudor === yo);
       Alert.alert(
         t('group_detail.leave_blocked_title'),
         conLineas(
-          t('group_detail.leave_needs_settle', { currencies: veredicto.currencies.join(', ') }),
+          t('group_detail.leave_needs_settle', { currencies: monedasConDeuda(deudas, currentUser.id).join(', ') }),
           lineasDeCuentas(cuentasPorPersona(deudas, currentUser.id)),
         ),
         [
           { text: t('common.cancel'), style: 'cancel' },
-          { text: t('group_detail.settle_debts'), onPress: () => router.push(`/settle/new?groupId=${group.id}` as any) },
-          ...(hayNeto
-            ? [{ text: t('leave.title'), onPress: () => router.push(`/groups/leave?id=${group.id}` as any) }]
+          ...(debo
+            ? [{ text: t('group_detail.settle_debts'), onPress: () => router.push(`/settle/new?groupId=${group.id}` as any) }]
             : []),
         ],
       );

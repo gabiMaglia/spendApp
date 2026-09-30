@@ -1,7 +1,6 @@
 import { calculateBalancesByCurrency } from '@/src/algorithms/calculateBalances';
 import { pagosQueCuentan } from '@/src/algorithms/settlementStatus';
-import { deudasDelGrupo, type DeudaPar, type TotalesDeUsuario } from '@/src/algorithms/deudasDelGrupo';
-import type { BalanceEntry } from '@/src/algorithms/absorbBalance';
+import { deudasDelGrupo, type DeudaPar } from '@/src/algorithms/deudasDelGrupo';
 import { idCanonico } from '@/src/store/identityAlias';
 import type { CurrencyCode } from '@/src/constants/currencies';
 import type { Expense, Group, Payment } from '@/src/types/models';
@@ -66,28 +65,4 @@ export function cuentasPorPersona(deudas: readonly DeudaPar[], yo: string): Cuen
     else if (d.deudor === mio) de(d.acreedor).leDebo.push({ currency: d.currency, amount: d.monto });
   }
   return [...porPersona.values()];
-}
-
-/**
- * Qué monedas cuentan como «saldo abierto» para salir del grupo (T-225).
- *
- * Abierta si DEBO algo en esa moneda, aunque me deban más (regla de «saldado»
- * del PO), o si el neto no es cero. Lo segundo no es «saldado», son los libros:
- * si me voy con neto a favor, los que quedan dejan de sumar cero, así que la
- * absorción de siempre (`planAbsorption`, que reparte el neto) sigue haciendo
- * falta. El monto es el neto cuando lo hay —es lo que la absorción mueve— y si
- * no, lo que debo (en negativo), sólo para marcar la moneda.
- */
-export function saldosParaSalir(
-  totales: readonly TotalesDeUsuario[], netos: readonly BalanceEntry[],
-): BalanceEntry[] {
-  const monedas = new Set<CurrencyCode>([...netos.map(n => n.currency), ...totales.map(t => t.currency)]);
-  const out: BalanceEntry[] = [];
-  for (const currency of monedas) {
-    const neto = netos.find(n => n.currency === currency)?.amount ?? 0;
-    const debo = totales.find(t => t.currency === currency)?.youOwe ?? 0;
-    if (neto !== 0) out.push({ currency, amount: neto });
-    else if (debo > 0) out.push({ currency, amount: -debo });
-  }
-  return out;
 }
