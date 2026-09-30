@@ -99,17 +99,15 @@ describe('detalle de grupo: Te deben / Debés arriba, balance neto abajo', () =>
     expect(monto(r, 'groupDetail.balance:g1').minor).toBe(0);
   });
 
-  it('orden: widget → timeline → balance → pedido de salida → traspasar', () => {
-    useGroupStore.setState({ groups: [grupo({
-      createdById: 'ana',
-      leaveRequest: { userId: 'ana', plan: [], requestedAt: 0, approvedBy: [] },
-    })] });
+  it('orden: widget → timeline → balance → traspasar, sin pedido de salida', () => {
+    useGroupStore.setState({ groups: [grupo({ createdById: 'ana' })] });
     const arbol = JSON.stringify(render(<GroupDetailScreen />).toJSON());
     const posiciones = [
-      'groups.stat_owed_to_you', 'Cena 1', '"group-net-balance"', 'leave.pending', '"traspaso-manual-btn"',
+      'groups.stat_owed_to_you', 'Cena 1', '"group-net-balance"', '"traspaso-manual-btn"',
     ].map(marca => arbol.indexOf(marca));
     expect(posiciones.every(p => p >= 0)).toBe(true);
     expect([...posiciones].sort((a, b) => a - b)).toEqual(posiciones);
+    expect(arbol).not.toContain('leave.pending');
   });
 
   it('el balance grande de antes ya no está arriba', () => {

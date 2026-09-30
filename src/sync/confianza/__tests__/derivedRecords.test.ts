@@ -16,13 +16,6 @@ import { EXPENSE, PAYMENT, COMMENT, GROUP, RECURRING } from '@/src/test-utils/re
  * cerrar contra los campos que ese id promete.
  */
 
-const pagoDeSalida = () => ({
-  ...PAYMENT,
-  id: 'leave:g-1:beto:4500:0',
-  groupId: 'g-1',
-  createdById: 'beto',
-});
-
 const gastoMaterializado = () => ({
   ...EXPENSE,
   id: 'rec_r-1_1700000000000',
@@ -30,41 +23,12 @@ const gastoMaterializado = () => ({
   createdAt: 1_700_000_000_000,
 });
 
-describe('pago de absorción de deuda (`applyLeave`)', () => {
-  it('lo reconoce por su id derivado', () => {
-    expect(derivedOriginOf('payment', pagoDeSalida())).toBe('leave');
-  });
-
-  /**
-   * El id NO es una etiqueta que uno se pone solo: promete `groupId` y
-   * `createdById`. Sin este cierre, cualquiera esconde un pago ajeno en la
-   * cuarta categoría poniéndole el prefijo, y el número que D4 existe para
-   * mirar deja de significar algo.
-   */
-  it('un id que promete otro grupo no cuela', () => {
-    expect(derivedOriginOf('payment', { ...pagoDeSalida(), groupId: 'otro' })).toBeNull();
-  });
-
-  it('un id que promete otro autor no cuela', () => {
-    expect(derivedOriginOf('payment', { ...pagoDeSalida(), createdById: 'ana' })).toBeNull();
-  });
-
-  it('un id con partes de más o de menos no cuela', () => {
-    expect(derivedOriginOf('payment', { ...pagoDeSalida(), id: 'leave:g-1:beto:4500' })).toBeNull();
-    expect(derivedOriginOf('payment', { ...pagoDeSalida(), id: 'leave:g-1:beto:4500:0:x' })).toBeNull();
-  });
-
-  it('el `requestedAt` y el índice tienen que ser números', () => {
-    expect(derivedOriginOf('payment', { ...pagoDeSalida(), id: 'leave:g-1:beto:ayer:0' })).toBeNull();
-    expect(derivedOriginOf('payment', { ...pagoDeSalida(), id: 'leave:g-1:beto:4500:x' })).toBeNull();
-  });
-
-  it('un gasto no es un pago de salida aunque le pongan el id', () => {
-    expect(derivedOriginOf('expense', { ...EXPENSE, id: 'leave:g-1:ana:4500:0' })).toBeNull();
-  });
-});
-
 describe('gasto materializado desde una plantilla recurrente', () => {
+  it('un pago con id `leave:` ya no es derivado (T-228: no hay absorción)', () => {
+    expect(derivedOriginOf('payment', { ...PAYMENT, id: 'leave:g-1:beto:4500:0', groupId: 'g-1', createdById: 'beto' }))
+      .toBeNull();
+  });
+
   it('lo reconoce por su id derivado', () => {
     expect(derivedOriginOf('expense', gastoMaterializado())).toBe('recurring');
   });

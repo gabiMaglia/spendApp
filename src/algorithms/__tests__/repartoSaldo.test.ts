@@ -1,29 +1,8 @@
 import {
-  acreedoresDe, totalAdeudado, repartoParejo, repartoValido, pagosDelReparto,
+  totalAdeudado, repartoParejo, repartoValido, pagosDelReparto,
 } from '../repartoSaldo';
 
 const b = (userId: string, amount: number) => ({ userId, amount });
-
-describe('acreedoresDe', () => {
-  it('lista a quienes les debo, de mayor a menor', () => {
-    const r = acreedoresDe([b('yo', -800), b('ana', 500), b('beto', 300)], 'yo');
-    expect(r.map(a => a.userId)).toEqual(['ana', 'beto']);
-  });
-
-  it('si no debo nada, no hay a quien pagarle', () => {
-    expect(acreedoresDe([b('yo', 500), b('ana', -500)], 'yo')).toEqual([]);
-  });
-
-  it('no me incluyo a mi mismo', () => {
-    const r = acreedoresDe([b('yo', -500), b('ana', 500)], 'yo');
-    expect(r.some(a => a.userId === 'yo')).toBe(false);
-  });
-
-  it('el orden desempata por id: estable entre renders', () => {
-    const r = acreedoresDe([b('yo', -600), b('zeta', 300), b('ana', 300)], 'yo');
-    expect(r.map(a => a.userId)).toEqual(['ana', 'zeta']);
-  });
-});
 
 describe('repartoParejo', () => {
   const acreedores = [{ userId: 'ana', amount: 600 }, { userId: 'beto', amount: 400 }];

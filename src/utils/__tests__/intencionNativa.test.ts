@@ -14,7 +14,7 @@ describe('destinoDeUrlExterna', () => {
     'spendapp://debug/relay',
     'spendapp://settings/borrar-cuenta',
     'spendapp://settle/new?toId=x&maxAmount=999',
-    'spendapp://groups/leave?id=x',
+    'spendapp://groups/new?id=x',
     '/debug/identity',
     '/settings/borrar-cuenta',
   ])('una ruta no enlazable va al inicio: %s', (url) => {
@@ -66,7 +66,7 @@ describe('destinoDeUrlExterna', () => {
 
   describe('esquemas ajenos no abren pantallas de la app (T-120 · SEC M-5)', () => {
     it.each([
-      `${ESQUEMA_GOOGLE_SIGNIN}/groups/leave?id=x`,
+      `${ESQUEMA_GOOGLE_SIGNIN}/groups/new?id=x`,
       `${ESQUEMA_GOOGLE_SIGNIN}//settle/new?toId=x`,
       `${ESQUEMA_GOOGLE_SIGNIN}/settings/borrar-cuenta`,
       `${ESQUEMA_GOOGLE_SIGNIN}/oauth2redirectX/debug/identity`,
@@ -102,8 +102,8 @@ describe('destinoDeUrlExterna', () => {
       `${ESQUEMA_GOOGLE_SIGNIN}/oauth2redirect/../settle/new?toId=x&maxAmount=9`,
       `${ESQUEMA_GOOGLE_SIGNIN}/oauth2redirect/%2e%2e/settings/borrar-cuenta`,
       `${ESQUEMA_GOOGLE_SIGNIN}/oauth2redirect/%2E%2E/settings/borrar-cuenta`,
-      `${ESQUEMA_GOOGLE_SIGNIN}/OAUTH2REDIRECT/../groups/leave?id=g1`,
-      `${ESQUEMA_GOOGLE_SIGNIN}/oauth2redirect/..%2fgroups/leave?id=g1`,
+      `${ESQUEMA_GOOGLE_SIGNIN}/OAUTH2REDIRECT/../groups/new?id=g1`,
+      `${ESQUEMA_GOOGLE_SIGNIN}/oauth2redirect/..%2fgroups/new?id=g1`,
       `${ESQUEMA_GOOGLE_SIGNIN}/oauth2redirect//../settle/new?toId=x`,
       `${ESQUEMA_GOOGLE_SIGNIN}/oauth2redirect/..\\settle/new?toId=x`,
     ])('un `..` (o su escape/mayúscula/barra múltiple/backslash) tras oauth2redirect no navega: %s', (url) => {
