@@ -148,3 +148,16 @@ Debés 0»: los 60 que debía el PO no aparecían en ningún lado.
 - T-226 se cerró sin hacerse: T-228 prohíbe salir o expulsar con deuda viva en cualquier dirección, así que el traspaso del neto coincide con el par.
 
 decidido por · PO · 2026-09-29
+
+---
+
+## Enmienda 2026-09-29 (T-229) · Lo gastado se deriva de gastos y pagos
+
+La decisión 3 se implementaba con réplicas guardadas que se escribían sólo al crear un gasto:
+al editar valían la porción, al borrar quedaban vivas, con varios pagadores acreditaban el total
+al principal y saldar no generaba nada. Desde T-229 Personal **deriva** en lectura
+(`movimientosDerivados`): lo que puse en cada gasto de grupo, lo que pagué al saldar (gastado) y
+lo que me pagaron (ingreso). Al purgar un grupo, sus derivados se congelan en `personalStore`
+con el mismo id. Las réplicas viejas se tombstonearon (migración v2).
+
+decidido por · PO · 2026-09-29

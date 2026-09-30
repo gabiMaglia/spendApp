@@ -27,7 +27,7 @@
 - Salir de un grupo o expulsar (sólo el creador) exige no tener deuda viva en ninguna dirección (decisión 2026-09-29; `docs/ALGORITHMS.md` §7).
 
 ### Personal y presupuesto
-- Tab Personal: gastos e ingresos propios del mes, presupuesto mensual por moneda, «incluir lo que me deben», carryover automático al cambiar de mes, réplica de lo que pagué en grupos (ADR-006 d3), «disponible tras saldar».
+- Tab Personal: gastos e ingresos propios del mes, presupuesto mensual por moneda, «incluir lo que me deben», carryover automático al cambiar de mes, lo que puse en gastos de grupo, lo que pagué al saldar (gastado) y lo que me pagaron (ingreso), derivados de los gastos y pagos (ADR-006 d3, T-229), «disponible tras saldar».
 
 ### Contactos e invitaciones
 - Contactos por **QR presencial** (`app/contact/add.tsx`) con canal de contacto cifrado; crear un grupo con un contacto le entrega la clave por ese canal (ADR-013).
