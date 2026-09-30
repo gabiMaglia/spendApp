@@ -256,3 +256,21 @@ describe('auditoría pre-tiendas: lo que ya no se puede prometer', () => {
     for (const d of documentos()) expect(d).toMatch(/Cloudflare/);
   });
 });
+
+/**
+ * La pantalla de entrada decía «Sin servidor. Sin nube. Sincronización P2P».
+ * Las tres cosas son falsas desde que el sync va sólo por el buzón de Supabase
+ * (T-083 sacó WebRTC, T-193 el QR). La promesa honesta es otra: nadie más
+ * puede leer los gastos (PO 2026-09-29: «Cuentas claras…»).
+ */
+describe('la app no dice que no hay servidor', () => {
+  it('ningún texto promete «sin servidor», «sin nube» ni sync P2P', () => {
+    const patrones = [
+      /sin servidor/i, /sin nube/i, /\bP2P\b/, /no server/i, /no cloud/i, /sem servidor/i, /sem nuvem/i,
+    ];
+    for (const [lang, dict] of Object.entries(DICTS)) {
+      const culpables = textos(dict).filter(t => patrones.some(r => r.test(t)));
+      expect(`${lang}: ${JSON.stringify(culpables)}`).toBe(`${lang}: []`);
+    }
+  });
+});
