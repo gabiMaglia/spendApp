@@ -36,81 +36,82 @@
 <body>
 <p class="idiomas"><a href="privacidad.es.html">Español</a> <a href="privacidad.pt.html">Português</a></p>
 <h1>Privacy policy</h1>
-<p class="fecha">HushSplit</p>
+<p class="fecha">HushSplit · updated September 29, 2026</p>
 
 <h2>The short version</h2>
 <p>
-  HushSplit runs <strong>on your phone</strong>. We have no database with your expenses, your name or
-  your email. We can't see what you enter, and we don't want to.
+  HushSplit works <strong>on your phone</strong>. Your expenses, groups and contacts are not in any
+  database of ours: they travel <strong>end-to-end encrypted</strong> between the phones in your group,
+  through a mailbox that cannot open them.
 </p>
 <p>
-  The only thing that leaves your phone is <strong>encrypted packets</strong> addressed to the
-  people in your groups, and not even we can open them: the key is on the phones, never on the
-  server.
+  On the server side we keep only what the mailbox needs to recognize your account: if you sign in
+  with Google or Apple, <strong>your email and your account identifier</strong>. If you use the app as
+  a guest, not even that.
 </p>
 
 <h2>What data exists, and where</h2>
-<p><strong>On your phone, and only there:</strong> your expenses, groups, payments and personal
-entries; your name, your photo and your preferences; your groups' cryptographic keys and your
-device identity. If you uninstall the app without exporting a backup, it's gone: we have no copy to
-restore it from. That backup file includes, unencrypted, your data and your groups' keys: keep it
-somewhere private.</p>
-<p><strong>On the phones of the people in your groups:</strong> when you share a group, its
-expenses —and your name and photo— are stored on each member's phone. Once data has arrived there,
-neither you nor we can delete it.</p>
-<p><strong>On our relay server (“the mailbox”):</strong> so two phones can sync without being
-together, the app leaves packets in a temporary mailbox. For each one we store a label derived from
-the group key, the <strong>encrypted</strong> content, an identifier of the sending device —not your
-name or email— and the arrival and expiry dates. <strong>Your email, name, photo and expenses are
-never stored in the clear</strong>, and packets delete themselves after <strong>30 days</strong>,
-read or not.</p>
-<p>
-  One more thing, because it's true: whoever has or had a group's key can read its packets. An
-  outsider can't, because without the key the label can't be guessed nor the content decrypted.
-</p>
+<p><strong>On your phone:</strong> your expenses, groups, payments and personal entries; your name,
+photo and preferences; your groups' cryptographic keys and your device identity. If you uninstall
+the app without exporting a backup, it's gone: we have no copy to restore it from. The backup file
+includes your data and your group keys unencrypted: keep it private.</p>
+<p><strong>On the phones of the people in your groups:</strong> when you share a group, its expenses
+—and your name and photo— are stored on every member's phone. Once data has reached someone else's
+phone, neither you nor we can delete it from there.</p>
+<p><strong>At the sync mailbox</strong> (hosted on Supabase), each packet stores: a label derived from
+the group key, the <strong>encrypted</strong> content, an identifier of the sending device, a mark that
+lets that device delete it later, and its arrival and expiry dates. Packets delete themselves after
+<strong>30 days</strong>. Anyone who has or had a group's key can read its packets; an outsider cannot,
+because without the key the label can't be guessed and the content can't be decrypted.</p>
+<p><strong>Your account at the mailbox:</strong></p>
+<ul>
+  <li>If you sign in with <strong>Google or Apple</strong>: your email, your identifier with that
+      provider and what the provider includes at sign-in (with Google, your name and photo address).</li>
+  <li>If you use the app as a <strong>guest</strong>: an anonymous account, with no email or name.</li>
+  <li>In both cases, your device's <strong>public key</strong>, so your groups can verify that what
+      you write is yours, and <strong>usage counters</strong> (how many packets and bytes you send) to
+      stop abuse. Counters delete themselves within a day at most.</li>
+</ul>
+<p>This data is used <strong>only to make syncing work</strong>. We don't email you, we don't use it
+for advertising and we don't share it with anyone.</p>
 
-<h2>Currency rates</h2>
-<p>
-  If you have expenses in more than one currency, the app requests the day's rate table from a
-  public third-party service. That call <strong>sends no data of yours</strong>: it asks for the
-  whole table, without saying who you are or what you spent. As with any internet request, that
-  service sees your IP address. If you use a single currency, the call never happens.
-</p>
-
-<h2>Signing in</h2>
-<p>
-  You can sign in with Google or Apple. From there we receive your provider identifier, your email
-  and —if you share it— your name and photo. That data is stored <strong>on your phone</strong>. We
-  don't send it to any server of ours and we don't use it to contact you: we have no user list.
-</p>
+<h2>Third-party services</h2>
+<ul>
+  <li><strong>Supabase</strong> hosts the mailbox and the mailbox accounts.</li>
+  <li><strong>Google and Apple</strong>, if you sign in with them. With Google, the app downloads your
+      profile photo once from Google's servers.</li>
+  <li><strong>Cloudflare Turnstile</strong>, if you use the app as a guest: a bot check. Cloudflare
+      sees your IP address and technical data from the app's built-in browser.</li>
+  <li><strong>Exchange rates</strong>: if you have expenses in more than one currency, the app fetches
+      the day's table from a public service (open.er-api.com). It sends no data about you; like any
+      internet request, that service sees your IP. With a single currency, it never happens.</li>
+</ul>
 
 <h2>Permissions</h2>
 <ul>
-  <li><strong>Camera:</strong> scan a contact's QR code and photograph a receipt.</li>
-  <li><strong>Photos:</strong> pick your profile photo or a receipt.</li>
-  <li><strong>Notifications:</strong> tell you a new expense arrived or someone asked to delete one.
-      They are generated on your phone, not sent by a server.</li>
-  <li><strong>Internet:</strong> leave and fetch packets in the mailbox.</li>
+  <li><strong>Camera:</strong> scan a contact's QR code and take a photo of a receipt.</li>
+  <li><strong>Photos:</strong> pick your profile photo, using the system picker. On Android it asks
+      for no gallery permission.</li>
+  <li><strong>Notifications:</strong> tell you about new expenses, comments, payments, restorations
+      and invitations. They're generated on your phone, not sent by a server.</li>
+  <li><strong>Internet:</strong> drop off and pick up packets at the mailbox.</li>
 </ul>
-<p>The app <strong>does not request the microphone, Bluetooth or location</strong>.</p>
+<p>The app <strong>does not ask for the microphone, Bluetooth or location</strong>.</p>
 
 <h2>What we don't do</h2>
 <p>
-  No advertising and no advertising identifiers. No analytics: we don't measure which screens you
-  see or how much you use the app. We don't sell or share data with anyone —there's no one to share
-  it with: we don't have it—. No cross-app tracking.
+  No advertising and no advertising identifiers. No analytics: we don't measure which screens you see
+  or how much you use the app. We don't sell or share data with anyone. No cross-app tracking.
 </p>
 
 <h2>Deleting your account</h2>
 <p>
-  From <strong>Me → Delete account</strong>, everything belonging to that account is deleted from
-  your phone, and the packets left by that phone are removed from the mailbox. The details, and
-  what can't be deleted, are on the
+  From <strong>Me → Delete account</strong> everything for that account is deleted from your phone;
+  from the mailbox, the packets that phone left; and <strong>your mailbox account</strong>: email,
+  identifier, public key and counters. If there's no internet at that moment, the server part is
+  completed the next time you open the app online. If you no longer have the app, write to us from
+  your account's email and we'll delete it. Details, and what can't be deleted, are on the
   <a href="borrar-cuenta.en.html">account deletion page</a>.
-</p>
-<p>
-  <strong>Additional retention period:</strong> encrypted packets in the mailbox delete themselves
-  <strong>30 days</strong> after arriving, read or not.
 </p>
 
 <h2>Questions</h2>

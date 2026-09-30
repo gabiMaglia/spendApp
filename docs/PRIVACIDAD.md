@@ -19,11 +19,14 @@
 
 ## Lo corto
 
-HushSplit funciona **en tu teléfono**. No tenemos una base de datos con tus gastos, ni con tu
-nombre, ni con tu mail. No podemos ver lo que cargás, ni queremos.
+HushSplit funciona **en tu teléfono**. Tus gastos, tus grupos y tus contactos no están en ninguna
+base de datos nuestra: viajan **cifrados de punta a punta** entre los teléfonos de tu grupo, a
+través de un buzón que no los puede abrir. La llave la tienen los teléfonos, nunca el servidor.
 
-Lo único que sale de tu teléfono son **paquetes cifrados** dirigidos a la gente de tus grupos, y
-ni siquiera nosotros podemos abrirlos: la llave la tienen los teléfonos, nunca el servidor.
+Del lado del servidor guardamos sólo lo necesario para que el buzón reconozca tu cuenta: si entrás
+con Google o Apple, **tu mail y tu identificador de cuenta**. Si entrás como invitado, ni eso.
+(Corregido el 2026-09-29, auditoría pre-tiendas: este párrafo decía que no teníamos tu mail, y
+desde T-147-b la sesión del buzón con Google o Apple lo guarda en Supabase Auth.)
 
 ---
 
@@ -58,9 +61,20 @@ temporal. De cada paquete se guarda:
 | `topic` | Una etiqueta **derivada de la clave del grupo**. No dice el nombre del grupo ni quién lo integra. |
 | `payload` | El contenido, **cifrado**. La clave nunca sale de los teléfonos, así que para el servidor es ruido. |
 | `sender` | Un identificador del dispositivo emisor. **No es tu nombre ni tu mail.** |
+| `owner_tag` / `owner_proof` | Una marca que le permite al dispositivo emisor borrar sus propios paquetes (ADR-009). |
 | `created_at` / `expires_at` | Cuándo llegó y cuándo caduca. |
 
-**No se guarda tu mail, tu nombre, tu foto ni ningún gasto en claro.**
+**En los paquetes no va tu mail, tu nombre, tu foto ni ningún gasto en claro.**
+
+### Tu cuenta en el buzón (Supabase Auth)
+- Con **Google o Apple**: tu mail, tu identificador en ese proveedor y lo que el proveedor incluye
+  en el token (con Google, nombre y dirección de la foto).
+- Como **invitado**: una cuenta anónima, sin mail ni nombre.
+- En los dos casos: la **clave pública** del dispositivo (`device_keys`), para que los grupos
+  verifiquen la autoría, y **contadores de uso** por cuenta (`relay_quota*`) para frenar abusos,
+  que se borran solos en un día como máximo.
+
+Se usan sólo para que la sincronización funcione: no mandamos mails ni los compartimos.
 
 Los paquetes **se borran solos a los 30 días**, hayan sido leídos o no.
 
@@ -77,16 +91,20 @@ Como cualquier pedido a internet, ese servicio ve tu dirección IP.
 
 **Si usás una sola moneda, esa llamada no se hace nunca.**
 
+### Otros terceros
+- **Supabase** aloja el buzón y las cuentas del buzón.
+- **Cloudflare Turnstile**: si entrás como invitado, una verificación contra bots. Cloudflare ve tu
+  IP y datos técnicos del navegador interno de la app.
+- **Google**: al entrar con Google, la app descarga una vez tu foto de perfil desde sus servidores.
+
 ---
 
 ## Iniciar sesión
 
-Podés entrar con Google o con Apple. De ahí llegan tu **identificador de proveedor**, tu **mail**
-y —si lo compartís— tu **nombre y foto**. Ese dato se guarda **en tu teléfono**, para saber que
-sos vos cuando volvés a entrar y para juntar tu cuenta si entrás con los dos.
-
-**No mandamos ese dato a ningún servidor nuestro**, ni lo usamos para contactarte. No tenemos
-una lista de usuarios.
+Podés entrar con Google, con Apple o como invitado. Con Google o Apple llegan tu **identificador
+de proveedor**, tu **mail** y —si lo compartís— tu **nombre y foto**. Se guardan en tu teléfono, para
+saber que sos vos y para juntar tus cuentas si entrás con las dos, y el identificador y el mail
+quedan además en la cuenta del buzón (ver arriba). No los usamos para contactarte.
 
 ---
 
@@ -95,8 +113,8 @@ una lista de usuarios.
 | Permiso | Para qué | Cuándo |
 |---|---|---|
 | **Cámara** | Escanear el QR de un contacto y sacarle la foto a un recibo | Sólo cuando tocás esas funciones |
-| **Fotos** | Elegir tu foto de perfil o la de un recibo | Sólo al elegirla |
-| **Notificaciones** | Avisarte que llegó un gasto nuevo o que alguien pidió borrar uno. **Se generan en tu teléfono**, no las manda un servidor | Si las aceptás |
+| **Fotos** | Elegir tu foto de perfil, con el selector del sistema (en Android no pide permiso de galería) | Sólo al elegirla |
+| **Notificaciones** | Avisarte de gastos nuevos, comentarios, pagos, restauraciones e invitaciones. **Se generan en tu teléfono**, no las manda un servidor | Si las aceptás |
 | **Internet / estado de red** | Dejar y buscar paquetes en el buzón | Al sincronizar |
 
 **La app NO pide micrófono, NO pide Bluetooth y NO pide ubicación.** La librería de conexión que
@@ -122,8 +140,10 @@ Desde **Yo → Borrar cuenta** se borra, de tu teléfono:
 - tu perfil, tus preferencias y tus claves;
 - el vínculo entre tus cuentas de Google y Apple, si lo habías hecho.
 
-Y del buzón se sacan **los paquetes que dejó este teléfono**, en el momento. Si no hay internet, se
-sacan la próxima vez que abras la app con conexión.
+Y del buzón se sacan **los paquetes que dejó este teléfono** y **tu cuenta del buzón** (mail,
+identificador, clave pública y contadores; `supabase/012_borrar_mi_cuenta.sql`), en el momento. Si
+no hay internet, se completa la próxima vez que abras la app con conexión. Si ya no tenés la app,
+se pide por mail desde la cuenta y se borra a mano en un máximo de 30 días.
 
 **Lo que ese botón no puede borrar, y hay que decirlo claro:**
 
@@ -143,8 +163,9 @@ cuenta fuera de los teléfonos de tus grupos, y no lo podemos leer.
 siguen en los teléfonos de tu grupo. No los podemos borrar y no los borramos — son la cuenta de
 otra persona.
 
-Como la cuenta no existe en ningún servidor nuestro, **no hay nada que podamos borrar por vos**:
-no tenemos tu mail ni forma de saber cuál sos. Si necesitás algo más, escribinos a gab.maglia@gmail.com.
+Si ya no tenés la app, escribinos a gab.maglia@gmail.com **desde el mail de tu cuenta** de Google o
+Apple: borramos tu cuenta del buzón (mail, identificador, clave pública y contadores) en un máximo
+de 30 días y te avisamos. Lo que está en tu teléfono o en los de tus grupos no lo podemos tocar.
 
 ---
 
