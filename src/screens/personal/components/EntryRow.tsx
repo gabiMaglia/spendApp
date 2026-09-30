@@ -8,6 +8,8 @@ import { useSkinTokens } from '@/src/skins/useSkin';
 import { BandRow } from '@/src/components/Band';
 import { formatMoney } from '@/src/constants/currencies';
 import type { PersonalEntry } from '@/src/types/models';
+import { isEditable } from '@/src/algorithms/entryOrigin';
+import { useUserStore } from '@/src/store/userStore';
 import i18n from '@/src/i18n';
 
 const ENTRY_KIND_META = {
@@ -15,6 +17,8 @@ const ENTRY_KIND_META = {
   income:          { icon: 'trending-up-outline'   as const, labelKey: 'personal.kind_income' },
   group_replicated:{ icon: 'people-outline'        as const, labelKey: 'personal.kind_group' },
   carryover:       { icon: 'refresh-outline'       as const, labelKey: 'personal.kind_carryover' },
+  payment_out:     { icon: 'arrow-up-circle-outline'   as const, labelKey: 'personal.kind_payment_out' },
+  payment_in:      { icon: 'arrow-down-circle-outline' as const, labelKey: 'personal.kind_payment_in' },
 };
 
 /**
@@ -29,8 +33,11 @@ export const EntryRow = React.memo(function EntryRow({
   const c = skin.colors;
   const meta = ENTRY_KIND_META[entry.kind];
   const isCarryover = entry.kind === 'carryover';
-  const isPositive  = entry.kind === 'income' || (isCarryover && entry.isPositiveCarryover === true);
-  const isReadOnly  = entry.kind === 'group_replicated' || isCarryover;
+  const isPositive  = entry.kind === 'income' || entry.kind === 'payment_in'
+    || (isCarryover && entry.isPositiveCarryover === true);
+  const isReadOnly  = !isEditable(entry);
+  // T-229: los pagos se nombran por la contraparte, que no se guarda como texto.
+  const nombre = useUserStore(s => (entry.counterpartId ? s.getUserName(entry.counterpartId) : ''));
   const dateLabel   = new Date(entry.date).toLocaleDateString(i18n.language, { day: 'numeric', month: 'short' });
 
   // T-137: el ÍCONO es acción/categoría, no un monto — va en azul de marca
@@ -48,7 +55,9 @@ export const EntryRow = React.memo(function EntryRow({
       </View>
       <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
         <Text style={[Typography.bodyL, { color: c.text }]} numberOfLines={1}>
-          {entry.description}
+          {entry.kind === 'payment_out' ? t('personal.payment_out_to', { name: nombre })
+            : entry.kind === 'payment_in' ? t('personal.payment_in_from', { name: nombre })
+            : entry.description}
         </Text>
         <Text style={[Typography.caption, { color: c.textTertiary }]} numberOfLines={1}>
           {t(meta.labelKey)}

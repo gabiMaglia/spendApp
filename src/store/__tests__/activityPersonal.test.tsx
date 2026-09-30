@@ -121,6 +121,11 @@ describe('los PersonalEntry (tab Personal) entran al feed de Actividad', () => {
     expect(evs.filter(e => e.kind === 'expense_added' || e.kind === 'personal_entry')).toHaveLength(1);
   });
 
+  it('un pago congelado (payment_out) no aparece como personal_entry: ya tiene su payment_made', () => {
+    usePersonalStore.setState({ entries: [entryPersonal({ id: 'pay_p1', kind: 'payment_out' })] });
+    expect(feed().filter(e => e.kind === 'personal_entry')).toHaveLength(0);
+  });
+
   it('un PersonalEntry "carryover" no aparece: es un total derivado, no un hecho puntual', () => {
     usePersonalStore.setState({ entries: [entryPersonal({ kind: 'carryover' })] });
     expect(feed()).toHaveLength(0);

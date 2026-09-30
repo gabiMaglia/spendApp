@@ -21,7 +21,7 @@ No hay servidor con lógica de negocio ni base de datos compartida en claro.
 | `ExpenseComment` | `expenseId`, `authorId`, `text` | entidad propia para que dos comentarios simultáneos sobrevivan al LWW |
 | `RecurringExpense` | igual que un gasto + `rule {frequency, startDate, endDate?}`, `memberIds`, `splitValues`, `lastMaterializedAt`, `isActive` | `groupId: ''` = personal |
 
-Locales por cuenta (no viajan; el backup los cubre): `PersonalEntry` (`kind` expense/income/group_replicated/carryover, `sourceGroupExpenseId`), `PersonalBudget`, archivados, ajustes, contactos, alias.
+Locales por cuenta (no viajan; el backup los cubre): `PersonalEntry` (`kind` expense/income/carryover guardados; group_replicated/payment_out/payment_in se derivan de gastos y pagos y sólo se guardan congelados al salir de un grupo, T-229), `PersonalBudget`, archivados, ajustes, contactos, alias.
 
 Derivados en runtime, nunca persistidos: `DeudaPar`, `Balance`/`BalanceByCurrency`, `Transaction` (sugerencia de `simplifyDebts`), `Notice`. El DER completo está en `engram/qa/auditoria-negocio-2026-09-29.md` §6.
 

@@ -23,7 +23,7 @@ export type EntryOrigin = 'manual' | 'derived';
  * dejaría al usuario sin poder tocar un movimiento suyo, sin ninguna pista de
  * por qué.
  */
-const DERIVADAS: readonly PersonalEntryKind[] = ['group_replicated', 'carryover'];
+const DERIVADAS: readonly PersonalEntryKind[] = ['group_replicated', 'carryover', 'payment_out', 'payment_in'];
 
 export function originOf(entry: Pick<PersonalEntry, 'kind'>): EntryOrigin {
   return DERIVADAS.includes(entry.kind) ? 'derived' : 'manual';
@@ -40,7 +40,7 @@ export function isEditable(entry: Pick<PersonalEntry, 'kind'>): boolean {
  */
 export function reasonKey(entry: Pick<PersonalEntry, 'kind'>): string | null {
   if (isEditable(entry)) return null;
-  return entry.kind === 'group_replicated'
-    ? 'personal.locked_from_group'
-    : 'personal.locked_derived';
+  if (entry.kind === 'group_replicated') return 'personal.locked_from_group';
+  if (entry.kind === 'payment_out' || entry.kind === 'payment_in') return 'personal.locked_from_payment';
+  return 'personal.locked_derived';
 }

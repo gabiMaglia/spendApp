@@ -26,6 +26,8 @@ export function bucketDe(e: PersonalEntry): BucketPersonal {
     case 'expense':           return 'expense';
     case 'group_replicated':  return 'group';
     case 'carryover':         return e.isPositiveCarryover ? 'carryPos' : 'carryNeg';
+    case 'payment_out':       return 'expense';
+    case 'payment_in':        return 'income';
   }
 }
 

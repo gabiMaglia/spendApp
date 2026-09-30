@@ -31,6 +31,12 @@ describe.each(['default', 'aero'] as const)('Personal con skin %s', skinId => {
     expect(screen.getByText('Super')).toBeTruthy();
   });
 
+  it('un pago hecho se lee como «Pago a …» con el nombre de la contraparte', () => {
+    const pago = { ...ENTRY, id: 'pay_p1', kind: 'payment_out', description: '', counterpartId: 'ana' } as unknown as PersonalEntry;
+    render(<MovimientosList entries={[pago]} monthLabelText="septiembre" onRemove={() => {}} />);
+    expect(screen.getByText(/personal\.payment_out_to/)).toBeTruthy();
+  });
+
   it('la lista vacía muestra el estado vacío', () => {
     render(<MovimientosList entries={[]} monthLabelText="septiembre" onRemove={() => {}} />);
     expect(screen.getByText(/personal\.no_movements/)).toBeTruthy();

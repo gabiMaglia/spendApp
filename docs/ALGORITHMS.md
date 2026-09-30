@@ -97,7 +97,7 @@ Plantillas con `frequency` semanal/quincenal/mensual/anual ancladas a `startDate
 
 Movimientos `expense` / `income` (manuales, editables), `group_replicated` (derivado de un gasto de grupo que pagué yo: **lo que salió de mi bolsillo**, ADR-006 d3) y `carryover` (sobrante o excedido del mes anterior, generado al cruzar de mes). Gastado = `expense + group + carryover negativo`; disponible = `presupuesto + income + carryover positivo (+ lo que me deben si el usuario lo prende)`. Los derivados no se editan.
 
-Regla de la réplica (ADR-006 d3, tickets de la auditoría H-2..H-5): la réplica sigue al gasto en crear, editar, borrar y restaurar, y vale **lo que puse yo** (`payers[me].amount`); un pago que hago entra como gastado y uno que recibo como ingreso.
+Desde T-229 los movimientos de grupo **no se guardan**: `movimientosDerivados` los calcula de gastos y pagos —lo que puse en cada gasto (`group_replicated`, id `rep_<gasto>`), lo que pagué al saldar (`payment_out`, gastado) y lo que me pagaron (`payment_in`, ingreso), ids `pay_<pago>`— sin mirar el estado del grupo. `useMovimientosPersonales` los une con los guardados (dedupe por id, gana el derivado). Salir de un grupo congela sus derivados en `personalStore` antes de purgar (`purgarGrupoLocalmente`).
 
 ## 11 · Conversión para mostrar — `services/fx.ts`
 
