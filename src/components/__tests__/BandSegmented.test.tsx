@@ -5,6 +5,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { SectionLabel, Segmented, SplitStat, StatGrid } from '../Band';
 import { crearRegistroDeMontos } from '@/src/utils/montoRodanteRegistry';
 import { formatMoney } from '@/src/constants/currencies';
+import { useSettingsStore } from '@/src/store/settingsStore';
+
+// Este archivo prueba el skin Clásico. Desde 2026-09-29 el skin inicial es Aero,
+// así que se fija Clásico explícitamente.
+beforeEach(() => { useSettingsStore.setState({ skin: 'default' }); });
 
 /**
  * `Segmented` tiene dos variantes porque tiene dos trabajos: `control` elige

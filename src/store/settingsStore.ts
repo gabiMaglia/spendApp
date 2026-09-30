@@ -3,7 +3,7 @@ import { createStorage } from '@/src/utils/createStorage';
 import { readScoped, readScopedBool, writeScoped, writeScopedBool } from './userScope';
 import { SUPPORTED_CURRENCIES, type CurrencyCode } from '@/src/constants/currencies';
 import { esDispositivoDeGamaBaja } from '@/src/utils/deviceTier';
-import { FALLBACK_SKIN, esSkinId, type SkinId } from '@/src/skins/registry';
+import { SKIN_INICIAL, esSkinId, type SkinId } from '@/src/skins/registry';
 
 const storage = createStorage('settings');
 
@@ -28,7 +28,7 @@ export const DEFAULT_DISPLAY_CURRENCY: CurrencyCode = 'ARS';
 /**
  * Exportada (no sólo usada acá): `backup.ts` la reusa para validar
  * `settings.displayCurrency` al restaurar (T-213 · QA defecto 1) — mismo
- * patrón que `skin` con `esSkinId`/`FALLBACK_SKIN` de `skins/registry.ts`,
+ * patrón que `skin` con `esSkinId`/`SKIN_INICIAL` de `skins/registry.ts`,
  * fuente única en vez de reimplementar el chequeo en el backup.
  */
 export function esMonedaSoportada(v: string | undefined): v is CurrencyCode {
@@ -50,7 +50,7 @@ interface SettingsState {
    */
   reduceAnimations: boolean;
 
-  /** Skin visual elegido en Yo (PO 2026-09-25). Default = `FALLBACK_SKIN`. */
+  /** Skin visual elegido en Yo (PO 2026-09-25). Default = `SKIN_INICIAL` (Aero, PO 2026-09-29). */
   skin: SkinId;
   setSkin: (id: SkinId) => void;
 
@@ -79,7 +79,7 @@ export function createSettingsStore() {
     notifSettlements: true,
     displayCurrency: DEFAULT_DISPLAY_CURRENCY,
     reduceAnimations: esDispositivoDeGamaBaja(),
-    skin: FALLBACK_SKIN,
+    skin: SKIN_INICIAL,
     actividadVistaHasta: 0,
 
     setActividadVistaHasta: (ms) => {
@@ -136,10 +136,10 @@ export function createSettingsStore() {
           return esMonedaSoportada(guardado) ? guardado : DEFAULT_DISPLAY_CURRENCY;
         })(),
         // Un skin guardado que ya no exista (retirado, data vieja) cae al
-        // respaldo en vez de dejar la app pidiendo un skin inexistente.
+        // skin inicial en vez de dejar la app pidiendo un skin inexistente.
         skin: (() => {
           const guardado = readScoped(storage, KEYS.SKIN);
-          return esSkinId(guardado) ? guardado : FALLBACK_SKIN;
+          return esSkinId(guardado) ? guardado : SKIN_INICIAL;
         })(),
         actividadVistaHasta: Number(readScoped(storage, KEYS.ACTIVITY_SEEN_UNTIL)) || 0,
       });

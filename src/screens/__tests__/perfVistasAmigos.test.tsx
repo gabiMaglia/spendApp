@@ -3,6 +3,11 @@ import { render } from '@testing-library/react-native';
 
 import FriendsScreen from '@/app/(tabs)/friends';
 import { sembrarDatasetRealista, contarNodosHost } from '@/src/test-utils/perfVistasFixtures';
+import { useSettingsStore } from '@/src/store/settingsStore';
+
+// Este archivo prueba el skin Clásico. Desde 2026-09-29 el skin inicial es Aero,
+// así que se fija Clásico explícitamente.
+beforeEach(() => { useSettingsStore.setState({ skin: 'default' }); });
 
 /** T-216 — pregunta 2: nodos host de la pestaña Amigos (20 contactos). */
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));

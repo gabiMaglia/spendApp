@@ -8,6 +8,11 @@ import { usePaymentStore } from '@/src/store/paymentStore';
 import { usePersonalStore } from '@/src/store/personalStore';
 import { useUserStore } from '@/src/store/userStore';
 import type { User, Group } from '@/src/types/models';
+import { useSettingsStore } from '@/src/store/settingsStore';
+
+// Este archivo prueba el skin Clásico. Desde 2026-09-29 el skin inicial es Aero,
+// así que se fija Clásico explícitamente.
+beforeEach(() => { useSettingsStore.setState({ skin: 'default' }); });
 
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
 jest.mock('@/src/sync/motor/relayEngine', () => ({

@@ -3,6 +3,11 @@ import { render } from '@testing-library/react-native';
 
 import PersonalScreen from '@/app/(tabs)/index';
 import { sembrarDatasetRealista, contarNodosHost } from '@/src/test-utils/perfVistasFixtures';
+import { useSettingsStore } from '@/src/store/settingsStore';
+
+// Este archivo prueba el skin Clásico. Desde 2026-09-29 el skin inicial es Aero,
+// así que se fija Clásico explícitamente.
+beforeEach(() => { useSettingsStore.setState({ skin: 'default' }); });
 
 /**
  * T-216 — pregunta 2: nodos host que pinta la pestaña Inicio con datos
