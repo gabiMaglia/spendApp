@@ -77,7 +77,7 @@
   },
   "auth": {
     "welcome_title": "Divida gastos\ncom amigos.",
-    "welcome_subtitle": "Sem servidor. Sem nuvem. Sincronização P2P só entre os membros do grupo.",
+    "welcome_subtitle": "Contas claras entre amigos. Ninguém mais as lê, nem mesmo nós.",
     "continue_google": "Continuar com Google",
     "terms_prefix": "Ao continuar, você aceita os",
     "terms_link": "Termos",
@@ -306,7 +306,6 @@
     "daily_reset_note": "A 5ª despesa do dia exige um anúncio ou o Pro. Zera todo dia às 00:00.",
     "try_pro": "Testar o Pro · 7 dias grátis",
     "section_sync": "Sincronização e dados",
-    "sync_p2p": "Sincronização P2P",
     "offline_mode": "Modo somente offline",
     "export_data": "Exportar dados",
     "restore_backup": "Restaurar backup",
