@@ -1,211 +1,63 @@
-# Features: HushSplit
+# Features: HushSplit — lo que existe hoy
 
-## Modelo de monetización
+**Reescrito 2026-09-29** (auditoría de negocio, `engram/qa/auditoria-negocio-2026-09-29.md`). Este documento describe **lo que la app hace**, no un roadmap. Lo que no existe está en la última sección, marcado como tal, para que ningún agente lo implemente creyendo que estaba pedido.
 
-**La monetización principal es por publicidad, no por suscripción.**
+## Modelo de negocio
 
-- **Free**: Primeros 4 gastos del día sin restricciones. A partir del 5to, el usuario debe ver un anuncio (rewarded ad) para desbloquear la creación. Sin límite de grupos.
-- **Pro**: Sin anuncios. Sin límite de gastos diarios. Acceso a features premium.
+**Lanzamiento gratis, sin anuncios y sin plan Pro** (decisión del PO 2026-09-03). No hay AdMob, ni RevenueCat, ni compras in-app en el proyecto.
 
-El contador de gastos diarios es de **creaciones** (no de gastos activos). Borrar un gasto no devuelve slots.
+- La regla «4 gastos de grupo por día gratis, del 5.º en adelante un anuncio» está escrita (`src/store/tierStore.ts`) pero **no bloquea**: `ADS_DISPONIBLES = false`. El contador diario (hora local) sigue contando creaciones de gastos de grupo, y un test se cae si alguien enciende la bandera sin conectar un anuncio.
+- `PRO_DISPONIBLE = false`: la UI no ofrece Pro. Todas las funciones de abajo están disponibles para todos.
 
----
+## Lo que hay
 
-## Matrix Free vs Pro
+### Grupos y gastos
+- Grupos con **una moneda** (elegida al crear; 9 monedas soportadas, ver `CLAUDE.md`), modo de división por defecto opcional, sin límite de grupos.
+- Gastos con pagador único o **varios pagadores** (desglose que suma exacto), división en partes iguales o por porcentaje, categoría, fecha, nota y foto de ticket (local, sin OCR).
+- **Borrado libre**: cualquier miembro edita, borra y restaura cualquier gasto al instante; Actividad muestra quién borró o restauró y permite deshacer en un toque (T-186; no hay modo «con acuerdo», ver `docs/CONSENSO-PENDIENTE.md`).
+- Comentarios por gasto (entidad propia, sobreviven al merge).
+- **Gastos recurrentes** (semanal, quincenal, mensual, anual), gratis, materializados al abrir la app, para grupo o personales.
+- Límite de 450 gastos por grupo (aviso a los 350) con **traspaso** a un grupo nuevo que arrastra el saldo.
+- Archivar grupos (reversible, salvo los archivados por traspaso).
 
-| Feature | Free | Pro | Implementación |
-|---|---|---|---|
-| **Gastos diarios** | 4 gratis + rewarded ads | Ilimitados | Contador en MMKV por fecha UTC; rewarded ad via AdMob |
-| **Cálculo de balances** | ✅ | ✅ | Sumatoria en `calculateBalances()` |
-| **Simplificación de deudas** | ✅ | ✅ | Greedy en `simplifyDebts()` |
-| **Grupos** | Ilimitados | Ilimitados | Sin restricción |
-| **Liquidación de deudas** | ✅ | ✅ | `Payment` entity, sin consenso |
-| **Multi-moneda (balance separado)** | ✅ | ✅ | Balances por currency code |
-| **Conversión de divisas al liquidar** | Manual (el usuario ingresa el tipo) | Automático (API de exchange rates) | Free: campo editable; Pro: fetch en tiempo real |
-| **Escaneo de recibos (OCR)** | ❌ | ✅ | API externa de OCR (imagen → montos) |
-| **Gráficos y estadísticas** | ❌ | ✅ | Agregaciones locales por categoría/fecha |
-| **Búsqueda avanzada** | Solo texto básico | Filtros por fecha, monto, categoría | WatermelonDB query builder |
-| **Respaldo de recibos en nube** | ❌ | ❌ | Imágenes solo locales en ambos tiers. La diferenciación Pro es el OCR. |
-| **Backup a iCloud / Google Drive** | ✅ | ✅ | Feature de seguridad básico |
-| **Publicidad (banners + rewarded)** | ✅ | ❌ | AdMob SDK |
-| **Sync P2P** | ✅ | ✅ | Sin restricciones |
-| **Exportar CSV/PDF** | ❌ | ✅ | Generación local |
+### Deudas y saldos
+- Deuda **por par, por moneda y por dirección**, sin compensar (ADR-006 + T-225): Te deben y Debés son brutos en Personal, Grupos, Amigos y en el detalle de grupo; la tarjeta de cada amigo muestra su neto; el balance neto del grupo va debajo del timeline.
+- **Saldar** en el grupo (a una persona, parcial permitido, o «Todo» repartido entre acreedores) y desde Amigos (la totalidad con esa persona, un pago por grupo compartido). Cualquiera puede registrar un pago, cuenta al instante, sin acuse.
+- Totales convertidos a la moneda que elige el usuario, sólo para mostrar; lo que no se pudo convertir se avisa, nunca se suma como 0.
+- Salir de un grupo o expulsar (sólo el creador) exige no tener deuda viva en ninguna dirección (decisión 2026-09-29; `docs/ALGORITHMS.md` §7).
 
-El plan Pro se valida vía RevenueCat SDK (verificación de compra en App Store / Play Store). Requiere internet para la verificación inicial; el estado se cachea localmente.
+### Personal y presupuesto
+- Tab Personal: gastos e ingresos propios del mes, presupuesto mensual por moneda, «incluir lo que me deben», carryover automático al cambiar de mes, réplica de lo que pagué en grupos (ADR-006 d3), «disponible tras saldar».
 
----
+### Contactos e invitaciones
+- Contactos por **QR presencial** (`app/contact/add.tsx`) con canal de contacto cifrado; crear un grupo con un contacto le entrega la clave por ese canal (ADR-013).
+- Invitación a un grupo por **deep link** que expira a las 48 h (`src/sync/invitaciones/groupInvite.ts`).
+- Amigos muestra sólo contactos con historial económico, con neto por persona y botón Saldar cuando le debo algo.
 
-## Fases de construcción
+### Sync y datos
+- **Sync por buzón cifrado en Supabase** (ADR-003/007): el servidor no puede leer nada; cada publicación aporta las rebanadas que cambiaron y el buzón conserva el estado completo del grupo (T-191). Automática al abrir, al recuperar red y por Realtime con poll de respaldo (regla #10 de `CLAUDE.md`).
+- Firma del núcleo de cada registro por su autor, disputa de autoría visible, merge por niveles con tope de reloj (ADR-004/005/008).
+- **Notificaciones locales** post-sync (`expo-notifications`): gasto nuevo, restauración, pago registrado que me involucra, invitación, traspaso, conflicto de clave. Sin push ni Firebase.
+- **Backup** `.hushsplit` v3 (JSON en claro, con claves de grupo, restauración por reemplazo) exportable/importable desde Cuenta → Respaldo; **exportación CSV** de gastos y de movimientos personales desde el mismo lugar.
+- Almacenamiento local: MMKV cifrado por bucket y scopeado por cuenta (`src/utils/secureStorage.ts`).
 
-### Fase 1 — Fundación (MVP offline, un usuario)
-Objetivo: la app funciona completamente offline para un solo usuario.
+### Cuenta
+- Login con **Google**, **Apple** o **invitado** (sin proveedor; sync igual, fuera del directorio de claves).
+- Varias cuentas en el mismo teléfono, enlazables (ADR-008: identidad con alias).
+- **Borrar la cuenta** (T-074/T-187): sale de los grupos sin deuda, queda como «Cuenta borrada» donde la tiene (los importes no se tocan), purga el buzón propio, borra lo local aunque no haya red y reanuda al arrancar. Exigencia de las dos tiendas.
+- Dos skins (Clásico y Aero), tres idiomas (es/en/pt), 9 monedas.
 
-- [ ] Configurar Jest + `@testing-library/react-native` + `jest-expo`
-- [ ] Configurar i18n (`expo-localization` + `i18next`) con locales es/en/pt
-- [ ] `src/constants/currencies.ts` con las 9 monedas + formateador con `Intl.NumberFormat`
-- [ ] Autenticación con Google (Expo Auth Session)
-- [ ] Autenticación con Apple (Sign in with Apple)
-- [ ] Schema WatermelonDB (User, Group, Expense, Payment, Split)
-- [ ] CRUD de grupos (sin límite)
-- [ ] CRUD de gastos con splits manuales (4 modos: igual, exacto, porcentaje, partes)
-- [ ] Liquidación de deudas (`Payment` entity, sin consenso)
-- [ ] Cálculo de balances por grupo (multi-moneda: balances separados por currency)
-- [ ] Simplificación de deudas (algoritmo Greedy)
-- [ ] Balance global cross-group en dashboard
-- [ ] UI: Dashboard, lista de grupos, detalle de grupo, crear gasto, liquidar deuda
-- [ ] Monetización básica: AdMob rewarded ad a partir del 5to gasto del día
-- [ ] Backup a iCloud / Google Drive (exportar/importar `.hushsplit`)
+## Lo que NO existe (y no hay que dar por pedido)
 
-### Fase 2 — Sincronización P2P
-Objetivo: dos dispositivos se sincronizan correctamente.
-
-- [ ] `SyncEngine` con `mergeData` (LWW) y tombstones
-- [ ] `buildDelta` para enviar solo cambios por grupo
-- [ ] Token de invitación (base64url con groupId + clave AES)
-- [ ] `useP2PConnection` vía WebRTC (signaling: Google STUN + Open Relay TURN)
-- [ ] Handshake con `SyncHandshake` payload
-- [ ] Sync automática al abrir app, al recuperar internet, cada 15min en primer plano
-- [ ] UI: pantalla "Agregar miembro" con QR y deep link
-- [ ] UI: indicador de estado de sync (sincronizado / pendiente / error)
-
-### Fase 3 — Monetización Pro
-Objetivo: conversión a plan pago y features premium.
-
-- [ ] Integración RevenueCat (compra de Pro en App Store / Play Store)
-- [ ] OCR de recibos (API externa — ver punto abierto en FEATURES.md)
-- [ ] Conversión de divisas automática al liquidar (API exchange rates)
-- [ ] Gráficos y estadísticas (Victory Native o Skia)
-- [ ] Búsqueda avanzada con filtros
-- [ ] Respaldo de imágenes de recibos en nube
-- [ ] Exportación CSV/PDF local
-- [ ] Eliminar ads para usuarios Pro
-
-### Fase 4 — Conectividad extendida
-Objetivo: sync sin necesidad de internet.
-
-- [ ] `useP2PConnection` vía BLE (`react-native-ble-plx`)
-- [ ] Sync por Wi-Fi local (mDNS / Bonjour)
-- [ ] Username como atajo para invitar a peers conocidos
-
----
-
-## Reglas de UX para borrado y liquidación (T-186)
-
-**DECISIÓN (2026-09-27):** el modo «con acuerdo» —ronda de 72hs, override del creador, acuse de recibo al liquidar— se sacó de cuajo. Ver `docs/CONSENSO-PENDIENTE.md` para el detalle completo y cómo volver a traerlo si hiciera falta.
-
-### Borrar un gasto
-
-Cualquier miembro del grupo toca "Eliminar gasto" y se borra al instante — un solo diálogo de confirmación, sin pedir ni objetar. Queda en el historial de Actividad, marcado como borrado, con quien lo borró.
-
-### Restaurar
-
-Cualquier miembro del grupo restaura un gasto borrado desde Actividad, en un toque. Queda registrado quién lo restauró.
-
-### Liquidar una deuda
-
-Cualquier miembro puede registrar un pago sin aprobación de los demás, y cuenta para el balance al instante — no hay acuse de recibo que esperar. Ver `docs/ARCHITECTURE.md`.
-
----
-
-## Monetización por publicidad (Free tier)
-
-**Lógica**: Los primeros 4 gastos del día son gratuitos. A partir del 5to, el usuario debe ver un **rewarded ad** (anuncio recompensado de AdMob) para desbloquear cada gasto adicional. El contador nunca se revierte — borrar gastos no devuelve slots.
-
-```typescript
-// src/services/tierLimits.ts
-const FREE_DAILY_FREE_EXPENSES = 4; // gratis sin ad
-// A partir del 5to: rewarded ad por cada gasto adicional
-
-export function getDailyExpenseCount(userId: string): number {
-  const today = new Date().toISOString().split('T')[0]; // 'YYYY-MM-DD' UTC
-  const key = `expense_count_${userId}_${today}`;
-  return parseInt(MMKV.getString(key) ?? '0', 10);
-}
-
-export function requiresRewardedAd(userId: string, isPro: boolean): boolean {
-  if (isPro) return false;
-  return getDailyExpenseCount(userId) >= FREE_DAILY_FREE_EXPENSES;
-}
-
-export function incrementExpenseCount(userId: string): void {
-  const today = new Date().toISOString().split('T')[0];
-  const key = `expense_count_${userId}_${today}`;
-  const count = getDailyExpenseCount(userId);
-  MMKV.set(key, String(count + 1));
-}
-```
-
-### Flujo UX del rewarded ad
-
-1. Usuario toca "Agregar gasto" (es su 5to del día).
-2. La app muestra: *"Viste tus 4 gastos gratis de hoy. Ver un anuncio para continuar."*
-3. Botones: **"Ver anuncio"** | **"Obtener Pro"**
-4. Si elige "Ver anuncio": AdMob muestra el rewarded ad. Al completarlo, se desbloquea la creación.
-5. Si el ad falla (sin internet, etc.): *"No hay anuncios disponibles ahora. Intentá más tarde."*
-
-## Notificaciones
-
-**DECISIÓN**: Notificaciones locales únicamente, disparadas después de cada sync P2P. Sin push real ni Firebase. El usuario recibe las notificaciones la próxima vez que abre la app y el sync corre.
-
-### Eventos que generan notificación local post-sync
-
-| Evento | Texto de la notificación |
+| Idea | Estado |
 |---|---|
-| Gasto nuevo en un grupo mío | `"Ana agregó $1200 en 'Supermercado' — tu parte: $600"` |
-| Alguien restauró un gasto que yo tenía borrado | `"Carlos restauró 'Cena' ($800)."` |
-| Pago / liquidación registrada | `"Bob te marcó como pagado $500."` |
-| Invitación a un grupo nuevo | `"Laura te invitó al grupo 'Vacaciones 2025'."` |
-
-### Implementación
-
-```typescript
-// src/sync/SyncEngine.ts — post-merge hook
-function notifyLocalChanges(newRecords: SyncMeta[], currentUserId: string) {
-  for (const record of newRecords) {
-    if (record.isDeleted || record.createdById === currentUserId) continue;
-
-    if (record.type === 'expense') {
-      scheduleLocalNotification({
-        title: record.groupName,
-        body: `${record.createdByName} agregó $${record.amount} en "${record.description}"`,
-      });
-    }
-    // ... otros tipos
-  }
-}
-```
-
-Se usa `expo-notifications` para programar la notificación local. No requiere FCM, Firebase, ni permisos de red adicionales. En iOS requiere el permiso de notificaciones del usuario.
-
----
-
-## OCR de recibos (Pro) {#ocr}
-
-**DECISIÓN**: On-device con Google ML Kit. Sin API externa, sin internet, sin credenciales.
-
-- Librería: `@react-native-ml-kit/text-recognition`
-- Corre 100% en el dispositivo (modelo descargado con la app)
-- El usuario saca una foto del ticket → ML Kit extrae el texto → un parser local identifica los campos
-
-### Qué se extrae
-
-| Campo | Estrategia de extracción |
-|---|---|
-| **Monto total** | Regex buscando el número más grande precedido de "total", "importe", "$", etc. |
-| **Ítems individuales** | Líneas con patrón `[descripción] [precio]` — permite dividir item por item en el gasto |
-| **Fecha** | Regex de formatos de fecha comunes (DD/MM/YYYY, YYYY-MM-DD, etc.) |
-| **Nombre del comercio** | Primera o segunda línea del ticket (suele ser el header del local) |
-
-### Flujo UX
-
-1. Usuario toca "Escanear ticket" (solo visible en Pro).
-2. Expo Camera abre en modo captura.
-3. La imagen se procesa con ML Kit → campos detectados se pre-completan en el formulario del gasto.
-4. El usuario revisa y corrige antes de confirmar.
-5. La imagen original se guarda en `Expo FileSystem` (local).
-
-### Almacenamiento de imágenes
-
-**DECISIÓN**: Solo local. Las imágenes de recibos viven en `Expo FileSystem` del dispositivo. No hay respaldo en nube. Si el usuario desinstala, las imágenes se pierden (los datos del gasto en sí se recuperan vía backup o P2P sync; solo las fotos no).
-
-La diferenciación Pro en esta feature viene por el OCR (extracción automática de datos), no por el storage de la imagen.
+| Anuncios (AdMob) y plan Pro (RevenueCat) | Apagados por decisión; sólo queda el contador diario |
+| OCR de tickets (ML Kit) | No instalado. La foto del ticket se guarda local, nada más |
+| Conversión de moneda **al liquidar** (`Payment.targetCurrency`) | Campos en el modelo, sin UI. Un pago va siempre en la moneda del grupo |
+| Gráficos y estadísticas, búsqueda avanzada | No |
+| Backup a iCloud / Google Drive | No: el archivo se comparte con la hoja del sistema |
+| WatermelonDB | Evaluado y sacado (2026-09-03) |
+| WebRTC / BLE / Wi-Fi local | WebRTC sacado (T-083); BLE y mDNS nunca implementados |
+| Invitación por username | No hay directorio: sólo QR y deep link |
+| Modo «con acuerdo» (rondas de borrado, acuse de pago) | Sacado en T-186; mapa para volver en `docs/CONSENSO-PENDIENTE.md` |
+| Absorción de saldo al salir/expulsar | Eliminada (auditoría 2026-09-29, H-1): nadie sale con deuda viva |

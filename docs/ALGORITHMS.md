@@ -1,290 +1,104 @@
-# Algoritmos: Balance y Simplificación de Deudas
+# Algoritmos: reparto, deuda, saldo y salida
 
-## 0. Multi-moneda: balances separados por divisa
+**Describe lo que corre hoy** (reescrito 2026-09-29 tras la auditoría de negocio, `engram/qa/auditoria-negocio-2026-09-29.md`). Cada sección nombra el archivo real; si el código y este documento difieren, gana el código y hay que corregir acá.
 
-**DECISIÓN**: Los balances se calculan y muestran separados por currency code. No se mezclan divisas en la suma. Al liquidar una deuda, el pagador puede elegir en qué moneda paga (Free: ingresa el tipo de cambio manualmente; Pro: se obtiene automáticamente).
+Reglas transversales:
 
-```typescript
-// El balance por usuario se agrupa por currency
-interface BalanceByCurrency {
-  userId: string;
-  balances: { currency: string; amount: number }[];
-}
-
-export function calculateBalancesByCurrency(
-  expenses: (Expense | Payment)[],
-  memberIds: string[]
-): BalanceByCurrency[] {
-  // mapa: userId → currency → net amount
-  const totals = new Map<string, Map<string, number>>();
-  for (const id of memberIds) totals.set(id, new Map());
-
-  for (const expense of expenses) {
-    if (expense.isDeleted) continue;
-
-    const currency = expense.currency;
-
-    // Suma al pagador
-    const payerMap = totals.get(expense.paidById)!;
-    payerMap.set(currency, (payerMap.get(currency) ?? 0) + expense.amount);
-
-    // Resta a cada split
-    for (const split of (expense as Expense).splits ?? []) {
-      const splitMap = totals.get(split.userId)!;
-      splitMap.set(currency, (splitMap.get(currency) ?? 0) - split.amount);
-    }
-  }
-
-  return Array.from(totals.entries()).map(([userId, currencyMap]) => ({
-    userId,
-    balances: Array.from(currencyMap.entries())
-      .map(([currency, amount]) => ({
-        currency,
-        amount: Math.round(amount * 100) / 100,
-      }))
-      .filter(b => Math.abs(b.amount) >= 0.01), // ignorar centavos fantasma
-  }));
-}
-```
+- **Todos los montos son enteros en la menor unidad de su moneda** (ADR-002): 1.234,56 ARS es `123456`; 1.500 CLP es `1500`. Nada de floats, nada de `Math.round(x*100)/100`, nada de epsilon. «Saldado» es `=== 0`.
+- **Las monedas nunca se mezclan.** Cada grupo tiene UNA moneda (se elige al crearlo, `app/groups/new.tsx`) y todos sus gastos y pagos van en ella. Los totales convertidos que muestran Personal, Grupos y Amigos son valores de pantalla (`src/services/fx.ts`, `fxTotals.ts`) y nunca entran a un registro.
+- **Los ids de persona entran por `idCanonico()`** (T-048): quien enlazó dos cuentas tiene registros con las dos identidades y el cálculo las colapsa al entrar, no al comparar.
+- **Determinismo entre teléfonos:** todo resto de una división se reparte con un criterio fijo (userId ascendente, o el orden de la matriz), para que dos dispositivos que calculan por separado lleguen al mismo número.
 
 ---
 
-## 1. Cálculo de balances netos
+## 1 · Dividir un gasto — `src/algorithms/buildSplits.ts`
 
-### Concepto
+`buildSplits(total, memberIds, mode, values?)` devuelve `Split[]` cuya suma es EXACTAMENTE `total`.
 
-Dado un grupo con N gastos y M miembros, el balance de cada persona es:
+| Modo | `values` | Cómo reparte el resto |
+|---|---|---|
+| `equal` | — | `floor(total/n)` a todos; las `total − base·n` unidades sobrantes van de a 1 a los primeros por userId ascendente |
+| `percentage` | un % por miembro (suman 100) | `round(total·pct/100)`; la diferencia contra el total se corrige de a 1 unidad por userId ascendente |
+| `shares` | partes enteras ≥ 0 por miembro | `floor(total·sh/Σsh)`; resto de a 1 por userId ascendente, saltando a quien tiene 0 partes |
+| `custom` | un monto por miembro **menos el último** | el último recibe `total − Σ otros` |
 
-```
-balance(usuario) = Σ(gastos que pagó) − Σ(su parte en cada gasto)
-```
+La pantalla Nuevo gasto (`src/screens/expense/repartoDeGasto.ts`) expone sólo `equal` y `percentage` (con «mismo %» y «% a medida»; el último miembro recibe `100 − Σ`). `shares` y `custom` existen en el algoritmo y los usan las plantillas recurrentes y el traspaso.
 
-- Balance positivo → le deben dinero (acreedor / Receiver).
-- Balance negativo → debe dinero (deudor / Giver).
-- Balance en 0 → está al día.
+## 2 · Varios pagadores — `src/algorithms/payers.ts`
 
-### Implementación
+Un gasto lleva `paidById` (pagador principal, siempre) y opcionalmente `payers: [{userId, amount}]` cuya suma es exactamente `amount`. **Nadie lee esos campos directo:** `expensePayers(expense)` normaliza las dos formas (sin `payers` ⇒ un pagador que puso el total). `primaryPayerId` es el que más puso, con desempate por userId menor. `normalizePayers` descarta los que pusieron 0 y devuelve `payers: undefined` cuando queda uno solo (la clave va SIEMPRE, porque al editar se aplica con spread).
 
-```typescript
-// src/algorithms/calculateBalances.ts
+## 3 · Deuda por par, sin compensar — `src/algorithms/deudasDelGrupo.ts`
 
-interface Balance {
-  userId: string;
-  amount: number; // positivo = acreedor, negativo = deudor
-}
-
-export function calculateBalances(
-  expenses: Expense[],
-  memberIds: string[]
-): Balance[] {
-  const totals = new Map<string, number>(memberIds.map(id => [id, 0]));
-
-  for (const expense of expenses) {
-    if (expense.isDeleted) continue;
-
-    // Quien pagó suma el total al balance
-    const current = totals.get(expense.paidById) ?? 0;
-    totals.set(expense.paidById, current + expense.amount);
-
-    // Cada split resta su parte
-    for (const split of expense.splits) {
-      const splitCurrent = totals.get(split.userId) ?? 0;
-      totals.set(split.userId, splitCurrent - split.amount);
-    }
-  }
-
-  return Array.from(totals.entries()).map(([userId, amount]) => ({
-    userId,
-    amount: Math.round(amount * 100) / 100, // evitar errores de punto flotante
-  }));
-}
-```
-
----
-
-## 2. Simplificación de deudas (Algoritmo Greedy)
-
-### El problema
-
-Sin simplificación, 8 personas en un viaje pueden generar 15+ transferencias cruzadas. El objetivo es reducirlas al mínimo: idealmente N−1 transferencias para N personas.
-
-### Por qué es NP-duro en el caso general
-
-Encontrar el mínimo absoluto de transacciones respetando restricciones adicionales (ej: solo transferir entre personas que se conocen) es NP-duro. Splitwise usa una variante Greedy que no garantiza el óptimo global pero es práctica y rápida para grupos pequeños/medianos.
-
-### El algoritmo
+Es la **definición de deuda** del producto (ADR-006, enmienda T-225): dentro de cada grupo, por moneda, **lo que A le debe a B y lo que B le debe a A son dos números distintos** y ninguno achica al otro.
 
 ```
-1. Calcular balance neto de cada persona.
-2. Separar en dos listas:
-   - Givers (balance < 0): deben dinero, ordenados de mayor deuda a menor.
-   - Receivers (balance > 0): les deben, ordenados de mayor crédito a menor.
-3. Iterar:
-   a. Tomar el mayor Giver (debe más) y el mayor Receiver (le deben más).
-   b. La transferencia es min(|deuda de Giver|, crédito de Receiver).
-   c. Registrar la transacción.
-   d. Ajustar los balances de ambos.
-   e. Eliminar de la lista al que quede en 0.
-   f. Repetir hasta que ambas listas estén vacías.
+deudasDelGrupo(expenses, payments, memberIds) → DeudaPar[]  // {deudor, acreedor, currency, monto > 0}
 ```
 
-### Implementación
+1. Por cada gasto vivo: cada participante del `split` le debe su parte a quien pagó. Con varios pagadores, la parte de cada participante se reparte entre los pagadores **en proporción a lo que puso cada uno**, en enteros y con los dos márgenes exactos (`repartirEntrePagadores`: filas = partes, columnas = lo pagado; primero el piso `floor(parte·pago/total)`, después los centavos sobrantes en orden de matriz). Un participante que también pagó no se debe a sí mismo.
+2. Por cada pago vivo A→B: **baja sólo lo que A le debe a B**. Si el pago excede esa deuda, el excedente queda como deuda de B con A (como en Splitwise: pagar de más invierte la deuda).
+3. Una deuda con alguien que **no está en el roster** no se cuenta. ⚠️ Es el hallazgo H-1 de la auditoría: si alguien saliera con deuda viva, las deudas que los demás tenían «a través» de esa persona desaparecerían del par mientras el neto (§4) las conserva. Por eso nadie sale con deuda viva (§7).
 
-```typescript
-// src/algorithms/simplifyDebts.ts
+Helpers: `deudaEntre(deudas, deudor, acreedor, currency)`, `totalesDeUsuario(deudas, userId)` → `[{currency, owedToYou, youOwe}]`.
 
-interface Transaction {
-  fromUserId: string;   // quien paga
-  toUserId: string;     // quien recibe
-  amount: number;
-}
+**Invariante con test de propiedad** (`deudasDelGrupo.property.test.ts`, 40 escenarios): para cada persona, `owedToYou − youOwe` = su neto de §4.
 
-export function simplifyDebts(balances: Balance[]): Transaction[] {
-  const transactions: Transaction[] = [];
+## 4 · Neto por persona — `src/algorithms/calculateBalances.ts`
 
-  // Separar y ordenar
-  const givers = balances
-    .filter(b => b.amount < 0)
-    .map(b => ({ userId: b.userId, amount: Math.abs(b.amount) }))
-    .sort((a, b) => b.amount - a.amount); // mayor deuda primero
+`calculateBalancesByCurrency(expenses, payments, memberIds)` devuelve, por persona y moneda, `Σ lo que puso − Σ su parte + Σ pagos hechos − Σ pagos recibidos`. Positivo = le deben, negativo = debe. Sólo cuenta a quienes están en `memberIds`; los ids ajenos se ignoran al acreditar.
 
-  const receivers = balances
-    .filter(b => b.amount > 0)
-    .map(b => ({ userId: b.userId, amount: b.amount }))
-    .sort((a, b) => b.amount - a.amount); // mayor crédito primero
+El neto **ya no define cuánto debe nadie**. Sirve para:
+- el «Balance de grupo» debajo del timeline del detalle;
+- la tarjeta de cada amigo en Amigos (neto de esa persona sumando grupos);
+- el traspaso (§8).
 
-  let g = 0; // puntero Givers
-  let r = 0; // puntero Receivers
+`calculateBalances(expenses, memberIds)` es la versión mono-moneda, sin pagos, que usa `globalBalances.ts` (legado: sigue exportado pero las pantallas usan `selectoresDeDeuda.ts`).
 
-  while (g < givers.length && r < receivers.length) {
-    const giver = givers[g];
-    const receiver = receivers[r];
+## 5 · Qué pagos y qué grupos cuentan
 
-    const transferAmount = Math.min(giver.amount, receiver.amount);
-    const rounded = Math.round(transferAmount * 100) / 100;
+- `pagosQueCuentan(payments, group)` (`settlementStatus.ts`): del grupo y sin tombstone. Es la **única puerta** de los pagos al balance; un test escanea el árbol para que nadie filtre `payments` a mano.
+- `gruposQueCuentan(groups, archivedIds, userId)` (`gruposQueCuentan.ts`): no borrados, no archivados, donde soy miembro (con identidad vieja incluida). Lo usan los casilleros de Grupos/Personal/Amigos y Saldar desde Amigos.
 
-    if (rounded > 0) {
-      transactions.push({
-        fromUserId: giver.userId,
-        toUserId: receiver.userId,
-        amount: rounded,
-      });
-    }
+## 6 · Saldar
 
-    giver.amount -= transferAmount;
-    receiver.amount -= transferAmount;
+**Reglas (ADR-006 d1/d2 + T-225):** saldar es direccional («yo no te debo más», lo que vos me debés queda intacto); se salda a una persona.
 
-    if (giver.amount < 0.001) g++;
-    if (receiver.amount < 0.001) r++;
-  }
+| Desde | Monto | Registros | Archivo |
+|---|---|---|---|
+| Detalle de grupo, «de a uno» | prellenado con `deudaEntre(from, to)`; parcial permitido; tope = esa deuda (`topeDelSaldo`) | 1 `Payment` | `useDeudaDelPar.ts`, `useGuardarSaldo.ts` |
+| Detalle de grupo, «Todo» | `Σ lo que debo en el grupo`; si el monto no cubre, `repartoParejo` reparte de a 1 unidad de mayor a menor acreedor, nunca más de lo debido a cada uno | 1 `Payment` por acreedor | `repartoSaldo.ts` |
+| Amigos | la **totalidad** de lo que le debo a esa persona, sin parcial | 1 `Payment` por grupo compartido (y por moneda) | `saldoSinCompensar.ts`, `useSaldoConAmigo.ts` |
 
-  return transactions;
-}
-```
+Cualquier miembro puede registrar un pago, incluso en nombre de otro («De:»), y cuenta al instante: no hay acuse (T-186). `simplifyDebts` (greedy: mayor deudor contra mayor acreedor) sigue existiendo **sólo como sugerencia** de cómo cerrar un grupo con menos transferencias; no decide cuánto debe nadie.
 
-### Ejemplo
+`Payment.targetCurrency`/`exchangeRate` se leen en los cálculos pero **no tienen UI**: hoy un pago va siempre en la moneda del grupo.
 
-Grupo de 4 personas, balances:
-- Ana: +$100 (le deben)
-- Bob: +$50 (le deben)
-- Carlos: −$80 (debe)
-- Diana: −$70 (debe)
+## 7 · Salir, expulsar y borrar la cuenta
 
-Resultado esperado (3 transacciones en lugar de potenciales 6):
-1. Carlos → Ana: $80
-2. Diana → Ana: $20
-3. Diana → Bob: $50
+**Regla (decisión del PO 2026-09-29, auditoría H-1):** no se sale ni se expulsa a nadie mientras haya **cualquier deuda viva en cualquier dirección** con quien se va, como Splitwise («settle up first») y Tricount. No existe absorción de saldo: nadie se hace cargo de la deuda de otro.
 
----
+- **Salir** (`useAccionesDeGrupo.handleLeave`): si `deudasDelGrupo` tiene alguna entrada donde soy deudor o acreedor → bloqueado con modal que lista, por persona, cuánto me deben y cuánto debo (`cuentasPorPersona`) y ofrece Saldar. Sin deuda → `salirDelGrupo` (baja en el roster, publicar, marcar pendiente de drenaje, purgar copia local).
+- **Expulsar** (sólo el creador, `expulsarDelGrupo.ts`): mismo predicado sobre las deudas del expulsado con cualquiera; bloqueado si hay alguna, con el mismo modal.
+- **Borrar la cuenta** (`deleteAccount.ts`, `salidasAlBorrar.ts`): sale sola de los grupos donde no tiene deuda viva en ninguna dirección (mismo predicado); donde la tiene queda como «Cuenta borrada» con sus importes intactos.
+- **Borrar el grupo** (creador, `MenuDeGrupo`): tombstone para todos; el modal lista los saldos abiertos antes de confirmar.
 
-## 3. División de un gasto
+Roster: `miembros: {userId: {estado, at}}` se une por clave (gana el `at` mayor) y `memberIds` es derivado (`roster.ts`). Irse no borra los gastos de quien se fue: siguen ahí para los demás.
 
-### Modos de split
+## 8 · Traspaso a grupo nuevo — `groupCarryOver.ts`, `groupTraspaso.ts`
 
-```typescript
-type SplitMode =
-  | 'equal'       // cada miembro paga lo mismo
-  | 'exact'       // montos exactos por persona
-  | 'percentage'  // porcentajes que sumen 100%
-  | 'shares'      // partes proporcionales (ej: 2 partes vs 1 parte)
+Un grupo avisa a los 350 gastos y bloquea a los 450 (`groupLimits.ts`, techo del sobre). Traspasar crea un grupo nuevo con el mismo roster y **un `Expense` de traspaso por moneda con saldo**: los acreedores netos como `payers`, los deudores netos como `splits`. El viejo queda archivado de forma irrevocable y sus recurrentes se mueven al nuevo. Traslada el **neto**; como nadie sale con deuda viva, el neto y el par coinciden y no hace falta más.
 
-export function buildSplits(
-  totalAmount: number,
-  memberIds: string[],
-  mode: SplitMode,
-  values?: number[] // montos / porcentajes / partes por miembro
-): Split[] {
-  switch (mode) {
-    case 'equal': {
-      const share = Math.round((totalAmount / memberIds.length) * 100) / 100;
-      // Ajustar centavos en el último miembro para evitar redondeo
-      const splits = memberIds.map((userId, i) => ({
-        userId,
-        amount: i < memberIds.length - 1 ? share : totalAmount - share * (memberIds.length - 1),
-        isPaid: false,
-      }));
-      return splits;
-    }
-    case 'exact': {
-      return memberIds.map((userId, i) => ({
-        userId,
-        amount: values![i],
-        isPaid: false,
-      }));
-    }
-    case 'percentage': {
-      return memberIds.map((userId, i) => ({
-        userId,
-        amount: Math.round((totalAmount * values![i] / 100) * 100) / 100,
-        isPaid: false,
-      }));
-    }
-    case 'shares': {
-      const totalShares = values!.reduce((a, b) => a + b, 0);
-      return memberIds.map((userId, i) => ({
-        userId,
-        amount: Math.round((totalAmount * values![i] / totalShares) * 100) / 100,
-        isPaid: false,
-      }));
-    }
-  }
-}
-```
+## 9 · Recurrentes — `recurrence.ts`, `materializeRecurring.ts`
 
----
+Plantillas con `frequency` semanal/quincenal/mensual/anual ancladas a `startDate` (el 31 cae al 28 en febrero y vuelve al 31). Al abrir la app se materializan TODOS los vencimientos posteriores a `lastMaterializedAt` (recuperación tras meses cerrada), con id determinista `rec_<plantilla>_<vencimiento>` y `updatedAt` = vencimiento (un borrado siempre le gana a una regeneración). Una plantilla sin grupo produce `PersonalEntry`; con grupo produce `Expense`.
 
-## 4. Balance global entre dos usuarios (cross-group)
+## 10 · Personal y presupuesto — `personalMonth.ts`, `entryOrigin.ts`
 
-Para el dashboard principal que muestra "en total, cuánto te debe cada persona" sumando todos los grupos:
+Movimientos `expense` / `income` (manuales, editables), `group_replicated` (derivado de un gasto de grupo que pagué yo: **lo que salió de mi bolsillo**, ADR-006 d3) y `carryover` (sobrante o excedido del mes anterior, generado al cruzar de mes). Gastado = `expense + group + carryover negativo`; disponible = `presupuesto + income + carryover positivo (+ lo que me deben si el usuario lo prende)`. Los derivados no se editan.
 
-```typescript
-export function calculateGlobalBalances(
-  allGroups: Group[],
-  allExpenses: Expense[],
-  currentUserId: string
-): Map<string, number> {
-  // mapa: otroUserId → cuánto le debo (negativo) o me debe (positivo)
-  const netByUser = new Map<string, number>();
+Regla de la réplica (ADR-006 d3, tickets de la auditoría H-2..H-5): la réplica sigue al gasto en crear, editar, borrar y restaurar, y vale **lo que puse yo** (`payers[me].amount`); un pago que hago entra como gastado y uno que recibo como ingreso.
 
-  for (const group of allGroups) {
-    if (group.isDeleted) continue;
-    const groupExpenses = allExpenses.filter(e => e.groupId === group.id);
-    const balances = calculateBalances(groupExpenses, group.memberIds);
-    const transactions = simplifyDebts(balances);
+## 11 · Conversión para mostrar — `services/fx.ts`
 
-    for (const tx of transactions) {
-      if (tx.fromUserId === currentUserId) {
-        // Le debo a tx.toUserId
-        const prev = netByUser.get(tx.toUserId) ?? 0;
-        netByUser.set(tx.toUserId, prev - tx.amount);
-      } else if (tx.toUserId === currentUserId) {
-        // tx.fromUserId me debe a mí
-        const prev = netByUser.get(tx.fromUserId) ?? 0;
-        netByUser.set(tx.fromUserId, prev + tx.amount);
-      }
-    }
-  }
-
-  return netByUser;
-}
-```
+Cotizaciones de `open.er-api.com` (base USD, 9 monedas, cache con techo de 24 h). `convertMinor` devuelve `null` cuando no puede convertir y la pantalla lo informa (`unconverted`), nunca suma 0. Con una sola moneda en uso no sale a la red.

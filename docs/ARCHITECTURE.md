@@ -1,65 +1,29 @@
-# Arquitectura: Motor de Sincronización Local-First P2P
+# Arquitectura: local-first con buzón cifrado
 
 ## Principio general
 
-Toda la información vive en la base de datos embebida del dispositivo. La app funciona al 100% sin internet. Cuando dos dispositivos se encuentran (hoy: **por internet vía relay cifrado, y nada más**; el WebRTC directo por QR se sacó en T-083 —estaba en el repo pero no se llegaba a él— y BLE está planeado y no implementado), intercambian solo los cambios que el otro no tiene (delta sync).
+Toda la información vive en el dispositivo. La app funciona al 100 % sin internet. Los miembros de un grupo se sincronizan **sólo por internet, a través de un buzón cifrado en Supabase** que guarda sobres que no puede abrir (ADR-003). Cada publicación lleva las rebanadas del estado del grupo que cambiaron y el buzón conserva el estado completo (ADR-007, T-191); no hay delta por fecha ni conexión directa entre teléfonos (ver «Transporte»).
 
-No hay servidor central. No hay base de datos compartida en la nube.
+No hay servidor con lógica de negocio ni base de datos compartida en claro.
 
 ---
 
 ## Modelo de datos TypeScript
 
-Toda entidad persistida debe incluir los tres campos de sincronización obligatorios:
+**La fuente de verdad es `src/types/models.ts`**; acá va el mapa, no el detalle. Toda entidad que viaja por el sobre lleva `SyncMeta` (`id` UUID de cliente, `updatedAt`, `isDeleted` tombstone) y, si tiene núcleo firmado, `CoreSigned` (`rev`, `k`, `s`).
 
-```typescript
-interface SyncMeta {
-  id: string;           // UUID generado en el cliente (nunca en servidor)
-  updatedAt: number;    // Unix timestamp en ms — define quién gana en conflictos
-  isDeleted: boolean;   // Tombstone — nunca hacer DELETE físico
-}
+| Entidad | Campos que deciden negocio | Notas |
+|---|---|---|
+| `User` | `name`, `email`, `avatar` (data URI; `null` = tombstone), `authProvider` google/apple/guest, `deletedAt` | `deletedAt` hace que cada peer muestre «Cuenta borrada» en su idioma |
+| `Group` | `name`, `currency` (una por grupo), `createdById`, `miembros: {userId: {estado: in/out, at}}`, `memberIds` **derivado**, `defaultSplitMode`, `supersededByGroupId` (traspaso) | `leaveRequest` existe hoy y se elimina con la absorción (auditoría H-1) |
+| `Expense` | `groupId`, `amount` entero, `currency`, `paidById` + `payers?`, `splits[{userId, amount, isPaid}]`, `splitMode`, `category`, `date`, `createdById`, `editedById`, `deletedById`/`restoredById` (LWW, sin firma), `autoriaDisputada` | id `rec_<plantilla>_<vencimiento>` si lo materializó una recurrente |
+| `Payment` | `groupId`, `fromUserId`, `toUserId`, `amount`, `currency`, `date`, `createdById` | `targetCurrency`/`exchangeRate` sin UI |
+| `ExpenseComment` | `expenseId`, `authorId`, `text` | entidad propia para que dos comentarios simultáneos sobrevivan al LWW |
+| `RecurringExpense` | igual que un gasto + `rule {frequency, startDate, endDate?}`, `memberIds`, `splitValues`, `lastMaterializedAt`, `isActive` | `groupId: ''` = personal |
 
-interface User extends SyncMeta {
-  name: string;
-  email: string;
-  avatarUrl?: string;
-  authProvider: 'google' | 'apple';
-}
+Locales por cuenta (no viajan; el backup los cubre): `PersonalEntry` (`kind` expense/income/group_replicated/carryover, `sourceGroupExpenseId`), `PersonalBudget`, archivados, ajustes, contactos, alias.
 
-interface Group extends SyncMeta {
-  name: string;
-  memberIds: string[];        // IDs de User
-  currency: string;           // ISO 4217, ej: 'ARS', 'USD'
-  createdAt: number;
-}
-
-interface Expense extends SyncMeta {
-  groupId: string;
-  description: string;
-  amount: number;
-  currency: string;
-  paidById: string;           // quién pagó
-  splits: Split[];
-  receiptImageUri?: string;   // local URI o URL S3 (Pro)
-  category: ExpenseCategory;
-  date: number;               // timestamp del gasto (no del registro)
-  createdById: string;
-  // Borrado libre (T-186): campos del "resto", sin firma — sólo para
-  // que Actividad muestre quién borró/restauró.
-  deletedById?: string;
-  restoredById?: string;
-}
-
-interface Split {
-  userId: string;
-  amount: number;             // cuánto debe este usuario de este gasto
-  isPaid: boolean;
-}
-
-type ExpenseCategory =
-  | 'food' | 'transport' | 'accommodation' | 'entertainment'
-  | 'utilities' | 'health' | 'shopping' | 'other';
-```
+Derivados en runtime, nunca persistidos: `DeudaPar`, `Balance`/`BalanceByCurrency`, `Transaction` (sugerencia de `simplifyDebts`), `Notice`. El DER completo está en `engram/qa/auditoria-negocio-2026-09-29.md` §6.
 
 ---
 
@@ -97,12 +61,8 @@ export class SyncEngine {
     return Array.from(map.values());
   }
 
-  /**
-   * Genera el delta a enviar al peer: solo registros más nuevos que su último sync.
-   */
-  buildDelta<T extends SyncMeta>(allRecords: T[], peerLastSync: number): T[] {
-    return allRecords.filter(r => r.updatedAt > peerLastSync);
-  }
+  // NO hay buildDelta por fecha: se publica el ESTADO del grupo por rebanadas
+  // (regla #8 de CLAUDE.md, ADR-007, T-191).
 }
 ```
 
@@ -140,17 +100,14 @@ El mapa completo de lo que se sacó, dónde vivía cada pieza y cómo volver a t
 
 ## Invitación a grupos {#group-invitation}
 
-**DECISIÓN**: Tres mecanismos de invitación disponibles simultáneamente.
+Dos mecanismos:
 
-Un "token de invitación" contiene `groupId` + clave de cifrado AES-256 del grupo, codificado en base64url.
-
-| Método | Flujo | Cuándo usarlo |
+| Método | Flujo | Archivo |
 |---|---|---|
-| **QR presencial** | El creador muestra un QR en pantalla. El invitado lo escanea. | Cuando están físicamente juntos. El más seguro. |
-| **Deep link** | El creador comparte `splitp2p://join/<token>` por WhatsApp/SMS/etc. | Cuando están lejos. El token expira en 48hs. |
-| **Username** | El creador escribe el username del otro usuario. Necesita que ambos se hayan "visto" antes (sync previo). | Para usuarios frecuentes. Ver nota abajo. |
+| **Contacto por QR presencial** | Cada uno escanea el QR del otro; queda un canal de contacto cifrado. Crear un grupo con un contacto le entrega la clave por ese canal (sección siguiente). | `app/contact/add.tsx`, `src/sync/contactos/` |
+| **Deep link al grupo** | El creador comparte un link con `groupId` + clave envuelta; expira a las 48 h. | `src/sync/invitaciones/groupInvite.ts`, `app/groups/join.tsx` |
 
-**Nota sobre username sin servidor**: Sin servidor de directorio, un username solo puede usarse para invitar a alguien que ya fue peer tuyo en el pasado (su perfil está en tu DB local). Para el MVP, los métodos principales son QR y deep link. El username como atajo para peers conocidos se agrega en Fase 2.
+No hay invitación por username: sin directorio no hay a quién buscar.
 
 ### Clave de grupo entregada por contacto (T-136 · ADR-013)
 
@@ -166,85 +123,31 @@ Residual (ADR-013): atar el `groupId` a su creador con firma daría un árbitro 
 
 ---
 
-## Capa P2P: `useP2PConnection`
+## Transporte: sólo el relay {#transporte}
 
-**DECISIÓN**: Sync automática P2P pura via signaling público (Google STUN/TURN, Matrix).
+**No hay capa P2P.** WebRTC se sacó en T-083, BLE y Wi-Fi local nunca se implementaron, y la pantalla de sync por QR sin internet se borró en T-193 (tag `qr-sync-antes-de-T-193`). El único camino es el buzón cifrado de Supabase: cada grupo tiene un topic derivado de su clave, cada publicación va cifrada con XChaCha20-Poly1305 (`src/sync/nucleo/envelopeCrypto.ts`) y firmada (`envelopeSign.ts`); el servidor guarda bytes que no puede abrir. No hay handshake ni `lastSyncTimestamp` por peer: hay un cursor por topic (`src/sync/motor/`).
 
-### Estrategia de conectividad
-
-| Canal | Cuándo usarlo | Librería |
-|---|---|---|
-| ~~WebRTC automático~~ | — | **SACADO el 2026-09-08 (T-083).** Nunca estuvo enchufado: la única entrada era un botón dentro de una pantalla huérfana. Arrastraba ocho permisos de Android y dos cadenas del `Info.plist` de iOS, incluida la de micrófono |
-| BLE | Usuarios cerca sin internet | `react-native-ble-plx` — **NO IMPLEMENTADO.** No está en `package.json` ni hay código que lo use. La pantalla de sync por QR sin internet (T-085), que nadie navegaba, se borró en T-193 — tag `qr-sync-antes-de-T-193` |
-| Wi-Fi Local | Misma red local | mDNS / Bonjour |
-
-La sync se intenta automáticamente:
-1. Al abrir la app.
-2. Cuando el dispositivo recupera conectividad.
-3. Cada 15 minutos mientras la app está en primer plano.
-
-### Protocolo de handshake
-
-Al conectarse dos dispositivos intercambian primero su estado de sync:
-
-```typescript
-interface SyncHandshake {
-  userId: string;
-  groupIds: string[];              // grupos en común
-  lastSyncTimestampByGroup: Record<string, number>; // por grupo para granularidad
-}
-```
-
-Cada dispositivo responde enviando solo el delta: registros con `updatedAt > lastSyncTimestamp` del peer. Esto minimiza el payload en cada sync.
-
-### Signaling P2P sin servidor propio
-
-**Sección histórica — WebRTC se sacó en T-083 y esto NO describe el sistema de hoy.** Se conserva porque el diseño puede volver a hacer falta el día que se reabra: para que dos teléfonos establezcan una conexión WebRTC necesitan intercambiar señales ICE, y se iban a usar:
-- **STUN servers de Google**: `stun:stun.l.google.com:19302` (gratuitos, estables)
-- **TURN server de Open Relay**: `turn:openrelay.metered.ca` (fallback si STUN falla por NAT)
-- Los peers se "encuentran" usando su `groupId` como room ID en un servidor de signaling público Matrix.
-
-### Seguridad del canal
-
-- La clave de cifrado simétrico del grupo se genera al crear el grupo y viaja en el token de invitación (QR o deep link).
-- Todo payload se cifra con XChaCha20-Poly1305 usando esa clave antes de enviarse por el relay (`envelopeCrypto.ts`). El DataChannel de WebRTC se fue con T-083; BLE no existe todavía.
-- El servidor de signaling solo ve el `groupId` (sin contenido ni identidades reales).
-- Sin la clave del grupo, un tercero no puede leer los datos en tránsito.
-
----
+La sync corre sola: al abrir la app, al recuperar red, por Realtime y con un poll de respaldo cada 90 s (20 s si un canal se cayó, DEC-04). Ver `src/sync/README.md` para el mapa de carpetas y `docs/ADR-007-el-estado-vive-en-el-buzon.md` para por qué el buzón conserva el estado completo.
 
 ## Almacenamiento local
 
 | Qué guarda | Dónde |
 |---|---|
-| Entidades principales (Expense, Group, User, Payment) | WatermelonDB (SQLite embebido, reactivo) |
-| Estado de sync (lastSyncTimestamp por grupo/peer) | MMKV (clave-valor rápido) |
-| Clave de cifrado del grupo | Expo SecureStore (Keychain / Keystore) |
-| Imágenes de recibos (local) | Expo FileSystem |
-| Estado de sesión (JWT, userId, isPro) | MMKV |
+| Entidades (Group, Expense, Payment, User, comentarios, recurrentes) | MMKV, un bucket por store, cifrado con clave por dispositivo y scopeado por cuenta (`src/utils/secureStorage.ts`, `src/store/userScope.ts`), en memoria con Zustand |
+| Personal, presupuesto, ajustes, archivados, contactos, alias | MMKV, mismos buckets scopeados |
+| Claves de grupo, identidad del aparato, prenda del buzón | MMKV cifrado (`groupKeyStore`, `identityStore`) |
+| Cursores de sync, diario de borrado, migraciones | MMKV |
+| Foto de ticket y avatar | data URI / URI local (`expo-file-system`) |
+| Cotizaciones | MMKV sin scope (son públicas) |
 
-WatermelonDB permite queries reactivas en tiempo real que actualizan la UI automáticamente cuando llegan cambios del peer.
+WatermelonDB se evaluó y se sacó el 2026-09-03: seis semanas instalado sin que nada lo importara.
 
 ## Backup y recuperación {#backup}
 
-**DECISIÓN**: Backup cifrado exportable a iCloud Drive (iOS) / Google Drive (Android).
-
-- El usuario puede exportar un archivo `.hushsplit` cifrado con su clave de cifrado maestra (derivada del `userId`).
-- Para importar en un dispositivo nuevo, el usuario provee el archivo + su cuenta Google/Apple (para derivar la clave de descifrado).
-- Este backup incluye todos los grupos, gastos y claves de cifrado de grupos.
-- Disponible para todos los tiers (Free y Pro) — es un mecanismo de seguridad básico, no un diferenciador de plan.
-
-**Limitación**: El backup solo contiene los datos del usuario que lo generó. Al sincronizar con peers, el dispositivo nuevo recibirá los datos actualizados del grupo vía P2P sync normal.
+Archivo `.hushsplit` **v3** (`src/services/backup.ts`, T-213): JSON **en claro** con todo lo que la app persiste por cuenta, incluidas las claves de grupo, exportable e importable desde Cuenta → Respaldo mediante la hoja de compartir del sistema. Importar es **RESTORE por reemplazo**: deja los datos exactamente como el archivo. No hay integración con iCloud ni Google Drive. Desde el mismo lugar se exportan CSV de gastos y de movimientos personales (`csvExport.ts`).
 
 ---
 
 ## Autenticación
 
-Flujo con Expo Auth Session (sin backend):
-
-1. Usuario inicia sesión con Google o Apple → obtiene un JWT del proveedor.
-2. El JWT se verifica localmente (claims básicos) y se guarda en MMKV.
-3. El `sub` (subject) del JWT se usa como `userId` global del usuario.
-4. No hay sesión en servidor: la identidad es el JWT del proveedor.
-
-La autenticación solo identifica al usuario dentro del dispositivo y para compartir su `userId` con peers. No hay autorización centralizada.
+Google (Expo Auth Session), Apple (`expo-apple-authentication`) o **invitado** sin proveedor (`authProvider: 'guest'`). El `sub` del proveedor (o un id local para invitado) es el id de la cuenta; no hay sesión en servidor. La identidad criptográfica es del aparato (Ed25519/X25519, ADR-004) y se ata a la cuenta por el directorio de claves de Supabase, salvo para invitados, que quedan fuera del directorio pero sincronizan igual. Varias cuentas en el mismo teléfono se enlazan por alias (ADR-008). El detalle vive en `src/sync/sesion/` y `src/sync/confianza/`.
