@@ -133,7 +133,7 @@ describe('applyBackup v3 — restore por campo', () => {
     expect(useSettingsStore.getState().skin).toBe('default');
   });
 
-  it('un skin inválido en el backup cae al default (esSkinId)', () => {
+  it('un skin inválido en el backup cae al skin inicial, Aero (esSkinId)', () => {
     useAuthStore.setState({ currentUser: user('yo', 10) });
     applyBackup({
       ...blank(),
@@ -143,7 +143,7 @@ describe('applyBackup v3 — restore por campo', () => {
         notifExpenses: true, notifDeletions: true, notifInvites: true, notifSettlements: true,
       },
     });
-    expect(useSettingsStore.getState().skin).toBe('default');
+    expect(useSettingsStore.getState().skin).toBe('aero');
   });
 
   it('BLOQUEANTE QA T-213 · una displayCurrency inválida cae al default y no crashea formatMoney', () => {

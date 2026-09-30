@@ -113,3 +113,15 @@ describe('esSkinId', () => {
     expect(esSkinId(3)).toBe(false);
   });
 });
+
+describe('skin inicial vs. base de resolución (PO 2026-09-29)', () => {
+  it('el skin inicial es Aero', () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    expect(require('@/src/skins/registry').SKIN_INICIAL).toBe('aero');
+  });
+
+  it('la base de resolución sigue siendo Clásico: Clásico no hereda nada de Aero', () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    expect(require('@/src/skins/registry').FALLBACK_SKIN).toBe('default');
+  });
+});

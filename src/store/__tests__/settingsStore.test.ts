@@ -116,29 +116,30 @@ describe('settingsStore (preferencias por cuenta)', () => {
   });
 
   describe('skin', () => {
-    it('arranca en el skin de respaldo', () => {
+    // PO 2026-09-29: Aero es el skin inicial; Clásico sigue disponible y se respeta si está elegido.
+    it('arranca en Aero', () => {
       const fresh = createSettingsStore();
-      expect(fresh.getState().skin).toBe('default');
+      expect(fresh.getState().skin).toBe('aero');
     });
 
-    it('setSkin persiste y hydrate lo recupera', () => {
-      useSettingsStore.getState().setSkin('aero');
-      useSettingsStore.setState({ skin: 'default' });
+    it('Clásico elegido y guardado se respeta al hidratar', () => {
+      useSettingsStore.getState().setSkin('default');
+      useSettingsStore.setState({ skin: 'aero' });
+      useSettingsStore.getState().hydrate();
+      expect(useSettingsStore.getState().skin).toBe('default');
+    });
+
+    it('un valor guardado que no es un skin conocido cae a Aero', () => {
+      writeScoped(createStorage('settings'), 'skin', 'retirado');
       useSettingsStore.getState().hydrate();
       expect(useSettingsStore.getState().skin).toBe('aero');
     });
 
-    it('un valor guardado que no es un skin conocido cae al respaldo', () => {
-      writeScoped(createStorage('settings'), 'skin', 'retirado');
-      useSettingsStore.getState().hydrate();
-      expect(useSettingsStore.getState().skin).toBe('default');
-    });
-
-    it('es por cuenta: otra cuenta no hereda el skin', () => {
-      useSettingsStore.getState().setSkin('aero');
+    it('es por cuenta: otra cuenta no hereda el skin y arranca en Aero', () => {
+      useSettingsStore.getState().setSkin('default');
       setActive(USER_B);
       useSettingsStore.getState().hydrate();
-      expect(useSettingsStore.getState().skin).toBe('default');
+      expect(useSettingsStore.getState().skin).toBe('aero');
     });
   });
 });
