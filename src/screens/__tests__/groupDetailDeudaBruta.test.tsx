@@ -181,7 +181,7 @@ describe('salir con saldo avisa a quién le debo y quién me debe (T-225)', () =
     expect(cuerpo).toContain('group_detail.leave_needs_settle');
     expect(cuerpo).toContain(lineaMeDebe('Ana', 20_000));
     expect(cuerpo).toContain(lineaLeDebo('Ana', 6_000));
-    expect(botones()).toEqual(['common.cancel', 'group_detail.settle_debts', 'leave.title']);
+    expect(botones()).toEqual(['common.cancel', 'group_detail.settle_debts']);
   });
 
   it('deudas cruzadas con neto 0: ya no sale libre — debo algo', () => {
@@ -191,8 +191,7 @@ describe('salir con saldo avisa a quién le debo y quién me debe (T-225)', () =
     const [titulo, cuerpo] = (Alert.alert as jest.Mock).mock.calls.at(-1)!;
     expect(titulo).toBe('group_detail.leave_blocked_title');
     expect(cuerpo).toContain(lineaLeDebo('Ana', 6_000));
-    // Sin neto no hay nada que repartir: la pantalla de absorción no podría
-    // cerrar el plan, así que no se ofrece; queda Saldar.
+    // Nadie sale con deuda viva (T-228): queda Saldar.
     expect(botones()).toEqual(['common.cancel', 'group_detail.settle_debts']);
   });
 

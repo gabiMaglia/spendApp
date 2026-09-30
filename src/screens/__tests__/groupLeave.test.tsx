@@ -93,20 +93,25 @@ describe('salir del grupo', () => {
     expect(useGroupStore.getState().getById('g1')!.memberIds).toContain('ana');
   });
 
-  // Ofrecer "salir" acá sería mentir: no hay a quién pasarle el saldo.
-  it('último miembro con saldo: no hay salida posible y se dice', () => {
+  it('último miembro sin deuda: sale como cualquiera', () => {
     useGroupStore.setState({ groups: [grupo(['ana'])] });
-    useExpenseStore.setState({ expenses: [{
-      ...gastoConDeuda(), paidById: 'ana',
-      splits: [{ userId: 'ana', amount: 500_000, isPaid: false }],
-    } as Expense] });
 
     salir(render(<GroupDetailScreen />));
 
     expect(Alert.alert).toHaveBeenCalledWith(
-      'group_detail.leave_blocked_title',
-      'group_detail.leave_last_member',
+      'group_detail.leave_title', 'group_detail.leave_body', expect.anything(),
     );
+  });
+
+  // Ana puso 10.000 a medias: Beto le debe a ella. T-228: bloquea igual.
+  it('sólo me deben: bloquea igual y no ofrece Saldar (no tengo nada que pagar)', () => {
+    useExpenseStore.setState({ expenses: [{ ...gastoConDeuda(), paidById: 'ana' } as Expense] });
+
+    salir(render(<GroupDetailScreen />));
+
+    const [titulo, , botones] = (Alert.alert as jest.Mock).mock.calls.at(-1)!;
+    expect(titulo).toBe('group_detail.leave_blocked_title');
+    expect((botones as { text: string }[]).map(b => b.text)).toEqual(['common.cancel']);
   });
 
   // Bloquear sin ofrecer la salida deja al usuario adivinando qué hacer.

@@ -1,5 +1,5 @@
 import {
-  armarTimeline, cuentasPorPersona, deudasDeGrupo, saldoPendienteDe, saldosParaSalir,
+  armarTimeline, cuentasPorPersona, deudasDeGrupo, saldoPendienteDe,
 } from '@/src/screens/groupDetail/detalleDeGrupo';
 import type { Expense, Group, Payment } from '@/src/types/models';
 
@@ -116,39 +116,5 @@ describe('cuentasPorPersona', () => {
 
   it('sin deudas, lista vacía', () => {
     expect(cuentasPorPersona([], 'yo')).toEqual([]);
-  });
-});
-
-describe('saldosParaSalir', () => {
-  it('abierto si debo algo, aunque el neto me dé a favor (caso del PO)', () => {
-    expect(saldosParaSalir(
-      [{ currency: 'ARS', owedToYou: 20_000, youOwe: 6_000 }],
-      [{ currency: 'ARS', amount: 14_000 }],
-    )).toEqual([{ currency: 'ARS', amount: 14_000 }]);
-  });
-
-  it('deudas cruzadas que se compensan (neto 0) SIGUEN abiertas: debo algo', () => {
-    expect(saldosParaSalir(
-      [{ currency: 'ARS', owedToYou: 6_000, youOwe: 6_000 }],
-      [],
-    )).toEqual([{ currency: 'ARS', amount: -6_000 }]);
-  });
-
-  it('con un neto distinto de cero queda abierto aunque no deba nada (los libros tienen que cerrar)', () => {
-    expect(saldosParaSalir(
-      [{ currency: 'USD', owedToYou: 500, youOwe: 0 }],
-      [{ currency: 'USD', amount: 500 }],
-    )).toEqual([{ currency: 'USD', amount: 500 }]);
-  });
-
-  it('sin deudas ni neto, nada abierto', () => {
-    expect(saldosParaSalir([{ currency: 'ARS', owedToYou: 0, youOwe: 0 }], [])).toEqual([]);
-  });
-
-  it('una moneda por entrada, aunque venga sólo de un lado', () => {
-    expect(saldosParaSalir(
-      [{ currency: 'USD', owedToYou: 0, youOwe: 300 }],
-      [{ currency: 'ARS', amount: -100 }],
-    )).toEqual([{ currency: 'ARS', amount: -100 }, { currency: 'USD', amount: -300 }]);
   });
 });
