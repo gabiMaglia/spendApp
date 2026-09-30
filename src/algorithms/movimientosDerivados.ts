@@ -1,5 +1,6 @@
 import type { Expense, Group, Payment, PersonalEntry } from '@/src/types/models';
 import { expensePayers } from '@/src/algorithms/payers';
+import { pagosQueCuentan } from '@/src/algorithms/settlementStatus';
 import { idCanonico, mismaPersona } from '@/src/store/identityAlias';
 
 type Fuentes = {
@@ -53,11 +54,14 @@ export function movimientosDerivados({ expenses, payments, groups, me }: Fuentes
   return out;
 }
 
-/** Los derivados de un solo grupo: lo que se congela antes de purgarlo. */
+/**
+ * Los derivados de un solo grupo: lo que se congela antes de purgarlo. Los
+ * pagos pasan por `pagosQueCuentan`, la puerta única (guard de settlementStatus).
+ */
 export function derivadosDelGrupo(p: Fuentes & { groupId: string }): PersonalEntry[] {
   return movimientosDerivados({
     ...p,
     expenses: p.expenses.filter(e => e.groupId === p.groupId),
-    payments: p.payments.filter(x => x.groupId === p.groupId),
+    payments: pagosQueCuentan(p.payments, p.groups.find(g => g.id === p.groupId)),
   });
 }
