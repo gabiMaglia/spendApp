@@ -1,7 +1,7 @@
 import { pagosQueCuentan } from '@/src/algorithms/settlementStatus';
 import { deudasDelGrupo, type DeudaPar } from '@/src/algorithms/deudasDelGrupo';
 import { idCanonico } from '@/src/store/identityAlias';
-import type { CurrencyCode } from '@/src/constants/currencies';
+import { formatMoney, type CurrencyCode } from '@/src/constants/currencies';
 import type { Expense, Group, Payment } from '@/src/types/models';
 
 /** Lógica pura del detalle de grupo. T-223: salió de `app/groups/[id].tsx`. */
@@ -54,4 +54,25 @@ export function cuentasPorPersona(deudas: readonly DeudaPar[], yo: string): Cuen
     else if (d.deudor === mio) de(d.acreedor).leDebo.push({ currency: d.currency, amount: d.monto });
   }
   return [...porPersona.values()];
+}
+
+/**
+ * Las deudas vivas del grupo como texto de aviso, una línea por par (T-228):
+ * lo que se deja de ver si el creador borra el grupo.
+ */
+export function lineasDeDeudas(
+  deudas: readonly DeudaPar[],
+  nombre: (id: string) => string,
+  t: (k: string, o: Record<string, string>) => string,
+): string {
+  const porPar = new Map<string, DeudaPar[]>();
+  for (const d of deudas) {
+    const k = `${d.deudor}|${d.acreedor}`;
+    porPar.set(k, [...(porPar.get(k) ?? []), d]);
+  }
+  return [...porPar.values()].map(ds => t('group_detail.debt_between', {
+    from: nombre(ds[0]!.deudor),
+    to: nombre(ds[0]!.acreedor),
+    amounts: ds.map(d => formatMoney(d.monto, d.currency)).join(', '),
+  })).join('\n');
 }

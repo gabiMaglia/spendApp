@@ -177,6 +177,8 @@
     "delete_group": "Delete group",
     "delete_title": "Delete group",
     "delete_body": "“{{name}}” will be deleted for every member. The expenses stop being visible. This can't be undone.",
+    "delete_body_with_debts": "“{{name}}” will be deleted for every member and this can't be undone. These open balances will stop being visible:\n\n{{lineas}}",
+    "debt_between": "{{from}} owes {{to}} {{amounts}}",
     "leave_group": "Leave group",
     "leave_title": "Leave group",
     "leave_body": "You'll stop seeing this group. The expenses you added stay there for the others, so pending balances aren't lost.",

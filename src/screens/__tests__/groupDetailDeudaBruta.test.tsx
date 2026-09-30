@@ -215,8 +215,10 @@ describe('borrar el grupo lista las cuentas abiertas (T-228)', () => {
     borrar(render(<GroupDetailScreen />));
     const [, cuerpo] = (Alert.alert as jest.Mock).mock.calls.at(-1)!;
     expect(cuerpo).toContain('group_detail.delete_body_with_debts');
-    expect(cuerpo).toContain('"from":"Ana"');
-    expect(cuerpo).toContain('"from":"Yo"');
+    // Las líneas viajan dentro del JSON del mock de i18n: van escapadas.
+    const escapado = (x: string) => JSON.stringify(x).slice(1, -1);
+    expect(cuerpo).toContain(escapado('"from":"Ana","to":"Yo"'));
+    expect(cuerpo).toContain(escapado('"from":"Yo","to":"Ana"'));
   });
 
   it('sin deudas: el aviso de siempre', () => {

@@ -22,7 +22,7 @@ import { useTranslation } from 'react-i18next';
 import { esYo } from '@/src/store/identityAlias';
 import { useColors } from '@/src/skins/useSkin';
 import { useContadorDeRenders } from '@/src/hooks/useContadorDeRenders';
-import { armarTimeline } from '@/src/screens/groupDetail/detalleDeGrupo';
+import { armarTimeline, deudasDeGrupo, lineasDeDeudas } from '@/src/screens/groupDetail/detalleDeGrupo';
 import { useAltaDeMiembro } from '@/src/screens/groupDetail/hooks/useAltaDeMiembro';
 import { useAccionesDeGrupo } from '@/src/screens/groupDetail/hooks/useAccionesDeGrupo';
 import { AvisosDeGrupo } from '@/src/screens/groupDetail/components/AvisosDeGrupo';
@@ -107,6 +107,10 @@ export default function GroupDetailScreen() {
   }
 
   const soyMiembro = !!currentUser && group.memberIds.some(esYo);
+  // T-228: borrar el grupo avisa quién le debe a quién.
+  const avisoDeDeudas = lineasDeDeudas(
+    deudasDeGrupo(allExpenses, allPayments, group), getUserName, (k, o) => t(k, o),
+  );
 
   return (
     <SafeAreaView edges={['bottom']} style={[styles.safe, { backgroundColor: c.bg }]}>
@@ -170,6 +174,7 @@ export default function GroupDetailScreen() {
         onAddPerson={() => setInviteVisible(true)}
         onShareInvite={() => { void handleShareInvite(); }}
         onLeave={handleLeave}
+        lineasDeDeudas={avisoDeDeudas}
       />
 
       <HojaDeTraspaso

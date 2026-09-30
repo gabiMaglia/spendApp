@@ -177,6 +177,8 @@
     "delete_group": "Eliminar grupo",
     "delete_title": "Eliminar grupo",
     "delete_body": "Se elimina «{{name}}» para todos los miembros. Los gastos dejan de verse. No se puede deshacer.",
+    "delete_body_with_debts": "Se elimina «{{name}}» para todos los miembros y no se puede deshacer. Hay cuentas abiertas que van a dejar de verse:\n\n{{lineas}}",
+    "debt_between": "{{from}} le debe {{amounts}} a {{to}}",
     "leave_group": "Salir del grupo",
     "leave_title": "Salir del grupo",
     "leave_body": "Dejás de ver este grupo. Los gastos que cargaste siguen ahí para los demás, así que las cuentas pendientes no se pierden.",

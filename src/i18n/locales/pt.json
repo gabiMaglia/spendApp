@@ -177,6 +177,8 @@
     "delete_group": "Excluir grupo",
     "delete_title": "Excluir grupo",
     "delete_body": "“{{name}}” será excluído para todos os membros. As despesas deixam de aparecer. Não dá para desfazer.",
+    "delete_body_with_debts": "“{{name}}” será excluído para todos os membros e não dá para desfazer. Estas contas abertas vão deixar de aparecer:\n\n{{lineas}}",
+    "debt_between": "{{from}} deve {{amounts}} a {{to}}",
     "leave_group": "Sair do grupo",
     "leave_title": "Sair do grupo",
     "leave_body": "Você deixa de ver este grupo. As despesas que você lançou continuam lá para os outros, então as contas pendentes não se perdem.",

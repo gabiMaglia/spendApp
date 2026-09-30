@@ -13,7 +13,7 @@ import type { Group, User } from '@/src/types/models';
  * (creador) o salir (el resto). T-223: salió de `app/groups/[id].tsx`.
  */
 export function MenuDeGrupo({
-  visible, onClose, group, currentUser, onAddPerson, onShareInvite, onLeave,
+  visible, onClose, group, currentUser, onAddPerson, onShareInvite, onLeave, lineasDeDeudas,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -22,6 +22,8 @@ export function MenuDeGrupo({
   onAddPerson: () => void;
   onShareInvite: () => void;
   onLeave: () => void;
+  /** Deudas vivas del grupo, ya como texto (T-228). Vacío si no hay. */
+  lineasDeDeudas: string;
 }) {
   const { t } = useTranslation();
   const deleteGroup = useGroupStore(st => st.deleteGroup);
@@ -62,7 +64,9 @@ export function MenuDeGrupo({
               onClose();
               Alert.alert(
                 t('group_detail.delete_title'),
-                t('group_detail.delete_body', { name: group.name }),
+                lineasDeDeudas
+                  ? t('group_detail.delete_body_with_debts', { name: group.name, lineas: lineasDeDeudas })
+                  : t('group_detail.delete_body', { name: group.name }),
                 [
                   { text: t('common.cancel'), style: 'cancel' },
                   {
