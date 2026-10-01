@@ -4,6 +4,7 @@ import { useExpenseStore } from '@/src/store/expenseStore';
 import { usePaymentStore } from '@/src/store/paymentStore';
 import { usePersonalStore, toMonthKey } from '@/src/store/personalStore';
 import { useUserStore } from '@/src/store/userStore';
+import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { deudasDelGrupo, totalesDeUsuario } from '@/src/algorithms/deudasDelGrupo';
 
 jest.mock('@/src/sync/motor/relayEngine', () => ({
@@ -37,6 +38,11 @@ describe('cargarDatosDeDemo', () => {
     expect(g.memberIds).toContain(YO);
     const otros = g.memberIds.filter(id => id !== YO);
     for (const id of otros) expect(useUserStore.getState().getUserById(id)?.name).toBeTruthy();
+  });
+
+  it('el grupo de demo tiene su clave, como un alta normal (sin aviso de «falta la clave»)', () => {
+    cargarDatosDeDemo(YO, AHORA, true);
+    expect(useGroupKeyStore.getState().getKey(GRUPO_DEMO_ID)).toBeDefined();
   });
 
   it('los gastos reparten exacto y me dejan deuda en las dos direcciones', () => {
