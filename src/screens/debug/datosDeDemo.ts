@@ -1,6 +1,7 @@
 import { buildSplits } from '@/src/algorithms/buildSplits';
 import { conAlta, rosterDe } from '@/src/algorithms/roster';
 import { useGroupStore } from '@/src/store/groupStore';
+import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { usePaymentStore } from '@/src/store/paymentStore';
 import { usePersonalStore } from '@/src/store/personalStore';
@@ -58,6 +59,7 @@ export function cargarDatosDeDemo(yoId: string, ahora: number, isDev: boolean = 
       currency: 'ARS', createdAt: ahora, createdById: yoId, updatedAt: ahora, isDeleted: false,
     });
   }
+  useGroupKeyStore.getState().ensureKey(GRUPO_DEMO_ID);
 
   const expenses = useExpenseStore.getState();
   GASTOS.forEach((g, i) => {
