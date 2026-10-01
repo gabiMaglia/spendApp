@@ -5,6 +5,7 @@ import { usePaymentStore } from '@/src/store/paymentStore';
 import { usePersonalStore, toMonthKey } from '@/src/store/personalStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
+import { useAuthStore } from '@/src/store/authStore';
 import { deudasDelGrupo, totalesDeUsuario } from '@/src/algorithms/deudasDelGrupo';
 
 jest.mock('@/src/sync/motor/relayEngine', () => ({
@@ -38,6 +39,21 @@ describe('cargarDatosDeDemo', () => {
     expect(g.memberIds).toContain(YO);
     const otros = g.memberIds.filter(id => id !== YO);
     for (const id of otros) expect(useUserStore.getState().getUserById(id)?.name).toBeTruthy();
+  });
+
+  it('la cuenta activa pasa a llamarse Lucía (el saludo no dice «Invitado»)', () => {
+    useAuthStore.setState({ currentUser: { id: YO, name: 'Invitado', email: '', authProvider: 'guest', createdAt: 1, updatedAt: 1, isDeleted: false } });
+    cargarDatosDeDemo(YO, AHORA, true);
+    expect(useAuthStore.getState().currentUser?.name).toBe('Lucía');
+    expect(useUserStore.getState().getUserById(YO)?.name).toBe('Lucía');
+  });
+
+  it('cada gasto se reparte en partes iguales exactas, sin centavos', () => {
+    cargarDatosDeDemo(YO, AHORA, true);
+    for (const e of useExpenseStore.getState().getByGroupId(GRUPO_DEMO_ID)) {
+      expect(new Set(e.splits.map(x => x.amount)).size).toBe(1);
+      for (const x of e.splits) expect(x.amount % 100).toBe(0);
+    }
   });
 
   it('el grupo de demo tiene su clave, como un alta normal (sin aviso de «falta la clave»)', () => {
