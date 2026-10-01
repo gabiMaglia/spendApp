@@ -6,6 +6,7 @@ import { useExpenseStore } from '@/src/store/expenseStore';
 import { usePaymentStore } from '@/src/store/paymentStore';
 import { usePersonalStore } from '@/src/store/personalStore';
 import { useUserStore } from '@/src/store/userStore';
+import { useAuthStore } from '@/src/store/authStore';
 import type { ExpenseCategory, Group, PersonalCategory } from '@/src/types/models';
 
 /**
@@ -19,11 +20,11 @@ export const GRUPO_DEMO_ID = 'demo-bariloche';
 const SOFI = 'demo-sofi';
 const MARTIN = 'demo-martin';
 
-/** Montos en pesos enteros; se guardan en centavos (ADR-002). */
+/** Montos en pesos enteros y divisibles por 3 (partes iguales sin centavos); se guardan en centavos (ADR-002). */
 const GASTOS: { id: string; desc: string; pesos: number; paga: 'yo' | string; cat: ExpenseCategory }[] = [
   { id: 'demo-g-cabana',    desc: 'Cabaña 3 noches', pesos: 180000, paga: SOFI,   cat: 'accommodation' },
-  { id: 'demo-g-super',     desc: 'Súper',           pesos: 42500,  paga: 'yo',   cat: 'food' },
-  { id: 'demo-g-nafta',     desc: 'Nafta',           pesos: 35000,  paga: MARTIN, cat: 'transport' },
+  { id: 'demo-g-super',     desc: 'Súper',           pesos: 42000,  paga: 'yo',   cat: 'food' },
+  { id: 'demo-g-nafta',     desc: 'Nafta',           pesos: 36000,  paga: MARTIN, cat: 'transport' },
   { id: 'demo-g-cena',      desc: 'Cena en el centro', pesos: 60000, paga: 'yo',  cat: 'food' },
   { id: 'demo-g-excursion', desc: 'Excursión al Cerro Catedral', pesos: 54000, paga: 'yo', cat: 'entertainment' },
 ];
@@ -43,6 +44,13 @@ export function cargarDatosDeDemo(yoId: string, ahora: number, isDev: boolean = 
   const hace = (i: number) => ahora - (i + 1) * 10 * 60_000;
 
   const users = useUserStore.getState();
+  // El saludo de Personal sale del nombre de la cuenta activa: «Hola, Invitado» no va en una ficha.
+  const yo = useAuthStore.getState().currentUser;
+  if (yo?.id === yoId) {
+    const conNombre = { ...yo, name: 'Lucía', updatedAt: ahora };
+    useAuthStore.setState({ currentUser: conNombre });
+    users.addOrUpdateUser(conNombre);
+  }
   for (const [id, name] of [[SOFI, 'Sofi'], [MARTIN, 'Martín']]) {
     users.addOrUpdateUser({ id, name, email: '', authProvider: 'guest', createdAt: ahora, updatedAt: ahora, isDeleted: false });
   }
