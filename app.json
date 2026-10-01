@@ -5,14 +5,14 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "spendapp",
+    "scheme": "hushsplit",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.splitp2p.app",
       "usesAppleSignIn": true,
-      "associatedDomains": ["applinks:spendapp.github.io"],
+      "associatedDomains": ["applinks:hushsplit.github.io"],
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Usamos tu galería de fotos para elegir tu foto de perfil.",
         "ITSAppUsesNonExemptEncryption": false

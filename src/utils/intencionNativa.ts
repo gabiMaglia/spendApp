@@ -1,6 +1,6 @@
 import { ENLACE_BASE, hrefInterno } from '@/src/utils/appLink';
 
-const ESQUEMA_APP = 'spendapp:';
+const ESQUEMA_APP = 'hushsplit:';
 
 /**
  * Esquema reverse-DNS de Google Sign-In, el mismo `iosUrlScheme` que declara el plugin
@@ -31,7 +31,7 @@ function normalizar(url: string): string {
 /**
  * **Adónde lleva una URL que llega del sistema** (T-095 · SEC M-2).
  *
- * Expo Router abre por su cuenta cualquier `spendapp://<ruta>` cuando hay sesión, así
+ * Expo Router abre por su cuenta cualquier `hushsplit://<ruta>` cuando hay sesión, así
  * que la lista blanca de `appLink` no alcanzaba: sólo filtraba la página y el camino
  * sin sesión. Esto corre ANTES de navegar, para toda URL externa.
  *
@@ -39,7 +39,7 @@ function normalizar(url: string): string {
  * espacio/tab inicial — encontrados comparando contra un prefijo fijo en vez de clasificar
  * la URL completa):
  * 1. Se normaliza (trim + bordes de control).
- * 2. Si es un link de la app (`spendapp:` en cualquier capitalización, ruta `/…`, o el
+ * 2. Si es un link de la app (`hushsplit:` en cualquier capitalización, ruta `/…`, o el
  *    https de la página) → su pantalla si es enlazable, si no `/`.
  * 3. Si no, el esquema de Google Sign-In nunca navega (`''`, T-133 · reabre T-120: JS no
  *    necesita ver ese redirect, lo consume el SDK nativo); en desarrollo, el dev client

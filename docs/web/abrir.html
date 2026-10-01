@@ -5,12 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-A/xh0l7084XJNh1gjwdJTec+bsDgnaMuRTwM3CNg2/k='; style-src 'sha256-KCkMpeLMDZKpQyjwhkkrzJb8R51IFuCQfaZaZ6bYNgQ='; img-src 'none'; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-T714pp0PhFHkK9Y3NrSvm8CopN3GthdZB2rzmlzhDnI='; style-src 'sha256-KCkMpeLMDZKpQyjwhkkrzJb8R51IFuCQfaZaZ6bYNgQ='; img-src 'none'; connect-src 'none'; form-action 'none'; base-uri 'none'">
 <title>Abrir en HushSplit</title>
 <!--
   Página intermedia de los links que comparte la app (src/utils/appLink.ts).
 
-  Se publica como index.html de https://spendapp.github.io/ — la única base que la app
+  Se publica como index.html de https://hushsplit.github.io/ — la única base que la app
   acepta — y es además el índice de las páginas legales. Se publica con
   scripts/publicar-sitio.sh.
 
@@ -22,7 +22,7 @@
   http(s)://, así que la app comparte un link a esta página.
 
   T-097 (SEC M-4): en iOS, con Universal Links (AASA en /.well-known/), el link abre la app
-  sin pasar por acá. Si la página igual se carga, NUNCA usa spendapp:// —otra app podría
+  sin pasar por acá. Si la página igual se carga, NUNCA usa hushsplit:// —otra app podría
   declarar ese esquema y quedarse con el secreto—: muestra el Smart App Banner y un botón a
   la App Store. En Android abre con intent:// atado al paquete.
 
@@ -199,7 +199,7 @@
   var esIOS = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
 
   if (esIOS) {
-    // T-097 · SEC M-4: en iOS cualquier app puede declarar `spendapp://` y recibir el
+    // T-097 · SEC M-4: en iOS cualquier app puede declarar `hushsplit://` y recibir el
     // secreto del link. Acá NUNCA se usa el esquema. Con Universal Links la app abre sin
     // pasar por esta página; si igual se cargó (navegador interno, link pegado), el Smart
     // App Banner le entrega la URL https completa a HushSplit, sin esquema de por medio.
@@ -218,8 +218,8 @@
   // En Android, `intent://` es la forma confiable de abrir una app desde Chrome; con un
   // esquema pelado algunos navegadores no hacen nada. Lleva el paquete: sólo abre ESTA app.
   var href = esAndroid
-    ? 'intent://' + destino + '#Intent;scheme=spendapp;package=' + PAQUETE_ANDROID + ';end'
-    : 'spendapp://' + destino;
+    ? 'intent://' + destino + '#Intent;scheme=hushsplit;package=' + PAQUETE_ANDROID + ';end'
+    : 'hushsplit://' + destino;
 
   texto('nota', T.nota);
   boton.textContent = T.abrir;

@@ -92,7 +92,7 @@ export function contactFromParams(params: Record<string, unknown>): ContactPaylo
   return { id, name, email: str(params.email) ?? '', secret, wrapPublicKey, identityPublicKey };
 }
 
-/** Un contacto desde un link de la app, en su forma `https` o `spendapp://`. */
+/** Un contacto desde un link de la app, en su forma `https` o `hushsplit://`. */
 export function parseContactLink(url: string): ContactPayload | null {
   const r = rutaDeEnlace(url);
   if (!r || r.ruta !== 'contact/add') return null;
