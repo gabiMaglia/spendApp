@@ -167,7 +167,7 @@ describe('claves públicas en el código', () => {
 
 describe('formato largo validado (T-098 · SEC L-2)', () => {
   const H = 'ab'.repeat(32);
-  const largo = (q: string) => `spendapp://contact/add?${q}`;
+  const largo = (q: string) => `hushsplit://contact/add?${q}`;
 
   it('una clave que no es hex de 32 bytes invalida el link', () => {
     expect(parseContactLink(largo(`id=u1&name=Ada&s=not-hex`))).toBeNull();
