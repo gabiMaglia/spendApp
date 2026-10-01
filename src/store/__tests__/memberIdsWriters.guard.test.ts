@@ -41,6 +41,7 @@ const ALLOWLIST = new Set<string>([
   'src/store/groupStore.ts',       // destructuring para IGNORARLO + el único `rosterDe(...)` del store
   'app/groups/new.tsx',            // el único `memberIds: rosterDe(miembrosIniciales)` del alta
   'src/services/groupTraspaso.ts', // el único `memberIds: rosterDe(miembrosNuevo)` del traspaso
+  'src/screens/debug/datosDeDemo.ts', // `memberIds: rosterDe(miembros)` del grupo de demo (sólo DEV)
 ]);
 
 function archivosFuenteBajo(dir: string): string[] {
