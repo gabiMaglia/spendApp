@@ -71,12 +71,17 @@ export function cargarDatosDeDemo(yoId: string, ahora: number, isDev: boolean = 
 
   const expenses = useExpenseStore.getState();
   GASTOS.forEach((g, i) => {
-    if (expenses.expenses.some(e => e.id === g.id)) return;
     const amount = centavos(g.pesos);
+    const splits = buildSplits(amount, miembroIds, 'equal');
+    const paidById = g.paga === 'yo' ? yoId : g.paga;
+    // Ya cargado: se pisa con los montos de hoy (una carga vieja no queda mezclada).
+    if (expenses.expenses.some(e => e.id === g.id)) {
+      expenses.updateExpense(g.id, { description: g.desc, amount, splits, paidById, updatedAt: ahora });
+      return;
+    }
     expenses.addExpense({
       id: g.id, groupId: GRUPO_DEMO_ID, description: g.desc, amount, currency: 'ARS',
-      paidById: g.paga === 'yo' ? yoId : g.paga,
-      splits: buildSplits(amount, miembroIds, 'equal'), splitMode: 'equal', category: g.cat,
+      paidById, splits, splitMode: 'equal', category: g.cat,
       date: hace(i), createdAt: hace(i), createdById: yoId, updatedAt: hace(i), isDeleted: false,
     });
   });
