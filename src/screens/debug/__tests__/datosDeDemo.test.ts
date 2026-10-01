@@ -94,6 +94,13 @@ describe('cargarDatosDeDemo', () => {
     expect(new Set(pids).size).toBe(pids.length);
   });
 
+  it('recargarlo pisa los montos de una carga anterior', () => {
+    cargarDatosDeDemo(YO, AHORA, true);
+    useExpenseStore.getState().updateExpense('demo-g-super', { amount: 1 });
+    cargarDatosDeDemo(YO, AHORA, true);
+    expect(useExpenseStore.getState().expenses.find(e => e.id === 'demo-g-super')!.amount).toBe(4_200_000);
+  });
+
   it('fuera de desarrollo no carga nada', () => {
     expect(cargarDatosDeDemo(YO, AHORA, false)).toBe(false);
     expect(useGroupStore.getState().groups).toHaveLength(0);
