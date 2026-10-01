@@ -381,7 +381,7 @@ describe('compartir link de contacto', () => {
     expect(share).toHaveBeenCalledTimes(1);
     // T-096 · ADR-015: ya no es el `#c` con el secreto de la cuenta — es la
     // invitación de un solo uso (`#i`), ver el test de abajo.
-    expect(share.mock.calls[0][0].message).toContain('https://spendapp.github.io/#i');
+    expect(share.mock.calls[0][0].message).toContain('https://hushsplit.github.io/#i');
   });
 
   it('en «Escanear» no aparece: taparía la cámara', () => {

@@ -18,7 +18,7 @@ import { shortFingerprint } from '@/src/utils/keyFingerprint';
 import { useColors } from '@/src/skins/useSkin';
 
 /**
- * Pantalla que recibe el link de invitación (`spendapp://groups/join?...`).
+ * Pantalla que recibe el link de invitación (`hushsplit://groups/join?...`).
  *
  * Entrar a un grupo NO es instantáneo por diseño: hace falta que alguien que ya
  * está adentro entregue la clave, y esa persona puede tener la app cerrada. Por

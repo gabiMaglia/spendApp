@@ -8,7 +8,7 @@ beforeEach(() => _reiniciarEnlacePendiente());
 
 describe('cerrar sesión y el link pendiente (T-094)', () => {
   it('signOut descarta el link pendiente', () => {
-    recordarEnlace('spendapp://contact/add?id=u1&name=Ada');
+    recordarEnlace('hushsplit://contact/add?id=u1&name=Ada');
     useAuthStore.getState().signOut();
     expect(tomarEnlacePendiente()).toBeNull();
   });

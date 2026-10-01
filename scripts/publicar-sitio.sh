@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Publica el sitio público de la app en https://spendapp.github.io/.
+# Publica el sitio público de la app en https://hushsplit.github.io/.
 #
 # La fuente de verdad es docs/web/ de ESTE repo (la testean src/__tests__/paginaAbrir y
 # src/constants/__tests__/legal). Este script copia al repo de la organización:
@@ -19,7 +19,7 @@
 set -euo pipefail
 
 RAIZ="$(cd "$(dirname "$0")/.." && pwd)"
-DESTINO="https://github.com/spendapp/spendapp.github.io.git"
+DESTINO="https://github.com/hushsplit/hushsplit.github.io.git"
 
 if [ -n "$(git -C "$RAIZ" status --porcelain -- docs/web)" ]; then
   echo "docs/web tiene cambios sin commitear: commitealos (y que pasen los tests) antes de publicar" >&2
@@ -68,5 +68,5 @@ fi
 ORIGEN="$(git -C "$RAIZ" rev-parse --short HEAD)"
 git commit --quiet -m "publica docs/web desde spendApp@${ORIGEN}"
 git push --quiet origin main
-echo "publicado: https://spendapp.github.io/ (desde spendApp@${ORIGEN})"
+echo "publicado: https://hushsplit.github.io/ (desde spendApp@${ORIGEN})"
 git ls-files | sed 's/^/  /'

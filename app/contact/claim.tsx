@@ -17,7 +17,7 @@ import { useColors } from '@/src/skins/useSkin';
 
 /**
  * Pantalla que recibe el link de contacto por invitación (T-096 · ADR-015):
- * `spendapp://contact/claim?...`. Mismo patrón que `app/groups/join.tsx`: no
+ * `hushsplit://contact/claim?...`. Mismo patrón que `app/groups/join.tsx`: no
  * es instantáneo, porque el secreto real recién llega cuando quien compartió
  * el link procesa mi reclamo — puede tener la app cerrada.
  */

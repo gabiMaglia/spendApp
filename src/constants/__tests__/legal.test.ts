@@ -42,7 +42,7 @@ describe('las URLs', () => {
   it('no muestran el usuario personal del PO: van a la ficha de la tienda (2026-09-12)', () => {
     for (const l of ['es', 'en', 'pt']) {
       for (const url of [urlDeBorrado(l), urlDePrivacidad(l), urlDeTerminos(l)]) {
-        expect(url.startsWith('https://spendapp.github.io/')).toBe(true);
+        expect(url.startsWith('https://hushsplit.github.io/')).toBe(true);
         expect(url).not.toContain('gabimaglia');
       }
     }

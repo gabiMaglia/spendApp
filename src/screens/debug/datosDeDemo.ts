@@ -11,10 +11,10 @@ import type { ExpenseCategory, Group, PersonalCategory } from '@/src/types/model
 
 /**
  * Datos de demo para las capturas de las tiendas (sólo en desarrollo, se
- * cargan con `spendapp://debug/demo`). Entran por los mismos `add*` de los
+ * cargan con `hushsplit://debug/demo`). Entran por los mismos `add*` de los
  * stores que usa la app, así quedan firmados como cualquier alta. Ids fijos:
  * cargarlo dos veces no duplica, y el grupo se abre con
- * `spendapp://groups/demo-bariloche`.
+ * `hushsplit://groups/demo-bariloche`.
  */
 export const GRUPO_DEMO_ID = 'demo-bariloche';
 const SOFI = 'demo-sofi';

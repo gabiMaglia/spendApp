@@ -114,7 +114,7 @@ export function createInvite(
   };
 }
 
-/** Link para compartir por cualquier canal. Es `https` y no `spendapp://`: ver `utils/appLink`. */
+/** Link para compartir por cualquier canal. Es `https` y no `hushsplit://`: ver `utils/appLink`. */
 export function inviteToLink(invite: GroupInvite): string {
   // Compacto si la regla lo puede representar sin pérdida; si no, el largo (`linkCompacto`).
   const codigo = codificarInvitacion(invite);

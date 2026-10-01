@@ -15,14 +15,14 @@ import type { ContactInvite } from '@/src/sync/contactos/contactInvite';
  *
  * ## El link
  *
- *     https://spendapp.github.io/#<tipo><código>
+ *     https://hushsplit.github.io/#<tipo><código>
  *
  * - `<tipo>`: una letra. `c` = contacto, `g` = invitación a grupo.
  * - `<código>`: base64url (RFC 4648 §5) de los bytes de abajo, **sin relleno `=`**.
  *   Alfabeto `A–Z a–z 0–9 - _`: ningún cliente de mail lo corta.
  *
  * La página (`docs/web/abrir.html`) **no decodifica nada**: abre
- * `spendapp://contact/add?c=<código>` o `spendapp://groups/join?c=<código>`, y la app
+ * `hushsplit://contact/add?c=<código>` o `hushsplit://groups/join?c=<código>`, y la app
  * decodifica acá. El decodificador existe en un solo lugar.
  *
  * ## Cómo reconstruirlo — contacto (`c`)
@@ -81,7 +81,7 @@ import type { ContactInvite } from '@/src/sync/contactos/contactInvite';
  *
  * Por qué no más corto: las tres claves son 96 de los ~120 bytes, y no se pueden derivar
  * una de otra. Bajar de ~200 caracteres exige un servidor (código corto) o un dominio
- * propio más corto que `spendapp.github.io`.
+ * propio más corto que `hushsplit.github.io`.
  */
 
 /** Tope del código ANTES de decodificar: uno de megas bloqueaba el hilo (T-098 L-3). */

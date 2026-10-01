@@ -3,22 +3,22 @@ import { LINKS_URL } from '@/src/constants/web';
 /**
  * **Los links que la app comparte** (PO, 2026-09-12).
  *
- * Antes eran `spendapp://…`, y Gmail —como casi cualquier cliente de mail o chat— sólo
+ * Antes eran `hushsplit://…`, y Gmail —como casi cualquier cliente de mail o chat— sólo
  * convierte en link lo que empieza con `http(s)://`: llegaban como texto con un pedazo
  * subrayado. Ahora se comparte un `https` a la página de `docs/web/abrir.html`, publicada en
- * `https://spendapp.github.io/`, que abre la app.
+ * `https://hushsplit.github.io/`, que abre la app.
  *
  * ⚠️ **Los datos van en el FRAGMENTO (`#ruta?params`), nunca en la query.** El navegador
  * no manda el fragmento al servidor, y el link de contacto lleva el secreto del canal: en
  * la query quedaría en los logs de GitHub Pages.
  *
  * App Links / Universal Links abrirían la app sin pasar por el navegador. Exigen un archivo
- * en la RAÍZ del dominio (`/.well-known/…`): con `spendapp.github.io` la raíz es nuestra y se
+ * en la RAÍZ del dominio (`/.well-known/…`): con `hushsplit.github.io` la raíz es nuestra y se
  * puede, pero pide recompilar el nativo. No está hecho.
  */
 
 /**
- * La base de los links: `https://spendapp.github.io/` (ver `constants/web`).
+ * La base de los links: `https://hushsplit.github.io/` (ver `constants/web`).
  *
  * Hasta T-102 se seguían leyendo dos bases viejas del Pages personal del PO (con `.html`
  * y sin él): el PO decidió (2026-09-13) apagar esa copia porque ve los secretos de los
@@ -30,8 +30,8 @@ export const ENLACE_BASE = LINKS_URL;
 /** Tope de un link entero: el largo va en hex y con nombres escapados (T-098 L-2). */
 export const MAX_URL = 1500;
 const BASES_ACEPTADAS = [
-  LINKS_URL,                          // https://spendapp.github.io/#…
-  LINKS_URL.replace(/\/$/, ''),       // https://spendapp.github.io#…  (sin la barra)
+  LINKS_URL,                          // https://hushsplit.github.io/#…
+  LINKS_URL.replace(/\/$/, ''),       // https://hushsplit.github.io#…  (sin la barra)
 ];
 
 /**
@@ -41,7 +41,7 @@ const BASES_ACEPTADAS = [
 export const TIPOS_COMPACTOS = { c: 'contact/add', g: 'groups/join', i: 'contact/claim' } as const;
 type TipoCompacto = keyof typeof TIPOS_COMPACTOS;
 
-const ESQUEMA = 'spendapp:';
+const ESQUEMA = 'hushsplit:';
 
 /**
  * Las únicas pantallas que un link puede abrir. Es una lista cerrada a propósito: un link
@@ -67,12 +67,12 @@ function esEnlazable(ruta: string): ruta is RutaEnlazable {
 
 /**
  * Lee un link de la app en cualquiera de sus dos formas: el `https` que se comparte, o
- * el `spendapp://` con el que esa página abre la app. `null` para todo lo demás.
+ * el `hushsplit://` con el que esa página abre la app. `null` para todo lo demás.
  */
 export function rutaDeEnlace(urlCruda: string): { ruta: RutaEnlazable; params: URLSearchParams } | null {
   // Tope ANTES de cualquier regex: un link de megas no se procesa (T-098 · L-2).
   if (typeof urlCruda !== 'string' || urlCruda.length === 0 || urlCruda.length > MAX_URL) return null;
-  // Recorta espacio/control de los bordes: sin esto, un `" spendapp://…"` no matcheaba
+  // Recorta espacio/control de los bordes: sin esto, un `" hushsplit://…"` no matcheaba
   // ningún esquema y se leía como link ajeno en vez de caer al filtro (T-095 · ronda 3).
   const url = urlCruda.replace(/^[\x00-\x20]+|[\x00-\x20]+$/g, '');
   if (url.length === 0) return null;
