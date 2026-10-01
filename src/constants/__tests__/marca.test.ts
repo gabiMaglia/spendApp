@@ -19,7 +19,7 @@ import { BASE_URL } from '@/src/constants/web';
  */
 const RAIZ = join(__dirname, '..', '..', '..');
 const app = JSON.parse(readFileSync(join(RAIZ, 'app.json'), 'utf8')) as {
-  expo: { name: string; slug: string; scheme: string; ios: { bundleIdentifier: string }; android: { package: string } };
+  expo: { name: string; slug: string; scheme: string; ios: { bundleIdentifier: string; associatedDomains: string[] }; android: { package: string } };
 };
 
 const NOMBRES_VIEJOS = /spendapp|splitp2p/i;
