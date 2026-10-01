@@ -3,10 +3,10 @@ import { join } from 'path';
 import { ENLACE_BASE, MAX_URL, enlaceCompacto, enlaceCompartible, hrefInterno, rutaDeEnlace } from '@/src/utils/appLink';
 
 /**
- * **Los links que se comparten son `https`, no `spendapp://`** (PO, 2026-09-12).
+ * **Los links que se comparten son `https`, no `hushsplit://`** (PO, 2026-09-12).
  *
  * Gmail —y casi cualquier cliente de mail o chat— sólo convierte en link lo que empieza
- * con `http(s)://`. Un `spendapp://contact/add?...` llegaba como texto plano con un pedazo
+ * con `http(s)://`. Un `hushsplit://contact/add?...` llegaba como texto plano con un pedazo
  * subrayado. El link apunta a una página que abre la app, y los datos van en el FRAGMENTO
  * (`#…`), que el navegador nunca manda al servidor: el link de contacto lleva un secreto.
  */
@@ -30,17 +30,17 @@ describe('rutaDeEnlace', () => {
   });
 
   it('lee el esquema de la app, que es con lo que la página abre la app', () => {
-    const r = rutaDeEnlace('spendapp://contact/add?id=u1&name=Jos%C3%A9');
+    const r = rutaDeEnlace('hushsplit://contact/add?id=u1&name=Jos%C3%A9');
     expect(r?.ruta).toBe('contact/add');
     expect(r?.params.get('name')).toBe('José');
   });
 
   it('acepta la forma con triple barra del esquema', () => {
-    expect(rutaDeEnlace('spendapp:///groups/join?g=1')?.ruta).toBe('groups/join');
+    expect(rutaDeEnlace('hushsplit:///groups/join?g=1')?.ruta).toBe('groups/join');
   });
 
   it('rechaza rutas que no son enlazables: no es un abridor de pantallas arbitrarias', () => {
-    expect(rutaDeEnlace('spendapp://settings/borrar-cuenta')).toBeNull();
+    expect(rutaDeEnlace('hushsplit://settings/borrar-cuenta')).toBeNull();
     expect(rutaDeEnlace(`${ENLACE_BASE}#debug/identity`)).toBeNull();
   });
 
@@ -55,18 +55,18 @@ describe('rutaDeEnlace', () => {
   });
 
   it('el esquema es case-insensitive (RFC 3986): mayúsculas no evaden ni rompen la lectura', () => {
-    expect(rutaDeEnlace('SPENDAPP://contact/add?id=u1&name=Ada')?.ruta).toBe('contact/add');
-    expect(rutaDeEnlace('SpendApp://groups/join?g=1')?.ruta).toBe('groups/join');
-    expect(rutaDeEnlace('SPENDAPP://settings/borrar-cuenta')).toBeNull();
+    expect(rutaDeEnlace('HUSHSPLIT://contact/add?id=u1&name=Ada')?.ruta).toBe('contact/add');
+    expect(rutaDeEnlace('HushSplit://groups/join?g=1')?.ruta).toBe('groups/join');
+    expect(rutaDeEnlace('HUSHSPLIT://settings/borrar-cuenta')).toBeNull();
   });
 
   it('el host del https es case-insensitive: no evade la lista blanca ni rompe la lectura', () => {
-    expect(rutaDeEnlace('HTTPS://SPENDAPP.GITHUB.IO/#contact/add?id=u1')?.ruta).toBe('contact/add');
+    expect(rutaDeEnlace('HTTPS://HUSHSPLIT.GITHUB.IO/#contact/add?id=u1')?.ruta).toBe('contact/add');
   });
 
   it('un espacio o tab inicial no rompe la lectura ni el filtro (T-095 · ronda 3)', () => {
-    expect(rutaDeEnlace(' spendapp://contact/add?id=u1')?.ruta).toBe('contact/add');
-    expect(rutaDeEnlace('\tspendapp://debug/identity')).toBeNull();
+    expect(rutaDeEnlace(' hushsplit://contact/add?id=u1')?.ruta).toBe('contact/add');
+    expect(rutaDeEnlace('\thushsplit://debug/identity')).toBeNull();
     expect(rutaDeEnlace(` ${ENLACE_BASE}#contact/add?id=u1`)?.ruta).toBe('contact/add');
   });
 });
@@ -74,12 +74,12 @@ describe('rutaDeEnlace', () => {
 describe('dónde viven los links', () => {
   it('los nuevos van a la organización, no al GitHub personal', () => {
     const link = enlaceCompacto('c', 'AQQF');
-    expect(link).toBe('https://spendapp.github.io/#cAQQF');
+    expect(link).toBe('https://hushsplit.github.io/#cAQQF');
     expect(link).not.toContain('gabimaglia');
   });
 
   it('se leen con y sin la barra final', () => {
-    for (const base of ['https://spendapp.github.io/', 'https://spendapp.github.io']) {
+    for (const base of ['https://hushsplit.github.io/', 'https://hushsplit.github.io']) {
       expect(rutaDeEnlace(`${base}#cAQQF`)?.ruta).toBe('contact/add');
     }
   });
@@ -100,7 +100,7 @@ describe('dónde viven los links', () => {
 
   it('otra página de github.io no es nuestra, aunque traiga un código válido', () => {
     expect(rutaDeEnlace('https://spendapp-evil.github.io/#cAQQF')).toBeNull();
-    expect(rutaDeEnlace('https://evil.github.io/spendapp.github.io/#cAQQF')).toBeNull();
+    expect(rutaDeEnlace('https://evil.github.io/hushsplit.github.io/#cAQQF')).toBeNull();
     expect(rutaDeEnlace('https://gabimaglia.github.io/otra/abrir#cAQQF')).toBeNull();
   });
 });
@@ -161,11 +161,19 @@ describe('guard: no queda ninguna referencia a gabimaglia (T-102)', () => {
 describe('hrefInterno', () => {
   it('convierte cualquiera de las dos formas en una ruta del router', () => {
     expect(hrefInterno(`${ENLACE_BASE}#contact/add?id=u1`)).toBe('/contact/add?id=u1');
-    expect(hrefInterno('spendapp://groups/join?g=1')).toBe('/groups/join?g=1');
-    expect(hrefInterno('spendapp://settings/borrar-cuenta')).toBeNull();
+    expect(hrefInterno('hushsplit://groups/join?g=1')).toBe('/groups/join?g=1');
+    expect(hrefInterno('hushsplit://settings/borrar-cuenta')).toBeNull();
   });
 
   it('una URL de más de MAX_URL caracteres no es un link (T-098 L-2)', () => {
-    expect(rutaDeEnlace(`spendapp://contact/add?id=u1&name=${'a'.repeat(MAX_URL)}`)).toBeNull();
+    expect(rutaDeEnlace(`hushsplit://contact/add?id=u1&name=${'a'.repeat(MAX_URL)}`)).toBeNull();
   });
 });
+
+describe('esquema viejo (2026-10-01: spendapp → hushsplit)', () => {
+  it('un spendapp:// ya no es un link de la app', () => {
+    expect(rutaDeEnlace('spendapp://contact/add?id=u1&name=Ada')).toBeNull();
+    expect(rutaDeEnlace('https://spendapp.github.io/#contact/add?id=u1')).toBeNull();
+  });
+});
+

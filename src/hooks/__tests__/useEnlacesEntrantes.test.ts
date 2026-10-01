@@ -22,7 +22,7 @@ import type { User } from '@/src/types/models';
 
 const ana = { id: 'ua', name: 'Ana', email: '', authProvider: 'google', createdAt: 0, updatedAt: 0, isDeleted: false } as User;
 const bob = { ...ana, id: 'ub', name: 'Bob' } as User;
-const LINK = 'spendapp://contact/add?id=u9&name=Zoe';
+const LINK = 'hushsplit://contact/add?id=u9&name=Zoe';
 
 beforeEach(() => {
   _reiniciarEnlacePendiente();

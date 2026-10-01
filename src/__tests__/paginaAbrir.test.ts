@@ -18,9 +18,9 @@ describe('docs/web/abrir.html', () => {
   it('la app apunta a esta página', () => {
     // Los links nuevos van a la organización; la copia de `docs/web` atiende los viejos.
     expect(ENLACE_BASE).toBe(LINKS_URL);
-    expect(LINKS_URL).toBe('https://spendapp.github.io/');
+    expect(LINKS_URL).toBe('https://hushsplit.github.io/');
     // Las páginas legales viven en el mismo sitio, sin el usuario personal del PO.
-    expect(BASE_URL).toBe('https://spendapp.github.io');
+    expect(BASE_URL).toBe('https://hushsplit.github.io');
   });
 
   it('abre exactamente las mismas rutas que la app acepta', () => {
@@ -52,7 +52,7 @@ describe('docs/web/abrir.html', () => {
 
   it('el script de publicación copia esta página como index, y todas las legales', () => {
     const script = readFileSync(join(__dirname, '..', '..', 'scripts', 'publicar-sitio.sh'), 'utf8');
-    expect(script).toContain('spendapp/spendapp.github.io');
+    expect(script).toContain('hushsplit/hushsplit.github.io');
     expect(script).toContain('cp "$WEB/abrir.html" index.html');
     // Copia todo docs/web/*.html salvo el index viejo y abrir.html (que ya fue como index).
     expect(script).toContain('for f in "$WEB"/*.html');
@@ -106,7 +106,7 @@ function ejecutarPagina(opts: { userAgent: string; hash: string; maxTouchPoints?
   const el = (id: string) => (elementos[id] ??= { textContent: '', href: '', hidden: true });
   const metas: Record<string, string>[] = [];
   const replace = jest.fn();
-  const location = { hash: opts.hash, href: `https://spendapp.github.io/${opts.hash}`, replace };
+  const location = { hash: opts.hash, href: `https://hushsplit.github.io/${opts.hash}`, replace };
   const document = {
     documentElement: { lang: 'es' },
     title: '',
@@ -133,10 +133,10 @@ describe('docs/web/abrir.html en iOS (T-097 · SEC M-4)', () => {
   it.each([
     ['iPhone', UA_IPHONE, 0],
     ['iPadOS (Macintosh con touch)', UA_IPADOS, 5],
-  ])('%s: nunca manda el link por spendapp://', (_n, userAgent, maxTouchPoints) => {
+  ])('%s: nunca manda el link por hushsplit://', (_n, userAgent, maxTouchPoints) => {
     const { elementos, replace } = ejecutarPagina({ userAgent, maxTouchPoints, hash: '#cABC_-' });
     expect(replace).not.toHaveBeenCalled();
-    for (const e of Object.values(elementos)) expect(e.href).not.toMatch(/^spendapp:/i);
+    for (const e of Object.values(elementos)) expect(e.href).not.toMatch(/^hushsplit:/i);
   });
 
   it('iPhone: pone el Smart App Banner con la URL completa, fragmento incluido', () => {
@@ -166,7 +166,7 @@ describe('docs/web/abrir.html en iOS (T-097 · SEC M-4)', () => {
 
   it('Android sigue abriendo con intent:// atado al paquete', () => {
     const { elementos, replace, metas } = ejecutarPagina({ userAgent: UA_ANDROID, hash: '#cABC_-' });
-    const esperado = 'intent://contact/add?c=ABC_-#Intent;scheme=spendapp;package=com.splitp2p.app;end';
+    const esperado = 'intent://contact/add?c=ABC_-#Intent;scheme=hushsplit;package=com.splitp2p.app;end';
     expect(elementos.abrir.href).toBe(esperado);
     expect(replace).toHaveBeenCalledWith(esperado);
     expect(metas).toEqual([]);

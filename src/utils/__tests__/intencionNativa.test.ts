@@ -5,16 +5,16 @@ import appJson from '@/app.json';
 /**
  * **La lista blanca también rige con sesión** (T-095 · SEC M-2).
  *
- * Con sesión, expo-router abría cualquier `spendapp://…`: una web podía mandar a
+ * Con sesión, expo-router abría cualquier `hushsplit://…`: una web podía mandar a
  * `debug/identity` (con «borrar todo») o a `settings/borrar-cuenta`.
  */
 describe('destinoDeUrlExterna', () => {
   it.each([
-    'spendapp://debug/identity',
-    'spendapp://debug/relay',
-    'spendapp://settings/borrar-cuenta',
-    'spendapp://settle/new?toId=x&maxAmount=999',
-    'spendapp://groups/new?id=x',
+    'hushsplit://debug/identity',
+    'hushsplit://debug/relay',
+    'hushsplit://settings/borrar-cuenta',
+    'hushsplit://settle/new?toId=x&maxAmount=999',
+    'hushsplit://groups/new?id=x',
     '/debug/identity',
     '/settings/borrar-cuenta',
   ])('una ruta no enlazable va al inicio: %s', (url) => {
@@ -22,33 +22,33 @@ describe('destinoDeUrlExterna', () => {
   });
 
   it('los links de la app siguen abriendo su pantalla', () => {
-    expect(destinoDeUrlExterna('spendapp://contact/add?id=u1&name=Ada')).toBe('/contact/add?id=u1&name=Ada');
-    expect(destinoDeUrlExterna('spendapp://groups/join?g=g1&t=abc&e=1')).toBe('/groups/join?g=g1&t=abc&e=1');
+    expect(destinoDeUrlExterna('hushsplit://contact/add?id=u1&name=Ada')).toBe('/contact/add?id=u1&name=Ada');
+    expect(destinoDeUrlExterna('hushsplit://groups/join?g=g1&t=abc&e=1')).toBe('/groups/join?g=g1&t=abc&e=1');
     expect(destinoDeUrlExterna('/contact/add?id=u1&name=Ada')).toBe('/contact/add?id=u1&name=Ada');
   });
 
   it('las formas compactas y el https de la página también', () => {
-    expect(destinoDeUrlExterna('spendapp://cABC_-')).toBe('/contact/add?c=ABC_-');
+    expect(destinoDeUrlExterna('hushsplit://cABC_-')).toBe('/contact/add?c=ABC_-');
     expect(destinoDeUrlExterna(enlaceCompacto('g', 'XYZ'))).toBe('/groups/join?c=XYZ');
   });
 
   it.each([
-    'SPENDAPP://debug/identity',
-    'SpendApp://settings/borrar-cuenta',
+    'HUSHSPLIT://debug/identity',
+    'HushSplit://settings/borrar-cuenta',
   ])('un esquema en mayúsculas no evade la lista blanca: %s', (url) => {
     expect(destinoDeUrlExterna(url)).toBe('/');
   });
 
   it('un esquema en mayúsculas sigue abriendo una ruta enlazable', () => {
-    expect(destinoDeUrlExterna('SPENDAPP://contact/add?id=u1&name=Ada')).toBe('/contact/add?id=u1&name=Ada');
+    expect(destinoDeUrlExterna('HUSHSPLIT://contact/add?id=u1&name=Ada')).toBe('/contact/add?id=u1&name=Ada');
   });
 
   it('el https de la página en mayúsculas también rige (host y esquema son case-insensitive por RFC 3986)', () => {
-    expect(destinoDeUrlExterna('HTTPS://SPENDAPP.GITHUB.IO/#debug/identity')).toBe('/');
-    expect(destinoDeUrlExterna('HTTPS://SPENDAPP.GITHUB.IO/#contact/add?id=u1')).toBe('/contact/add?id=u1');
+    expect(destinoDeUrlExterna('HTTPS://HUSHSPLIT.GITHUB.IO/#debug/identity')).toBe('/');
+    expect(destinoDeUrlExterna('HTTPS://HUSHSPLIT.GITHUB.IO/#contact/add?id=u1')).toBe('/contact/add?id=u1');
   });
 
-  it.each(['', '/', 'spendapp://', 'spendapp:', 'spendapp://%%%'])('basura o vacío va al inicio sin lanzar: %j', (url) => {
+  it.each(['', '/', 'hushsplit://', 'hushsplit:', 'hushsplit://%%%'])('basura o vacío va al inicio sin lanzar: %j', (url) => {
     expect(destinoDeUrlExterna(url)).toBe('/');
   });
 
@@ -121,9 +121,9 @@ describe('destinoDeUrlExterna', () => {
   });
 
   it.each([
-    ' spendapp://debug/identity',
-    '\tSPENDAPP://debug/identity',
-    ' spendapp://debug',
+    ' hushsplit://debug/identity',
+    '\tHUSHSPLIT://debug/identity',
+    ' hushsplit://debug',
     'javascript:alert(1)',
   ])('espacio/tab inicial o un esquema peligroso no evaden la lista blanca: %j', (url) => {
     expect(destinoDeUrlExterna(url)).toBe('/');
@@ -134,7 +134,7 @@ describe('destinoDeUrlExterna', () => {
   });
 
   it('un link real con espacio alrededor sigue abriendo su pantalla (el trim no rompe el camino feliz)', () => {
-    expect(destinoDeUrlExterna(' spendapp://contact/add?id=u1&name=Ada ')).toBe('/contact/add?id=u1&name=Ada');
+    expect(destinoDeUrlExterna(' hushsplit://contact/add?id=u1&name=Ada ')).toBe('/contact/add?id=u1&name=Ada');
   });
 
   it('un valor que no es string no rompe', () => {
@@ -143,32 +143,32 @@ describe('destinoDeUrlExterna', () => {
 });
 
 describe('destinoDeUrlExterna · Universal Link (T-097)', () => {
-  // Con `applinks:spendapp.github.io`, iOS entrega a la app la URL https completa que se
+  // Con `applinks:hushsplit.github.io`, iOS entrega a la app la URL https completa que se
   // tocó, fragmento incluido. Tiene que caer en la misma lista blanca que el esquema.
   it('el link compacto https abre su pantalla', () => {
-    expect(destinoDeUrlExterna('https://spendapp.github.io/#cABC_-')).toBe('/contact/add?c=ABC_-');
-    expect(destinoDeUrlExterna('https://spendapp.github.io/#gXYZ')).toBe('/groups/join?c=XYZ');
+    expect(destinoDeUrlExterna('https://hushsplit.github.io/#cABC_-')).toBe('/contact/add?c=ABC_-');
+    expect(destinoDeUrlExterna('https://hushsplit.github.io/#gXYZ')).toBe('/groups/join?c=XYZ');
     expect(destinoDeUrlExterna(enlaceCompacto('c', 'QWE'))).toBe('/contact/add?c=QWE');
   });
 
   it('el formato largo https abre su pantalla', () => {
-    expect(destinoDeUrlExterna('https://spendapp.github.io/#contact/add?id=u1&name=Ada'))
+    expect(destinoDeUrlExterna('https://hushsplit.github.io/#contact/add?id=u1&name=Ada'))
       .toBe('/contact/add?id=u1&name=Ada');
   });
 
   it.each([
-    'HTTPS://SPENDAPP.GITHUB.IO/#cABC_-',
-    'https://spendapp.github.io#cABC_-',
+    'HTTPS://HUSHSPLIT.GITHUB.IO/#cABC_-',
+    'https://hushsplit.github.io#cABC_-',
   ])('mayúsculas en esquema/host y la variante sin barra también: %s', (url) => {
     expect(destinoDeUrlExterna(url)).toBe('/contact/add?c=ABC_-');
   });
 
   it.each([
-    'https://spendapp.github.io/#settle/new?toId=x&maxAmount=999',
-    'https://spendapp.github.io/#debug/identity',
-    'https://spendapp.github.io/',
-    'https://spendapp.github.io.evil.com/#cABC_-',
-    'https://evil.com/?spendapp.github.io#cABC_-',
+    'https://hushsplit.github.io/#settle/new?toId=x&maxAmount=999',
+    'https://hushsplit.github.io/#debug/identity',
+    'https://hushsplit.github.io/',
+    'https://hushsplit.github.io.evil.com/#cABC_-',
+    'https://evil.com/?hushsplit.github.io#cABC_-',
     'https://evil.com/#cABC_-',
   ])('un https que no es un link enlazable del sitio va al inicio: %s', (url) => {
     expect(destinoDeUrlExterna(url)).toBe('/');

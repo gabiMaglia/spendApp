@@ -4,6 +4,7 @@ import es from '@/src/i18n/locales/es.json';
 import en from '@/src/i18n/locales/en.json';
 import pt from '@/src/i18n/locales/pt.json';
 import { BACKUP_FORMAT } from '@/src/services/backup';
+import { BASE_URL } from '@/src/constants/web';
 
 /**
  * La marca es «HushSplit» (2026-09-27). «spendApp» estaba ocupado en las tiendas y
@@ -45,8 +46,6 @@ describe('marca HushSplit — lo que se ve', () => {
       .filter((f) => f.endsWith('.html'))
       .filter((f) => {
         const sinDominioEsquemaNiId = readFileSync(join(web, f), 'utf8')
-          .replace(/spendapp\.github\.io/g, '')
-          .replace(/scheme=spendapp|spendapp:/g, '')
           .replace(/com\.splitp2p\.app/g, '');
         return NOMBRES_VIEJOS.test(sinDominioEsquemaNiId);
       });
@@ -54,10 +53,17 @@ describe('marca HushSplit — lo que se ve', () => {
   });
 });
 
+describe('marca HushSplit — dominio y esquema (2026-10-01, sin usuarios reales)', () => {
+  it('el esquema y el dominio de los links son de HushSplit', () => {
+    expect(app.expo.scheme).toBe('hushsplit');
+    expect(app.expo.ios.associatedDomains).toEqual(['applinks:hushsplit.github.io']);
+    expect(BASE_URL).toBe('https://hushsplit.github.io');
+  });
+});
+
 describe('marca HushSplit — lo que NO se toca', () => {
-  it('slug, esquema e ids de bundle/package siguen atados a lo publicado', () => {
+  it('slug e ids de bundle/package siguen atados a lo publicado', () => {
     expect(app.expo.slug).toBe('spendApp');
-    expect(app.expo.scheme).toBe('spendapp');
     expect(app.expo.ios.bundleIdentifier).toBe('com.splitp2p.app');
     expect(app.expo.android.package).toBe('com.splitp2p.app');
   });

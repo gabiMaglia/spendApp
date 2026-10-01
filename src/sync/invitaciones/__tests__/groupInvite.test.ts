@@ -65,12 +65,12 @@ describe('link de invitación', () => {
     expect(parseInviteLink(largo)).toBeNull();
   });
 
-  it('un link largo sobre la base nueva (spendapp.github.io) se sigue leyendo', () => {
+  it('un link largo sobre la base nueva (hushsplit.github.io) se sigue leyendo', () => {
     const inv = createInvite(GROUP_ID, 'Viaje', generateIdentity().publicKey, AHORA);
     const params = new URLSearchParams({
       g: inv.groupId, n: inv.groupName, t: inv.token, f: inv.inviterFingerprint, e: String(inv.expiresAt),
     });
-    const largo = `https://spendapp.github.io/#groups/join?${params}`;
+    const largo = `https://hushsplit.github.io/#groups/join?${params}`;
     expect(parseInviteLink(largo)).toEqual(inv);
   });
 
@@ -82,9 +82,9 @@ describe('link de invitación', () => {
   it('un link roto devuelve null en vez de tirar', () => {
     expect(parseInviteLink('cualquier cosa')).toBeNull();
     // Un link de otra pantalla, aunque traiga los mismos parámetros, no es una invitación.
-    expect(parseInviteLink('spendapp://contact/add?g=g1&t=x&e=1')).toBeNull();
-    expect(parseInviteLink('spendapp://groups/join')).toBeNull();
-    expect(parseInviteLink('spendapp://groups/join?g=g1')).toBeNull(); // sin token
+    expect(parseInviteLink('hushsplit://contact/add?g=g1&t=x&e=1')).toBeNull();
+    expect(parseInviteLink('hushsplit://groups/join')).toBeNull();
+    expect(parseInviteLink('hushsplit://groups/join?g=g1')).toBeNull(); // sin token
   });
 
   it('vence a las 48h (regla de negocio #9)', () => {
