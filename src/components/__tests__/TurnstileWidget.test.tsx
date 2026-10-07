@@ -4,7 +4,7 @@ import { TurnstileWidget, CAPTCHA_INTERACTIVE_STUCK_MS } from '../TurnstileWidge
 import * as bridge from '@/src/sync/sesion/captchaBridge';
 
 let mockUltimoOnMessage: ((e: { nativeEvent: { data: string } }) => void) | null = null;
-let mockUltimoProps: { style?: unknown; scalesPageToFit?: boolean } | null = null;
+let mockUltimoProps: { style?: unknown; scalesPageToFit?: boolean; originWhitelist?: string[] } | null = null;
 let mockMontajes = 0;
 jest.mock('react-native-webview', () => {
   const { View } = require('react-native');
@@ -119,6 +119,22 @@ it('desactiva scalesPageToFit (Android) para no deformar el tamaño natural del 
   const p = bridge.requestCaptchaToken();
   await act(async () => {});
   expect(mockUltimoProps?.scalesPageToFit).toBe(false);
+  await enviar({ type: 'token', token: 'T' });
+  await p;
+});
+
+/**
+ * iOS: `originWhitelist` por defecto (`http://*`, `https://*`) también filtra
+ * los iframes, y Turnstile monta su desafío en `about:blank`/`about:srcdoc`
+ * (requisito documentado por Cloudflare para WebView). Sin `about:` el
+ * desafío nunca aparece y el invitado no puede entrar (rechazo de App Review
+ * 2026-10-07, reproducido en simulador).
+ */
+it('permite about: en la lista de orígenes (iframe del desafío en iOS) sin abrir otros esquemas', async () => {
+  montar();
+  const p = bridge.requestCaptchaToken();
+  await act(async () => {});
+  expect(mockUltimoProps?.originWhitelist).toEqual(['https://*', 'about:*']);
   await enviar({ type: 'token', token: 'T' });
   await p;
 });
