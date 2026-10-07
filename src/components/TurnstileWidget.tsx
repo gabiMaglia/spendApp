@@ -192,6 +192,11 @@ export function TurnstileWidget() {
           testID="turnstile-webview"
           source={{ html: turnstileHtml(siteKey), baseUrl: hostname ? `https://${hostname}` : undefined }}
           onMessage={onMessage}
+          // iOS filtra también los iframes con esta lista, y Turnstile monta
+          // el desafío en `about:blank`/`about:srcdoc` (requisito de
+          // Cloudflare para WebView). Con la lista por defecto el desafío
+          // nunca aparecía y el invitado no podía entrar.
+          originWhitelist={['https://*', 'about:*']}
           style={styles.webviewFill}
           javaScriptEnabled
           // Android por defecto hace zoom al contenido para "hacerlo caber"
