@@ -1,5 +1,5 @@
-import React, { createContext, useContext } from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import React from 'react';
+import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { FondoMarmol } from '@/src/components/FondoMarmol';
@@ -14,25 +14,6 @@ export const DETAIL_BAR_H = 52;
 /** La tarjeta suma su borde de arriba y el de abajo. */
 const BORDES_TARJETA = 2;
 
-const EnModalContext = createContext(false);
-
-/**
- * Envuelve una pantalla que se abre como modal (`presentation: 'modal'`). En
- * iOS el modal es una hoja que ya arranca debajo de la barra de estado: el
- * header de Aero no tiene que sumar el inset de arriba, o queda flotando muy
- * abajo (PO 2026-10-11). En Android el modal es de pantalla completa y sí.
- */
-export function EnModal({ children }: { children: React.ReactNode }) {
-  return <EnModalContext.Provider value>{children}</EnModalContext.Provider>;
-}
-
-/** El inset de arriba que tiene que despejar el header de Aero en esta pantalla. */
-function useInsetSuperior(): number {
-  const enModal = useContext(EnModalContext);
-  const insets = useSafeAreaInsets();
-  return enModal && Platform.OS === 'ios' ? 0 : insets.top;
-}
-
 /**
  * Cuánto tiene que bajar el contenido de una pantalla de detalle para
  * arrancar debajo de la tarjeta del header. En Aero el header flota (el
@@ -40,8 +21,8 @@ function useInsetSuperior(): number {
  */
 export function useRellenoDetailHeader(): number {
   const soft = useSkinTokens().flags.soft;
-  const top = useInsetSuperior();
-  return soft ? top + AERO_TOPE + DETAIL_BAR_H + BORDES_TARJETA : 0;
+  const insets = useSafeAreaInsets();
+  return soft ? insets.top + AERO_TOPE + DETAIL_BAR_H + BORDES_TARJETA : 0;
 }
 
 /** Hueco del header para pantallas de detalle SIN scroll (en Clásico no dibuja nada). */
@@ -61,7 +42,7 @@ export function RellenoDetailHeader() {
 export function DetailHeaderAero({ children }: { children: React.ReactNode }) {
   const { skin, degradado } = useSkin();
   const c = skin.colors;
-  const top = useInsetSuperior();
+  const insets = useSafeAreaInsets();
   const relleno = useRellenoDetailHeader();
   const sombra = degradado
     ? { elevation: skin.elevation.e2.elevationFallback }
@@ -78,7 +59,7 @@ export function DetailHeaderAero({ children }: { children: React.ReactNode }) {
         testID="detail-header-aero"
         style={[
           styles.tarjeta,
-          { marginTop: top + AERO_TOPE, marginHorizontal: skin.space.inset },
+          { marginTop: insets.top + AERO_TOPE, marginHorizontal: skin.space.inset },
           { backgroundColor: c.surface, borderColor: c.bordeMarmol },
           sombra,
         ]}

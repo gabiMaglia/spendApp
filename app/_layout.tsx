@@ -29,7 +29,6 @@ import { ErrorBoundary } from '@/src/components/ErrorBoundary';
 import { exportarDiagnostico } from '@/src/services/exportDiagnostico';
 import { useEntryGateStore } from '@/src/store/entryGateStore';
 import { decidirNavegacionAuthGuard } from '@/src/navigation/authGuardDecision';
-import { EnModal } from '@/src/components/CollapsibleHeader';
 
 // A nivel de módulo, no dentro de un componente: el handler tiene que estar
 // registrado ANTES de que llegue el primer aviso. Sin él, expo-notifications
@@ -150,9 +149,6 @@ SplashScreen.preventAutoHideAsync().catch(() => {
   // Si falla, la app arranca igual: se pierde la animación, no la app.
 });
 
-/** Las rutas con `presentation: 'modal'` de abajo. */
-const RUTAS_MODALES = new Set(['groups/new', 'groups/join', 'expense/new', 'settle/new', 'contact/add', 'debug/identity', 'debug/relay']);
-
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const [splashListo, setSplashListo] = useState(false);
@@ -199,24 +195,21 @@ export default function RootLayout() {
           });
         }}
       >
-      <Stack
-        screenOptions={{ headerShown: false }}
-        // iOS: el modal es una hoja que ya arranca debajo de la barra de estado;
-        // `EnModal` le avisa al header de Aero que no sume ese inset (PO 2026-10-11).
-        screenLayout={({ route, children }) => (RUTAS_MODALES.has(route.name) ? <EnModal>{children}</EnModal> : children)}
-      >
+      <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="auth/index" options={{ headerShown: false }} />
         <Stack.Screen name="auth/verify" options={{ headerShown: false, gestureEnabled: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="groups/[id]"  options={{ headerShown: false }} />
-        <Stack.Screen name="groups/new"   options={{ presentation: 'modal', headerShown: false }} />
-        <Stack.Screen name="groups/join"  options={{ presentation: 'modal', headerShown: false }} />
-        <Stack.Screen name="expense/new"  options={{ presentation: 'modal', headerShown: false }} />
+        {/* Modales a pantalla completa (PO 2026-10-11): la hoja de iOS dejaba ver
+            la pantalla de atrás asomando arriba. Se cierran con la X. */}
+        <Stack.Screen name="groups/new"   options={{ presentation: 'fullScreenModal', headerShown: false }} />
+        <Stack.Screen name="groups/join"  options={{ presentation: 'fullScreenModal', headerShown: false }} />
+        <Stack.Screen name="expense/new"  options={{ presentation: 'fullScreenModal', headerShown: false }} />
         <Stack.Screen name="expense/[id]" options={{ headerShown: false }} />
-        <Stack.Screen name="settle/new"   options={{ presentation: 'modal', headerShown: false }} />
-        <Stack.Screen name="contact/add"   options={{ presentation: 'modal', headerShown: false }} />
-        <Stack.Screen name="debug/identity" options={{ presentation: 'modal', headerShown: false }} />
-        <Stack.Screen name="debug/relay"    options={{ presentation: 'modal', headerShown: false }} />
+        <Stack.Screen name="settle/new"   options={{ presentation: 'fullScreenModal', headerShown: false }} />
+        <Stack.Screen name="contact/add"   options={{ presentation: 'fullScreenModal', headerShown: false }} />
+        <Stack.Screen name="debug/identity" options={{ presentation: 'fullScreenModal', headerShown: false }} />
+        <Stack.Screen name="debug/relay"    options={{ presentation: 'fullScreenModal', headerShown: false }} />
       </Stack>
       </ErrorBoundary>
       <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />

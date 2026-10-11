@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 
 import { Band, BandRow } from '@/src/components/Band';
 import { Typography } from '@/src/constants/typography';
-import { useColors } from '@/src/skins/useSkin';
+import { useColors, useSkinTokens } from '@/src/skins/useSkin';
 import { formatDate } from '@/src/screens/settle/saldoDeGrupo';
 import { estilos } from '@/src/screens/settle/components/estilos';
 
@@ -23,9 +23,10 @@ export function FilasGrupoYFecha({
 }) {
   const { t } = useTranslation();
   const c = useColors();
+  const soft = useSkinTokens().flags.soft;
 
   return (
-    <Band style={estilos.card}>
+    <Band style={soft ? estilos.cardAero : estilos.card}>
       <BandRow onPress={onPressGrupo}>
         <Ionicons name="people-outline" size={17} color={c.textSecondary} />
         <Text style={[Typography.bodyM, { color: c.textSecondary, flex: 1 }]}>
