@@ -60,7 +60,7 @@ export function HeaderAero({
   const barraBottom = barraTop + HEADER_BAR_H;
   const tarjeta = {
     backgroundColor: c.surface,
-    borderColor: c.hair,
+    borderColor: c.bordeMarmol,
     marginHorizontal: skin.space.inset,
     // Sombra (PO 2026-09-26): las tarjetas de mármol flotan como los paneles.
     ...(degradado

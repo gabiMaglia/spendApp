@@ -53,6 +53,7 @@ export const AERO_SKIN: SkinDefinition = {
       glowStrong: 'rgba(47,71,99,0.20)',
       edgeLight: 'rgba(255,255,255,0.95)',
       edgeShade: 'rgba(15,23,42,0.05)',
+      bordeMarmol: 'rgba(15,23,42,0.08)',
       // El mármol es una foto beige: sobre los neutros pizarra quedaba crema.
       // Velo blanco-pizarra (#F1F5F9), no azul — aclara en vez de oscurecer
       // (el tinte azul del 2026-09-26 se descartó por eso).
@@ -101,7 +102,9 @@ export const AERO_SKIN: SkinDefinition = {
       surfaceRaised: '#282522',
       surfaceWarm: '#282522',
       surfaceSunken: '#171514',
-      hair: 'rgba(255,245,230,0.09)',
+      // PO 2026-10-11: más chato — el contorno lo daban borde + filo + brillo
+      // sumados; ahora la pieza se separa por tono, no por luz en el borde.
+      hair: 'rgba(255,245,230,0.05)',
       hair2: 'rgba(255,245,230,0.05)',
       borderHair: 'rgba(255,245,230,0.05)',
       border: 'rgba(255,245,230,0.09)',
@@ -113,19 +116,22 @@ export const AERO_SKIN: SkinDefinition = {
       textOnBrand: '#121110',
       glow: 'rgba(169,188,210,0.12)',
       glowStrong: 'rgba(169,188,210,0.22)',
-      edgeLight: 'rgba(255,245,230,0.07)',
+      edgeLight: 'rgba(255,245,230,0.025)',
       edgeShade: 'rgba(0,0,0,0.45)',
+      // Sin borde: aun al 2,5 % el filo claro «levantaba» el contorno del mármol.
+      bordeMarmol: 'transparent',
       marmolVeil: 'rgba(18,17,16,0.35)',
       marmolOpacity: 0.5,
       vidrioVeilTop: 'rgba(18,17,16,0.10)',
       vidrioVeilBottom: 'rgba(18,17,16,0.55)',
-      vidrioGloss: 'rgba(255,245,230,0.06)',
-      vidrioTint: 'rgba(169,188,210,0.10)',
+      vidrioGloss: 'rgba(255,245,230,0.02)',
+      vidrioTint: 'transparent',
       vidrioMarmolOpacity: 0.4,
     },
     elevation: {
-      e1: { boxShadow: '0 1px 2px rgba(0,0,0,0.45)', elevationFallback: 1 },
-      e2: { boxShadow: '0 1px 2px rgba(0,0,0,0.40), 0 10px 24px rgba(0,0,0,0.50)', elevationFallback: 2 },
+      // Sombras cortas y suaves: la pieza se apoya, no flota (PO 2026-10-11, «más chato»).
+      e1: { boxShadow: '0 1px 2px rgba(0,0,0,0.22)', elevationFallback: 1 },
+      e2: { boxShadow: '0 1px 2px rgba(0,0,0,0.22), 0 4px 12px rgba(0,0,0,0.22)', elevationFallback: 2 },
       e3: { boxShadow: '0 4px 10px rgba(0,0,0,0.35), 0 16px 32px rgba(0,0,0,0.45)', elevationFallback: 4 },
     },
     radius: RADIUS,
