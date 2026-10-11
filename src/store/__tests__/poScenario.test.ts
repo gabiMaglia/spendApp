@@ -1,4 +1,4 @@
-import { useAuthStore } from '../authStore';
+import { useAuthStore, marcarProveedorProbado } from '../authStore';
 import { useGroupStore } from '../groupStore';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { mergeProviderUser } from '@/src/utils/mergeProviderUser';
@@ -67,7 +67,14 @@ function login(
     asked = true;
     if (confirmLinkIfAsked) {
       accountId = r.candidates[0]!.accountId;
-      auth.confirmAccountLink(providerId, accountId);
+      // Como `unir()` en `cuentaDeLogin.ts`: con el buzón configurado (el env
+      // de EAS lo está; el local, sin `.env` cargado, no) la fusión exige
+      // probar el proveedor de la cuenta destino (T-042), y la UI le pide al
+      // usuario que entre con él. El `signOut` previo olvidó la prueba.
+      if (!auth.confirmAccountLink(providerId, accountId).ok) {
+        marcarProveedorProbado(providerId === GOOGLE_ID ? APPLE_ID : GOOGLE_ID);
+        expect(auth.confirmAccountLink(providerId, accountId).ok).toBe(true);
+      }
     } else {
       accountId = providerId; // "usar cuenta aparte"
     }

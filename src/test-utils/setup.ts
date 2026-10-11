@@ -10,6 +10,17 @@
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 require('react-native-gesture-handler/jestSetup');
 
+// Suite hermética: sin las `EXPO_PUBLIC_*` del entorno. El job de EAS carga
+// las del proyecto (Supabase real, sitekey de Turnstile, cotizador) y en local
+// no hay ninguna, así que el mismo test corría distinto en cada lado: con el
+// buzón configurado `schedulePublish` arma timers que se disparan con el test
+// ya desarmado, Turnstile exige captcha, y fusionar cuentas pide prueba
+// (T-042). Tumbó el gate del 2026-10-11 con todo verde en local. Un test que
+// necesita una de estas la pone él mismo arriba del archivo, que corre después.
+for (const clave of Object.keys(process.env)) {
+  if (clave.startsWith('EXPO_PUBLIC_')) delete process.env[clave];
+}
+
 // i18n: devuelve la clave como valor para que los tests no dependan de traducciones
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
