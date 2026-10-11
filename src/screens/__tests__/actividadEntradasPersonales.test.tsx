@@ -8,7 +8,8 @@ import { useExpenseStore } from '@/src/store/expenseStore';
 import { usePaymentStore } from '@/src/store/paymentStore';
 import { usePersonalStore } from '@/src/store/personalStore';
 import type { PersonalEntry, User } from '@/src/types/models';
-import { Colors } from '@/src/constants/colors';
+import { resolveSkin } from '@/src/skins/resolveSkin';
+import { SKIN_INICIAL } from '@/src/skins/registry';
 
 /**
  * PO 2026-09-22: los gastos/ingresos cargados desde la tab Personal (un
@@ -62,7 +63,7 @@ describe('Actividad muestra los PersonalEntry de la tab Personal', () => {
 
     const monto = r.getByText('$5.000');
     expect(monto.props.style).toEqual(
-      expect.arrayContaining([expect.objectContaining({ color: Colors.light.semantic.positive })]),
+      expect.arrayContaining([expect.objectContaining({ color: resolveSkin(SKIN_INICIAL, 'light').colors.semantic.positive })]),
     );
   });
 });
