@@ -6,6 +6,7 @@ import { usePersonalStore, toMonthKey } from '@/src/store/personalStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { useAuthStore } from '@/src/store/authStore';
+import { useCommentStore } from '@/src/store/commentStore';
 import { deudasDelGrupo, totalesDeUsuario } from '@/src/algorithms/deudasDelGrupo';
 
 jest.mock('@/src/sync/motor/relayEngine', () => ({
@@ -22,6 +23,7 @@ const AHORA = new Date(2026, 9, 1, 12, 0).getTime();
 
 function limpiar() {
   useGroupStore.setState({ groups: [] });
+  useCommentStore.setState({ comments: [] });
   useExpenseStore.setState({ expenses: [] });
   usePaymentStore.setState({ payments: [] });
   usePersonalStore.setState({ entries: [], budget: { currency: 'ARS', monthlyAmount: 0, includeOwedToMe: false } });
@@ -99,6 +101,15 @@ describe('cargarDatosDeDemo', () => {
     useExpenseStore.getState().updateExpense('demo-g-super', { amount: 1 });
     cargarDatosDeDemo(YO, AHORA, true);
     expect(useExpenseStore.getState().expenses.find(e => e.id === 'demo-g-super')!.amount).toBe(4_200_000);
+  });
+
+  it('T-235: deja un comentario de Martín en un gasto, para mostrar denunciar y bloquear', () => {
+    cargarDatosDeDemo(YO, AHORA, true);
+    cargarDatosDeDemo(YO, AHORA, true);
+    const comentarios = useCommentStore.getState().comments.filter(c => !c.isDeleted);
+    expect(comentarios).toHaveLength(1);
+    expect(comentarios[0].authorId).toBe('demo-martin');
+    expect(useExpenseStore.getState().expenses.some(e => e.id === comentarios[0].expenseId)).toBe(true);
   });
 
   it('fuera de desarrollo no carga nada', () => {

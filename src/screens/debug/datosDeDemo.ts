@@ -8,6 +8,7 @@ import { usePersonalStore } from '@/src/store/personalStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useAuthStore } from '@/src/store/authStore';
 import type { ExpenseCategory, Group, PersonalCategory } from '@/src/types/models';
+import { useCommentStore } from '@/src/store/commentStore';
 
 /**
  * Datos de demo para las capturas de las tiendas (sólo en desarrollo, se
@@ -92,6 +93,16 @@ export function cargarDatosDeDemo(yoId: string, ahora: number, isDev: boolean = 
       id: 'demo-pago-martin', groupId: GRUPO_DEMO_ID, fromUserId: MARTIN, toUserId: yoId,
       amount: centavos(20000), currency: 'ARS', date: hace(0), createdAt: hace(0),
       createdById: yoId, updatedAt: hace(0), isDeleted: false,
+    });
+  }
+
+  // T-235: un comentario ajeno para poder mostrar «Denunciar» y «Bloquear»
+  // (el video que pide App Review tiene que enseñarlos).
+  const comments = useCommentStore.getState();
+  if (!comments.comments.some(c => c.id === 'demo-comentario-martin')) {
+    comments.addComment({
+      id: 'demo-comentario-martin', expenseId: 'demo-g-cabana', authorId: MARTIN,
+      text: '¿La cabaña incluía el desayuno?', createdAt: hace(1), updatedAt: hace(1), isDeleted: false,
     });
   }
 
