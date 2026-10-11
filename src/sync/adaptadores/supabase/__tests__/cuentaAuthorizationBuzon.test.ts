@@ -20,8 +20,22 @@
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 (global as unknown as { WebSocket: unknown }).WebSocket = require('ws');
 
+// Lo que el env trae (en EAS: el proyecto real y la sitekey de Turnstile) se
+// guarda y se repone: el `process.env` es del worker, no de este archivo.
+// Sin sitekey, porque con captcha no hay alta anónima y el paso 1 da 'none'.
+const ENV_PREVIO = {
+  url: process.env.EXPO_PUBLIC_SUPABASE_URL,
+  anon: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+  sitekey: process.env.EXPO_PUBLIC_TURNSTILE_SITEKEY,
+};
 process.env.EXPO_PUBLIC_SUPABASE_URL = 'https://prueba.local';
 process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = 'anon-de-prueba';
+delete process.env.EXPO_PUBLIC_TURNSTILE_SITEKEY;
+
+function reponer(clave: string, valor: string | undefined): void {
+  if (valor === undefined) delete process.env[clave];
+  else process.env[clave] = valor;
+}
 
 let uidSecuenciaAnon = 0;
 let uidSecuenciaCuenta = 0;
@@ -81,8 +95,9 @@ let accountEntry: typeof import('@/src/sync/sesion/accountEntry');
 let useAuthStore: typeof import('@/src/store/authStore').useAuthStore;
 
 afterAll(() => {
-  delete process.env.EXPO_PUBLIC_SUPABASE_URL;
-  delete process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+  reponer('EXPO_PUBLIC_SUPABASE_URL', ENV_PREVIO.url);
+  reponer('EXPO_PUBLIC_SUPABASE_ANON_KEY', ENV_PREVIO.anon);
+  reponer('EXPO_PUBLIC_TURNSTILE_SITEKEY', ENV_PREVIO.sitekey);
 });
 
 beforeEach(() => {
