@@ -46,7 +46,7 @@ import {
  */
 // Medidas del header en `src/constants/header.ts`: así el hook de colapso no importa este
 // componente y no se arma un ciclo de require (T-128). Se re-exportan por compatibilidad.
-export { RellenoDetailHeader, useRellenoDetailHeader } from '@/src/components/skin/DetailHeaderAero';
+export { EnModal, RellenoDetailHeader, useRellenoDetailHeader } from '@/src/components/skin/DetailHeaderAero';
 export {
   HEADER_BAR_H, HEADER_TOTAL_H_T114, FACTOR_ALTO_HEADER, TITLE_BOTTOM_GAP, TITLE_BLOCK_H,
 } from '@/src/constants/header';

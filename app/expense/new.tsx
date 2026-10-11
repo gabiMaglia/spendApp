@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -178,7 +178,7 @@ export default function NewExpenseScreen() {
     }
   }
 
-  // Aero: Guardar queda fijo arriba de la barra, fuera del scroll (B4); en
+  // Aero: Guardar queda fijo debajo de la barra, fuera del scroll; en
   // Clásico sigue al pie del formulario.
   const pie = (
     <PieDeGuardar
@@ -298,7 +298,6 @@ export default function NewExpenseScreen() {
           {!soft && pie}
         </ScrollView>
 
-        {soft && pie}
         {soft ? (
           <BarraDeHerramientas
             date={date}
@@ -325,6 +324,9 @@ export default function NewExpenseScreen() {
             onOpenDate={() => setHoja('fecha')}
           />
         )}
+        {/* Aero: Guardar va al final, debajo de las herramientas, donde llega
+            el pulgar (PO 2026-10-11). */}
+        {soft && <View style={styles.pieAero}>{pie}</View>}
       </KeyboardAvoidingView>
 
       <HojasDeGasto
@@ -366,6 +368,7 @@ export default function NewExpenseScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
+  pieAero: { paddingBottom: Spacing[3] },
   /**
    * El aire ENTRE bloques lo pone el contenedor, una sola vez, con `gap`: los
    * bloques aparecen o no según haya grupo, sea edición o el plan, y una suma
