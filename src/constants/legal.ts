@@ -25,6 +25,13 @@ export const LEGAL_DISPONIBLE = true;   // ✅ verificado el 2026-09-05: las pá
 
 export { BASE_URL };
 
+/**
+ * Contacto de soporte y de denuncias (T-235, Apple 1.2): el mismo que publica
+ * hushsplit.github.io. La app no tiene backend que lea contenido, así que una
+ * denuncia llega acá por mail. Cambiarlo es cambiar esta línea y las páginas.
+ */
+export const MAIL_SOPORTE = 'gab.maglia@gmail.com';
+
 const IDIOMAS = ['es', 'en', 'pt'] as const;
 export type IdiomaLegal = (typeof IDIOMAS)[number];
 

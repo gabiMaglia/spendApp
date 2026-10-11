@@ -17,6 +17,7 @@ import { ensureContactSecret, drainContacts } from '@/src/sync/contactos/contact
 import { savePeer, marcarCardEnviada, listPeers, tarjetasEnviadas } from '@/src/sync/contactos/contactPeers';
 import { formatMoney } from '@/src/constants/currencies';
 import type { User, PersonalBudget } from '@/src/types/models';
+import { useBloqueoStore } from '@/src/store/bloqueoStore';
 
 jest.mock('@/src/sync/motor/relayEngine', () => ({
   schedulePublish: jest.fn(),
@@ -40,6 +41,7 @@ function resetStores() {
   useAuthStore.setState({ currentUser: null });
   useGroupKeyStore.setState({ keys: [] });
   useArchiveStore.setState({ archivedIds: [], reasons: {} });
+  useBloqueoStore.setState({ bloqueados: [] });
   useSettingsStore.getState().setDisplayCurrency('ARS');
   useSettingsStore.getState().setSkin('default');
   useSettingsStore.getState().setNotifExpenses(true);
@@ -252,3 +254,25 @@ describe('round-trip v3 completo', () => {
 // Referencia únicamente para que TS no marque `drainContacts` como import
 // muerto si algún test futuro lo necesita; no se ejercita acá.
 void drainContacts;
+
+/** T-235: las personas bloqueadas viajan en el backup, bajo el gate del dueño. */
+describe('backup · bloqueados (T-235)', () => {
+  it('el export los lleva', () => {
+    useAuthStore.setState({ currentUser: user('u1', 10) });
+    useBloqueoStore.setState({ bloqueados: ['ub'] });
+    expect(buildBackup().bloqueados).toEqual(['ub']);
+  });
+
+  it('backup PROPIO los restaura', () => {
+    useAuthStore.setState({ currentUser: user('yo', 10) });
+    applyBackup({ ...blank(), ownerId: 'yo', bloqueados: ['ub', 'uc'] });
+    expect(useBloqueoStore.getState().bloqueados).toEqual(['ub', 'uc']);
+  });
+
+  it('backup AJENO no toca los bloqueos locales', () => {
+    useAuthStore.setState({ currentUser: user('yo', 10) });
+    useBloqueoStore.setState({ bloqueados: ['propio'] });
+    applyBackup({ ...blank(), ownerId: 'otra-persona', bloqueados: ['ub'] });
+    expect(useBloqueoStore.getState().bloqueados).toEqual(['propio']);
+  });
+});

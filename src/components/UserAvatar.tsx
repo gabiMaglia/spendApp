@@ -1,6 +1,7 @@
 import React from 'react';
 import { useUserStore } from '@/src/store/userStore';
 import { useAuthStore } from '@/src/store/authStore';
+import { useBloqueoStore } from '@/src/store/bloqueoStore';
 import { hueForUser } from '@/src/utils/hueForUser';
 import { Avatar, AvatarStack } from './Avatar';
 
@@ -33,8 +34,11 @@ export function UserAvatar({
   // usuario puntual cambia.
   const guardado = useUserStore(s => s.users.find(u => u.id === userId));
 
+  // T-235: de una persona bloqueada no se muestra su foto (es contenido suyo).
+  const bloqueado = useBloqueoStore(s => s.bloqueados.includes(userId));
+
   const esMio    = yo?.id === userId;
-  const photo    = esMio ? (yo?.avatar ?? guardado?.avatar) : guardado?.avatar;
+  const photo    = esMio ? (yo?.avatar ?? guardado?.avatar) : bloqueado ? undefined : guardado?.avatar;
 
   return (
     <Avatar
@@ -64,6 +68,7 @@ export function UserAvatarStack({
 }) {
   const yo       = useAuthStore(s => s.currentUser);
   const usuarios = useUserStore(s => s.users);
+  const bloqueados = useBloqueoStore(s => s.bloqueados);
 
   const people = userIds.map(id => {
     const guardado = usuarios.find(u => u.id === id);
@@ -71,7 +76,7 @@ export function UserAvatarStack({
     return {
       name:  guardado?.name ?? (esMio ? yo?.name : undefined) ?? '?',
       hue:   hueForUser(id),
-      photo: esMio ? (yo?.avatar ?? guardado?.avatar) : guardado?.avatar,
+      photo: esMio ? (yo?.avatar ?? guardado?.avatar) : bloqueados.includes(id) ? undefined : guardado?.avatar,
     };
   });
 

@@ -117,6 +117,7 @@ const kPersonalEntries = ranura('personal', 'entries_v1');
 const kPersonalBudget  = ranura('personal', 'budget_v1');
 const kGroupKeys       = ranura('groupkeys', DATA_KEY);
 const kArchived        = ranura('groups', 'archived_v1');
+const kBloqueados      = ranura('comments', 'bloqueados_v1');
 const kInbox           = ranura('notices', 'inbox_v1');
 const kContactPeers    = ranura('users', 'contact_peers_v1');
 const kProfile         = ranura('auth', AUTH_KEYS.PROFILE);
@@ -173,6 +174,7 @@ export function mergeAccounts(fromAccountId: string, toAccountId: string): Merge
   mergePersonal(fromAccountId, toAccountId, report, now);
   mergeGroupKeys(fromAccountId, toAccountId);
   mergeArchived(fromAccountId, toAccountId);
+  mergeBloqueos(fromAccountId, toAccountId);
   mergeNotices(fromAccountId, toAccountId);
   mergeProfiles(fromAccountId, toAccountId);
   mergeSettings(fromAccountId, toAccountId);
@@ -564,6 +566,32 @@ function mergeArchived(fromAccountId: string, toAccountId: string): void {
 }
 
 /**
+ * Personas bloqueadas (T-235). Misma forma y mismo criterio que los archivados:
+ * UNIÓN — las dos cuentas son la misma persona, y si bloqueó a alguien en
+ * cualquiera de sus identidades no quiere volver a verlo.
+ */
+function mergeBloqueos(fromAccountId: string, toAccountId: string): void {
+  if (fromAccountId === toAccountId) return;
+  const storage = createSecureStorage('comments');
+  const k = kBloqueados;
+
+  const leer = (uid: string): string[] => {
+    const raw = storage.getString(k(uid));
+    if (!raw) return [];
+    try {
+      const v = JSON.parse(raw);
+      return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const origen = leer(fromAccountId);
+  if (origen.length === 0) return;
+  storage.set(k(toAccountId), JSON.stringify([...new Set([...leer(toAccountId), ...origen])]));
+}
+
+/**
  * Bandeja de avisos.
  *
  * Va aparte porque no tiene `updatedAt` —el acuse es local y no sincroniza— así
@@ -761,6 +789,7 @@ export const COBERTURA_FUSION: Record<string, string> = {
   'store/personalStore':  'aparte · mergePersonal (usa entries_v1 + budget_v1, no data_v1; regla: mergePersonalPure, la misma función que mergeEntries — LWW con tope de reloj, T-171)',
   'store/groupKeyStore':  'aparte · mergeGroupKeys (es {groupId,key,epoch}, sin id/updatedAt; gana la época mayor)',
   'store/archiveStore':   'aparte · mergeArchived (string[] bajo archived_v1, en el bucket groups; unión)',
+  'store/bloqueoStore':   'aparte · mergeBloqueos (string[] bajo bloqueados_v1, en el bucket comments; unión — T-235)',
   'store/settingsStore':  'aparte · mergeSettings (preferencias, no datos)',
   'store/noticeInboxStore': 'aparte · mergeNotices (union por id; el acuse gana sobre el no-acuse). Decision del PO 2026-08-30: TODO se fusiona al enlazar cuentas.',
   'store/identityAlias':  'aparte · mergeAlias (alias_v1: unión de los alias del origen MÁS el id del origen, bajo el scope destino). Es lo que hace el alias transitivo A→B→C; sin la unión, la primera identidad se pierde en la segunda fusión.',

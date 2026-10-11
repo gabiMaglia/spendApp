@@ -590,7 +590,19 @@
     "placeholder": "Escreva um comentário…",
     "send": "Enviar comentário",
     "delete_title": "Excluir comentário",
-    "delete_body": "Será excluído para todos na próxima sincronização."
+    "delete_body": "Será excluído para todos na próxima sincronização.",
+    "more_options": "Mais opções",
+    "report": "Denunciar comentário",
+    "report_subject": "Denúncia de um comentário no HushSplit",
+    "report_body": "Quero denunciar este comentário por conteúdo ofensivo ou inadequado.",
+    "report_no_mail_title": "Nenhum app de e-mail",
+    "report_no_mail_body": "Escreva para {{email}} contando qual comentário quer denunciar. Respondemos em até 24 horas.",
+    "block": "Bloquear {{name}}",
+    "block_title": "Bloquear {{name}}?",
+    "block_body": "Você não verá os comentários nem a foto dessa pessoa neste telefone. Ela não será avisada e você pode desbloquear quando quiser.",
+    "block_confirm": "Bloquear",
+    "blocked_placeholder": "Comentário de uma pessoa bloqueada",
+    "unblock": "Desbloquear"
   },
   "payers": {
     "title": "QUEM PAGOU",

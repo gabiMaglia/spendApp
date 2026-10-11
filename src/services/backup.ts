@@ -24,6 +24,7 @@ import { marcarConTopic } from '@/src/sync/motor/pendingDrain';
 import { exportarContactos, restaurarContactos } from '@/src/sync/contactos/contactChannel';
 import type { PeerInfo } from '@/src/sync/contactos/contactPeers';
 import { syncedNow } from '@/src/utils/syncedClock';
+import { useBloqueoStore } from '@/src/store/bloqueoStore';
 
 /**
  * Backup completo `.hushsplit`: exporta TODOS los datos locales a un archivo JSON
@@ -87,6 +88,11 @@ export interface BackupFile {
     reasons: Record<string, ArchiveReason>;
   };
   /**
+   * T-235: personas bloqueadas. Preferencia del DUEÑO (como `archived`): sólo
+   * se restaura desde un backup propio. Ausente en backups anteriores.
+   */
+  bloqueados?: string[];
+  /**
    * T-213: preferencias persistidas de la cuenta — sólo lo que el usuario
    * eligió, nunca estado efímero. `reduceAnimations` queda AFUERA a
    * propósito: es un heurístico de gama del DISPOSITIVO
@@ -145,6 +151,7 @@ export const INCLUIDOS_BACKUP: Record<string, string> = {
   'store/personalStore':   'personalEntries + personalBudget',
   'store/groupKeyStore':   'groupKeys',
   'store/archiveStore':    'archived (ids + reasons)',
+  'store/bloqueoStore':    'bloqueados (T-235)',
   'store/settingsStore':   'settings (displayCurrency, skin, toggles de notificación — NO reduceAnimations, ver BackupFile.settings)',
   'store/identityAlias':   'aliases',
   'sync/contactos/contactPeers':     'contacts.peers + contacts.cardSent',
@@ -203,6 +210,7 @@ export function buildBackup(): BackupFile {
       ids:     useArchiveStore.getState().archivedIds,
       reasons: useArchiveStore.getState().reasons,
     },
+    bloqueados: useBloqueoStore.getState().bloqueados,
     settings: {
       displayCurrency:  useSettingsStore.getState().displayCurrency,
       language:         useLangStore.getState().choice,
@@ -341,6 +349,10 @@ export function applyBackup(backup: BackupFile): void {
   if (backup.ownerId !== undefined && esYo(backup.ownerId)) {
     if (backup.archived) {
       useArchiveStore.getState().restore(backup.archived.ids, backup.archived.reasons);
+    }
+
+    if (Array.isArray(backup.bloqueados)) {
+      useBloqueoStore.getState().restore(backup.bloqueados.filter((x): x is string => typeof x === 'string'));
     }
 
     if (backup.settings) {

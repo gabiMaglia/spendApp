@@ -4,6 +4,7 @@ import { UserAvatar } from '../UserAvatar';
 import { useUserStore } from '@/src/store/userStore';
 import { useAuthStore } from '@/src/store/authStore';
 import type { User } from '@/src/types/models';
+import { useBloqueoStore } from '@/src/store/bloqueoStore';
 
 const FOTO = 'data:image/jpeg;base64,AAAA';
 const u = (id: string, over: Partial<User> = {}): User =>
@@ -12,6 +13,7 @@ const u = (id: string, over: Partial<User> = {}): User =>
 beforeEach(() => {
   useAuthStore.setState({ currentUser: u('yo', { name: 'Gabriel' }) });
   useUserStore.setState({ users: [] });
+  useBloqueoStore.setState({ bloqueados: [] });
 });
 
 describe('UserAvatar', () => {
@@ -25,6 +27,13 @@ describe('UserAvatar', () => {
     useUserStore.setState({ users: [u('beto', { name: 'Beto Diaz', avatar: FOTO })] });
     const { queryByText } = render(<UserAvatar userId="beto" />);
     expect(queryByText('BD')).toBeNull();
+  });
+
+  it('T-235: de una persona bloqueada NO muestra la foto (iniciales)', () => {
+    useUserStore.setState({ users: [u('beto', { name: 'Beto Diaz', avatar: FOTO })] });
+    useBloqueoStore.setState({ bloqueados: ['beto'] });
+    const { getByText } = render(<UserAvatar userId="beto" />);
+    expect(getByText('BD')).toBeTruthy();
   });
 
   it('para el usuario actual usa la foto de authStore', () => {
