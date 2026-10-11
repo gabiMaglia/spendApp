@@ -40,7 +40,7 @@ describe.each(['default', 'aero'] as const)('contraste AA del skin %s', id => {
     const { colors: c } = resolveSkin(id, scheme);
     for (const fondo of [c.surface, c.surfaceSunken, c.bgGrouped, c.surfaceRaised]) {
       expect(contraste(c.textTertiary, fondo)).toBeGreaterThanOrEqual(4.5);
-      expect(contraste(c.semantic.neutral, fondo)).toBeGreaterThanOrEqual(4.4);
+      expect(contraste(c.semantic.neutral, fondo)).toBeGreaterThanOrEqual(4.5);
     }
     expect(contraste(c.semantic.warning, c.surface)).toBeGreaterThanOrEqual(4.5);
     expect(contraste(c.semantic.positive, c.surface)).toBeGreaterThanOrEqual(4.5);

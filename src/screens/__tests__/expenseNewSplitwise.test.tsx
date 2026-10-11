@@ -79,6 +79,15 @@ describe('Alta de gasto estilo Splitwise (Aero)', () => {
     expect(within(r.getByTestId('barra-repetir')).getByText('recurrence.weekly')).toBeTruthy();
   });
 
+  it('Guardar va al final, debajo de la barra de herramientas (PO 2026-10-11)', () => {
+    const r = render(<NewExpenseScreen />);
+    const arbol = JSON.stringify(r.toJSON());
+    const barra = arbol.indexOf('"testID":"barra-fecha"');
+    const guardar = arbol.indexOf('"testID":"expense-save-btn"');
+    expect(barra).toBeGreaterThan(-1);
+    expect(guardar).toBeGreaterThan(barra);
+  });
+
   it('gasto personal (sin grupo): «Con vos y» dice sin grupo y no hay frase', () => {
     mockSearchParams = {};
     const r = render(<NewExpenseScreen />);
