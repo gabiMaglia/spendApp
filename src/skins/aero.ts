@@ -53,10 +53,13 @@ export const AERO_SKIN: SkinDefinition = {
       glowStrong: 'rgba(47,71,99,0.20)',
       edgeLight: 'rgba(255,255,255,0.95)',
       edgeShade: 'rgba(15,23,42,0.05)',
-      marmolVeil: 'rgba(255,255,255,0.45)',
+      // El mármol es una foto beige: sobre los neutros pizarra quedaba crema.
+      // Velo blanco-pizarra (#F1F5F9), no azul — aclara en vez de oscurecer
+      // (el tinte azul del 2026-09-26 se descartó por eso).
+      marmolVeil: 'rgba(241,245,249,0.50)',
       marmolOpacity: 0.55,
-      vidrioVeilTop: 'rgba(255,255,255,0)',
-      vidrioVeilBottom: 'rgba(255,255,255,0.30)',
+      vidrioVeilTop: 'rgba(241,245,249,0.20)',
+      vidrioVeilBottom: 'rgba(241,245,249,0.40)',
       vidrioGloss: 'rgba(255,255,255,0.65)',
       vidrioTint: 'transparent',
       vidrioMarmolOpacity: 0.55,
