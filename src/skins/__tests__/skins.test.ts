@@ -38,7 +38,7 @@ describe('skin Aero (afinado)', () => {
 describe.each(['default', 'aero'] as const)('contraste AA del skin %s', id => {
   it.each(['light', 'dark'] as const)('textos sobre sus superficies en %s', scheme => {
     const { colors: c } = resolveSkin(id, scheme);
-    for (const fondo of [c.surface, c.surfaceSunken, c.bgGrouped]) {
+    for (const fondo of [c.surface, c.surfaceSunken, c.bgGrouped, c.surfaceRaised]) {
       expect(contraste(c.textTertiary, fondo)).toBeGreaterThanOrEqual(4.5);
       expect(contraste(c.semantic.neutral, fondo)).toBeGreaterThanOrEqual(4.4);
     }
