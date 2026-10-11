@@ -1,4 +1,5 @@
 import React from 'react';
+import { StyleSheet } from 'react-native';
 import { render, fireEvent } from '@testing-library/react-native';
 import { ActionButton } from '../ActionButton';
 import { ButtonRack } from '../ButtonRack';
@@ -111,5 +112,25 @@ describe('ButtonRack', () => {
     fireEvent.press(getByText('Dos'));
     expect(b).toHaveBeenCalledTimes(1);
     expect(a).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * PO 2026-10-11 (T-234): sin flecha, ícono y texto van centrados juntos; con
+ * flecha (botón que navega) el texto queda a la izquierda y empuja la flecha
+ * al borde. Es alineación de contenido, no un tamaño ni un color.
+ */
+describe('ActionButton — alineación del contenido', () => {
+  const justify = (testID: string, arrow: boolean) => {
+    const r = render(<ActionButton action={() => {}} label="Guardar" testID={testID} arrow={arrow} />);
+    return StyleSheet.flatten(r.getByTestId(testID).props.style).justifyContent;
+  };
+
+  it('sin flecha: centrado', () => {
+    expect(justify('sin-flecha', false)).toBe('center');
+  });
+
+  it('con flecha: no centrado (la flecha va al borde)', () => {
+    expect(justify('con-flecha', true)).not.toBe('center');
   });
 });

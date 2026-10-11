@@ -95,6 +95,8 @@ export const AERO_SKIN: SkinDefinition = {
         negative: '#E89463',
         negativeSoft: 'rgba(232,148,99,0.16)',
         negativeOnSoft: '#F2B48E',
+        // El #848B92 heredado de Clásico daba 4.42:1 sobre surfaceRaised (QA T-234).
+        neutral: '#958E85',
       },
       bg: '#121110',
       bgGrouped: '#171514',
