@@ -120,13 +120,16 @@ export const AERO_SKIN: SkinDefinition = {
       edgeShade: 'rgba(0,0,0,0.45)',
       // Sin borde: aun al 2,5 % el filo claro «levantaba» el contorno del mármol.
       bordeMarmol: 'transparent',
-      marmolVeil: 'rgba(18,17,16,0.35)',
-      marmolOpacity: 0.5,
-      vidrioVeilTop: 'rgba(18,17,16,0.10)',
-      vidrioVeilBottom: 'rgba(18,17,16,0.55)',
+      // PO 2026-10-11: el mármol se veía casi negro (la foto tiene luminancia
+      // media 17/255). Velo CLARO y tibio en vez de oscuro: lo levanta hacia la
+      // pizarra cálida y deja ver la veta.
+      marmolVeil: 'rgba(255,245,230,0.07)',
+      marmolOpacity: 1,
+      vidrioVeilTop: 'rgba(255,245,230,0.08)',
+      vidrioVeilBottom: 'rgba(255,245,230,0.04)',
       vidrioGloss: 'rgba(255,245,230,0.02)',
       vidrioTint: 'transparent',
-      vidrioMarmolOpacity: 0.4,
+      vidrioMarmolOpacity: 1,
     },
     elevation: {
       // Sombras cortas y suaves: la pieza se apoya, no flota (PO 2026-10-11, «más chato»).
