@@ -27,6 +27,7 @@ import { reloadAuthorHealth } from '@/src/sync/confianza/authorHealth';
 import { recargarAlias, sembrarAliasDesdeIndice } from './identityAlias';
 import { olvidarFallosDeAplicacion } from '@/src/sync/nucleo/drainFailures';
 import { olvidarGeneraciones } from '@/src/sync/motor/pendingDrain';
+import { useBloqueoStore } from './bloqueoStore';
 
 // (Re)hidrata todos los stores scopeados por cuenta con los datos del usuario
 // activo. Con usuario nulo (deslogueado), cada hydrate lee un scope vacío y deja
@@ -51,6 +52,7 @@ export function rehydrateForActiveUser(): void {
   useGroupKeyStore.getState().hydrate();
   useSettingsStore.getState().hydrate();
   useNoticeInboxStore.getState().hydrate();
+  useBloqueoStore.getState().hydrate();
 
   /**
    * Las cachés y la medición de T-041 también son POR CUENTA, y no son stores:

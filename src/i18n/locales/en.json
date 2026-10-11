@@ -590,7 +590,19 @@
     "placeholder": "Write a comment…",
     "send": "Send comment",
     "delete_title": "Delete comment",
-    "delete_body": "It will be deleted for everyone on the next sync."
+    "delete_body": "It will be deleted for everyone on the next sync.",
+    "more_options": "More options",
+    "report": "Report comment",
+    "report_subject": "Report of a comment in HushSplit",
+    "report_body": "I want to report this comment as offensive or inappropriate.",
+    "report_no_mail_title": "No mail app",
+    "report_no_mail_body": "Email us at {{email}} with the comment you want to report. We reply within 24 hours.",
+    "block": "Block {{name}}",
+    "block_title": "Block {{name}}?",
+    "block_body": "You won't see their comments or photo on this phone. They won't be notified and you can unblock them anytime.",
+    "block_confirm": "Block",
+    "blocked_placeholder": "Comment from a blocked person",
+    "unblock": "Unblock"
   },
   "payers": {
     "title": "WHO PAID",

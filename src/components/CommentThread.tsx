@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Linking, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import i18n from '@/src/i18n';
@@ -11,6 +11,9 @@ import { UserAvatar } from './UserAvatar';
 import type { ExpenseComment } from '@/src/types/models';
 import { mismaPersona } from '@/src/store/identityAlias';
 import { useColors } from '@/src/skins/useSkin';
+import { useBloqueoStore } from '@/src/store/bloqueoStore';
+import { MAIL_SOPORTE } from '@/src/constants/legal';
+import { mailDeDenuncia } from '@/src/utils/denuncia';
 
 const MAX_LENGTH = 500;
 
@@ -28,6 +31,9 @@ export type CommentThreadProps = {
  *
  * Sólo se puede borrar lo propio: un comentario ajeno es dato de otra persona,
  * y borrarlo desde acá se propagaría por el sync sin que se entere.
+ *
+ * Lo ajeno se puede **denunciar** (mail a soporte) y su autor **bloquear**
+ * (oculta sus comentarios en este dispositivo) — T-235, Apple 1.2.
  */
 export function CommentThread({
   comments, currentUserId, authorName, onAdd, onDelete,
@@ -35,6 +41,9 @@ export function CommentThread({
   const { t } = useTranslation();
   const c = useColors();
   const [draft, setDraft] = useState('');
+  const bloqueados = useBloqueoStore(s => s.bloqueados);
+  const bloquear = useBloqueoStore(s => s.bloquear);
+  const desbloquear = useBloqueoStore(s => s.desbloquear);
 
   const canSend = draft.trim().length > 0;
 
@@ -49,6 +58,37 @@ export function CommentThread({
     Alert.alert(t('comments.delete_title'), t('comments.delete_body'), [
       { text: t('common.cancel'), style: 'cancel' },
       { text: t('common.delete'), style: 'destructive', onPress: () => onDelete(comment.id) },
+    ]);
+  }
+
+  function denunciar(comment: ExpenseComment) {
+    const url = mailDeDenuncia({
+      autor: authorName(comment.authorId),
+      texto: comment.text,
+      gastoId: comment.expenseId,
+      asunto: t('comments.report_subject'),
+      cuerpo: t('comments.report_body'),
+    });
+    // Sin app de mail no hay a dónde mandarla: se muestra la dirección.
+    Linking.openURL(url).catch(() => {
+      Alert.alert(t('comments.report_no_mail_title'), t('comments.report_no_mail_body', { email: MAIL_SOPORTE }));
+    });
+  }
+
+  function confirmarBloqueo(comment: ExpenseComment) {
+    const name = authorName(comment.authorId);
+    Alert.alert(t('comments.block_title', { name }), t('comments.block_body'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      { text: t('comments.block_confirm'), style: 'destructive', onPress: () => bloquear(comment.authorId) },
+    ]);
+  }
+
+  function opciones(comment: ExpenseComment) {
+    const name = authorName(comment.authorId);
+    Alert.alert(name, undefined, [
+      { text: t('comments.report'), onPress: () => denunciar(comment) },
+      { text: t('comments.block', { name }), style: 'destructive', onPress: () => confirmarBloqueo(comment) },
+      { text: t('common.cancel'), style: 'cancel' },
     ]);
   }
 
@@ -67,6 +107,21 @@ export function CommentThread({
           {comments.map(comment => {
             const mine = mismaPersona(comment.authorId, currentUserId);
             const name = authorName(comment.authorId);
+            if (!mine && bloqueados.includes(comment.authorId)) {
+              return (
+                <View key={comment.id} style={styles.row}>
+                  <Ionicons name="eye-off-outline" size={16} color={c.textTertiary} />
+                  <Text style={[Typography.bodyS, styles.oculto, { color: c.textTertiary }]}>
+                    {t('comments.blocked_placeholder')}
+                  </Text>
+                  <Pressable accessibilityRole="button" onPress={() => desbloquear(comment.authorId)} hitSlop={10}>
+                    <Text style={[Typography.bodyS, { color: c.brand.primary, fontWeight: '600' }]}>
+                      {t('comments.unblock')}
+                    </Text>
+                  </Pressable>
+                </View>
+              );
+            }
             return (
               <View key={comment.id} style={styles.row}>
                 <UserAvatar userId={comment.authorId} name={name} size={28} />
@@ -89,6 +144,17 @@ export function CommentThread({
                         style={styles.deleteBtn}
                       >
                         <Ionicons name="trash-outline" size={14} color={c.textTertiary} />
+                      </Pressable>
+                    )}
+                    {!mine && (
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={t('comments.more_options')}
+                        onPress={() => opciones(comment)}
+                        hitSlop={10}
+                        style={styles.deleteBtn}
+                      >
+                        <Ionicons name="ellipsis-horizontal" size={16} color={c.textTertiary} />
                       </Pressable>
                     )}
                   </View>
@@ -136,6 +202,7 @@ const styles = StyleSheet.create({
   bubbleWrap: { flex: 1, gap: 2 },
   metaRow:    { flexDirection: 'row', alignItems: 'center', gap: Spacing[2] },
   deleteBtn:  { marginLeft: 'auto' },
+  oculto:     { flex: 1, fontStyle: 'italic' },
   composer: {
     flexDirection: 'row',
     alignItems: 'flex-end',

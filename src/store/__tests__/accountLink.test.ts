@@ -349,6 +349,19 @@ describe('T-047 · los grupos archivados tampoco se pierden', () => {
   });
 });
 
+/** T-235: las personas bloqueadas se UNEN al enlazar cuentas (misma persona). */
+describe('mergeAccounts · bloqueados', () => {
+  const cm = () => createSecureStorage('comments');
+  beforeEach(() => { cm().clearAll(); });
+
+  it('se unen los bloqueados de las dos cuentas, sin duplicar', () => {
+    cm().set(`bloqueados_v1::u:${APPLE}`, JSON.stringify(['ub', 'uc']));
+    cm().set(`bloqueados_v1::u:${GOOGLE}`, JSON.stringify(['uc', 'ud']));
+    mergeAccounts(APPLE, GOOGLE);
+    expect(JSON.parse(cm().getString(`bloqueados_v1::u:${GOOGLE}`)!).sort()).toEqual(['ub', 'uc', 'ud']);
+  });
+});
+
 /**
  * Decisión del PO (2026-08-30): **todo se fusiona al enlazar cuentas.** La
  * bandeja de avisos estaba declarada como "no se fusiona" — el PO lo revirtió.
