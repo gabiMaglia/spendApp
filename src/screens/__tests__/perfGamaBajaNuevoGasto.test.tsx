@@ -108,7 +108,11 @@ describe('T-198 — Nuevo gasto: tipeo del monto', () => {
     // Umbral por CONTEO (P-15/systematic-debugging), no por ms: con el cache
     // de módulo de T-198, ninguna tecla debería construir un formatter
     // nuevo — a lo sumo el primero de la corrida, si el cache no lo tenía
-    // todavía para este locale/decimales.
-    expect(numberFormats).toBeLessThanOrEqual(1);
+    // todavía para este locale/decimales. feat/reskin (Aero, alta estilo
+    // Splitwise): el resumen «$X cada uno» formatea el monto por persona, que
+    // al tipear pasa a tener centavos (12345 / 8) — eso suma UNA forma más
+    // del cache (2 decimales además de 0), una sola vez en toda la corrida.
+    // Sigue acotado por formas, no por teclas: 10 o 100 teclas, mismo número.
+    expect(numberFormats).toBeLessThanOrEqual(2);
   });
 });

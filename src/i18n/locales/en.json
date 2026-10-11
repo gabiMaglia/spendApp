@@ -247,7 +247,20 @@
     "delete_expense": "Delete expense",
     "delete_body_open": "It will be deleted now. Anyone in the group can restore it from Activity.",
     "free_over": "You've used up today's free ones. For now you can keep adding; later this will need an ad or Pro.",
-    "group_label": "Group"
+    "group_label": "Group",
+    "with_you_and": "With you and:",
+    "description_label": "Description",
+    "amount_label": "Amount",
+    "phrase_paid_by": "Paid by",
+    "phrase_and_split": "and split",
+    "phrase_equally": "equally",
+    "phrase_percentage": "by percentage",
+    "phrase_several": "several people",
+    "you": "you",
+    "phrase_each": "{{amount}} each · {{count}} people",
+    "phrase_between": "Split between {{count}} people",
+    "receipt_camera": "Take a photo of the receipt",
+    "receipt_file": "Attach a file"
   },
   "settle": {
     "title": "Register payment",

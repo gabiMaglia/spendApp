@@ -20,7 +20,7 @@ import { FilasDeReparto } from '@/src/screens/expense/components/FilasDeReparto'
  */
 export function BloqueReparto({
   splitMode, percentSub, samePercent, customPercents, splits, lastPercent, percentError, currency,
-  onSplitModeChange, onPercentSubChange, onSamePercentChange, onCustomPercentsChange,
+  onSplitModeChange, onPercentSubChange, onSamePercentChange, onCustomPercentsChange, sinEtiqueta,
 }: {
   splitMode: SplitMode;
   percentSub: PercentSub;
@@ -34,6 +34,8 @@ export function BloqueReparto({
   onPercentSubChange: (s: PercentSub) => void;
   onSamePercentChange: (v: string) => void;
   onCustomPercentsChange: (v: string[]) => void;
+  /** Dentro de una hoja que ya se titula «Cómo se divide» (Aero, alta estilo Splitwise). */
+  sinEtiqueta?: boolean;
 }) {
   const { t } = useTranslation();
   const c = useColors();
@@ -85,7 +87,7 @@ export function BloqueReparto({
   if (soft) {
     return (
       <View>
-        <SectionLabel label={t('expense.split_how')} />
+        {!sinEtiqueta && <SectionLabel label={t('expense.split_how')} />}
         {/* Los dos selectores van PEGADOS, sin gap: la línea de abajo del
             primero es la única entre los dos (PO 2026-09-13). */}
         <Segmented

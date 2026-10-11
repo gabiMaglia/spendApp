@@ -247,7 +247,20 @@
     "delete_expense": "Excluir despesa",
     "delete_body_open": "Será apagada agora. Qualquer pessoa do grupo pode restaurá-la em Atividade.",
     "free_over": "Você já usou os gratuitos de hoje. Por enquanto pode continuar lançando; mais adiante será preciso ver um anúncio ou ativar o Pro.",
-    "group_label": "Grupo"
+    "group_label": "Grupo",
+    "with_you_and": "Com você e:",
+    "description_label": "Descrição",
+    "amount_label": "Valor",
+    "phrase_paid_by": "Pago por",
+    "phrase_and_split": "e dividido",
+    "phrase_equally": "em partes iguais",
+    "phrase_percentage": "por porcentagem",
+    "phrase_several": "várias pessoas",
+    "you": "você",
+    "phrase_each": "{{amount}} cada · {{count}} pessoas",
+    "phrase_between": "Entre {{count}} pessoas",
+    "receipt_camera": "Fotografar o recibo",
+    "receipt_file": "Anexar arquivo"
   },
   "settle": {
     "title": "Registrar pagamento",

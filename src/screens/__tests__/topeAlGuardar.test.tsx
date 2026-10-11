@@ -64,12 +64,13 @@ describe('T-178 — el registro que excede el tope no se guarda (gate al escribi
     mockSearchParams = { groupId: 'g1', allowIncome: '1' };
     const addExpense = jest.fn();
     useExpenseStore.setState({ addExpense });
-    const { getByPlaceholderText, getByText, getByTestId } = render(<NewExpenseScreen />);
+    const { getByPlaceholderText, getByText, getByTestId, getByLabelText } = render(<NewExpenseScreen />);
 
     fireEvent.changeText(getByPlaceholderText('expense.description_placeholder'), 'Cena');
     fireEvent.changeText(getByPlaceholderText('0'), '100');
     // Abre el editor de nota e inyecta el texto gigante.
-    fireEvent.press(getByText('expense.note'));
+    // Aero: la nota es un ícono de la barra (feat/reskin).
+    fireEvent.press(getByLabelText('expense.note'));
     fireEvent.changeText(getByPlaceholderText('expense.note_placeholder'), NOTA_GIGANTE);
     fireEvent.press(getByText('common.done'));
     fireEvent.press(getByText('expense.save'));
@@ -93,9 +94,9 @@ describe('T-178 — el registro que excede el tope no se guarda (gate al escribi
     mockSearchParams = { expenseId: 'e1' };
     const updateExpense = jest.fn(() => true);
     useExpenseStore.setState({ expenses: [EXPENSE], updateExpense });
-    const { getByText, getByPlaceholderText } = render(<NewExpenseScreen />);
+    const { getByText, getByPlaceholderText, getByLabelText } = render(<NewExpenseScreen />);
 
-    fireEvent.press(getByText('expense.note'));
+    fireEvent.press(getByLabelText('expense.note'));
     fireEvent.changeText(getByPlaceholderText('expense.note_placeholder'), NOTA_GIGANTE);
     fireEvent.press(getByText('common.done'));
     fireEvent.press(getByText('expense.save'));

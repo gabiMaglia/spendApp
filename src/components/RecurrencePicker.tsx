@@ -34,6 +34,9 @@ const OPTIONS: { key: RecurrenceKey; labelKey: string; icon: keyof typeof Ionico
   { key: 'yearly',       labelKey: 'recurrence.yearly',      icon: 'calendar-number-outline' },
 ];
 
+/** Las mismas opciones, en valores del modelo: para listarlas en una hoja (alta estilo Splitwise). */
+export const OPCIONES_REPETIR = OPTIONS.map(o => ({ value: toValue(o.key), labelKey: o.labelKey, icon: o.icon }));
+
 /**
  * Selector de repetición para el alta de un gasto.
  *
