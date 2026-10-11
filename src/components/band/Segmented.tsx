@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Spacing } from '@/src/constants/spacing';
 import { useSkinTokens } from '@/src/skins/useSkin';
 import { useC } from '@/src/components/band/BandBase';
+import { hapticSelection } from '@/src/utils/haptics';
 
 /**
  * Control segmentado.
@@ -50,6 +51,8 @@ export function Segmented<T extends string>({
   borde?: 'abajo' | 'arriba' | 'ambos' | 'ninguno';
 }) {
   const c = useC();
+  // Tic de selección como el control nativo de iOS; la opción ya elegida no lo da.
+  const elegir = (k: T) => { if (k !== value) hapticSelection(); onChange(k); };
   const skin = useSkinTokens();
 
   // Aero (etapa 2): las pestañas pasan de «T invertida» de borde a borde a un
@@ -63,7 +66,7 @@ export function Segmented<T extends string>({
           key={o.key}
           accessibilityRole="tab"
           accessibilityState={{ selected: on }}
-          onPress={() => onChange(o.key)}
+          onPress={() => elegir(o.key)}
           style={[
             scroll ? styles.pillItemScroll : styles.pillItem,
             compact && styles.pillItemCompact,
@@ -99,7 +102,7 @@ export function Segmented<T extends string>({
           key={o.key}
           accessibilityRole="tab"
           accessibilityState={{ selected: on }}
-          onPress={() => onChange(o.key)}
+          onPress={() => elegir(o.key)}
           style={[
             scroll ? styles.tabsItemScroll : styles.tabsItem,
             // `compact`: un selector SECUNDARIO (p.ej. el sub-modo de porcentaje
@@ -155,7 +158,7 @@ export function Segmented<T extends string>({
           <Pressable
             key={o.key}
             accessibilityRole="button"
-            onPress={() => onChange(o.key)}
+            onPress={() => elegir(o.key)}
             style={[
               compact ? styles.segTabCompact : styles.segTab,
               on && {

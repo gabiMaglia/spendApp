@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next';
 
 import { Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { hapticLight } from '@/src/utils/haptics';
 import { Segmented } from '@/src/components/Band';
 import { TarjetaClasica } from '@/src/components/TarjetaClasica';
 import type { RecurrenceRule } from '@/src/types/models';
@@ -65,7 +64,7 @@ export function RecurrencePicker({
       borde={soft ? 'ambos' : 'ninguno'}
       scroll
       value={toKey(value)}
-      onChange={k => { hapticLight(); onChange(toValue(k)); }}
+      onChange={k => onChange(toValue(k))}
       options={OPTIONS.map(o => ({ key: o.key, label: t(o.labelKey), icon: o.icon }))}
     />
   );

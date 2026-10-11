@@ -11,7 +11,7 @@ import { Fab, FabRow } from '@/src/components/Fab';
 
 import { useAuthStore } from '@/src/store/authStore';
 import { useUserStore } from '@/src/store/userStore';
-import { hapticLight, hapticWarning } from '@/src/utils/haptics';
+import { hapticWarning } from '@/src/utils/haptics';
 import {
   buildContactPayload, parseContactPayload, contactFromParams, parseContactLink,
   type ContactPayload,
@@ -116,7 +116,7 @@ export default function AddContactScreen() {
       <Segmented
         variant="tabs"
         value={mode}
-        onChange={m => { hapticLight(); setMode(m); setScanned(false); }}
+        onChange={m => { setMode(m); setScanned(false); }}
         options={[
           { key: 'my_qr', label: t('contact.tab_my_qr'), icon: 'qr-code-outline' },
           { key: 'scan',  label: t('contact.tab_scan'),  icon: 'scan-outline' },
