@@ -177,7 +177,7 @@ export const EventRow = React.memo(function EventRow({
           onPress={() => onRestore(expense.id)}
           hitSlop={8}
         >
-          <Text style={{ fontSize: 11.5, fontWeight: '700', color: c.brand.primary }}>
+          <Text style={{ fontSize: 12, fontWeight: '700', color: c.brand.primary }}>
             {t('activity.restore')}
           </Text>
         </Pressable>

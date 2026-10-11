@@ -63,7 +63,7 @@ export function GroupCard({
 
       <View style={styles.balanceCol}>
         <Text style={[Typography.label, {
-          color: c.textTertiary, textTransform: 'uppercase', fontSize: 9.5, marginBottom: 3,
+          color: c.textTertiary, textTransform: 'uppercase', marginBottom: 3,
         }]}>
           {settled
             ? t('common.settled')

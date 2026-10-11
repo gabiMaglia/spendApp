@@ -9,7 +9,7 @@ import { useSkin, useColors } from '@/src/skins/useSkin';
 import { TabBarFondoAero } from '@/src/components/skin/TabBarFondoAero';
 
 /**
- * Tab bar del reskin: 70 de contenido + el inset inferior del sistema, hairline superior, ícono 20, label 9.5/600 y
+ * Tab bar del reskin: 70 de contenido + el inset inferior del sistema, hairline superior, ícono 20, label 10/600 y
  * PUNTO activo de 4pt debajo del label (reemplaza la pastilla y el ícono
  * relleno). El label se rinde a mano para poder colgarle el punto.
  */
@@ -133,6 +133,6 @@ export default function TabLayout() {
 
 const styles = StyleSheet.create({
   labelWrap: { alignItems: 'center', gap: 5 },
-  label: { fontSize: 9.5, fontWeight: '600' },
+  label: { fontSize: 10, fontWeight: '600' },
   dot: { width: 4, height: 4, borderRadius: 2 },
 });

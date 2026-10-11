@@ -173,7 +173,7 @@ export function SoonBadge({ label = 'SOON' }: { label?: string }) {
   const c = useC();
   return (
     <View style={{ paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999, backgroundColor: c.hair2 }}>
-      <Text style={{ fontSize: 9.5, fontWeight: '600', letterSpacing: 0.6, color: c.textTertiary }}>
+      <Text style={{ fontSize: 10, fontWeight: '600', letterSpacing: 0.6, color: c.textTertiary }}>
         {label}
       </Text>
     </View>
