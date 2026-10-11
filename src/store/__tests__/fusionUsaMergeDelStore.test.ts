@@ -30,6 +30,12 @@ jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) })
  * distintos — el invariante que la fusión promete no se cumplía.
  */
 const NOW = 1_790_000_000_000;
+/**
+ * «Adelantado» se mide contra el reloj REAL: `mergeAccounts` usa `syncedNow()`,
+ * no `NOW`. Con `NOW + 10 días` fijo el test venció solo el 2026-10-01 (desde
+ * ese día la fecha «del futuro» ya era pasado y ganaba por LWW, como debe).
+ */
+const ADELANTADO = () => Date.now() + 10 * 24 * 60 * 60 * 1000;
 const APPLE = 'apple:000123.abc';
 const GOOGLE = 'google:11887766';
 
@@ -111,7 +117,7 @@ it('D3: personal se fusiona vía mergeAccounts — un movimiento adelantado con 
   createSecureStorage('personal').set(`entries_v1::u:${APPLE}`, JSON.stringify([]));
   createSecureStorage('personal').set(
     `entries_v1::u:${GOOGLE}`,
-    JSON.stringify([entrada({ updatedAt: NOW + 10 * 24 * 60 * 60 * 1000 })]),
+    JSON.stringify([entrada({ updatedAt: ADELANTADO() })]),
   );
 
   mergeAccounts(GOOGLE, APPLE);
@@ -131,7 +137,7 @@ it('D3b: personal se fusiona vía mergeAccounts — un movimiento adelantado con
   );
   createSecureStorage('personal').set(
     `entries_v1::u:${GOOGLE}`,
-    JSON.stringify([entrada({ id: 'pe1', description: 'atacante', updatedAt: NOW + 10 * 24 * 60 * 60 * 1000 })]),
+    JSON.stringify([entrada({ id: 'pe1', description: 'atacante', updatedAt: ADELANTADO() })]),
   );
 
   mergeAccounts(GOOGLE, APPLE);
