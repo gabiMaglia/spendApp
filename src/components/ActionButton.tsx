@@ -95,6 +95,7 @@ export function ActionButton({
         size === 'lg' ? styles.lg : size === 'sm' ? styles.sm : styles.md,
         variant === 'plain' && styles.plain,
         full && { alignSelf: 'stretch' },
+        !arrow && styles.centrado,
         { backgroundColor: p.bg, borderColor: p.border },
         inactivo && styles.inactivo,
         style,
@@ -104,7 +105,7 @@ export function ActionButton({
         ? <ActivityIndicator size="small" color={p.fg} />
         : icon && <Ionicons name={icon} size={size === 'lg' ? 20 : size === 'sm' ? 14 : 18} color={p.fg} />}
 
-      <View style={size === 'sm' ? undefined : styles.textos}>
+      <View style={size === 'sm' ? undefined : arrow ? styles.textos : styles.textosCentrados}>
         <Text
           style={[
             size === 'sm' ? Typography.caption : Typography.bodyM,
@@ -137,8 +138,13 @@ const styles = StyleSheet.create({
   sm:       { paddingVertical: 6, paddingHorizontal: Spacing[3], borderRadius: Radius.sm, gap: 4 },
   md:       { paddingVertical: 12, paddingHorizontal: Spacing[4], minHeight: Spacing.tapTarget },
   lg:       { paddingVertical: 16, paddingHorizontal: Spacing[5], minHeight: 52 },
-  // El texto empuja la flecha al borde y deja el ícono pegado a la izquierda.
+  // Con flecha (botón que navega): el texto empuja la flecha al borde y deja el
+  // ícono pegado a la izquierda.
   textos:   { flex: 1, gap: 1 },
+  // Sin flecha (Guardar, Registrar pago…): ícono y texto centrados juntos
+  // (PO 2026-10-11). `flexShrink` para que un label largo se corte con «…».
+  centrado: { justifyContent: 'center' },
+  textosCentrados: { flexShrink: 1, gap: 1, alignItems: 'center' },
   // Ni caja ni padding lateral: la separación la pone la fila que lo contiene.
   // El `hitSlop` de `sm` sigue dando el área táctil, que acá es lo único que
   // queda entre el dedo y un texto de 12px.

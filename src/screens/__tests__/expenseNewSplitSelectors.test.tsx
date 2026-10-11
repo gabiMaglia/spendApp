@@ -33,6 +33,17 @@ const grupo = (): Group => ({
   createdAt: 0, createdById: 'ana', updatedAt: 0, isDeleted: false,
 } as Group);
 
+/**
+ * feat/reskin: en Aero (skin inicial) el reparto se edita en una hoja que se
+ * abre desde la frase «… y dividido [en partes iguales]». Los selectores son
+ * los mismos; sólo hay que abrir la hoja primero.
+ */
+function renderConReparto() {
+  const r = render(<NewExpenseScreen />);
+  fireEvent.press(r.getByTestId('frase-reparto'));
+  return r;
+}
+
 beforeEach(() => {
   mockSearchParams = { groupId: 'g1' };
   useAuthStore.setState({ currentUser: ANA, isPro: false });
@@ -43,13 +54,13 @@ beforeEach(() => {
 
 describe('T-103.D — selectores de "¿cómo se divide?" en un gasto de grupo', () => {
   it('muestra el selector de modo de reparto (Iguales / Porcentaje)', () => {
-    const { getByText } = render(<NewExpenseScreen />);
+    const { getByText } = renderConReparto();
     expect(getByText('expense.split_mode_equal')).toBeTruthy();
     expect(getByText('expense.split_mode_percentage')).toBeTruthy();
   });
 
   it('al elegir Porcentaje aparece el sub-selector (mismo % / personalizado)', () => {
-    const { getByText, queryByText } = render(<NewExpenseScreen />);
+    const { getByText, queryByText } = renderConReparto();
     expect(queryByText('expense.percent_same')).toBeNull();
 
     fireEvent.press(getByText('expense.split_mode_percentage'));
@@ -59,7 +70,7 @@ describe('T-103.D — selectores de "¿cómo se divide?" en un gasto de grupo', 
   });
 
   it('volver a Iguales oculta el sub-selector de porcentaje', () => {
-    const { getByText, queryByText } = render(<NewExpenseScreen />);
+    const { getByText, queryByText } = renderConReparto();
     fireEvent.press(getByText('expense.split_mode_percentage'));
     expect(getByText('expense.percent_same')).toBeTruthy();
 
@@ -77,7 +88,7 @@ describe('T-103.D — selectores de "¿cómo se divide?" en un gasto de grupo', 
     } as Expense;
     useExpenseStore.setState({ expenses: [gasto] });
 
-    const { getByText } = render(<NewExpenseScreen />);
+    const { getByText } = renderConReparto();
     expect(getByText('expense.split_mode_equal')).toBeTruthy();
     expect(getByText('expense.split_mode_percentage')).toBeTruthy();
   });

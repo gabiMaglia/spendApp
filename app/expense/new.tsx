@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -19,7 +19,9 @@ import { useExpenseStore } from '@/src/store/expenseStore';
 import { useArchiveStore } from '@/src/store/archiveStore';
 import { useGroupExpenseCount } from '@/src/store/selectors';
 import { DetailHeader, useRellenoDetailHeader } from '@/src/components/CollapsibleHeader';
-import { useColors } from '@/src/skins/useSkin';
+import { useColors, useSkinTokens } from '@/src/skins/useSkin';
+import { formatMoney } from '@/src/constants/currencies';
+import { useUserStore } from '@/src/store/userStore';
 import type { Payer, PersonalCategory } from '@/src/types/models';
 import { useRepartoDeGasto } from '@/src/screens/expense/hooks/useRepartoDeGasto';
 import { useGuardarGasto } from '@/src/screens/expense/hooks/useGuardarGasto';
@@ -30,6 +32,13 @@ import { BloqueReparto } from '@/src/screens/expense/components/BloqueReparto';
 import { PieDeGuardar } from '@/src/screens/expense/components/PieDeGuardar';
 import { BarraUtilidades } from '@/src/screens/expense/components/BarraUtilidades';
 import { HojasDeGasto, type HojaAbierta } from '@/src/screens/expense/components/HojasDeGasto';
+import { HojasSplitwise } from '@/src/screens/expense/components/HojasSplitwise';
+import { SelectorDeTipo } from '@/src/screens/expense/components/SelectorDeTipo';
+import { ConQuien } from '@/src/screens/expense/components/ConQuien';
+import { TarjetaDescripcionMonto } from '@/src/screens/expense/components/TarjetaDescripcionMonto';
+import { GrillaCategorias } from '@/src/screens/expense/components/GrillaCategorias';
+import { FraseDeReparto } from '@/src/screens/expense/components/FraseDeReparto';
+import { BarraDeHerramientas } from '@/src/screens/expense/components/BarraDeHerramientas';
 
 /**
  * **Nuevo gasto / Editar gasto / Nuevo ingreso.**
@@ -42,6 +51,10 @@ import { HojasDeGasto, type HojaAbierta } from '@/src/screens/expense/components
 export default function NewExpenseScreen() {
   const { t } = useTranslation();
   const c = useColors();
+  // Aero: alta con la estructura de Splitwise (feat/reskin, variante B4).
+  // Clásico conserva su formulario de bloques abiertos (T-210).
+  const soft = useSkinTokens().flags.soft;
+  const getUserName = useUserStore(s => s.getUserName);
   // Aero: el header flota y el contenido arranca debajo de su tarjeta (T-227).
   const relleno = useRellenoDetailHeader();
 
@@ -125,6 +138,14 @@ export default function NewExpenseScreen() {
     recurrence, needsAd, canSave,
   });
 
+  // Lo que dice la frase de Aero («Pagado por vos y dividido en partes iguales»).
+  const payerLabel = multiPayer ? t('expense.phrase_several')
+    : payerId === currentUser?.id ? t('expense.you') : getUserName(payerId);
+  const splitLabel = reparto.splitMode === 'equal' ? t('expense.phrase_equally') : t('expense.phrase_percentage');
+  const resumen = reparto.splitMode === 'equal' && amount > 0 && members.length > 0
+    ? t('expense.phrase_each', { amount: formatMoney(reparto.splits[0]?.amount ?? 0, currency), count: members.length })
+    : t('expense.phrase_between', { count: members.length });
+
   // ── Handlers ───────────────────────────────────────────────────────────────
   function handleGroupChange(id: string) {
     const newMembers = groups.find(g => g.id === id)?.memberIds ?? [];
@@ -157,6 +178,25 @@ export default function NewExpenseScreen() {
     }
   }
 
+  // Aero: Guardar queda fijo debajo de la barra, fuera del scroll; en
+  // Clásico sigue al pie del formulario.
+  const pie = (
+    <PieDeGuardar
+      conRepetir={!soft}
+      isEditMode={isEditMode}
+      isPro={isPro}
+      dailyCount={dailyCount}
+      pasoElTope={pasoElTope}
+      recurrence={recurrence}
+      onRecurrenceChange={setRecurrence}
+      grupoArchivado={grupoArchivado}
+      grupoBloqueadoPorLimite={grupoBloqueadoPorLimite}
+      canSave={canSave}
+      needsAd={needsAd}
+      onSave={guardar}
+    />
+  );
+
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <SafeAreaView edges={['bottom']} style={[styles.safe, { backgroundColor: c.bg }]}>
@@ -177,76 +217,116 @@ export default function NewExpenseScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <HeroMonto
-            currency={currency}
-            value={amountStr}
-            onChangeText={setAmountStr}
-            onBlur={onAmountBlur}
-            incomeAllowed={incomeAllowed}
-            isIncome={isIncome}
-            onKindChange={switchEntryKind}
-          />
-          <DescripcionCard value={description} onChangeText={setDescription} isIncome={isIncome} />
-          {/* El ingreso no tiene categorías (PO 2026-09-13): se guarda con "otros". */}
-          {!isIncome && <CategoriaChips value={category} onChange={setCategory} />}
-
-          {hasGroup && (
+          {soft ? (
             <>
-              <BloquePagador
-                members={members}
-                payerId={payerId}
-                multiPayer={multiPayer}
-                payers={payers}
-                amount={amount}
+              {incomeAllowed && <SelectorDeTipo isIncome={isIncome} onChange={switchEntryKind} />}
+              {!isIncome && (
+                <ConQuien
+                  groupName={group?.name ?? t('expense.no_group_short')}
+                  onPress={() => setHoja('grupo')}
+                  disabled={isEditMode}
+                />
+              )}
+              <TarjetaDescripcionMonto
+                category={category}
+                isIncome={isIncome}
                 currency={currency}
-                onPayersChange={setPayers}
-                onOpenPayer={() => setHoja('pagador')}
-                onTogglePayerMode={togglePayerMode}
+                description={description}
+                onDescriptionChange={setDescription}
+                amount={amountStr}
+                onAmountChange={setAmountStr}
+                onAmountBlur={onAmountBlur}
               />
-              <BloqueReparto
-                splitMode={reparto.splitMode}
-                percentSub={reparto.percentSub}
-                samePercent={reparto.samePercent}
-                customPercents={reparto.customPercents}
-                splits={reparto.splits}
-                lastPercent={reparto.lastPercent}
-                percentError={reparto.percentError}
+              {!isIncome && <GrillaCategorias value={category} onChange={setCategory} />}
+              {hasGroup && (
+                <FraseDeReparto
+                  payerLabel={payerLabel}
+                  splitLabel={splitLabel}
+                  resumen={resumen}
+                  onOpenPayer={() => setHoja('pagadores')}
+                  onOpenSplit={() => setHoja('reparto')}
+                />
+              )}
+            </>
+          ) : (
+            <>
+              <HeroMonto
                 currency={currency}
-                onSplitModeChange={reparto.cambiarModo}
-                onPercentSubChange={reparto.cambiarSubModo}
-                onSamePercentChange={reparto.setSamePercent}
-                onCustomPercentsChange={reparto.setCustomPercents}
+                value={amountStr}
+                onChangeText={setAmountStr}
+                onBlur={onAmountBlur}
+                incomeAllowed={incomeAllowed}
+                isIncome={isIncome}
+                onKindChange={switchEntryKind}
               />
+              <DescripcionCard value={description} onChangeText={setDescription} isIncome={isIncome} />
+              {/* El ingreso no tiene categorías (PO 2026-09-13): se guarda con "otros". */}
+              {!isIncome && <CategoriaChips value={category} onChange={setCategory} />}
+
+              {hasGroup && (
+                <>
+                  <BloquePagador
+                    members={members}
+                    payerId={payerId}
+                    multiPayer={multiPayer}
+                    payers={payers}
+                    amount={amount}
+                    currency={currency}
+                    onPayersChange={setPayers}
+                    onOpenPayer={() => setHoja('pagador')}
+                    onTogglePayerMode={togglePayerMode}
+                  />
+                  <BloqueReparto
+                    splitMode={reparto.splitMode}
+                    percentSub={reparto.percentSub}
+                    samePercent={reparto.samePercent}
+                    customPercents={reparto.customPercents}
+                    splits={reparto.splits}
+                    lastPercent={reparto.lastPercent}
+                    percentError={reparto.percentError}
+                    currency={currency}
+                    onSplitModeChange={reparto.cambiarModo}
+                    onPercentSubChange={reparto.cambiarSubModo}
+                    onSamePercentChange={reparto.setSamePercent}
+                    onCustomPercentsChange={reparto.setCustomPercents}
+                  />
+                </>
+              )}
             </>
           )}
 
-          <PieDeGuardar
-            isEditMode={isEditMode}
-            isPro={isPro}
-            dailyCount={dailyCount}
-            pasoElTope={pasoElTope}
-            recurrence={recurrence}
-            onRecurrenceChange={setRecurrence}
-            grupoArchivado={grupoArchivado}
-            grupoBloqueadoPorLimite={grupoBloqueadoPorLimite}
-            canSave={canSave}
-            needsAd={needsAd}
-            onSave={guardar}
-          />
+          {!soft && pie}
         </ScrollView>
 
-        <BarraUtilidades
-          receiptUri={receiptUri}
-          onReceiptChange={setReceiptUri}
-          note={note}
-          onOpenNote={() => setHoja('nota')}
-          isIncome={isIncome}
-          isEditMode={isEditMode}
-          groupName={group?.name ?? t('expense.no_group_short')}
-          onOpenGroup={() => setHoja('grupo')}
-          date={date}
-          onOpenDate={() => setHoja('fecha')}
-        />
+        {soft ? (
+          <BarraDeHerramientas
+            date={date}
+            onOpenDate={() => setHoja('fecha')}
+            recurrence={recurrence}
+            onOpenRecurrence={() => setHoja('repetir')}
+            showRecurrence={!isEditMode}
+            receiptUri={receiptUri}
+            onReceiptChange={setReceiptUri}
+            note={note}
+            onOpenNote={() => setHoja('nota')}
+          />
+        ) : (
+          <BarraUtilidades
+            receiptUri={receiptUri}
+            onReceiptChange={setReceiptUri}
+            note={note}
+            onOpenNote={() => setHoja('nota')}
+            isIncome={isIncome}
+            isEditMode={isEditMode}
+            groupName={group?.name ?? t('expense.no_group_short')}
+            onOpenGroup={() => setHoja('grupo')}
+            date={date}
+            onOpenDate={() => setHoja('fecha')}
+          />
+        )}
+        {/* Aero: Guardar va al final, debajo de las herramientas, donde llega
+            el pulgar (PO 2026-10-11). */}
+        {soft && <View style={styles.pieAero}>{pie}</View>}
       </KeyboardAvoidingView>
 
       <HojasDeGasto
@@ -264,12 +344,31 @@ export default function NewExpenseScreen() {
         note={note}
         onNoteChange={setNote}
       />
+      {soft && (
+        <HojasSplitwise
+          abierta={hoja}
+          onClose={() => setHoja(null)}
+          members={members}
+          payerId={payerId}
+          onPayerChange={setPayerId}
+          multiPayer={multiPayer}
+          payers={payers}
+          amount={amount}
+          currency={currency}
+          onPayersChange={setPayers}
+          onTogglePayerMode={togglePayerMode}
+          reparto={reparto}
+          recurrence={recurrence}
+          onRecurrenceChange={setRecurrence}
+        />
+      )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
+  pieAero: { paddingBottom: Spacing[3] },
   /**
    * El aire ENTRE bloques lo pone el contenedor, una sola vez, con `gap`: los
    * bloques aparecen o no según haya grupo, sea edición o el plan, y una suma

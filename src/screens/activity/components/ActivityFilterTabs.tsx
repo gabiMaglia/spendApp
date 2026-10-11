@@ -2,7 +2,6 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Segmented } from '@/src/components/Band';
-import { hapticSelection } from '@/src/utils/haptics';
 import { PERSONAL_ACTIVITY_KEY } from '@/src/store/selectors';
 import { ALL_FILTER } from '@/src/screens/activity/hooks/useActivityFilter';
 
@@ -18,7 +17,7 @@ export function ActivityFilterTabs({
       scroll
       borde="abajo"
       value={value}
-      onChange={f => { hapticSelection(); onChange(f); }}
+      onChange={onChange}
       options={allGroupNames.map(f => ({
         key: f,
         label: f === ALL_FILTER ? t('activity.filter_all')

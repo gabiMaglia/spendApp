@@ -23,6 +23,7 @@ function paraEsquema(scheme: ColorScheme): Skin {
       glowStrong: 'transparent',
       edgeLight: 'transparent',
       edgeShade: c.hair2,
+      bordeMarmol: c.hair,
       marmolVeil: 'transparent',
       marmolOpacity: 1,
       vidrioVeilTop: 'transparent',

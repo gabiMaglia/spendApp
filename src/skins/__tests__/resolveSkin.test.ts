@@ -17,9 +17,11 @@ describe('resolveSkin', () => {
     const aero = resolveSkin('aero', 'light');
     expect(aero.flags.soft).toBe(true);
     expect(aero.colors.bg).not.toBe(DEFAULT_SKIN.light.colors.bg);
-    // No declarado por aero → heredado del default.
-    expect(aero.colors.brand).toEqual(DEFAULT_SKIN.light.colors.brand);
-    expect(aero.colors.semantic).toEqual(DEFAULT_SKIN.light.colors.semantic);
+    // No declarado por aero → heredado del default (desde feat/reskin aero
+    // declara su marca y parte de los semánticos, pero no categorías ni warning).
+    expect(aero.colors.category).toEqual(DEFAULT_SKIN.light.colors.category);
+    expect(aero.colors.semantic.warning).toBe(DEFAULT_SKIN.light.colors.semantic.warning);
+    expect(aero.colors.gray).toEqual(DEFAULT_SKIN.light.colors.gray);
   });
 
   const skins: Record<string, SkinDefinition> = {

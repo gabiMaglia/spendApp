@@ -15,6 +15,8 @@ export type SkinColors = Widen<typeof Colors.light> & {
   edgeLight: string;
   /** Divisor suave dentro de un panel. */
   edgeShade: string;
+  /** Borde de las piezas de mármol (header, tab bar, header de detalle). */
+  bordeMarmol: string;
   /** Velo sobre el mármol para que el texto se lea. */
   marmolVeil: string;
   marmolOpacity: number;

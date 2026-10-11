@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { hapticLight } from '@/src/utils/haptics';
 import { useRellenoBarraPestanas } from '@/src/hooks/useRellenoBarraPestanas';
+import { useColors } from '@/src/skins/useSkin';
 
 /**
  * FAB del reskin: rectángulo redondeado (Radius.lg), no pill, sin escala al
@@ -56,6 +57,25 @@ export function FabRow({ children }: { children: React.ReactNode }) {
 
 type FabVariant = 'primary' | 'secondary';
 
+/** `rgba(…, a)` con a < 1, o `transparent`. */
+function esTranslucido(color: string): boolean {
+  const c = color.trim().toLowerCase();
+  if (c === 'transparent') return true;
+  const m = /^rgba\(.*,\s*([\d.]+)\s*\)$/.exec(c);
+  return m ? Number(m[1]) < 1 : false;
+}
+
+/**
+ * Fondo del FAB. Flota sobre contenido que scrollea, así que un color
+ * translúcido (en oscuro `brand.primarySoft` es un rgba al 14 %) dejaba leer lo
+ * de abajo a través del botón: se pinta sobre la base opaca `base`.
+ */
+export function fondoDelFab(color: string, base: string): ViewStyle {
+  if (!esTranslucido(color)) return { backgroundColor: color };
+  if (color.trim().toLowerCase() === 'transparent') return { backgroundColor: base };
+  return { backgroundColor: base, experimental_backgroundImage: `linear-gradient(${color}, ${color})` };
+}
+
 interface FabProps {
   onPress: () => void;
   icon: keyof typeof Ionicons.glyphMap;
@@ -82,6 +102,7 @@ export function Fab({
   style,
 }: FabProps) {
   const isPrimary = variant === 'primary';
+  const c = useColors();
   return (
     <Pressable
       testID={testID}
@@ -89,7 +110,7 @@ export function Fab({
       style={({ pressed }) => [
         styles.fab,
         isPrimary ? styles.fabPrimary : styles.fabSecondary,
-        { backgroundColor },
+        fondoDelFab(backgroundColor, c.surfaceRaised),
         borderColor ? { borderWidth: 1, borderColor } : null,
         style,
         pressed && { opacity: 0.9 },

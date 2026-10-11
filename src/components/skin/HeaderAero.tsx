@@ -23,9 +23,12 @@ import {
  * de las esquinas de abajo de la barra (`AERO_RADIO` por encima de su borde):
  * así, mientras la tarjeta sube por detrás, rellena esas esquinas y las dos se
  * leen fundidas; más arriba la tapa la barra, que es opaca. Colchón abajo
- * para la sombra de la tarjeta.
+ * para la sombra de la tarjeta: tiene que cubrir la sombra `e2` ENTERA
+ * (desplazamiento + difuminado). Con 16 la sombra de Aero claro (12 + 28)
+ * quedaba cortada en seco y se leía como una franja de otro color debajo del
+ * header (PO 2026-10-11).
  */
-const VENTANA_SOMBRA = 16;
+const VENTANA_SOMBRA = 44;
 const VENTANA_TITULO_H = AERO_RADIO + AERO_AIRE + TITULO_AERO_H + VENTANA_SOMBRA;
 
 /** Dónde termina la barra, medido desde arriba de la pantalla. */
@@ -60,7 +63,7 @@ export function HeaderAero({
   const barraBottom = barraTop + HEADER_BAR_H;
   const tarjeta = {
     backgroundColor: c.surface,
-    borderColor: c.hair,
+    borderColor: c.bordeMarmol,
     marginHorizontal: skin.space.inset,
     // Sombra (PO 2026-09-26): las tarjetas de mármol flotan como los paneles.
     ...(degradado

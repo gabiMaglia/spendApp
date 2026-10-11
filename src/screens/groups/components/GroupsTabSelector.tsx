@@ -3,7 +3,6 @@ import { StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { Segmented } from '@/src/components/Band';
-import { hapticLight } from '@/src/utils/haptics';
 import type { GroupsTab } from '@/src/screens/groups/hooks/useGroupsList';
 
 /** Selector Activos/Archivados — pegado a los casilleros de arriba y al primer grupo (PO 2026-09-21). */
@@ -17,7 +16,7 @@ export function GroupsTabSelector({
         variant="tabs"
         borde="abajo"
         value={value}
-        onChange={v => { hapticLight(); onChange(v); }}
+        onChange={onChange}
         options={[
           { key: 'activos',    label: t('groups.tab_active'),   icon: 'folder-open-outline' },
           { key: 'archivados', label: t('groups.tab_archived'), icon: 'archive-outline' },

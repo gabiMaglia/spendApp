@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next';
 
 import { Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { hapticLight } from '@/src/utils/haptics';
 import { Segmented } from '@/src/components/Band';
 import { TarjetaClasica } from '@/src/components/TarjetaClasica';
 import type { RecurrenceRule } from '@/src/types/models';
@@ -34,6 +33,9 @@ const OPTIONS: { key: RecurrenceKey; labelKey: string; icon: keyof typeof Ionico
   { key: 'monthly',      labelKey: 'recurrence.monthly',     icon: 'calendar-outline' },
   { key: 'yearly',       labelKey: 'recurrence.yearly',      icon: 'calendar-number-outline' },
 ];
+
+/** Las mismas opciones, en valores del modelo: para listarlas en una hoja (alta estilo Splitwise). */
+export const OPCIONES_REPETIR = OPTIONS.map(o => ({ value: toValue(o.key), labelKey: o.labelKey, icon: o.icon }));
 
 /**
  * Selector de repetición para el alta de un gasto.
@@ -65,7 +67,7 @@ export function RecurrencePicker({
       borde={soft ? 'ambos' : 'ninguno'}
       scroll
       value={toKey(value)}
-      onChange={k => { hapticLight(); onChange(toValue(k)); }}
+      onChange={k => onChange(toValue(k))}
       options={OPTIONS.map(o => ({ key: o.key, label: t(o.labelKey), icon: o.icon }))}
     />
   );

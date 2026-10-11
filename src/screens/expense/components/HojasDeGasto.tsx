@@ -7,7 +7,8 @@ import { useUserStore } from '@/src/store/userStore';
 import type { Group } from '@/src/types/models';
 import { formatDate } from '@/src/screens/expense/repartoDeGasto';
 
-export type HojaAbierta = 'grupo' | 'pagador' | 'fecha' | 'nota' | null;
+/** Las de `HojasSplitwise` (pagadores, reparto, repetir) son sólo de Aero. */
+export type HojaAbierta = 'grupo' | 'pagador' | 'fecha' | 'nota' | 'pagadores' | 'reparto' | 'repetir' | null;
 
 /**
  * Las cuatro hojas de Nuevo gasto: grupo (sólo al crear), pagador, fecha y

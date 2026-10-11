@@ -9,7 +9,7 @@ import { Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { useUserStore } from '@/src/store/userStore';
 import { esYo } from '@/src/store/identityAlias';
-import { useColors } from '@/src/skins/useSkin';
+import { useColors, useSkinTokens } from '@/src/skins/useSkin';
 import { estilos } from '@/src/screens/settle/components/estilos';
 
 /**
@@ -26,10 +26,11 @@ export function TarjetaTransferencia({
 }) {
   const { t } = useTranslation();
   const c = useColors();
+  const soft = useSkinTokens().flags.soft;
   const getUserName = useUserStore(s => s.getUserName);
 
   return (
-    <Band style={estilos.card}>
+    <Band style={soft ? estilos.cardAero : estilos.card}>
     <View style={styles.transferCard}>
       <LadoTransferencia
         label={t('settle.from_label')}

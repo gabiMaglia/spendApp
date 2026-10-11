@@ -46,7 +46,7 @@ export function TabBarFondoAero({ inferior }: { inferior: number }) {
             right: skin.space.inset,
             bottom: inferior,
             backgroundColor: c.surface,
-            borderColor: c.hair,
+            borderColor: c.bordeMarmol,
           },
           sombra,
         ]}

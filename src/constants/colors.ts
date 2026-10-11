@@ -31,8 +31,10 @@ export const Colors = {
       negative:        '#B8500F',
       negativeSoft:    '#FBEDE2',
       negativeOnSoft:  '#8A3B0B',
-      neutral:         '#8B9299',
-      warning:         '#B07A18',
+      // feat/reskin: #8B9299 daba 3.2:1 sobre blanco; éste, 5.2:1.
+      neutral:         '#666D74',
+      // feat/reskin: se usa como TEXTO (PieDeGuardar, AvisosDeGrupo…); #B07A18 daba 3.7:1, éste 5.4:1.
+      warning:         '#8F6210',
       warningSoft:     '#FAF1DF',
       error:           '#B23A2C',
       errorSoft:       '#FBE7E3',
@@ -51,7 +53,8 @@ export const Colors = {
     borderStrong:  'rgba(20, 26, 20, 0.18)',
     text:          '#14171A',
     textSecondary: '#565D64',
-    textTertiary:  '#8B9299',
+    // feat/reskin: #8B9299 daba 3.2:1 sobre blanco y 2.8:1 sobre bgGrouped.
+    textTertiary:  '#666D74',
     textDisabled:  '#BFC4C8',
     textOnBrand:   '#FFFFFF',
     textOnAccent:  '#14171A',
@@ -101,7 +104,7 @@ export const Colors = {
       negative:        '#E28B4F',
       negativeSoft:    'rgba(226, 139, 79, 0.16)',
       negativeOnSoft:  '#F0AE7E',
-      neutral:         '#767E85',
+      neutral:         '#848B92',
       warning:         '#D9B063',
       warningSoft:     'rgba(217, 176, 99, 0.16)',
       error:           '#DD6553',
@@ -120,7 +123,8 @@ export const Colors = {
     borderStrong:  'rgba(255, 255, 255, 0.18)',
     text:          '#EBEEF0',
     textSecondary: '#A2AAB1',
-    textTertiary:  '#767E85',
+    // feat/reskin: #767E85 daba 4.2:1 sobre surface; éste, 5.0:1.
+    textTertiary:  '#848B92',
     textDisabled:  '#4E5559',
     // T-137: `brand.primary` en oscuro pasó de verde brillante a azul noche
     // claro — el texto que va ENCIMA tiene que ser oscuro igual, pero de la

@@ -60,7 +60,7 @@ export function DetailHeaderAero({ children }: { children: React.ReactNode }) {
         style={[
           styles.tarjeta,
           { marginTop: insets.top + AERO_TOPE, marginHorizontal: skin.space.inset },
-          { backgroundColor: c.surface, borderColor: c.hair },
+          { backgroundColor: c.surface, borderColor: c.bordeMarmol },
           sombra,
         ]}
       >

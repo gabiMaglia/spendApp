@@ -7,8 +7,7 @@ import { useSettingsStore } from '@/src/store/settingsStore';
 import type { SkinId } from '@/src/skins/registry';
 
 /**
- * Fila "Estilo" de Yo (PO 2026-09-25): elige el skin. Aero está en vista
- * previa —por ahora solo cambia Personal— y la nota lo dice.
+ * Fila "Estilo" de Yo (PO 2026-09-25): elige el skin, que cambia toda la app.
  */
 export function SkinPicker({ last = true }: { last?: boolean }) {
   const { t } = useTranslation();

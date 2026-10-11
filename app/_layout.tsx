@@ -200,14 +200,16 @@ export default function RootLayout() {
         <Stack.Screen name="auth/verify" options={{ headerShown: false, gestureEnabled: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="groups/[id]"  options={{ headerShown: false }} />
-        <Stack.Screen name="groups/new"   options={{ presentation: 'modal', headerShown: false }} />
-        <Stack.Screen name="groups/join"  options={{ presentation: 'modal', headerShown: false }} />
-        <Stack.Screen name="expense/new"  options={{ presentation: 'modal', headerShown: false }} />
+        {/* Modales a pantalla completa (PO 2026-10-11): la hoja de iOS dejaba ver
+            la pantalla de atrás asomando arriba. Se cierran con la X. */}
+        <Stack.Screen name="groups/new"   options={{ presentation: 'fullScreenModal', headerShown: false }} />
+        <Stack.Screen name="groups/join"  options={{ presentation: 'fullScreenModal', headerShown: false }} />
+        <Stack.Screen name="expense/new"  options={{ presentation: 'fullScreenModal', headerShown: false }} />
         <Stack.Screen name="expense/[id]" options={{ headerShown: false }} />
-        <Stack.Screen name="settle/new"   options={{ presentation: 'modal', headerShown: false }} />
-        <Stack.Screen name="contact/add"   options={{ presentation: 'modal', headerShown: false }} />
-        <Stack.Screen name="debug/identity" options={{ presentation: 'modal', headerShown: false }} />
-        <Stack.Screen name="debug/relay"    options={{ presentation: 'modal', headerShown: false }} />
+        <Stack.Screen name="settle/new"   options={{ presentation: 'fullScreenModal', headerShown: false }} />
+        <Stack.Screen name="contact/add"   options={{ presentation: 'fullScreenModal', headerShown: false }} />
+        <Stack.Screen name="debug/identity" options={{ presentation: 'fullScreenModal', headerShown: false }} />
+        <Stack.Screen name="debug/relay"    options={{ presentation: 'fullScreenModal', headerShown: false }} />
       </Stack>
       </ErrorBoundary>
       <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />

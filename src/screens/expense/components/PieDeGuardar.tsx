@@ -17,7 +17,7 @@ import { useColors } from '@/src/skins/useSkin';
  */
 export function PieDeGuardar({
   isEditMode, isPro, dailyCount, pasoElTope, recurrence, onRecurrenceChange,
-  grupoArchivado, grupoBloqueadoPorLimite, canSave, needsAd, onSave,
+  grupoArchivado, grupoBloqueadoPorLimite, canSave, needsAd, onSave, conRepetir = true,
 }: {
   isEditMode: boolean;
   isPro: boolean;
@@ -30,6 +30,8 @@ export function PieDeGuardar({
   canSave: boolean;
   needsAd: boolean;
   onSave: () => void;
+  /** Aero (alta estilo Splitwise): Repetir va en la barra de abajo, no acá. */
+  conRepetir?: boolean;
 }) {
   const { t } = useTranslation();
   const c = useColors();
@@ -55,7 +57,7 @@ export function PieDeGuardar({
 
       {/* Repetición — sólo al crear; editar una ocurrencia no toca la serie.
           El padding lateral vive DENTRO de `RecurrencePicker` (T-118). */}
-      {!isEditMode && <RecurrencePicker value={recurrence} onChange={onRecurrenceChange} />}
+      {conRepetir && !isEditMode && <RecurrencePicker value={recurrence} onChange={onRecurrenceChange} />}
 
       {grupoArchivado && (
         <Text style={[Typography.caption, styles.aviso, { color: c.semantic.negative }]}>

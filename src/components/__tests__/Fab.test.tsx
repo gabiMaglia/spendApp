@@ -1,6 +1,29 @@
 import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react-native';
-import { Fab, separacionInferiorDelFab } from '../Fab';
+import { Fab, fondoDelFab, separacionInferiorDelFab } from '../Fab';
+
+/**
+ * feat/reskin: en oscuro `brand.primarySoft` es un rgba al 14 % y el FAB
+ * secundario dejaba ver el contenido que pasa por debajo («Ingreso» encima de
+ * «$156.000»). Un fondo translúcido se pinta sobre una base opaca.
+ */
+describe('fondoDelFab', () => {
+  it('un color opaco queda tal cual', () => {
+    expect(fondoDelFab('#2F4763', '#151A21')).toEqual({ backgroundColor: '#2F4763' });
+    expect(fondoDelFab('rgba(1,2,3,1)', '#151A21')).toEqual({ backgroundColor: 'rgba(1,2,3,1)' });
+  });
+
+  it('un rgba translúcido va encima de la base opaca', () => {
+    expect(fondoDelFab('rgba(147,175,206,0.14)', '#151A21')).toEqual({
+      backgroundColor: '#151A21',
+      experimental_backgroundImage: 'linear-gradient(rgba(147,175,206,0.14), rgba(147,175,206,0.14))',
+    });
+  });
+
+  it('transparent cae a la base', () => {
+    expect(fondoDelFab('transparent', '#151A21')).toEqual({ backgroundColor: '#151A21' });
+  });
+});
 
 describe('Fab', () => {
   it('renders the label', () => {

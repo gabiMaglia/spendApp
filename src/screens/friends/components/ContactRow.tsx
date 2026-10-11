@@ -41,7 +41,7 @@ export const ContactRow = React.memo(function ContactRow({
         {hasBalance ? (
           <Text
             style={{
-              fontSize: 11.5, fontWeight: '600',
+              fontSize: 12, fontWeight: '600',
               color: positive ? c.semantic.positive : c.semantic.negative,
             }}
             numberOfLines={1}
@@ -50,7 +50,7 @@ export const ContactRow = React.memo(function ContactRow({
             {formatMoney(Math.abs(amount!), currency as any)}
           </Text>
         ) : conHistorial ? (
-          <Text style={{ fontSize: 11.5, fontWeight: '600', color: c.textTertiary }}>
+          <Text style={{ fontSize: 12, fontWeight: '600', color: c.textTertiary }}>
             {t('common.settled')}
           </Text>
         ) : null}
@@ -60,7 +60,7 @@ export const ContactRow = React.memo(function ContactRow({
           onPress={() => onSettle(userId)}
           style={[styles.actionChip, { backgroundColor: c.brand.primarySoft }]}
         >
-          <Text style={{ fontSize: 11, fontWeight: '700', color: c.brand.primary }}>
+          <Text style={{ fontSize: 12, fontWeight: '700', color: c.brand.primary }}>
             {t('friends.settle')}
           </Text>
         </Pressable>
