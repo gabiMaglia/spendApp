@@ -37,11 +37,12 @@ export function Avatar({ name, size = 36, hue = 0, ring, photo }: AvatarProps) {
   // La foto va ADENTRO del anillo (PO 2026-09-29): con el tamaño completo se
   // dibujaba encima del borde y lo tapaba — con iniciales se veía, con foto no.
   const foto = ring ? size - ANCHO_ANILLO * 2 : size;
-  const initials = name
-    .split(/\s+/)
-    .slice(0, 2)
-    .map(s => s[0]?.toUpperCase() ?? '')
-    .join('') || '?';
+  // Sólo palabras que empiezan con letra o dígito: «Invitado (vos)» daba «I(».
+  // Si ninguna empieza así («(Ana)»), se toma la primera letra que aparezca.
+  const palabras = name.split(/\s+/).filter(s => /^[\p{L}\p{N}]/u.test(s));
+  const initials = (palabras.length > 0
+    ? palabras.slice(0, 2).map(s => s[0]!.toUpperCase()).join('')
+    : (name.match(/[\p{L}\p{N}]/u)?.[0]?.toUpperCase() ?? '')) || '?';
 
   return (
     <View

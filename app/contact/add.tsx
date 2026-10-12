@@ -38,7 +38,16 @@ export default function AddContactScreen() {
   // (T-101): no hay razón para hacer pasar a alguien por «Mi QR» primero.
   const params = useLocalSearchParams();
   const [mode, setMode] = useState<ModoAgregarContacto>(params.mode === 'scan' ? 'scan' : 'my_qr');
-  const [scanned, setScanned]     = useState(false);
+  const [scanned, setScannedState] = useState(false);
+  // Candado sincrónico al lado del estado: la cámara manda varios eventos por
+  // segundo y `scanned` recién cambia en el próximo render — sin esto entraban
+  // ~10 escaneos del mismo QR y cada uno mostraba su cartel. Todo el que suelta
+  // o toma el escaneo pasa por acá, así el candado nunca queda desfasado.
+  const escaneoEnCursoRef = useRef(false);
+  const setScanned = useCallback((v: boolean) => {
+    escaneoEnCursoRef.current = v;
+    setScannedState(v);
+  }, []);
   const [permission, requestPerm] = useCameraPermissions();
   // Contacto que llegó por LINK y espera confirmación explícita (T-093 / SEC H-1):
   // ver `procesarContacto`.
@@ -74,7 +83,7 @@ export default function AddContactScreen() {
   });
 
   const handleBarCodeScanned = useCallback(({ data }: { data: string }) => {
-    if (scanned) return;
+    if (escaneoEnCursoRef.current) return;
     setScanned(true);
 
     const contact = parseContactPayload(data) ?? parseContactLink(data);
@@ -88,7 +97,7 @@ export default function AddContactScreen() {
     }
 
     procesarContacto(contact, 'qr');
-  }, [scanned, procesarContacto, t]);
+  }, [setScanned, procesarContacto, t]);
 
   /**
    * Abierta por un link de contacto (`/contact/add?id=…&name=…`): se procesa como un

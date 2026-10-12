@@ -86,21 +86,71 @@ it('si pide interacción se agranda y no vence a los 15 s', async () => {
   jest.useRealTimers();
 });
 
-it('silencio 15 s sin interacción → failed/timeout', async () => {
+/**
+ * Moto E40, 2026-10-12: el primer intento vencía (WebView frío + script de
+ * Cloudflare en un teléfono lento) y el segundo, a mano, entraba enseguida.
+ * Antes de mostrar el error se recarga el WebView UNA vez, en silencio.
+ */
+it('silencio 15 s → recarga el WebView una vez; otro silencio → failed/timeout', async () => {
+  jest.useFakeTimers();
+  montar();
+  const p = bridge.requestCaptchaToken();
+  let resuelto = false;
+  void p.then(() => { resuelto = true; });
+  await act(async () => {});
+
+  await act(async () => { jest.advanceTimersByTime(15_001); });
+  expect(resuelto).toBe(false);
+  expect(mockMontajes).toBe(2);
+
+  await act(async () => { jest.advanceTimersByTime(15_001); });
+  await expect(p).resolves.toEqual({ status: 'failed', reason: 'timeout' });
+  expect(mockMontajes).toBe(2);
+  jest.useRealTimers();
+});
+
+it('tras la recarga automática, un token resuelve ok', async () => {
   jest.useFakeTimers();
   montar();
   const p = bridge.requestCaptchaToken();
   await act(async () => { jest.advanceTimersByTime(15_001); });
-  await expect(p).resolves.toEqual({ status: 'failed', reason: 'timeout' });
+  await enviar({ type: 'token', token: 'T-segundo' });
+  await expect(p).resolves.toEqual({ status: 'ok', token: 'T-segundo' });
   jest.useRealTimers();
 });
 
-it('error del widget → failed/error', async () => {
+it('error del widget → recarga una vez; segundo error → failed/error', async () => {
   montar();
   const p = bridge.requestCaptchaToken();
+  let resuelto = false;
+  void p.then(() => { resuelto = true; });
   await act(async () => {});
+
+  await enviar({ type: 'error', code: '300030' });
+  await act(async () => {});
+  expect(resuelto).toBe(false);
+  expect(mockMontajes).toBe(2);
+
   await enviar({ type: 'error', code: '300030' });
   await expect(p).resolves.toEqual({ status: 'failed', reason: 'error' });
+});
+
+it('cada pedido nuevo tiene su propia recarga automática', async () => {
+  jest.useFakeTimers();
+  montar();
+  const p1 = bridge.requestCaptchaToken();
+  await act(async () => { jest.advanceTimersByTime(15_001); });
+  await act(async () => { jest.advanceTimersByTime(15_001); });
+  await expect(p1).resolves.toEqual({ status: 'failed', reason: 'timeout' });
+
+  const p2 = bridge.requestCaptchaToken();
+  let resuelto = false;
+  void p2.then(() => { resuelto = true; });
+  await act(async () => { jest.advanceTimersByTime(15_001); });
+  expect(resuelto).toBe(false);
+  await enviar({ type: 'token', token: 'T3' });
+  await expect(p2).resolves.toEqual({ status: 'ok', token: 'T3' });
+  jest.useRealTimers();
 });
 
 it('al desmontar deja de atender', async () => {
@@ -161,6 +211,8 @@ describe('diagnóstico: cada callback de Turnstile queda anotado (sin datos sens
     const p = bridge.requestCaptchaToken();
     await act(async () => {});
     await enviar({ type: 'error', code: '300030' });
+    await act(async () => {});
+    await enviar({ type: 'error', code: '300030' }); // el 1º sólo recarga
     await p;
     expect(mockRecordError).toHaveBeenCalledWith(expect.objectContaining({ screen: 'captcha', fatal: false }));
   });

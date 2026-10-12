@@ -22,6 +22,27 @@ describe('Avatar', () => {
     render(<Avatar name="Ana María López" />);
     expect(screen.getByText('AM')).toBeTruthy();
   });
+
+  // «Invitado (vos)» en Nuevo grupo daba «I(» (PO, 2026-10-12).
+  it('skips words that do not start with a letter or digit', () => {
+    render(<Avatar name="Invitado (vos)" />);
+    expect(screen.getByText('I')).toBeTruthy();
+  });
+
+  it('uses the letter inside punctuation-led words when nothing else is left', () => {
+    render(<Avatar name="(Ana)" />);
+    expect(screen.getByText('A')).toBeTruthy();
+  });
+
+  it('keeps accented and non-Latin initials', () => {
+    render(<Avatar name="Ágata Ñandú" />);
+    expect(screen.getByText('ÁÑ')).toBeTruthy();
+  });
+
+  it('renders ? when the name has no letters or digits', () => {
+    render(<Avatar name="(  ) 🙂" />);
+    expect(screen.getByText('?')).toBeTruthy();
+  });
 });
 
 describe('AvatarStack', () => {

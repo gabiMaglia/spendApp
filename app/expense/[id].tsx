@@ -1,10 +1,11 @@
 import React, { useMemo } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
 import { Spacing } from '@/src/constants/spacing';
+import { useComentarioSobreTeclado } from '@/src/screens/expense/hooks/useComentarioSobreTeclado';
 import { DetailHeader, useRellenoDetailHeader } from '@/src/components/CollapsibleHeader';
 import { Typography } from '@/src/constants/typography';
 import { useGroupStore } from '@/src/store/groupStore';
@@ -39,6 +40,7 @@ export default function ExpenseDetailScreen() {
   const c = useColors();
   // Aero: el header flota y el contenido arranca debajo de su tarjeta (T-227).
   const relleno = useRellenoDetailHeader();
+  const { scrollRef, alEnfocarComentario } = useComentarioSobreTeclado();
 
   const { currentUser } = useAuthStore();
   const expense = useExpenseStore(s => s.expenses.find(e => e.id === id));
@@ -126,57 +128,67 @@ export default function ExpenseDetailScreen() {
         ) : undefined}
       />
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingTop: Spacing[4] + relleno }]}>
-        <HeroDelGasto expense={expense} dateStr={dateStr} marca={marcaDeGasto} nombreDe={nombreDe} />
+      {/* Como en Nuevo grupo: con edge-to-edge (SDK 54) Android ya no achica
+          la ventana solo, y el teclado tapaba el campo de comentario. */}
+      <KeyboardAvoidingView style={styles.safe} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <ScrollView
+          ref={scrollRef}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={[styles.scroll, { paddingTop: Spacing[4] + relleno }]}
+        >
+          <HeroDelGasto expense={expense} dateStr={dateStr} marca={marcaDeGasto} nombreDe={nombreDe} />
 
-        <MiBalanceEnGasto
-          pagador={isPayer ? t('common.you') : getUserName(expense.paidById)}
-          myShare={myShare}
-          netForMe={netForMe}
-          currency={expense.currency}
-        />
-
-        <DetalleDelReparto expense={expense} splits={splits} getUserName={getUserName} />
-
-        {expense.note ? (
-          <SeccionDeGasto titulo={t('expense.note')} margenTitulo={8}>
-            <Text style={[Typography.bodyM, { color: c.text }]}>{expense.note}</Text>
-          </SeccionDeGasto>
-        ) : null}
-
-        {/* Autoría en disputa (T-170 · D-3, decisión del PO): decir QUIÉN la
-            abrió, no sólo ocultar "Forzar" en silencio. Sólo autores
-            ATRIBUIBLES — nunca una entrada sin verificar ni un id inyectado. */}
-        {autoresDeLaDisputa.length > 0 && (
-          <InlineWarningBanner
-            icon="warning-outline"
-            title={t('expense.authorship_disputed_title')}
-            body={t('expense.authorship_disputed_body', {
-              names: autoresDeLaDisputa.map(nombreDe).join(', '),
-            })}
+          <MiBalanceEnGasto
+            pagador={isPayer ? t('common.you') : getUserName(expense.paidById)}
+            myShare={myShare}
+            netForMe={netForMe}
+            currency={expense.currency}
           />
-        )}
 
-        {/* T-186: cualquier miembro borra al instante, sin ronda que abrir —
-            sólo se muestra si el usuario puede borrar. */}
-        {!expense.isDeleted && currentUser && borradoDirecto && (
-          <FilaBorrarGasto onPress={handleRequestDelete} />
-        )}
+          <DetalleDelReparto expense={expense} splits={splits} getUserName={getUserName} />
 
-        {/* Comentarios. Con el mismo margen lateral que el resto del contenido: se
-            pegaba a los bordes de la pantalla (PO 2026-09-13, T-111). */}
-        <View style={{ marginTop: Spacing[6], paddingHorizontal: Spacing.screenPad }}>
-          <CommentThread
-            comments={comments}
-            currentUserId={currentUser?.id ?? ''}
-            authorName={getUserName}
-            onAdd={handleAddComment}
-            onDelete={removeComment}
-          />
-        </View>
+          {expense.note ? (
+            <SeccionDeGasto titulo={t('expense.note')} margenTitulo={8}>
+              <Text style={[Typography.bodyM, { color: c.text }]}>{expense.note}</Text>
+            </SeccionDeGasto>
+          ) : null}
 
-        <View style={{ height: Spacing[9] }} />
-      </ScrollView>
+          {/* Autoría en disputa (T-170 · D-3, decisión del PO): decir QUIÉN la
+              abrió, no sólo ocultar "Forzar" en silencio. Sólo autores
+              ATRIBUIBLES — nunca una entrada sin verificar ni un id inyectado. */}
+          {autoresDeLaDisputa.length > 0 && (
+            <InlineWarningBanner
+              icon="warning-outline"
+              title={t('expense.authorship_disputed_title')}
+              body={t('expense.authorship_disputed_body', {
+                names: autoresDeLaDisputa.map(nombreDe).join(', '),
+              })}
+            />
+          )}
+
+          {/* T-186: cualquier miembro borra al instante, sin ronda que abrir —
+              sólo se muestra si el usuario puede borrar. */}
+          {!expense.isDeleted && currentUser && borradoDirecto && (
+            <FilaBorrarGasto onPress={handleRequestDelete} />
+          )}
+
+          {/* Comentarios. Con el mismo margen lateral que el resto del contenido: se
+              pegaba a los bordes de la pantalla (PO 2026-09-13, T-111). */}
+          <View style={{ marginTop: Spacing[6], paddingHorizontal: Spacing.screenPad }}>
+            <CommentThread
+              comments={comments}
+              currentUserId={currentUser?.id ?? ''}
+              authorName={getUserName}
+              onAdd={handleAddComment}
+              onDelete={removeComment}
+              onInputFocus={alEnfocarComentario}
+            />
+          </View>
+
+          <View style={{ height: Spacing[9] }} />
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

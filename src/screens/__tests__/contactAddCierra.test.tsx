@@ -131,6 +131,19 @@ describe('agregar contacto por QR', () => {
     expect(router.replace).toHaveBeenCalledWith('/(tabs)/friends');
   });
 
+  it('la cámara lee el mismo QR muchas veces antes del re-render: se procesa UNA sola', () => {
+    // La cámara manda varios eventos por segundo y `scanned` (estado de React)
+    // recién cambia en el próximo render: antes entraban ~10 escaneos, el
+    // primero agregaba y los demás mostraban «Contacto ya guardado».
+    const r = render(<AddContactScreen />);
+    fireEvent.press(r.getByText('contact.tab_scan'));
+    const disparar = escanear!;
+    act(() => { for (let i = 0; i < 10; i++) disparar({ data: CON_SECRETO }); });
+
+    expect(router.back).toHaveBeenCalledTimes(1);
+    expect(Alert.alert).not.toHaveBeenCalledWith('contact.already_title', expect.anything(), expect.anything());
+  });
+
   it('un QR que no es de la app NO cierra: deja reintentar', () => {
     escanearCodigo('https://example.com/cualquier-cosa');
 
