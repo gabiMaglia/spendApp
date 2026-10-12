@@ -137,7 +137,6 @@
     "you_suffix": "{{name}} (você)",
     "no_contacts": "Você ainda não tem contatos salvos.",
     "go_contacts": "Ir para Contatos para adicionar",
-    "select_hint": "Selecione ao menos um contato para criar o grupo.",
     "archive": "Arquivar",
     "unarchive": "Restaurar",
     "empty_archived_title": "Nada arquivado",
