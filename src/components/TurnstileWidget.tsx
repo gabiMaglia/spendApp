@@ -69,6 +69,11 @@ export function TurnstileWidget() {
   const resolverRef = useRef<((r: CaptchaOutcome) => void) | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const atascadoTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Recargas automáticas hechas en ESTE pedido (ver `recargarOFallar`). */
+  const recargasAutoRef = useRef(0);
+  /** Espejo sincrónico de `estado === 'interactivo'` para el reloj silencioso:
+   *  decidir adentro del updater de `setEstado` perdía la recarga. */
+  const interactivoRef = useRef(false);
 
   const limpiarAtascado = () => {
     if (atascadoTimeoutRef.current) { clearTimeout(atascadoTimeoutRef.current); atascadoTimeoutRef.current = null; }
@@ -85,6 +90,7 @@ export function TurnstileWidget() {
     if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
     limpiarAtascado();
     resolverRef.current = null;
+    interactivoRef.current = false;
     setAtascado(false);
     setEstado(actual => {
       if (actual === 'interactivo') setCaptchaInteractive(false);
@@ -110,18 +116,36 @@ export function TurnstileWidget() {
     limpiar();
   };
 
+  /**
+   * Antes de dar por fallado, recarga el WebView UNA vez y en silencio (Moto
+   * E40, 2026-10-12): en un teléfono lento el primer intento vencía —WebView
+   * frío más el script de Cloudflare— y el «Reintentar» a mano entraba al toque.
+   * Una sola vez por pedido: un widget que falla dos veces seguidas avisa.
+   */
+  const recargarOFallar = (reason: 'timeout' | 'error') => {
+    if (recargasAutoRef.current >= 1) { resolver({ status: 'failed', reason }); return; }
+    recargasAutoRef.current += 1;
+    setWebviewKey(k => k + 1);
+    armarSilencio();
+  };
+
+  /** Reloj del modo silencioso. Sólo vence si Cloudflare no pidió interacción
+   *  todavía: una vez que se muestra el desafío, la persona decide cuánto tarda. */
+  function armarSilencio() {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => {
+      timeoutRef.current = null;
+      if (!interactivoRef.current) recargarOFallar('timeout');
+    }, CAPTCHA_SILENT_TIMEOUT_MS);
+  }
+
   useEffect(() => {
     registerCaptchaProvider(() => new Promise<CaptchaOutcome>(resolve => {
       resolverRef.current = resolve;
+      recargasAutoRef.current = 0;
+      interactivoRef.current = false;
       setEstado('esperando');
-      timeoutRef.current = setTimeout(() => {
-        // Sólo vence si Cloudflare no pidió interacción todavía: una vez que
-        // se muestra el desafío, la persona decide cuánto tarda.
-        setEstado(actual => {
-          if (actual !== 'interactivo') resolver({ status: 'failed', reason: 'timeout' });
-          return actual;
-        });
-      }, CAPTCHA_SILENT_TIMEOUT_MS);
+      armarSilencio();
     }));
     return () => {
       registerCaptchaProvider(null);
@@ -149,13 +173,14 @@ export function TurnstileWidget() {
         resolver({ status: 'ok', token: msg.token });
         return;
       case 'error':
-        resolver({ status: 'failed', reason: 'error' });
+        recargarOFallar('error');
         return;
       case 'interactive':
         // Deja de correr el reloj silencioso: a partir de acá la espera la
         // decide la persona. Avisa por el puente (para que `relaySession`
         // pause su propio tope de red) y arranca el tope de "atascado".
         if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
+        interactivoRef.current = true;
         setEstado('interactivo');
         setCaptchaInteractive(true);
         armarAtascado();

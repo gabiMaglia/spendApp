@@ -32,6 +32,20 @@ function setup(props: Partial<React.ComponentProps<typeof CommentThread>> = {}) 
 }
 
 describe('CommentThread', () => {
+  // El teclado tapaba el campo (PO, 2026-10-12): la pantalla necesita saber
+  // cuándo se enfoca para llevarlo a la vista.
+  it('avisa cuando el campo de comentario toma el foco', () => {
+    const onInputFocus = jest.fn();
+    const { getByPlaceholderText } = setup({ onInputFocus });
+    fireEvent(getByPlaceholderText('comments.placeholder'), 'focus');
+    expect(onInputFocus).toHaveBeenCalledTimes(1);
+  });
+
+  it('sin onInputFocus, enfocar el campo no rompe', () => {
+    const { getByPlaceholderText } = setup();
+    expect(() => fireEvent(getByPlaceholderText('comments.placeholder'), 'focus')).not.toThrow();
+  });
+
   it('muestra el estado vacío cuando no hay comentarios', () => {
     const { getByText } = setup();
     expect(getByText('comments.empty')).toBeTruthy();

@@ -22,8 +22,6 @@ import { useGroupStore } from '@/src/store/groupStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { announceGroupToContacts } from '@/src/sync/motor/relayEngine';
-import { hueForUser } from '@/src/utils/hueForUser';
-import { Avatar } from '@/src/components/Avatar';
 import { UserAvatar } from '@/src/components/UserAvatar';
 import { useTranslation } from 'react-i18next';
 import { syncedNow } from '@/src/utils/syncedClock';
@@ -239,7 +237,10 @@ export default function NewGroupScreen() {
           {/* El botón de la app, no un Pressable con estilo propio: es la
               regla del proyecto y lo que hace que «crear» se vea igual en
               todas las pantallas de alta (Nuevo gasto, Registrar pago). */}
-          <ButtonRack>
+          {/* Como en Saldar: `inline` (el scroll ya pone el aire lateral; el
+              `bottom` por defecto lo duplicaba y el botón salía más angosto
+              que los campos) y empujado al fondo con `marginTop: 'auto'`. */}
+          <ButtonRack placement="inline" style={styles.alFondo}>
             <ActionButton
               testID="group-new-save"
               label={t('common.create')}
@@ -290,7 +291,8 @@ function MemberRow({
 
 const styles = StyleSheet.create({
   safe:         { flex: 1 },
-  scroll:       { paddingHorizontal: Spacing.screenPad, paddingTop: Spacing[4] },
+  scroll:       { paddingHorizontal: Spacing.screenPad, paddingTop: Spacing[4], flexGrow: 1 },
+  alFondo:      { marginTop: 'auto', marginBottom: 24 },
   sectionLabel: { marginTop: Spacing[5], marginBottom: Spacing[2] },
   inputCard:    {
     flexDirection: 'row', alignItems: 'center', gap: 10,

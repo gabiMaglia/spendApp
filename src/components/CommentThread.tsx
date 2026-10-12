@@ -24,6 +24,8 @@ export type CommentThreadProps = {
   authorName: (userId: string) => string;
   onAdd: (text: string) => void;
   onDelete: (commentId: string) => void;
+  /** El campo tomó el foco: la pantalla lo lleva arriba del teclado. */
+  onInputFocus?: () => void;
 };
 
 /**
@@ -36,7 +38,7 @@ export type CommentThreadProps = {
  * (oculta sus comentarios en este dispositivo) — T-235, Apple 1.2.
  */
 export function CommentThread({
-  comments, currentUserId, authorName, onAdd, onDelete,
+  comments, currentUserId, authorName, onAdd, onDelete, onInputFocus,
 }: CommentThreadProps) {
   const { t } = useTranslation();
   const c = useColors();
@@ -170,6 +172,7 @@ export function CommentThread({
         <TextInput
           value={draft}
           onChangeText={setDraft}
+          onFocus={onInputFocus}
           placeholder={t('comments.placeholder')}
           placeholderTextColor={c.textTertiary}
           maxLength={MAX_LENGTH}
