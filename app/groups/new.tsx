@@ -58,8 +58,10 @@ export default function NewGroupScreen() {
     [users, currentUser],
   );
 
-  const hasContact = selectedIds.some(id => !esYo(id));
-  const canSave    = name.trim().length > 0 && hasContact;
+  // Sin contactos también se crea (PO, 2026-10-12): quien entra solo —el
+  // revisor de Apple, alguien que todavía no escaneó a nadie— no tenía cómo
+  // armar un grupo. Adentro se suma gente con «Agregar persona» o por link.
+  const canSave = name.trim().length > 0;
 
   function toggleContact(id: string) {
     // T-150 ronda 2/5 (defecto 1, handoff): un grupo nunca puede nacer con más
@@ -227,12 +229,6 @@ export default function NewGroupScreen() {
             ))
           )}
 
-          {/* Hint si no seleccionó nadie */}
-          {contacts.length > 0 && !hasContact && (
-            <Text style={[Typography.bodyS, styles.hint, { color: c.textTertiary }]}>
-              {t('groups.select_hint')}
-            </Text>
-          )}
 
           {/* El botón de la app, no un Pressable con estilo propio: es la
               regla del proyecto y lo que hace que «crear» se vea igual en
@@ -317,5 +313,4 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   goContactsBtn:{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: Radius.full, borderWidth: 1.5 },
-  hint:         { textAlign: 'center', marginTop: 4, marginBottom: 8 },
 });

@@ -1,8 +1,9 @@
 import React from 'react';
-import { render } from '@testing-library/react-native';
+import { fireEvent, render } from '@testing-library/react-native';
 import NewGroupScreen from '@/app/groups/new';
 import { useAuthStore } from '@/src/store/authStore';
 import { useUserStore } from '@/src/store/userStore';
+import { useGroupStore } from '@/src/store/groupStore';
 import type { User } from '@/src/types/models';
 
 /**
@@ -27,6 +28,7 @@ const ANA = { id: 'ana', name: 'Ana', isDeleted: false } as User;
 beforeEach(() => {
   useAuthStore.setState({ currentUser: ANA });
   useUserStore.setState({ users: [] });
+  useGroupStore.setState({ groups: [] });
 });
 
 describe('botón de crear grupo en la botonera del pie', () => {
@@ -35,8 +37,38 @@ describe('botón de crear grupo en la botonera del pie', () => {
     expect(r.getByTestId('group-new-save')).toBeTruthy();
   });
 
-  it('arranca deshabilitado sin nombre ni contacto seleccionado', () => {
+  it('arranca deshabilitado sin nombre', () => {
     const r = render(<NewGroupScreen />);
+    expect(r.getByTestId('group-new-save').props.accessibilityState?.disabled).toBe(true);
+  });
+});
+
+/**
+ * Un grupo se crea sin contactos (PO, 2026-10-12): quien entra solo —el revisor
+ * de Apple, alguien que todavía no escaneó a nadie— no tenía cómo crear un grupo,
+ * y sin grupo no hay gastos. Adentro se suma gente con «Agregar persona» (también
+ * quien no usa la app) o por link de invitación.
+ */
+describe('crear un grupo sin contactos', () => {
+  it('con nombre y sin contactos, «Crear» se habilita', () => {
+    const r = render(<NewGroupScreen />);
+    fireEvent.changeText(r.getByPlaceholderText('groups.name_placeholder'), 'Trip');
+    expect(r.getByTestId('group-new-save').props.accessibilityState?.disabled).toBe(false);
+  });
+
+  it('crea el grupo con uno mismo como único miembro', () => {
+    const r = render(<NewGroupScreen />);
+    fireEvent.changeText(r.getByPlaceholderText('groups.name_placeholder'), 'Trip');
+    fireEvent.press(r.getByTestId('group-new-save'));
+    const grupos = useGroupStore.getState().groups;
+    expect(grupos).toHaveLength(1);
+    expect(grupos[0]!.name).toBe('Trip');
+    expect(grupos[0]!.memberIds).toEqual(['ana']);
+  });
+
+  it('un nombre de puros espacios sigue sin habilitar', () => {
+    const r = render(<NewGroupScreen />);
+    fireEvent.changeText(r.getByPlaceholderText('groups.name_placeholder'), '   ');
     expect(r.getByTestId('group-new-save').props.accessibilityState?.disabled).toBe(true);
   });
 });
