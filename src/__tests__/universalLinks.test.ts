@@ -23,7 +23,7 @@ const aasa = (): Aasa => JSON.parse(readFileSync(RUTA_AASA, 'utf8'));
 describe('Universal Links (T-097)', () => {
   it('los valores de Apple son los del PO', () => {
     expect(APPLE_TEAM_ID).toBe('4GP6785MU4');
-    expect(APP_STORE_ID).toBe('6801922014');
+    expect(APP_STORE_ID).toBe('6813102685');
   });
 
   it('app.json declara el dominio del sitio como dominio asociado', () => {
