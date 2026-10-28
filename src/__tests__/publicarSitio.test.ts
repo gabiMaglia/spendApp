@@ -22,6 +22,10 @@ describe('publicar-sitio.sh (T-134)', () => {
     expect(codigo).toMatch(/exit 1/);
   });
 
+  it('copia las imágenes de la landing de descarga (T-242)', () => {
+    expect(codigo).toMatch(/cp -R "\$WEB\/img" img/);
+  });
+
   it('copia .well-known (AASA de Universal Links, T-097)', () => {
     expect(codigo).toMatch(/\.well-known/);
   });

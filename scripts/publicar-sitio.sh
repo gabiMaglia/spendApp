@@ -53,6 +53,10 @@ for f in "$WEB"/*.html; do
   esac
 done
 # Universal Links (T-097): el AASA vive en .well-known/ y va sin extensión.
+# T-242: las imágenes de la landing de descarga
+if [ -d "$WEB/img" ]; then
+  cp -R "$WEB/img" img
+fi
 if [ -d "$WEB/.well-known" ]; then
   cp -R "$WEB/.well-known" .well-known
 fi
