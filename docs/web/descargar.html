@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-jz0nz//U4gMicPPtZtqR5u92JtMyrSqZabHJquhK84U='; style-src 'sha256-P6mdnk5sgmGoJZ0E2NCowU5cSEGEQfEly7oKAcMQeoo='; img-src 'self'; font-src 'self'; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-o40K2Vkpivm8SQKpZaaVwepnLCkC01E36J3h11vK36Q='; style-src 'sha256-P6mdnk5sgmGoJZ0E2NCowU5cSEGEQfEly7oKAcMQeoo='; img-src 'self'; font-src 'self'; connect-src 'none'; form-action 'none'; base-uri 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="color-scheme" content="light dark">
 <meta name="description" content="HushSplit divide los gastos de la casa, el viaje, la pareja o el asado. Cifrado de punta a punta, gratis y sin anuncios. Para iPhone y Android.">
@@ -15,8 +15,9 @@
 <link rel="preload" href="fonts/bricolage-grotesque.woff2" as="font" type="font/woff2" crossorigin>
 <title>HushSplit · Descargar</title>
 <!--
-  T-242 · Landing de descarga. Se publica como /descargar.html (la raíz es abrir.html: los links
-  de invitación y los Universal Links viven ahí y no se tocan).
+  T-242 · Landing de descarga. Se publica como la RAÍZ del sitio (index.html) y también como
+  /descargar.html. Los links que comparte la app también apuntan a la raíz (#<link>): el script
+  los detecta antes que nada y los pasa a abrir.html, que es la que abre la app.
 
   - Modelo: la landing de Splitwise (pedido del PO). Hero con ilustración y contexto que rota,
     bloques de color a todo el ancho con la app asomando, lista de funciones y descarga.
@@ -211,7 +212,7 @@
 </head>
 <body>
 <header class="ancho barra">
-  <a class="marca" href="descargar.html"><img src="img/icon.png" width="40" height="40" alt=""><span>HushSplit</span></a>
+  <a class="marca" href="./"><img src="img/icon.png" width="40" height="40" alt=""><span>HushSplit</span></a>
   <div class="barra-der">
     <div class="idiomas" role="group" aria-label="Idioma">
       <button type="button" data-lang="es" aria-pressed="true">ES</button>
@@ -353,7 +354,7 @@
 
 <footer>
   <div class="ancho">
-    <a class="marca" href="descargar.html"><img src="img/icon.png" width="30" height="30" alt=""><span>HushSplit</span></a>
+    <a class="marca" href="./"><img src="img/icon.png" width="30" height="30" alt=""><span>HushSplit</span></a>
     <nav aria-label="Legal">
       <a id="l-privacidad" href="privacidad.es.html" data-i="privacidad">Privacidad</a>
       <a id="l-terminos" href="terminos.es.html" data-i="terminos">Términos</a>
@@ -365,6 +366,17 @@
 
 <script>
 (function () {
+  // Esta página es la raíz del sitio, y los links que comparte la app también: son
+  // `https://hushsplit.github.io/#<link>`. Si llega uno, se pasa ENTERO a abrir.html, que es la
+  // que sabe abrir la app. El fragmento no viaja al servidor; replace() no deja la landing en
+  // el historial. El patrón calca los formatos de src/utils/appLink.ts (un test los ata), y
+  // exige un código largo para que un ancla de esta página (#bajar, #como) no se confunda.
+  var LINK_DE_LA_APP = /^#(?:[cgi][A-Za-z0-9_-]{8,}|(?:contact\/add|groups\/join|contact\/claim)\?)/;
+  if (LINK_DE_LA_APP.test(window.location.hash)) {
+    window.location.replace('abrir.html' + window.location.hash);
+    return;
+  }
+
   var T = {
     es: {
       barraDescargar: 'Descargar', tituloFijo: 'Cuentas claras',

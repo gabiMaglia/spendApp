@@ -16,7 +16,8 @@ export const BASE_URL = 'https://hushsplit.github.io';
 
 /**
  * Dónde viven los links que comparte la app. Con la barra final: el link es
- * `https://hushsplit.github.io/#…`, y el `index.html` del sitio es `docs/web/abrir.html`.
+ * `https://hushsplit.github.io/#…`. El `index.html` del sitio es la landing (`docs/web/descargar.html`,
+ * T-242), que pasa esos links a `docs/web/abrir.html`.
  */
 export const LINKS_URL = `${BASE_URL}/`;
 

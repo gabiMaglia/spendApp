@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { JSDOM } from 'jsdom';
 import { APP_STORE_ID } from '@/src/constants/web';
+import { enlaceCompacto, enlaceCompartible } from '@/src/utils/appLink';
 
 /**
  * T-242 · `docs/web/descargar.html`: la landing de descarga.
@@ -222,5 +223,34 @@ describe('docs/web/descargar.html — la marca animada del hero', () => {
     expect(animado).toContain('var(--L) * .2');
     // Fuera de ese bloque no hay animación de la marca: con movimiento reducido se ve armada y quieta.
     expect(estilo.replace(animado, '')).not.toMatch(/\.logo[^{]*\{[^}]*animation/);
+  });
+});
+
+describe('docs/web/descargar.html — es la raíz, y la raíz también recibe los links de la app', () => {
+  // El patrón con el que la página decide derivar a abrir.html, sacado del script real.
+  const script = /<script>([\s\S]*?)<\/script>/.exec(HTML)![1];
+  const literal = /var LINK_DE_LA_APP = \/(.+)\/;/.exec(script)![1];
+  const esLink = (hash: string) => new RegExp(literal).test(hash);
+  const fragmento = (url: string) => url.slice(url.indexOf('#'));
+  const CODIGO = 'AbCdEfGhIjKlMnOpQrStUv';   // como un UUID en base64url: 22 caracteres
+
+  it.each(['c', 'g', 'i'] as const)('un link compacto de tipo «%s» se pasa a abrir.html', (tipo) => {
+    expect(esLink(fragmento(enlaceCompacto(tipo, CODIGO)))).toBe(true);
+  });
+
+  it.each(['contact/add', 'groups/join', 'contact/claim'] as const)('un link largo a %s se pasa a abrir.html', (ruta) => {
+    expect(esLink(fragmento(enlaceCompartible(ruta, new URLSearchParams({ c: CODIGO }))))).toBe(true);
+  });
+
+  it.each(['', '#', '#bajar', '#descarga', '#como', '#t-priv', '#cosa', '#groups/joinx'])('«%s» no es un link: se queda en la landing', (hash) => {
+    expect(esLink(hash)).toBe(false);
+  });
+
+  it('deriva con replace (no deja la landing en el historial) y conserva el fragmento entero', () => {
+    expect(script).toContain("window.location.replace('abrir.html' + window.location.hash)");
+  });
+
+  it('sin link, la landing se arma normal', () => {
+    expect(abrir(UA_ESCRITORIO).querySelector('h1')!.textContent).toBe('Cuentas claras con tus compañeros de casa.');
   });
 });

@@ -50,13 +50,19 @@ describe('docs/web/abrir.html', () => {
     expect(HTML).not.toMatch(/fetch\(|XMLHttpRequest|sendBeacon/);
   });
 
-  it('el script de publicación copia esta página como index, y todas las legales', () => {
+  it('el script de publicación pone la landing como index y publica esta página como abrir.html', () => {
     const script = readFileSync(join(__dirname, '..', '..', 'scripts', 'publicar-sitio.sh'), 'utf8');
     expect(script).toContain('hushsplit/hushsplit.github.io');
-    expect(script).toContain('cp "$WEB/abrir.html" index.html');
-    // Copia todo docs/web/*.html salvo el index viejo y abrir.html (que ya fue como index).
+    expect(script).toContain('cp "$WEB/descargar.html" index.html');
+    // Copia todo docs/web/*.html (abrir.html incluida, con su nombre) salvo el index viejo.
     expect(script).toContain('for f in "$WEB"/*.html');
-    expect(script).toMatch(/index\.html\|abrir\.html\) ;;/);
+    expect(script).toMatch(/\n\s+index\.html\) ;;/);
+  });
+
+  it('a la app le pasa el link canónico aunque la página viva en /abrir.html (T-242)', () => {
+    expect(HTML).toContain(`var LINKS_URL = '${LINKS_URL}'`);
+    expect(HTML).toContain("app-argument=' + LINKS_URL + window.location.hash");
+    expect(HTML).not.toContain("app-argument=' + window.location.href");
   });
 
   it('sin link, hace de índice: enlaza las tres páginas legales en el idioma de la página', () => {

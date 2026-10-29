@@ -5,13 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-Klw6ROzox1LZShxiZRO9iynfa7pLqqwKP51fUJB0buk='; style-src 'sha256-KCkMpeLMDZKpQyjwhkkrzJb8R51IFuCQfaZaZ6bYNgQ='; img-src 'none'; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-+q6HLznouUImoqGLoe/oyXIsyHz5ZVX0wlTs1mDqlPk='; style-src 'sha256-KCkMpeLMDZKpQyjwhkkrzJb8R51IFuCQfaZaZ6bYNgQ='; img-src 'none'; connect-src 'none'; form-action 'none'; base-uri 'none'">
 <title>Abrir en HushSplit</title>
 <!--
   Página intermedia de los links que comparte la app (src/utils/appLink.ts).
 
-  Se publica como index.html de https://hushsplit.github.io/ — la única base que la app
-  acepta — y es además el índice de las páginas legales. Se publica con
+  Se publica como https://hushsplit.github.io/abrir.html. Los links que comparte la app apuntan a
+  la raíz (#<link>), que desde T-242 es la landing: ésta detecta el link y lo pasa acá con el
+  mismo fragmento. Sin link, hace de índice de las páginas legales. Se publica con
   scripts/publicar-sitio.sh.
 
   T-102 (PO, 2026-09-13): hasta acá se publicaba también en el Pages personal del PO,
@@ -99,6 +100,8 @@
   var PAQUETE_ANDROID = 'com.splitp2p.app';
   // T-097: id de la App Store (src/constants/web.ts, APP_STORE_ID; un test los ata).
   var APP_STORE_ID = '6813102685';
+  // La base de los links compartidos (src/constants/web.ts, LINKS_URL; un test los ata).
+  var LINKS_URL = 'https://hushsplit.github.io/';
 
   var TEXTOS = {
     es: {
@@ -205,7 +208,9 @@
     // App Banner le entrega la URL https completa a HushSplit, sin esquema de por medio.
     var meta = document.createElement('meta');
     meta.setAttribute('name', 'apple-itunes-app');
-    meta.setAttribute('content', 'app-id=' + APP_STORE_ID + ', app-argument=' + window.location.href);
+    // La app sólo acepta el link en su forma compartida (raíz + fragmento, src/utils/appLink.ts),
+    // y esta página ahora vive en /abrir.html: se le pasa la forma canónica, no la URL actual.
+    meta.setAttribute('content', 'app-id=' + APP_STORE_ID + ', app-argument=' + LINKS_URL + window.location.hash);
     document.head.appendChild(meta);
     texto('nota', T.ayudaIos);
     boton.textContent = T.descargar;

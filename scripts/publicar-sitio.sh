@@ -35,6 +35,7 @@ git -C "$RAIZ" archive HEAD docs/web | tar -x -C "$TMP/fuente"
 WEB="$TMP/fuente/docs/web"
 
 [ -f "$WEB/abrir.html" ] || { echo "no existe docs/web/abrir.html en HEAD" >&2; exit 1; }
+[ -f "$WEB/descargar.html" ] || { echo "no existe docs/web/descargar.html en HEAD" >&2; exit 1; }
 
 git clone --quiet "$DESTINO" "$TMP/sitio"
 cd "$TMP/sitio"
@@ -44,11 +45,11 @@ git checkout --quiet -B main
 git rm --quiet -r --cached . >/dev/null 2>&1 || true
 find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
 
-cp "$WEB/abrir.html" index.html
+cp "$WEB/descargar.html" index.html
 for f in "$WEB"/*.html; do
   nombre="$(basename "$f")"
   case "$nombre" in
-    index.html|abrir.html) ;;
+    index.html) ;;
     *) cp "$f" "$nombre" ;;
   esac
 done
