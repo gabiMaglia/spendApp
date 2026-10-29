@@ -27,6 +27,16 @@ describe('publicar-sitio.sh (T-134)', () => {
     expect(codigo).toMatch(/cp -R "\$WEB\/fonts" fonts/);
   });
 
+  it('publica app-ads.txt en la raíz del sitio (AdMob)', () => {
+    expect(codigo).toMatch(/cp "\$WEB\/app-ads\.txt" app-ads\.txt/);
+  });
+
+  it('app-ads.txt tiene el formato de IAB: dominio, cuenta, relación e id de la autoridad', () => {
+    const txt = readFileSync(join(__dirname, '..', '..', 'docs', 'web', 'app-ads.txt'), 'utf8');
+    const lineas = txt.split('\n').filter((l) => l.trim() && !l.startsWith('#'));
+    expect(lineas).toEqual(['google.com, pub-3865058604661161, DIRECT, f08c47fec0942fa0']);
+  });
+
   it('copia .well-known (AASA de Universal Links, T-097)', () => {
     expect(codigo).toMatch(/\.well-known/);
   });

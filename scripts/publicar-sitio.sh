@@ -55,6 +55,10 @@ for f in "$WEB"/*.html; do
 done
 # Universal Links (T-097): el AASA vive en .well-known/ y va sin extensión.
 # T-242: las imágenes de la landing de descarga
+# app-ads.txt de AdMob (IAB Tech Lab): tiene que estar en la raíz del dominio declarado en las tiendas
+if [ -f "$WEB/app-ads.txt" ]; then
+  cp "$WEB/app-ads.txt" app-ads.txt
+fi
 if [ -d "$WEB/img" ]; then
   cp -R "$WEB/img" img
 fi
