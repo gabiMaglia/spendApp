@@ -166,19 +166,16 @@ describe('docs/web/descargar.html — recursos', () => {
 });
 
 describe('docs/web/descargar.html — el contexto del título', () => {
-  it('sin tocar nada arranca en «casa», con su mosaico visible', () => {
+  it('sin tocar nada arranca en «casa»', () => {
     const d = abrir(UA_ESCRITORIO);
     expect(d.getElementById('contexto')!.textContent).toBe('con tus compañeros de casa.');
-    expect(d.querySelector('[data-mosaico="casa"]')!.className).toBe('activo');
     expect(d.querySelector('[data-ctx="casa"]')!.getAttribute('aria-pressed')).toBe('true');
   });
 
-  it('al elegir otro contexto cambian el texto, el mosaico y el botón marcado', () => {
+  it('al elegir otro contexto cambian el texto y el botón marcado', () => {
     const d = abrir(UA_ESCRITORIO);
     (d.querySelector('[data-ctx="asado"]') as HTMLElement).click();
     expect(d.querySelector('h1')!.textContent).toBe('Cuentas claras en cada asado.');
-    expect(d.querySelector('[data-mosaico="asado"]')!.className).toBe('activo');
-    expect(d.querySelector('[data-mosaico="casa"]')!.className).toBe('');
     expect(d.querySelector('[data-ctx="asado"]')!.getAttribute('aria-pressed')).toBe('true');
     expect(d.querySelector('[data-ctx="casa"]')!.getAttribute('aria-pressed')).toBe('false');
   });
@@ -191,11 +188,39 @@ describe('docs/web/descargar.html — el contexto del título', () => {
     expect(d.querySelector('[data-ctx="viaje"]')!.getAttribute('aria-label')).toBe('Viagem');
   });
 
-  it('hay un mosaico por cada contexto', () => {
+  it('los contextos son casa, viaje, pareja y asado, en ese orden', () => {
     const d = abrir(UA_ESCRITORIO);
-    const ctx = [...d.querySelectorAll('[data-ctx]')].map((b) => b.getAttribute('data-ctx'));
-    const mos = [...d.querySelectorAll('[data-mosaico]')].map((i) => i.getAttribute('data-mosaico'));
-    expect(ctx).toEqual(['casa', 'viaje', 'pareja', 'asado']);
-    expect(mos).toEqual(ctx);
+    expect([...d.querySelectorAll('[data-ctx]')].map((b) => b.getAttribute('data-ctx'))).toEqual(['casa', 'viaje', 'pareja', 'asado']);
+  });
+});
+
+describe('docs/web/descargar.html — la marca animada del hero', () => {
+  const estilo = /<style>([\s\S]*?)<\/style>/.exec(HTML)![1];
+
+  it('es la marca de la app: dos cuadrados y la «S», decorativa para el lector de pantalla', () => {
+    const d = abrir(UA_ESCRITORIO);
+    const escena = d.querySelector('.logo-escena')!;
+    expect(escena.getAttribute('aria-hidden')).toBe('true');
+    expect(escena.querySelectorAll('.logo .a, .logo .b')).toHaveLength(2);
+    expect(escena.querySelector('.logo .s')!.textContent).toBe('S');
+  });
+
+  it('usa la geometría de AppLogoMark.tsx', () => {
+    // CUADRADO_A .78 / RADIO_A .26, CUADRADO_B .68 / RADIO_B .22, INICIO_B .32, LADO_CRUCE .46, TIPO_S .31
+    for (const n of ['.78', '.26', '.68', '.22', '.32', '.46', '.31']) expect(estilo).toContain(`var(--L) * ${n}`);
+    expect(estilo).toContain('#0A6E8F');
+    expect(estilo).toContain('#8FBC94');
+  });
+
+  it('anima con los tiempos de splashTiming.ts y sólo si el sistema no pide menos movimiento', () => {
+    // DURACION_MS 760; FIN_FADE_CUBOS .45 → 342 ms; la «S» de .68 (517 ms) a 1 → 243 ms; DESPLAZAMIENTO .2.
+    const animado = /@media \(prefers-reduced-motion: no-preference\) \{([\s\S]*?)\n  \}/.exec(estilo)![1];
+    expect(animado).toContain('760ms');
+    expect(animado).toContain('342ms');
+    expect(animado).toContain('243ms 517ms');
+    expect(animado).toContain('var(--L) * -.2');
+    expect(animado).toContain('var(--L) * .2');
+    // Fuera de ese bloque no hay animación de la marca: con movimiento reducido se ve armada y quieta.
+    expect(estilo.replace(animado, '')).not.toMatch(/\.logo[^{]*\{[^}]*animation/);
   });
 });

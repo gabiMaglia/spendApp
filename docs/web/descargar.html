@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-UpPmYfFkx8CtkRu7YIM1bS149PHZ3aunZdr+DsD0E/s='; style-src 'sha256-UbotvlloIAsiMVhRLz7z3yfKK1Rp0WTWYmvj73Ep614='; img-src 'self'; font-src 'self'; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-jz0nz//U4gMicPPtZtqR5u92JtMyrSqZabHJquhK84U='; style-src 'sha256-P6mdnk5sgmGoJZ0E2NCowU5cSEGEQfEly7oKAcMQeoo='; img-src 'self'; font-src 'self'; connect-src 'none'; form-action 'none'; base-uri 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="color-scheme" content="light dark">
 <meta name="description" content="HushSplit divide los gastos de la casa, el viaje, la pareja o el asado. Cifrado de punta a punta, gratis y sin anuncios. Para iPhone y Android.">
@@ -20,8 +20,9 @@
 
   - Modelo: la landing de Splitwise (pedido del PO). Hero con ilustración y contexto que rota,
     bloques de color a todo el ancho con la app asomando, lista de funciones y descarga.
-  - Identidad propia: el ícono son dos cuadrados redondeados que se superponen. Los mosaicos del
-    hero, el patrón de fondo y la guarda del pie salen de esa forma (generados, img/mosaico-*.svg).
+  - Identidad propia: el ícono son dos cuadrados redondeados que se superponen. El hero muestra la
+    marca animada igual que el splash de la app; el patrón de fondo y la guarda del pie salen de
+    esa misma forma.
   - iPhone → App Store. Android → APK directo mientras Google Play pide 12 testers × 14 días. El link
     del APK es el asset `HushSplit.apk` del ÚLTIMO release del repo del sitio.
   - Funciones: sólo lo que existe según docs/FEATURES.md. Sin testimonios (no hay reales).
@@ -106,10 +107,30 @@
   .boton:active { transform: translateY(0); }
   .gratis { margin: 16px 0 0; font-size: .95rem; color: var(--tinta-2); }
 
-  .mosaico { position: relative; width: 100%; max-width: 560px; margin: 0 auto; aspect-ratio: 715 / 580; }
-  .mosaico img { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; transform: scale(.97); transition: opacity .6s ease, transform .6s ease; }
-  .mosaico img.activo { opacity: 1; transform: none; }
-  @media (prefers-reduced-motion: reduce) { .mosaico img, .contexto, .contextos button, .boton { transition: none; } }
+  /* La marca animada, igual que el splash de la app (src/components/AnimatedSplash.tsx):
+     geometría de AppLogoMark.tsx y tiempos de src/algorithms/splashTiming.ts. */
+  .logo-escena { display: grid; place-items: center; min-height: clamp(280px, 40vw, 460px); }
+  .logo { --L: clamp(210px, 28vw, 340px); position: relative; width: var(--L); height: var(--L); }
+  .logo .a, .logo .b { position: absolute; }
+  .logo .a { left: 0; top: 0; width: calc(var(--L) * .78); height: calc(var(--L) * .78); border-radius: calc(var(--L) * .26); background: #0A6E8F; }
+  .logo .b { right: 0; bottom: 0; width: calc(var(--L) * .68); height: calc(var(--L) * .68); border-radius: calc(var(--L) * .22); background: #8FBC94; opacity: .85; }
+  .logo .s {
+    position: absolute; left: calc(var(--L) * .32); top: calc(var(--L) * .32); width: calc(var(--L) * .46); height: calc(var(--L) * .46);
+    display: grid; place-items: center; color: #fff; font: 800 calc(var(--L) * .31) / 1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    letter-spacing: -.04em;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    /* 760 ms de viaje con salida cúbica; los cubos terminan de aparecer al 45 % y la «S» va del 68 % al final. */
+    .logo .a { animation: llega-a 760ms cubic-bezier(.33, 1, .68, 1) both, aparece-a 342ms linear both; }
+    .logo .b { animation: llega-b 760ms cubic-bezier(.33, 1, .68, 1) both, aparece-b 342ms linear both; }
+    .logo .s { animation: aparece-s 243ms 517ms linear both; }
+    @keyframes llega-a { from { transform: translate(calc(var(--L) * -.2), calc(var(--L) * -.2)); } to { transform: none; } }
+    @keyframes llega-b { from { transform: translate(calc(var(--L) * .2), calc(var(--L) * .2)); } to { transform: none; } }
+    @keyframes aparece-a { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes aparece-b { from { opacity: 0; } to { opacity: .85; } }
+    @keyframes aparece-s { from { opacity: 0; } to { opacity: 1; } }
+  }
+  @media (prefers-reduced-motion: reduce) { .contexto, .contextos button, .boton { transition: none; } }
 
   /* Bloques de color, 2 × 2 a todo el ancho */
   .bloques { display: grid; grid-template-columns: 1fr; }
@@ -225,11 +246,8 @@
         </div>
         <p class="gratis" data-i="gratis">Gratis para iPhone y Android, sin anuncios.</p>
       </div>
-      <div class="mosaico" aria-hidden="true">
-        <img class="activo" data-mosaico="casa" src="img/mosaico-casa.svg" width="715" height="580" alt="">
-        <img data-mosaico="viaje" src="img/mosaico-viaje.svg" width="715" height="580" alt="">
-        <img data-mosaico="pareja" src="img/mosaico-pareja.svg" width="715" height="580" alt="">
-        <img data-mosaico="asado" src="img/mosaico-asado.svg" width="715" height="580" alt="">
+      <div class="logo-escena" aria-hidden="true">
+        <div class="logo"><span class="a"></span><span class="b"></span><span class="s">S</span></div>
       </div>
     </div>
   </section>
@@ -446,7 +464,7 @@
     }
   };
 
-  // Cada contexto tiene el color de su mosaico. Contraste AA para texto grande sobre blanco.
+  // Cada contexto tiene su color. Contraste AA para texto grande sobre blanco.
   var CTX = ['casa', 'viaje', 'pareja', 'asado'];
   var COLOR = { casa: '#0A5F7A', viaje: '#22744F', pareja: '#B0476C', asado: '#A8611A' };
   var CLAVE = { casa: 'Casa', viaje: 'Viaje', pareja: 'Pareja', asado: 'Asado' };
@@ -465,8 +483,6 @@
   function pintarContexto() {
     document.getElementById('contexto').textContent = T[lang]['ctx' + CLAVE[actual]];
     document.documentElement.style.setProperty('--acento', COLOR[actual]);
-    var imgs = document.querySelectorAll('[data-mosaico]');
-    for (var i = 0; i < imgs.length; i++) imgs[i].className = imgs[i].getAttribute('data-mosaico') === actual ? 'activo' : '';
     var bs = document.querySelectorAll('[data-ctx]');
     for (var j = 0; j < bs.length; j++) bs[j].setAttribute('aria-pressed', bs[j].getAttribute('data-ctx') === actual ? 'true' : 'false');
   }
