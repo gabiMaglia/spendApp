@@ -29,6 +29,8 @@ const RAIZ = join(__dirname, '..', '..');
 
 type Perfil = {
   channel?: string;
+  environment?: string;
+  autoIncrement?: boolean;
   android?: { buildType?: string };
 };
 type EasJson = {
@@ -70,6 +72,17 @@ describe('el formato del binario', () => {
     // publicar o no se puede probar antes de publicar.
     expect(eas().build.production?.android?.buildType).toBe('app-bundle');
     expect(eas().build.preview?.android?.buildType).toBe('apk');
+  });
+
+  it('apk-directo es el APK de la landing: compila un apk con el entorno de producción', () => {
+    // T-242: mientras Play pida 12 testers, la landing sirve un APK. `preview` tiene su
+    // propio entorno de EAS (le faltan las variables de Turnstile: un APK así no puede
+    // verificar invitados); éste se apoya en `production` para no duplicar ni copiar valores.
+    const perfil = eas().build['apk-directo'];
+    expect(perfil?.android?.buildType).toBe('apk');
+    expect(perfil?.environment).toBe('production');
+    // No consume un versionCode del remoto: el APK no se sube a Play.
+    expect(perfil?.autoIncrement).not.toBe(true);
   });
 });
 

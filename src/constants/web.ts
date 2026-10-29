@@ -30,4 +30,4 @@ export const APPLE_TEAM_ID = '4GP6785MU4';
  * Id de HushSplit en App Store (PO, 2026-09-14). Lo usan el Smart App Banner y el botón
  * «Descargar» de `docs/web/abrir.html` (T-097).
  */
-export const APP_STORE_ID = '6801922014';
+export const APP_STORE_ID = '6813102685';

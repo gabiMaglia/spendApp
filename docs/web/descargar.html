@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-2pGe8GyuMhtacX0ghz3WZCZYZnm5AC/dtFAttFyq7Zc='; style-src 'sha256-Hkqcj8Ks2ggk3+RplvBNXC1/y/+MQkkP5AqQjXO7s0k='; img-src 'self'; font-src 'self'; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#E7F3FA" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#071D26" media="(prefers-color-scheme: dark)">
+<meta name="description" content="HushSplit divide los gastos del viaje, la casa o el asado. Cifrado de punta a punta, gratis y sin anuncios. Para iPhone y Android.">
+<meta name="apple-itunes-app" content="app-id=6813102685">
+<meta property="og:title" content="HushSplit · Cuentas claras, entre ustedes">
+<meta property="og:description" content="Dividí gastos con tu grupo. Cifrado de punta a punta, gratis y sin anuncios.">
+<meta property="og:image" content="https://hushsplit.github.io/img/icon.png">
+<link rel="icon" href="img/icon.png">
+<link rel="preload" href="fonts/bricolage-grotesque.woff2" as="font" type="font/woff2" crossorigin>
+<title>HushSplit · Descargar</title>
+<!--
+  T-242 · Landing de descarga. Se publica como /descargar.html (la raíz es abrir.html: los links
+  de invitación y los Universal Links viven ahí y no se tocan).
+
+  - iPhone → App Store. Android → APK directo mientras Google Play pide 12 testers × 14 días. El link
+    del APK es el asset `HushSplit.apk` del ÚLTIMO release del repo del sitio: al subir uno nuevo
+    con ese nombre, el link no cambia.
+  - Sin JS sirve igual (español, todos los botones). El JS sólo elige idioma, destaca la plataforma
+    y traduce. Sin pedidos externos: la fuente (Bricolage Grotesque, OFL, fonts/OFL.txt) se sirve
+    desde el propio sitio.
+  - Idea visual: el ícono son dos cuadrados que se superponen; la parte compartida es lo que la app
+    divide. El hero repite ese gesto en grande, con la pantalla de un grupo en la intersección.
+  - CSP con hashes: si se edita el script o el estilo inline, `descargar.test.ts` dice qué hash va.
+-->
+<style>
+  @font-face {
+    font-family: "Bricolage";
+    src: url("fonts/bricolage-grotesque.woff2") format("woff2-variations"), url("fonts/bricolage-grotesque.woff2") format("woff2");
+    font-weight: 200 800; font-stretch: 75% 100%; font-style: normal; font-display: swap;
+  }
+  :root {
+    --hielo: #E7F3FA; --papel: #F6FBFD; --tinta: #0B2A35; --tinta-2: #3D5A66;
+    --petroleo: #0A5F7A; --salvia: #9CC5A6; --linea: #C6DCE6; --sobre-petroleo: #FFFFFF;
+    --boton: #0B2A35; --sobre-boton: #F6FBFD; --forma-a: #0A5F7A; --forma-b: #9CC5A6;
+    --sombra-telefono: 0 50px 90px -40px rgba(10, 95, 122, .55), 0 18px 36px -24px rgba(11, 42, 53, .45);
+    --fuente: "Bricolage", ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --hielo: #071D26; --papel: #0B2631; --tinta: #E3F0F6; --tinta-2: #9DB7C2;
+      --petroleo: #4FB3D1; --salvia: #6FA27C; --linea: #1A3B4A; --sobre-petroleo: #04161D;
+      --boton: #E3F0F6; --sobre-boton: #071D26; --forma-a: #17698A; --forma-b: #4C8360;
+      --sombra-telefono: 0 50px 90px -40px rgba(0, 0, 0, .8), 0 18px 36px -24px rgba(0, 0, 0, .6);
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--hielo); color: var(--tinta);
+    font-family: var(--fuente); font-size: 1.0625rem; line-height: 1.55; font-optical-sizing: auto;
+    -webkit-font-smoothing: antialiased;
+  }
+  img { max-width: 100%; height: auto; display: block; }
+  ::selection { background: var(--salvia); color: #0B2A35; }
+  a { color: inherit; }
+  :focus-visible { outline: 3px solid var(--petroleo); outline-offset: 3px; border-radius: 6px; }
+  .ancho { width: 100%; max-width: 72rem; margin: 0 auto; padding: 0 clamp(20px, 5vw, 48px); }
+
+  /* Barra */
+  .barra { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 22px; padding-bottom: 22px; }
+  .marca { display: flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 700; font-size: 1.15rem; letter-spacing: -.01em; }
+  .marca img { width: 36px; height: 36px; border-radius: 9px; }
+  .idiomas { display: flex; border: 1px solid var(--linea); border-radius: 999px; padding: 3px; }
+  .idiomas button {
+    min-width: 44px; min-height: 44px; padding: 0 12px; border: 0; border-radius: 999px; background: none;
+    color: var(--tinta-2); font: inherit; font-size: .9rem; font-weight: 600; cursor: pointer;
+  }
+  .idiomas button[aria-pressed="true"] { background: var(--tinta); color: var(--hielo); }
+  @media (hover: hover) { .idiomas button[aria-pressed="false"]:hover { color: var(--tinta); } }
+
+  /* Hero */
+  .hero { display: grid; grid-template-columns: 1fr; gap: 40px; align-items: center; padding-top: 24px; padding-bottom: 64px; }
+  @media (min-width: 900px) { .hero { grid-template-columns: 1.05fr .95fr; gap: 24px; min-height: min(78vh, 700px); padding-top: 8px; padding-bottom: 64px; } }
+  h1 {
+    margin: 0 0 26px; font-size: clamp(3rem, 8.6vw, 5.75rem); line-height: .94; font-weight: 700;
+    font-stretch: 86%; letter-spacing: -.022em; max-width: 9ch; text-wrap: balance;
+  }
+  .sub { margin: 0 0 36px; max-width: 30rem; font-size: clamp(1.1rem, 1.8vw, 1.25rem); color: var(--tinta-2); }
+
+  .botones { display: flex; flex-wrap: wrap; gap: 12px; }
+  .boton {
+    display: inline-flex; flex-direction: column; justify-content: center; min-width: 200px; min-height: 60px;
+    padding: 8px 24px 9px; border-radius: 16px; border: 1.5px solid var(--boton);
+    background: var(--boton); color: var(--sobre-boton); text-decoration: none; line-height: 1.15;
+    transition: transform .15s ease, background-color .15s ease, color .15s ease;
+  }
+  .boton:active { transform: scale(.98); }
+  .boton .chico { font-size: .82rem; font-weight: 500; }
+  .boton .grande { font-size: 1.2rem; font-weight: 700; font-stretch: 90%; letter-spacing: -.01em; }
+  .boton.sec { background: transparent; color: var(--boton); }
+  @media (hover: hover) {
+    .boton:hover { transform: translateY(-2px); box-shadow: 0 14px 28px -16px rgba(11, 42, 53, .55); }
+    .boton.sec:hover { background: color-mix(in srgb, var(--boton) 8%, transparent); box-shadow: none; }
+  }
+  @media (prefers-reduced-motion: reduce) { .boton, .boton:hover, .boton:active { transition: none; transform: none; } }
+
+  .nota { margin: 16px 0 0; max-width: 30rem; font-size: .92rem; color: var(--tinta-2); }
+  details { margin-top: 14px; max-width: 30rem; border-top: 1px solid var(--linea); }
+  summary {
+    cursor: pointer; list-style: none; display: flex; align-items: center; gap: 10px; min-height: 48px;
+    font-weight: 600; font-size: .95rem;
+  }
+  summary::-webkit-details-marker { display: none; }
+  summary::before {
+    content: ""; width: 7px; height: 7px; flex: none; margin: 0 3px 0 2px;
+    border-right: 2px solid var(--petroleo); border-bottom: 2px solid var(--petroleo);
+    transform: rotate(-45deg); transition: transform .2s ease;
+  }
+  details[open] summary::before { transform: rotate(45deg); }
+  @media (prefers-reduced-motion: reduce) { summary::before { transition: none; } }
+  details ol { margin: 0 0 8px; padding-left: 22px; color: var(--tinta-2); font-size: .95rem; }
+  details li { margin: 6px 0; }
+
+  /* La figura del hero: dos formas que se superponen, como el ícono */
+  .figura { position: relative; width: min(100%, 600px); aspect-ratio: 1 / 1.08; margin: 0 auto; }
+  .forma { position: absolute; width: 64%; aspect-ratio: 1; border-radius: 24%; }
+  .forma-a { top: 4%; left: 0; background: var(--forma-a); }
+  .forma-b { right: 0; bottom: 0; background: var(--forma-b); opacity: .92; }
+  .telefono {
+    position: absolute; left: 50%; top: 50%; width: 46%; transform: translate(-50%, -50%);
+    border: 9px solid #0B2A35; border-radius: 42px; overflow: hidden; background: #0B2A35;
+    box-shadow: 0 0 0 1px rgba(227, 240, 246, .14), var(--sombra-telefono);
+  }
+  .telefono img { border-radius: 33px; width: 100%; height: auto; }
+  @media (prefers-reduced-motion: no-preference) {
+    .forma-a { animation: desde-arriba 1s cubic-bezier(.2, .8, .2, 1) both; }
+    .forma-b { animation: desde-abajo 1s cubic-bezier(.2, .8, .2, 1) both; }
+    .telefono { animation: aparece .7s .35s cubic-bezier(.2, .8, .2, 1) both; }
+    @keyframes desde-arriba { from { transform: translate(-14%, -10%); } }
+    @keyframes desde-abajo { from { transform: translate(14%, 10%); } }
+    @keyframes aparece { from { opacity: 0; transform: translate(-50%, -44%); } }
+  }
+
+  /* Pasos */
+  section h2 {
+    margin: 0 0 40px; font-size: clamp(2rem, 4.4vw, 3.1rem); line-height: 1.02; font-weight: 700;
+    font-stretch: 88%; letter-spacing: -.02em; max-width: 16ch; text-wrap: balance;
+  }
+  .pasos { padding-top: 72px; padding-bottom: 96px; border-top: 1px solid var(--linea); }
+  .pasos ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 48px; grid-template-columns: 1fr; }
+  @media (min-width: 760px) { .pasos ol { grid-template-columns: repeat(3, 1fr); gap: 32px; } }
+  .paso { display: grid; grid-template-columns: minmax(0, 38%) 1fr; gap: 22px; align-items: center; }
+  @media (min-width: 760px) { .paso { grid-template-columns: 1fr; align-items: start; } }
+  .paso .mini {
+    width: 100%; max-width: 190px; border: 6px solid #0B2A35; border-radius: 28px; overflow: hidden; background: #0B2A35;
+    box-shadow: 0 0 0 1px var(--linea), 0 24px 40px -28px rgba(11, 42, 53, .5);
+  }
+  .paso .mini img { border-radius: 22px; }
+  .paso .num { font-size: 3.4rem; line-height: .8; font-weight: 300; font-stretch: 75%; color: var(--petroleo); }
+  .paso h3 { margin: 10px 0 6px; font-size: 1.35rem; line-height: 1.15; font-weight: 700; letter-spacing: -.01em; }
+  .paso p { margin: 0; color: var(--tinta-2); max-width: 22rem; }
+
+  /* Privacidad: el buzón */
+  .privacidad { background: #0B2A35; color: #E3F0F6; }
+  @media (prefers-color-scheme: dark) { .privacidad { background: var(--papel); } }
+  .privacidad .ancho { padding-top: 96px; padding-bottom: 104px; display: grid; gap: 56px; }
+  .privacidad .intro { display: grid; gap: 20px; }
+  @media (min-width: 900px) { .privacidad .intro { grid-template-columns: 1fr 1fr; gap: 48px; align-items: end; } }
+  .privacidad h2 { margin: 0; }
+  .privacidad p { margin: 0; color: #A9C3CE; max-width: 30rem; font-size: 1.12rem; }
+  .flujo { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr; gap: 14px; }
+  @media (min-width: 600px) { .flujo { grid-template-columns: 1fr auto 1fr auto 1fr; align-items: stretch; gap: 0; } }
+  .nodo { border: 1px solid #22495A; border-radius: 24px; padding: 28px 26px; display: grid; gap: 6px; align-content: start; justify-items: start; }
+  .nodo.buzon { background: #12394A; border-color: #2E6478; }
+  .nodo svg { width: 40px; height: 40px; color: #9CC5A6; margin-bottom: 14px; }
+  .nodo strong { font-size: 1.3rem; font-weight: 700; letter-spacing: -.01em; }
+  .nodo span { color: #A9C3CE; font-size: 1rem; line-height: 1.45; max-width: 18rem; }
+  .tramo { display: grid; place-items: center; color: #4FB3D1; padding: 0 14px; }
+  .tramo svg { width: 34px; height: 34px; }
+  @media (max-width: 599px) { .tramo { justify-items: start; padding: 0 0 0 28px; } }
+
+  /* Datos */
+  .datos { padding-top: 88px; padding-bottom: 72px; }
+  .datos h2 { max-width: 22ch; }
+  .datos dl { margin: 0; display: grid; grid-template-columns: 1fr; column-gap: 48px; }
+  @media (min-width: 760px) { .datos dl { grid-template-columns: 1fr 1fr; } }
+  .dato { border-top: 1px solid var(--linea); padding: 20px 0 24px; }
+  .dato dt { font-weight: 700; font-size: 1.2rem; letter-spacing: -.01em; }
+  .dato dd { margin: 4px 0 0; color: var(--tinta-2); max-width: 30rem; }
+
+  /* Cierre */
+  .cierre { padding-bottom: 72px; }
+  .cierre .caja {
+    background: var(--forma-a); color: #F6FBFD; border-radius: 36px;
+    padding: clamp(36px, 6vw, 72px); display: grid; gap: 28px; grid-template-columns: 1fr; align-items: end;
+  }
+  @media (min-width: 900px) { .cierre .caja { grid-template-columns: 1.2fr auto; } }
+  .cierre h2 { margin: 0 0 10px; max-width: 14ch; }
+  .cierre p { margin: 0; font-size: 1.12rem; opacity: .9; }
+  .cierre .boton { --boton: #F6FBFD; --sobre-boton: #0B2A35; }
+  .cierre :focus-visible { outline-color: #F6FBFD; }
+
+  footer { border-top: 1px solid var(--linea); }
+  footer .ancho { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 32px; padding-top: 24px; padding-bottom: 40px; font-size: .92rem; color: var(--tinta-2); }
+  footer nav { display: flex; flex-wrap: wrap; gap: 0 24px; }
+  footer .marca { font-size: 1rem; color: var(--tinta); }
+  footer .marca img { width: 28px; height: 28px; border-radius: 7px; }
+  footer nav a, footer .correo { display: inline-flex; align-items: center; min-height: 44px; text-underline-offset: 3px; }
+</style>
+</head>
+<body>
+<header class="ancho barra">
+  <a class="marca" href="descargar.html"><img src="img/icon.png" width="36" height="36" alt=""><span>HushSplit</span></a>
+  <div class="idiomas" role="group" aria-label="Idioma">
+    <button type="button" data-lang="es" aria-pressed="true">ES</button>
+    <button type="button" data-lang="en" aria-pressed="false">EN</button>
+    <button type="button" data-lang="pt" aria-pressed="false">PT</button>
+  </div>
+</header>
+
+<main>
+  <section class="ancho hero" id="descarga">
+    <div>
+      <h1 data-i="titulo">Cuentas claras, entre ustedes.</h1>
+      <p class="sub" data-i="sub">Dividí los gastos del viaje, la casa o el asado. Todo viaja cifrado de punta a punta: nadie más puede leerlo, tampoco nosotros.</p>
+      <div class="botones">
+        <a class="boton" id="b-ios" data-plataforma="ios" href="https://apps.apple.com/app/id6813102685">
+          <span class="chico" data-i="iosArriba">Descargá en</span><span class="grande" data-i="iosAbajo">App Store</span>
+        </a>
+        <a class="boton" id="b-android" data-plataforma="android" href="https://github.com/hushsplit/hushsplit.github.io/releases/latest/download/HushSplit.apk" download>
+          <span class="chico" data-i="androidArriba">Descargá para</span><span class="grande" data-i="androidAbajo">Android (APK)</span>
+        </a>
+      </div>
+      <p class="nota" id="nota-android" data-i="notaAndroid">En Android la bajás directo mientras llega a Google Play. Instalada así, no se actualiza sola.</p>
+      <details id="como">
+        <summary data-i="comoTitulo">Cómo instalarla en Android</summary>
+        <ol>
+          <li data-i="inst1">Bajá el archivo HushSplit.apk.</li>
+          <li data-i="inst2">Abrilo. Si Android lo pide, permití instalar apps desde ese navegador o desde Archivos.</li>
+          <li data-i="inst3">Confirmá la instalación. Si aparece un aviso de Play Protect, elegí instalar de todos modos.</li>
+        </ol>
+      </details>
+    </div>
+    <div class="figura">
+      <span class="forma forma-a" aria-hidden="true"></span>
+      <span class="forma forma-b" aria-hidden="true"></span>
+      <div class="telefono"><img src="img/2-grupo.jpg" width="644" height="1400" alt="Un grupo de viaje con sus gastos y saldos" data-alt="alt1"></div>
+    </div>
+  </section>
+
+  <section class="ancho pasos" aria-labelledby="t-pasos">
+    <h2 id="t-pasos" data-i="pasosTitulo">Del gasto al pago, en tres pasos</h2>
+    <ol>
+      <li class="paso">
+        <div class="mini"><img src="img/3-gasto.jpg" width="460" height="1000" loading="lazy" alt="Cargar un gasto y elegir cómo se divide" data-alt="alt2"></div>
+        <div><div class="num" aria-hidden="true">1</div><h3 data-i="p1t">Cargás el gasto</h3><p data-i="p1d">Quién pagó, cuánto y entre quiénes. En partes iguales o por porcentaje.</p></div>
+      </li>
+      <li class="paso">
+        <div class="mini"><img src="img/1-personal.jpg" width="460" height="1000" loading="lazy" alt="Cuánto te deben y cuánto debés" data-alt="alt3"></div>
+        <div><div class="num" aria-hidden="true">2</div><h3 data-i="p2t">Cada uno ve su saldo</h3><p data-i="p2d">Cuánto te deben y cuánto debés, siempre al día.</p></div>
+      </li>
+      <li class="paso">
+        <div class="mini"><img src="img/4-saldar.jpg" width="460" height="1000" loading="lazy" alt="Registrar un pago entre dos personas" data-alt="alt4"></div>
+        <div><div class="num" aria-hidden="true">3</div><h3 data-i="p3t">Registrás el pago</h3><p data-i="p3d">Cuando alguien salda, lo anotás y la deuda baja para todo el grupo.</p></div>
+      </li>
+    </ol>
+  </section>
+
+  <section class="privacidad" aria-labelledby="t-priv">
+    <div class="ancho">
+      <div class="intro">
+        <h2 id="t-priv" data-i="privTitulo">Un buzón que no puede abrir los sobres</h2>
+        <p data-i="privTexto">Tu teléfono cierra cada cambio antes de mandarlo. El servidor lo guarda hasta que lo recogen los teléfonos de tu grupo, pero no tiene la llave: no puede leer tus gastos ni tus comentarios.</p>
+      </div>
+      <ol class="flujo">
+        <li class="nodo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg>
+          <strong data-i="f1">Tu teléfono</strong><span data-i="f1d">Cierra el sobre con la llave del grupo</span>
+        </li>
+        <li class="tramo" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3.5 7l8.5 6 8.5-6"/></svg></li>
+        <li class="nodo buzon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7.5a4 4 0 018 0V10"/></svg>
+          <strong data-i="f2">El buzón</strong><span data-i="f2d">Lo guarda sin poder abrirlo</span>
+        </li>
+        <li class="tramo" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3.5 7l8.5 6 8.5-6"/></svg></li>
+        <li class="nodo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c.5-3.4 3-5.2 6-5.2s5.5 1.8 6 5.2"/><circle cx="17.5" cy="9" r="2.4"/><path d="M17 14.4c2.3.2 3.8 1.6 4.2 4"/></svg>
+          <strong data-i="f3">Tu grupo</strong><span data-i="f3d">Lo abre en sus teléfonos</span>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="ancho datos" aria-labelledby="t-datos">
+    <h2 id="t-datos" data-i="datosTitulo">Lo que conviene saber</h2>
+    <dl>
+      <div class="dato"><dt data-i="d1t">Gratis y sin anuncios</dt><dd data-i="d1d">No hay plan pago ni publicidad.</dd></div>
+      <div class="dato"><dt data-i="d2t">Tus datos, en tu teléfono</dt><dd data-i="d2d">No quedan en un servidor nuestro. Exportás un respaldo cuando quieras.</dd></div>
+      <div class="dato"><dt data-i="d3t">Nueve monedas</dt><dd data-i="d3d">ARS, BRL, CLP, UYU, PYG, BOB, PEN, USD y EUR. Cada grupo usa la suya, sin conversiones escondidas.</dd></div>
+      <div class="dato"><dt data-i="d4t">En tu idioma</dt><dd data-i="d4d">Español, inglés y portugués.</dd></div>
+    </dl>
+  </section>
+
+  <section class="ancho cierre" aria-labelledby="t-cierre">
+    <div class="caja">
+      <div>
+        <h2 id="t-cierre" data-i="cierreTitulo">Armá el primer grupo hoy.</h2>
+        <p data-i="cierreTexto">Bajala, sumá a tu gente y empezá a anotar.</p>
+      </div>
+      <div class="botones">
+        <a class="boton" id="b-ios-2" data-plataforma="ios" href="https://apps.apple.com/app/id6813102685">
+          <span class="chico" data-i="iosArriba">Descargá en</span><span class="grande" data-i="iosAbajo">App Store</span>
+        </a>
+        <a class="boton" id="b-android-2" data-plataforma="android" href="https://github.com/hushsplit/hushsplit.github.io/releases/latest/download/HushSplit.apk" download>
+          <span class="chico" data-i="androidArriba">Descargá para</span><span class="grande" data-i="androidAbajo">Android (APK)</span>
+        </a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="ancho">
+    <a class="marca" href="descargar.html"><img src="img/icon.png" width="28" height="28" alt=""><span>HushSplit</span></a>
+    <nav aria-label="Legal">
+      <a id="l-privacidad" href="privacidad.es.html" data-i="privacidad">Privacidad</a>
+      <a id="l-terminos" href="terminos.es.html" data-i="terminos">Términos</a>
+      <a id="l-borrar" href="borrar-cuenta.es.html" data-i="borrar">Borrar mi cuenta</a>
+    </nav>
+    <a class="correo" href="mailto:gab.maglia@gmail.com">gab.maglia@gmail.com</a>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var T = {
+    es: {
+      titulo: 'Cuentas claras, entre ustedes.',
+      sub: 'Dividí los gastos del viaje, la casa o el asado. Todo viaja cifrado de punta a punta: nadie más puede leerlo, tampoco nosotros.',
+      iosArriba: 'Descargá en', iosAbajo: 'App Store', androidArriba: 'Descargá para', androidAbajo: 'Android (APK)',
+      notaAndroid: 'En Android la bajás directo mientras llega a Google Play. Instalada así, no se actualiza sola.',
+      comoTitulo: 'Cómo instalarla en Android',
+      inst1: 'Bajá el archivo HushSplit.apk.',
+      inst2: 'Abrilo. Si Android lo pide, permití instalar apps desde ese navegador o desde Archivos.',
+      inst3: 'Confirmá la instalación. Si aparece un aviso de Play Protect, elegí instalar de todos modos.',
+      pasosTitulo: 'Del gasto al pago, en tres pasos',
+      p1t: 'Cargás el gasto', p1d: 'Quién pagó, cuánto y entre quiénes. En partes iguales o por porcentaje.',
+      p2t: 'Cada uno ve su saldo', p2d: 'Cuánto te deben y cuánto debés, siempre al día.',
+      p3t: 'Registrás el pago', p3d: 'Cuando alguien salda, lo anotás y la deuda baja para todo el grupo.',
+      privTitulo: 'Un buzón que no puede abrir los sobres',
+      privTexto: 'Tu teléfono cierra cada cambio antes de mandarlo. El servidor lo guarda hasta que lo recogen los teléfonos de tu grupo, pero no tiene la llave: no puede leer tus gastos ni tus comentarios.',
+      f1: 'Tu teléfono', f1d: 'Cierra el sobre con la llave del grupo',
+      f2: 'El buzón', f2d: 'Lo guarda sin poder abrirlo',
+      f3: 'Tu grupo', f3d: 'Lo abre en sus teléfonos',
+      datosTitulo: 'Lo que conviene saber',
+      d1t: 'Gratis y sin anuncios', d1d: 'No hay plan pago ni publicidad.',
+      d2t: 'Tus datos, en tu teléfono', d2d: 'No quedan en un servidor nuestro. Exportás un respaldo cuando quieras.',
+      d3t: 'Nueve monedas', d3d: 'ARS, BRL, CLP, UYU, PYG, BOB, PEN, USD y EUR. Cada grupo usa la suya, sin conversiones escondidas.',
+      d4t: 'En tu idioma', d4d: 'Español, inglés y portugués.',
+      cierreTitulo: 'Armá el primer grupo hoy.', cierreTexto: 'Bajala, sumá a tu gente y empezá a anotar.',
+      privacidad: 'Privacidad', terminos: 'Términos', borrar: 'Borrar mi cuenta',
+      alt1: 'Un grupo de viaje con sus gastos y saldos', alt2: 'Cargar un gasto y elegir cómo se divide',
+      alt3: 'Cuánto te deben y cuánto debés', alt4: 'Registrar un pago entre dos personas',
+      titulo_pagina: 'HushSplit · Descargar', idioma: 'Idioma'
+    },
+    en: {
+      titulo: 'Clear accounts, kept between you.',
+      sub: 'Split the costs of the trip, the house or the barbecue. Everything travels end-to-end encrypted: no one else can read it, not even us.',
+      iosArriba: 'Download on the', iosAbajo: 'App Store', androidArriba: 'Download for', androidAbajo: 'Android (APK)',
+      notaAndroid: 'On Android you download it directly while it makes its way to Google Play. Installed this way, it does not update itself.',
+      comoTitulo: 'How to install it on Android',
+      inst1: 'Download the HushSplit.apk file.',
+      inst2: 'Open it. If Android asks, allow installing apps from that browser or from Files.',
+      inst3: 'Confirm the installation. If a Play Protect notice appears, choose to install anyway.',
+      pasosTitulo: 'From expense to payment, in three steps',
+      p1t: 'Add the expense', p1d: 'Who paid, how much and between whom. Equal parts or by percentage.',
+      p2t: 'Everyone sees their balance', p2d: 'What you are owed and what you owe, always up to date.',
+      p3t: 'Record the payment', p3d: 'When someone settles up, you note it and the debt goes down for the whole group.',
+      privTitulo: 'A mailbox that cannot open the envelopes',
+      privTexto: 'Your phone seals every change before sending it. The server holds it until your group’s phones pick it up, but it does not have the key: it cannot read your expenses or your comments.',
+      f1: 'Your phone', f1d: 'Seals the envelope with the group’s key',
+      f2: 'The mailbox', f2d: 'Holds it without being able to open it',
+      f3: 'Your group', f3d: 'Opens it on their phones',
+      datosTitulo: 'Good to know',
+      d1t: 'Free, with no ads', d1d: 'There is no paid plan and no advertising.',
+      d2t: 'Your data, on your phone', d2d: 'It does not sit on a server of ours. Export a backup whenever you like.',
+      d3t: 'Nine currencies', d3d: 'ARS, BRL, CLP, UYU, PYG, BOB, PEN, USD and EUR. Each group uses its own, with no hidden conversions.',
+      d4t: 'In your language', d4d: 'Spanish, English and Portuguese.',
+      cierreTitulo: 'Start your first group today.', cierreTexto: 'Download it, add your people and start keeping track.',
+      privacidad: 'Privacy', terminos: 'Terms', borrar: 'Delete my account',
+      alt1: 'A trip group with its expenses and balances', alt2: 'Adding an expense and choosing how it is split',
+      alt3: 'What you are owed and what you owe', alt4: 'Recording a payment between two people',
+      titulo_pagina: 'HushSplit · Download', idioma: 'Language'
+    },
+    pt: {
+      titulo: 'Contas claras, só entre vocês.',
+      sub: 'Divida os gastos da viagem, da casa ou do churrasco. Tudo viaja criptografado de ponta a ponta: ninguém mais consegue ler, nem nós.',
+      iosArriba: 'Baixe na', iosAbajo: 'App Store', androidArriba: 'Baixe para', androidAbajo: 'Android (APK)',
+      notaAndroid: 'No Android você baixa direto enquanto ele não chega ao Google Play. Instalado assim, não se atualiza sozinho.',
+      comoTitulo: 'Como instalar no Android',
+      inst1: 'Baixe o arquivo HushSplit.apk.',
+      inst2: 'Abra-o. Se o Android pedir, permita instalar apps desse navegador ou do Arquivos.',
+      inst3: 'Confirme a instalação. Se aparecer um aviso do Play Protect, escolha instalar mesmo assim.',
+      pasosTitulo: 'Do gasto ao pagamento, em três passos',
+      p1t: 'Você registra o gasto', p1d: 'Quem pagou, quanto e entre quem. Em partes iguais ou por porcentagem.',
+      p2t: 'Cada um vê seu saldo', p2d: 'Quanto devem a você e quanto você deve, sempre em dia.',
+      p3t: 'Você registra o pagamento', p3d: 'Quando alguém acerta, você anota e a dívida diminui para todo o grupo.',
+      privTitulo: 'Uma caixa de correio que não abre os envelopes',
+      privTexto: 'Seu telefone fecha cada mudança antes de enviá-la. O servidor a guarda até os telefones do seu grupo a buscarem, mas não tem a chave: não consegue ler seus gastos nem seus comentários.',
+      f1: 'Seu telefone', f1d: 'Fecha o envelope com a chave do grupo',
+      f2: 'A caixa de correio', f2d: 'Guarda sem conseguir abrir',
+      f3: 'Seu grupo', f3d: 'Abre nos telefones deles',
+      datosTitulo: 'Bom saber',
+      d1t: 'Grátis e sem anúncios', d1d: 'Não há plano pago nem publicidade.',
+      d2t: 'Seus dados, no seu telefone', d2d: 'Não ficam em um servidor nosso. Exporte um backup quando quiser.',
+      d3t: 'Nove moedas', d3d: 'ARS, BRL, CLP, UYU, PYG, BOB, PEN, USD e EUR. Cada grupo usa a sua, sem conversões escondidas.',
+      d4t: 'No seu idioma', d4d: 'Espanhol, inglês e português.',
+      cierreTitulo: 'Crie seu primeiro grupo hoje.', cierreTexto: 'Baixe, adicione sua turma e comece a anotar.',
+      privacidad: 'Privacidade', terminos: 'Termos', borrar: 'Excluir minha conta',
+      alt1: 'Um grupo de viagem com seus gastos e saldos', alt2: 'Registrar um gasto e escolher como é dividido',
+      alt3: 'Quanto devem a você e quanto você deve', alt4: 'Registrar um pagamento entre duas pessoas',
+      titulo_pagina: 'HushSplit · Baixar', idioma: 'Idioma'
+    }
+  };
+
+  var ua = navigator.userAgent || '';
+  var esIOS = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+  var esAndroid = /android/i.test(ua);
+
+  function idiomaInicial() {
+    var l = ((navigator.language || 'es') + '').slice(0, 2).toLowerCase();
+    return T[l] ? l : 'es';
+  }
+
+  function aplicar(lang) {
+    var t = T[lang];
+    document.documentElement.lang = lang;
+    document.title = t.titulo_pagina;
+    var textos = document.querySelectorAll('[data-i]');
+    for (var i = 0; i < textos.length; i++) textos[i].textContent = t[textos[i].getAttribute('data-i')];
+    var alts = document.querySelectorAll('[data-alt]');
+    for (var j = 0; j < alts.length; j++) alts[j].setAttribute('alt', t[alts[j].getAttribute('data-alt')]);
+    var botones = document.querySelectorAll('[data-lang]');
+    for (var k = 0; k < botones.length; k++) {
+      botones[k].setAttribute('aria-pressed', botones[k].getAttribute('data-lang') === lang ? 'true' : 'false');
+    }
+    document.querySelector('.idiomas').setAttribute('aria-label', t.idioma);
+    [['l-privacidad', 'privacidad'], ['l-terminos', 'terminos'], ['l-borrar', 'borrar-cuenta']].forEach(function (p) {
+      document.getElementById(p[0]).setAttribute('href', p[1] + '.' + lang + '.html');
+    });
+  }
+
+  // En el teléfono que corresponde, su tienda va primero y la otra queda de apoyo.
+  var grupos = document.querySelectorAll('.botones');
+  for (var g = 0; g < grupos.length; g++) {
+    var ios = grupos[g].querySelector('[data-plataforma="ios"]');
+    var android = grupos[g].querySelector('[data-plataforma="android"]');
+    if (esIOS) {
+      android.className += ' sec';
+    } else if (esAndroid) {
+      grupos[g].insertBefore(android, ios);
+      ios.className += ' sec';
+    }
+  }
+  if (esIOS) {
+    document.getElementById('nota-android').hidden = true;
+    document.getElementById('como').hidden = true;
+  }
+
+  var botonesIdioma = document.querySelectorAll('[data-lang]');
+  for (var n = 0; n < botonesIdioma.length; n++) {
+    botonesIdioma[n].addEventListener('click', function (e) { aplicar(e.currentTarget.getAttribute('data-lang')); });
+  }
+  aplicar(idiomaInicial());
+})();
+</script>
+</body>
+</html>

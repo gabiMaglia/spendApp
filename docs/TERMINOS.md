@@ -67,6 +67,24 @@ pase, y lo que ya cargaste sigue siendo tuyo y exportable.
 Si estos términos cambian, cambia la fecha de arriba. Un cambio que afecte lo que sale de tu
 teléfono se avisa dentro de la app.
 
+## 9 · Contenido que subís y reclamos
+
+- **Tu foto de perfil, tu nombre y tus comentarios son tuyos.** Al subirlos declarás que tenés derecho
+  a hacerlo (no subas fotos de otras personas ni material de terceros sin permiso) y nos autorizás a
+  guardarlos y mostrarlos **sólo dentro de los grupos en los que participás**, para nada más.
+- No se permite contenido ilegal, que acose a otras personas o que infrinja derechos de terceros.
+  Dentro de la app podés **denunciar y bloquear** a quien lo publique.
+- **Reclamos de derechos de autor.** Escribí a gab.maglia@gmail.com con: la obra que te pertenece; dónde aparece (grupo
+  y nombre de la persona que la subió); tus datos de contacto; una declaración de buena fe de que ese
+  uso no está autorizado; y que la información es exacta y que sos el titular o actuás en su nombre.
+- **Lo que podemos hacer.** El contenido viaja cifrado y vive en los teléfonos del grupo: no podemos
+  verlo ni borrarlo de ahí. Sí podemos **suspender la cuenta** que lo subió, ante un reclamo fundado o
+  reincidencia.
+- Si suspendimos tu cuenta y creés que fue un error, escribinos al mismo mail y lo revisamos.
+
+> **Pendiente del PO (T-241):** registrar el agente designado DMCA en la U.S. Copyright Office y, con
+> eso hecho, sumar a esta sección una línea con su nombre y dirección de contacto en las tres páginas.
+
 ---
 
 **Contacto:** gab.maglia@gmail.com

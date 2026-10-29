@@ -22,12 +22,13 @@ const RAIZ = join(__dirname, '..', '..', '..');
 const WEB = join(RAIZ, 'docs', 'web');
 
 /**
- * Las páginas que PUEDEN tener un script inline. Sólo `abrir.html`: abre la app desde un
+ * Las páginas que PUEDEN tener un script inline. `abrir.html`: abre la app desde un
  * link, y los datos del link vienen en el fragmento (`#…`), que únicamente se lee con
- * JavaScript. La prohibición de fondo sigue intacta — nada de terceros y ningún pedido
- * de red —, y cualquier otra página sigue sin poder tener `<script>`.
+ * JavaScript. `descargar.html` (T-242): elige idioma y destaca la tienda de la plataforma;
+ * sin JS funciona igual en español. La prohibición de fondo sigue intacta — nada de
+ * terceros y ningún pedido de red —, y cualquier otra página sigue sin poder tener `<script>`.
  */
-const CON_SCRIPT_INLINE = ['abrir.html'];
+const CON_SCRIPT_INLINE = ['abrir.html', 'descargar.html'];
 const IDIOMAS = ['es', 'en', 'pt'] as const;
 const PAGINAS = ['borrar-cuenta', 'privacidad', 'terminos'] as const;
 
@@ -127,7 +128,7 @@ describe('las páginas están completas', () => {
     for (const archivo of CON_SCRIPT_INLINE) {
       expect(readdirSync(WEB)).toContain(archivo);
     }
-    expect(CON_SCRIPT_INLINE).toEqual(['abrir.html']);
+    expect(CON_SCRIPT_INLINE).toEqual(['abrir.html', 'descargar.html']);
   });
 });
 

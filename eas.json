@@ -21,6 +21,14 @@
       "android": {
         "buildType": "app-bundle"
       }
+    },
+    "apk-directo": {
+      "distribution": "internal",
+      "environment": "production",
+      "channel": "production",
+      "android": {
+        "buildType": "apk"
+      }
     }
   },
   "submit": {
