@@ -90,16 +90,16 @@ describe('docs/web/descargar.html — idiomas', () => {
   });
 
   it('cada data-i y data-alt del HTML existe en los tres idiomas', () => {
-    const usadas = [...HTML.matchAll(/data-(?:i|alt)="(\w+)"/g)].map((m) => m[1]);
+    const usadas = [...HTML.matchAll(/data-(?:i|alt|aria)="(\w+)"/g)].map((m) => m[1]);
     expect(usadas.length).toBeGreaterThan(20);
     for (const k of new Set(usadas)) expect(claves('es')).toContain(k);
   });
 
   it.each([
-    ['es-AR', 'es', 'Cuentas claras, entre ustedes.'],
-    ['en-US', 'en', 'Clear accounts, kept between you.'],
-    ['pt-BR', 'pt', 'Contas claras, só entre vocês.'],
-    ['fr-FR', 'es', 'Cuentas claras, entre ustedes.'],
+    ['es-AR', 'es', 'Cuentas claras con tus compañeros de casa.'],
+    ['en-US', 'en', 'Clear accounts with your housemates.'],
+    ['pt-BR', 'pt', 'Contas claras com quem divide a casa.'],
+    ['fr-FR', 'es', 'Cuentas claras con tus compañeros de casa.'],
   ])('idioma del navegador %s → %s', (language, lang, titulo) => {
     const d = abrir(UA_ESCRITORIO, language);
     expect(d.documentElement.lang).toBe(lang);
@@ -110,7 +110,7 @@ describe('docs/web/descargar.html — idiomas', () => {
   it('el selector de idioma cambia el texto y marca el botón activo', () => {
     const d = abrir(UA_ESCRITORIO, 'es-AR');
     (d.querySelector('[data-lang="en"]') as HTMLElement).click();
-    expect(d.querySelector('h1')!.textContent).toBe('Clear accounts, kept between you.');
+    expect(d.querySelector('h1')!.textContent).toBe('Clear accounts with your housemates.');
     expect(d.querySelector('[data-lang="en"]')!.getAttribute('aria-pressed')).toBe('true');
     expect(d.querySelector('[data-lang="es"]')!.getAttribute('aria-pressed')).toBe('false');
   });
@@ -129,7 +129,7 @@ describe('docs/web/descargar.html — por plataforma', () => {
   it('en Android: el botón del APK va primero y se muestra cómo instalarlo', () => {
     const d = abrir(UA_ANDROID);
     expect([...d.querySelectorAll('#descarga .botones > a')].map((a) => a.id)).toEqual(['b-android', 'b-ios']);
-    expect([...d.querySelectorAll('.cierre .botones > a')].map((a) => a.id)).toEqual(['b-android-2', 'b-ios-2']);
+    expect([...d.querySelectorAll('.bajar .botones > a')].map((a) => a.id)).toEqual(['b-android-2', 'b-ios-2']);
     expect(d.getElementById('b-ios')!.className).toContain('sec');
     expect(d.getElementById('b-ios-2')!.className).toContain('sec');
     expect(d.getElementById('como')!.hasAttribute('hidden')).toBe(false);
@@ -148,6 +148,10 @@ describe('docs/web/descargar.html — recursos', () => {
     const imgs = [...HTML.matchAll(/(?:src|href)="(img\/[^"]+)"/g)].map((m) => m[1]);
     expect(imgs.length).toBeGreaterThanOrEqual(4);
     for (const i of imgs) expect(existsSync(join(WEB, i))).toBe(true);
+    // Lo que el CSS trae como fondo (patrón, guarda) también tiene que existir.
+    const fondos = [...HTML.matchAll(/url\("(img\/[^"]+)"\)/g)].map((m) => m[1]);
+    expect(fondos.length).toBeGreaterThanOrEqual(2);
+    for (const f of fondos) expect(existsSync(join(WEB, f))).toBe(true);
     // La fuente se sirve desde el sitio (sin pedidos externos) y viaja con su licencia OFL.
     for (const f of [...HTML.matchAll(/url\("(fonts\/[^"]+)"\)/g)].map((m) => m[1])) expect(existsSync(join(WEB, f))).toBe(true);
     expect(existsSync(join(WEB, 'fonts', 'OFL.txt'))).toBe(true);
@@ -158,5 +162,40 @@ describe('docs/web/descargar.html — recursos', () => {
 
   it('las imágenes con alt traducible tienen alt de arranque (sin JS)', () => {
     for (const m of HTML.matchAll(/<img[^>]*data-alt[^>]*>/g)) expect(m[0]).toMatch(/\salt="[^"]+"/);
+  });
+});
+
+describe('docs/web/descargar.html — el contexto del título', () => {
+  it('sin tocar nada arranca en «casa», con su mosaico visible', () => {
+    const d = abrir(UA_ESCRITORIO);
+    expect(d.getElementById('contexto')!.textContent).toBe('con tus compañeros de casa.');
+    expect(d.querySelector('[data-mosaico="casa"]')!.className).toBe('activo');
+    expect(d.querySelector('[data-ctx="casa"]')!.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('al elegir otro contexto cambian el texto, el mosaico y el botón marcado', () => {
+    const d = abrir(UA_ESCRITORIO);
+    (d.querySelector('[data-ctx="asado"]') as HTMLElement).click();
+    expect(d.querySelector('h1')!.textContent).toBe('Cuentas claras en cada asado.');
+    expect(d.querySelector('[data-mosaico="asado"]')!.className).toBe('activo');
+    expect(d.querySelector('[data-mosaico="casa"]')!.className).toBe('');
+    expect(d.querySelector('[data-ctx="asado"]')!.getAttribute('aria-pressed')).toBe('true');
+    expect(d.querySelector('[data-ctx="casa"]')!.getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('el contexto elegido sobrevive al cambio de idioma', () => {
+    const d = abrir(UA_ESCRITORIO);
+    (d.querySelector('[data-ctx="viaje"]') as HTMLElement).click();
+    (d.querySelector('[data-lang="pt"]') as HTMLElement).click();
+    expect(d.querySelector('h1')!.textContent).toBe('Contas claras em cada viagem.');
+    expect(d.querySelector('[data-ctx="viaje"]')!.getAttribute('aria-label')).toBe('Viagem');
+  });
+
+  it('hay un mosaico por cada contexto', () => {
+    const d = abrir(UA_ESCRITORIO);
+    const ctx = [...d.querySelectorAll('[data-ctx]')].map((b) => b.getAttribute('data-ctx'));
+    const mos = [...d.querySelectorAll('[data-mosaico]')].map((i) => i.getAttribute('data-mosaico'));
+    expect(ctx).toEqual(['casa', 'viaje', 'pareja', 'asado']);
+    expect(mos).toEqual(ctx);
   });
 });
