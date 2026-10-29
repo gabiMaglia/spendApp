@@ -31,9 +31,9 @@ function abrir(userAgent: string, language = 'es-AR') {
 }
 
 describe('docs/web/descargar.html — enlaces', () => {
-  it('iOS lleva al App Store con el id real de la app', () => {
-    const href = abrir(UA_ESCRITORIO).getElementById('b-ios')!.getAttribute('href');
-    expect(href).toBe(`https://apps.apple.com/app/id${APP_STORE_ID}`);
+  it('iOS lleva al App Store con el id real de la app (los dos botones)', () => {
+    const d = abrir(UA_ESCRITORIO);
+    for (const id of ['b-ios', 'b-ios-2']) expect(d.getElementById(id)!.getAttribute('href')).toBe(`https://apps.apple.com/app/id${APP_STORE_ID}`);
     expect(APP_STORE_ID).toBe('6813102685');
   });
 
@@ -42,9 +42,12 @@ describe('docs/web/descargar.html — enlaces', () => {
   });
 
   it('Android descarga el APK del ÚLTIMO release (el link no cambia al subir uno nuevo)', () => {
-    const a = abrir(UA_ESCRITORIO).getElementById('b-android')!;
-    expect(a.getAttribute('href')).toBe('https://github.com/hushsplit/hushsplit.github.io/releases/latest/download/HushSplit.apk');
-    expect(a.hasAttribute('download')).toBe(true);
+    const d = abrir(UA_ESCRITORIO);
+    for (const id of ['b-android', 'b-android-2']) {
+      const a = d.getElementById(id)!;
+      expect(a.getAttribute('href')).toBe('https://github.com/hushsplit/hushsplit.github.io/releases/latest/download/HushSplit.apk');
+      expect(a.hasAttribute('download')).toBe(true);
+    }
   });
 });
 
@@ -57,7 +60,7 @@ describe('docs/web/descargar.html — seguridad de la página', () => {
     expect(csp).toContain("default-src 'none'");
     expect(csp).toContain(`script-src ${hash(script)}`);
     expect(csp).toContain(`style-src ${hash(estilo)}`);
-    for (const d of ["img-src 'self'", "connect-src 'none'", "form-action 'none'", "base-uri 'none'"]) expect(csp).toContain(d);
+    for (const d of ["img-src 'self'", "font-src 'self'", "connect-src 'none'", "form-action 'none'", "base-uri 'none'"]) expect(csp).toContain(d);
     expect(HTML.indexOf('Content-Security-Policy')).toBeLessThan(HTML.indexOf('<style>'));
     expect(HTML.match(/<script>/g)).toHaveLength(1);
     expect(HTML.match(/<style>/g)).toHaveLength(1);
@@ -93,10 +96,10 @@ describe('docs/web/descargar.html — idiomas', () => {
   });
 
   it.each([
-    ['es-AR', 'es', 'Dividí gastos en privado.'],
-    ['en-US', 'en', 'Split expenses in private.'],
-    ['pt-BR', 'pt', 'Divida gastos em privado.'],
-    ['fr-FR', 'es', 'Dividí gastos en privado.'],
+    ['es-AR', 'es', 'Cuentas claras, entre ustedes.'],
+    ['en-US', 'en', 'Clear accounts, kept between you.'],
+    ['pt-BR', 'pt', 'Contas claras, só entre vocês.'],
+    ['fr-FR', 'es', 'Cuentas claras, entre ustedes.'],
   ])('idioma del navegador %s → %s', (language, lang, titulo) => {
     const d = abrir(UA_ESCRITORIO, language);
     expect(d.documentElement.lang).toBe(lang);
@@ -107,7 +110,7 @@ describe('docs/web/descargar.html — idiomas', () => {
   it('el selector de idioma cambia el texto y marca el botón activo', () => {
     const d = abrir(UA_ESCRITORIO, 'es-AR');
     (d.querySelector('[data-lang="en"]') as HTMLElement).click();
-    expect(d.querySelector('h1')!.textContent).toBe('Split expenses in private.');
+    expect(d.querySelector('h1')!.textContent).toBe('Clear accounts, kept between you.');
     expect(d.querySelector('[data-lang="en"]')!.getAttribute('aria-pressed')).toBe('true');
     expect(d.querySelector('[data-lang="es"]')!.getAttribute('aria-pressed')).toBe('false');
   });
@@ -117,6 +120,7 @@ describe('docs/web/descargar.html — por plataforma', () => {
   it('en iPhone: sólo la tienda de Apple; sin instrucciones de APK', () => {
     const d = abrir(UA_IPHONE);
     expect(d.getElementById('b-android')!.className).toContain('sec');
+    expect(d.getElementById('b-android-2')!.className).toContain('sec');
     expect(d.getElementById('b-ios')!.className).not.toContain('sec');
     expect(d.getElementById('como')!.hasAttribute('hidden')).toBe(true);
     expect(d.getElementById('nota-android')!.hasAttribute('hidden')).toBe(true);
@@ -124,15 +128,16 @@ describe('docs/web/descargar.html — por plataforma', () => {
 
   it('en Android: el botón del APK va primero y se muestra cómo instalarlo', () => {
     const d = abrir(UA_ANDROID);
-    const botones = [...d.querySelectorAll('.botones > a')].map((a) => a.id);
-    expect(botones).toEqual(['b-android', 'b-ios']);
+    expect([...d.querySelectorAll('#descarga .botones > a')].map((a) => a.id)).toEqual(['b-android', 'b-ios']);
+    expect([...d.querySelectorAll('.cierre .botones > a')].map((a) => a.id)).toEqual(['b-android-2', 'b-ios-2']);
     expect(d.getElementById('b-ios')!.className).toContain('sec');
+    expect(d.getElementById('b-ios-2')!.className).toContain('sec');
     expect(d.getElementById('como')!.hasAttribute('hidden')).toBe(false);
   });
 
   it('en escritorio: los dos botones, con el mismo peso', () => {
     const d = abrir(UA_ESCRITORIO);
-    expect([...d.querySelectorAll('.botones > a')].map((a) => a.id)).toEqual(['b-ios', 'b-android']);
+    expect([...d.querySelectorAll('#descarga .botones > a')].map((a) => a.id)).toEqual(['b-ios', 'b-android']);
     expect(d.getElementById('b-ios')!.className).not.toContain('sec');
     expect(d.getElementById('b-android')!.className).not.toContain('sec');
   });
@@ -143,6 +148,9 @@ describe('docs/web/descargar.html — recursos', () => {
     const imgs = [...HTML.matchAll(/(?:src|href)="(img\/[^"]+)"/g)].map((m) => m[1]);
     expect(imgs.length).toBeGreaterThanOrEqual(4);
     for (const i of imgs) expect(existsSync(join(WEB, i))).toBe(true);
+    // La fuente se sirve desde el sitio (sin pedidos externos) y viaja con su licencia OFL.
+    for (const f of [...HTML.matchAll(/url\("(fonts\/[^"]+)"\)/g)].map((m) => m[1])) expect(existsSync(join(WEB, f))).toBe(true);
+    expect(existsSync(join(WEB, 'fonts', 'OFL.txt'))).toBe(true);
     for (const lang of ['es', 'en', 'pt']) {
       for (const p of ['privacidad', 'terminos', 'borrar-cuenta']) expect(existsSync(join(WEB, `${p}.${lang}.html`))).toBe(true);
     }

@@ -24,6 +24,7 @@ describe('publicar-sitio.sh (T-134)', () => {
 
   it('copia las imágenes de la landing de descarga (T-242)', () => {
     expect(codigo).toMatch(/cp -R "\$WEB\/img" img/);
+    expect(codigo).toMatch(/cp -R "\$WEB\/fonts" fonts/);
   });
 
   it('copia .well-known (AASA de Universal Links, T-097)', () => {

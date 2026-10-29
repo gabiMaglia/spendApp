@@ -57,6 +57,9 @@ done
 if [ -d "$WEB/img" ]; then
   cp -R "$WEB/img" img
 fi
+if [ -d "$WEB/fonts" ]; then
+  cp -R "$WEB/fonts" fonts
+fi
 if [ -d "$WEB/.well-known" ]; then
   cp -R "$WEB/.well-known" .well-known
 fi
