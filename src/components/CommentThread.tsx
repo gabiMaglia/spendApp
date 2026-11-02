@@ -66,6 +66,7 @@ export function CommentThread({
   function denunciar(comment: ExpenseComment) {
     const url = mailDeDenuncia({
       autor: authorName(comment.authorId),
+      autorId: comment.authorId,
       texto: comment.text,
       gastoId: comment.expenseId,
       asunto: t('comments.report_subject'),
