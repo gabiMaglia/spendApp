@@ -1,5 +1,5 @@
 import type { CurrencyCode } from '@/src/constants/currencies';
-import { directedDebts, netOf, totalIOwe, totalOwedToMe } from '../directedDebts';
+import { directedDebts, netOf, tieneSaldoCon, totalIOwe, totalOwedToMe } from '../directedDebts';
 
 const tx = (from: string, to: string, amount: number, currency: CurrencyCode = 'ARS') =>
   ({ fromUserId: from, toUserId: to, amount, currency });
@@ -65,5 +65,23 @@ describe('lecturas derivadas', () => {
     // Es lo que alimenta el indicador nuevo de Personal.
     expect(totalIOwe(deudas, 'ARS') - totalOwedToMe(deudas, 'ARS')).toBe(1_000);
     expect(totalIOwe(deudas, 'ARS')).not.toBe(1_000);
+  });
+});
+
+describe('tieneSaldoCon (T-239)', () => {
+  it('true si me debe o si le debo, aunque el neto dé cero', () => {
+    const r = directedDebts([tx('yo', 'beto', 5_000), tx('beto', 'yo', 5_000)], 'yo');
+    expect(tieneSaldoCon(r, 'beto')).toBe(true);
+  });
+
+  it('true con saldo en una sola moneda', () => {
+    const r = directedDebts([tx('ana', 'yo', 10, 'USD')], 'yo');
+    expect(tieneSaldoCon(r, 'ana')).toBe(true);
+  });
+
+  it('false si no hay deudas con esa persona', () => {
+    const r = directedDebts([tx('ana', 'yo', 10)], 'yo');
+    expect(tieneSaldoCon(r, 'beto')).toBe(false);
+    expect(tieneSaldoCon([], 'beto')).toBe(false);
   });
 });

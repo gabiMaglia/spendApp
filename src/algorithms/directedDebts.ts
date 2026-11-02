@@ -73,3 +73,8 @@ export function totalIOwe(deudas: DirectedDebt[], currency: CurrencyCode): numbe
 export function totalOwedToMe(deudas: DirectedDebt[], currency: CurrencyCode): number {
   return deudas.reduce((s, d) => s + (d.currency === currency ? d.owesMe : 0), 0);
 }
+
+/** ¿Hay algo pendiente con esa persona, en cualquier sentido y moneda? (T-239) */
+export function tieneSaldoCon(deudas: DirectedDebt[], userId: string): boolean {
+  return deudas.some(d => d.userId === userId && (d.owesMe > 0 || d.iOwe > 0));
+}
