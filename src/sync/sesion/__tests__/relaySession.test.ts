@@ -138,12 +138,18 @@ describe('ensureRelaySession', () => {
   it('sin sesión abre la anónima con el token del captcha', async () => {
     mockCaptcha = { status: 'ok', token: 'tok' };
     expect(await S.ensureRelaySession()).toBe('anonymous');
-    expect(signInAnonymously).toHaveBeenCalledWith({ options: { captchaToken: 'tok' } });
+    expect(signInAnonymously).toHaveBeenCalledWith({ options: { captchaToken: 'tok', data: { app_id: 'g1' } } });
   });
 
   it('sin site key configurada, abre anónima sin captcha', async () => {
     expect(await S.ensureRelaySession()).toBe('anonymous');
-    expect(signInAnonymously).toHaveBeenCalledWith();
+    expect(signInAnonymously).toHaveBeenCalledWith({ options: { data: { app_id: 'g1' } } });
+  });
+
+  it('T-238: la sesión anónima lleva el id de invitado de la app, para encontrarla al banear', async () => {
+    useAuthStore.setState({ currentUser: { id: 'invitado-42', authProvider: 'guest' } as never });
+    await S.ensureRelaySession();
+    expect(signInAnonymously).toHaveBeenCalledWith({ options: { data: { app_id: 'invitado-42' } } });
   });
 
   it('captcha fallido → none, sin pedir sesión', async () => {
@@ -456,7 +462,7 @@ describe('T-147: el tope de red se pausa mientras el captcha está interactivo',
     await jest.advanceTimersByTimeAsync(0);
 
     expect(await p).toBe('anonymous');
-    expect(signInAnonymously).toHaveBeenCalledWith({ options: { captchaToken: 'tok-tarde' } });
+    expect(signInAnonymously).toHaveBeenCalledWith({ options: { captchaToken: 'tok-tarde', data: { app_id: 'g1' } } });
     jest.useRealTimers();
   });
 

@@ -119,13 +119,13 @@ async function abrirSesion(permitirCaptcha: boolean): Promise<SessionKind> {
     return 'none';
   }
 
-  const opciones = captcha.status === 'ok'
-    ? { options: { captchaToken: captcha.token } }
-    : undefined;
-
-  const { data, error } = opciones
-    ? await supabase.auth.signInAnonymously(opciones)
-    : await supabase.auth.signInAnonymously();
+  // T-238: el id de invitado de la app queda en `raw_user_meta_data.app_id`,
+  // el único puente entre una denuncia y el usuario a banear en Supabase.
+  const appId = useAuthStore.getState().currentUser?.id;
+  const { data, error } = await supabase.auth.signInAnonymously({ options: {
+    ...(captcha.status === 'ok' ? { captchaToken: captcha.token } : {}),
+    ...(appId ? { data: { app_id: appId } } : {}),
+  } });
 
   if (error || !data?.session) {
     ultimoFallo = Date.now();
