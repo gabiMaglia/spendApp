@@ -82,8 +82,7 @@ teléfono se avisa dentro de la app.
   reincidencia.
 - Si suspendimos tu cuenta y creés que fue un error, escribinos al mismo mail y lo revisamos.
 
-> **Pendiente del PO (T-241):** registrar el agente designado DMCA en la U.S. Copyright Office y, con
-> eso hecho, sumar a esta sección una línea con su nombre y dirección de contacto en las tres páginas.
+- **Agente designado (DMCA, EE. UU.).** Gabriel Maglia (HushSplit), Bv. Rondeau 1581, S2000BVE Rosario, Argentina · +54 341 720 5863 · gab.maglia@gmail.com. Registro en la U.S. Copyright Office: DMCA-1084952.
 
 ---
 
