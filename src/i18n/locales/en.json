@@ -568,6 +568,7 @@
     "name_placeholder": "Full name",
     "remove_title": "Remove contact",
     "remove_body": "Remove {{name}}? If they have expenses in active groups, the history is kept.",
+    "remove_body_with_balance": "Remove {{name}}? You have an outstanding balance with {{name}} in a group: removing them does not settle it, and the history is kept.",
     "owes_you": "Owes you ",
     "you_owe_them": "You owe ",
     "settle": "Settle",

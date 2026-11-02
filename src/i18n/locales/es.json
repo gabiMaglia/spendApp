@@ -568,6 +568,7 @@
     "name_placeholder": "Nombre y apellido",
     "remove_title": "Eliminar contacto",
     "remove_body": "¿Eliminar a {{name}}? Si tiene gastos en grupos activos, el historial se conserva.",
+    "remove_body_with_balance": "¿Eliminar a {{name}}? Tenés saldo pendiente con {{name}} en algún grupo: eliminarlo no lo salda, y el historial se conserva.",
     "owes_you": "Te debe ",
     "you_owe_them": "Le debés ",
     "settle": "Saldar",

@@ -6,6 +6,8 @@ import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '@/src/store/authStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useContactosConHistorial, useDirectedDebts } from '@/src/store/selectors';
+import { idCanonico } from '@/src/store/identityAlias';
+import { tieneSaldoCon } from '@/src/algorithms/directedDebts';
 import { hapticWarning } from '@/src/utils/haptics';
 import { useContacts } from './useContacts';
 
@@ -34,15 +36,17 @@ export function useFriendsContacts() {
   // servía de poco — esas props "cambiaban" en cada render igual.
   const handleRemove = useCallback((id: string, name: string) => {
     hapticWarning();
+    // T-239: con saldo pendiente se avisa, pero no se bloquea (el historial queda).
+    const conSaldo = tieneSaldoCon(deudas, idCanonico(id));
     Alert.alert(
       t('friends.remove_title'),
-      t('friends.remove_body', { name }),
+      t(conSaldo ? 'friends.remove_body_with_balance' : 'friends.remove_body', { name }),
       [
         { text: t('common.cancel'), style: 'cancel' },
         { text: t('common.delete'), style: 'destructive', onPress: () => removeUser(id) },
       ],
     );
-  }, [t, removeUser]);
+  }, [t, removeUser, deudas]);
 
   // Sin monto ni grupo: desde Amigos se salda el total en cada grupo compartido
   // y la pantalla lo calcula sola (T-225).
