@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
@@ -38,6 +38,11 @@ export function TarjetaDescripcionMonto({
   const tinte = isIncome ? c.semantic.positive : tinteDeCategoria(c.category, category);
   const icono = isIncome ? 'trending-up-outline' : CATEGORIES.find(x => x.id === category)?.icon ?? 'ellipsis-horizontal-outline';
 
+  // PO 2026-11-03 (bordes gruesos): subrayado fino, del color de la marca sólo
+  // en el campo que se está escribiendo.
+  const [enFoco, setEnFoco] = useState<'descripcion' | 'monto' | null>(null);
+  const subrayado = (campo: 'descripcion' | 'monto') => (enFoco === campo ? c.brand.primary : c.hair);
+
   return (
     <View style={[styles.tarjeta, { backgroundColor: c.surface, borderRadius: skin.radius.panel, boxShadow: skin.elevation.e2.boxShadow }]}>
       <View style={styles.renglon}>
@@ -54,7 +59,9 @@ export function TarjetaDescripcionMonto({
             maxLength={MAX_TEXTO_CORTO}
             returnKeyType="next"
             onSubmitEditing={() => montoRef.current?.focus()}
-            style={[styles.descripcion, { color: c.text, borderBottomColor: c.brand.primary }]}
+            onFocus={() => setEnFoco('descripcion')}
+            onBlur={() => setEnFoco(null)}
+            style={[styles.descripcion, { color: c.text, borderBottomColor: subrayado('descripcion') }]}
           />
         </View>
       </View>
@@ -73,13 +80,14 @@ export function TarjetaDescripcionMonto({
             testID="expense-amount"
             value={amount}
             onChangeText={onAmountChange}
-            onBlur={onAmountBlur}
+            onFocus={() => setEnFoco('monto')}
+            onBlur={() => { setEnFoco(null); onAmountBlur(); }}
             keyboardType="decimal-pad"
             placeholder="0"
             placeholderTextColor={c.textDisabled}
             returnKeyType="done"
             style={[Typography.amountXL, styles.monto, {
-              color: isIncome ? c.semantic.positive : c.text, borderBottomColor: c.hair,
+              color: isIncome ? c.semantic.positive : c.text, borderBottomColor: subrayado('monto'),
             }]}
           />
         </View>
@@ -101,7 +109,7 @@ const styles = StyleSheet.create({
   campo: { flex: 1, gap: 2 },
   descripcion: {
     fontSize: 20, fontWeight: '500', paddingTop: 6, paddingBottom: 8, paddingHorizontal: 0,
-    borderBottomWidth: 2,
+    borderBottomWidth: 1,
   },
   simbolo: { fontSize: 22, lineHeight: 24, fontWeight: '700' },
   codigo: { fontSize: 10, fontWeight: '700', letterSpacing: 0.6 },

@@ -1,7 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { BottomSheet, SheetButton, SheetInput, SheetOption, SheetOptionAvatar } from '@/src/components/Sheet';
+import { BottomSheet, SheetActions, SheetButton, SheetInput, SheetOption, SheetOptionAvatar } from '@/src/components/Sheet';
 import { MAX_NOTA } from '@/src/sync/nucleo/topes';
 import { useUserStore } from '@/src/store/userStore';
 import type { Group } from '@/src/types/models';
@@ -103,7 +103,7 @@ export function HojasDeGasto({
         onClose={onClose}
         title={t('expense.note')}
         scroll={false}
-        footer={<SheetButton label={t('common.done')} onPress={onClose} />}
+        footer={<SheetActions><SheetButton label={t('common.done')} onPress={onClose} /></SheetActions>}
       >
         <SheetInput
           value={note}

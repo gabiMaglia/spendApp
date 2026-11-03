@@ -21,7 +21,7 @@ function hojas(abierta: 'reparto' | 'pagadores', multiPayer: boolean, onClose = 
       members={['a', 'b']} payerId="a" onPayerChange={jest.fn()}
       multiPayer={multiPayer} payers={[]} amount={1000} currency="ARS"
       onPayersChange={jest.fn()} onTogglePayerMode={jest.fn()}
-      reparto={reparto} recurrence="none" onRecurrenceChange={jest.fn()}
+      reparto={reparto} recurrence={null} onRecurrenceChange={jest.fn()}
     />,
   );
   return { ui, onClose };
