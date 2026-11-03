@@ -3,6 +3,7 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
+import { Alert } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -11,7 +12,7 @@ import 'react-native-reanimated';
 import 'react-native-get-random-values';
 
 import '@/src/i18n'; // inicializar i18next antes de cualquier render
-import { bootstrapSecureStorage } from '@/src/utils/secureStorage';
+import { bootstrapSecureStorage, consumirAvisoDatosPerdidos } from '@/src/utils/secureStorage';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/src/constants/colors';
 import { syncAndroidNavigationBar } from '@/src/services/androidNavigationBar';
@@ -67,6 +68,7 @@ function AuthGuard() {
   const router = useRouter();
   const { currentUser, isLoading, hydrate } = useAuthStore();
   const hydrateTheme    = useThemeStore(s => s.hydrate);
+  const { t } = useTranslation();
 
   useEffect(() => {
     // Tema en claro y síncrono: se puede hidratar ya (evita flash).
@@ -81,6 +83,11 @@ function AuthGuard() {
     (async () => {
       await bootstrapSecureStorage();
       if (!active) return;
+      // T-248: iPhone nuevo cuyo respaldo no trajo la clave → se arrancó en
+      // limpio; se avisa una sola vez en vez de dejar la app vacía en silencio.
+      if (consumirAvisoDatosPerdidos()) {
+        Alert.alert(t('error.datos_perdidos_title'), t('error.datos_perdidos_body'));
+      }
       hydrate();                 // carga la sesión (cuál cuenta está activa)
       rehydrateForActiveUser();  // carga los datos SCOPEADOS de esa cuenta
 

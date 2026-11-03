@@ -438,7 +438,9 @@
     "retry": "Tentar de novo",
     "export_diagnostics": "Exportar diagnóstico",
     "export_diagnostics_sub": "Fica salvo neste telefone. Nada é enviado sozinho: se quiser, compartilhe você.",
-    "export_error": "Não foi possível exportar o diagnóstico."
+    "export_error": "Não foi possível exportar o diagnóstico.",
+    "datos_perdidos_title": "Não conseguimos recuperar seus dados",
+    "datos_perdidos_body": "Não foi possível recuperar os dados deste telefone. Importe seu backup em Conta ou peça para ser convidado novamente para seus grupos."
   },
   "backup": {
     "section": "CÓPIA DE SEGURANÇA",
@@ -458,7 +460,10 @@
     "no_keys": "Este arquivo não traz as chaves; peça um novo convite para cada grupo.",
     "foreign_title": "Este backup não é seu",
     "foreign_body": "É de outra conta. Você vai importar os dados dela, mas NÃO as chaves: não vai conseguir sincronizar com esses grupos.",
-    "foreign_confirm": "Importar mesmo assim"
+    "foreign_confirm": "Importar mesmo assim",
+    "guest_title": "Este backup é de um convidado",
+    "guest_body": "Você pode continuar como {{name}}: recupera seus grupos, chaves e contatos como estavam. Se cancelar, nada é importado.",
+    "guest_confirm": "Continuar como {{name}}"
   },
   "tabs": {
     "personal": "Pessoal",

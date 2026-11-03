@@ -5,7 +5,7 @@ import {
   type SimpleStorage,
   registrarBucket,
 } from './createStorage';
-import { borrarClaveV1, getOrCreateEncryptionKey, leerClaveV1 } from './encryptionKey';
+import { borrarClaveV1, crearClaveNueva, getOrCreateEncryptionKey, leerClaveExistente, leerClaveV1 } from './encryptionKey';
 import { SCOPED_PLAIN } from '@/src/constants/storageBuckets';
 
 // IDs de storage con datos sensibles (financieros / de identidad) que se cifran
@@ -29,6 +29,9 @@ function memFor(id: string): SimpleStorage {
 /** Marca en `enc_meta`: los buckets ya se vaciaron y recifraron con la clave v2. */
 export const MARCA_CLAVE_V2 = 'enc_clave_v2';
 
+/** Marca en `enc_meta` (T-248): hay que avisar UNA vez que los datos no se pudieron recuperar. */
+const MARCA_AVISO_DATOS_PERDIDOS = 'enc_aviso_datos_perdidos';
+
 /**
  * Carga/genera la clave v2 y abre cada storage sensible CIFRADO.
  *
@@ -39,6 +42,13 @@ export const MARCA_CLAVE_V2 = 'enc_clave_v2';
  * borra la clave v1. No se preservan datos: no había instalaciones con datos
  * reales. Si la app muere antes de la marca, el arranque siguiente repite todo
  * y llega al mismo estado (todo vacío con v2): por eso no hay marcas por bucket.
+ *
+ * **Restauración sin clave (T-248).** Con la marca `enc_clave_v2` pero SIN clave
+ * en el llavero (iPhone nuevo cuyo respaldo trajo los archivos y no la clave), no
+ * se abren los archivos con una clave recién generada: se deja el aviso, se baja
+ * la marca y se sigue por el arranque en limpio. La marca se baja ANTES de crear
+ * la clave: si la app muere en el medio, el próximo arranque ya tiene clave pero
+ * no marca, y repite el arranque en limpio en vez de abrir basura.
  *
  * Debe llamarse (y await-earse) ANTES de hidratar los stores sensibles. Es
  * idempotente. Si MMKV no está (Expo Go) o el cifrado falla, los proxies caen a
@@ -51,20 +61,32 @@ export async function bootstrapSecureStorage(): Promise<void> {
   const MMKV = loadMMKVClass();
   if (!MMKV) return; // Expo Go / sin nativo → proxies usan memoria
 
-  let key: string;
-  try {
-    key = await getOrCreateEncryptionKey();
-  } catch (e) {
-    console.error('[secure] no se pudo obtener la clave de cifrado → datos en memoria (no persisten)', e);
-    return;
-  }
-
   // Meta store EN CLARO: solo guarda marcas de migración (no datos sensibles).
   let meta: SimpleStorage | null = null;
   try { meta = new MMKV({ id: 'enc_meta' }); } catch { meta = null; }
 
   let yaEnV2 = false;
   try { yaEnV2 = meta?.getBoolean(MARCA_CLAVE_V2) === true; } catch { yaEnV2 = false; }
+
+  let key: string;
+  try {
+    const existente = yaEnV2 ? await leerClaveExistente() : null;
+    if (existente) {
+      key = existente;
+    } else if (yaEnV2 && meta) {
+      console.warn('[secure] marca v2 sin clave en el llavero (restauración) → arranque en limpio con aviso');
+      meta.set(MARCA_AVISO_DATOS_PERDIDOS, true);
+      meta.delete(MARCA_CLAVE_V2);
+      yaEnV2 = false;
+      key = await crearClaveNueva();
+    } else {
+      key = await getOrCreateEncryptionKey();
+    }
+  } catch (e) {
+    console.error('[secure] no se pudo obtener la clave de cifrado → datos en memoria (no persisten)', e);
+    return;
+  }
+
   if (yaEnV2) {
     for (const id of SECURE_IDS) {
       try {
@@ -124,6 +146,23 @@ export async function bootstrapSecureStorage(): Promise<void> {
   meta.set(MARCA_CLAVE_V2, true);
   for (const id of SECURE_IDS) meta.delete(`enc_${id}_v1`);
   await borrarClaveV1();
+}
+
+/**
+ * T-248: true UNA vez si el arranque tuvo que descartar los datos locales porque
+ * la clave no vino con el respaldo. Consume la marca. Llamar después del bootstrap.
+ */
+export function consumirAvisoDatosPerdidos(): boolean {
+  const MMKV = loadMMKVClass();
+  if (!MMKV) return false;
+  try {
+    const meta: SimpleStorage = new MMKV({ id: 'enc_meta' });
+    if (meta.getBoolean(MARCA_AVISO_DATOS_PERDIDOS) !== true) return false;
+    meta.delete(MARCA_AVISO_DATOS_PERDIDOS);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Solo para tests. */

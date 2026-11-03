@@ -438,7 +438,9 @@
     "retry": "Try again",
     "export_diagnostics": "Export diagnostics",
     "export_diagnostics_sub": "Saved on this phone. Nothing is sent on its own: share it yourself if you want to.",
-    "export_error": "The diagnostics could not be exported."
+    "export_error": "The diagnostics could not be exported.",
+    "datos_perdidos_title": "We couldn't recover your data",
+    "datos_perdidos_body": "The data on this phone couldn't be recovered. Import your backup from Account or ask to be invited to your groups again."
   },
   "backup": {
     "section": "BACKUP",
@@ -458,7 +460,10 @@
     "no_keys": "This file doesn't have the keys; ask each group for a new invite.",
     "foreign_title": "This backup isn't yours",
     "foreign_body": "It belongs to another account. You'll import its data, but NOT its keys: you won't be able to sync with those groups.",
-    "foreign_confirm": "Import anyway"
+    "foreign_confirm": "Import anyway",
+    "guest_title": "This backup is from a guest",
+    "guest_body": "You can continue as {{name}}: you get your groups, keys and contacts back as they were. If you cancel, nothing is imported.",
+    "guest_confirm": "Continue as {{name}}"
   },
   "tabs": {
     "personal": "Personal",

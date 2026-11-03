@@ -44,6 +44,7 @@ jest.mock('react-native-mmkv', () => ({
 
 jest.mock('expo-secure-store', () => ({
   WHEN_UNLOCKED_THIS_DEVICE_ONLY: 'x',
+  AFTER_FIRST_UNLOCK: 'y',
   getItemAsync: jest.fn(async (k: string) => mockKeychain.get(k) ?? null),
   setItemAsync: jest.fn(async (k: string, v: string) => { mockKeychain.set(k, v); }),
   deleteItemAsync: jest.fn(async (k: string) => {
@@ -57,6 +58,7 @@ import {
   createSecureStorage,
   MARCA_CLAVE_V2,
   SECURE_IDS,
+  consumirAvisoDatosPerdidos,
   __resetSecureStorage,
 } from '../secureStorage';
 import { __resetEncryptionKeyCache } from '../encryptionKey';
@@ -101,7 +103,7 @@ describe('secureStorage · arranque en limpio con clave v2 (T-124 L-E)', () => {
     sembrarInstalacionV1();
     await bootstrapSecureStorage();
 
-    const v2 = mockKeychain.get('mmkv_encryption_key_v2')!;
+    const v2 = mockKeychain.get('mmkv_encryption_key_v2m')!;
     expect(v2).toHaveLength(16);
 
     const vaciados = mockEventos.filter(e => e.tipo === 'clearAll').map(e => e.id);
@@ -147,14 +149,14 @@ describe('secureStorage · arranque en limpio con clave v2 (T-124 L-E)', () => {
   it('instalación limpia (sin v1 ni marcas): termina con la marca v2 sin fallar', async () => {
     await bootstrapSecureStorage();
     expect(mockMaps.get('enc_meta')!.get(MARCA_CLAVE_V2)).toBe(true);
-    expect(mockKeychain.get('mmkv_encryption_key_v2')).toHaveLength(16);
+    expect(mockKeychain.get('mmkv_encryption_key_v2m')).toHaveLength(16);
     createSecureStorage('expenses').set('data_v1', '[]');
     expect(createSecureStorage('expenses').getString('data_v1')).toBe('[]');
   });
 
   it('con la marca v2: abre con v2 y no vacía ni recifra nada (los datos persisten)', async () => {
     await bootstrapSecureStorage();
-    const v2 = mockKeychain.get('mmkv_encryption_key_v2')!;
+    const v2 = mockKeychain.get('mmkv_encryption_key_v2m')!;
     createSecureStorage('groups').set('data_v1', '[{"id":"g1"}]');
 
     reiniciar();
@@ -191,7 +193,7 @@ describe('secureStorage · arranque en limpio con clave v2 (T-124 L-E)', () => {
 
     await bootstrapSecureStorage();
 
-    const v2 = mockKeychain.get('mmkv_encryption_key_v2')!;
+    const v2 = mockKeychain.get('mmkv_encryption_key_v2m')!;
     const recifrados = mockEventos.filter(e => e.tipo === 'recrypt').map(e => e.id);
     expect(recifrados).not.toContain('payments');
     expect(recifrados).toHaveLength(SECURE_IDS.length - 1);
@@ -212,7 +214,7 @@ describe('secureStorage · arranque en limpio con clave v2 (T-124 L-E)', () => {
     reiniciar();
     await bootstrapSecureStorage();
 
-    const v2b = mockKeychain.get('mmkv_encryption_key_v2')!;
+    const v2b = mockKeychain.get('mmkv_encryption_key_v2m')!;
     const recifrados2 = mockEventos.filter(e => e.tipo === 'recrypt').map(e => e.id);
     expect([...new Set(recifrados2)].sort()).toEqual([...SECURE_IDS].sort());
     expect(mockMaps.get('enc_meta')!.get(MARCA_CLAVE_V2)).toBe(true);
@@ -279,6 +281,116 @@ describe('secureStorage · arranque en limpio con clave v2 (T-124 L-E)', () => {
     expect(mockKeychain.has('mmkv_encryption_key_v1')).toBe(false);
     expect(mockEventos.filter(e => e.tipo === 'clearAll')).toHaveLength(0);
     expect(mockEventos.filter(e => e.tipo === 'recrypt')).toHaveLength(0);
+  });
+
+  describe('T-248 · teléfono nuevo con archivos restaurados', () => {
+    const CLAVE_DEL_OTRO_TELEFONO = 'Q'.repeat(16);
+
+    /** Disco restaurado desde el respaldo: marca v2 + datos cifrados con una clave que no está en este llavero. */
+    function sembrarRestauracionSinClave() {
+      const meta = new Map<string, string | number | boolean>([[MARCA_CLAVE_V2, true]]);
+      mockMaps.set('enc_meta', meta);
+      for (const id of SECURE_IDS) mockMaps.set(id, new Map([['data_v1', `ajenos ${id}`]]));
+      mockMaps.set('settings', new Map([['currency', 'ARS']]));
+    }
+
+    it('con la marca v2 y SIN clave en el llavero: no abre con una clave nueva; vacía todo, recifra y arranca limpio', async () => {
+      sembrarRestauracionSinClave();
+      await bootstrapSecureStorage();
+
+      const nueva = mockKeychain.get('mmkv_encryption_key_v2m')!;
+      expect(nueva).toHaveLength(16);
+      const recifrados = mockEventos.filter(e => e.tipo === 'recrypt');
+      expect([...new Set(recifrados.map(e => e.id))].sort()).toEqual([...SECURE_IDS].sort());
+      expect(recifrados.every(e => e.key === nueva)).toBe(true);
+      // Ningún bucket cifrado se abrió con la clave nueva sobre datos viejos.
+      expect(mockEventos.filter(e => e.tipo === 'abrir' && e.key === nueva)).toHaveLength(0);
+      for (const id of SECURE_IDS) expect(mockMaps.get(id)!.has('data_v1')).toBe(false);
+      expect(mockMaps.get('settings')!.size).toBe(0);
+      expect(mockMaps.get('enc_meta')!.get(MARCA_CLAVE_V2)).toBe(true);
+    });
+
+    it('deja un aviso que se consume UNA sola vez', async () => {
+      sembrarRestauracionSinClave();
+      await bootstrapSecureStorage();
+      expect(consumirAvisoDatosPerdidos()).toBe(true);
+      expect(consumirAvisoDatosPerdidos()).toBe(false);
+    });
+
+    it('el aviso sobrevive a un reinicio antes de mostrarse', async () => {
+      sembrarRestauracionSinClave();
+      await bootstrapSecureStorage();
+      reiniciar();
+      await bootstrapSecureStorage();
+      expect(consumirAvisoDatosPerdidos()).toBe(true);
+    });
+
+    it('si la app muere a mitad de la recuperación, el arranque siguiente no abre los archivos viejos con la clave nueva', async () => {
+      sembrarRestauracionSinClave();
+      mockRecryptFallaEn = 'payments';
+      const consola = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const advertencia = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      await bootstrapSecureStorage();
+      // La marca no puede haber quedado: ya hay clave nueva en el llavero.
+      expect(mockMaps.get('enc_meta')!.get(MARCA_CLAVE_V2)).not.toBe(true);
+
+      mockRecryptFallaEn = null;
+      reiniciar();
+      await bootstrapSecureStorage();
+      for (const id of SECURE_IDS) expect(mockMaps.get(id)!.has('data_v1')).toBe(false);
+      expect(mockMaps.get('enc_meta')!.get(MARCA_CLAVE_V2)).toBe(true);
+      expect(consumirAvisoDatosPerdidos()).toBe(true);
+      consola.mockRestore();
+      advertencia.mockRestore();
+    });
+
+    it('con la marca v2 y la clave presente (restaurada): abre todo como estaba y no avisa', async () => {
+      sembrarRestauracionSinClave();
+      mockKeychain.set('mmkv_encryption_key_v2m', CLAVE_DEL_OTRO_TELEFONO);
+      await bootstrapSecureStorage();
+      expect(mockEventos.filter(e => e.tipo === 'clearAll')).toHaveLength(0);
+      expect(mockMaps.get('groups')!.get('data_v1')).toBe('ajenos groups');
+      expect(consumirAvisoDatosPerdidos()).toBe(false);
+    });
+
+    it('usuario que actualiza (clave vieja THIS_DEVICE_ONLY + marca v2): abre con la misma clave, sin vaciar ni avisar', async () => {
+      sembrarRestauracionSinClave();
+      mockKeychain.set('mmkv_encryption_key_v2', CLAVE_DEL_OTRO_TELEFONO);
+      await bootstrapSecureStorage();
+      expect(mockEventos.filter(e => e.tipo === 'clearAll')).toHaveLength(0);
+      const aperturas = mockEventos.filter(e => e.tipo === 'abrir' && (SECURE_IDS as readonly string[]).includes(e.id));
+      expect(aperturas.every(e => e.key === CLAVE_DEL_OTRO_TELEFONO)).toBe(true);
+      expect(mockKeychain.get('mmkv_encryption_key_v2m')).toBe(CLAVE_DEL_OTRO_TELEFONO);
+      expect(consumirAvisoDatosPerdidos()).toBe(false);
+    });
+
+    it.each([
+      ['la clave nueva', 'mmkv_encryption_key_v2m'],
+      ['la clave vieja', 'mmkv_encryption_key_v2'],
+    ])('M4: si el llavero RECHAZA al leer %s (dispositivo bloqueado), no baja la marca, no vacía nada y no deja aviso', async (_n, nombre) => {
+      sembrarRestauracionSinClave();
+      const SecureStore = jest.requireMock('expo-secure-store');
+      SecureStore.getItemAsync.mockImplementation(async (k: string) => {
+        if (k === nombre) throw new Error('errSecInteractionNotAllowed');
+        return mockKeychain.get(k) ?? null;
+      });
+      const consola = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+      await bootstrapSecureStorage();
+
+      expect(mockMaps.get('enc_meta')!.get(MARCA_CLAVE_V2)).toBe(true);
+      expect(mockEventos.filter(e => e.tipo === 'clearAll')).toHaveLength(0);
+      expect(mockMaps.get('groups')!.get('data_v1')).toBe('ajenos groups');
+      expect(consumirAvisoDatosPerdidos()).toBe(false);
+      expect(mockKeychain.has('mmkv_encryption_key_v2m')).toBe(false);
+      consola.mockRestore();
+      SecureStore.getItemAsync.mockImplementation(async (k: string) => mockKeychain.get(k) ?? null);
+    });
+
+    it('instalación nueva (sin marca ni clave): arranca limpio SIN aviso', async () => {
+      await bootstrapSecureStorage();
+      expect(consumirAvisoDatosPerdidos()).toBe(false);
+    });
   });
 
   it('antes del bootstrap cae a memoria sin romper (Expo Go / arranque)', () => {
