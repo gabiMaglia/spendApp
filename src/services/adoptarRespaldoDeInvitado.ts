@@ -6,6 +6,9 @@ import { useEntryGateStore } from '@/src/store/entryGateStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { usePaymentStore } from '@/src/store/paymentStore';
+import { usePersonalStore, DEFAULT_BUDGET } from '@/src/store/personalStore';
+import { useRecurringStore } from '@/src/store/recurringStore';
+import { listPeers } from '@/src/sync/contactos/contactPeers';
 import { barrerScope } from '@/src/store/accountLink';
 
 /**
@@ -33,10 +36,18 @@ export function respaldoDeInvitadoAdoptable(backup: BackupFile): User | null {
   return dueno;
 }
 
+/** Cualquier dato del invitado actual que un RESTORE pisaría: si hay, no se ofrece adoptar. */
 function tieneDatosPropios(): boolean {
+  const { entries, budget } = usePersonalStore.getState();
   return useGroupStore.getState().groups.some(g => !g.isDeleted)
     || useExpenseStore.getState().expenses.some(e => !e.isDeleted)
-    || usePaymentStore.getState().payments.some(p => !p.isDeleted);
+    || usePaymentStore.getState().payments.some(p => !p.isDeleted)
+    || entries.some(e => !e.isDeleted)
+    || budget.monthlyAmount !== DEFAULT_BUDGET.monthlyAmount
+    || budget.includeOwedToMe !== DEFAULT_BUDGET.includeOwedToMe
+    || budget.currency !== DEFAULT_BUDGET.currency
+    || useRecurringStore.getState().recurring.some(r => !r.isDeleted)
+    || Object.keys(listPeers()).length > 0;
 }
 
 /**

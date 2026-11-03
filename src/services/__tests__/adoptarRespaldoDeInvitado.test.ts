@@ -12,7 +12,10 @@ import { useSettingsStore } from '@/src/store/settingsStore';
 import { useEntryGateStore, __resetEntryGate } from '@/src/store/entryGateStore';
 import { writeScoped } from '@/src/store/userScope';
 import { createSecureStorage } from '@/src/utils/secureStorage';
+import { barrerScope } from '@/src/store/accountLink';
 import { recargarAlias } from '@/src/store/identityAlias';
+import { useRecurringStore } from '@/src/store/recurringStore';
+import { savePeer } from '@/src/sync/contactos/contactPeers';
 import type { Group, User } from '@/src/types/models';
 
 jest.mock('@/src/sync/motor/relayEngine', () => ({
@@ -56,10 +59,12 @@ beforeEach(() => {
   useExpenseStore.setState({ expenses: [] });
   usePaymentStore.setState({ payments: [] });
   useUserStore.setState({ users: [] });
-  usePersonalStore.setState({ entries: [] });
+  usePersonalStore.setState({ entries: [], budget: { currency: 'ARS', monthlyAmount: 0, includeOwedToMe: false } });
+  useRecurringStore.setState({ recurring: [] });
   useAuthStore.setState({ currentUser: SESION_NUEVA });
   clearGuestAccount();
   __resetEntryGate();
+  barrerScope(SESION_NUEVA.id); // los contactos persisten entre tests
   recargarAlias();
 });
 
@@ -81,6 +86,26 @@ describe('respaldoDeInvitadoAdoptable (T-249)', () => {
     expect(respaldoDeInvitadoAdoptable(respaldoDeInvitado())).toBeNull();
     useExpenseStore.setState({ expenses: [] });
     usePaymentStore.setState({ payments: [{ id: 'p', isDeleted: false } as never] });
+    expect(respaldoDeInvitadoAdoptable(respaldoDeInvitado())).toBeNull();
+  });
+
+  it('M3: movimientos personales, presupuesto, recurrentes o contactos cuentan como datos propios', () => {
+    usePersonalStore.setState({ entries: [{ id: 'p1', isDeleted: false } as never] });
+    expect(respaldoDeInvitadoAdoptable(respaldoDeInvitado())).toBeNull();
+    usePersonalStore.setState({ entries: [{ id: 'p1', isDeleted: true } as never] });
+    expect(respaldoDeInvitadoAdoptable(respaldoDeInvitado())).not.toBeNull();
+
+    usePersonalStore.setState({ budget: { currency: 'ARS', monthlyAmount: 5000, includeOwedToMe: false } });
+    expect(respaldoDeInvitadoAdoptable(respaldoDeInvitado())).toBeNull();
+    usePersonalStore.setState({ budget: { currency: 'ARS', monthlyAmount: 0, includeOwedToMe: true } });
+    expect(respaldoDeInvitadoAdoptable(respaldoDeInvitado())).toBeNull();
+    usePersonalStore.setState({ budget: { currency: 'ARS', monthlyAmount: 0, includeOwedToMe: false } });
+
+    useRecurringStore.setState({ recurring: [{ id: 'r1', isDeleted: false } as never] });
+    expect(respaldoDeInvitadoAdoptable(respaldoDeInvitado())).toBeNull();
+    useRecurringStore.setState({ recurring: [] });
+
+    savePeer('amigo', { secret: 's'.repeat(8) });
     expect(respaldoDeInvitadoAdoptable(respaldoDeInvitado())).toBeNull();
   });
 

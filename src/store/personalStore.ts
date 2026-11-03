@@ -14,7 +14,7 @@ const LAST_SEEN_KEY = 'lastSeen_v1';
 // Cubre tanto `entries[].amount` como `budget.monthlyAmount`.
 const MONEY_MIGRATION_KEY = 'money_int_v1_done';
 
-const DEFAULT_BUDGET: PersonalBudget = {
+export const DEFAULT_BUDGET: PersonalBudget = {
   currency:        'ARS',
   monthlyAmount:   0,
   includeOwedToMe: false,

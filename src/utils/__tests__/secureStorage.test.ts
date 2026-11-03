@@ -364,6 +364,29 @@ describe('secureStorage · arranque en limpio con clave v2 (T-124 L-E)', () => {
       expect(consumirAvisoDatosPerdidos()).toBe(false);
     });
 
+    it.each([
+      ['la clave nueva', 'mmkv_encryption_key_v2m'],
+      ['la clave vieja', 'mmkv_encryption_key_v2'],
+    ])('M4: si el llavero RECHAZA al leer %s (dispositivo bloqueado), no baja la marca, no vacía nada y no deja aviso', async (_n, nombre) => {
+      sembrarRestauracionSinClave();
+      const SecureStore = jest.requireMock('expo-secure-store');
+      SecureStore.getItemAsync.mockImplementation(async (k: string) => {
+        if (k === nombre) throw new Error('errSecInteractionNotAllowed');
+        return mockKeychain.get(k) ?? null;
+      });
+      const consola = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+      await bootstrapSecureStorage();
+
+      expect(mockMaps.get('enc_meta')!.get(MARCA_CLAVE_V2)).toBe(true);
+      expect(mockEventos.filter(e => e.tipo === 'clearAll')).toHaveLength(0);
+      expect(mockMaps.get('groups')!.get('data_v1')).toBe('ajenos groups');
+      expect(consumirAvisoDatosPerdidos()).toBe(false);
+      expect(mockKeychain.has('mmkv_encryption_key_v2m')).toBe(false);
+      consola.mockRestore();
+      SecureStore.getItemAsync.mockImplementation(async (k: string) => mockKeychain.get(k) ?? null);
+    });
+
     it('instalación nueva (sin marca ni clave): arranca limpio SIN aviso', async () => {
       await bootstrapSecureStorage();
       expect(consumirAvisoDatosPerdidos()).toBe(false);
