@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { useColors } from '@/src/skins/useSkin';
+import { conAlfa } from '@/src/skins/color';
 
 /**
  * «Pagado por [vos] y dividido [en partes iguales]» — la frase de Splitwise
@@ -21,7 +22,8 @@ export function FraseDeReparto({
 }) {
   const { t } = useTranslation();
   const c = useColors();
-  const boton = [styles.boton, { borderColor: c.brand.primary, backgroundColor: c.surface }];
+  // PO 2026-11-03: el marco de 1,5 pt casi negro pesaba más que la frase.
+  const boton = [styles.boton, { borderColor: conAlfa(c.brand.primary, 0.28), backgroundColor: conAlfa(c.brand.primary, 0.06) }];
   const textoBoton = [Typography.bodyL, { color: c.brand.primary, fontWeight: '700' as const }];
   return (
     <View style={styles.bloque}>
@@ -44,5 +46,5 @@ const styles = StyleSheet.create({
   bloque: { alignItems: 'center', gap: 8, paddingHorizontal: Spacing.screenPad + 4 },
   frase: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center', gap: 6 },
   texto: { fontSize: 16 },
-  boton: { borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 10, minHeight: 34, justifyContent: 'center' },
+  boton: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, minHeight: 34, justifyContent: 'center' },
 });

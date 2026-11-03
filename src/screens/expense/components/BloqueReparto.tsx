@@ -78,7 +78,7 @@ export function BloqueReparto({
         />
         <Text style={[Typography.h3, { color: c.textSecondary }]}>%</Text>
       </View>
-      <Text style={[Typography.bodyS, { color: c.textTertiary }]}>
+      <Text style={[Typography.bodyS, { color: c.textTertiary, flex: 1 }]}>
         {t('expense.percent_same_hint')}
       </Text>
     </View>

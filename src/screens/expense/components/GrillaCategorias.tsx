@@ -50,7 +50,7 @@ export function GrillaCategorias({
             <View style={[
               styles.tile,
               activa
-                ? { backgroundColor: conAlfa(tinte, 0.16), borderColor: tinte, borderWidth: 2 }
+                ? { backgroundColor: conAlfa(tinte, 0.16), borderColor: tinte, borderWidth: 1.5 }
                 : { backgroundColor: c.surface, boxShadow: skin.elevation.e1.boxShadow },
             ]}>
               <Ionicons name={cat.icon} size={24} color={tinte} />
