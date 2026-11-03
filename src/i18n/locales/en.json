@@ -460,7 +460,10 @@
     "no_keys": "This file doesn't have the keys; ask each group for a new invite.",
     "foreign_title": "This backup isn't yours",
     "foreign_body": "It belongs to another account. You'll import its data, but NOT its keys: you won't be able to sync with those groups.",
-    "foreign_confirm": "Import anyway"
+    "foreign_confirm": "Import anyway",
+    "guest_title": "This backup is from a guest",
+    "guest_body": "You can continue as {{name}}: you get your groups, keys and contacts back as they were. If you cancel, nothing is imported.",
+    "guest_confirm": "Continue as {{name}}"
   },
   "tabs": {
     "personal": "Personal",

@@ -11,6 +11,7 @@ import { listErrors } from '@/src/services/errorLog';
 import { exportarDiagnostico } from '@/src/services/exportDiagnostico';
 import { useLiveValue } from '@/src/hooks/useLiveValue';
 import { esYo } from '@/src/store/identityAlias';
+import { respaldoDeInvitadoAdoptable, adoptarRespaldoDeInvitado } from '@/src/services/adoptarRespaldoDeInvitado';
 import { claveDeErrorDeImport } from '@/src/screens/cuenta/perfilDeCuenta';
 
 /** Exportar/importar el respaldo y exportar el diagnóstico de errores. */
@@ -92,6 +93,32 @@ export function useRespaldo() {
       if (res.canceled || !res.assets?.[0]) return;
       const raw = await new File(res.assets[0].uri).text();
       const backup = parseBackup(raw);
+
+      // T-249: un invitado sin datos que restaura el respaldo de SU identidad de
+      // invitado anterior la adopta (el uuid cambia en cada entrada y, sin esto,
+      // su propio respaldo se leería como ajeno).
+      const dueno = respaldoDeInvitadoAdoptable(backup);
+      if (dueno) {
+        Alert.alert(
+          t('backup.guest_title'),
+          t('backup.guest_body', { name: dueno.name }),
+          [
+            { text: t('common.cancel'), style: 'cancel' },
+            {
+              text: t('backup.guest_confirm', { name: dueno.name }),
+              onPress: () => {
+                try {
+                  adoptarRespaldoDeInvitado(backup, dueno);
+                  avisarSinClavesSiHaceFalta(backup);
+                } catch {
+                  Alert.alert(t('backup.import_error_title'));
+                }
+              },
+            },
+          ],
+        );
+        return;
+      }
 
       // T-188b: un backup AJENO (ownerId de otra persona) importa los datos
       // igual, pero SIN sus claves ni un alta mía a ningún grupo — hay que

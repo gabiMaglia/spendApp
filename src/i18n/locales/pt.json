@@ -460,7 +460,10 @@
     "no_keys": "Este arquivo não traz as chaves; peça um novo convite para cada grupo.",
     "foreign_title": "Este backup não é seu",
     "foreign_body": "É de outra conta. Você vai importar os dados dela, mas NÃO as chaves: não vai conseguir sincronizar com esses grupos.",
-    "foreign_confirm": "Importar mesmo assim"
+    "foreign_confirm": "Importar mesmo assim",
+    "guest_title": "Este backup é de um convidado",
+    "guest_body": "Você pode continuar como {{name}}: recupera seus grupos, chaves e contatos como estavam. Se cancelar, nada é importado.",
+    "guest_confirm": "Continuar como {{name}}"
   },
   "tabs": {
     "personal": "Pessoal",
