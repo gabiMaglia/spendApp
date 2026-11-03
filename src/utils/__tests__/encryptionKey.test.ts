@@ -1,17 +1,28 @@
 // Mock stateful de expo-secure-store (el de setup.ts es no-stateful). El Map se
 // expone con prefijo `mock` para poder sembrar la clave v1 y limpiarlo.
 const mockKeychain = new Map<string, string>();
+// Accesibilidad con la que se escribió cada nombre, y orden de las escrituras/borrados.
+const mockAccesibilidad = new Map<string, string | undefined>();
+const mockLog: string[] = [];
+let mockLecturaCorrompida: string | null = null;
 jest.mock('expo-secure-store', () => ({
   WHEN_UNLOCKED_THIS_DEVICE_ONLY: 'whenUnlockedThisDeviceOnly',
-  getItemAsync: jest.fn(async (k: string) => mockKeychain.get(k) ?? null),
-  setItemAsync: jest.fn(async (k: string, v: string) => { mockKeychain.set(k, v); }),
-  deleteItemAsync: jest.fn(async (k: string) => { mockKeychain.delete(k); }),
+  AFTER_FIRST_UNLOCK: 'afterFirstUnlock',
+  getItemAsync: jest.fn(async (k: string) => (k === mockLecturaCorrompida && mockKeychain.has(k) ?'corrupta' : mockKeychain.get(k) ?? null)),
+  setItemAsync: jest.fn(async (k: string, v: string, o?: { keychainAccessible?: string }) => {
+    mockLog.push(`set:${k}`);
+    mockKeychain.set(k, v);
+    mockAccesibilidad.set(k, o?.keychainAccessible);
+  }),
+  deleteItemAsync: jest.fn(async (k: string) => { mockLog.push(`del:${k}`); mockKeychain.delete(k); }),
 }));
 
 import {
   ALFABETO_CLAVE_MMKV,
   borrarClaveV1,
+  crearClaveNueva,
   generarClaveMMKV,
+  leerClaveExistente,
   getCachedEncryptionKey,
   getOrCreateEncryptionKey,
   leerClaveV1,
@@ -32,6 +43,9 @@ describe('encryptionKey (T-124 L-E)', () => {
   beforeEach(() => {
     __resetEncryptionKeyCache();
     mockKeychain.clear();
+    mockAccesibilidad.clear();
+    mockLog.length = 0;
+    mockLecturaCorrompida = null;
   });
 
   describe('generarClaveMMKV', () => {
@@ -66,11 +80,17 @@ describe('encryptionKey (T-124 L-E)', () => {
   });
 
   describe('llavero', () => {
-    it('crea la clave v2 bajo mmkv_encryption_key_v2 y la reutiliza en la misma sesión', async () => {
+    it('crea la clave bajo el nombre migrable y la reutiliza en la misma sesión', async () => {
       const k1 = await getOrCreateEncryptionKey();
       expect(k1).toHaveLength(16);
-      expect(mockKeychain.get('mmkv_encryption_key_v2')).toBe(k1);
+      expect(mockKeychain.get('mmkv_encryption_key_v2m')).toBe(k1);
       expect(await getOrCreateEncryptionKey()).toBe(k1);
+    });
+
+    it('T-248: instalación nueva → accesibilidad AFTER_FIRST_UNLOCK (viaja en el respaldo), no THIS_DEVICE_ONLY', async () => {
+      await getOrCreateEncryptionKey();
+      expect(mockAccesibilidad.get('mmkv_encryption_key_v2m')).toBe('afterFirstUnlock');
+      expect(mockKeychain.has('mmkv_encryption_key_v2')).toBe(false);
     });
 
     it('reusa la v2 persistida tras un reinicio (cache reseteado)', async () => {
@@ -104,7 +124,53 @@ describe('encryptionKey (T-124 L-E)', () => {
       const v2 = await getOrCreateEncryptionKey();
       await borrarClaveV1();
       expect(mockKeychain.has('mmkv_encryption_key_v1')).toBe(false);
-      expect(mockKeychain.get('mmkv_encryption_key_v2')).toBe(v2);
+      expect(mockKeychain.get('mmkv_encryption_key_v2m')).toBe(v2);
+    });
+  });
+
+  describe('T-248 · migración de la clave THIS_DEVICE_ONLY a la forma migrable', () => {
+    const VIEJA = 'Abc123!@#xyz4567';
+
+    it('usuario existente: copia el MISMO valor a la forma migrable, verifica y recién después borra la vieja', async () => {
+      mockKeychain.set('mmkv_encryption_key_v2', VIEJA);
+      expect(await getOrCreateEncryptionKey()).toBe(VIEJA);
+      expect(mockKeychain.get('mmkv_encryption_key_v2m')).toBe(VIEJA);
+      expect(mockAccesibilidad.get('mmkv_encryption_key_v2m')).toBe('afterFirstUnlock');
+      expect(mockKeychain.has('mmkv_encryption_key_v2')).toBe(false);
+      expect(mockLog.indexOf('set:mmkv_encryption_key_v2m')).toBeLessThan(mockLog.indexOf('del:mmkv_encryption_key_v2'));
+    });
+
+    it('no genera una clave nueva para quien actualiza (cero pérdida de datos)', async () => {
+      mockKeychain.set('mmkv_encryption_key_v2', VIEJA);
+      await getOrCreateEncryptionKey();
+      __resetEncryptionKeyCache();
+      expect(await getOrCreateEncryptionKey()).toBe(VIEJA);
+    });
+
+    it('murió tras copiar y antes de borrar: el siguiente arranque usa la nueva y termina de borrar la vieja', async () => {
+      mockKeychain.set('mmkv_encryption_key_v2', VIEJA);
+      mockKeychain.set('mmkv_encryption_key_v2m', VIEJA);
+      expect(await leerClaveExistente()).toBe(VIEJA);
+      expect(mockKeychain.has('mmkv_encryption_key_v2')).toBe(false);
+      expect(mockKeychain.get('mmkv_encryption_key_v2m')).toBe(VIEJA);
+    });
+
+    it('si la lectura de verificación no coincide, conserva la vieja y devuelve su valor', async () => {
+      mockKeychain.set('mmkv_encryption_key_v2', VIEJA);
+      mockLecturaCorrompida = 'mmkv_encryption_key_v2m';
+      expect(await leerClaveExistente()).toBe(VIEJA);
+      expect(mockKeychain.get('mmkv_encryption_key_v2')).toBe(VIEJA);
+    });
+
+    it('leerClaveExistente devuelve null sin generar nada cuando no hay ninguna clave', async () => {
+      expect(await leerClaveExistente()).toBeNull();
+      expect(mockKeychain.size).toBe(0);
+    });
+
+    it('crearClaveNueva genera, guarda migrable y deja la clave en cache', async () => {
+      const k = await crearClaveNueva();
+      expect(mockKeychain.get('mmkv_encryption_key_v2m')).toBe(k);
+      expect(getCachedEncryptionKey()).toBe(k);
     });
   });
 });

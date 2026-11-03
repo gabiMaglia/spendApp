@@ -438,7 +438,9 @@
     "retry": "Try again",
     "export_diagnostics": "Export diagnostics",
     "export_diagnostics_sub": "Saved on this phone. Nothing is sent on its own: share it yourself if you want to.",
-    "export_error": "The diagnostics could not be exported."
+    "export_error": "The diagnostics could not be exported.",
+    "datos_perdidos_title": "We couldn't recover your data",
+    "datos_perdidos_body": "The data on this phone couldn't be recovered. Import your backup from Account or ask to be invited to your groups again."
   },
   "backup": {
     "section": "BACKUP",

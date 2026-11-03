@@ -438,7 +438,9 @@
     "retry": "Tentar de novo",
     "export_diagnostics": "Exportar diagnóstico",
     "export_diagnostics_sub": "Fica salvo neste telefone. Nada é enviado sozinho: se quiser, compartilhe você.",
-    "export_error": "Não foi possível exportar o diagnóstico."
+    "export_error": "Não foi possível exportar o diagnóstico.",
+    "datos_perdidos_title": "Não conseguimos recuperar seus dados",
+    "datos_perdidos_body": "Não foi possível recuperar os dados deste telefone. Importe seu backup em Conta ou peça para ser convidado novamente para seus grupos."
   },
   "backup": {
     "section": "CÓPIA DE SEGURANÇA",
