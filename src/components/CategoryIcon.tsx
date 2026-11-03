@@ -11,6 +11,7 @@ const CATEGORY_META: Record<CategoryKind, { iconName: keyof typeof Ionicons.glyp
   accommodation: { iconName: 'home-outline' },
   entertainment: { iconName: 'musical-notes-outline' },
   utilities:     { iconName: 'flash-outline' },
+  taxes:         { iconName: 'document-text-outline' },
   health:        { iconName: 'heart-outline' },
   shopping:      { iconName: 'bag-outline' },
   other:         { iconName: 'ellipsis-horizontal-outline' },

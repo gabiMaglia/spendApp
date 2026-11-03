@@ -19,6 +19,7 @@ export const CATEGORIES: CatMeta[] = [
   { id: 'accommodation', icon: 'home-outline',                label: 'Alojamiento'   },
   { id: 'entertainment', icon: 'game-controller-outline',     label: 'Ocio'          },
   { id: 'utilities',     icon: 'flash-outline',               label: 'Servicios'     },
+  { id: 'taxes',         icon: 'document-text-outline',       label: 'Impuestos'     },
   { id: 'health',        icon: 'medical-outline',             label: 'Salud'         },
   { id: 'shopping',      icon: 'bag-outline',                 label: 'Compras'       },
   { id: 'other',         icon: 'ellipsis-horizontal-outline', label: 'Otro'          },

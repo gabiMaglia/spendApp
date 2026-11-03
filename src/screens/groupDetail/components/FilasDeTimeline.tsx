@@ -50,14 +50,15 @@ export function ExpenseRow({
         </Text>
         {isMarked(trust ?? 'pendiente') && <TrustMark label={t('trust.badge')} size="sm" />}
       </View>
+      {/* PO 2026-11-03: primero el total del gasto, debajo lo que me toca. */}
       <View style={{ alignItems: 'flex-end', gap: 3 }}>
-        <Text style={[Typography.amountS, {
+        <Text style={[Typography.amountS, { color: c.text }]}>
+          {formatMoney(expense.amount, expense.currency)}
+        </Text>
+        <Text style={[Typography.caption, {
           color: netForMe > 0 ? c.semantic.positive : netForMe < 0 ? c.semantic.negative : c.textTertiary,
         }]}>
           {netForMe > 0 ? '+' : ''}{formatMoney(netForMe, expense.currency)}
-        </Text>
-        <Text style={[Typography.caption, { color: c.textTertiary }]}>
-          {t('group_detail.total_suffix', { amount: formatMoney(expense.amount, expense.currency) })}
         </Text>
       </View>
     </BandRow>

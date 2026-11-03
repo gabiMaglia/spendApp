@@ -194,7 +194,7 @@ export interface Group extends SyncMeta, CoreSigned {
 
 export type ExpenseCategory =
   | 'food' | 'transport' | 'accommodation' | 'entertainment'
-  | 'utilities' | 'health' | 'shopping' | 'other';
+  | 'utilities' | 'taxes' | 'health' | 'shopping' | 'other';
 
 /**
  * Modos de división de un gasto:

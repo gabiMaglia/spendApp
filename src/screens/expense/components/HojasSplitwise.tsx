@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import type { CurrencyCode } from '@/src/constants/currencies';
-import { BottomSheet, SheetOption, SheetOptionAvatar } from '@/src/components/Sheet';
+import { BottomSheet, SheetButton, SheetOption, SheetOptionAvatar } from '@/src/components/Sheet';
 import { PayerSplitter } from '@/src/components/PayerSplitter';
 import { OPCIONES_REPETIR, type RecurrenceValue } from '@/src/components/RecurrencePicker';
 import { useUserStore } from '@/src/store/userStore';
@@ -51,12 +51,17 @@ export function HojasSplitwise({
     </Pressable>
   );
 
+  // PO 2026-11-03: donde se edita algo, la hoja se confirma con «Listo»;
+  // cerrarla sin botón no daba la impresión de que se guardara.
+  const listo = <SheetButton testID="hoja-listo" label={t('common.done')} onPress={onClose} />;
+
   return (
     <>
       <BottomSheet
         visible={abierta === 'pagadores'}
         onClose={onClose}
         title={t('expense.who_paid')}
+        footer={multiPayer ? listo : undefined}
       >
         {multiPayer ? (
           <View style={styles.columna}>
@@ -90,6 +95,7 @@ export function HojasSplitwise({
         visible={abierta === 'reparto'}
         onClose={onClose}
         title={t('expense.split_how')}
+        footer={listo}
       >
         <BloqueReparto
           sinEtiqueta
