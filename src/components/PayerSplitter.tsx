@@ -7,6 +7,7 @@ import { Typography } from '@/src/constants/typography';
 import { UserAvatar } from './UserAvatar';
 import { formatMoney, minorFactor, type CurrencyCode } from '@/src/constants/currencies';
 import { validatePayers } from '@/src/algorithms/payers';
+import { MAX_MONTO_MENOR } from '@/src/hooks/sanitizeAmount';
 import type { Payer } from '@/src/types/models';
 import { useColors } from '@/src/skins/useSkin';
 
@@ -43,10 +44,11 @@ export function PayerSplitter({
     // El input es en unidades reales; el modelo guarda menor unidad.
     const real = parseFloat(text.replace(',', '.'));
     const minor = Number.isFinite(real) ? Math.round(real * minorFactor(currency)) : 0;
+    // T-254: mismo tope que los demás inputs de monto (cabe en un entero seguro).
 
     const next = members.map(m => ({
       userId: m.id,
-      amount: m.id === userId ? Math.max(0, minor) : amountOf(m.id),
+      amount: m.id === userId ? Math.min(Math.max(0, minor), MAX_MONTO_MENOR) : amountOf(m.id),
     }));
     onChange(next);
   }

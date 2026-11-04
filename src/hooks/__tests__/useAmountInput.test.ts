@@ -229,4 +229,37 @@ describe('agrupacion de miles al tipear', () => {
     act(() => result.current.onChangeText('1.500.00'));  // el usuario borro un digito
     expect(result.current.text).toBe('150.000');
   });
+
+  // T-254: el teclado muestra el separador de la región, no el del idioma de la app.
+  it('app en español con teclado de punto: "12.50" es 12,50 (no 1250)', () => {
+    mockLanguage = 'es';
+    const { result } = renderHook(() => useAmountInput('USD'));
+    act(() => result.current.onChangeText('12.50'));
+    expect(result.current.text).toBe('12,50');
+    expect(result.current.minor).toBe(1250);
+  });
+
+  it('app en inglés con teclado de coma: "12,50" es 12.50', () => {
+    mockLanguage = 'en';
+    const { result } = renderHook(() => useAmountInput('USD'));
+    act(() => result.current.onChangeText('12,50'));
+    expect(result.current.minor).toBe(1250);
+  });
+
+  it('borrar el último dígito de un monto agrupado no inventa un decimal', () => {
+    mockLanguage = 'es';
+    const { result } = renderHook(() => useAmountInput('USD'));
+    act(() => result.current.onChangeText('1250'));          // se muestra 1.250
+    expect(result.current.text).toBe('1.250');
+    act(() => result.current.onChangeText('1.25'));          // backspace
+    expect(result.current.text).toBe('125');
+    expect(result.current.minor).toBe(12500);
+  });
+
+  it('CLP: "1.500" sigue siendo mil quinientos', () => {
+    mockLanguage = 'es';
+    const { result } = renderHook(() => useAmountInput('CLP'));
+    act(() => result.current.onChangeText('1.500'));
+    expect(result.current.minor).toBe(1500);
+  });
 });
