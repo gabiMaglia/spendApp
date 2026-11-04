@@ -110,7 +110,7 @@ export function rehydrateForActiveUser(): void {
 
   // T-250: si el aparato resultó ser un clon, los grupos de esta cuenta se
   // marcan pendientes de drenaje ANTES de que el relay pueda publicar.
-  aplicarReinicioPendienteDeCuenta();
+  void aplicarReinicioPendienteDeCuenta();
 
   // Sync en tiempo real de la cuenta activa: se suscribe a los grupos con clave
   // y drena lo que quedó encolado mientras la app estuvo cerrada. Va acá y no

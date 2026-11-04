@@ -43,6 +43,11 @@ export function recordServerTime(serverIso: string, localAtRequest: number): voi
   storage.set(KEY, String(server - localAtRequest));
 }
 
+/** T-250: el desfase es del aparato; un clon no hereda el del original. */
+export function olvidarDesfaseDeReloj(): void {
+  storage.delete(KEY);
+}
+
 /** Desfase conocido, en ms. 0 si nunca hablamos con el relay. */
 export function clockOffsetMs(): number {
   const raw = storage.getString(KEY);

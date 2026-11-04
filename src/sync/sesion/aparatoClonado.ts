@@ -5,6 +5,8 @@ import { olvidarIdentidadDelAparato } from '@/src/store/identityStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { olvidarTodoElAlmacen } from '@/src/sync/adaptadores/hushsplit/almacen';
 import { registerDeviceKey } from '@/src/sync/confianza/deviceKeys';
+import { olvidarDesfaseDeReloj } from '@/src/utils/syncedClock';
+import { forceClearPersistedSession } from './relaySessionStorage';
 import { deviceId, reiniciarEstadoDeAparato } from '@/src/sync/motor/cursor';
 import { marcarPendienteDeDrenaje } from '@/src/sync/motor/pendingDrain';
 
@@ -54,6 +56,17 @@ import { marcarPendienteDeDrenaje } from '@/src/sync/motor/pendingDrain';
  * se marca pendiente de drenaje —no se publica antes de releer, T-089— y se
  * registra la clave nueva en el directorio. Con cursor y ledger vacíos, el
  * drenaje relee todo y la publicación reenvía el estado completo (regla #8).
+ * También se descartan el desfase de reloj (`clock_offset_v1`, es del aparato)
+ * y la sesión del buzón (`sbauth`): el clon compartiría el refresh token con el
+ * original (rotarlo en uno invalida al otro). Es lo menos disruptivo que
+ * funciona: sin sesión, el arranque cae en el chequeo que ya existe
+ * (`haySesionAnonimaValida` → `/auth/verify`, el mismo camino de quien entra
+ * por primera vez): el invitado abre una sesión anónima propia (con app_id,
+ * T-238) y Google/Apple reconectan desde esa pantalla, sin tocar `currentUser`
+ * ni los datos. Costo: una pantalla de verificación (y captcha si el buzón lo
+ * pide) en el primer arranque del clon. Sólo se limpia en el camino de clon,
+ * nunca en actualización ni arranque normal.
+ *
  * No se usa `marcarConTopic`: ese deriva el topic para olvidar cursor y ledger
  * de UN grupo, y acá ya se vaciaron TODOS; marcar es síncrono y no corre contra
  * `startRelay`.
@@ -75,7 +88,8 @@ const storage = createSecureStorage('groupkeys');
 const CENTINELA_LLAVERO = 'hushsplit_device_sentinel_v1';
 const MARCA = 'device_sentinel_v1';
 const GEN = 'device_reset_gen';
-const APLICADO = 'device_reset_aplicado';
+const APLICADO = 'device_reset_aplicado'; // uid → gen con el registro de clave hecho
+const MARCADO = 'device_reset_marcado'; // uid → gen con los grupos ya marcados
 
 export type EstadoAparato =
   | 'instalacion_nueva' | 'actualizacion' | 'normal' | 'restaurado' | 'indeterminado';
@@ -122,6 +136,8 @@ export async function verificarAparato(): Promise<EstadoAparato> {
     const nuevoId = reiniciarEstadoDeAparato();
     olvidarIdentidadDelAparato();
     olvidarTodoElAlmacen();
+    olvidarDesfaseDeReloj();
+    forceClearPersistedSession();
     storage.set(GEN, `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`);
     await escribirCentinela(nuevoId);
     return 'restaurado';
@@ -130,31 +146,44 @@ export async function verificarAparato(): Promise<EstadoAparato> {
   }
 }
 
-function leerAplicado(): Record<string, string> {
+function leerMapa(clave: string): Record<string, string> {
   try {
-    const v = JSON.parse(storage.getString(APLICADO) ?? '{}');
+    const v = JSON.parse(storage.getString(clave) ?? '{}');
     return v && typeof v === 'object' ? v as Record<string, string> : {};
   } catch {
     return {};
   }
 }
 
+function anotar(clave: string, uid: string, gen: string): void {
+  storage.set(clave, JSON.stringify({ ...leerMapa(clave), [uid]: gen }));
+}
+
 /**
  * Parte POR CUENTA del reinicio: los grupos y las claves son de la cuenta, así
- * que sólo se pueden marcar cuando esa cuenta hidrata. Idempotente: recuerda a
- * qué cuentas ya se les aplicó la regeneración vigente. Va ANTES de `startRelay`.
+ * que sólo se pueden marcar cuando esa cuenta hidrata. Va ANTES de `startRelay`.
+ *
+ * Dos pasos con registro propio: marcar grupos (una sola vez por cuenta y
+ * regeneración) y registrar la clave en el directorio. Éste sólo se da por
+ * hecho si el directorio contestó ok; sin sesión o sin red se reintenta en la
+ * próxima rehidratación, y como los grupos ya están marcados no vuelve a
+ * frenar publicaciones sin necesidad. Nunca tira.
  */
-export function aplicarReinicioPendienteDeCuenta(): void {
+export async function aplicarReinicioPendienteDeCuenta(): Promise<void> {
   const gen = storage.getString(GEN);
   const uid = activeUserId();
   if (!gen || !uid) return;
-  const aplicado = leerAplicado();
-  if (aplicado[uid] === gen) return;
 
-  for (const k of useGroupKeyStore.getState().keys) marcarPendienteDeDrenaje(k.groupId);
-  // La clave nueva tiene que estar en el directorio; sin sesión no hace nada
-  // (el aviso de «falta» de verifyMyKeyRegistered cubre ese caso).
-  void registerDeviceKey().catch(() => undefined);
+  if (leerMapa(MARCADO)[uid] !== gen) {
+    for (const k of useGroupKeyStore.getState().keys) marcarPendienteDeDrenaje(k.groupId);
+    anotar(MARCADO, uid, gen);
+  }
 
-  storage.set(APLICADO, JSON.stringify({ ...aplicado, [uid]: gen }));
+  if (leerMapa(APLICADO)[uid] === gen) return;
+  try {
+    const r = await registerDeviceKey();
+    if (r.ok) anotar(APLICADO, uid, gen);
+  } catch {
+    // Se reintenta en la próxima rehidratación.
+  }
 }

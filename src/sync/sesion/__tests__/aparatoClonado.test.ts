@@ -17,7 +17,7 @@ jest.mock('expo-secure-store', () => ({
   }),
 }));
 
-const mockRegister = jest.fn(async () => ({ ok: true, alreadyThere: false }));
+const mockRegister = jest.fn(async (): Promise<{ ok: boolean; alreadyThere?: boolean; reason?: string }> => ({ ok: true, alreadyThere: false }));
 jest.mock('@/src/sync/confianza/deviceKeys', () => ({
   registerDeviceKey: () => mockRegister(),
   verifyMyKeyRegistered: jest.fn(),
@@ -28,6 +28,8 @@ import { createStorage } from '@/src/utils/createStorage';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { ensureIdentity, ensureOwnerPledge, ensureWrapKeypair } from '@/src/store/identityStore';
+import { clockOffsetMs, recordServerTime } from '@/src/utils/syncedClock';
+import { supabaseAuthStorage } from '@/src/sync/sesion/relaySessionStorage';
 import { deviceId, readCursor, writeCursor } from '@/src/sync/motor/cursor';
 import { almacen } from '@/src/sync/adaptadores/hushsplit/almacen';
 import { estaPendienteDeDrenaje, limpiarPendienteDeDrenaje } from '@/src/sync/motor/pendingDrain';
@@ -55,6 +57,8 @@ beforeEach(() => {
   mockEscrituraTira = false;
   mockOpcionesEscritura.length = 0;
   mockRegister.mockClear();
+  mockRegister.mockImplementation(async () => ({ ok: true, alreadyThere: false }));
+  createSecureStorage('sbauth').clearAll();
   storage.clearAll();
   createStorage('sync-relay-core').clearAll();
   useAuthStore.setState({ currentUser: YO } as never);
@@ -160,29 +164,29 @@ describe('aplicarReinicioPendienteDeCuenta (T-250)', () => {
     await restaurar();
     expect(estaPendienteDeDrenaje('g1')).toBe(false);
 
-    aplicarReinicioPendienteDeCuenta();
+    await aplicarReinicioPendienteDeCuenta();
     expect(estaPendienteDeDrenaje('g1')).toBe(true);
     expect(mockRegister).toHaveBeenCalledTimes(1);
 
     limpiarPendienteDeDrenaje('g1');
-    aplicarReinicioPendienteDeCuenta();
+    await aplicarReinicioPendienteDeCuenta();
     expect(estaPendienteDeDrenaje('g1')).toBe(false);
     expect(mockRegister).toHaveBeenCalledTimes(1);
   });
 
   it('una segunda cuenta que entra después también recibe su reinicio', async () => {
     await restaurar();
-    aplicarReinicioPendienteDeCuenta();
+    await aplicarReinicioPendienteDeCuenta();
     useAuthStore.setState({ currentUser: { ...YO, id: 'otra' } } as never);
     useGroupKeyStore.setState({ keys: [{ groupId: 'g2', key: 'bb', epoch: 1 }] } as never);
-    aplicarReinicioPendienteDeCuenta();
+    await aplicarReinicioPendienteDeCuenta();
     expect(estaPendienteDeDrenaje('g2')).toBe(true);
   });
 
   it('sin regeneración previa no hace nada', async () => {
     poblarAparato();
     await verificarAparato();
-    aplicarReinicioPendienteDeCuenta();
+    await aplicarReinicioPendienteDeCuenta();
     expect(estaPendienteDeDrenaje('g1')).toBe(false);
     expect(mockRegister).not.toHaveBeenCalled();
   });
@@ -190,9 +194,60 @@ describe('aplicarReinicioPendienteDeCuenta (T-250)', () => {
   it('sin cuenta activa espera: no consume el reinicio', async () => {
     await restaurar();
     useAuthStore.setState({ currentUser: null } as never);
-    aplicarReinicioPendienteDeCuenta();
+    await aplicarReinicioPendienteDeCuenta();
     useAuthStore.setState({ currentUser: YO } as never);
-    aplicarReinicioPendienteDeCuenta();
+    await aplicarReinicioPendienteDeCuenta();
     expect(estaPendienteDeDrenaje('g1')).toBe(true);
+  });
+
+  it('M2: si el registro falla, no se da por aplicado: reintenta sin volver a marcar grupos', async () => {
+    await restaurar();
+    mockRegister.mockImplementation(async () => ({ ok: false, reason: 'no_session' }));
+    await aplicarReinicioPendienteDeCuenta();
+    expect(estaPendienteDeDrenaje('g1')).toBe(true);
+    limpiarPendienteDeDrenaje('g1'); // el drenaje ya terminó
+
+    mockRegister.mockImplementation(async () => ({ ok: true, alreadyThere: false }));
+    await aplicarReinicioPendienteDeCuenta();
+    expect(mockRegister).toHaveBeenCalledTimes(2);
+    expect(estaPendienteDeDrenaje('g1')).toBe(false); // no se re-marcó
+
+    await aplicarReinicioPendienteDeCuenta();
+    expect(mockRegister).toHaveBeenCalledTimes(2); // ya quedó aplicado
+  });
+
+  it('M2: un registro que tira tampoco lo da por aplicado', async () => {
+    await restaurar();
+    mockRegister.mockImplementation(async () => { throw new Error('red'); });
+    await aplicarReinicioPendienteDeCuenta();
+    mockRegister.mockImplementation(async () => ({ ok: true, alreadyThere: false }));
+    await aplicarReinicioPendienteDeCuenta();
+    expect(mockRegister).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('estado heredado del aparato original (T-250 M4/M5)', () => {
+  it('restaurado: descarta el desfase de reloj y la sesión del buzón heredados', async () => {
+    poblarAparato();
+    await verificarAparato();
+    recordServerTime(new Date(Date.now() + 90_000).toISOString(), Date.now());
+    supabaseAuthStorage().setItem('sb-token', 'refresh-del-original');
+    expect(clockOffsetMs()).not.toBe(0);
+    mockLlavero.clear();
+
+    await verificarAparato();
+
+    expect(clockOffsetMs()).toBe(0);
+    expect(supabaseAuthStorage().getItem('sb-token')).toBeNull();
+  });
+
+  it('normal / actualización: no tocan reloj ni sesión', async () => {
+    poblarAparato();
+    recordServerTime(new Date(Date.now() + 90_000).toISOString(), Date.now());
+    supabaseAuthStorage().setItem('sb-token', 'mi-refresh');
+    await verificarAparato(); // actualización
+    await verificarAparato(); // normal
+    expect(clockOffsetMs()).not.toBe(0);
+    expect(supabaseAuthStorage().getItem('sb-token')).toBe('mi-refresh');
   });
 });
