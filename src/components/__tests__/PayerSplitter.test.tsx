@@ -3,6 +3,16 @@ import { render, fireEvent } from '@testing-library/react-native';
 import { PayerSplitter } from '../PayerSplitter';
 import type { Payer } from '@/src/types/models';
 
+// El idioma activo varía por test: de él depende el separador de miles/decimal.
+let mockLanguage = 'es';
+jest.mock('react-i18next', () => ({
+  initReactI18next: { type: '3rdParty', init: jest.fn() },
+  useTranslation: () => ({
+    t: (key: string) => key,
+    i18n: { language: mockLanguage, changeLanguage: jest.fn() },
+  }),
+}));
+
 const members = [{ id: 'ua', name: 'Ana' }, { id: 'ub', name: 'Bob' }];
 
 function setup(value: Payer[], totalAmount = 10000) {
@@ -99,5 +109,45 @@ describe('PayerSplitter', () => {
       { userId: 'ua', amount: 6000 },
       { userId: 'ub', amount: 4000 },
     ]);
+  });
+
+  // Obs 3 de QA: mismos separadores y miles que el monto principal.
+  it.each([
+    ['es', '1.250,5',  125050],
+    ['es', '12.50',    1250],
+    ['es', '1.250',    125000],
+    ['en', '1,250.5',  125050],
+    ['en', '12,50',    1250],
+    ['en', '1,250',    125000],
+  ])('(%s) «%s» se lee como %i en menor unidad', (lang, texto, esperado) => {
+    mockLanguage = lang;
+    const { getAllByLabelText, onChange } = setup([]);
+
+    fireEvent.changeText(getAllByLabelText(/payers\.amount_for/)[0]!, texto);
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.arrayContaining([{ userId: 'ua', amount: esperado }]),
+    );
+    mockLanguage = 'es';
+  });
+
+  it('muestra el monto cargado con miles y separador del idioma', () => {
+    mockLanguage = 'es';
+    const { getAllByLabelText } = setup([{ userId: 'ua', amount: 125050 }]);
+    expect(getAllByLabelText(/payers\.amount_for/)[0]!.props.value).toBe('1.250,5');
+  });
+
+  it('un decimal recién tipeado no se pierde mientras se escribe', () => {
+    mockLanguage = 'es';
+    // Padre real: devuelve el valor nuevo, como hace la pantalla de gasto.
+    function Padre() {
+      const [value, setValue] = React.useState<Payer[]>([]);
+      return (
+        <PayerSplitter members={members} value={value} totalAmount={10000} currency="ARS" onChange={setValue} />
+      );
+    }
+    const { getAllByLabelText } = render(<Padre />);
+    fireEvent.changeText(getAllByLabelText(/payers\.amount_for/)[0]!, '12,');
+    expect(getAllByLabelText(/payers\.amount_for/)[0]!.props.value).toBe('12,');
   });
 });

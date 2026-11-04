@@ -1,13 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { UserAvatar } from './UserAvatar';
-import { formatMoney, minorFactor, type CurrencyCode } from '@/src/constants/currencies';
+import { formatMoney, minorFactor, parseMoney, type AppLang, type CurrencyCode } from '@/src/constants/currencies';
 import { validatePayers } from '@/src/algorithms/payers';
-import { MAX_MONTO_MENOR } from '@/src/hooks/sanitizeAmount';
+import { MAX_MONTO_MENOR, sanitizeTypedAmount } from '@/src/hooks/sanitizeAmount';
 import type { Payer } from '@/src/types/models';
 import { useColors } from '@/src/skins/useSkin';
 
@@ -30,7 +30,8 @@ export type PayerSplitterProps = {
 export function PayerSplitter({
   members, value, totalAmount, currency, onChange,
 }: PayerSplitterProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang: AppLang = i18n.language === 'en' || i18n.language === 'pt' ? i18n.language : 'es';
   const c = useColors();
 
   const amountOf = (userId: string) => value.find(p => p.userId === userId)?.amount ?? 0;
@@ -40,11 +41,23 @@ export function PayerSplitter({
   const contributing = value.filter(p => p.amount > 0);
   const validation = validatePayers(contributing, totalAmount);
 
-  function setAmount(userId: string, text: string) {
-    // El input es en unidades reales; el modelo guarda menor unidad.
-    const real = parseFloat(text.replace(',', '.'));
-    const minor = Number.isFinite(real) ? Math.round(real * minorFactor(currency)) : 0;
-    // T-254: mismo tope que los demás inputs de monto (cabe en un entero seguro).
+  // Texto que el usuario está tipeando por pagador: sin él, un decimal recién
+  // tipeado («12,») se perdería al volver a derivar el texto del monto.
+  const [textos, setTextos] = useState<Record<string, string>>({});
+
+  const textoDe = (userId: string): string => {
+    const amount = amountOf(userId);
+    const tipeado = textos[userId];
+    if (tipeado !== undefined && parseMoney(tipeado, currency, lang) === amount) return tipeado;
+    return amount > 0 ? sanitizeTypedAmount(String(amount / minorFactor(currency)), currency, lang) : '';
+  };
+
+  function setAmount(userId: string, raw: string) {
+    // Mismo pipeline que el monto principal (T-254): miles y ambos separadores.
+    const texto = sanitizeTypedAmount(raw, currency, lang, textos[userId]);
+    setTextos(prev => ({ ...prev, [userId]: texto }));
+    // Un monto negativo no existe: cuenta como 0, no como su valor absoluto.
+    const minor = /^\s*-/.test(raw) ? 0 : parseMoney(texto, currency, lang);
 
     const next = members.map(m => ({
       userId: m.id,
@@ -68,7 +81,7 @@ export function PayerSplitter({
           <TextInput
             accessibilityLabel={t('payers.amount_for', { name: m.name })}
             keyboardType="decimal-pad"
-            value={amountOf(m.id) > 0 ? String(amountOf(m.id) / minorFactor(currency)) : ''}
+            value={textoDe(m.id)}
             onChangeText={text => setAmount(m.id, text)}
             placeholder="0"
             placeholderTextColor={c.textTertiary}

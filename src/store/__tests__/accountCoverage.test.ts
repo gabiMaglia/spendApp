@@ -98,9 +98,10 @@ function importesDeSession(): Map<string, string[]> {
   return mapa;
 }
 
-/** El cuerpo de `rehydrateForActiveUser`, que es donde se suelta todo. */
+/** El cuerpo de `hidratarDatosDeCuentaActiva` (lo que corre `rehydrateForActiveUser`), donde se suelta todo. */
 function cuerpoRehidratacion(): string {
-  const inicio = SESSION.indexOf('function hidratarDatosDeCuentaActiva') // T-253: el cuerpo de hidratación se extrajo;
+  // T-253: el cuerpo de hidratación se extrajo a esta función.
+  const inicio = SESSION.indexOf('function hidratarDatosDeCuentaActiva');
   const fin = SESSION.indexOf('\n}', inicio);
   return SESSION.slice(inicio, fin);
 }
