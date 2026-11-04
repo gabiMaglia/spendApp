@@ -39,3 +39,16 @@ export function deviceId(): string {
   storage.set('device_id', id);
   return id;
 }
+
+/**
+ * T-250: este aparato resultó ser un clon/restauración de otro. Se descarta el
+ * `device_id` heredado (devuelve el nuevo) y TODOS los cursores: apuntaban a
+ * una cola leída por el aparato original; releer desde 0 es idempotente.
+ */
+export function reiniciarEstadoDeAparato(): string {
+  storage.delete('device_id');
+  for (const k of storage.getAllKeys()) {
+    if (k.startsWith(CURSOR_PREFIX)) storage.delete(k);
+  }
+  return deviceId();
+}

@@ -13,6 +13,7 @@ import 'react-native-get-random-values';
 
 import '@/src/i18n'; // inicializar i18next antes de cualquier render
 import { bootstrapSecureStorage, consumirAvisoDatosPerdidos } from '@/src/utils/secureStorage';
+import { verificarAparato } from '@/src/sync/sesion/aparatoClonado';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/src/constants/colors';
 import { syncAndroidNavigationBar } from '@/src/services/androidNavigationBar';
@@ -88,6 +89,11 @@ function AuthGuard() {
       if (consumirAvisoDatosPerdidos()) {
         Alert.alert(t('error.datos_perdidos_title'), t('error.datos_perdidos_body'));
       }
+      // T-250: ¿este MMKV es de OTRO aparato (clon / restaurado)? Va antes de
+      // hidratar y de arrancar el relay: nadie puede firmar ni publicar con el
+      // device_id heredado. No tira; llavero ilegible = reintenta mañana.
+      await verificarAparato();
+      if (!active) return;
       hydrate();                 // carga la sesión (cuál cuenta está activa)
       rehydrateForActiveUser();  // carga los datos SCOPEADOS de esa cuenta
 

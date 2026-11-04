@@ -124,6 +124,16 @@ export function destruirIdentidadDelAparato(): void {
   }
 }
 
+/**
+ * T-250: descarta firma, envoltura y prenda del buzón de un aparato que resultó
+ * ser un clon/restauración. A diferencia de `destruirIdentidadDelAparato` no
+ * toca invitaciones ni purga nada: el aparato original sigue vivo con las suyas
+ * y estas se regeneran solas (`ensure*`) en el próximo uso.
+ */
+export function olvidarIdentidadDelAparato(): void {
+  for (const k of [K_IDENTITY, K_OWNER, K_WRAP]) storage.delete(k);
+}
+
 export function saveInvite(invite: GroupInvite): void {
   const all = readScopedJson<GroupInvite[]>(K_INVITES, []);
   // Se purgan las vencidas al guardar: sin esto la lista crece para siempre.
