@@ -10,9 +10,10 @@ import { announce } from '@/src/services/notifications';
 import { deriveTopic } from '@/src/sync/nucleo/envelopeCrypto';
 import { fromHex } from '@/src/sync/nucleo/hexBytes';
 import { drainGroup, sigueSiendoLaClave } from './relaySync';
-import { limpiarPendienteDeDrenaje, generacionDePendiente } from './pendingDrain';
+import { limpiarPendienteDeDrenaje, generacionDePendiente, estaPendienteDeDrenaje } from './pendingDrain';
+import { estaPublicacionPendiente } from './publicacionPendiente';
 import { readCursor, writeCursor, deviceId } from './cursor';
-import { syncableGroupIds } from './agendaDePublicacion';
+import { syncableGroupIds, publishNow } from './agendaDePublicacion';
 
 /**
  * Drenaje (T-189): `drainNow` de un grupo, su debounce de avisos realtime, y
@@ -63,7 +64,13 @@ export async function drainNow(groupId: string): Promise<number> {
     // T-146: `drainGroup` no devuelve un cursor por encima de una rebanada fallida.
     writeCursor(topic, r.cursor);
     // T-089: sólo se limpia con el buzón leído hasta el final (`r.completo`).
-    if (r.completo) limpiarPendienteDeDrenaje(groupId);
+    if (r.completo) {
+      const estabaTrabado = estaPendienteDeDrenaje(groupId);
+      limpiarPendienteDeDrenaje(groupId);
+      // T-252: una publicación que `publishNow` cortó por `pending_drain` no se
+      // reprograma sola. Ahora que el buzón está leído, sale.
+      if (estabaTrabado && estaPublicacionPendiente(groupId)) void publishNow(groupId);
+    }
     // T-010: `antes` siempre está seteado si `r.applied > 0` (ver `antesDeAplicar`).
     if (r.applied > 0 && antes) void avisarDeLoNuevo(antes, userId);
     return r.applied;

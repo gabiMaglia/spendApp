@@ -6,8 +6,13 @@ import { useRecurringStore } from '@/src/store/recurringStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { usePersonalStore } from '@/src/store/personalStore';
 import { activeUserId } from '@/src/store/userScope';
+import { esYo } from '@/src/store/identityAlias';
 import { derivadosDelGrupo } from '@/src/algorithms/movimientosDerivados';
 import { marcarConTopic } from '@/src/sync/motor/pendingDrain';
+import {
+  marcarSalidaPendiente, limpiarSalidaPendiente, salidasPendientes,
+  estaPublicacionPendiente, limpiarPublicacionPendiente,
+} from '@/src/sync/motor/publicacionPendiente';
 import { olvidarOfertas } from '@/src/sync/invitaciones/groupKeyOffers';
 
 /**
@@ -44,25 +49,57 @@ import { olvidarOfertas } from '@/src/sync/invitaciones/groupKeyOffers';
 export async function salirDelGrupo(groupId: string, userId: string): Promise<void> {
   // 1 · el roster, y que la publicación salga de verdad antes de trabar nada.
   useGroupStore.getState().leaveGroup(groupId, userId);
+  // T-252: la salida queda anotada de forma persistente. Si no sale ahora (sin
+  // red), la copia local NO se purga —antes se purgaba igual y la salida, junto
+  // con todo lo no publicado, se perdía para siempre— y el motor reintenta y
+  // completa la salida cuando la publicación por fin sale.
+  marcarSalidaPendiente(groupId);
+
+  let salio = false;
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { publishNow } = require('@/src/sync/motor/relayEngine') as typeof import('@/src/sync/motor/relayEngine');
-    await publishNow(groupId);
-  } catch {
-    /**
-     * Sin red el grupo se entera más tarde… pero la copia local ya se purgó, así
-     * que **no hay “más tarde”**: este teléfono no va a poder republicar la
-     * salida. Es el costo declarado de que salir sea inmediato, y es el mismo
-     * que ya tiene el borrado de cuenta (T-074): el que se fue se fue, y los que
-     * quedan lo ven cuando alguno de ellos lo republique.
-     */
-  }
+    const r = await publishNow(groupId);
+    // `undefined` (dobles de test) cuenta como salida; el real siempre devuelve resultado.
+    salio = !r || r.ok;
+  } catch { /* queda pendiente: lo completa `completarSalidasPendientes` */ }
+
+  if (salio) await completarSalida(groupId);
+}
+
+/**
+ * Pasos 2 y 3 de la salida, ya con la publicación fuera: marcar y purgar.
+ * El usuario ve el grupo como «ya salí» desde el principio (el roster local ya
+ * lo dio de baja); lo único que se posterga es borrar la copia.
+ */
+async function completarSalida(groupId: string): Promise<void> {
+  limpiarSalidaPendiente(groupId);
 
   // 2 · desde acá, este grupo no publica hasta drenar.
   await marcarConTopic([groupId]);
 
   // 3 · la copia local.
   purgarGrupoLocalmente(groupId);
+  limpiarPublicacionPendiente(groupId);
+}
+
+/**
+ * T-252: completa las salidas cuya publicación salió después (reintento). Sin
+ * red: una salida se completa cuando el grupo ya no tiene publicación pendiente,
+ * o sea cuando el último estado —con la baja incluida— llegó al buzón.
+ */
+export async function completarSalidasPendientes(): Promise<void> {
+  for (const groupId of salidasPendientes()) {
+    const grupo = useGroupStore.getState().groups.find(g => g.id === groupId);
+    // Sin copia que purgar, o reingresó al grupo mientras la salida esperaba:
+    // purgar borraría la copia y la clave de un grupo del que vuelve a ser miembro.
+    if (!grupo || grupo.memberIds.some(esYo)) {
+      limpiarSalidaPendiente(groupId);
+      continue;
+    }
+    if (estaPublicacionPendiente(groupId)) continue;
+    await completarSalida(groupId);
+  }
 }
 
 /**

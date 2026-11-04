@@ -166,6 +166,8 @@ export const EXCLUIDOS_BACKUP: Record<string, string> = {
     'Bandeja de avisos: estado de lectura LOCAL a este dispositivo, no data que alguien quiera "restaurar" — un backup que resucita avisos ya leídos como no-leídos sería peor que no llevarlos. Decisión PO T-213.',
   'sync/motor/pendingDrain':
     'Marcas "este grupo todavía no drenó su buzón" (T-089): estado transitorio de ESTE aparato sincronizando, no data de la cuenta. Restaurar una marca vieja en otro teléfono no tiene sentido — el drenaje real depende del buzón, no de esta marca; y `applyBackup` ya corre `marcarConTopic` sobre TODOS los grupos del backup, que es el mecanismo que la vuelve a poner cuando hace falta.',
+  'sync/motor/publicacionPendiente':
+    'Cola de «este grupo tiene cambios sin publicar» y «esta salida no salió» (T-252): estado de ESTE aparato sincronizando. En otro teléfono no significa nada; `applyBackup` ya dispara una publicación de cada grupo restaurado.',
   'store/identityStore':
     'La parte de este módulo que pasa por `writeScoped` es invitaciones/joins EN CURSO de este aparato (`invites_v1`/`pending_joins_v1`/`contact_invites_v1`/`contact_pending_claims_v1`), no data durable de la cuenta — se reconstruye re-emitiendo o re-aceptando la invitación. Las claves privadas del dispositivo (`identity_v1`/`owner_secret_v1`/`wrapkeys_v1`) son harina de otro costal: no pasan por `writeScoped` (por eso ni siquiera están en `COBERTURA_FUSION`/`EXCLUIDOS_FUSION`) y un teléfono nuevo genera las suyas — nunca se exportan.',
   'store/userScope':

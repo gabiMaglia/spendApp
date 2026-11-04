@@ -12,11 +12,12 @@ import { verifyMyKeyRegistered } from '@/src/sync/confianza/deviceKeys';
 import { withTimeout } from '@/src/utils/withTimeout';
 import { deviceId } from './cursor';
 import { marcarCanal, olvidarCanal, startPolling, stopPolling } from './poll';
-import { syncableGroupIds, cancelPendingPublishes, reintentarPublicacionesConCuota } from './agendaDePublicacion';
+import { syncableGroupIds, cancelPendingPublishes, reintentarPublicacionesPendientes } from './agendaDePublicacion';
 import { drainNow, scheduleDrain, cancelPendingDrains, drainAll } from './agendaDeDrenaje';
 import { anunciarMiTarjeta, reenviarClavesDeGrupo, drainContactsNow } from '@/src/sync/contactos/motorDeContactos';
 import { subscribeInvites, subscribeContacts, crearOnInviteNews } from '@/src/sync/invitaciones/suscripciones';
 import { vaciarCola } from './relayQueue';
+import { ejecutarGanchoPostSync } from './ganchoPostSync';
 
 // ── API pública que sigue viviendo en esta ruta (13 importadores + 84 tests que la mockean) ──
 export { readCursor, writeCursor, olvidarCursor, deviceId } from './cursor';
@@ -114,6 +115,11 @@ async function arrancarCadenaDeSync(permitirCaptcha: boolean): Promise<void> {
   for (const groupId of adoptados) await drainNow(groupId);
 
   await reenviarClavesDeGrupo(adoptados);
+
+  // T-252: lo que quedó sin publicar en la sesión anterior (sin señal, app
+  // muerta dentro del debounce). Va DESPUÉS de drenar: guarda de T-089.
+  await reintentarPublicacionesPendientes();
+  await ejecutarGanchoPostSync();
 }
 
 /**
@@ -138,7 +144,8 @@ async function releerTodo(): Promise<void> {
       await drainContactsNow(startRelay);
       await drainAll();
       await processAllContactInvites(deviceId());
-      await reintentarPublicacionesConCuota();
+      await reintentarPublicacionesPendientes();
+      await ejecutarGanchoPostSync();
     } catch { /* offline: se reintenta en la próxima vuelta */ }
   })(), STARTUP_TIMEOUT_MS, undefined);
 }
