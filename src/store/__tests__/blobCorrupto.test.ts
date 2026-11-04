@@ -73,3 +73,19 @@ describe('hydrate — respaldo del blob corrupto (T-264)', () => {
     expect(listErrors()).toEqual([]);
   });
 });
+
+describe('respaldo con el scope congelado (T-265)', () => {
+  it('no escribe el respaldo de una cuenta que se está borrando', () => {
+    const { respaldarCrudo, congelarScope, liberarScope } = jest.requireActual('@/src/store/userScope');
+    const { useAuthStore } = jest.requireActual('@/src/store/authStore');
+    useAuthStore.setState({ currentUser: { id: 'uc' } });
+    const mem = new Map<string, string>();
+    const storage = { getString: (k: string) => mem.get(k), set: (k: string, v: string) => { mem.set(k, v); } };
+    congelarScope('uc');
+    respaldarCrudo(storage, 'expenses', '{roto');
+    expect([...mem.keys()]).toEqual([]);
+    liberarScope('uc');
+    respaldarCrudo(storage, 'expenses', '{roto');
+    expect([...mem.keys()]).toHaveLength(1);
+  });
+});

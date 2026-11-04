@@ -188,7 +188,7 @@ export function readScopedBool(storage: SimpleStorage, base: string, def: boolea
  */
 export function respaldarCrudo(storage: SimpleStorage, base: string, raw: string): void {
   const uid = activeUserId();
-  if (!uid) return;
+  if (!uid || scopeCongelado(uid)) return;
   const key = scopedKey(`${base}.corrupto`, uid);
   if (storage.getString(key) !== undefined) return;
   storage.set(key, raw);
