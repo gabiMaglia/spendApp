@@ -79,9 +79,13 @@ describe('el núcleo sigue mandando por rev, no por fecha', () => {
 });
 
 describe('mergeByIdLevels con ids nuevos', () => {
-  it('un registro nuevo con updatedAt envenenado no se agrega', () => {
+  // T-268: antes un id nuevo con reloj adelantado se descartaba y la rebanada
+  // igual quedaba «aplicada»: el gasto no llegaba nunca. Ahora entra acotado.
+  it('un registro nuevo con updatedAt envenenado entra con la estampa acotada a now', () => {
     const nuevo = { ...gastoDeAna, id: 'e2', updatedAt: 9e15 };
-    expect(mergeByIdLevels('expense', [gastoDeAna], [nuevo], NOW)).toHaveLength(1);
+    const out = mergeByIdLevels('expense', [gastoDeAna], [nuevo], NOW);
+    expect(out).toHaveLength(2);
+    expect(out[1]!.updatedAt).toBe(NOW);
   });
 
   it('el mismo registro con updatedAt plausible sí', () => {

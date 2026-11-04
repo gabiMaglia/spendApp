@@ -48,3 +48,20 @@ export function siguienteUpdatedAt(previo: number | undefined, now: number): num
   if (previo === undefined || envenenado(previo, now)) return now;
   return Math.max(now, previo + 1);
 }
+
+/**
+ * La estampa con la que ENTRA un registro de id nuevo (T-268).
+ *
+ * Descartarlo era peor que aceptarlo: la rebanada quedaba registrada como
+ * aplicada, el cursor avanzaba y el registro no llegaba nunca (el autor con el
+ * reloj adelantado ni se enteraba). Aceptarlo acotado a `now` es seguro porque
+ * `updatedAt` está fuera de la firma y vale lo mismo que una escritura de
+ * ahora: ninguna edición honesta posterior queda por debajo (a diferencia de
+ * `9e15`, que ganaba para siempre) y un re-envío con la estampa vieja no pisa
+ * al ya acotado (sigue envenenado para el camino de ids existentes).
+ * Devuelve `null` si no es un número finito: ahí no hay nada que acotar.
+ */
+export function estampaDeIngreso(updatedAt: unknown, now: number): number | null {
+  if (typeof updatedAt !== 'number' || !Number.isFinite(updatedAt)) return null;
+  return updatedAt > now + TOLERANCIA_RELOJ_MS ? now : updatedAt;
+}
