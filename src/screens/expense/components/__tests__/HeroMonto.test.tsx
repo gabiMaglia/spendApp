@@ -24,3 +24,12 @@ describe('moneda del héroe Clásico (T-255)', () => {
     expect(onCurrencyChange).toHaveBeenCalledWith('CLP');
   });
 });
+
+describe('monto con centavos en una moneda sin decimales (T-258)', () => {
+  it('muestra el aviso sólo cuando corresponde', () => {
+    const { rerender } = render(<HeroMonto {...base} currency="CLP" value="12,50" sinDecimales />);
+    expect(screen.getByTestId('amount-no-decimals')).toBeTruthy();
+    rerender(<HeroMonto {...base} currency="CLP" value="12" />);
+    expect(screen.queryByTestId('amount-no-decimals')).toBeNull();
+  });
+});

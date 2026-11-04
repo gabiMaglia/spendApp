@@ -25,7 +25,30 @@ function formatForEditing(minor: number, code: CurrencyCode, lang: AppLang): str
   return getCachedNumberFormat(EDIT_LOCALE[lang], decimals).format(value);
 }
 
+const decimalDe = (lang: AppLang) => (lang === 'en' ? '.' : ',');
+
+/** Parte del texto que sigue al decimal del idioma, solo si la moneda no admite decimales. */
+function fraccionSobrante(text: string, code: CurrencyCode, lang: AppLang): string {
+  if (getCurrency(code).decimals !== 0) return '';
+  const i = text.lastIndexOf(decimalDe(lang));
+  return i === -1 ? '' : text.slice(i + 1).replace(/\D/g, '');
+}
+
+/** CLP/PYG con centavos distintos de cero: no hay valor exacto que guardar. */
+function tieneFraccion(text: string, code: CurrencyCode, lang: AppLang): boolean {
+  return /[1-9]/.test(fraccionSobrante(text, code, lang));
+}
+
+/** Para monedas sin decimales, el texto sin «,50» (los ceros «12,00» valen 12 exacto). */
+function textoSinFraccion(text: string, code: CurrencyCode, lang: AppLang): string {
+  if (getCurrency(code).decimals !== 0) return text;
+  const i = text.lastIndexOf(decimalDe(lang));
+  return i === -1 ? text : text.slice(0, i);
+}
+
 export interface UseAmountInputResult {
+  /** La moneda no usa decimales y el texto los trae: el monto no se puede guardar así (T-258). */
+  decimalesNoAdmitidos: boolean;
   /** Texto crudo a mostrar en el TextInput (NO reformatear en cada tecla — F-16b.4). */
   text: string;
   /** Valor canónico — SIEMPRE entero en menor unidad. Es lo único que se persiste. */
@@ -52,33 +75,33 @@ export function useAmountInput(code: CurrencyCode, initialMinor = 0): UseAmountI
     initialMinor ? formatForEditing(initialMinor, code, lang) : '',
   );
 
-  // T-255: si la moneda cambia con un monto tipeado, se conserva el VALOR y se
-  // re-expresa en los decimales de la nueva (ARS 12,50 → CLP 13). Se ajusta
-  // durante el render, así nunca se pinta el texto viejo bajo la moneda nueva.
-  const [codePrevio, setCodePrevio] = useState(code);
-  if (codePrevio !== code) {
-    setCodePrevio(code);
-    if (text) {
-      const valor = parseMoney(text, codePrevio, lang) / (10 ** getCurrency(codePrevio).decimals);
-      const nuevo = Math.round(valor * (10 ** getCurrency(code).decimals));
-      setText(nuevo ? formatForEditing(nuevo, code, lang) : '');
-    }
-  }
+  // T-258: al cambiar de moneda el texto NO se toca (nada de redondear lo que
+  // el usuario escribió). Si la moneda nueva no tiene decimales y el texto los
+  // trae, se avisa (`decimalesNoAdmitidos`) y la pantalla no deja guardar.
+  const decimalesNoAdmitidos = tieneFraccion(text, code, lang);
 
   const onChangeText = useCallback((raw: string) => {
-    setText(prev => sanitizeTypedAmount(raw, code, lang, prev));
+    setText(prev => {
+      // Corrigiendo un monto con centavos en CLP/PYG: borrar un carácter no puede
+      // pegar los dígitos ("12,50" → "12,5" → "125"), así que se sanea como una
+      // moneda con decimales hasta que no queden.
+      const corrigiendo = getCurrency(code).decimals === 0
+        && tieneFraccion(prev, code, lang) && raw.length < prev.length;
+      return sanitizeTypedAmount(raw, corrigiendo ? 'USD' : code, lang, prev);
+    });
   }, [code, lang]);
 
   const onBlur = useCallback(() => {
+    if (decimalesNoAdmitidos) return; // reformatear acá redondearía el monto
     const minor = parseMoney(text, code, lang);
     setText(minor === 0 ? '' : formatForEditing(minor, code, lang));
-  }, [text, code, lang]);
+  }, [text, code, lang, decimalesNoAdmitidos]);
 
   const setMinor = useCallback((minor: number) => {
     setText(minor ? formatForEditing(minor, code, lang) : '');
   }, [code, lang]);
 
-  const minor = parseMoney(text, code, lang);
+  const minor = parseMoney(textoSinFraccion(text, code, lang), code, lang);
 
-  return { text, minor, onChangeText, onBlur, setMinor };
+  return { text, minor, decimalesNoAdmitidos, onChangeText, onBlur, setMinor };
 }

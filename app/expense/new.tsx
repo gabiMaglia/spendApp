@@ -86,7 +86,7 @@ export default function NewExpenseScreen() {
     groupId, groups.find(g => g.id === groupId)?.currency,
   );
   const {
-    text: amountStr, minor: amount, onChangeText: setAmountStr, onBlur: onAmountBlur, setMinor: setAmountMinor,
+    text: amountStr, minor: amount, decimalesNoAdmitidos, onChangeText: setAmountStr, onBlur: onAmountBlur, setMinor: setAmountMinor,
   } = useAmountInput(currency, existingExpense?.amount ?? 0);
   const [payerId, setPayerId] = useState(existingExpense?.paidById ?? currentUser?.id ?? '');
   const [date, setDate] = useState(existingExpense ? new Date(existingExpense.date) : new Date());
@@ -131,7 +131,7 @@ export default function NewExpenseScreen() {
   // Con varios pagadores la suma tiene que dar EXACTA contra el total: son
   // enteros en menor unidad (ADR-002), no hay redondeo que perdonar.
   const payersOk = !multiPayer || validatePayers(payers.filter(p => p.amount > 0), amount).ok;
-  const canSave = description.trim().length > 0 && amount > 0 && !reparto.percentError
+  const canSave = description.trim().length > 0 && amount > 0 && !decimalesNoAdmitidos && !reparto.percentError
     && (!hasGroup || members.length > 0) && payersOk && !grupoArchivado && !grupoBloqueadoPorLimite;
 
   const guardar = useGuardarGasto({
@@ -240,6 +240,7 @@ export default function NewExpenseScreen() {
                 amount={amountStr}
                 onAmountChange={setAmountStr}
                 onAmountBlur={onAmountBlur}
+                sinDecimales={decimalesNoAdmitidos}
               />
               {!isIncome && <GrillaCategorias value={category} onChange={setCategory} />}
               {hasGroup && (
@@ -260,6 +261,7 @@ export default function NewExpenseScreen() {
                 value={amountStr}
                 onChangeText={setAmountStr}
                 onBlur={onAmountBlur}
+                sinDecimales={decimalesNoAdmitidos}
                 incomeAllowed={incomeAllowed}
                 isIncome={isIncome}
                 onKindChange={switchEntryKind}

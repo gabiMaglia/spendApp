@@ -263,37 +263,108 @@ describe('agrupacion de miles al tipear', () => {
     expect(result.current.minor).toBe(1500);
   });
 
-  describe('cambio de moneda con un monto ya tipeado (T-255)', () => {
-    it('ARS 12,50 → CLP queda en 13 (sin decimales, redondea)', () => {
-      const { result, rerender } = renderHook(
-        ({ code }: { code: CurrencyCode }) => useAmountInput(code),
-        { initialProps: { code: 'ARS' as CurrencyCode } },
-      );
+  describe('cambio de moneda con un monto ya tipeado (T-258: el texto no se toca)', () => {
+    beforeEach(() => { mockLanguage = 'es'; });
+
+    const montar = (code: CurrencyCode, initialMinor = 0) => renderHook(
+      ({ code }: { code: CurrencyCode }) => useAmountInput(code, initialMinor),
+      { initialProps: { code } },
+    );
+
+    it('ARS 12,50 → USD: el texto sigue 12,50 y el minor es 1250', () => {
+      const { result, rerender } = montar('ARS');
       act(() => result.current.onChangeText('12,50'));
-      rerender({ code: 'CLP' });
-      expect(result.current.minor).toBe(13);
-      expect(result.current.text).not.toMatch(/,/);
+      rerender({ code: 'USD' });
+      expect(result.current.text).toBe('12,50');
+      expect(result.current.minor).toBe(1250);
+      expect(result.current.decimalesNoAdmitidos).toBe(false);
     });
 
-    it('CLP → ARS conserva el valor y vuelve a admitir decimales', () => {
-      const { result, rerender } = renderHook(
-        ({ code }: { code: CurrencyCode }) => useAmountInput(code),
-        { initialProps: { code: 'CLP' as CurrencyCode } },
-      );
-      act(() => result.current.onChangeText('1500'));
+    it('ARS 12,50 → CLP: el texto queda tal cual, marca el error y se puede corregir', () => {
+      const { result, rerender } = montar('ARS');
+      act(() => result.current.onChangeText('12,50'));
+      rerender({ code: 'CLP' });
+      expect(result.current.text).toBe('12,50');
+      expect(result.current.decimalesNoAdmitidos).toBe(true);
+      // Borrar el «0» y luego el «5» no pega los dígitos: sigue siendo 12,5 y después 12,.
+      act(() => result.current.onChangeText('12,5'));
+      expect(result.current.text).toBe('12,5');
+      act(() => result.current.onChangeText('12,'));
+      expect(result.current.decimalesNoAdmitidos).toBe(false);
+      act(() => result.current.onChangeText('12'));
+      expect(result.current.text).toBe('12');
+      expect(result.current.minor).toBe(12);
+      expect(result.current.decimalesNoAdmitidos).toBe(false);
+    });
+
+    it('el error también se va al volver a una moneda con decimales', () => {
+      const { result, rerender } = montar('ARS');
+      act(() => result.current.onChangeText('12,50'));
+      rerender({ code: 'CLP' });
+      expect(result.current.decimalesNoAdmitidos).toBe(true);
       rerender({ code: 'ARS' });
+      expect(result.current.decimalesNoAdmitidos).toBe(false);
+      expect(result.current.minor).toBe(1250);
+    });
+
+    it('con decimales en cero («12,00») no hay error: el valor es exacto', () => {
+      const { result, rerender } = montar('ARS');
+      act(() => result.current.onChangeText('12,00'));
+      rerender({ code: 'CLP' });
+      expect(result.current.decimalesNoAdmitidos).toBe(false);
+      expect(result.current.minor).toBe(12);
+    });
+
+    it('en CLP sigue bloqueado el separador decimal al tipear', () => {
+      const { result } = montar('CLP');
+      act(() => result.current.onChangeText('12,5'));
+      expect(result.current.text).toBe('125');
+    });
+
+    it('CLP 1.500 → ARS: el texto sigue 1.500 y el minor es 150000', () => {
+      const { result, rerender } = montar('CLP');
+      act(() => result.current.onChangeText('1500'));
+      expect(result.current.text).toBe('1.500');
+      rerender({ code: 'ARS' });
+      expect(result.current.text).toBe('1.500');
       expect(result.current.minor).toBe(150000);
-      act(() => result.current.onChangeText('1500,5'));
+      act(() => result.current.onChangeText('1.500,5'));
       expect(result.current.minor).toBe(150050);
     });
 
+    it('en inglés: USD 12.50 → CLP marca error y 12 → minor 12', () => {
+      mockLanguage = 'en';
+      const { result, rerender } = montar('USD');
+      act(() => result.current.onChangeText('12.50'));
+      rerender({ code: 'CLP' });
+      expect(result.current.text).toBe('12.50');
+      expect(result.current.decimalesNoAdmitidos).toBe(true);
+      act(() => result.current.onChangeText('12'));
+      expect(result.current.minor).toBe(12);
+    });
+
+    it('el blur con el error activo no reescribe el texto', () => {
+      const { result, rerender } = montar('ARS');
+      act(() => result.current.onChangeText('12,50'));
+      rerender({ code: 'CLP' });
+      act(() => result.current.onBlur());
+      expect(result.current.text).toBe('12,50');
+    });
+
     it('con el campo vacío no inventa un monto', () => {
-      const { result, rerender } = renderHook(
-        ({ code }: { code: CurrencyCode }) => useAmountInput(code),
-        { initialProps: { code: 'ARS' as CurrencyCode } },
-      );
+      const { result, rerender } = montar('ARS');
       rerender({ code: 'CLP' });
       expect(result.current.text).toBe('');
+      expect(result.current.decimalesNoAdmitidos).toBe(false);
+    });
+
+    it('editar un gasto existente no cambia el monto ni en el primer render ni al re-renderizar', () => {
+      const { result, rerender } = montar('ARS', 123456);
+      expect(result.current.minor).toBe(123456);
+      expect(result.current.text).toBe('1.234,56');
+      rerender({ code: 'ARS' });
+      expect(result.current.minor).toBe(123456);
+      expect(result.current.text).toBe('1.234,56');
     });
   });
 });

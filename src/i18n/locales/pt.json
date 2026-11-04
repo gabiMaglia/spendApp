@@ -260,7 +260,8 @@
     "phrase_each": "{{amount}} cada · {{count}} pessoas",
     "phrase_between": "Entre {{count}} pessoas",
     "receipt_camera": "Fotografar o recibo",
-    "receipt_file": "Anexar arquivo"
+    "receipt_file": "Anexar arquivo",
+    "no_decimals": "O {{currency}} não usa decimais"
   },
   "settle": {
     "title": "Registrar pagamento",
@@ -714,5 +715,16 @@
     "skip": "Continuar sem verificar",
     "relogin": "Entre novamente",
     "other_account": "Essa é uma conta diferente da que já estava ativa neste aparelho. Entre com a conta correta."
+  },
+  "currency_names": {
+    "USD": "dólar americano",
+    "EUR": "euro",
+    "ARS": "peso argentino",
+    "BRL": "real brasileiro",
+    "CLP": "peso chileno",
+    "BOB": "boliviano",
+    "PYG": "guarani paraguaio",
+    "UYU": "peso uruguaio",
+    "PEN": "sol peruano"
   }
 }
