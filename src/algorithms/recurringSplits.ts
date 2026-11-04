@@ -16,8 +16,25 @@ import type { RecurringExpense, Split } from '@/src/types/models';
  * total. Acepta los % de todos o de todos menos el último (éste se ignora).
  */
 export function splitsPorPorcentajes(amount: number, memberIds: string[], percents: number[]): Split[] {
-  const firstAmounts = percents.slice(0, Math.max(memberIds.length - 1, 0)).map(pct => Math.round(amount * pct / 100));
-  return buildSplits(amount, memberIds, 'custom', firstAmounts);
+  const n = memberIds.length;
+  const firstPercents = percents.slice(0, Math.max(n - 1, 0));
+  const firstAmounts = firstPercents.map(pct => Math.round(amount * pct / 100));
+  const splits = buildSplits(amount, memberIds, 'custom', firstAmounts);
+  if (n < 2) return splits;
+
+  // Con el último en 0% (o si el redondeo de los demás se pasa del total) el
+  // «resto» daba una parte negativa o un centavo a quien no le toca nada. El
+  // desvío cae en el miembro con mayor % > 0 (el primero si empatan).
+  const lastPercent = 100 - firstPercents.reduce((a, b) => a + b, 0);
+  const last = splits[n - 1];
+  if (lastPercent > 1e-9 && last.amount >= 0) return splits;
+
+  let receptor = -1;
+  firstPercents.forEach((pct, i) => { if (pct > 0 && (receptor < 0 || pct > firstPercents[receptor])) receptor = i; });
+  if (receptor < 0) return splits;
+  return splits.map((s, i) =>
+    i === n - 1 ? { ...s, amount: 0 } : i === receptor ? { ...s, amount: s.amount + last.amount } : s,
+  );
 }
 
 /** Los % que la plantilla guarda en `splitValues`: uno por miembro, en orden. */
