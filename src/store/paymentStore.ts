@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { readScoped, writeScopedLazy } from './userScope';
+import { leerBlobArreglo } from './leerBlob';
 import { mergeByIdLevels } from './mergeLevels';
 import { siguienteUpdatedAt } from './relojDelMerge';
 import { signOnCreate, signOnEdit } from '@/src/sync/confianza/signOnWrite';
@@ -82,12 +83,7 @@ export const usePaymentStore = create<PaymentStoreState>((set, get) => ({
     // (app/_layout.tsx) y una excepción deja isLoading en true para siempre,
     // trabando la pantalla de carga sin salida. Ya pasó con la sesión (T-020);
     // estos stores habían quedado sin la misma protección.
-    let payments: Payment[] = [];
-    try {
-      payments = raw ? (JSON.parse(raw) as Payment[]) : [];
-    } catch {
-      payments = [];
-    }
+    let payments: Payment[] = leerBlobArreglo<Payment>(storage, KEY, raw);
 
     // Conversión one-shot de datos existentes (float → entero, ADR-002 §6).
     if (!storage.getBoolean(MONEY_MIGRATION_KEY)) {

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { readScoped, writeScopedLazy } from './userScope';
+import { leerBlobArreglo } from './leerBlob';
 import { mergeByIdLevels } from './mergeLevels';
 import { siguienteUpdatedAt } from './relojDelMerge';
 import { signOnCreate, signOnEdit } from '@/src/sync/confianza/signOnWrite';
@@ -84,12 +85,7 @@ export const useRecurringStore = create<RecurringStoreState>((set, get) => ({
 
   hydrate: () => {
     const raw = readScoped(storage, KEY);
-    let recurring: RecurringExpense[] = [];
-    try {
-      recurring = raw ? (JSON.parse(raw) as RecurringExpense[]) : [];
-    } catch {
-      recurring = []; // dato corrupto: se arranca vacío en vez de tirar
-    }
+    let recurring: RecurringExpense[] = leerBlobArreglo<RecurringExpense>(storage, KEY, raw);
     set({ recurring, isLoading: false });
   },
 }));

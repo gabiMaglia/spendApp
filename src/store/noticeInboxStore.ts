@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { readScoped, writeScopedLazy } from './userScope';
+import { leerBlobArreglo } from './leerBlob';
 import type { Notice } from '@/src/services/syncNotices';
 
 /**
@@ -132,13 +133,7 @@ export function createNoticeInboxStore() {
 
       hydrate: () => {
         const raw = readScoped(storage, KEY);
-        if (!raw) { set({ items: [] }); return; }
-        try {
-          const v = JSON.parse(raw);
-          set({ items: Array.isArray(v) ? (v as StoredNotice[]) : [] });
-        } catch {
-          set({ items: [] }); // bandeja corrupta: se ignora, no tumba el arranque
-        }
+        set({ items: leerBlobArreglo<StoredNotice>(storage, KEY, raw) });
       },
 
       clear: () => { persist([]); set({ items: [] }); },
