@@ -7,6 +7,7 @@ import { salirDelGrupo, completarSalidasPendientes } from '@/src/services/salirD
 import {
   salidasPendientes, estaPublicacionPendiente, limpiarPublicacionPendiente, marcarPublicacionPendiente,
 } from '@/src/sync/motor/publicacionPendiente';
+import { conAlta } from '@/src/algorithms/roster';
 import type { User } from '@/src/types/models';
 
 const mockPublishNow = jest.fn();
@@ -78,6 +79,27 @@ describe('salirDelGrupo', () => {
 
     expect(useGroupStore.getState().groups).toEqual([]);
     expect(useGroupKeyStore.getState().keys).toEqual([]);
+    expect(salidasPendientes()).toEqual([]);
+  });
+
+  it('si reingresó al grupo antes de que salga la publicación, NO se purga y la salida se descarta', async () => {
+    mockPublishNow.mockResolvedValue({ ok: false, reason: 'network' });
+    await salirDelGrupo('G', 'yo');
+    marcarPublicacionPendiente('G');
+    expect(useGroupStore.getState().groups[0].memberIds).not.toContain('yo');
+
+    // vuelve a ser miembro activo
+    useGroupStore.setState(s => ({
+      groups: s.groups.map(g => conAlta(g, 'yo', 10_000)),
+    }));
+    expect(useGroupStore.getState().groups[0].memberIds).toContain('yo');
+    limpiarPublicacionPendiente('G');
+
+    await completarSalidasPendientes();
+
+    expect(useGroupStore.getState().groups).toHaveLength(1);
+    expect(useGroupKeyStore.getState().keys.map(k => k.groupId)).toEqual(['G']);
+    expect(useExpenseStore.getState().expenses).toHaveLength(1);
     expect(salidasPendientes()).toEqual([]);
   });
 });

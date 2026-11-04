@@ -6,6 +6,7 @@ import { useRecurringStore } from '@/src/store/recurringStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { usePersonalStore } from '@/src/store/personalStore';
 import { activeUserId } from '@/src/store/userScope';
+import { esYo } from '@/src/store/identityAlias';
 import { derivadosDelGrupo } from '@/src/algorithms/movimientosDerivados';
 import { marcarConTopic } from '@/src/sync/motor/pendingDrain';
 import {
@@ -89,8 +90,11 @@ async function completarSalida(groupId: string): Promise<void> {
  */
 export async function completarSalidasPendientes(): Promise<void> {
   for (const groupId of salidasPendientes()) {
-    if (!useGroupStore.getState().groups.some(g => g.id === groupId)) {
-      limpiarSalidaPendiente(groupId); // ya no hay copia que purgar
+    const grupo = useGroupStore.getState().groups.find(g => g.id === groupId);
+    // Sin copia que purgar, o reingresó al grupo mientras la salida esperaba:
+    // purgar borraría la copia y la clave de un grupo del que vuelve a ser miembro.
+    if (!grupo || grupo.memberIds.some(esYo)) {
+      limpiarSalidaPendiente(groupId);
       continue;
     }
     if (estaPublicacionPendiente(groupId)) continue;
