@@ -9,8 +9,7 @@ import { useSkinTokens } from '@/src/skins/useSkin';
 import { BandRow } from '@/src/components/Band';
 import { formatMoney } from '@/src/constants/currencies';
 import type { PersonalEntry } from '@/src/types/models';
-import { isEditable } from '@/src/algorithms/entryOrigin';
-import { esDelMesCorriente } from '@/src/screens/personal/utils/mesCorriente';
+import { motivoDeBloqueo } from '@/src/screens/personal/utils/bloqueoDeEntrada';
 import { useUserStore } from '@/src/store/userStore';
 import i18n from '@/src/i18n';
 
@@ -37,7 +36,8 @@ export const EntryRow = React.memo(function EntryRow({
   const isCarryover = entry.kind === 'carryover';
   const isPositive  = entry.kind === 'income' || entry.kind === 'payment_in'
     || (isCarryover && entry.isPositiveCarryover === true);
-  const isReadOnly  = !isEditable(entry);
+  // Derivadas y entradas de un mes cerrado: candado, sin edición ni tachito.
+  const isReadOnly  = motivoDeBloqueo(entry) !== null;
   // T-229: los pagos se nombran por la contraparte, que no se guarda como texto.
   const nombre = useUserStore(s => (entry.counterpartId ? s.getUserName(entry.counterpartId) : ''));
   const dateLabel   = new Date(entry.date).toLocaleDateString(i18n.language, { day: 'numeric', month: 'short' });
@@ -52,7 +52,7 @@ export const EntryRow = React.memo(function EntryRow({
 
   // T-257: las manuales del mes corriente abren la edición; las derivadas se
   // corrigen en su origen y un mes cerrado ya arrastró su saldo (PO 2026-11-04).
-  const abrirEdicion = isReadOnly || !esDelMesCorriente(entry.date) ? undefined : () =>
+  const abrirEdicion = isReadOnly ? undefined : () =>
     router.push({ pathname: '/expense/new', params: { personalEntryId: entry.id } });
 
   return (

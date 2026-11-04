@@ -328,6 +328,7 @@ export default function NewExpenseScreen() {
         onPayerChange={setPayerId}
         date={date}
         onDateChange={setDate}
+        soloMesCorriente={!hasGroup}
         note={note}
         onNoteChange={setNote}
       />

@@ -18,7 +18,7 @@ export function HojasDeGasto({
   abierta, onClose, isEditMode,
   groups, groupId, onGroupChange,
   members, payerId, onPayerChange,
-  date, onDateChange,
+  date, onDateChange, soloMesCorriente = false,
   note, onNoteChange,
 }: {
   abierta: HojaAbierta;
@@ -32,6 +32,8 @@ export function HojasDeGasto({
   onPayerChange: (id: string) => void;
   date: Date;
   onDateChange: (d: Date) => void;
+  /** Gasto personal: un mes cerrado ya arrastró su saldo (T-259). */
+  soloMesCorriente?: boolean;
   note: string;
   onNoteChange: (v: string) => void;
 }) {
@@ -77,10 +79,7 @@ export function HojasDeGasto({
       </BottomSheet>
 
       <BottomSheet visible={abierta === 'fecha'} onClose={onClose} title={t('expense.expense_date')}>
-        {Array.from({ length: 7 }, (_, i) => {
-          const d = new Date();
-          d.setDate(d.getDate() - i);
-          d.setHours(12, 0, 0, 0);
+        {diasElegibles(soloMesCorriente).map((d, i, dias) => {
           const label   = formatDate(d);
           const longFmt = i > 1 ? d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' }) : undefined;
           const isSel   = formatDate(date) === label;
@@ -92,7 +91,7 @@ export function HojasDeGasto({
               sublabel={longFmt}
               selected={isSel}
               onPress={() => { onDateChange(d); onClose(); }}
-              last={i === 6}
+              last={i === dias.length - 1}
             />
           );
         })}
@@ -116,4 +115,14 @@ export function HojasDeGasto({
       </BottomSheet>
     </>
   );
+}
+
+/** Los últimos 7 días, a mediodía; con `soloMesCorriente`, sin salir del mes. */
+export function diasElegibles(soloMesCorriente: boolean, ahora: Date = new Date()): Date[] {
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(ahora);
+    d.setDate(d.getDate() - i);
+    d.setHours(12, 0, 0, 0);
+    return d;
+  }).filter(d => !soloMesCorriente || d.getMonth() === ahora.getMonth());
 }
