@@ -3,7 +3,7 @@ import { Alert } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { usePersonalStore } from '@/src/store/personalStore';
-import { reasonKey } from '@/src/algorithms/entryOrigin';
+import { motivoDeBloqueo } from '@/src/screens/personal/utils/bloqueoDeEntrada';
 import { hapticWarning } from '@/src/utils/haptics';
 import type { PersonalEntry } from '@/src/types/models';
 
@@ -17,7 +17,7 @@ export function useRemoveEntry(): (entry: PersonalEntry) => void {
   const removeEntry = usePersonalStore(s => s.removeEntry);
 
   return useCallback((entry: PersonalEntry) => {
-    const motivo = reasonKey(entry);
+    const motivo = motivoDeBloqueo(entry);
     if (motivo) {
       hapticWarning();
       Alert.alert(t('personal.locked_title'), t(motivo));

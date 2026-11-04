@@ -1,6 +1,5 @@
 import { usePersonalStore } from '@/src/store/personalStore';
-import { isEditable } from '@/src/algorithms/entryOrigin';
-import { esDelMesCorriente } from '@/src/screens/personal/utils/mesCorriente';
+import { motivoDeBloqueo } from '@/src/screens/personal/utils/bloqueoDeEntrada';
 import type { CurrencyCode } from '@/src/constants/currencies';
 import type { PersonalCategory } from '@/src/types/models';
 
@@ -27,7 +26,7 @@ export function useEntradaPersonalEnEdicion(personalEntryId: string | undefined)
   const found = usePersonalStore(s =>
     personalEntryId ? s.entries.find(e => e.id === personalEntryId && !e.isDeleted) : undefined,
   );
-  if (!found || !isEditable(found) || !esDelMesCorriente(found.date)) return { inicial: undefined, editing: false };
+  if (!found || motivoDeBloqueo(found) !== null) return { inicial: undefined, editing: false };
   return {
     editing: true,
     inicial: {

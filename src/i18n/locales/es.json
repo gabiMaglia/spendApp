@@ -510,6 +510,7 @@
     "locked_from_group": "Viene de un gasto de grupo: se edita allá",
     "locked_derived": "Se generó solo, no se edita",
     "locked_title": "No se puede editar",
+    "locked_closed_month": "Es de un mes cerrado: sólo se tocan los movimientos del mes en curso",
     "movements_title": "MOVIMIENTOS"
   },
   "contact": {
