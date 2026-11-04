@@ -299,11 +299,11 @@ export function mergeByIdLevels<K extends CoreKind>(
     const id = (inc as unknown as Syncable).id;
     const i = indexById.get(id);
     if (i === undefined) {
-      // Un id nuevo con `updatedAt` adelantado entra con la estampa acotada a
-      // `now` (T-268; antes se descartaba y la rebanada quedaba «aplicada»).
-      // Sigue sin poder ganar para siempre (T-144): vale como una escritura de
-      // ahora. Un `updatedAt` no numérico no entra.
-      const estampa = estampaDeIngreso(inc.updatedAt, now);
+      // Un id nuevo con `updatedAt` adelantado entra con
+      // una estampa determinista (T-268, ver `estampaDeIngreso`): antes se
+      // descartaba y la rebanada quedaba «aplicada». No gana para siempre
+      // (T-144) ni a una versión real posterior. Un `updatedAt` no numérico no entra.
+      const estampa = estampaDeIngreso(inc as unknown as { updatedAt?: unknown; createdAt?: unknown }, now);
       if (estampa === null) continue;
       indexById.set(id, out.length);
       out.push(estampa === inc.updatedAt ? inc : { ...inc, updatedAt: estampa });

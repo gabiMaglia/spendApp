@@ -17,11 +17,32 @@ const gasto = {
 } as unknown as Expense;
 
 describe('mergeByIdLevels · id nuevo con reloj adelantado', () => {
-  it('reloj +10 min: entra con updatedAt = now', () => {
+  it('reloj +10 min con createdAt plausible: la estampa es el createdAt', () => {
     const nuevo = { ...gasto, id: 'e2', updatedAt: NOW + 10 * 60_000 };
     const out = mergeByIdLevels('expense', [gasto], [nuevo], NOW);
     expect(out).toHaveLength(2);
-    expect(out[1]!.updatedAt).toBe(NOW);
+    expect(out[1]!.updatedAt).toBe(gasto.createdAt);
+  });
+
+  it('si createdAt también es futuro, la estampa es 0 (la versión más vieja posible)', () => {
+    const nuevo = { ...gasto, id: 'e2', createdAt: NOW + 10 * 60_000, updatedAt: NOW + 10 * 60_000 };
+    expect(mergeByIdLevels('expense', [], [nuevo], NOW)[0]!.updatedAt).toBe(0);
+  });
+
+  it('dos receptores con distinto now (ambos ven el reloj adelantado) guardan la MISMA estampa', () => {
+    const nuevo = { ...gasto, id: 'e2', createdAt: NOW + 10 * 60_000, updatedAt: NOW + 10 * 60_000 };
+    const r1 = mergeByIdLevels('expense', [], [nuevo], NOW);
+    const r2 = mergeByIdLevels('expense', [], [nuevo], NOW + 60_000);
+    expect(r1[0]!.updatedAt).toBe(r2[0]!.updatedAt);
+  });
+
+  it('A (reloj +10 min) crea, D borra con tombstone plausible: A→D y D→A dan lo mismo (borrado)', () => {
+    const deA = { ...gasto, id: 'e2', createdAt: NOW + 10 * 60_000, updatedAt: NOW + 10 * 60_000 };
+    const deD = { ...deA, isDeleted: true, updatedAt: NOW - 3 * 86_400_000 };
+    const aD = mergeByIdLevels('expense', mergeByIdLevels('expense', [], [deA], NOW), [deD], NOW);
+    const dA = mergeByIdLevels('expense', mergeByIdLevels('expense', [], [deD], NOW), [deA], NOW);
+    expect(aD[0]!.isDeleted).toBe(true);
+    expect(dA[0]!.isDeleted).toBe(true);
   });
 
   it('dentro de la tolerancia queda intacto', () => {
@@ -40,13 +61,14 @@ describe('mergeByIdLevels · id nuevo con reloj adelantado', () => {
     const acotado = mergeByIdLevels('expense', [gasto], [nuevo], NOW)[1]!;
     const edicion = { ...nuevo, description: 'Y', updatedAt: NOW + 1 };
     expect(mergeRecord('expense', acotado, edicion, NOW + 1).updatedAt).toBe(NOW + 1);
+    expect(mergeRecord('expense', acotado, edicion, NOW + 1).description).toBe('Y');
   });
 
   it('re-recibir el mismo registro adelantado no pisa al ya acotado', () => {
     const nuevo = { ...gasto, id: 'e2', updatedAt: 9e15 };
     const una = mergeByIdLevels('expense', [gasto], [nuevo], NOW);
     const dos = mergeByIdLevels('expense', una, [nuevo], NOW + 5_000);
-    expect(dos[1]!.updatedAt).toBe(NOW);
+    expect(dos[1]!.updatedAt).toBe(una[1]!.updatedAt);
   });
 
   it('un updatedAt que no es número sigue sin entrar', () => {
