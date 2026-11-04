@@ -48,3 +48,23 @@ export function siguienteUpdatedAt(previo: number | undefined, now: number): num
   if (previo === undefined || envenenado(previo, now)) return now;
   return Math.max(now, previo + 1);
 }
+
+/**
+ * La estampa con la que ENTRA un registro de id nuevo (T-268).
+ *
+ * Descartarlo era peor que aceptarlo: la rebanada quedaba registrada como
+ * aplicada, el cursor avanzaba y el registro no llegaba nunca. Pero acotarlo a
+ * `now` hacía la estampa dependiente de CUÁNDO lo recibe cada aparato, y una
+ * estampa fresca le gana a una baja o edición real que llega después
+ * (resurrección de borrados). Por eso es DETERMINISTA: el `createdAt` si es
+ * plausible, y si no 0 — la versión más vieja posible, que cualquier versión
+ * plausible pisa. Todos los receptores guardan lo mismo, sin importar su `now`
+ * ni el orden de llegada. `updatedAt` está fuera de la firma: no la invalida.
+ * Devuelve `null` si el `updatedAt` no es un número finito (no entra).
+ */
+export function estampaDeIngreso(rec: { updatedAt?: unknown; createdAt?: unknown }, now: number): number | null {
+  const { updatedAt, createdAt } = rec;
+  if (typeof updatedAt !== 'number' || !Number.isFinite(updatedAt)) return null;
+  if (!envenenado(updatedAt, now)) return updatedAt;
+  return typeof createdAt === 'number' && !envenenado(createdAt, now) ? createdAt : 0;
+}
