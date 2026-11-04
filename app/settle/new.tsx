@@ -104,6 +104,7 @@ function SaldarEnGrupo() {
     onChangeText: setAmountStr,
     onBlur: onAmountBlur,
     setMinor: setAmountMinor,
+    decimalesNoAdmitidos,
   } = useAmountInput(currencyForAmount, maxAmount ?? 0);
   // El que paga soy yo salvo que esté editando el pago de otro: entrar y tener
   // que corregir "de quién sale la plata" es un paso que nadie quiere dar.
@@ -137,7 +138,7 @@ function SaldarEnGrupo() {
 
   const tope       = modoTodo ? deudaEnGrupo : topeDelSaldo(deudaTotal, maxAmount);
   const exceedsMax = excedeElTope(amount, tope);
-  const canSave    = puedeGuardarSaldo({ amount, exceedsMax, fromId, toId, groupId, grupoArchivado });
+  const canSave    = !decimalesNoAdmitidos && puedeGuardarSaldo({ amount, exceedsMax, fromId, toId, groupId, grupoArchivado });
 
   const handleSave = useGuardarSaldo({
     canSave, exceedsMax, currentUser, modoTodo, acreedores, amount,

@@ -86,7 +86,7 @@ export default function NewExpenseScreen() {
     groupId, groups.find(g => g.id === groupId)?.currency,
   );
   const {
-    text: amountStr, minor: amount, decimalesNoAdmitidos, onChangeText: setAmountStr, onBlur: onAmountBlur, setMinor: setAmountMinor,
+    text: amountStr, minor: amount, decimalesNoAdmitidos, onChangeText: setAmountStr, onBlur: onAmountBlur,
   } = useAmountInput(currency, existingExpense?.amount ?? 0);
   const [payerId, setPayerId] = useState(existingExpense?.paidById ?? currentUser?.id ?? '');
   const [date, setDate] = useState(existingExpense ? new Date(existingExpense.date) : new Date());
@@ -155,9 +155,6 @@ export default function NewExpenseScreen() {
     setGroupId(id);
     reparto.reiniciarParaMiembros(newMembers);
     setPayerId(currentUser && newMembers.includes(currentUser.id) ? currentUser.id : (newMembers[0] ?? ''));
-    // Re-normaliza el texto del input a las reglas de decimales de la nueva
-    // moneda (p.ej. si el nuevo grupo es CLP/PYG, sin decimales).
-    setAmountMinor(amount);
     setHoja(null);
   }
 

@@ -88,7 +88,7 @@ describe('useAmountInput', () => {
     const { result } = renderHook(() => useAmountInput('CLP'));
     // Simula tipear "1500" seguido de un intento de "," (bloqueado — se descarta).
     act(() => result.current.onChangeText('1500'));
-    act(() => result.current.onChangeText('1500,'));
+    act(() => result.current.onChangeText('1.500,'));
     // El punto que se ve es agrupacion de miles, NO un decimal: lo prueba el
     // valor canonico, que sigue siendo 1500 y no 15.
     expect(result.current.text).toBe('1.500');
@@ -97,9 +97,10 @@ describe('useAmountInput', () => {
 
   it('en CLP ningun decimal sobrevive por mas vueltas que se den', () => {
     const { result } = renderHook(() => useAmountInput('CLP'));
-    act(() => result.current.onChangeText('1500,99'));
-    expect(result.current.minor).toBe(150099);  // los digitos entran como enteros
-    expect(result.current.text).not.toContain(',');
+    act(() => result.current.onChangeText('1500'));
+    act(() => result.current.onChangeText('1.500,'));
+    expect(result.current.text).toBe('1.500');   // tipeado: la coma y lo que sigue no entran
+    expect(result.current.minor).toBe(1500);
   });
 
   it('SI agrupa en cada tecla (PO 2026-08-30 — reemplaza la regla F-16b.4)', () => {
@@ -317,8 +318,9 @@ describe('agrupacion de miles al tipear', () => {
 
     it('en CLP sigue bloqueado el separador decimal al tipear', () => {
       const { result } = montar('CLP');
-      act(() => result.current.onChangeText('12,5'));
-      expect(result.current.text).toBe('125');
+      act(() => result.current.onChangeText('12'));
+      act(() => result.current.onChangeText('12,'));
+      expect(result.current.text).toBe('12');
     });
 
     it('CLP 1.500 → ARS: el texto sigue 1.500 y el minor es 150000', () => {
@@ -356,6 +358,41 @@ describe('agrupacion de miles al tipear', () => {
       rerender({ code: 'CLP' });
       expect(result.current.text).toBe('');
       expect(result.current.decimalesNoAdmitidos).toBe(false);
+    });
+
+    it('blur sin error: ARS «1.500,00» → CLP queda 1.500 y minor 1500 (no ×100)', () => {
+      const { result, rerender } = montar('ARS');
+      act(() => result.current.onChangeText('1.500,00'));
+      rerender({ code: 'CLP' });
+      expect(result.current.minor).toBe(1500);
+      act(() => result.current.onBlur());
+      expect(result.current.text).toBe('1.500');
+      expect(result.current.minor).toBe(1500);
+    });
+
+    it('secuencia de grupos ARS 12,50 → CLP → USD conserva texto y minor', () => {
+      const { result, rerender } = montar('ARS');
+      act(() => result.current.onChangeText('12,50'));
+      rerender({ code: 'CLP' });
+      rerender({ code: 'USD' });
+      expect(result.current.text).toBe('12,50');
+      expect(result.current.minor).toBe(1250);
+    });
+
+    it('con error activo, tipear un dígito no fusiona: 12,50 + 5 queda 12,50 (tope de 2 decimales)', () => {
+      const { result, rerender } = montar('ARS');
+      act(() => result.current.onChangeText('12,50'));
+      rerender({ code: 'CLP' });
+      act(() => result.current.onChangeText('12,505'));
+      expect(result.current.text).toBe('12,50');
+      expect(result.current.decimalesNoAdmitidos).toBe(true);
+    });
+
+    it('pegar «1500,99» en CLP queda 1.500,99 con error', () => {
+      const { result } = montar('CLP');
+      act(() => result.current.onChangeText('1500,99'));
+      expect(result.current.text).toBe('1.500,99');
+      expect(result.current.decimalesNoAdmitidos).toBe(true);
     });
 
     it('editar un gasto existente no cambia el monto ni en el primer render ni al re-renderizar', () => {

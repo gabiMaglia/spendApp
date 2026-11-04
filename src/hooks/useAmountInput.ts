@@ -82,26 +82,29 @@ export function useAmountInput(code: CurrencyCode, initialMinor = 0): UseAmountI
 
   const onChangeText = useCallback((raw: string) => {
     setText(prev => {
-      // Corrigiendo un monto con centavos en CLP/PYG: borrar un carácter no puede
-      // pegar los dígitos ("12,50" → "12,5" → "125"), así que se sanea como una
-      // moneda con decimales hasta que no queden.
-      const corrigiendo = getCurrency(code).decimals === 0
-        && tieneFraccion(prev, code, lang) && raw.length < prev.length;
+      // En CLP/PYG, con centavos ya en el texto o pegando un monto con coma,
+      // se sanea como moneda con decimales: fusionar dígitos ("12,50"+"5" →
+      // 12.505, "1500,99" → 150.099) cambiaría el monto en silencio. Tipear una
+      // coma en un monto entero sigue bloqueado.
+      const dec = decimalDe(lang);
+      const pegado = raw.length - prev.length > 1 && new RegExp(`\\${dec}\\d`).test(raw);
+      const corrigiendo = getCurrency(code).decimals === 0 && (prev.includes(dec) || pegado);
       return sanitizeTypedAmount(raw, corrigiendo ? 'USD' : code, lang, prev);
     });
   }, [code, lang]);
 
+  // El blur interpreta el texto en la moneda ACTUAL (sin reescalar): el mismo
+  // valor que expone `minor`.
+  const minor = parseMoney(textoSinFraccion(text, code, lang), code, lang);
+
   const onBlur = useCallback(() => {
-    if (decimalesNoAdmitidos) return; // reformatear acá redondearía el monto
-    const minor = parseMoney(text, code, lang);
+    if (decimalesNoAdmitidos) return; // reformatear acá cambiaría lo escrito
     setText(minor === 0 ? '' : formatForEditing(minor, code, lang));
-  }, [text, code, lang, decimalesNoAdmitidos]);
+  }, [minor, code, lang, decimalesNoAdmitidos]);
 
   const setMinor = useCallback((minor: number) => {
     setText(minor ? formatForEditing(minor, code, lang) : '');
   }, [code, lang]);
-
-  const minor = parseMoney(textoSinFraccion(text, code, lang), code, lang);
 
   return { text, minor, decimalesNoAdmitidos, onChangeText, onBlur, setMinor };
 }
