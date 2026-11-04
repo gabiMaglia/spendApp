@@ -39,3 +39,27 @@ describe('moneda al guardar un gasto personal (T-255)', () => {
     expect(useSettingsStore.getState().lastPersonalCurrency).toBe('USD');
   });
 });
+
+describe('editar una entrada personal (T-257)', () => {
+  const base = { id: 'p1', kind: 'expense', description: 'Viejo', amount: 100, currency: 'ARS',
+    category: 'food', date: 0, createdAt: 5, updatedAt: 1, isDeleted: false } as const;
+
+  it('guarda con updateEntry: misma entrada, sin duplicar, respetando la moneda', () => {
+    usePersonalStore.setState({ entries: [{ ...base }] });
+    renderHook(() => useGuardarGasto(form({
+      isEditMode: true, personalEntryId: 'p1', currency: 'USD', amount: 2500, description: ' Nuevo ',
+    }))).result.current();
+    const es = usePersonalStore.getState().entries;
+    expect(es).toHaveLength(1);
+    expect(es[0]).toMatchObject({ id: 'p1', description: 'Nuevo', amount: 2500, currency: 'USD', createdAt: 5 });
+    expect(es[0]!.updatedAt).toBeGreaterThan(1);
+  });
+
+  it('un ingreso editado sigue siendo ingreso y conserva su categoría', () => {
+    usePersonalStore.setState({ entries: [{ ...base, kind: 'income', category: 'salary' }] });
+    renderHook(() => useGuardarGasto(form({
+      isEditMode: true, personalEntryId: 'p1', isIncome: true, category: 'salary',
+    }))).result.current();
+    expect(usePersonalStore.getState().entries[0]).toMatchObject({ kind: 'income', category: 'salary' });
+  });
+});

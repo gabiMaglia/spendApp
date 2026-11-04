@@ -205,6 +205,7 @@
   "expense": {
     "new_title": "New expense",
     "edit_title": "Edit expense",
+    "edit_income_title": "Edit income",
     "description_placeholder": "What did you spend on?",
     "payer_label": "Paid by",
     "save": "Save",

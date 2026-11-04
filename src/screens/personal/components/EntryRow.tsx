@@ -2,6 +2,7 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
+import { router } from 'expo-router';
 
 import { Typography } from '@/src/constants/typography';
 import { useSkinTokens } from '@/src/skins/useSkin';
@@ -9,6 +10,7 @@ import { BandRow } from '@/src/components/Band';
 import { formatMoney } from '@/src/constants/currencies';
 import type { PersonalEntry } from '@/src/types/models';
 import { isEditable } from '@/src/algorithms/entryOrigin';
+import { esDelMesCorriente } from '@/src/screens/personal/utils/mesCorriente';
 import { useUserStore } from '@/src/store/userStore';
 import i18n from '@/src/i18n';
 
@@ -48,8 +50,13 @@ export const EntryRow = React.memo(function EntryRow({
   const amountColor = isPositive ? c.semantic.positive
     : isCarryover ? c.semantic.negative : c.text;
 
+  // T-257: las manuales del mes corriente abren la edición; las derivadas se
+  // corrigen en su origen y un mes cerrado ya arrastró su saldo (PO 2026-11-04).
+  const abrirEdicion = isReadOnly || !esDelMesCorriente(entry.date) ? undefined : () =>
+    router.push({ pathname: '/expense/new', params: { personalEntryId: entry.id } });
+
   return (
-    <BandRow last={last}>
+    <BandRow last={last} onPress={abrirEdicion}>
       <View style={[styles.entryIcon, { backgroundColor: iconBg, borderRadius: skin.radius.chip }]}>
         <Ionicons name={meta.icon} size={17} color={iconColor} />
       </View>

@@ -57,3 +57,14 @@ describe('moneda del gasto (T-255)', () => {
     expect(result.current.currency).toBe('ARS');
   });
 });
+
+describe('moneda al editar una entrada personal (T-257)', () => {
+  it('arranca en la moneda de la entrada, por encima de la última usada, y sigue siendo elegible', () => {
+    useSettingsStore.setState({ displayCurrency: 'BRL', lastPersonalCurrency: 'CLP' });
+    const { result } = renderHook(() => useMonedaDelGasto('', undefined, 'USD'));
+    expect(result.current.currency).toBe('USD');
+    expect(result.current.editable).toBe(true);
+    act(() => result.current.setCurrency('EUR'));
+    expect(result.current.currency).toBe('EUR');
+  });
+});

@@ -7,16 +7,12 @@ import { useTranslation } from 'react-i18next';
 import { hapticSelection } from '@/src/utils/haptics';
 import type { RecurrenceValue } from '@/src/components/RecurrencePicker';
 import { validatePayers } from '@/src/algorithms/payers';
-import { estaBloqueado } from '@/src/algorithms/groupExpenseLimit';
 import { Spacing } from '@/src/constants/spacing';
 import { useAmountInput } from '@/src/hooks/useAmountInput';
 import { useContadorDeRenders } from '@/src/hooks/useContadorDeRenders';
 import { useAuthStore } from '@/src/store/authStore';
-import { useTierStore } from '@/src/store/tierStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
-import { useArchiveStore } from '@/src/store/archiveStore';
-import { useGroupExpenseCount } from '@/src/store/selectors';
 import { DetailHeader, useRellenoDetailHeader } from '@/src/components/CollapsibleHeader';
 import { useColors, useSkinTokens } from '@/src/skins/useSkin';
 import { formatMoney } from '@/src/constants/currencies';
@@ -24,7 +20,9 @@ import { useUserStore } from '@/src/store/userStore';
 import type { Payer, PersonalCategory } from '@/src/types/models';
 import { useRepartoDeGasto } from '@/src/screens/expense/hooks/useRepartoDeGasto';
 import { useMonedaDelGasto } from '@/src/screens/expense/hooks/useMonedaDelGasto';
+import { useLimitesDeGasto } from '@/src/screens/expense/hooks/useLimitesDeGasto';
 import { useGuardarGasto } from '@/src/screens/expense/hooks/useGuardarGasto';
+import { claveDeTitulo, useEntradaPersonalEnEdicion } from '@/src/screens/expense/hooks/useEntradaPersonalEnEdicion';
 import { HeroMonto } from '@/src/screens/expense/components/HeroMonto';
 import { CategoriaChips, DescripcionCard } from '@/src/screens/expense/components/DescripcionYCategorias';
 import { BloquePagador } from '@/src/screens/expense/components/BloquePagador';
@@ -59,23 +57,22 @@ export default function NewExpenseScreen() {
   const relleno = useRellenoDetailHeader();
 
   const { currentUser, isPro } = useAuthStore();
-  const requiresRewardedAd = useTierStore(s => s.requiresRewardedAd);
-  const superoElTope = useTierStore(s => s.superoElTope);
-  const getDailyCount = useTierStore(s => s.getDailyCount);
   const allGroups = useGroupStore(s => s.groups);
   const groups = useMemo(() => allGroups.filter(g => !g.isDeleted), [allGroups]);
 
-  const { groupId: paramGroupId, expenseId, allowIncome, kind: paramKind } =
-    useLocalSearchParams<{ groupId?: string; expenseId?: string; allowIncome?: string; kind?: string }>();
+  const { groupId: paramGroupId, expenseId, personalEntryId, allowIncome, kind: paramKind } =
+    useLocalSearchParams<{ groupId?: string; expenseId?: string; personalEntryId?: string; allowIncome?: string; kind?: string }>();
 
   // En edición: el gasto existente precarga el formulario.
   const existingExpense = useExpenseStore(s =>
     expenseId ? s.expenses.find(e => e.id === expenseId) : undefined,
   );
-  const isEditMode = Boolean(expenseId);
+  // T-257: editar una entrada personal manual (`inicial` = lo que precarga).
+  const { editing: editingPersonal, inicial: ent } = useEntradaPersonalEnEdicion(personalEntryId);
+  const isEditMode = Boolean(expenseId) || editingPersonal;
 
   // ── Core inputs ────────────────────────────────────────────────────────────
-  const [description, setDescription] = useState(existingExpense?.description ?? '');
+  const [description, setDescription] = useState(existingExpense?.description ?? ent?.description ?? '');
   // Default: SIN grupo (gasto personal). Si viene por deep-link de un grupo
   // (paramGroupId) o en edición, se pre-selecciona ese grupo. (F-G, decisión PO)
   const [groupId, setGroupId] = useState(existingExpense?.groupId ?? paramGroupId ?? '');
@@ -83,21 +80,20 @@ export default function NewExpenseScreen() {
   // menor unidad — ADR-002) la necesita para parsear/formatear correctamente.
   // T-255: con grupo es la del grupo; sin grupo la elige el usuario.
   const { currency, setCurrency, editable: monedaEditable } = useMonedaDelGasto(
-    groupId, groups.find(g => g.id === groupId)?.currency,
+    groupId, groups.find(g => g.id === groupId)?.currency, ent?.currency,
   );
   const {
     text: amountStr, minor: amount, decimalesNoAdmitidos, onChangeText: setAmountStr, onBlur: onAmountBlur,
-  } = useAmountInput(currency, existingExpense?.amount ?? 0);
+  } = useAmountInput(currency, existingExpense?.amount ?? ent?.amount ?? 0);
   const [payerId, setPayerId] = useState(existingExpense?.paidById ?? currentUser?.id ?? '');
-  const [date, setDate] = useState(existingExpense ? new Date(existingExpense.date) : new Date());
+  const [date, setDate] = useState(existingExpense ? new Date(existingExpense.date) : ent?.date ?? new Date());
   const [note, setNote] = useState(existingExpense?.note ?? '');
-  const [category, setCategory] = useState<PersonalCategory>(existingExpense?.category ?? 'other');
+  const [category, setCategory] = useState<PersonalCategory>(existingExpense?.category ?? ent?.category ?? 'other');
   // Modo Ingreso: SOLO habilitado cuando se abre desde Personal (allowIncome=1). (F-G2)
   const incomeAllowed = allowIncome === '1' && !isEditMode;
-  const [entryKind, setEntryKind] = useState<'expense' | 'income'>(
-    incomeAllowed && paramKind === 'income' ? 'income' : 'expense',
-  );
-  const isIncome = incomeAllowed && entryKind === 'income';
+  const [entryKind, setEntryKind] = useState<'expense' | 'income'>(incomeAllowed && paramKind === 'income' ? 'income' : 'expense');
+  // En edición el tipo es el de la entrada y no se cambia.
+  const isIncome = ent ? ent.isIncome : incomeAllowed && entryKind === 'income';
   const [receiptUri, setReceiptUri] = useState<string | undefined>(existingExpense?.receiptImageUri);
   const [hoja, setHoja] = useState<HojaAbierta>(null);
   const [recurrence, setRecurrence] = useState<RecurrenceValue>(null);
@@ -111,23 +107,10 @@ export default function NewExpenseScreen() {
 
   useContadorDeRenders('Nuevo gasto', { amount, groupId, splitMode: reparto.splitMode, description });
 
-  const dailyCount = currentUser ? getDailyCount(currentUser.id) : 0;
-  // Dos cosas distintas, y confundirlas era el bug: `superoElTope` es la REGLA
-  // (pasaste los 4 del día) y sirve para contárselo al usuario; `needsAd` es si
-  // hay que mostrarle un anuncio ANTES de guardar, que hoy es siempre false
-  // porque no existe el sistema de anuncios. Ver `ADS_DISPONIBLES`.
-  const pasoElTope = !isEditMode && currentUser ? superoElTope(currentUser.id, isPro) : false;
-  const needsAd    = !isEditMode && currentUser ? requiresRewardedAd(currentUser.id, isPro) : false;
-
+  const { dailyCount, pasoElTope, needsAd, grupoArchivado, grupoBloqueadoPorLimite } =
+    useLimitesDeGasto({ currentUser, isPro, isEditMode, groupId });
   // hasGroup=false ⇒ gasto PERSONAL (sin repartos, sin pagador). (F-G)
   const hasGroup = groupId !== '';
-  // PO 2026-09-20: un grupo archivado (cualquier razón) es de solo lectura.
-  const isArchivedFn = useArchiveStore(s => s.isArchived);
-  const grupoArchivado = hasGroup && isArchivedFn(groupId);
-  // T-058 (PO 2026-09-20): grupo que llegó a 450 gastos no acepta uno más.
-  // `!isEditMode` importa: editar uno de los 450 no hace crecer el conteo.
-  const cantidadGastosDelGrupo = useGroupExpenseCount(hasGroup ? groupId : '');
-  const grupoBloqueadoPorLimite = hasGroup && !isEditMode && estaBloqueado(cantidadGastosDelGrupo);
   // Con varios pagadores la suma tiene que dar EXACTA contra el total: son
   // enteros en menor unidad (ADR-002), no hay redondeo que perdonar.
   const payersOk = !multiPayer || validatePayers(payers.filter(p => p.amount > 0), amount).ok;
@@ -135,7 +118,7 @@ export default function NewExpenseScreen() {
     && (!hasGroup || members.length > 0) && payersOk && !grupoArchivado && !grupoBloqueadoPorLimite;
 
   const guardar = useGuardarGasto({
-    currentUser, isEditMode, expenseId, existingExpense, hasGroup, groupId, group,
+    currentUser, isEditMode, expenseId, personalEntryId: editingPersonal ? personalEntryId : undefined, existingExpense, hasGroup, groupId, group,
     description, amount, currency, category, date, note, receiptUri, isIncome,
     payerId, multiPayer, payers, splits: reparto.splits, splitMode: reparto.splitMode,
     recurrence, needsAd, canSave,
@@ -207,7 +190,7 @@ export default function NewExpenseScreen() {
       <KeyboardAvoidingView style={styles.safe} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <DetailHeader
           icon="close"
-          title={isEditMode ? t('expense.edit_title') : isIncome ? t('expense.new_income_title') : t('expense.new_title')}
+          title={t(claveDeTitulo(isEditMode, isIncome))}
           onBack={() => router.back()}
         />
 
