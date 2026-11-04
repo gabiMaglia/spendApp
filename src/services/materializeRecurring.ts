@@ -1,4 +1,4 @@
-import { dueOccurrences } from '@/src/algorithms/recurrence';
+import { dueSlots } from '@/src/algorithms/recurrence';
 import { splitsDePlantilla } from '@/src/algorithms/recurringSplits';
 import type { Expense, PersonalEntry, RecurringExpense } from '@/src/types/models';
 
@@ -31,6 +31,8 @@ export type MaterializeResult = {
   problems: Array<{ id: string; kind: 'degradado' | 'fallo' | 'miembros' | 'omitido'; message: string }>;
 };
 
+// `at` es SIEMPRE el instante legacy UTC (`occurrenceAtUtc`), nunca el local:
+// cada aparato materializa y el id tiene que coincidir entre husos y versiones.
 function idFor(templateId: string, at: number): string {
   // Determinista a propósito: si dos devices materializan el mismo vencimiento
   // antes de sincronizar, generan el MISMO id y el merge LWW los colapsa en uno
@@ -96,7 +98,7 @@ export function materializeRecurring(
         const aj = ajustarAlRoster(t, roster);
         if ('omitir' in aj) {
           // Sólo se anota si había algo vencido; no avanza, así no se pierde.
-          if (dueOccurrences(t.rule, t.lastMaterializedAt, now).length > 0) {
+          if (dueSlots(t.rule, t.lastMaterializedAt, now).length > 0) {
             problems.push({ id: t.id, kind: 'omitido', message: aj.omitir });
           }
           continue;
@@ -126,15 +128,15 @@ export function materializeRecurring(
 function materializeOne(t: RecurringExpense, now: number) {
   const expenses: Expense[] = [];
   const personalEntries: PersonalEntry[] = [];
-  const due = dueOccurrences(t.rule, t.lastMaterializedAt, now);
+  const due = dueSlots(t.rule, t.lastMaterializedAt, now);
   if (due.length === 0) return null;
   // El reparto es el mismo para todos los vencimientos: se calcula una vez.
   const reparto = t.groupId === '' ? null : splitsDePlantilla(t);
 
-  for (const at of due) {
+  for (const { at, legacy } of due) {
     if (t.groupId === '') {
       personalEntries.push({
-        id:          idFor(t.id, at),
+        id:          idFor(t.id, legacy),
         kind:        'expense',
         description: t.description,
         amount:      t.amount,
@@ -142,12 +144,12 @@ function materializeOne(t: RecurringExpense, now: number) {
         category:    t.category,
         date:        at,
         createdAt:   at,
-        updatedAt:   derivedUpdatedAt(at),
+        updatedAt:   derivedUpdatedAt(legacy),
         isDeleted:   false,
       } as PersonalEntry);
     } else {
       expenses.push({
-        id:          idFor(t.id, at),
+        id:          idFor(t.id, legacy),
         groupId:     t.groupId,
         description: t.description,
         amount:      t.amount,
@@ -160,11 +162,11 @@ function materializeOne(t: RecurringExpense, now: number) {
         date:        at,
         createdAt:   at,
         createdById: t.createdById,
-        updatedAt:   derivedUpdatedAt(at),
+        updatedAt:   derivedUpdatedAt(legacy),
         isDeleted:   false,
       } as Expense);
     }
   }
 
-  return { expenses, personalEntries, last: due[due.length - 1]!, degradado: reparto?.degradado ?? false };
+  return { expenses, personalEntries, last: due[due.length - 1]!.legacy, degradado: reparto?.degradado ?? false };
 }

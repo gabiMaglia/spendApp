@@ -19,8 +19,10 @@ import type { RecurrenceRule } from '@/src/types/models';
 export type Frequency = RecurrenceRule['frequency'];
 export type { RecurrenceRule };
 
+const DAY_MS = 86_400_000;
+
 /**
- * Todo el cálculo de calendario es en HORA LOCAL del aparato (T-263): el día de
+ * El calendario VISIBLE (`occurrenceAt`) es en HORA LOCAL del aparato (T-263): el día de
  * una cuota es el que el usuario vio al cargarla, no el de UTC. En UTC, un
  * alquiler cargado el 30 a las 22:00 en Argentina (ya 31 a la 01:00 UTC) caía
  * el 27 de febrero; y sumar 7×24 h fijas movía una hora cargada cerca de
@@ -60,7 +62,35 @@ function addMonths(anchor: number, months: number): number {
   return new Date(ty, tm, day, d.getHours(), d.getMinutes(), d.getSeconds()).getTime();
 }
 
-/** El n-ésimo vencimiento (n = 0 es `startDate`). */
+/**
+ * Fórmula UTC ORIGINAL de los vencimientos. Es la IDENTIDAD de la cuota: el id
+ * (`rec_<plantilla>_<instante>`), el `updatedAt` derivado y `lastMaterializedAt`
+ * se miden con ella. Idéntica en todo aparato, sea cual sea su huso, e idéntica
+ * a los ids ya emitidos. NO tocar: cambiarla duplicaría cuotas entre aparatos.
+ */
+function daysInMonthUtc(year: number, month: number): number {
+  return new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+}
+
+function addMonthsUtc(anchor: number, months: number): number {
+  const d = new Date(anchor);
+  const targetMonth = d.getUTCMonth() + months;
+  const ty = d.getUTCFullYear() + Math.floor(targetMonth / 12);
+  const tm = ((targetMonth % 12) + 12) % 12;
+  const day = Math.min(d.getUTCDate(), daysInMonthUtc(ty, tm));
+  return Date.UTC(ty, tm, day, d.getUTCHours(), d.getUTCMinutes(), d.getUTCSeconds());
+}
+
+export function occurrenceAtUtc(rule: RecurrenceRule, n: number): number {
+  switch (rule.frequency) {
+    case 'weekly':      return rule.startDate + n * 7 * DAY_MS;
+    case 'fortnightly': return rule.startDate + n * 14 * DAY_MS;
+    case 'monthly':     return addMonthsUtc(rule.startDate, n);
+    case 'yearly':      return addMonthsUtc(rule.startDate, n * 12);
+  }
+}
+
+/** El n-ésimo vencimiento en hora LOCAL (lo que se muestra). n = 0 es `startDate`. */
 export function occurrenceAt(rule: RecurrenceRule, n: number): number {
   switch (rule.frequency) {
     case 'weekly':      return addDays(rule.startDate, n * 7);
@@ -70,10 +100,13 @@ export function occurrenceAt(rule: RecurrenceRule, n: number): number {
   }
 }
 
-/** Primer vencimiento estrictamente posterior a `after`. `null` si la regla ya terminó. */
+/**
+ * Primer vencimiento (instante legacy, ver `occurrenceAtUtc`) estrictamente
+ * posterior a `after`. `null` si la regla ya terminó.
+ */
 export function nextOccurrence(rule: RecurrenceRule, after: number): number | null {
   for (let n = 0; n < MAX_ITERATIONS; n++) {
-    const at = occurrenceAt(rule, n);
+    const at = occurrenceAtUtc(rule, n);
     if (at > after) {
       if (rule.endDate !== undefined && at > rule.endDate) return null;
       return at;
@@ -85,26 +118,45 @@ export function nextOccurrence(rule: RecurrenceRule, after: number): number | nu
 /** Tope de seguridad: evita un bucle infinito si llega una regla corrupta. */
 const MAX_ITERATIONS = 10_000;
 
+export type DueSlot = {
+  n: number;
+  /** Instante en calendario local: la fecha que ve el usuario. */
+  at: number;
+  /** Instante UTC original: identidad, `updatedAt` y `lastMaterializedAt`. */
+  legacy: number;
+};
+
 /**
- * Vencimientos pendientes de materializar hasta `now` inclusive.
+ * Vencimientos pendientes de materializar hasta `now` inclusive. Qué ocurrencias
+ * están vencidas se decide con el instante legacy, así todo aparato obtiene el
+ * mismo conjunto de `n` sin importar su huso.
  *
- * @param lastMaterialized  Último vencimiento ya convertido en gasto, o
- *                          `null` si nunca se materializó ninguno.
+ * @param lastMaterialized  Instante legacy del último vencimiento ya convertido
+ *                          en gasto, o `null` si nunca se materializó ninguno.
  */
+export function dueSlots(
+  rule: RecurrenceRule,
+  lastMaterialized: number | null,
+  now: number,
+): DueSlot[] {
+  const out: DueSlot[] = [];
+  const limit = rule.endDate !== undefined ? Math.min(now, rule.endDate) : now;
+
+  for (let n = 0; n < MAX_ITERATIONS; n++) {
+    const legacy = occurrenceAtUtc(rule, n);
+    if (legacy > limit) break;
+    if (lastMaterialized === null || legacy > lastMaterialized) out.push({ n, at: occurrenceAt(rule, n), legacy });
+  }
+  return out;
+}
+
+/** Igual que `dueSlots` pero sólo los instantes locales. */
 export function dueOccurrences(
   rule: RecurrenceRule,
   lastMaterialized: number | null,
   now: number,
 ): number[] {
-  const out: number[] = [];
-  const limit = rule.endDate !== undefined ? Math.min(now, rule.endDate) : now;
-
-  for (let n = 0; n < MAX_ITERATIONS; n++) {
-    const at = occurrenceAt(rule, n);
-    if (at > limit) break;
-    if (lastMaterialized === null || at > lastMaterialized) out.push(at);
-  }
-  return out;
+  return dueSlots(rule, lastMaterialized, now).map(s => s.at);
 }
 
 /** ¿La regla ya no va a producir más vencimientos? */
