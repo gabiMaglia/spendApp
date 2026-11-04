@@ -12,8 +12,15 @@ export const SUPPORTED_CURRENCIES = [
 
 export type CurrencyCode = typeof SUPPORTED_CURRENCIES[number]['code'];
 
-export function getCurrency(code: CurrencyCode) {
-  return SUPPORTED_CURRENCIES.find(c => c.code === code)!;
+type Currency = { code: string; symbol: string; name: string; decimals: number; locale: string };
+
+/**
+ * Un código que no está en la lista (T-264: puede llegar por sync desde una
+ * versión futura) no tumba el render: 2 decimales y el código de símbolo.
+ */
+export function getCurrency(code: CurrencyCode): Currency {
+  return SUPPORTED_CURRENCIES.find(c => c.code === code)
+    ?? { code, symbol: `${code} `, name: code, decimals: 2, locale: 'en-US' };
 }
 
 // CLP y PYG no usan decimales — bloquear el separador decimal en inputs numéricos
