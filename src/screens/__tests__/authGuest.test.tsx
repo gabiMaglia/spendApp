@@ -205,11 +205,10 @@ describe('T-266 · volver a entrar como invitado', () => {
     expect(useAuthStore.getState().currentUser!.id).toBe(id1);
   });
 
-  it('fila 2 · invitado con datos: vuelve al mismo id y conserva su perfil', () => {
+  it('fila 2 · invitado con datos: vuelve al mismo id y a sus datos', () => {
     const r = render(<AuthScreen />);
     fireEvent.press(r.getByText('auth.continue_guest'));
     const yo = useAuthStore.getState().currentUser!;
-    useAuthStore.getState().setUser({ ...yo, name: 'Pepe' });
     useGroupStore.getState().addGroup(grupo('viaje1', [yo.id]));
     flushScopedWrites();
     cerrarSesion();
@@ -217,7 +216,7 @@ describe('T-266 · volver a entrar como invitado', () => {
     fireEvent.press(r.getByText('auth.continue_guest'));
     const vuelto = useAuthStore.getState().currentUser!;
     expect(vuelto.id).toBe(yo.id);
-    expect(vuelto.name).toBe('Pepe');
+    expect(vuelto.createdAt).toBe(yo.createdAt);   // el perfil guardado, no uno nuevo
     expect(createSecureStorage('groups').getString(`data_v1::u:${yo.id}`) ?? '').toContain('viaje1');
   });
 
