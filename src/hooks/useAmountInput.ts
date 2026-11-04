@@ -52,6 +52,19 @@ export function useAmountInput(code: CurrencyCode, initialMinor = 0): UseAmountI
     initialMinor ? formatForEditing(initialMinor, code, lang) : '',
   );
 
+  // T-255: si la moneda cambia con un monto tipeado, se conserva el VALOR y se
+  // re-expresa en los decimales de la nueva (ARS 12,50 → CLP 13). Se ajusta
+  // durante el render, así nunca se pinta el texto viejo bajo la moneda nueva.
+  const [codePrevio, setCodePrevio] = useState(code);
+  if (codePrevio !== code) {
+    setCodePrevio(code);
+    if (text) {
+      const valor = parseMoney(text, codePrevio, lang) / (10 ** getCurrency(codePrevio).decimals);
+      const nuevo = Math.round(valor * (10 ** getCurrency(code).decimals));
+      setText(nuevo ? formatForEditing(nuevo, code, lang) : '');
+    }
+  }
+
   const onChangeText = useCallback((raw: string) => {
     setText(prev => sanitizeTypedAmount(raw, code, lang, prev));
   }, [code, lang]);
