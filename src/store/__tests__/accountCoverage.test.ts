@@ -100,7 +100,7 @@ function importesDeSession(): Map<string, string[]> {
 
 /** El cuerpo de `rehydrateForActiveUser`, que es donde se suelta todo. */
 function cuerpoRehidratacion(): string {
-  const inicio = SESSION.indexOf('export function rehydrateForActiveUser');
+  const inicio = SESSION.indexOf('function hidratarDatosDeCuentaActiva') // T-253: el cuerpo de hidratación se extrajo;
   const fin = SESSION.indexOf('\n}', inicio);
   return SESSION.slice(inicio, fin);
 }

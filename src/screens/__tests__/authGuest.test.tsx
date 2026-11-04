@@ -5,6 +5,8 @@ import AuthScreen from '@/app/auth/index';
 import { useAuthStore, pendingGuestAccountId } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { esYo } from '@/src/store/identityAlias';
+import { subscribeSessionRehydrate } from '@/src/store/session';
+import { flushScopedWrites } from '@/src/store/userScope';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import type { Group } from '@/src/types/models';
 
@@ -53,7 +55,8 @@ jest.mock('@/src/store/miPerfil', () => ({ actualizarMiPerfil: jest.fn() }));
 
 const grupo = (id: string, memberIds: string[]): Group => ({
   id, name: 'Viaje', memberIds, currency: 'ARS',
-  miembros: {}, // T-182: placeholder de tipo (fixture no ejercita el roster)
+  // T-182: `memberIds` se deriva del roster al rehidratar, así que el fixture lo declara.
+  miembros: Object.fromEntries(memberIds.map(m => [m, { estado: 'in' as const, at: 0 }])),
   createdAt: 0, createdById: memberIds[0], updatedAt: 0, isDeleted: false,
 } as Group);
 
@@ -117,7 +120,9 @@ describe('modo invitado (T-101-bis)', () => {
     const r = render(<AuthScreen />);
     fireEvent.press(r.getByText('auth.continue_guest'));
     const guestId = useAuthStore.getState().currentUser!.id;
-    useGroupStore.setState({ groups: [grupo('viaje1', [guestId])] });
+    // Persistido de verdad: tras fusionar, los stores se rehidratan desde disco.
+    useGroupStore.getState().addGroup(grupo('viaje1', [guestId]));
+    flushScopedWrites();
 
     mockGoogleUser = { id: 'g1', email: 'ana@x.com', name: 'Ana' };
     await act(async () => { fireEvent.press(r.getByText('auth.continue_google')); });
@@ -130,6 +135,37 @@ describe('modo invitado (T-101-bis)', () => {
     // registro se toca) — deja un alias, y es `esYo()` quien traduce al leer.
     expect(useGroupStore.getState().groups.some(g => g.id === 'viaje1' && g.memberIds.some(esYo))).toBe(true);
     expect(pendingGuestAccountId()).toBeNull();
+  });
+
+  // T-253: con la suscripción de sesión REAL montada (como en app/_layout), el
+  // "Sí" tiene que dejar los stores en memoria con lo fusionado; si no, el
+  // próximo guardado de cualquier store pisa la fusión con el estado vacío.
+  it('«Sí, sumarlos» sobrevive a un guardado posterior (la sesión rehidrata tras fusionar)', async () => {
+    const unsub = subscribeSessionRehydrate();
+    try {
+      const r = render(<AuthScreen />);
+      fireEvent.press(r.getByText('auth.continue_guest'));
+      const guestId = useAuthStore.getState().currentUser!.id;
+      useGroupStore.getState().addGroup(grupo('viaje1', [guestId]));
+      flushScopedWrites();
+
+      mockGoogleUser = { id: 'g1', email: 'ana@x.com', name: 'Ana' };
+      await act(async () => { fireEvent.press(r.getByText('auth.continue_google')); });
+      const accountId = useAuthStore.getState().currentUser!.id;
+      expect(useGroupStore.getState().groups).toHaveLength(0); // cuenta nueva, vacía
+
+      const cartel = (Alert.alert as jest.Mock).mock.calls[0][2] as { text: string; onPress?: () => void }[];
+      await act(async () => { cartel.find(b => b.text === 'auth.guest_merge_yes')!.onPress?.(); });
+
+      // El guardado posterior que antes pisaba la fusión.
+      act(() => { useGroupStore.getState().addGroup(grupo('otro', [accountId])); });
+      flushScopedWrites();
+
+      expect(useGroupStore.getState().groups.map(g => g.id)).toEqual(expect.arrayContaining(['viaje1', 'otro']));
+      const enDisco = createSecureStorage('groups').getString(`data_v1::u:${accountId}`) ?? '';
+      expect(enDisco).toContain('viaje1');
+      expect(esYo(guestId)).toBe(true);
+    } finally { unsub(); }
   });
 
   it('rechazar la fusión no toca los datos pero no vuelve a preguntar', async () => {
