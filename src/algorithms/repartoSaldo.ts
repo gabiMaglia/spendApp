@@ -34,17 +34,35 @@ export function repartoParejo(acreedores: Acreedor[], disponible: number): Repar
   const total = totalAdeudado(acreedores);
   if (disponible >= total) return acreedores.map(a => ({ ...a }));  // alcanza para todos
 
-  const base = Math.floor(disponible / acreedores.length);
-  let resto = disponible - base * acreedores.length;
+  // Reparto parejo con tope por acreedor: a quien se le debe menos que su parte
+  // se le paga lo suyo y el sobrante se reparte entre los demás (de menor a
+  // mayor deuda), así la suma da EXACTO lo que la persona escribió.
+  const orden = acreedores.map((_, i) => i).sort((i, j) => acreedores[i].amount - acreedores[j].amount || i - j);
+  const montos = new Map<number, number>();
+  let resta = disponible;
+  let k = orden.length;
+  for (let n = 0; n < orden.length; n++, k--) {
+    const i = orden[n];
+    const parte = Math.floor(resta / k);
+    if (acreedores[i].amount <= parte) {
+      montos.set(i, acreedores[i].amount);
+      resta -= acreedores[i].amount;
+      continue;
+    }
+    // Nadie de acá en más está topado: parte entera para todos y el resto, de a
+    // un centavo, a los primeros de la lista original (ya viene de mayor a menor).
+    const quedan = orden.slice(n).sort((x, y) => x - y);
+    let extra = resta - parte * k;
+    for (const q of quedan) {
+      montos.set(q, parte + (extra > 0 ? 1 : 0));
+      if (extra > 0) extra -= 1;
+    }
+    break;
+  }
 
-  return acreedores.map(a => {
-    // Nunca más de lo que se le debe: repartir parejo no puede convertirse en
-    // pagarle de más a quien poco prestó.
-    const extra = resto > 0 ? 1 : 0;
-    const monto = Math.min(a.amount, base + extra);
-    if (extra) resto -= 1;
-    return { userId: a.userId, amount: monto };
-  }).filter(r => r.amount > 0);
+  return acreedores
+    .map((a, i) => ({ userId: a.userId, amount: montos.get(i) ?? 0 }))
+    .filter(r => r.amount > 0);
 }
 
 /** ¿Un reparto hecho a mano es válido? */

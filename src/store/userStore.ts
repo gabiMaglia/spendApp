@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { readScoped, writeScopedLazy } from './userScope';
+import { leerBlobArreglo } from './leerBlob';
 import { mergeUsersPure } from './mergeUsersPure';
 import i18n from '@/src/i18n';
 import { preservarAvatar } from './userAvatar';
@@ -114,12 +115,7 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
     // (app/_layout.tsx) y una excepción deja isLoading en true para siempre,
     // trabando la pantalla de carga sin salida. Ya pasó con la sesión (T-020);
     // estos stores habían quedado sin la misma protección.
-    let users: User[] = [];
-    try {
-      users = raw ? (JSON.parse(raw) as User[]) : [];
-    } catch {
-      users = [];
-    }
+    let users: User[] = leerBlobArreglo<User>(storage, KEY, raw);
     set({ users });
   },
 }));

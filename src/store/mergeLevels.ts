@@ -1,6 +1,6 @@
 import { canonical, type Syncable } from './lww';
 import { canonicalCore, coreFieldsOf, type CoreKind, type CoreRecord } from '@/src/sync/confianza/recordCore';
-import { envenenado } from './relojDelMerge';
+import { envenenado, estampaDeIngreso } from './relojDelMerge';
 import { unirDisputa } from '@/src/algorithms/autoria';
 import { unirMiembros } from '@/src/algorithms/roster';
 import type { Group, NucleoDisputado } from '@/src/types/models';
@@ -299,13 +299,14 @@ export function mergeByIdLevels<K extends CoreKind>(
     const id = (inc as unknown as Syncable).id;
     const i = indexById.get(id);
     if (i === undefined) {
-      // Un id nuevo con `updatedAt` envenenado no entra (T-144): si entrara,
-      // nada plausible podría pisarlo después. Mismo criterio que
-      // `mergeUsersLWW`. No es un descarte de datos —nadie lo persiste— sino
-      // el mismo "no gana" que arriba, aplicado a un local que no existe.
-      if (envenenado(inc.updatedAt, now)) continue;
+      // Un id nuevo con `updatedAt` adelantado entra con
+      // una estampa determinista (T-268, ver `estampaDeIngreso`): antes se
+      // descartaba y la rebanada quedaba «aplicada». No gana para siempre
+      // (T-144) ni a una versión real posterior. Un `updatedAt` no numérico no entra.
+      const estampa = estampaDeIngreso(inc as unknown as { updatedAt?: unknown; createdAt?: unknown }, now);
+      if (estampa === null) continue;
       indexById.set(id, out.length);
-      out.push(inc);
+      out.push(estampa === inc.updatedAt ? inc : { ...inc, updatedAt: estampa });
     } else {
       out[i] = mergeRecord(kind, out[i]!, inc, now);
     }

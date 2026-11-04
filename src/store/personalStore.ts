@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { readScoped, writeScopedLazy } from './userScope';
+import { leerBlobArreglo } from './leerBlob';
 import { mergePersonalPure } from './mergePersonalPure';
 import { migratePersonalBudgetAmount, migratePersonalEntryAmounts } from './moneyMigration';
 import type { PersonalEntry, PersonalBudget } from '@/src/types/models';
@@ -115,11 +116,8 @@ export const usePersonalStore = create<PersonalStoreState>((set, get) => ({
     // (app/_layout.tsx) y una excepción deja isLoading en true para siempre,
     // trabando la pantalla de carga sin salida. Ya pasó con la sesión (T-020);
     // estos stores habían quedado sin la misma protección.
-    let entries: PersonalEntry[] = [];
+    let entries: PersonalEntry[] = leerBlobArreglo<PersonalEntry>(storage, ENTRIES_KEY, rawEntries);
     let budget: PersonalBudget = DEFAULT_BUDGET;
-    try {
-      entries = rawEntries ? (JSON.parse(rawEntries) as PersonalEntry[]) : [];
-    } catch { entries = []; }
     try {
       budget = rawBudget ? (JSON.parse(rawBudget) as PersonalBudget) : DEFAULT_BUDGET;
     } catch { budget = DEFAULT_BUDGET; }

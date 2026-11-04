@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { readScoped, writeScoped } from './userScope';
+import { leerBlobArreglo } from './leerBlob';
 import { generateGroupKey } from '@/src/sync/nucleo/envelopeCrypto';
 import { toHex, fromHex } from '@/src/sync/nucleo/hexBytes';
 
@@ -118,12 +119,7 @@ export const useGroupKeyStore = create<GroupKeyState>((set, get) => ({
 
   hydrate: () => {
     const raw = readScoped(storage, KEY);
-    let keys: GroupKeyRecord[] = [];
-    try {
-      keys = raw ? (JSON.parse(raw) as GroupKeyRecord[]) : [];
-    } catch {
-      keys = []; // dato corrupto: sin claves se degrada a QR, no se rompe
-    }
+    let keys: GroupKeyRecord[] = leerBlobArreglo<GroupKeyRecord>(storage, KEY, raw);
     set({ keys });
   },
 }));

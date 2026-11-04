@@ -59,6 +59,7 @@ import {
   MARCA_CLAVE_V2,
   SECURE_IDS,
   consumirAvisoDatosPerdidos,
+  almacenEsEfimero,
   __resetSecureStorage,
 } from '../secureStorage';
 import { __resetEncryptionKeyCache } from '../encryptionKey';
@@ -397,5 +398,48 @@ describe('secureStorage · arranque en limpio con clave v2 (T-124 L-E)', () => {
     const s = createSecureStorage('payments');
     s.set('k', 'v');
     expect(s.getString('k')).toBe('v');
+  });
+});
+
+describe('secureStorage · fallo pasajero del llavero (T-264)', () => {
+  beforeEach(() => {
+    __resetSecureStorage();
+    __resetEncryptionKeyCache();
+    mockMaps.clear();
+    mockEventos.length = 0;
+    mockKeychain.clear();
+  });
+  afterEach(() => {
+    const SecureStore = jest.requireMock('expo-secure-store');
+    SecureStore.getItemAsync.mockImplementation(async (k: string) => mockKeychain.get(k) ?? null);
+  });
+
+  it('si el llavero falla una vez y responde después, abre el storage cifrado', async () => {
+    const SecureStore = jest.requireMock('expo-secure-store');
+    let llamadas = 0;
+    SecureStore.getItemAsync.mockImplementation(async (k: string) => {
+      llamadas += 1;
+      if (llamadas === 1) throw new Error('errSecInteractionNotAllowed');
+      return mockKeychain.get(k) ?? null;
+    });
+    const consola = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+    await bootstrapSecureStorage();
+
+    expect(almacenEsEfimero()).toBe(false);
+    expect(mockMaps.get('enc_meta')!.get(MARCA_CLAVE_V2)).toBe(true);
+    consola.mockRestore();
+  });
+
+  it('si el llavero sigue fallando, reintenta 3 veces y deja marcado que el storage es efímero', async () => {
+    const SecureStore = jest.requireMock('expo-secure-store');
+    SecureStore.getItemAsync.mockImplementation(async () => { throw new Error('bloqueado'); });
+    const consola = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+    await bootstrapSecureStorage();
+
+    expect(SecureStore.getItemAsync.mock.calls.length).toBeGreaterThanOrEqual(3);
+    expect(almacenEsEfimero()).toBe(true);
+    consola.mockRestore();
   });
 });

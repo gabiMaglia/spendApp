@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { readScoped, writeScopedLazy, activeUserId } from './userScope';
+import { leerBlobArreglo } from './leerBlob';
 import { siguienteUpdatedAt } from './relojDelMerge';
 import { mergeExpensesPure } from './mergeExpensesPure';
 import { signOnCreate, signOnEdit, coreChanged } from '@/src/sync/confianza/signOnWrite';
@@ -138,12 +139,7 @@ export const useExpenseStore = create<ExpenseStoreState>((set, get) => ({
     // (app/_layout.tsx) y una excepción deja isLoading en true para siempre,
     // trabando la pantalla de carga sin salida. Ya pasó con la sesión (T-020);
     // estos stores habían quedado sin la misma protección.
-    let expenses: Expense[] = [];
-    try {
-      expenses = raw ? (JSON.parse(raw) as Expense[]) : [];
-    } catch {
-      expenses = [];
-    }
+    let expenses: Expense[] = leerBlobArreglo<Expense>(storage, KEY, raw);
 
     // Conversión one-shot de datos existentes (float → entero, ADR-002 §6).
     // Debe correr ANTES de la migración WatermelonDB (T-003).

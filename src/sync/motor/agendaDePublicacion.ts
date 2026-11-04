@@ -214,6 +214,11 @@ export async function reintentarPublicacionesPendientes(): Promise<void> {
   }
 }
 
+/** ¿Ya hay una publicación de este grupo en debounce, en vuelo o en espera por un fallo? (T-267) */
+export function publicacionOcupada(groupId: string, ahora: number): boolean {
+  return pendientes.has(groupId) || enVuelo.has(groupId) || ahora < (backoff.get(groupId)?.hasta ?? 0);
+}
+
 /** Sólo para tests. */
 export function __resetReintentos(): void {
   backoff.clear();
