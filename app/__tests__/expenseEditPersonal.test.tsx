@@ -19,7 +19,7 @@ jest.mock('expo-router', () => ({
 
 const entry = (over: Partial<PersonalEntry> = {}): PersonalEntry => ({
   id: 'p1', kind: 'expense', description: 'Café', amount: 1500, currency: 'USD',
-  category: 'food', date: Date.UTC(2026, 0, 10), createdAt: 5, updatedAt: 1, isDeleted: false, ...over,
+  category: 'food', date: Date.now(), createdAt: 5, updatedAt: 1, isDeleted: false, ...over,
 } as PersonalEntry);
 
 describe.each(['default', 'aero'] as const)('editar entrada personal (skin %s)', skin => {

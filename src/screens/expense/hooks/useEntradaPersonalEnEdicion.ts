@@ -1,5 +1,6 @@
 import { usePersonalStore } from '@/src/store/personalStore';
 import { isEditable } from '@/src/algorithms/entryOrigin';
+import { esDelMesCorriente } from '@/src/screens/personal/utils/mesCorriente';
 import type { CurrencyCode } from '@/src/constants/currencies';
 import type { PersonalCategory } from '@/src/types/models';
 
@@ -15,8 +16,9 @@ export type PrecargaPersonal = {
 /**
  * Entrada personal que la pantalla de gasto está editando (T-257).
  *
- * Sólo las MANUALES: una derivada, borrada o con id que ya no existe no abre
- * edición — el formulario quedaría vacío y guardaría una entrada nueva.
+ * Sólo las MANUALES del mes corriente: una derivada, borrada, de un mes cerrado
+ * (PO 2026-11-04) o con id que ya no existe no abre edición — el formulario
+ * quedaría vacío y guardaría una entrada nueva.
  */
 export function useEntradaPersonalEnEdicion(personalEntryId: string | undefined): {
   inicial: PrecargaPersonal | undefined;
@@ -25,7 +27,7 @@ export function useEntradaPersonalEnEdicion(personalEntryId: string | undefined)
   const found = usePersonalStore(s =>
     personalEntryId ? s.entries.find(e => e.id === personalEntryId && !e.isDeleted) : undefined,
   );
-  if (!found || !isEditable(found)) return { inicial: undefined, editing: false };
+  if (!found || !isEditable(found) || !esDelMesCorriente(found.date)) return { inicial: undefined, editing: false };
   return {
     editing: true,
     inicial: {

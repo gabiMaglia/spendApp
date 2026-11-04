@@ -10,7 +10,7 @@ jest.mock('@expo/vector-icons', () => ({ Ionicons: () => null }));
 
 const entry = (over: Partial<PersonalEntry>): PersonalEntry => ({
   id: 'e1', kind: 'expense', description: 'Café', amount: 500, currency: 'ARS',
-  category: 'food', date: 0, createdAt: 0, updatedAt: 1, isDeleted: false, ...over,
+  category: 'food', date: Date.now(), createdAt: 0, updatedAt: 1, isDeleted: false, ...over,
 } as PersonalEntry);
 
 beforeEach(() => mockPush.mockClear());
@@ -20,6 +20,13 @@ describe('tocar una fila de Personal (T-257)', () => {
     const { getByText } = render(<EntryRow entry={entry({ kind })} onRemove={jest.fn()} />);
     fireEvent.press(getByText('Café'));
     expect(mockPush).toHaveBeenCalledWith({ pathname: '/expense/new', params: { personalEntryId: 'e1' } });
+  });
+
+  it('una entrada manual de un mes cerrado no navega (PO 2026-11-04)', () => {
+    const mesPasado = new Date(new Date().getFullYear(), new Date().getMonth() - 1, 15).getTime();
+    const { getByText } = render(<EntryRow entry={entry({ date: mesPasado })} onRemove={jest.fn()} />);
+    fireEvent.press(getByText('Café'));
+    expect(mockPush).not.toHaveBeenCalled();
   });
 
   it.each(['group_replicated', 'carryover'] as const)('una derivada (%s) no navega', kind => {
