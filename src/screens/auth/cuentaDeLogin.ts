@@ -2,7 +2,7 @@ import { Alert } from 'react-native';
 import { rehidratarTrasFusion } from '@/src/store/session';
 import type { TFunction } from 'i18next';
 
-import { clearGuestAccount, pendingGuestAccountId, useAuthStore } from '@/src/store/authStore';
+import { clearGuestAccount, declineGuestMerge, pendingGuestAccountId, useAuthStore } from '@/src/store/authStore';
 import { mergeAccounts } from '@/src/store/accountLink';
 import { probarOtroProveedor } from '@/src/screens/auth/directorio';
 
@@ -106,7 +106,7 @@ export function ofrecerFusionDeInvitado(t: TFunction, accountId: string, label: 
     t('auth.guest_merge_title'),
     t('auth.guest_merge_body', { account: label }),
     [
-      { text: t('auth.guest_merge_no'), style: 'cancel', onPress: clearGuestAccount },
+      { text: t('auth.guest_merge_no'), style: 'cancel', onPress: declineGuestMerge },
       {
         text: t('auth.guest_merge_yes'),
         onPress: () => {

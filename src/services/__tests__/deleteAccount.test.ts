@@ -1,4 +1,5 @@
 import { deleteAccount, resumePendingDeletion } from '../deleteAccount';
+import { subscribeSessionRehydrate } from '@/src/store/session';
 import { readJournal, writeJournal, clearJournal } from '@/src/store/deleteJournal';
 import { useAuthStore } from '@/src/store/authStore';
 import { useUserStore } from '@/src/store/userStore';
@@ -53,6 +54,9 @@ jest.mock('@/src/sync/motor/relayEngine', () => ({
   deviceId: () => 'dev',
   schedulePublish: jest.fn(),
   olvidarCursor: jest.fn(),
+  stopRelay: jest.fn(() => { mockLlamadas.push('stop-relay'); }),
+  cancelPendingPublishes: jest.fn(),
+  reiniciarSyncPorCambioDeCuenta: jest.fn(() => { mockLlamadas.push('reiniciar-sync'); }),
   publishNow: jest.fn(async (groupId: string) => { mockLlamadas.push(`publish:${groupId}`); }),
 }));
 
@@ -455,5 +459,180 @@ describe('la cuenta también se borra del servidor (B-1)', () => {
     mockRespuestaCuenta = () => ({ ok: false, reason: 'not_configured' });
     await deleteAccount({ timeoutMs: 200 });
     expect(readJournal()).toBeNull();
+  });
+});
+
+/**
+ * T-265 (auditoría): matar la app durante las esperas de red dejaba una cuenta
+ * viva a medio borrar, y al reanudar se podía destruir la identidad de otra.
+ */
+describe('T-265 · el borrado interrumpido se termina', () => {
+  it('la sesión sigue viva durante la red (la necesita deleteMyAccount) y se cierra al final', async () => {
+    let sesionAlPrimerBorrado: unknown = 'sin-medir';
+    mockRespuesta = () => {
+      if (sesionAlPrimerBorrado === 'sin-medir') sesionAlPrimerBorrado = useAuthStore.getState().currentUser;
+      return { ok: true, deleted: 1 };
+    };
+    await deleteAccount({ timeoutMs: 200 });
+    expect(sesionAlPrimerBorrado).not.toBeNull();
+    expect(useAuthStore.getState().currentUser).toBeNull();
+  });
+
+  it('reanudar con la sesión viva (app matada antes de la fase 3) borra lo local y cierra sesión', async () => {
+    const fantasma = { ...YO, name: 'Cuenta borrada', deletedAt: 5 };
+    useAuthStore.setState({ currentUser: fantasma });
+    auth.set('current_user', JSON.stringify(fantasma));
+    writeJournal({ accountId: 'u1', pendientes: ['t_grupo'], purgados: 0, ultimaCuenta: true, startedAt: 1 });
+
+    await resumePendingDeletion();
+
+    expect(useAuthStore.getState().currentUser).toBeNull();
+    expect(auth.getString('current_user')).toBeFalsy();
+    expect(readJournal()).toBeNull();
+  });
+
+  it('reanudar no cierra la sesión de OTRA cuenta que entró después', async () => {
+    useAuthStore.setState({ currentUser: { ...YO, id: 'u2' } });
+    writeJournal({ accountId: 'u1', pendientes: [], purgados: 3, ultimaCuenta: true, startedAt: 1 });
+
+    await resumePendingDeletion();
+
+    expect(useAuthStore.getState().currentUser?.id).toBe('u2');
+  });
+
+  it('reanudar NO destruye la identidad si otra cuenta la sigue usando', async () => {
+    cuentasConocidas('u1', 'u2');
+    writeJournal({ accountId: 'u1', pendientes: [], purgados: 3, ultimaCuenta: true, startedAt: 1 });
+    const prendaAntes = groupkeys.getString('owner_secret_v1');
+
+    const r = await resumePendingDeletion();
+
+    expect(r!.prendaDestruida).toBe(false);
+    expect(groupkeys.getString('owner_secret_v1')).toBe(prendaAntes);
+  });
+
+  it('reanudar NO destruye la identidad si hay un invitado con sesión (no figura en el índice)', async () => {
+    useAuthStore.setState({ currentUser: { ...YO, id: 'g1', authProvider: 'guest' } });
+    writeJournal({ accountId: 'u1', pendientes: [], purgados: 3, ultimaCuenta: true, startedAt: 1 });
+
+    const r = await resumePendingDeletion();
+
+    expect(r!.prendaDestruida).toBe(false);
+    expect(groupkeys.getString('owner_secret_v1')).toBeTruthy();
+  });
+
+  it('reanudar dos veces es idempotente', async () => {
+    writeJournal({ accountId: 'u1', pendientes: [], purgados: 3, ultimaCuenta: true, startedAt: 1 });
+    await resumePendingDeletion();
+    expect(await resumePendingDeletion()).toBeNull();
+  });
+});
+
+describe('T-265 · la sesión sobrevive hasta que el servidor borró la cuenta (QA D1)', () => {
+  it('con el coordinador de sesión montado, deleteMyAccount corre ANTES de que la sesión se reinicie', async () => {
+    const unsub = subscribeSessionRehydrate();
+    try {
+      await deleteAccount({ timeoutMs: 200 });
+      expect(mockLlamadas).toContain('cuenta');
+      expect(mockLlamadas.indexOf('reiniciar-sync')).toBeGreaterThan(mockLlamadas.indexOf('cuenta'));
+    } finally { unsub(); }
+  });
+
+  it('lo local (storage) ya está barrido durante la espera de red, aunque la sesión siga', async () => {
+    auth.set('profile::u:u1', JSON.stringify(YO));
+    let perfilEnLaPurga: string | undefined = 'sin-medir';
+    mockRespuesta = () => {
+      if (perfilEnLaPurga === 'sin-medir') perfilEnLaPurga = auth.getString('acct::p:google:123');
+      return { ok: true, deleted: 1 };
+    };
+    auth.set('acct::p:google:123', 'u1');
+    await deleteAccount({ timeoutMs: 200 });
+    expect(perfilEnLaPurga).toBeFalsy();
+  });
+
+  it('«sin sesión» en el PRIMER intento no prueba que la cuenta no exista: queda pendiente', async () => {
+    mockRespuestaCuenta = () => ({ ok: false, reason: 'network', detail: 'delete_my_account: sin sesión' });
+    await deleteAccount({ timeoutMs: 200 });
+    expect(readJournal()).toMatchObject({ cuentaEnServidor: 'pendiente' });
+  });
+
+  it('«sin sesión» en un REINTENTO tampoco la da por borrada: sigue pendiente', async () => {
+    mockRespuestaCuenta = () => ({ ok: false, reason: 'network' });
+    await deleteAccount({ timeoutMs: 200 });
+    mockRespuestaCuenta = () => ({ ok: false, reason: 'network', detail: 'delete_my_account: sin sesión' });
+    await resumePendingDeletion();
+    expect(readJournal()).toMatchObject({ cuentaEnServidor: 'pendiente', intentosSinSesion: 1 });
+  });
+
+  it('con «sin sesión» repetido se abandona con tope, dejando constancia (nunca «borrada»)', async () => {
+    mockRespuestaCuenta = () => ({ ok: false, reason: 'network', detail: 'delete_my_account: sin sesión' });
+    await deleteAccount({ timeoutMs: 200 });
+    for (let i = 0; i < 6; i++) await resumePendingDeletion();
+    expect(readJournal()).toBeNull();
+    const { listErrors } = jest.requireActual('../errorLog') as typeof import('../errorLog');
+    expect(listErrors().some(e => /abandonada/.test(e.message))).toBe(true);
+  });
+
+  it('D2 · un invitado que entra durante la espera de red NO pierde la identidad', async () => {
+    mockRespuesta = () => {
+      useAuthStore.setState({ currentUser: { ...YO, id: 'g1', authProvider: 'guest' } });
+      return { ok: true, deleted: 1 };
+    };
+    const r = await deleteAccount({ timeoutMs: 200 });
+    expect(r.prendaDestruida).toBe(false);
+    expect(groupkeys.getString('owner_secret_v1')).toBeTruthy();
+  });
+});
+
+describe('T-265 · el scope barrido no resucita durante la espera (QA D3)', () => {
+  const { bucketsAbiertos } = jest.requireActual('@/src/utils/createStorage') as typeof import('@/src/utils/createStorage');
+  const { useGroupKeyStore } = jest.requireActual('@/src/store/groupKeyStore') as typeof import('@/src/store/groupKeyStore');
+  const { flushScopedWrites } = jest.requireActual('@/src/store/userScope') as typeof import('@/src/store/userScope');
+
+  function clavesDelScope(uid: string): string[] {
+    const out: string[] = [];
+    for (const b of bucketsAbiertos().values()) {
+      for (const k of b.getAllKeys()) if (k.endsWith(`::u:${uid}`)) out.push(k);
+    }
+    return out;
+  }
+  function grupoNuevo(id: string): Group {
+    return {
+      id, name: 'G', memberIds: ['u1'], currency: 'ARS',
+      miembros: { u1: { estado: 'in', at: 0 } }, createdAt: 0, createdById: 'u1', updatedAt: 0, isDeleted: false,
+    } as Group;
+  }
+  function escrituraDuranteLaEspera() {
+    useGroupStore.getState().addGroup(grupoNuevo('gx'));
+    flushScopedWrites();
+    useGroupKeyStore.getState().ensureKey('gx');
+    enLaVentana.push(...clavesDelScope('u1'));
+  }
+  const enLaVentana: string[] = [];
+  beforeEach(() => { enLaVentana.length = 0; });
+
+  it('deleteAccount: lo guardado durante la red no deja claves ::u:<uid> y se detiene el sync', async () => {
+    mockRespuesta = () => { escrituraDuranteLaEspera(); return { ok: true, deleted: 1 }; };
+    await deleteAccount({ timeoutMs: 200 });
+    expect(enLaVentana).toEqual([]);   // ni siquiera mientras dura la espera
+    expect(clavesDelScope('u1')).toEqual([]);
+    expect(mockLlamadas.indexOf('stop-relay')).toBeGreaterThanOrEqual(0);
+    expect(mockLlamadas.indexOf('stop-relay')).toBeLessThan(mockLlamadas.findIndex(l => l.startsWith('delete:')));
+  });
+
+  it('resumePendingDeletion: ídem, con el sync de la cuenta detenido antes del barrido', async () => {
+    writeJournal({ accountId: 'u1', pendientes: ['t_grupo'], purgados: 0, ultimaCuenta: false, startedAt: 1 });
+    mockRespuesta = () => { escrituraDuranteLaEspera(); return { ok: true, deleted: 1 }; };
+    await resumePendingDeletion();
+    expect(clavesDelScope('u1')).toEqual([]);
+    expect(mockLlamadas[0]).toBe('stop-relay');
+  });
+
+  it('el congelado se libera: la misma cuenta, si vuelve a entrar, puede escribir su scope', async () => {
+    await deleteAccount({ timeoutMs: 200 });
+    useAuthStore.setState({ currentUser: { ...YO } });
+    useGroupStore.getState().addGroup(grupoNuevo('gy'));
+    flushScopedWrites();
+    expect(clavesDelScope('u1').length).toBeGreaterThan(0);
   });
 });

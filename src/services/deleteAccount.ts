@@ -10,8 +10,8 @@ import { deleteMyAccount, deleteMyEnvelopes } from '@/src/sync/adaptadores/supab
 import { signOutOfDirectory } from '@/src/sync/sesion/directoryAuth';
 import { olvidarCursor } from '@/src/sync/motor/relayEngine';
 import { destruirIdentidadDelAparato } from '@/src/store/identityStore';
-import { discardScopedWrites } from '@/src/store/userScope';
-import { clearErrors } from './errorLog';
+import { discardScopedWrites, congelarScope, liberarScope } from '@/src/store/userScope';
+import { clearErrors, recordError } from './errorLog';
 import { anonymizeSelf } from './anonymizeSelf';
 import { topicsDeLaCuenta } from './deleteTopics';
 import { gruposParaSalir } from './salidasAlBorrar';
@@ -121,20 +121,32 @@ export async function deleteAccount(opts: Opciones = {}): Promise<DeleteOutcome>
     await conTimeout(publicarGrupos(gruposDelScope), opts.timeoutMs ?? TIMEOUT_PURGA_MS);
   } catch { /* el aviso es best-effort, por definición */ }
 
-  // ── Fase 2 · Purgar el buzón ──────────────────────────────────────────────
+  // ── Fase 2 · Borrar lo local (siempre, y ANTES de esperar a la red) ──────
+  // T-265: la ventana en que la app podía morir con la cuenta viva eran las dos
+  // esperas de red. Los topics ya están en el diario y la prenda sigue en pie,
+  // así que lo que viene después no necesita nada de lo que se barre acá.
+  // **La sesión NO se cierra todavía**: `currentUser -> null` hace que el
+  // coordinador de sesión purgue la sesión del buzón, y `deleteMyAccount` (3b)
+  // la necesita. Si la app muere acá, el diario la termina al arrancar.
+  aviso('borrando');
+  detenerSyncDe(accountId);
+  borrarLoLocal(accountId);
+
+  // ── Fase 3 · Purgar el buzón ──────────────────────────────────────────────
   aviso('purgando');
   await conTimeout(purgar(diario), opts.timeoutMs ?? TIMEOUT_PURGA_MS);
 
-  // ── Fase 2b · La cuenta en el servidor (auditoría pre-tiendas, B-1) ──────
-  // Después de purgar y antes de cerrar la sesión: la necesita.
+  // ── Fase 3b · La cuenta en el servidor (auditoría pre-tiendas, B-1) ──────
   await conTimeout(borrarCuentaDelServidor(diario).then(() => undefined), opts.timeoutMs ?? TIMEOUT_PURGA_MS);
 
-  // ── Fase 3 · Borrar lo local (siempre, aunque la 2 haya fallado) ─────────
-  aviso('borrando');
-  borrarLoLocal(accountId, diario.cuentaEnServidor === 'pendiente');
+  // ── Fase 3c · Cerrar la sesión (ahora sí) ────────────────────────────────
+  cerrarSesionDe(accountId, diario.cuentaEnServidor === 'pendiente');
+  if (diario.cuentaEnServidor !== 'pendiente') {
+    try { await signOutOfDirectory(); } catch { /* … */ }
+  }
 
   // ── Fase 4 · Destruir la identidad del aparato (sólo si corresponde) ─────
-  const puedeDestruir = diario.ultimaCuenta && diario.pendientes.length === 0;
+  const puedeDestruir = puedeDestruirIdentidad(diario);
   if (puedeDestruir) {
     try { destruirIdentidadDelAparato(); } catch { /* no bloquea el borrado */ }
     /**
@@ -168,6 +180,12 @@ export async function resumePendingDeletion(): Promise<DeleteOutcome | null> {
   const diario = readJournal();
   if (!diario) return null;
 
+  // T-265: si la app murió antes de la fase local, la cuenta sigue viva y
+  // «anonimizada»; se termina el barrido (idempotente) antes de tocar la red.
+  // La sesión se cierra DESPUÉS de `deleteMyAccount`, que la necesita.
+  detenerSyncDe(diario.accountId);
+  borrarLoLocal(diario.accountId);
+
   if (diario.pendientes.length > 0) {
     await purgar(diario);
   }
@@ -177,8 +195,9 @@ export async function resumePendingDeletion(): Promise<DeleteOutcome | null> {
       try { await signOutOfDirectory(); } catch { /* … */ }
     }
   }
+  cerrarSesionDe(diario.accountId, diario.cuentaEnServidor === 'pendiente');
 
-  const puedeDestruir = diario.ultimaCuenta && diario.pendientes.length === 0;
+  const puedeDestruir = puedeDestruirIdentidad(diario);
   if (puedeDestruir) {
     try { destruirIdentidadDelAparato(); } catch { /* … */ }
   }
@@ -192,6 +211,22 @@ export async function resumePendingDeletion(): Promise<DeleteOutcome | null> {
     topicsPendientes: diario.pendientes.length,
     prendaDestruida: puedeDestruir,
   };
+}
+
+/**
+ * Una sola condición para los dos caminos. El `ultimaCuenta` del diario es de
+ * cuando se empezó a borrar: desde entonces pudo entrar otra cuenta o un
+ * invitado (que no figura en el índice) con la misma identidad. Ante la duda,
+ * no se destruye.
+ */
+function puedeDestruirIdentidad(diario: DeleteJournal): boolean {
+  return diario.ultimaCuenta && diario.pendientes.length === 0
+    && esLaUltimaCuenta(diario.accountId) && !hayOtraSesion(diario.accountId);
+}
+
+function hayOtraSesion(accountId: string): boolean {
+  const u = useAuthStore.getState().currentUser;
+  return !!u && u.id !== accountId;
 }
 
 /**
@@ -259,17 +294,34 @@ async function borrarCuentaDelServidor(diario: DeleteJournal): Promise<boolean> 
   } catch {
     return false;
   }
-  const yaNoExiste = !r.ok && r.reason === 'network' && /sin sesión/i.test(r.detail ?? '');
-  if (r.ok || r.reason === 'not_configured' || yaNoExiste) {
+  if (r.ok || r.reason === 'not_configured') {
     diario.cuentaEnServidor = 'borrada';
     guardar(diario);
     return true;
   }
+  // «sin sesión» NO prueba que la cuenta ya no exista (la sesión puede haberla
+  // perdido la propia app): sólo una respuesta positiva la da por borrada. Se
+  // reintenta con tope y, al agotarlo, se abandona dejando constancia.
+  if (r.reason === 'network' && /sin sesión/i.test(r.detail ?? '')) {
+    diario.intentosSinSesion = (diario.intentosSinSesion ?? 0) + 1;
+    if (diario.intentosSinSesion >= MAX_INTENTOS_SIN_SESION) {
+      diario.cuentaEnServidor = 'abandonada';
+      recordError({ message: 'delete_my_account: abandonada tras reintentos sin sesión', fatal: false });
+      guardar(diario);
+      return true;
+    }
+    guardar(diario);
+  }
   return false;
 }
 
+const MAX_INTENTOS_SIN_SESION = 5;
+
 /** El barrido local. Todo lo que lleva el id de la cuenta, de todos los buckets. */
-function borrarLoLocal(accountId: string, conservarSesionDelBuzon = false): void {
+function borrarLoLocal(accountId: string): void {
+  // -1 · congelar el scope: la sesión sigue viva durante la red y nada que se
+  //      guarde mientras tanto puede resucitar lo que se barre acá.
+  intentar(() => congelarScope(accountId));
   // 0 · escrituras diferidas (T-156) ANTES que nada: una que vaciara después
   //     del barrido resucitaría el dato que se acaba de borrar.
   intentar(() => discardScopedWrites());
@@ -283,8 +335,38 @@ function borrarLoLocal(accountId: string, conservarSesionDelBuzon = false): void
   intentar(() => forgetAccount(accountId));
   // 4 · el log de fusiones, que es una lista sin scope.
   intentar(() => olvidarFusionesDe(accountId));
-  // 5 · la sesión.
-  intentar(() => useAuthStore.getState().signOut({ conservarSesionDelBuzon }));
+}
+
+/**
+ * La sesión — sólo si sigue siendo la de esta cuenta (al reanudar pudo haber
+ * entrado otra). `conservarSesionDelBuzon` si la cuenta del servidor sigue
+ * pendiente: el reintento al arrancar la necesita.
+ */
+function cerrarSesionDe(accountId: string, conservarSesionDelBuzon: boolean): void {
+  intentar(() => {
+    if (useAuthStore.getState().currentUser?.id !== accountId) return;
+    useAuthStore.getState().signOut({ conservarSesionDelBuzon });
+  });
+  // Último barrido, ya sin sesión: lo diferido que se armó durante la espera y
+  // lo que haya escapado se va, y recién ahí se descongela.
+  intentar(() => discardScopedWrites());
+  intentar(() => barrerScope(accountId));
+  intentar(() => liberarScope(accountId));
+}
+
+/**
+ * Corta el sync de la cuenta que se borra (entrante y publicaciones). Sólo si
+ * es la activa: al reanudar puede haber entrado otra y su sync no se toca.
+ * Perezoso: `relayEngine` arrastra el motor.
+ */
+function detenerSyncDe(accountId: string): void {
+  intentar(() => {
+    if (useAuthStore.getState().currentUser?.id !== accountId) return;
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const eng = require('@/src/sync/motor/relayEngine') as typeof import('@/src/sync/motor/relayEngine');
+    eng.stopRelay();
+    eng.cancelPendingPublishes();
+  });
 }
 
 function intentar(fn: () => void): void {

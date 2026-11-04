@@ -104,15 +104,36 @@ export function olvidarPruebasDeProveedor(): void {
  */
 export function recordGuestAccount(accountId: string): void {
   storage.set(KEYS.GUEST_PENDING, accountId);
+  // Volver a entrar como invitado re-arma la oferta de fusión.
+  storage.delete(KEYS.GUEST_DECLINED);
 }
 
+/** El invitado a OFRECER para fusión: null si ya se resolvió o se dijo «No». */
 export function pendingGuestAccountId(): string | null {
+  if (storage.getString(KEYS.GUEST_DECLINED)) return null;
   return storage.getString(KEYS.GUEST_PENDING) ?? null;
 }
 
-/** Se llama una sola vez que ya se preguntó (se haya fusionado o no). */
+/**
+ * T-266: el invitado de este aparato al que «Continuar sin cuenta» tiene que
+ * volver (mismo id, mismo scope), aunque ya se haya rechazado fusionarlo.
+ */
+export function invitadoDelAparato(): string | null {
+  return storage.getString(KEYS.GUEST_PENDING) ?? null;
+}
+
+/** Ya se fusionó: ese invitado dejó de existir como tal. */
 export function clearGuestAccount(): void {
   storage.delete(KEYS.GUEST_PENDING);
+  storage.delete(KEYS.GUEST_DECLINED);
+}
+
+/**
+ * «No, no sumar»: el scope del invitado NO queda huérfano. Se conserva el
+ * puntero para poder volver a él, y se marca para no repetir la pregunta.
+ */
+export function declineGuestMerge(): void {
+  if (storage.getString(KEYS.GUEST_PENDING)) storage.set(KEYS.GUEST_DECLINED, '1');
 }
 
 /**
@@ -149,6 +170,8 @@ export function forgetAccount(accountId: string): void {
   }
   const known = readKnown().filter(a => a.accountId !== accountId);
   storage.set(KNOWN, JSON.stringify(known));
+  // Un invitado borrado no puede ser al que «Continuar sin cuenta» vuelva.
+  if (storage.getString(KEYS.GUEST_PENDING) === accountId) clearGuestAccount();
 }
 
 const accountIndex: AccountIndex = {

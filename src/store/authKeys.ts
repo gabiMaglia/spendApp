@@ -8,6 +8,8 @@ export const AUTH_KEYS = {
   PROFILE:       'profile',
   /** Cuenta invitada de este device pendiente de fusionar (ver `authStore.ts`). */
   GUEST_PENDING: 'guest_pending',
+  /** El usuario dijo «No» a sumar ese invitado: se conserva el puntero pero no se vuelve a preguntar. */
+  GUEST_DECLINED: 'guest_declined',
 } as const;
 
 /** Perfil persistido de una cuenta. NO se borra en el signOut. */
