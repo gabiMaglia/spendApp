@@ -9,7 +9,6 @@ import type { RecurrenceValue } from '@/src/components/RecurrencePicker';
 import { validatePayers } from '@/src/algorithms/payers';
 import { estaBloqueado } from '@/src/algorithms/groupExpenseLimit';
 import { Spacing } from '@/src/constants/spacing';
-import type { CurrencyCode } from '@/src/constants/currencies';
 import { useAmountInput } from '@/src/hooks/useAmountInput';
 import { useContadorDeRenders } from '@/src/hooks/useContadorDeRenders';
 import { useAuthStore } from '@/src/store/authStore';
@@ -24,6 +23,7 @@ import { formatMoney } from '@/src/constants/currencies';
 import { useUserStore } from '@/src/store/userStore';
 import type { Payer, PersonalCategory } from '@/src/types/models';
 import { useRepartoDeGasto } from '@/src/screens/expense/hooks/useRepartoDeGasto';
+import { useMonedaDelGasto } from '@/src/screens/expense/hooks/useMonedaDelGasto';
 import { useGuardarGasto } from '@/src/screens/expense/hooks/useGuardarGasto';
 import { HeroMonto } from '@/src/screens/expense/components/HeroMonto';
 import { CategoriaChips, DescripcionCard } from '@/src/screens/expense/components/DescripcionYCategorias';
@@ -81,7 +81,10 @@ export default function NewExpenseScreen() {
   const [groupId, setGroupId] = useState(existingExpense?.groupId ?? paramGroupId ?? '');
   // Moneda del grupo activo, resuelta temprano — el input de monto (entero,
   // menor unidad — ADR-002) la necesita para parsear/formatear correctamente.
-  const currency: CurrencyCode = groups.find(g => g.id === groupId)?.currency ?? 'ARS';
+  // T-255: con grupo es la del grupo; sin grupo la elige el usuario.
+  const { currency, setCurrency, editable: monedaEditable } = useMonedaDelGasto(
+    groupId, groups.find(g => g.id === groupId)?.currency,
+  );
   const {
     text: amountStr, minor: amount, onChangeText: setAmountStr, onBlur: onAmountBlur, setMinor: setAmountMinor,
   } = useAmountInput(currency, existingExpense?.amount ?? 0);
@@ -231,6 +234,7 @@ export default function NewExpenseScreen() {
                 category={category}
                 isIncome={isIncome}
                 currency={currency}
+                onCurrencyChange={monedaEditable ? setCurrency : undefined}
                 description={description}
                 onDescriptionChange={setDescription}
                 amount={amountStr}

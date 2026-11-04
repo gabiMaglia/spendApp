@@ -12,6 +12,7 @@ import { useSkin } from '@/src/skins/useSkin';
 import type { PersonalCategory } from '@/src/types/models';
 import { CATEGORIES } from '@/src/screens/expense/repartoDeGasto';
 import { tinteDeCategoria } from '@/src/screens/expense/components/GrillaCategorias';
+import { CurrencySheet } from '@/src/components/CurrencyPicker';
 
 /**
  * Los dos renglones de Splitwise en una tarjeta (feat/reskin, B4): ícono de
@@ -19,7 +20,7 @@ import { tinteDeCategoria } from '@/src/screens/expense/components/GrillaCategor
  * ingreso el ícono es el de ingreso, en verde.
  */
 export function TarjetaDescripcionMonto({
-  category, isIncome, currency, description, onDescriptionChange, amount, onAmountChange, onAmountBlur,
+  category, isIncome, currency, description, onDescriptionChange, amount, onAmountChange, onAmountBlur, onCurrencyChange,
 }: {
   category: PersonalCategory;
   isIncome: boolean;
@@ -29,6 +30,8 @@ export function TarjetaDescripcionMonto({
   amount: string;
   onAmountChange: (v: string) => void;
   onAmountBlur: () => void;
+  /** Sólo sin grupo: con grupo la moneda es la del grupo y el badge no se toca (regla 7). */
+  onCurrencyChange?: (code: CurrencyCode) => void;
 }) {
   const { t } = useTranslation();
   const { skin } = useSkin();
@@ -42,6 +45,16 @@ export function TarjetaDescripcionMonto({
   // en el campo que se está escribiendo.
   const [enFoco, setEnFoco] = useState<'descripcion' | 'monto' | null>(null);
   const subrayado = (campo: 'descripcion' | 'monto') => (enFoco === campo ? c.brand.primary : c.hair);
+
+  const [selectorAbierto, setSelectorAbierto] = useState(false);
+  const badge = (
+    <>
+      <Text style={[styles.simbolo, { color: isIncome ? c.semantic.positive : c.brand.primary }]}>
+        {getCurrency(currency).symbol}
+      </Text>
+      <Text style={[styles.codigo, { color: c.textTertiary }]}>{currency}</Text>
+    </>
+  );
 
   return (
     <View style={[styles.tarjeta, { backgroundColor: c.surface, borderRadius: skin.radius.panel, boxShadow: skin.elevation.e2.boxShadow }]}>
@@ -67,12 +80,19 @@ export function TarjetaDescripcionMonto({
       </View>
 
       <Pressable style={styles.renglon} onPress={() => montoRef.current?.focus()}>
-        <View style={[styles.tile, { backgroundColor: c.surfaceSunken }]}>
-          <Text style={[styles.simbolo, { color: isIncome ? c.semantic.positive : c.brand.primary }]}>
-            {getCurrency(currency).symbol}
-          </Text>
-          <Text style={[styles.codigo, { color: c.textTertiary }]}>{currency}</Text>
-        </View>
+        {onCurrencyChange ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('expense.currency_change')}
+            onPress={() => setSelectorAbierto(true)}
+            style={[styles.tile, { backgroundColor: c.surfaceSunken }]}
+          >
+            {badge}
+            <Ionicons name="chevron-down" size={10} color={c.textTertiary} />
+          </Pressable>
+        ) : (
+          <View style={[styles.tile, { backgroundColor: c.surfaceSunken }]}>{badge}</View>
+        )}
         <View style={styles.campo} pointerEvents="box-none">
           <Text style={[Typography.caption, { color: c.textTertiary }]}>{t('expense.amount_label')}</Text>
           <TextInput
@@ -92,6 +112,15 @@ export function TarjetaDescripcionMonto({
           />
         </View>
       </Pressable>
+      {onCurrencyChange && (
+        <CurrencySheet
+          visible={selectorAbierto}
+          value={currency}
+          onChange={onCurrencyChange}
+          onClose={() => setSelectorAbierto(false)}
+          title={t('expense.currency_title')}
+        />
+      )}
     </View>
   );
 }

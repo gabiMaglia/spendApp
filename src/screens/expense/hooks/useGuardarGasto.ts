@@ -11,6 +11,7 @@ import { useRecurringStore } from '@/src/store/recurringStore';
 import { useTierStore } from '@/src/store/tierStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { usePersonalStore } from '@/src/store/personalStore';
+import { useSettingsStore } from '@/src/store/settingsStore';
 import { motivoDeExceso } from '@/src/services/topeDeRegistro';
 import { syncedNow } from '@/src/utils/syncedClock';
 import { esYo } from '@/src/store/identityAlias';
@@ -57,6 +58,7 @@ export function useGuardarGasto(f: FormularioDeGasto): () => void {
   const addExpense = useExpenseStore(s => s.addExpense);
   const updateExpense = useExpenseStore(s => s.updateExpense);
   const addPersonalEntry = usePersonalStore(s => s.addEntry);
+  const setLastPersonalCurrency = useSettingsStore(s => s.setLastPersonalCurrency);
   const addRecurring = useRecurringStore(st => st.addRecurring);
 
   /** Desglose de pagadores listo para guardar (o el pagador único). */
@@ -116,6 +118,8 @@ export function useGuardarGasto(f: FormularioDeGasto): () => void {
       updatedAt:   syncedNow(),
       isDeleted:   false,
     });
+    // La próxima vez «Sin grupo» arranca en esta moneda.
+    setLastPersonalCurrency(f.currency);
     saveRecurringTemplate();
     router.back();
   }
