@@ -239,6 +239,8 @@
     "select_group": "Selecionar grupo",
     "no_group": "Sem grupo (pessoal)",
     "no_group_short": "Sem grupo",
+    "currency_title": "Moeda da despesa",
+    "currency_change": "Mudar moeda",
     "who_paid": "Quem pagou?",
     "expense_date": "Data da despesa",
     "note_placeholder": "Adicionar nota opcional...",

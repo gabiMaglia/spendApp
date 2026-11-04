@@ -16,6 +16,7 @@ const KEYS = {
   REDUCE_ANIMATIONS:'reduce_animations',
   SKIN: 'skin',
   ACTIVITY_SEEN_UNTIL: 'activity_seen_until',
+  LAST_PERSONAL_CURRENCY: 'last_personal_currency',
 } as const;
 
 /**
@@ -58,6 +59,14 @@ interface SettingsState {
   actividadVistaHasta: number;
   setActividadVistaHasta: (ms: number) => void;
 
+  /**
+   * Moneda del último gasto/ingreso PERSONAL guardado (T-255): es la que
+   * propone «Sin grupo» la próxima vez. `null` = nunca se usó → se propone la
+   * moneda de pantalla.
+   */
+  lastPersonalCurrency: CurrencyCode | null;
+  setLastPersonalCurrency: (code: CurrencyCode) => void;
+
   setDisplayCurrency: (code: CurrencyCode) => void;
   setNotifExpenses: (value: boolean) => void;
   setNotifDeletions: (value: boolean) => void;
@@ -81,6 +90,12 @@ export function createSettingsStore() {
     reduceAnimations: esDispositivoDeGamaBaja(),
     skin: SKIN_INICIAL,
     actividadVistaHasta: 0,
+    lastPersonalCurrency: null,
+
+    setLastPersonalCurrency: (code) => {
+      writeScoped(storage, KEYS.LAST_PERSONAL_CURRENCY, code);
+      set({ lastPersonalCurrency: code });
+    },
 
     setActividadVistaHasta: (ms) => {
       writeScoped(storage, KEYS.ACTIVITY_SEEN_UNTIL, String(ms));
@@ -140,6 +155,10 @@ export function createSettingsStore() {
         skin: (() => {
           const guardado = readScoped(storage, KEYS.SKIN);
           return esSkinId(guardado) ? guardado : SKIN_INICIAL;
+        })(),
+        lastPersonalCurrency: (() => {
+          const guardado = readScoped(storage, KEYS.LAST_PERSONAL_CURRENCY);
+          return esMonedaSoportada(guardado) ? guardado : null;
         })(),
         actividadVistaHasta: Number(readScoped(storage, KEYS.ACTIVITY_SEEN_UNTIL)) || 0,
       });

@@ -95,15 +95,17 @@ const styles = StyleSheet.create({
  * opciones en dos lugares garantiza que algún día difieran.
  */
 export function CurrencySheet({
-  visible, value, onChange, onClose,
+  visible, value, onChange, onClose, title,
 }: {
   visible: boolean;
   value: CurrencyCode;
   onChange: (code: CurrencyCode) => void;
   onClose: () => void;
+  /** Lo pasa quien llama: un componente reutilizable no traduce (nerv-react-law). */
+  title?: string;
 }) {
   return (
-    <BottomSheet visible={visible} onClose={onClose}>
+    <BottomSheet visible={visible} onClose={onClose} title={title}>
       {SUPPORTED_CURRENCIES.map(m => (
         <SheetOption
           key={m.code}

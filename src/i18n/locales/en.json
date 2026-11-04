@@ -239,6 +239,8 @@
     "select_group": "Select group",
     "no_group": "No group (personal)",
     "no_group_short": "No group",
+    "currency_title": "Expense currency",
+    "currency_change": "Change currency",
     "who_paid": "Who paid?",
     "expense_date": "Expense date",
     "note_placeholder": "Add optional note...",

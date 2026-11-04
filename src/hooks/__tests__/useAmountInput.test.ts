@@ -262,4 +262,38 @@ describe('agrupacion de miles al tipear', () => {
     act(() => result.current.onChangeText('1.500'));
     expect(result.current.minor).toBe(1500);
   });
+
+  describe('cambio de moneda con un monto ya tipeado (T-255)', () => {
+    it('ARS 12,50 → CLP queda en 13 (sin decimales, redondea)', () => {
+      const { result, rerender } = renderHook(
+        ({ code }: { code: CurrencyCode }) => useAmountInput(code),
+        { initialProps: { code: 'ARS' as CurrencyCode } },
+      );
+      act(() => result.current.onChangeText('12,50'));
+      rerender({ code: 'CLP' });
+      expect(result.current.minor).toBe(13);
+      expect(result.current.text).not.toMatch(/,/);
+    });
+
+    it('CLP → ARS conserva el valor y vuelve a admitir decimales', () => {
+      const { result, rerender } = renderHook(
+        ({ code }: { code: CurrencyCode }) => useAmountInput(code),
+        { initialProps: { code: 'CLP' as CurrencyCode } },
+      );
+      act(() => result.current.onChangeText('1500'));
+      rerender({ code: 'ARS' });
+      expect(result.current.minor).toBe(150000);
+      act(() => result.current.onChangeText('1500,5'));
+      expect(result.current.minor).toBe(150050);
+    });
+
+    it('con el campo vacío no inventa un monto', () => {
+      const { result, rerender } = renderHook(
+        ({ code }: { code: CurrencyCode }) => useAmountInput(code),
+        { initialProps: { code: 'ARS' as CurrencyCode } },
+      );
+      rerender({ code: 'CLP' });
+      expect(result.current.text).toBe('');
+    });
+  });
 });
