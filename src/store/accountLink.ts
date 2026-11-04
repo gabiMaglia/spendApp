@@ -140,6 +140,16 @@ export const PENDIENTE_DRENAJE_BASE = 'pending_drain_v1';
 const kPendienteDrenaje = ranura('groupkeys', PENDIENTE_DRENAJE_BASE);
 
 /**
+ * Cola persistente de publicaciones (T-252): grupos con cambios locales sin
+ * publicar, y salidas de grupo sin publicar. Las lee
+ * `sync/motor/publicacionPendiente.ts`.
+ */
+export const PUBLICACION_PENDIENTE_BASE = 'pending_publish_v1';
+export const SALIDA_PENDIENTE_BASE = 'pending_exit_v1';
+const kPublicacionPendiente = ranura('groupkeys', PUBLICACION_PENDIENTE_BASE);
+const kSalidaPendiente = ranura('groupkeys', SALIDA_PENDIENTE_BASE);
+
+/**
  * Invitaciones emitidas y joins aceptados-pendientes (T-098 · SEC L-4). Pasaron
  * a scopearse por cuenta recién en esa ronda; se declaran con `ranura()` como
  * todo lo demás para que la fusión Y la purga las alcancen solas. Las bases
@@ -181,6 +191,8 @@ export function mergeAccounts(fromAccountId: string, toAccountId: string): Merge
   mergeContactPeers(fromAccountId, toAccountId);
   mergeAlias(fromAccountId, toAccountId);
   mergePendingDrain(fromAccountId, toAccountId);
+  mergePendingDrain(fromAccountId, toAccountId, kPublicacionPendiente); // T-252
+  mergePendingDrain(fromAccountId, toAccountId, kSalidaPendiente); // T-252
   mergeInvites(fromAccountId, toAccountId);
   mergePendingJoins(fromAccountId, toAccountId);
   mergeContactInvites(fromAccountId, toAccountId);
@@ -240,12 +252,15 @@ function mergeAlias(fromAccountId: string, toAccountId: string): void {
  * Va aparte de `mergeAccountData` por lo mismo que los archivados: es un
  * `string[]` bajo su propia clave, no una lista de registros con `updatedAt`.
  */
-function mergePendingDrain(fromAccountId: string, toAccountId: string): void {
+function mergePendingDrain(
+  fromAccountId: string, toAccountId: string,
+  clave: (uid: string) => string = kPendienteDrenaje,
+): void {
   if (fromAccountId === toAccountId) return;
   const storage = createSecureStorage('groupkeys');
 
   const leer = (uid: string): string[] => {
-    const raw = storage.getString(kPendienteDrenaje(uid));
+    const raw = storage.getString(clave(uid));
     if (!raw) return [];
     try {
       const v = JSON.parse(raw);
@@ -258,7 +273,7 @@ function mergePendingDrain(fromAccountId: string, toAccountId: string): void {
   const origen = leer(fromAccountId);
   if (origen.length === 0) return;
   storage.set(
-    kPendienteDrenaje(toAccountId),
+    clave(toAccountId),
     JSON.stringify([...new Set([...leer(toAccountId), ...origen])]),
   );
 }
@@ -794,6 +809,7 @@ export const COBERTURA_FUSION: Record<string, string> = {
   'store/noticeInboxStore': 'aparte · mergeNotices (union por id; el acuse gana sobre el no-acuse). Decision del PO 2026-08-30: TODO se fusiona al enlazar cuentas.',
   'store/identityAlias':  'aparte · mergeAlias (alias_v1: unión de los alias del origen MÁS el id del origen, bajo el scope destino). Es lo que hace el alias transitivo A→B→C; sin la unión, la primera identidad se pierde en la segunda fusión.',
   'sync/motor/pendingDrain': 'aparte · mergePendingDrain (pending_drain_v1: UNIÓN de las marcas de las dos cuentas). Unir es el lado seguro: heredar una marca de más cuesta un drenaje; perder una deja publicar un grupo heredado sin leer su buzón, que es el defecto de T-089. (T-206-A: mudanza)',
+  'sync/motor/publicacionPendiente': 'aparte · mergePendingDrain con otra clave (pending_publish_v1 y pending_exit_v1: UNIÓN). Unir es el lado seguro: una marca de más cuesta una publicación redundante; perder una deja un cambio local sin publicar para siempre. (T-252)',
   'sync/contactos/contactPeers': 'aparte · mergeContactPeers (contact_peers_v1: unión por userId, el destino gana campo por campo). El secreto propio y el acuse de tarjeta NO se fusionan — ver el docblock de mergeContactPeers. (T-206-A: mudanza)',
   'store/identityStore':  'aparte · mergeInvites/mergePendingJoins/mergeContactInvites/mergePendingContactClaims (invites_v1/pending_joins_v1/contact_invites_v1/contact_pending_claims_v1: unión por token, vencidas descartadas de los dos lados). Las privadas (identity_v1/owner_secret_v1/wrapkeys_v1) siguen siendo del APARATO y no pasan por writeScoped ni por ranura().',
 };

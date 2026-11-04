@@ -27,7 +27,15 @@ import { reloadAuthorHealth } from '@/src/sync/confianza/authorHealth';
 import { recargarAlias, sembrarAliasDesdeIndice } from './identityAlias';
 import { olvidarFallosDeAplicacion } from '@/src/sync/nucleo/drainFailures';
 import { olvidarGeneraciones } from '@/src/sync/motor/pendingDrain';
+import { olvidarVersionesDePublicacion } from '@/src/sync/motor/publicacionPendiente';
+import { registrarGanchoPostSync } from '@/src/sync/motor/ganchoPostSync';
+import { completarSalidasPendientes } from '@/src/services/salirDelGrupo';
 import { useBloqueoStore } from './bloqueoStore';
+
+// T-252: completar las salidas de grupo cuya publicación salió tarde. Se
+// registra desde acá y no desde el motor: el motor no puede importar
+// `salirDelGrupo` (arrastra `movimientosDerivados` al grafo del cable).
+registrarGanchoPostSync(completarSalidasPendientes);
 
 // (Re)hidrata todos los stores scopeados por cuenta con los datos del usuario
 // activo. Con usuario nulo (deslogueado), cada hydrate lee un scope vacío y deja
@@ -81,6 +89,7 @@ export function rehydrateForActiveUser(): void {
   // Las generaciones de "pendiente de drenaje" (T-191, hallazgo M3) son por
   // groupId, y los grupos son por cuenta: mismo motivo.
   olvidarGeneraciones();
+  olvidarVersionesDePublicacion();
 
   /**
    * Las identidades viejas de esta cuenta (T-048). Mismo motivo que las de

@@ -10,6 +10,10 @@ import { noticeDeCaida } from '@/src/sync/avisos/syncDownNotices';
 import { noticeDeReloj } from '@/src/sync/avisos/clockNotice';
 import { estaPendienteDeDrenaje } from './pendingDrain';
 import { deviceId } from './cursor';
+import {
+  marcarPublicacionPendiente, limpiarPublicacionPendiente, versionDePublicacion,
+  gruposConPublicacionPendiente,
+} from './publicacionPendiente';
 
 /**
  * Publicación con debounce (T-189: extraído de `relayEngine.ts`).
@@ -53,6 +57,10 @@ const pendientes = new Map<string, ReturnType<typeof setTimeout>>();
 export function schedulePublish(groupId: string, delay = PUBLISH_DEBOUNCE_MS): void {
   if (!isRelayConfigured()) return;
 
+  // T-252: la marca se pone ANTES del debounce. Si la app muere dentro de la
+  // ventana, el próximo arranque ve la marca y publica.
+  marcarPublicacionPendiente(groupId);
+
   const anterior = pendientes.get(groupId);
   if (anterior) clearTimeout(anterior);
 
@@ -69,34 +77,89 @@ export function schedulePublish(groupId: string, delay = PUBLISH_DEBOUNCE_MS): v
  * el riesgo que la guarda evita. **Riesgo aceptado y escrito**: ese envío puede
  * republicar estado viejo de un grupo que este teléfono nunca drenó.
  */
-export async function publishNow(groupId: string, opts: { forzar?: boolean } = {}): Promise<void> {
+export async function publishNow(
+  groupId: string, opts: { forzar?: boolean } = {},
+): Promise<PublishResult> {
   const userId = useAuthStore.getState().currentUser?.id;
-  if (!userId) return;
+  if (!userId) return { ok: false, reason: 'not_configured' };
+
+  // T-252: «hay cambios sin publicar» desde acá hasta un ok. Cubre también a los
+  // llamadores directos que no pasan por `schedulePublish`.
+  marcarPublicacionPendiente(groupId);
+  const version = versionDePublicacion(groupId);
 
   /**
    * **La guarda de T-089, y va acá y no en `schedulePublish`.** `publishNow` es
    * el embudo real: `schedulePublish` es sólo su debounce, y hay dos llamadores
    * directos más (`announceGroupToContacts` y el aviso de T-074) que se
    * saltearían una guarda puesta más arriba.
+   *
+   * T-252: la marca de publicación queda puesta; cuando el drenaje termina,
+   * `drainNow` publica (`agendaDeDrenaje`).
    */
   if (!opts.forzar && estaPendienteDeDrenaje(groupId)) {
-    recordPublish(groupId, { ok: false, reason: 'pending_drain' });
-    return;
+    const r: PublishResult = { ok: false, reason: 'pending_drain' };
+    recordPublish(groupId, r);
+    return r;
   }
 
-  // Un fallo de red no puede romper la app: se reintentará en el próximo cambio
-  // o cuando el usuario vuelva a abrirla. Pero SE ANOTA: tragárselo sin dejar
-  // rastro es lo que produjo dos veces "no me llega nada" sin nada que mirar.
+  // Un fallo de red no puede romper la app. NO se pierde: la marca persistente
+  // de T-252 hace que el arranque, el poll y la vuelta a primer plano lo
+  // reintenten (`reintentarPublicacionesPendientes`). Además SE ANOTA: tragárselo
+  // sin rastro produjo dos veces «no me llega nada» sin nada que mirar.
+  enVuelo.add(groupId);
   let result: PublishResult;
   try {
     result = await publishToGroup(groupId, userId, deviceId());
   } catch (e) {
     result = { ok: false, reason: 'network', detail: String(e) };
+  } finally {
+    enVuelo.delete(groupId);
+  }
+
+  if (result.ok) {
+    // Sólo baja si nadie marcó de nuevo mientras volaba (lo nuevo no iba en este sobre).
+    limpiarPublicacionPendiente(groupId, version);
+    backoff.delete(groupId);
+  } else {
+    anotarFallo(groupId, result);
   }
 
   recordPublish(groupId, result);
   void avisarSiDejoDeSincronizar(groupId, result);
   void avisarSiElRelojEstaMal();
+  return result;
+}
+
+// ── reintento (T-252) ───────────────────────────────────────────────────────
+
+const enVuelo = new Set<string>();
+const backoff = new Map<string, { fallos: number; hasta: number }>();
+
+const BACKOFF_BASE_MS = 30_000;
+const BACKOFF_TOPE_MS = 10 * 60_000;
+
+/** Fallos que esperar no arregla: se reintentan, pero espaciados al tope. */
+function esPermanente(reason: string): boolean {
+  return reason === 'too_large' || reason === 'no_key' || reason === 'not_configured';
+}
+
+/**
+ * `relaySend` clasifica TODO error del servidor como `network` (también RLS o
+ * la prenda). Hasta separarlos de verdad, se los reconoce por el texto para no
+ * martillar: un rechazo de permisos no se arregla reintentando cada 30 s.
+ */
+function rechazoDelServidor(detail?: string): boolean {
+  return !!detail && /row-level security|permission denied|42501/i.test(detail);
+}
+
+function anotarFallo(groupId: string, r: Extract<PublishResult, { ok: false }>): void {
+  if (r.reason === 'pending_drain') return; // no es un fallo: se destraba solo
+  const fallos = (backoff.get(groupId)?.fallos ?? 0) + 1;
+  const espera = esPermanente(r.reason) || rechazoDelServidor(r.detail)
+    ? BACKOFF_TOPE_MS
+    : Math.min(BACKOFF_BASE_MS * 2 ** (fallos - 1), BACKOFF_TOPE_MS);
+  backoff.set(groupId, { fallos, hasta: Date.now() + espera });
 }
 
 /** T-054/T-058: anota en la bandeja cuando un grupo dejó de sincronizar. */
@@ -123,22 +186,36 @@ export function cancelPendingPublishes(): void {
 }
 
 /**
- * Verifier D4: `rate_limited` es no bloqueante a propósito (H6 — no se
- * muestra nada, igual que `network`), pero "no bloqueante" no puede
- * significar "se pierde". Sin esto, una rebanada rechazada por la cuota se
- * queda cortada hasta que el usuario vuelva a tocar ESE grupo (comentario
- * viejo de `publishNow`: "se reintentará en el próximo cambio"), que puede no
- * pasar nunca — los peers se quedan sin ver algo que el dueño cree que ya
- * mandó.
+ * Publica los grupos con cambios locales sin publicar (T-252). Lo llaman el
+ * arranque de la cadena de sync, cada vuelta del poll y la vuelta a primer plano
+ * — SIEMPRE después de drenar (guarda T-089).
  *
- * El poll ya corre igual; reintentar acá los grupos con un `rate_limited`
- * pendiente no agrega tráfico nuevo mientras todo va bien (la lista sale
- * vacía) y, cuando hay algo pendiente, manda como máximo UN intento por
- * grupo por vuelta — bien por debajo de cualquier cuota.
+ * Subsume al viejo reintento de `rate_limited` (verifier D4): ese fallo también
+ * deja la marca puesta. Como máximo UN intento por grupo por vuelta, y tras un
+ * fallo se espera (backoff exponencial 30 s → 10 min; 10 min fijos para los que
+ * esperar no arregla) para no martillar al servidor con un error permanente.
+ *
+ * Los grupos con envío en debounce o en vuelo se saltean: ya van a publicar.
  */
-export async function reintentarPublicacionesConCuota(): Promise<void> {
-  for (const f of publishFailures()) {
-    if (f.reason !== 'rate_limited') continue;
-    await publishNow(f.groupId);
+export async function reintentarPublicacionesPendientes(): Promise<void> {
+  const ids = new Set(gruposConPublicacionPendiente());
+  for (const f of publishFailures()) if (f.reason === 'rate_limited') ids.add(f.groupId);
+
+  for (const groupId of ids) {
+    if (pendientes.has(groupId) || enVuelo.has(groupId)) continue;
+    if (Date.now() < (backoff.get(groupId)?.hasta ?? 0)) continue;
+    // Un grupo que ya no existe en este teléfono no tiene nada que publicar.
+    if (!useGroupStore.getState().groups.some(g => g.id === groupId)) {
+      limpiarPublicacionPendiente(groupId);
+      continue;
+    }
+    if (!useGroupKeyStore.getState().getKey(groupId)) continue;
+    await publishNow(groupId);
   }
+}
+
+/** Sólo para tests. */
+export function __resetReintentos(): void {
+  backoff.clear();
+  enVuelo.clear();
 }

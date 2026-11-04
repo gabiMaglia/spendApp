@@ -141,12 +141,11 @@ describe('drainAll', () => {
 
 describe('reintentarPublicacionesConCuota (vía el ciclo de poll)', () => {
   it('una publicación con rate_limited pendiente se reintenta en el siguiente ciclo de poll', async () => {
+    grupoConClave('g1'); // T-252: un grupo que no existe localmente no se reintenta
     recordPublish('g1', { ok: false, reason: 'rate_limited' });
     expect(publishFailures().map(f => f.groupId)).toEqual(['g1']);
 
-    await startRelay();
-    mockPublishToGroup.mockClear();
-
+    await startRelay(); // T-252: el arranque ya reintenta lo pendiente
     await jest.advanceTimersByTimeAsync(POLL_CAIDO_MS);
 
     expect(mockPublishToGroup).toHaveBeenCalledWith('g1', ME, deviceId());
