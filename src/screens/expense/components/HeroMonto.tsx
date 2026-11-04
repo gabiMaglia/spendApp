@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import type { CurrencyCode } from '@/src/constants/currencies';
+import { MonedaTocable } from '@/src/screens/expense/components/MonedaTocable';
 import { MontoEditable } from '@/src/components/MontoEditable';
 import { FondoMarmol } from '@/src/components/FondoMarmol';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -20,9 +21,11 @@ import { useColors } from '@/src/skins/useSkin';
  * sean `variant="tabs"`). T-223: salió de `app/expense/new.tsx`.
  */
 export function HeroMonto({
-  currency, value, onChangeText, onBlur, incomeAllowed, isIncome, onKindChange,
+  currency, onCurrencyChange, value, onChangeText, onBlur, incomeAllowed, isIncome, onKindChange,
 }: {
   currency: CurrencyCode;
+  /** Sólo sin grupo: con grupo la moneda es la del grupo y no se toca (regla 7). */
+  onCurrencyChange?: (code: CurrencyCode) => void;
   value: string;
   onChangeText: (v: string) => void;
   onBlur: () => void;
@@ -39,12 +42,21 @@ export function HeroMonto({
   return (
     <View style={[styles.heroCard, { borderColor: c.hair, backgroundColor: c.surface }]}>
       <FondoMarmol patron="distendida" style={styles.heroMarmol} />
-      <Text style={[Typography.label, styles.heroCurrency, {
-        color: c.textSecondary,
-        textShadowColor: scheme === 'dark' ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.95)',
-      }]}>
-        {currency}
-      </Text>
+      <MonedaTocable
+        currency={currency}
+        onChange={onCurrencyChange}
+        label={t('expense.currency_change')}
+        title={t('expense.currency_title')}
+        style={styles.heroCurrencyRow}
+      >
+        <Text style={[Typography.label, styles.heroCurrency, {
+          color: c.textSecondary,
+          textShadowColor: scheme === 'dark' ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.95)',
+        }]}>
+          {currency}
+        </Text>
+        {onCurrencyChange && <Ionicons name="chevron-down" size={12} color={c.textSecondary} />}
+      </MonedaTocable>
       <MontoEditable
         ref={montoRef}
         testID="expense-amount"
@@ -100,6 +112,7 @@ const styles = StyleSheet.create({
   // 62% más alto y el `overflow:hidden` de la tarjeta recorta el fundido: la
   // textura cubre todo (PO 2026-09-27).
   heroMarmol: { top: 0, bottom: undefined, height: '162%' },
+  heroCurrencyRow: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 4 },
   heroCurrency: {
     textTransform: 'uppercase', fontWeight: '800',
     textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 6,

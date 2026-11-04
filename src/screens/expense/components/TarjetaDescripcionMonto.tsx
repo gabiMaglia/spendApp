@@ -12,7 +12,7 @@ import { useSkin } from '@/src/skins/useSkin';
 import type { PersonalCategory } from '@/src/types/models';
 import { CATEGORIES } from '@/src/screens/expense/repartoDeGasto';
 import { tinteDeCategoria } from '@/src/screens/expense/components/GrillaCategorias';
-import { CurrencySheet } from '@/src/components/CurrencyPicker';
+import { MonedaTocable } from '@/src/screens/expense/components/MonedaTocable';
 
 /**
  * Los dos renglones de Splitwise en una tarjeta (feat/reskin, B4): ícono de
@@ -46,7 +46,6 @@ export function TarjetaDescripcionMonto({
   const [enFoco, setEnFoco] = useState<'descripcion' | 'monto' | null>(null);
   const subrayado = (campo: 'descripcion' | 'monto') => (enFoco === campo ? c.brand.primary : c.hair);
 
-  const [selectorAbierto, setSelectorAbierto] = useState(false);
   const badge = (
     <>
       <Text style={[styles.simbolo, { color: isIncome ? c.semantic.positive : c.brand.primary }]}>
@@ -80,19 +79,16 @@ export function TarjetaDescripcionMonto({
       </View>
 
       <Pressable style={styles.renglon} onPress={() => montoRef.current?.focus()}>
-        {onCurrencyChange ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t('expense.currency_change')}
-            onPress={() => setSelectorAbierto(true)}
-            style={[styles.tile, { backgroundColor: c.surfaceSunken }]}
-          >
-            {badge}
-            <Ionicons name="chevron-down" size={10} color={c.textTertiary} />
-          </Pressable>
-        ) : (
-          <View style={[styles.tile, { backgroundColor: c.surfaceSunken }]}>{badge}</View>
-        )}
+        <MonedaTocable
+          currency={currency}
+          onChange={onCurrencyChange}
+          label={t('expense.currency_change')}
+          title={t('expense.currency_title')}
+          style={[styles.tile, { backgroundColor: c.surfaceSunken }]}
+        >
+          {badge}
+          {onCurrencyChange && <Ionicons name="chevron-down" size={10} color={c.textTertiary} />}
+        </MonedaTocable>
         <View style={styles.campo} pointerEvents="box-none">
           <Text style={[Typography.caption, { color: c.textTertiary }]}>{t('expense.amount_label')}</Text>
           <TextInput
@@ -112,15 +108,6 @@ export function TarjetaDescripcionMonto({
           />
         </View>
       </Pressable>
-      {onCurrencyChange && (
-        <CurrencySheet
-          visible={selectorAbierto}
-          value={currency}
-          onChange={onCurrencyChange}
-          onClose={() => setSelectorAbierto(false)}
-          title={t('expense.currency_title')}
-        />
-      )}
     </View>
   );
 }

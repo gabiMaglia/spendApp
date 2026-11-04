@@ -256,6 +256,7 @@ export default function NewExpenseScreen() {
             <>
               <HeroMonto
                 currency={currency}
+                onCurrencyChange={monedaEditable ? setCurrency : undefined}
                 value={amountStr}
                 onChangeText={setAmountStr}
                 onBlur={onAmountBlur}
