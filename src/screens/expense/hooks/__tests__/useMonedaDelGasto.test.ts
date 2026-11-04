@@ -37,6 +37,11 @@ describe('moneda del gasto (T-255)', () => {
     expect(result.current.editable).toBe(false);
   });
 
+  it('con un grupo que ya no existe (borrado, deep link viejo) no es editable', () => {
+    const { result } = montar({ groupId: 'fantasma' });
+    expect(result.current.editable).toBe(false);
+  });
+
   it('al pasar de grupo a «Sin grupo» vuelve a la moneda por defecto, no a la del grupo', () => {
     useSettingsStore.setState({ lastPersonalCurrency: 'USD' });
     const { result, rerender } = montar({ groupId: 'g', groupCurrency: 'CLP' });

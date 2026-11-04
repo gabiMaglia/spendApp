@@ -26,10 +26,12 @@ export function useMonedaDelGasto(groupId: string, groupCurrency: CurrencyCode |
     setElegida(null);
   }
 
-  const editable = groupId === '' || groupCurrency === undefined;
+  // Un grupo que ya no existe sigue siendo «con grupo»: no se elige moneda
+  // (guardar igual queda bloqueado, porque no hay miembros).
+  const editable = groupId === '';
   const currency: CurrencyCode = editable
     ? elegida ?? ultima ?? pantalla
-    : groupCurrency;
+    : groupCurrency ?? pantalla;
 
   return { currency, setCurrency: setElegida, editable };
 }
