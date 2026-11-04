@@ -457,3 +457,68 @@ describe('la cuenta también se borra del servidor (B-1)', () => {
     expect(readJournal()).toBeNull();
   });
 });
+
+/**
+ * T-265 (auditoría): matar la app durante las esperas de red dejaba una cuenta
+ * viva a medio borrar, y al reanudar se podía destruir la identidad de otra.
+ */
+describe('T-265 · el borrado interrumpido se termina', () => {
+  it('lo local ya está borrado cuando empieza la espera de red', async () => {
+    let sesionAlPrimerBorrado: unknown = 'sin-medir';
+    mockRespuesta = () => {
+      if (sesionAlPrimerBorrado === 'sin-medir') sesionAlPrimerBorrado = useAuthStore.getState().currentUser;
+      return { ok: true, deleted: 1 };
+    };
+    await deleteAccount({ timeoutMs: 200 });
+    expect(sesionAlPrimerBorrado).toBeNull();
+  });
+
+  it('reanudar con la sesión viva (app matada antes de la fase 3) borra lo local y cierra sesión', async () => {
+    const fantasma = { ...YO, name: 'Cuenta borrada', deletedAt: 5 };
+    useAuthStore.setState({ currentUser: fantasma });
+    auth.set('current_user', JSON.stringify(fantasma));
+    writeJournal({ accountId: 'u1', pendientes: ['t_grupo'], purgados: 0, ultimaCuenta: true, startedAt: 1 });
+
+    await resumePendingDeletion();
+
+    expect(useAuthStore.getState().currentUser).toBeNull();
+    expect(auth.getString('current_user')).toBeFalsy();
+    expect(readJournal()).toBeNull();
+  });
+
+  it('reanudar no cierra la sesión de OTRA cuenta que entró después', async () => {
+    useAuthStore.setState({ currentUser: { ...YO, id: 'u2' } });
+    writeJournal({ accountId: 'u1', pendientes: [], purgados: 3, ultimaCuenta: true, startedAt: 1 });
+
+    await resumePendingDeletion();
+
+    expect(useAuthStore.getState().currentUser?.id).toBe('u2');
+  });
+
+  it('reanudar NO destruye la identidad si otra cuenta la sigue usando', async () => {
+    cuentasConocidas('u1', 'u2');
+    writeJournal({ accountId: 'u1', pendientes: [], purgados: 3, ultimaCuenta: true, startedAt: 1 });
+    const prendaAntes = groupkeys.getString('owner_secret_v1');
+
+    const r = await resumePendingDeletion();
+
+    expect(r!.prendaDestruida).toBe(false);
+    expect(groupkeys.getString('owner_secret_v1')).toBe(prendaAntes);
+  });
+
+  it('reanudar NO destruye la identidad si hay un invitado con sesión (no figura en el índice)', async () => {
+    useAuthStore.setState({ currentUser: { ...YO, id: 'g1', authProvider: 'guest' } });
+    writeJournal({ accountId: 'u1', pendientes: [], purgados: 3, ultimaCuenta: true, startedAt: 1 });
+
+    const r = await resumePendingDeletion();
+
+    expect(r!.prendaDestruida).toBe(false);
+    expect(groupkeys.getString('owner_secret_v1')).toBeTruthy();
+  });
+
+  it('reanudar dos veces es idempotente', async () => {
+    writeJournal({ accountId: 'u1', pendientes: [], purgados: 3, ultimaCuenta: true, startedAt: 1 });
+    await resumePendingDeletion();
+    expect(await resumePendingDeletion()).toBeNull();
+  });
+});

@@ -121,17 +121,23 @@ export async function deleteAccount(opts: Opciones = {}): Promise<DeleteOutcome>
     await conTimeout(publicarGrupos(gruposDelScope), opts.timeoutMs ?? TIMEOUT_PURGA_MS);
   } catch { /* el aviso es best-effort, por definición */ }
 
-  // ── Fase 2 · Purgar el buzón ──────────────────────────────────────────────
+  // ── Fase 2 · Borrar lo local (siempre, y ANTES de esperar a la red) ──────
+  // T-265: la ventana en que la app podía morir con la cuenta viva eran las dos
+  // esperas de red. Los topics ya están en el diario y la prenda sigue en pie,
+  // así que lo que viene después no necesita nada de lo que se barre acá. La
+  // sesión del buzón se conserva siempre: la fase 3b la necesita y la cierra.
+  aviso('borrando');
+  borrarLoLocal(accountId);
+
+  // ── Fase 3 · Purgar el buzón ──────────────────────────────────────────────
   aviso('purgando');
   await conTimeout(purgar(diario), opts.timeoutMs ?? TIMEOUT_PURGA_MS);
 
-  // ── Fase 2b · La cuenta en el servidor (auditoría pre-tiendas, B-1) ──────
-  // Después de purgar y antes de cerrar la sesión: la necesita.
+  // ── Fase 3b · La cuenta en el servidor (auditoría pre-tiendas, B-1) ──────
   await conTimeout(borrarCuentaDelServidor(diario).then(() => undefined), opts.timeoutMs ?? TIMEOUT_PURGA_MS);
-
-  // ── Fase 3 · Borrar lo local (siempre, aunque la 2 haya fallado) ─────────
-  aviso('borrando');
-  borrarLoLocal(accountId, diario.cuentaEnServidor === 'pendiente');
+  if (diario.cuentaEnServidor !== 'pendiente') {
+    try { await signOutOfDirectory(); } catch { /* … */ }
+  }
 
   // ── Fase 4 · Destruir la identidad del aparato (sólo si corresponde) ─────
   const puedeDestruir = diario.ultimaCuenta && diario.pendientes.length === 0;
@@ -168,6 +174,10 @@ export async function resumePendingDeletion(): Promise<DeleteOutcome | null> {
   const diario = readJournal();
   if (!diario) return null;
 
+  // T-265: si la app murió antes de la fase local, la cuenta sigue viva y
+  // «anonimizada»; se termina el barrido (idempotente) antes de tocar la red.
+  borrarLoLocal(diario.accountId);
+
   if (diario.pendientes.length > 0) {
     await purgar(diario);
   }
@@ -178,7 +188,11 @@ export async function resumePendingDeletion(): Promise<DeleteOutcome | null> {
     }
   }
 
-  const puedeDestruir = diario.ultimaCuenta && diario.pendientes.length === 0;
+  // El `ultimaCuenta` del diario es de cuando se borró: desde entonces pudo
+  // entrar otra cuenta o un invitado (que no figura en el índice) con la misma
+  // identidad. Se vuelve a mirar; ante la duda, no se destruye.
+  const puedeDestruir = diario.ultimaCuenta && diario.pendientes.length === 0
+    && esLaUltimaCuenta(diario.accountId) && !hayOtraSesion(diario.accountId);
   if (puedeDestruir) {
     try { destruirIdentidadDelAparato(); } catch { /* … */ }
   }
@@ -192,6 +206,11 @@ export async function resumePendingDeletion(): Promise<DeleteOutcome | null> {
     topicsPendientes: diario.pendientes.length,
     prendaDestruida: puedeDestruir,
   };
+}
+
+function hayOtraSesion(accountId: string): boolean {
+  const u = useAuthStore.getState().currentUser;
+  return !!u && u.id !== accountId;
 }
 
 /**
@@ -269,7 +288,7 @@ async function borrarCuentaDelServidor(diario: DeleteJournal): Promise<boolean> 
 }
 
 /** El barrido local. Todo lo que lleva el id de la cuenta, de todos los buckets. */
-function borrarLoLocal(accountId: string, conservarSesionDelBuzon = false): void {
+function borrarLoLocal(accountId: string): void {
   // 0 · escrituras diferidas (T-156) ANTES que nada: una que vaciara después
   //     del barrido resucitaría el dato que se acaba de borrar.
   intentar(() => discardScopedWrites());
@@ -283,8 +302,12 @@ function borrarLoLocal(accountId: string, conservarSesionDelBuzon = false): void
   intentar(() => forgetAccount(accountId));
   // 4 · el log de fusiones, que es una lista sin scope.
   intentar(() => olvidarFusionesDe(accountId));
-  // 5 · la sesión.
-  intentar(() => useAuthStore.getState().signOut({ conservarSesionDelBuzon }));
+  // 5 · la sesión — sólo si sigue siendo la de esta cuenta (al reanudar pudo
+  //     haber entrado otra), y conservando la del buzón: la cierra quien termina.
+  intentar(() => {
+    if (useAuthStore.getState().currentUser?.id !== accountId) return;
+    useAuthStore.getState().signOut({ conservarSesionDelBuzon: true });
+  });
 }
 
 function intentar(fn: () => void): void {
