@@ -28,7 +28,7 @@ import { reloadRecordHealth } from '@/src/sync/confianza/recordHealthStore';
 import { reloadAuthorHealth } from '@/src/sync/confianza/authorHealth';
 import { recargarAlias, sembrarAliasDesdeIndice } from './identityAlias';
 import { olvidarFallosDeAplicacion } from '@/src/sync/nucleo/drainFailures';
-import { olvidarGeneraciones } from '@/src/sync/motor/pendingDrain';
+import { olvidarGeneraciones, marcarConTopic } from '@/src/sync/motor/pendingDrain';
 import { aplicarReinicioPendienteDeCuenta } from '@/src/sync/sesion/aparatoClonado';
 import { olvidarVersionesDePublicacion } from '@/src/sync/motor/publicacionPendiente';
 import { registrarGanchoPostSync } from '@/src/sync/motor/ganchoPostSync';
@@ -43,7 +43,7 @@ registrarGanchoPostSync(completarSalidasPendientes);
 // (Re)hidrata todos los stores scopeados por cuenta con los datos del usuario
 // activo. Con usuario nulo (deslogueado), cada hydrate lee un scope vacío y deja
 // el store limpio → ninguna cuenta ve los datos de otra.
-export function rehydrateForActiveUser(): void {
+function hidratarDatosDeCuentaActiva(): void {
   // T-156: cualquier escritura diferida que haya quedado pendiente (de la
   // cuenta SALIENTE — la clave lleva su uid, capturado al programar, así que
   // esto nunca escribe bajo la cuenta nueva) se vacía YA, antes de hidratar.
@@ -124,6 +124,10 @@ export function rehydrateForActiveUser(): void {
 
   // Limpieza tardía de scopes fusionados que ya pasaron el período de gracia.
   purgeMergedScopes();
+}
+
+export function rehydrateForActiveUser(): void {
+  hidratarDatosDeCuentaActiva();
 
   // T-250: si el aparato resultó ser un clon, los grupos de esta cuenta se
   // marcan pendientes de drenaje ANTES de que el relay pueda publicar.
@@ -145,6 +149,24 @@ export function rehydrateForActiveUser(): void {
   // usuario, y así se persista en el namespace correcto.
   const user = useAuthStore.getState().currentUser;
   if (user) useUserStore.getState().addOrUpdateUser(user);
+}
+
+/**
+ * T-253: tras fusionar OTRA cuenta (el invitado) dentro de la cuenta ACTIVA.
+ * `mergeAccounts` escribe directo en MMKV; los stores en memoria siguen con la
+ * versión previa a la fusión y el próximo guardado de cualquiera la pisaría
+ * (y a los 30 días `purgeMergedScopes` borra el origen: pérdida definitiva).
+ * Se rehidrata con la misma ruta que un login, pero SIN `startRelay(true)`: no
+ * es un momento de entrada, así que nada de captcha. Los grupos adoptados se
+ * marcan para drenar su buzón antes de publicar.
+ */
+export function rehidratarTrasFusion(cuentaDestino: string): void {
+  if (useAuthStore.getState().currentUser?.id !== cuentaDestino) return;
+  hidratarDatosDeCuentaActiva();
+  const user = useAuthStore.getState().currentUser;
+  if (user) useUserStore.getState().addOrUpdateUser(user);
+  void marcarConTopic(useGroupKeyStore.getState().keys.map(k => k.groupId));
+  void startRelay();
 }
 
 // Suscribe la re-hidratación a los cambios de cuenta activa (login / logout /

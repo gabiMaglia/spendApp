@@ -1,4 +1,5 @@
 import { Alert } from 'react-native';
+import { rehidratarTrasFusion } from '@/src/store/session';
 import type { TFunction } from 'i18next';
 
 import { clearGuestAccount, pendingGuestAccountId, useAuthStore } from '@/src/store/authStore';
@@ -108,7 +109,12 @@ export function ofrecerFusionDeInvitado(t: TFunction, accountId: string, label: 
       { text: t('auth.guest_merge_no'), style: 'cancel', onPress: clearGuestAccount },
       {
         text: t('auth.guest_merge_yes'),
-        onPress: () => { mergeAccounts(guestId, accountId); clearGuestAccount(); },
+        onPress: () => {
+          mergeAccounts(guestId, accountId);
+          clearGuestAccount();
+          // T-253: el cartel no bloquea, la cuenta ya está hidratada (vacía).
+          rehidratarTrasFusion(accountId);
+        },
       },
     ],
   );
