@@ -41,16 +41,33 @@ type Props = {
   onExport?: () => void;
 };
 
-type State = { error: Error | null };
+type State = { error: Error | null; reintentos: number };
+
+/** T-264: reintentos seguidos que vuelven a romper antes de dejar la pantalla estable. */
+export const MAX_REINTENTOS = 3;
+/** Cuánto tiene que sostenerse sano lo reintentado para dar por buenos los reintentos. */
+const SANO_MS = 5000;
 
 export class ErrorBoundary extends Component<Props, State> {
-  state: State = { error: null };
+  state: State = { error: null, reintentos: 0 };
+  private ultimoMensaje: string | null = null;
+  private timerSano: ReturnType<typeof setTimeout> | null = null;
 
-  static getDerivedStateFromError(error: Error): State {
+  static getDerivedStateFromError(error: Error): Partial<State> {
     return { error };
   }
 
+  componentWillUnmount(): void {
+    if (this.timerSano) clearTimeout(this.timerSano);
+  }
+
   componentDidCatch(error: Error, info: { componentStack?: string | null }): void {
+    if (this.timerSano) { clearTimeout(this.timerSano); this.timerSano = null; }
+    // El mismo error repetido tras un reintento no se vuelve a anotar: llenaría
+    // el anillo de 50 entradas y taparía los demás.
+    const mensaje = error?.message ?? String(error);
+    if (this.state.reintentos > 0 && mensaje === this.ultimoMensaje) return;
+    this.ultimoMensaje = mensaje;
     recordError({
       message: error?.message ?? String(error),
       // El stack de componentes dice QUÉ pantalla se cayó, que es lo primero
@@ -62,7 +79,13 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   private reintentar = (): void => {
-    this.setState({ error: null });
+    this.setState(prev => ({ error: null, reintentos: prev.reintentos + 1 }));
+    // Si lo reintentado aguanta sin romper, el contador vuelve a cero.
+    if (this.timerSano) clearTimeout(this.timerSano);
+    this.timerSano = setTimeout(() => {
+      this.timerSano = null;
+      if (this.state.error === null) this.setState({ reintentos: 0 });
+    }, SANO_MS);
   };
 
   render(): ReactNode {
@@ -71,7 +94,7 @@ export class ErrorBoundary extends Component<Props, State> {
     return (
       <PantallaDeError
         textos={this.props.textos}
-        onRetry={this.reintentar}
+        onRetry={this.state.reintentos < MAX_REINTENTOS ? this.reintentar : undefined}
         onExport={this.props.onExport}
       />
     );
@@ -86,7 +109,8 @@ function PantallaDeError({
   textos, onRetry, onExport,
 }: {
   textos: TextosDeError;
-  onRetry: () => void;
+  /** Sin esto no se ofrece reintentar (el error se repite). */
+  onRetry?: () => void;
   onExport?: () => void;
 }) {
   const c = useColors();
@@ -96,12 +120,14 @@ function PantallaDeError({
       <Text style={[Typography.h3, styles.centro, { color: c.text }]}>{textos.title}</Text>
       <Text style={[Typography.bodyM, styles.centro, { color: c.textSecondary }]}>{textos.body}</Text>
 
-      <Pressable
-        onPress={onRetry}
-        style={[styles.boton, { backgroundColor: c.surface, borderColor: c.hair }]}
-      >
-        <Text style={[Typography.bodyL, { color: c.text, fontWeight: '700' }]}>{textos.retry}</Text>
-      </Pressable>
+      {onRetry ? (
+        <Pressable
+          onPress={onRetry}
+          style={[styles.boton, { backgroundColor: c.surface, borderColor: c.hair }]}
+        >
+          <Text style={[Typography.bodyL, { color: c.text, fontWeight: '700' }]}>{textos.retry}</Text>
+        </Pressable>
+      ) : null}
 
       {onExport && textos.exportar ? (
         <Pressable onPress={onExport} style={styles.link}>

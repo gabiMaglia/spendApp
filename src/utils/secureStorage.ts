@@ -19,6 +19,19 @@ const instances = new Map<string, SimpleStorage>();
 // Fallback en memoria por id (Expo Go o si el cifrado falla) — datos efímeros.
 const memFallback = new Map<string, SimpleStorage>();
 let bootstrapped = false;
+// T-264: true si el llavero siguió fallando tras los reintentos y los datos
+// sensibles viven sólo en memoria (se pierden al cerrar la app).
+let efimero = false;
+
+/** Esperas entre intentos de abrir el llavero al arrancar (un fallo pasajero es lo común). */
+const BACKOFF_LLAVERO_MS = [150, 450];
+
+const esperar = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
+
+/** True si la sesión corre sin persistencia porque no se pudo abrir el llavero. */
+export function almacenEsEfimero(): boolean {
+  return efimero;
+}
 
 function memFor(id: string): SimpleStorage {
   let m = memFallback.get(id);
@@ -68,8 +81,20 @@ export async function bootstrapSecureStorage(): Promise<void> {
   let yaEnV2 = false;
   try { yaEnV2 = meta?.getBoolean(MARCA_CLAVE_V2) === true; } catch { yaEnV2 = false; }
 
-  let key: string;
-  try {
+  let key: string | undefined;
+  for (let intento = 0; key === undefined; intento++) {
+    try {
+      key = await obtenerClave();
+    } catch (e) {
+      if (intento < BACKOFF_LLAVERO_MS.length) { await esperar(BACKOFF_LLAVERO_MS[intento]); continue; }
+      console.error('[secure] no se pudo obtener la clave de cifrado → datos en memoria (no persisten)', e);
+      efimero = true;
+      return;
+    }
+  }
+  if (key === undefined) return;
+  async function obtenerClave(): Promise<string> {
+    let key: string;
     const existente = yaEnV2 ? await leerClaveExistente() : null;
     if (existente) {
       key = existente;
@@ -82,9 +107,7 @@ export async function bootstrapSecureStorage(): Promise<void> {
     } else {
       key = await getOrCreateEncryptionKey();
     }
-  } catch (e) {
-    console.error('[secure] no se pudo obtener la clave de cifrado → datos en memoria (no persisten)', e);
-    return;
+    return key;
   }
 
   if (yaEnV2) {
@@ -170,6 +193,7 @@ export function __resetSecureStorage(): void {
   instances.clear();
   memFallback.clear();
   bootstrapped = false;
+  efimero = false;
 }
 
 // Proxy que delega en la instancia cifrada una vez que el bootstrap la creó.
