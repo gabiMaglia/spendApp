@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
+import { AppState } from 'react-native';
+import { useAuthStore } from '@/src/store/authStore';
 import { usePersonalStore, toMonthKey, currentMonthKey } from '@/src/store/personalStore';
 import { syncedNow } from '@/src/utils/syncedClock';
 import { monthLabel } from '@/src/screens/personal/utils/monthLabel';
@@ -30,6 +32,18 @@ export function useMonthRollover(
 
   const [fx, setFx] = useState<FxCache | null>(() => readCache());
   const pidioRef = useRef<string | null>(null);
+  // Un pedido fallido (o sin la moneda) no se repite solo en loop: se reintenta
+  // al volver a primer plano, que es cuando suele haber vuelto la red.
+  const [intento, setIntento] = useState(0);
+  const userId = useAuthStore(s => s.currentUser?.id ?? '');
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', estado => {
+      if (estado !== 'active') return;
+      pidioRef.current = null;
+      setIntento(n => n + 1);
+    });
+    return () => sub.remove();
+  }, []);
 
   useEffect(() => {
     const thisMonth = currentMonthKey();
@@ -51,8 +65,9 @@ export function useMonthRollover(
     if (r.status === 'pendiente') {
       // Sin cotización no se cierra el mes: se pide una vez y, si llega, el
       // efecto vuelve a correr por el cambio de `fx`.
-      if (pidioRef.current !== lastSeenMonth) {
-        pidioRef.current = lastSeenMonth;
+      const clave = `${userId}:${lastSeenMonth}`;
+      if (pidioRef.current !== clave) {
+        pidioRef.current = clave;
         void ensureRates([cy, ...monedasDelMes(allEntries, lastSeenMonth)], cy).then(setFx);
       }
       return;
@@ -77,5 +92,5 @@ export function useMonthRollover(
     }
 
     setSeen(thisMonth);
-  }, [lastSeenMonth, fx]);
+  }, [lastSeenMonth, fx, intento, userId]);
 }

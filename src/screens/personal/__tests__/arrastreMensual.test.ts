@@ -71,4 +71,18 @@ describe('calcularArrastre (T-256)', () => {
     // 0,01 EUR / 0.9 * 1000 = 11,11 ARS = 1111,1 centavos -> 1111
     expect(r).toEqual({ status: 'ok', remaining: 1111 });
   });
+
+  it('un neto 0 en otra moneda no requiere cotización', () => {
+    const r = calcularArrastre({ ...base, fx: null, entries: [
+      e({ kind: 'income', amount: 500, currency: 'USD' }), e({ kind: 'expense', amount: 500, currency: 'USD' }),
+    ] });
+    expect(r).toEqual({ status: 'ok', remaining: 100_000 });
+  });
+
+  it.each([
+    ['group_replicated', -1], ['payment_out', -1], ['payment_in', 1], ['expense', -1], ['income', 1],
+  ] as const)('%s tiene signo %i', (kind, sg) => {
+    const r = calcularArrastre({ ...base, fx: null, entries: [e({ kind, amount: 1_000 })] });
+    expect(r).toEqual({ status: 'ok', remaining: 100_000 + sg * 1_000 });
+  });
 });

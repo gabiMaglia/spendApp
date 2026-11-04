@@ -4,6 +4,15 @@ import { usePersonalStore, currentMonthKey } from '@/src/store/personalStore';
 import type { FxCache } from '@/src/services/fx';
 import type { PersonalEntry } from '@/src/types/models';
 
+let mockAppStateCb: ((s: string) => void) | null = null;
+jest.mock('react-native/Libraries/AppState/AppState', () => ({
+  __esModule: true,
+  default: {
+  addEventListener: (_: string, cb: (s: string) => void) => { mockAppStateCb = cb; return { remove: jest.fn() }; },
+  currentState: 'active',
+  },
+}));
+
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
 
 let mockCache: FxCache | null = null;
@@ -63,5 +72,20 @@ describe('useMonthRollover multimoneda (T-256)', () => {
     await act(async () => {});
     expect(carryovers()).toHaveLength(1);
     expect(mockEnsure).not.toHaveBeenCalled();
+  });
+
+  it('si el pedido falla, reintenta al volver a primer plano y arrastra una sola vez', async () => {
+    const { rerender } = renderHook(() => useMonthRollover(prevKey, 0, [gastoUsd]));
+    await act(async () => {});
+    rerender({}); rerender({});
+    await act(async () => {});
+    expect(mockEnsure).toHaveBeenCalledTimes(1);
+    expect(carryovers()).toHaveLength(0);
+
+    mockEnsure = jest.fn(() => Promise.resolve(fx));
+    await act(async () => { mockAppStateCb?.('active'); });
+    await act(async () => {});
+    expect(mockEnsure).toHaveBeenCalledTimes(1);
+    expect(carryovers()).toHaveLength(1);
   });
 });

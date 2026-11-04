@@ -51,6 +51,7 @@ export function calcularArrastre(p: {
 
   let remaining = p.budget.monthlyAmount + (p.budget.includeOwedToMe ? p.owedToMe : 0);
   for (const [currency, neto] of netos) {
+    if (neto === 0) continue; // nada que convertir, no hace falta cotización
     const convertido = convertMinor(neto, currency, cy, p.fx);
     if (convertido === null) return { status: 'pendiente' };
     remaining += convertido;
