@@ -14,6 +14,8 @@ import { migrarReplicadosUnaVez } from '@/src/services/runMigrateReplicated';
 import { startRelay, reiniciarSyncPorCambioDeCuenta } from '@/src/sync/motor/relayEngine';
 import { haySesionAnonimaValida } from '@/src/sync/sesion/relaySession';
 import { useEntryGateStore } from './entryGateStore';
+import { recordError } from '@/src/services/errorLog';
+import { anotarProblemaUnaVez } from '@/src/services/recurringProblemLog';
 import { materializeRecurring } from '@/src/services/materializeRecurring';
 import { estaBloqueado } from '@/src/algorithms/groupExpenseLimit';
 import { useSettingsStore } from './settingsStore';
@@ -99,7 +101,13 @@ export function rehydrateForActiveUser(): void {
   // Con los datos de la cuenta ya cargados, se materializan los gastos
   // recurrentes vencidos. Va acá y no en el arranque de la app porque depende
   // de QUÉ cuenta está activa: cada una tiene sus propias plantillas.
-  applyDueRecurring();
+  // Pase lo que pase con los recurrentes, el arranque sigue: si esto cortaba
+  // acá, la app dejaba de sincronizar en cada apertura, en silencio (T-251).
+  try {
+    applyDueRecurring();
+  } catch (e) {
+    recordError({ message: `applyDueRecurring: ${(e as Error)?.message ?? 'error'}`, stack: (e as Error)?.stack, fatal: false, screen: 'session' });
+  }
 
   // Migración one-shot de las réplicas de grupo (ADR-006). Va DESPUÉS de que
   // los stores hidrataron: necesita los gastos y los movimientos ya cargados.
@@ -223,7 +231,8 @@ export function applyDueRecurring(now: number = Date.now()): void {
   const isArchived = useArchiveStore.getState().isArchived;
   const templatesActivas = templates.filter(t => t.groupId === '' || !isArchived(t.groupId));
 
-  const { expenses, personalEntries, updatedTemplates } = materializeRecurring(templatesActivas, now);
+  const { expenses, personalEntries, updatedTemplates, problems } = materializeRecurring(templatesActivas, now);
+  for (const p of problems) anotarProblemaUnaVez(p);
 
   // mergeXxx en vez de addXxx: los ids son deterministas, así que si el gasto
   // ya llegó por sync P2P desde el otro device, se colapsa en vez de duplicar.

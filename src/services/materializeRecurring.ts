@@ -1,5 +1,5 @@
 import { dueOccurrences } from '@/src/algorithms/recurrence';
-import { buildSplits } from '@/src/algorithms/buildSplits';
+import { splitsDePlantilla } from '@/src/algorithms/recurringSplits';
 import type { Expense, PersonalEntry, RecurringExpense } from '@/src/types/models';
 
 /**
@@ -19,6 +19,12 @@ export type MaterializeResult = {
   personalEntries: PersonalEntry[];
   /** Plantillas cuyo `lastMaterializedAt` avanzó. */
   updatedTemplates: Array<{ id: string; lastMaterializedAt: number }>;
+  /**
+   * Plantillas con problemas (T-251). `degradado`: se materializó en partes
+   * iguales porque faltaba el reparto. `fallo`: no se pudo materializar y se
+   * salteó. En ningún caso se corta el arranque; el llamador las anota.
+   */
+  problems: Array<{ id: string; kind: 'degradado' | 'fallo'; message: string }>;
 };
 
 function idFor(templateId: string, at: number): string {
@@ -49,50 +55,71 @@ export function materializeRecurring(
   const expenses: Expense[] = [];
   const personalEntries: PersonalEntry[] = [];
   const updatedTemplates: MaterializeResult['updatedTemplates'] = [];
+  const problems: MaterializeResult['problems'] = [];
 
   for (const t of templates) {
     if (t.isDeleted || !t.isActive) continue;
 
-    const due = dueOccurrences(t.rule, t.lastMaterializedAt, now);
-    if (due.length === 0) continue;
-
-    for (const at of due) {
-      if (t.groupId === '') {
-        personalEntries.push({
-          id:          idFor(t.id, at),
-          kind:        'expense',
-          description: t.description,
-          amount:      t.amount,
-          currency:    t.currency,
-          category:    t.category,
-          date:        at,
-          createdAt:   at,
-          updatedAt:   derivedUpdatedAt(at),
-          isDeleted:   false,
-        } as PersonalEntry);
-      } else {
-        expenses.push({
-          id:          idFor(t.id, at),
-          groupId:     t.groupId,
-          description: t.description,
-          amount:      t.amount,
-          currency:    t.currency,
-          paidById:    t.paidById,
-          payers:      t.payers,
-          splitMode:   t.splitMode,
-          splits:      buildSplits(t.amount, t.memberIds, t.splitMode, t.splitValues),
-          category:    t.category,
-          date:        at,
-          createdAt:   at,
-          createdById: t.createdById,
-          updatedAt:   derivedUpdatedAt(at),
-          isDeleted:   false,
-        } as Expense);
+    // Una plantilla corrupta no puede llevarse puestas a las demás ni el arranque.
+    try {
+      const r = materializeOne(t, now);
+      if (!r) continue;
+      expenses.push(...r.expenses);
+      personalEntries.push(...r.personalEntries);
+      updatedTemplates.push({ id: t.id, lastMaterializedAt: r.last });
+      if (r.degradado) {
+        problems.push({ id: t.id, kind: 'degradado', message: 'recurrente sin reparto guardado: se usaron partes iguales' });
       }
+    } catch (e) {
+      problems.push({ id: t.id, kind: 'fallo', message: `recurrente no materializable: ${(e as Error)?.message ?? 'error'}` });
     }
-
-    updatedTemplates.push({ id: t.id, lastMaterializedAt: due[due.length - 1]! });
   }
 
-  return { expenses, personalEntries, updatedTemplates };
+  return { expenses, personalEntries, updatedTemplates, problems };
+}
+
+function materializeOne(t: RecurringExpense, now: number) {
+  const expenses: Expense[] = [];
+  const personalEntries: PersonalEntry[] = [];
+  const due = dueOccurrences(t.rule, t.lastMaterializedAt, now);
+  if (due.length === 0) return null;
+  // El reparto es el mismo para todos los vencimientos: se calcula una vez.
+  const reparto = t.groupId === '' ? null : splitsDePlantilla(t);
+
+  for (const at of due) {
+    if (t.groupId === '') {
+      personalEntries.push({
+        id:          idFor(t.id, at),
+        kind:        'expense',
+        description: t.description,
+        amount:      t.amount,
+        currency:    t.currency,
+        category:    t.category,
+        date:        at,
+        createdAt:   at,
+        updatedAt:   derivedUpdatedAt(at),
+        isDeleted:   false,
+      } as PersonalEntry);
+    } else {
+      expenses.push({
+        id:          idFor(t.id, at),
+        groupId:     t.groupId,
+        description: t.description,
+        amount:      t.amount,
+        currency:    t.currency,
+        paidById:    t.paidById,
+        payers:      t.payers,
+        splitMode:   t.splitMode,
+        splits:      reparto!.splits.map(sp => ({ ...sp })),
+        category:    t.category,
+        date:        at,
+        createdAt:   at,
+        createdById: t.createdById,
+        updatedAt:   derivedUpdatedAt(at),
+        isDeleted:   false,
+      } as Expense);
+    }
+  }
+
+  return { expenses, personalEntries, last: due[due.length - 1]!, degradado: reparto?.degradado ?? false };
 }

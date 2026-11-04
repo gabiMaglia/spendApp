@@ -14,6 +14,7 @@ import { usePersonalStore } from '@/src/store/personalStore';
 import { motivoDeExceso } from '@/src/services/topeDeRegistro';
 import { syncedNow } from '@/src/utils/syncedClock';
 import { esYo } from '@/src/store/identityAlias';
+import { porcentajesDelReparto } from '@/src/algorithms/recurringSplits';
 import type {
   Expense, ExpenseCategory, Group, Payer, PersonalCategory, User,
 } from '@/src/types/models';
@@ -82,6 +83,9 @@ export function useGuardarGasto(f: FormularioDeGasto): () => void {
       currency:    f.currency,
       ...payerFields(),
       splitMode:   f.splitMode,
+      // Los % que vio el usuario: sin ellos la plantilla no puede reproducir
+      // el reparto (T-251). En 'equal' no hace falta nada.
+      ...(f.splitMode === 'percentage' ? { splitValues: porcentajesDelReparto(f.splits) } : {}),
       memberIds:   f.splits.map(sp => sp.userId),
       category:    f.category as ExpenseCategory,
       rule:        { frequency: f.recurrence, startDate: at },

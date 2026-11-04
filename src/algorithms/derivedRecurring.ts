@@ -1,4 +1,4 @@
-import { buildSplits } from './buildSplits';
+import { splitsDePlantilla } from './recurringSplits';
 import type { Expense, RecurringExpense } from '@/src/types/models';
 
 /**
@@ -92,9 +92,7 @@ export function fielALaPlantilla(
     if ((expense as unknown as Record<string, unknown>)[campo] !== valor) return false;
   }
 
-  const splits = buildSplits(
-    template.amount, template.memberIds, template.splitMode, template.splitValues,
-  );
+  const { splits } = splitsDePlantilla(template);
   if (expense.splits?.length !== splits.length) return false;
   for (let i = 0; i < splits.length; i++) {
     if (expense.splits[i]!.userId !== splits[i]!.userId) return false;

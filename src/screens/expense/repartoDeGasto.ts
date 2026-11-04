@@ -2,6 +2,7 @@ import type { Ionicons } from '@expo/vector-icons';
 import type React from 'react';
 
 import { buildSplits } from '@/src/algorithms/buildSplits';
+import { splitsPorPorcentajes } from '@/src/algorithms/recurringSplits';
 import type { Expense, PersonalCategory } from '@/src/types/models';
 
 /**
@@ -99,9 +100,8 @@ export function calcularSplits(p: {
   );
   const sumFirst    = firstPercents.reduce((a, b) => a + b, 0);
   const lastPercent = roundPct(100 - sumFirst);
-  const firstAmounts = firstPercents.map(pct => Math.round(amount * pct / 100));
 
-  const built = buildSplits(amount, members, 'custom', firstAmounts);
+  const built = splitsPorPorcentajes(amount, members, firstPercents);
   return built.map((s, i) => {
     const isLast = i === built.length - 1;
     return { ...s, percent: isLast ? lastPercent : (firstPercents[i] ?? 0), isLast };
