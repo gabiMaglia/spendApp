@@ -2,7 +2,7 @@ import React from 'react';
 import { act, fireEvent, render } from '@testing-library/react-native';
 import { Alert } from 'react-native';
 import AuthScreen from '@/app/auth/index';
-import { useAuthStore, pendingGuestAccountId, invitadoDelAparato } from '@/src/store/authStore';
+import { useAuthStore, pendingGuestAccountId, invitadoDelAparato, forgetAccount, declineGuestMerge } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { esYo } from '@/src/store/identityAlias';
 import { subscribeSessionRehydrate } from '@/src/store/session';
@@ -205,19 +205,27 @@ describe('T-266 · volver a entrar como invitado', () => {
     expect(useAuthStore.getState().currentUser!.id).toBe(id1);
   });
 
-  it('fila 2 · invitado con datos: vuelve al mismo id y a sus datos', () => {
-    const r = render(<AuthScreen />);
-    fireEvent.press(r.getByText('auth.continue_guest'));
-    const yo = useAuthStore.getState().currentUser!;
-    useGroupStore.getState().addGroup(grupo('viaje1', [yo.id]));
-    flushScopedWrites();
-    cerrarSesion();
+  it('fila 2 · invitado con datos: vuelve al mismo id, a sus datos y a su perfil editado', () => {
+    const unsub = subscribeSessionRehydrate();
+    try {
+      const r = render(<AuthScreen />);
+      fireEvent.press(r.getByText('auth.continue_guest'));
+      const yo = useAuthStore.getState().currentUser!;
+      // La vía real de edición de perfil (la guarda de anunciarMiTarjeta prohíbe `setUser` suelto).
+      const real = jest.requireActual('@/src/store/miPerfil') as typeof import('@/src/store/miPerfil');
+      act(() => { real.actualizarMiPerfil({ name: 'Pepe' }); });
+      useGroupStore.getState().addGroup(grupo('viaje1', [yo.id]));
+      flushScopedWrites();
+      cerrarSesion();
+      expect(useGroupStore.getState().groups).toHaveLength(0);   // sesión cerrada: nada en memoria
 
-    fireEvent.press(r.getByText('auth.continue_guest'));
-    const vuelto = useAuthStore.getState().currentUser!;
-    expect(vuelto.id).toBe(yo.id);
-    expect(vuelto.createdAt).toBe(yo.createdAt);   // el perfil guardado, no uno nuevo
-    expect(createSecureStorage('groups').getString(`data_v1::u:${yo.id}`) ?? '').toContain('viaje1');
+      fireEvent.press(r.getByText('auth.continue_guest'));
+      const vuelto = useAuthStore.getState().currentUser!;
+      expect(vuelto.id).toBe(yo.id);
+      expect(vuelto.name).toBe('Pepe');
+      // O2: los stores se rehidratan en memoria, no sólo existen en disco.
+      expect(useGroupStore.getState().groups.map(g => g.id)).toContain('viaje1');
+    } finally { unsub(); }
   });
 
   it('fila 3 · invitado que ya fusionó: el siguiente invitado es uno NUEVO', async () => {
@@ -282,5 +290,24 @@ describe('T-266 · volver a entrar como invitado', () => {
 
     await act(async () => { fireEvent.press(r.getByText('auth.continue_google')); });
     expect(Alert.alert).not.toHaveBeenCalled();
+  });
+
+  it('fila 6 · invitado cuya cuenta se borró: el siguiente es uno NUEVO', () => {
+    const r = render(<AuthScreen />);
+    fireEvent.press(r.getByText('auth.continue_guest'));
+    const id1 = useAuthStore.getState().currentUser!.id;
+    cerrarSesion();
+    forgetAccount(id1);
+
+    fireEvent.press(r.getByText('auth.continue_guest'));
+    expect(useAuthStore.getState().currentUser!.id).not.toBe(id1);
+  });
+
+  it('fila 7 · declineGuestMerge sin invitado previo no deja marcas', () => {
+    declineGuestMerge();
+    expect(invitadoDelAparato()).toBeNull();
+    const r = render(<AuthScreen />);
+    fireEvent.press(r.getByText('auth.continue_guest'));
+    expect(pendingGuestAccountId()).toBe(useAuthStore.getState().currentUser!.id);
   });
 });

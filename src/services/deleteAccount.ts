@@ -124,8 +124,10 @@ export async function deleteAccount(opts: Opciones = {}): Promise<DeleteOutcome>
   // ── Fase 2 · Borrar lo local (siempre, y ANTES de esperar a la red) ──────
   // T-265: la ventana en que la app podía morir con la cuenta viva eran las dos
   // esperas de red. Los topics ya están en el diario y la prenda sigue en pie,
-  // así que lo que viene después no necesita nada de lo que se barre acá. La
-  // sesión del buzón se conserva siempre: la fase 3b la necesita y la cierra.
+  // así que lo que viene después no necesita nada de lo que se barre acá.
+  // **La sesión NO se cierra todavía**: `currentUser -> null` hace que el
+  // coordinador de sesión purgue la sesión del buzón, y `deleteMyAccount` (3b)
+  // la necesita. Si la app muere acá, el diario la termina al arrancar.
   aviso('borrando');
   borrarLoLocal(accountId);
 
@@ -135,12 +137,15 @@ export async function deleteAccount(opts: Opciones = {}): Promise<DeleteOutcome>
 
   // ── Fase 3b · La cuenta en el servidor (auditoría pre-tiendas, B-1) ──────
   await conTimeout(borrarCuentaDelServidor(diario).then(() => undefined), opts.timeoutMs ?? TIMEOUT_PURGA_MS);
+
+  // ── Fase 3c · Cerrar la sesión (ahora sí) ────────────────────────────────
+  cerrarSesionDe(accountId, diario.cuentaEnServidor === 'pendiente');
   if (diario.cuentaEnServidor !== 'pendiente') {
     try { await signOutOfDirectory(); } catch { /* … */ }
   }
 
   // ── Fase 4 · Destruir la identidad del aparato (sólo si corresponde) ─────
-  const puedeDestruir = diario.ultimaCuenta && diario.pendientes.length === 0;
+  const puedeDestruir = puedeDestruirIdentidad(diario);
   if (puedeDestruir) {
     try { destruirIdentidadDelAparato(); } catch { /* no bloquea el borrado */ }
     /**
@@ -176,6 +181,7 @@ export async function resumePendingDeletion(): Promise<DeleteOutcome | null> {
 
   // T-265: si la app murió antes de la fase local, la cuenta sigue viva y
   // «anonimizada»; se termina el barrido (idempotente) antes de tocar la red.
+  // La sesión se cierra DESPUÉS de `deleteMyAccount`, que la necesita.
   borrarLoLocal(diario.accountId);
 
   if (diario.pendientes.length > 0) {
@@ -187,12 +193,9 @@ export async function resumePendingDeletion(): Promise<DeleteOutcome | null> {
       try { await signOutOfDirectory(); } catch { /* … */ }
     }
   }
+  cerrarSesionDe(diario.accountId, diario.cuentaEnServidor === 'pendiente');
 
-  // El `ultimaCuenta` del diario es de cuando se borró: desde entonces pudo
-  // entrar otra cuenta o un invitado (que no figura en el índice) con la misma
-  // identidad. Se vuelve a mirar; ante la duda, no se destruye.
-  const puedeDestruir = diario.ultimaCuenta && diario.pendientes.length === 0
-    && esLaUltimaCuenta(diario.accountId) && !hayOtraSesion(diario.accountId);
+  const puedeDestruir = puedeDestruirIdentidad(diario);
   if (puedeDestruir) {
     try { destruirIdentidadDelAparato(); } catch { /* … */ }
   }
@@ -206,6 +209,17 @@ export async function resumePendingDeletion(): Promise<DeleteOutcome | null> {
     topicsPendientes: diario.pendientes.length,
     prendaDestruida: puedeDestruir,
   };
+}
+
+/**
+ * Una sola condición para los dos caminos. El `ultimaCuenta` del diario es de
+ * cuando se empezó a borrar: desde entonces pudo entrar otra cuenta o un
+ * invitado (que no figura en el índice) con la misma identidad. Ante la duda,
+ * no se destruye.
+ */
+function puedeDestruirIdentidad(diario: DeleteJournal): boolean {
+  return diario.ultimaCuenta && diario.pendientes.length === 0
+    && esLaUltimaCuenta(diario.accountId) && !hayOtraSesion(diario.accountId);
 }
 
 function hayOtraSesion(accountId: string): boolean {
@@ -270,6 +284,7 @@ function terminado(diario: DeleteJournal): boolean {
  * usuario ya no existe: también está terminado.
  */
 async function borrarCuentaDelServidor(diario: DeleteJournal): Promise<boolean> {
+  const eraReintento = diario.cuentaEnServidor === 'pendiente';
   diario.cuentaEnServidor = 'pendiente';
   guardar(diario);
   let r;
@@ -278,7 +293,8 @@ async function borrarCuentaDelServidor(diario: DeleteJournal): Promise<boolean> 
   } catch {
     return false;
   }
-  const yaNoExiste = !r.ok && r.reason === 'network' && /sin sesión/i.test(r.detail ?? '');
+  // «sin sesión» en el PRIMER intento no prueba nada; en un reintento sí.
+  const yaNoExiste = eraReintento && !r.ok && r.reason === 'network' && /sin sesión/i.test(r.detail ?? '');
   if (r.ok || r.reason === 'not_configured' || yaNoExiste) {
     diario.cuentaEnServidor = 'borrada';
     guardar(diario);
@@ -302,11 +318,17 @@ function borrarLoLocal(accountId: string): void {
   intentar(() => forgetAccount(accountId));
   // 4 · el log de fusiones, que es una lista sin scope.
   intentar(() => olvidarFusionesDe(accountId));
-  // 5 · la sesión — sólo si sigue siendo la de esta cuenta (al reanudar pudo
-  //     haber entrado otra), y conservando la del buzón: la cierra quien termina.
+}
+
+/**
+ * La sesión — sólo si sigue siendo la de esta cuenta (al reanudar pudo haber
+ * entrado otra). `conservarSesionDelBuzon` si la cuenta del servidor sigue
+ * pendiente: el reintento al arrancar la necesita.
+ */
+function cerrarSesionDe(accountId: string, conservarSesionDelBuzon: boolean): void {
   intentar(() => {
     if (useAuthStore.getState().currentUser?.id !== accountId) return;
-    useAuthStore.getState().signOut({ conservarSesionDelBuzon: true });
+    useAuthStore.getState().signOut({ conservarSesionDelBuzon });
   });
 }
 

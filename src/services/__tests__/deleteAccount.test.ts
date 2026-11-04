@@ -1,4 +1,5 @@
 import { deleteAccount, resumePendingDeletion } from '../deleteAccount';
+import { subscribeSessionRehydrate } from '@/src/store/session';
 import { readJournal, writeJournal, clearJournal } from '@/src/store/deleteJournal';
 import { useAuthStore } from '@/src/store/authStore';
 import { useUserStore } from '@/src/store/userStore';
@@ -53,6 +54,7 @@ jest.mock('@/src/sync/motor/relayEngine', () => ({
   deviceId: () => 'dev',
   schedulePublish: jest.fn(),
   olvidarCursor: jest.fn(),
+  reiniciarSyncPorCambioDeCuenta: jest.fn(() => { mockLlamadas.push('reiniciar-sync'); }),
   publishNow: jest.fn(async (groupId: string) => { mockLlamadas.push(`publish:${groupId}`); }),
 }));
 
@@ -463,14 +465,15 @@ describe('la cuenta también se borra del servidor (B-1)', () => {
  * viva a medio borrar, y al reanudar se podía destruir la identidad de otra.
  */
 describe('T-265 · el borrado interrumpido se termina', () => {
-  it('lo local ya está borrado cuando empieza la espera de red', async () => {
+  it('la sesión sigue viva durante la red (la necesita deleteMyAccount) y se cierra al final', async () => {
     let sesionAlPrimerBorrado: unknown = 'sin-medir';
     mockRespuesta = () => {
       if (sesionAlPrimerBorrado === 'sin-medir') sesionAlPrimerBorrado = useAuthStore.getState().currentUser;
       return { ok: true, deleted: 1 };
     };
     await deleteAccount({ timeoutMs: 200 });
-    expect(sesionAlPrimerBorrado).toBeNull();
+    expect(sesionAlPrimerBorrado).not.toBeNull();
+    expect(useAuthStore.getState().currentUser).toBeNull();
   });
 
   it('reanudar con la sesión viva (app matada antes de la fase 3) borra lo local y cierra sesión', async () => {
@@ -520,5 +523,52 @@ describe('T-265 · el borrado interrumpido se termina', () => {
     writeJournal({ accountId: 'u1', pendientes: [], purgados: 3, ultimaCuenta: true, startedAt: 1 });
     await resumePendingDeletion();
     expect(await resumePendingDeletion()).toBeNull();
+  });
+});
+
+describe('T-265 · la sesión sobrevive hasta que el servidor borró la cuenta (QA D1)', () => {
+  it('con el coordinador de sesión montado, deleteMyAccount corre ANTES de que la sesión se reinicie', async () => {
+    const unsub = subscribeSessionRehydrate();
+    try {
+      await deleteAccount({ timeoutMs: 200 });
+      expect(mockLlamadas).toContain('cuenta');
+      expect(mockLlamadas.indexOf('reiniciar-sync')).toBeGreaterThan(mockLlamadas.indexOf('cuenta'));
+    } finally { unsub(); }
+  });
+
+  it('lo local (storage) ya está barrido durante la espera de red, aunque la sesión siga', async () => {
+    auth.set('profile::u:u1', JSON.stringify(YO));
+    let perfilEnLaPurga: string | undefined = 'sin-medir';
+    mockRespuesta = () => {
+      if (perfilEnLaPurga === 'sin-medir') perfilEnLaPurga = auth.getString('acct::p:google:123');
+      return { ok: true, deleted: 1 };
+    };
+    auth.set('acct::p:google:123', 'u1');
+    await deleteAccount({ timeoutMs: 200 });
+    expect(perfilEnLaPurga).toBeFalsy();
+  });
+
+  it('«sin sesión» en el PRIMER intento no prueba que la cuenta no exista: queda pendiente', async () => {
+    mockRespuestaCuenta = () => ({ ok: false, reason: 'network', detail: 'delete_my_account: sin sesión' });
+    await deleteAccount({ timeoutMs: 200 });
+    expect(readJournal()).toMatchObject({ cuentaEnServidor: 'pendiente' });
+  });
+
+  it('«sin sesión» en un REINTENTO sí cierra: el primer intento llegó', async () => {
+    mockRespuestaCuenta = () => ({ ok: false, reason: 'network' });
+    await deleteAccount({ timeoutMs: 200 });
+    mockRespuestaCuenta = () => ({ ok: false, reason: 'network', detail: 'delete_my_account: sin sesión' });
+    await resumePendingDeletion();
+    expect(readJournal()).toBeNull();
+  });
+
+  it('D2 · un invitado que entra durante la espera de red NO pierde la identidad', async () => {
+    mockRespuesta = () => {
+      useAuthStore.setState({ currentUser: { ...YO, id: 'g1', authProvider: 'guest' } });
+      return { ok: true, deleted: 1 };
+    };
+    const r = await deleteAccount({ timeoutMs: 200 });
+    expect(r.prendaDestruida).toBe(false);
+    expect(groupkeys.getString('owner_secret_v1')).toBeTruthy();
   });
 });
