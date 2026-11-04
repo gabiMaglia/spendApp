@@ -56,6 +56,27 @@ describe('una plantilla que no se puede materializar', () => {
   });
 });
 
+describe('un fallo persistente se anota una sola vez', () => {
+  it('abrir la app varias veces no llena el anillo de errores', () => {
+    useRecurringStore.setState({ recurring: [plantilla('rota', { rule: null as never })] });
+    applyDueRecurring(d(2026, 1, 15));
+    const tras1 = listErrors().length;
+    applyDueRecurring(d(2026, 1, 16));
+    applyDueRecurring(d(2026, 1, 17));
+    expect(tras1).toBe(1);
+    expect(listErrors()).toHaveLength(1);
+  });
+
+  it('otra plantilla rota sí se anota', () => {
+    useRecurringStore.setState({ recurring: [
+      plantilla('r1', { rule: null as never }), plantilla('r2', { rule: null as never }),
+    ] });
+    applyDueRecurring(d(2026, 1, 15));
+    applyDueRecurring(d(2026, 1, 16));
+    expect(listErrors()).toHaveLength(2);
+  });
+});
+
 describe('rehydrateForActiveUser', () => {
   it('llega a startRelay aunque los recurrentes exploten', () => {
     useRecurringStore.getState().addRecurring(plantilla('x'));

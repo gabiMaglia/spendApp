@@ -15,6 +15,7 @@ import { startRelay, reiniciarSyncPorCambioDeCuenta } from '@/src/sync/motor/rel
 import { haySesionAnonimaValida } from '@/src/sync/sesion/relaySession';
 import { useEntryGateStore } from './entryGateStore';
 import { recordError } from '@/src/services/errorLog';
+import { anotarProblemaUnaVez } from '@/src/services/recurringProblemLog';
 import { materializeRecurring } from '@/src/services/materializeRecurring';
 import { estaBloqueado } from '@/src/algorithms/groupExpenseLimit';
 import { useSettingsStore } from './settingsStore';
@@ -226,9 +227,7 @@ export function applyDueRecurring(now: number = Date.now()): void {
   const templatesActivas = templates.filter(t => t.groupId === '' || !isArchived(t.groupId));
 
   const { expenses, personalEntries, updatedTemplates, problems } = materializeRecurring(templatesActivas, now);
-  for (const p of problems) {
-    recordError({ message: `${p.message} (${p.id})`, fatal: false, screen: 'recurring' });
-  }
+  for (const p of problems) anotarProblemaUnaVez(p);
 
   // mergeXxx en vez de addXxx: los ids son deterministas, así que si el gasto
   // ya llegó por sync P2P desde el otro device, se colapsa en vez de duplicar.
