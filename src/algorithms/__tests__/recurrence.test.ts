@@ -3,8 +3,13 @@ import {
   type RecurrenceRule,
 } from '../recurrence';
 
-const d = (y: number, m: number, day: number) => Date.UTC(y, m - 1, day);
-const iso = (ts: number) => new Date(ts).toISOString().slice(0, 10);
+// Mediodía LOCAL y lectura local (T-263): el calendario es el del aparato, así
+// estos casos valen en cualquier huso. Los bordes de medianoche, en recurrenceLocal.test.ts.
+const d = (y: number, m: number, day: number) => new Date(y, m - 1, day, 12).getTime();
+const iso = (ts: number) => {
+  const x = new Date(ts);
+  return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
+};
 
 const monthly = (start: number, endDate?: number): RecurrenceRule =>
   ({ frequency: 'monthly', startDate: start, endDate });

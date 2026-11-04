@@ -19,11 +19,27 @@ import type { RecurrenceRule } from '@/src/types/models';
 export type Frequency = RecurrenceRule['frequency'];
 export type { RecurrenceRule };
 
-const DAY_MS = 86_400_000;
+/**
+ * Todo el cálculo de calendario es en HORA LOCAL del aparato (T-263): el día de
+ * una cuota es el que el usuario vio al cargarla, no el de UTC. En UTC, un
+ * alquiler cargado el 30 a las 22:00 en Argentina (ya 31 a la 01:00 UTC) caía
+ * el 27 de febrero; y sumar 7×24 h fijas movía una hora cargada cerca de
+ * medianoche al día vecino al cruzar un cambio de horario.
+ *
+ * `startDate` sigue siendo un timestamp absoluto. Ojo: un aparato en otro huso
+ * ve el mismo ancla con otro día local (el calendario es del aparato).
+ */
 
-/** Último día del mes indicado (mes 0-11), en UTC. */
+/** Último día del mes indicado (mes 0-11). */
 function daysInMonth(year: number, month: number): number {
-  return new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  return new Date(year, month + 1, 0).getDate();
+}
+
+/** Suma `days` días de calendario conservando la hora local del ancla. */
+function addDays(anchor: number, days: number): number {
+  const d = new Date(anchor);
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + days,
+    d.getHours(), d.getMinutes(), d.getSeconds()).getTime();
 }
 
 /**
@@ -34,21 +50,21 @@ function daysInMonth(year: number, month: number): number {
  */
 function addMonths(anchor: number, months: number): number {
   const d = new Date(anchor);
-  const y = d.getUTCFullYear();
-  const m = d.getUTCMonth();
+  const y = d.getFullYear();
+  const m = d.getMonth();
   const targetMonth = m + months;
   const ty = y + Math.floor(targetMonth / 12);
   const tm = ((targetMonth % 12) + 12) % 12;
-  const day = Math.min(d.getUTCDate(), daysInMonth(ty, tm));
+  const day = Math.min(d.getDate(), daysInMonth(ty, tm));
 
-  return Date.UTC(ty, tm, day, d.getUTCHours(), d.getUTCMinutes(), d.getUTCSeconds());
+  return new Date(ty, tm, day, d.getHours(), d.getMinutes(), d.getSeconds()).getTime();
 }
 
 /** El n-ésimo vencimiento (n = 0 es `startDate`). */
 export function occurrenceAt(rule: RecurrenceRule, n: number): number {
   switch (rule.frequency) {
-    case 'weekly':      return rule.startDate + n * 7 * DAY_MS;
-    case 'fortnightly': return rule.startDate + n * 14 * DAY_MS;
+    case 'weekly':      return addDays(rule.startDate, n * 7);
+    case 'fortnightly': return addDays(rule.startDate, n * 14);
     case 'monthly':     return addMonths(rule.startDate, n);
     case 'yearly':      return addMonths(rule.startDate, n * 12);
   }
