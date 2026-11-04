@@ -26,3 +26,12 @@ export const almacen = {
     deleteScoped(storageNucleo, k);
   },
 };
+
+/**
+ * T-250: vacía el ledger de cubos publicados y las rebanadas aplicadas de TODAS
+ * las cuentas (no sólo la activa). Es memoria de un aparato; si el aparato
+ * resulta ser un clon, no vale nada y mentiría («ya lo publiqué»).
+ */
+export function olvidarTodoElAlmacen(): void {
+  storageNucleo.clearAll();
+}

@@ -27,6 +27,7 @@ import { reloadAuthorHealth } from '@/src/sync/confianza/authorHealth';
 import { recargarAlias, sembrarAliasDesdeIndice } from './identityAlias';
 import { olvidarFallosDeAplicacion } from '@/src/sync/nucleo/drainFailures';
 import { olvidarGeneraciones } from '@/src/sync/motor/pendingDrain';
+import { aplicarReinicioPendienteDeCuenta } from '@/src/sync/sesion/aparatoClonado';
 import { useBloqueoStore } from './bloqueoStore';
 
 // (Re)hidrata todos los stores scopeados por cuenta con los datos del usuario
@@ -106,6 +107,10 @@ export function rehydrateForActiveUser(): void {
 
   // Limpieza tardía de scopes fusionados que ya pasaron el período de gracia.
   purgeMergedScopes();
+
+  // T-250: si el aparato resultó ser un clon, los grupos de esta cuenta se
+  // marcan pendientes de drenaje ANTES de que el relay pueda publicar.
+  void aplicarReinicioPendienteDeCuenta();
 
   // Sync en tiempo real de la cuenta activa: se suscribe a los grupos con clave
   // y drena lo que quedó encolado mientras la app estuvo cerrada. Va acá y no
