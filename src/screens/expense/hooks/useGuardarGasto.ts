@@ -111,7 +111,8 @@ export function useGuardarGasto(f: FormularioDeGasto): () => void {
         description: f.description.trim(),
         amount:      f.amount,
         currency:    f.currency,
-        category:    f.isIncome ? 'other' : f.category,
+        // Al editar se conserva la categoría que ya tenía (p. ej. un ingreso «salary»).
+        category:    f.category,
         date:        f.date.getTime(),
       });
       router.back();

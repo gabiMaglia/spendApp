@@ -55,11 +55,11 @@ describe('editar una entrada personal (T-257)', () => {
     expect(es[0]!.updatedAt).toBeGreaterThan(1);
   });
 
-  it('un ingreso editado sigue siendo ingreso con categoría other', () => {
-    usePersonalStore.setState({ entries: [{ ...base, kind: 'income' }] });
+  it('un ingreso editado sigue siendo ingreso y conserva su categoría', () => {
+    usePersonalStore.setState({ entries: [{ ...base, kind: 'income', category: 'salary' }] });
     renderHook(() => useGuardarGasto(form({
-      isEditMode: true, personalEntryId: 'p1', isIncome: true, category: 'food',
+      isEditMode: true, personalEntryId: 'p1', isIncome: true, category: 'salary',
     }))).result.current();
-    expect(usePersonalStore.getState().entries[0]).toMatchObject({ kind: 'income', category: 'other' });
+    expect(usePersonalStore.getState().entries[0]).toMatchObject({ kind: 'income', category: 'salary' });
   });
 });

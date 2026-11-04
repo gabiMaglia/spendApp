@@ -57,8 +57,8 @@ describe.each(['default', 'aero'] as const)('editar entrada personal (skin %s)',
 
   it('no ofrece pasar la entrada a un grupo', () => {
     const r = render(<NewExpenseScreen />);
-    const chip = r.queryByText('expense.no_group_short');
-    if (chip) fireEvent.press(chip);
+    const chip = r.getByText('expense.no_group_short');
+    fireEvent.press(chip);
     expect(r.queryByText('expense.select_group')).toBeNull();
   });
 
