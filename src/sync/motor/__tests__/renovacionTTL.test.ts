@@ -12,7 +12,8 @@ jest.mock('../relaySync', () => ({
   publishToGroup: jest.fn(async () => ({ ok: true, seq: 1 })),
 }));
 
-import { renovarGruposVencidos, __resetReintentos } from '../agendaDePublicacion';
+import { __resetReintentos } from '../agendaDePublicacion';
+import { renovarGruposVencidos, __resetRenovaciones } from '../renovacion';
 import { publishToGroup } from '../relaySync';
 import { deviceId } from '../cursor';
 import { deriveTopic } from '@/src/sync/nucleo/envelopeCrypto';
@@ -23,7 +24,6 @@ import { groupKeyBytes, useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { createSecureStorage } from '@/src/utils/secureStorage';
-import { __resetRenovaciones } from '../agendaDePublicacion';
 import type { Group, User } from '@/src/types/models';
 
 const mockPublish = publishToGroup as jest.Mock;

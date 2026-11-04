@@ -12,11 +12,12 @@ import { verifyMyKeyRegistered } from '@/src/sync/confianza/deviceKeys';
 import { withTimeout } from '@/src/utils/withTimeout';
 import { deviceId } from './cursor';
 import { marcarCanal, olvidarCanal, startPolling, stopPolling } from './poll';
-import { syncableGroupIds, cancelPendingPublishes, reintentarPublicacionesPendientes, renovarGruposVencidos } from './agendaDePublicacion';
+import { syncableGroupIds, cancelPendingPublishes, reintentarPublicacionesPendientes } from './agendaDePublicacion';
 import { drainNow, scheduleDrain, cancelPendingDrains, drainAll } from './agendaDeDrenaje';
 import { anunciarMiTarjeta, reenviarClavesDeGrupo, drainContactsNow } from '@/src/sync/contactos/motorDeContactos';
 import { subscribeInvites, subscribeContacts, crearOnInviteNews } from '@/src/sync/invitaciones/suscripciones';
 import { vaciarCola } from './relayQueue';
+import { renovarGruposVencidos } from './renovacion';
 import { ejecutarGanchoPostSync } from './ganchoPostSync';
 
 // ── API pública que sigue viviendo en esta ruta (13 importadores + 84 tests que la mockean) ──
