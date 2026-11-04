@@ -17,7 +17,7 @@ import { drainNow, scheduleDrain, cancelPendingDrains, drainAll } from './agenda
 import { anunciarMiTarjeta, reenviarClavesDeGrupo, drainContactsNow } from '@/src/sync/contactos/motorDeContactos';
 import { subscribeInvites, subscribeContacts, crearOnInviteNews } from '@/src/sync/invitaciones/suscripciones';
 import { vaciarCola } from './relayQueue';
-import { renovarGruposVencidos } from './renovacion';
+import { renovarSinRomper } from './renovacion';
 import { ejecutarGanchoPostSync } from './ganchoPostSync';
 
 // ── API pública que sigue viviendo en esta ruta (13 importadores + 84 tests que la mockean) ──
@@ -120,7 +120,7 @@ async function arrancarCadenaDeSync(permitirCaptcha: boolean): Promise<void> {
   // T-252: lo que quedó sin publicar en la sesión anterior (sin señal, app
   // muerta dentro del debounce). Va DESPUÉS de drenar: guarda de T-089.
   await reintentarPublicacionesPendientes();
-  await renovarGruposVencidos(); // T-267
+  await renovarSinRomper(); // T-267
   await ejecutarGanchoPostSync();
 }
 
@@ -147,7 +147,7 @@ async function releerTodo(): Promise<void> {
       await drainAll();
       await processAllContactInvites(deviceId());
       await reintentarPublicacionesPendientes();
-      await renovarGruposVencidos(); // T-267
+      await renovarSinRomper(); // T-267
       await ejecutarGanchoPostSync();
     } catch { /* offline: se reintenta en la próxima vuelta */ }
   })(), STARTUP_TIMEOUT_MS, undefined);

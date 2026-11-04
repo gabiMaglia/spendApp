@@ -13,7 +13,7 @@ jest.mock('../relaySync', () => ({
 }));
 
 import { __resetReintentos } from '../agendaDePublicacion';
-import { renovarGruposVencidos, __resetRenovaciones } from '../renovacion';
+import { renovarGruposVencidos, renovarSinRomper, __resetRenovaciones } from '../renovacion';
 import { publishToGroup } from '../relaySync';
 import { deviceId } from '../cursor';
 import { deriveTopic } from '@/src/sync/nucleo/envelopeCrypto';
@@ -95,5 +95,25 @@ describe('T-267 · renovación contra el TTL sin cambios locales', () => {
     await renovarGruposVencidos();
     expect(mockPublish).toHaveBeenCalledTimes(1);
     expect(mockPublish).toHaveBeenCalledWith('viejo', ME, deviceId());
+  });
+
+  it('D3 · ledger huérfano: si tras un envío OK sigue vencido, espera 24 h (no cada hora)', async () => {
+    await grupoConLedger('g1', T0 - RENEWAL_WINDOW_MS - DIA); // el mock de publishToGroup no actualiza el ledger
+    await renovarGruposVencidos();
+    expect(mockPublish).toHaveBeenCalledTimes(1);
+
+    (Date.now as jest.Mock).mockReturnValue(T0 + 2 * 60 * 60 * 1000);
+    await renovarGruposVencidos();
+    expect(mockPublish).toHaveBeenCalledTimes(1);
+
+    (Date.now as jest.Mock).mockReturnValue(T0 + 25 * 60 * 60 * 1000);
+    await renovarGruposVencidos();
+    expect(mockPublish).toHaveBeenCalledTimes(2);
+  });
+
+  it('D2 · renovarSinRomper traga el error en vez de cortar la cadena', async () => {
+    await grupoConLedger('g1', T0 - RENEWAL_WINDOW_MS - DIA);
+    mockPublish.mockRejectedValue(new Error('boom'));
+    await expect(renovarSinRomper()).resolves.toBeUndefined();
   });
 });

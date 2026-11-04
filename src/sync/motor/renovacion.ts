@@ -5,10 +5,17 @@ import { RENEWAL_WINDOW_MS } from '@/src/sync/nucleo/limites';
 import * as adaptador from '@/src/sync/adaptadores/hushsplit/adaptadorHushSplit';
 import { syncableGroupIds, publishNow, publicacionOcupada } from './agendaDePublicacion';
 import { deviceId } from './cursor';
+import { recordError } from '@/src/services/errorLog';
 
 /** Entre dos intentos de renovar el mismo grupo: no es urgente, no se martilla. */
 const ENFRIAMIENTO_RENOVACION_MS = 60 * 60_000;
-const ultimoIntento = new Map<string, number>();
+/**
+ * Si tras un envío OK el cubo más viejo sigue vencido, es huérfano (una ckey
+ * que `publicarPorCubos` ya no regenera ni olvida): repetirlo cada hora sería
+ * para siempre. Se espera un día.
+ */
+const ENFRIAMIENTO_SIN_EFECTO_MS = 24 * 60 * 60_000;
+const proximoIntento = new Map<string, number>();
 
 /**
  * Renovación contra el TTL del buzón (T-267).
@@ -31,7 +38,7 @@ export async function renovarGruposVencidos(): Promise<void> {
   const ahora = Date.now();
   for (const groupId of syncableGroupIds()) {
     if (publicacionOcupada(groupId, ahora)) continue;
-    if (ahora - (ultimoIntento.get(groupId) ?? -Infinity) < ENFRIAMIENTO_RENOVACION_MS) continue;
+    if (ahora < (proximoIntento.get(groupId) ?? -Infinity)) continue;
 
     const key = groupKeyBytes(groupId);
     const record = useGroupKeyStore.getState().getKey(groupId);
@@ -40,12 +47,27 @@ export async function renovarGruposVencidos(): Promise<void> {
     const masViejo = publicadoMasViejoEn(adaptador.almacen, topic, deviceId());
     if (masViejo === null || ahora - masViejo <= RENEWAL_WINDOW_MS) continue;
 
-    ultimoIntento.set(groupId, ahora);
-    await publishNow(groupId);
+    proximoIntento.set(groupId, ahora + ENFRIAMIENTO_RENOVACION_MS);
+    const r = await publishNow(groupId);
+    if (r.ok) {
+      const despues = publicadoMasViejoEn(adaptador.almacen, topic, deviceId());
+      if (despues !== null && ahora - despues > RENEWAL_WINDOW_MS) {
+        proximoIntento.set(groupId, ahora + ENFRIAMIENTO_SIN_EFECTO_MS);
+      }
+    }
   }
 }
 
 /** Sólo para tests. */
 export function __resetRenovaciones(): void {
-  ultimoIntento.clear();
+  proximoIntento.clear();
+}
+
+/** Para la cadena de sync: un fallo de la renovación no puede cortar el gancho post-sync. */
+export async function renovarSinRomper(): Promise<void> {
+  try {
+    await renovarGruposVencidos();
+  } catch (e) {
+    recordError({ message: `sync.renovacion_fallo ${String(e)}`, fatal: false, screen: 'sync' });
+  }
 }
