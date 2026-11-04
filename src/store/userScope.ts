@@ -14,6 +14,16 @@ export function activeUserId(): string | null {
   return useAuthStore.getState().currentUser?.id ?? null;
 }
 
+// ── Congelado por cuenta (T-265) ─────────────────────────────────────────
+// Mientras se borra una cuenta su sesión sigue viva (el servidor la necesita),
+// y `activeUserId()` seguiría devolviendo su uid: cualquier guardado resucitaría
+// lo recién barrido. Congelado = ninguna escritura/borrado scopeado de ese uid,
+// tampoco las diferidas que se vuelquen después. Vive en memoria a propósito.
+const congelados = new Set<string>();
+export function congelarScope(uid: string): void { congelados.add(uid); }
+export function liberarScope(uid: string): void { congelados.delete(uid); }
+export function scopeCongelado(uid: string): boolean { return congelados.has(uid); }
+
 function scopedKey(base: string, uid: string): string {
   return `${base}::u:${uid}`;
 }
@@ -49,6 +59,7 @@ function legacyFlagKey(base: string): string {
 export const SCOPED_WRITE_DELAY_MS = 300;
 
 type Pendiente = {
+  uid: string;
   storage: SimpleStorage;
   key: string;
   serialize: () => string;
@@ -69,6 +80,7 @@ function vaciar(storage: SimpleStorage, key: string): void {
   if (!p) return;
   clearTimeout(p.timer);
   mapa!.delete(key);
+  if (scopeCongelado(p.uid)) return;
   p.storage.set(key, p.serialize());
 }
 
@@ -78,7 +90,7 @@ function vaciar(storage: SimpleStorage, key: string): void {
  */
 export function writeScopedLazy(storage: SimpleStorage, base: string, serialize: () => string): void {
   const uid = activeUserId();
-  if (!uid) return;
+  if (!uid || scopeCongelado(uid)) return;
   const key = scopedKey(base, uid); // uid capturado AHORA (fila U3)
 
   const mapa = mapaDe(storage);
@@ -90,7 +102,7 @@ export function writeScopedLazy(storage: SimpleStorage, base: string, serialize:
   // por eso opcional. En Jest/Node evita que un timer de 300ms colgado (un
   // test que no vació ni avanzó los fake timers) mantenga vivo el proceso.
   (timer as unknown as { unref?: () => void }).unref?.();
-  mapa.set(key, { storage, key, serialize, timer });
+  mapa.set(key, { uid, storage, key, serialize, timer });
 }
 
 /** Vacía YA toda escritura pendiente (todos los stores). Para el paso a background. */
@@ -129,7 +141,7 @@ export function readScoped(storage: SimpleStorage, base: string): string | undef
   if (scoped !== undefined) return scoped;
 
   const legacy = storage.getString(base);
-  if (legacy !== undefined && storage.getBoolean(legacyFlagKey(base)) !== true) {
+  if (legacy !== undefined && storage.getBoolean(legacyFlagKey(base)) !== true && !scopeCongelado(uid)) {
     storage.set(key, legacy);
     storage.set(legacyFlagKey(base), true);
     storage.delete(base);
@@ -141,7 +153,7 @@ export function readScoped(storage: SimpleStorage, base: string): string | undef
 /** Escribe un valor string en el scope del usuario activo. Sin usuario → no-op. */
 export function writeScoped(storage: SimpleStorage, base: string, value: string): void {
   const uid = activeUserId();
-  if (!uid) return;
+  if (!uid || scopeCongelado(uid)) return;
   storage.set(scopedKey(base, uid), value);
 }
 
@@ -157,7 +169,7 @@ export function writeScoped(storage: SimpleStorage, base: string, value: string)
  */
 export function deleteScoped(storage: SimpleStorage, base: string): void {
   const uid = activeUserId();
-  if (!uid) return;
+  if (!uid || scopeCongelado(uid)) return;
   storage.delete(scopedKey(base, uid));
 }
 
@@ -171,6 +183,6 @@ export function readScopedBool(storage: SimpleStorage, base: string, def: boolea
 /** Escribe un booleano en el scope del usuario activo. Sin usuario → no-op. */
 export function writeScopedBool(storage: SimpleStorage, base: string, value: boolean): void {
   const uid = activeUserId();
-  if (!uid) return;
+  if (!uid || scopeCongelado(uid)) return;
   storage.set(scopedKey(base, uid), value);
 }

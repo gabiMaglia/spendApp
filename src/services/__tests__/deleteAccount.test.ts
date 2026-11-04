@@ -54,6 +54,8 @@ jest.mock('@/src/sync/motor/relayEngine', () => ({
   deviceId: () => 'dev',
   schedulePublish: jest.fn(),
   olvidarCursor: jest.fn(),
+  stopRelay: jest.fn(() => { mockLlamadas.push('stop-relay'); }),
+  cancelPendingPublishes: jest.fn(),
   reiniciarSyncPorCambioDeCuenta: jest.fn(() => { mockLlamadas.push('reiniciar-sync'); }),
   publishNow: jest.fn(async (groupId: string) => { mockLlamadas.push(`publish:${groupId}`); }),
 }));
@@ -554,12 +556,21 @@ describe('T-265 · la sesión sobrevive hasta que el servidor borró la cuenta (
     expect(readJournal()).toMatchObject({ cuentaEnServidor: 'pendiente' });
   });
 
-  it('«sin sesión» en un REINTENTO sí cierra: el primer intento llegó', async () => {
+  it('«sin sesión» en un REINTENTO tampoco la da por borrada: sigue pendiente', async () => {
     mockRespuestaCuenta = () => ({ ok: false, reason: 'network' });
     await deleteAccount({ timeoutMs: 200 });
     mockRespuestaCuenta = () => ({ ok: false, reason: 'network', detail: 'delete_my_account: sin sesión' });
     await resumePendingDeletion();
+    expect(readJournal()).toMatchObject({ cuentaEnServidor: 'pendiente', intentosSinSesion: 1 });
+  });
+
+  it('con «sin sesión» repetido se abandona con tope, dejando constancia (nunca «borrada»)', async () => {
+    mockRespuestaCuenta = () => ({ ok: false, reason: 'network', detail: 'delete_my_account: sin sesión' });
+    await deleteAccount({ timeoutMs: 200 });
+    for (let i = 0; i < 6; i++) await resumePendingDeletion();
     expect(readJournal()).toBeNull();
+    const { listErrors } = jest.requireActual('../errorLog') as typeof import('../errorLog');
+    expect(listErrors().some(e => /abandonada/.test(e.message))).toBe(true);
   });
 
   it('D2 · un invitado que entra durante la espera de red NO pierde la identidad', async () => {
@@ -570,5 +581,58 @@ describe('T-265 · la sesión sobrevive hasta que el servidor borró la cuenta (
     const r = await deleteAccount({ timeoutMs: 200 });
     expect(r.prendaDestruida).toBe(false);
     expect(groupkeys.getString('owner_secret_v1')).toBeTruthy();
+  });
+});
+
+describe('T-265 · el scope barrido no resucita durante la espera (QA D3)', () => {
+  const { bucketsAbiertos } = jest.requireActual('@/src/utils/createStorage') as typeof import('@/src/utils/createStorage');
+  const { useGroupKeyStore } = jest.requireActual('@/src/store/groupKeyStore') as typeof import('@/src/store/groupKeyStore');
+  const { flushScopedWrites } = jest.requireActual('@/src/store/userScope') as typeof import('@/src/store/userScope');
+
+  function clavesDelScope(uid: string): string[] {
+    const out: string[] = [];
+    for (const b of bucketsAbiertos().values()) {
+      for (const k of b.getAllKeys()) if (k.endsWith(`::u:${uid}`)) out.push(k);
+    }
+    return out;
+  }
+  function grupoNuevo(id: string): Group {
+    return {
+      id, name: 'G', memberIds: ['u1'], currency: 'ARS',
+      miembros: { u1: { estado: 'in', at: 0 } }, createdAt: 0, createdById: 'u1', updatedAt: 0, isDeleted: false,
+    } as Group;
+  }
+  function escrituraDuranteLaEspera() {
+    useGroupStore.getState().addGroup(grupoNuevo('gx'));
+    flushScopedWrites();
+    useGroupKeyStore.getState().ensureKey('gx');
+    enLaVentana.push(...clavesDelScope('u1'));
+  }
+  const enLaVentana: string[] = [];
+  beforeEach(() => { enLaVentana.length = 0; });
+
+  it('deleteAccount: lo guardado durante la red no deja claves ::u:<uid> y se detiene el sync', async () => {
+    mockRespuesta = () => { escrituraDuranteLaEspera(); return { ok: true, deleted: 1 }; };
+    await deleteAccount({ timeoutMs: 200 });
+    expect(enLaVentana).toEqual([]);   // ni siquiera mientras dura la espera
+    expect(clavesDelScope('u1')).toEqual([]);
+    expect(mockLlamadas.indexOf('stop-relay')).toBeGreaterThanOrEqual(0);
+    expect(mockLlamadas.indexOf('stop-relay')).toBeLessThan(mockLlamadas.findIndex(l => l.startsWith('delete:')));
+  });
+
+  it('resumePendingDeletion: ídem, con el sync de la cuenta detenido antes del barrido', async () => {
+    writeJournal({ accountId: 'u1', pendientes: ['t_grupo'], purgados: 0, ultimaCuenta: false, startedAt: 1 });
+    mockRespuesta = () => { escrituraDuranteLaEspera(); return { ok: true, deleted: 1 }; };
+    await resumePendingDeletion();
+    expect(clavesDelScope('u1')).toEqual([]);
+    expect(mockLlamadas[0]).toBe('stop-relay');
+  });
+
+  it('el congelado se libera: la misma cuenta, si vuelve a entrar, puede escribir su scope', async () => {
+    await deleteAccount({ timeoutMs: 200 });
+    useAuthStore.setState({ currentUser: { ...YO } });
+    useGroupStore.getState().addGroup(grupoNuevo('gy'));
+    flushScopedWrites();
+    expect(clavesDelScope('u1').length).toBeGreaterThan(0);
   });
 });

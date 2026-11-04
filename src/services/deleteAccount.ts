@@ -10,8 +10,8 @@ import { deleteMyAccount, deleteMyEnvelopes } from '@/src/sync/adaptadores/supab
 import { signOutOfDirectory } from '@/src/sync/sesion/directoryAuth';
 import { olvidarCursor } from '@/src/sync/motor/relayEngine';
 import { destruirIdentidadDelAparato } from '@/src/store/identityStore';
-import { discardScopedWrites } from '@/src/store/userScope';
-import { clearErrors } from './errorLog';
+import { discardScopedWrites, congelarScope, liberarScope } from '@/src/store/userScope';
+import { clearErrors, recordError } from './errorLog';
 import { anonymizeSelf } from './anonymizeSelf';
 import { topicsDeLaCuenta } from './deleteTopics';
 import { gruposParaSalir } from './salidasAlBorrar';
@@ -129,6 +129,7 @@ export async function deleteAccount(opts: Opciones = {}): Promise<DeleteOutcome>
   // coordinador de sesión purgue la sesión del buzón, y `deleteMyAccount` (3b)
   // la necesita. Si la app muere acá, el diario la termina al arrancar.
   aviso('borrando');
+  detenerSyncDe(accountId);
   borrarLoLocal(accountId);
 
   // ── Fase 3 · Purgar el buzón ──────────────────────────────────────────────
@@ -182,6 +183,7 @@ export async function resumePendingDeletion(): Promise<DeleteOutcome | null> {
   // T-265: si la app murió antes de la fase local, la cuenta sigue viva y
   // «anonimizada»; se termina el barrido (idempotente) antes de tocar la red.
   // La sesión se cierra DESPUÉS de `deleteMyAccount`, que la necesita.
+  detenerSyncDe(diario.accountId);
   borrarLoLocal(diario.accountId);
 
   if (diario.pendientes.length > 0) {
@@ -284,7 +286,6 @@ function terminado(diario: DeleteJournal): boolean {
  * usuario ya no existe: también está terminado.
  */
 async function borrarCuentaDelServidor(diario: DeleteJournal): Promise<boolean> {
-  const eraReintento = diario.cuentaEnServidor === 'pendiente';
   diario.cuentaEnServidor = 'pendiente';
   guardar(diario);
   let r;
@@ -293,18 +294,34 @@ async function borrarCuentaDelServidor(diario: DeleteJournal): Promise<boolean> 
   } catch {
     return false;
   }
-  // «sin sesión» en el PRIMER intento no prueba nada; en un reintento sí.
-  const yaNoExiste = eraReintento && !r.ok && r.reason === 'network' && /sin sesión/i.test(r.detail ?? '');
-  if (r.ok || r.reason === 'not_configured' || yaNoExiste) {
+  if (r.ok || r.reason === 'not_configured') {
     diario.cuentaEnServidor = 'borrada';
     guardar(diario);
     return true;
   }
+  // «sin sesión» NO prueba que la cuenta ya no exista (la sesión puede haberla
+  // perdido la propia app): sólo una respuesta positiva la da por borrada. Se
+  // reintenta con tope y, al agotarlo, se abandona dejando constancia.
+  if (r.reason === 'network' && /sin sesión/i.test(r.detail ?? '')) {
+    diario.intentosSinSesion = (diario.intentosSinSesion ?? 0) + 1;
+    if (diario.intentosSinSesion >= MAX_INTENTOS_SIN_SESION) {
+      diario.cuentaEnServidor = 'abandonada';
+      recordError({ message: 'delete_my_account: abandonada tras reintentos sin sesión', fatal: false });
+      guardar(diario);
+      return true;
+    }
+    guardar(diario);
+  }
   return false;
 }
 
+const MAX_INTENTOS_SIN_SESION = 5;
+
 /** El barrido local. Todo lo que lleva el id de la cuenta, de todos los buckets. */
 function borrarLoLocal(accountId: string): void {
+  // -1 · congelar el scope: la sesión sigue viva durante la red y nada que se
+  //      guarde mientras tanto puede resucitar lo que se barre acá.
+  intentar(() => congelarScope(accountId));
   // 0 · escrituras diferidas (T-156) ANTES que nada: una que vaciara después
   //     del barrido resucitaría el dato que se acaba de borrar.
   intentar(() => discardScopedWrites());
@@ -329,6 +346,26 @@ function cerrarSesionDe(accountId: string, conservarSesionDelBuzon: boolean): vo
   intentar(() => {
     if (useAuthStore.getState().currentUser?.id !== accountId) return;
     useAuthStore.getState().signOut({ conservarSesionDelBuzon });
+  });
+  // Último barrido, ya sin sesión: lo diferido que se armó durante la espera y
+  // lo que haya escapado se va, y recién ahí se descongela.
+  intentar(() => discardScopedWrites());
+  intentar(() => barrerScope(accountId));
+  intentar(() => liberarScope(accountId));
+}
+
+/**
+ * Corta el sync de la cuenta que se borra (entrante y publicaciones). Sólo si
+ * es la activa: al reanudar puede haber entrado otra y su sync no se toca.
+ * Perezoso: `relayEngine` arrastra el motor.
+ */
+function detenerSyncDe(accountId: string): void {
+  intentar(() => {
+    if (useAuthStore.getState().currentUser?.id !== accountId) return;
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const eng = require('@/src/sync/motor/relayEngine') as typeof import('@/src/sync/motor/relayEngine');
+    eng.stopRelay();
+    eng.cancelPendingPublishes();
   });
 }
 

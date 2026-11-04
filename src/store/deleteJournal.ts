@@ -36,7 +36,9 @@ export type DeleteJournal = {
    * se pudo borrar (sin red): la sesión del buzón se conserva y se reintenta al
    * arrancar. Ausente en diarios anteriores: se trata como ya resuelta.
    */
-  cuentaEnServidor?: 'pendiente' | 'borrada';
+  cuentaEnServidor?: 'pendiente' | 'borrada' | 'abandonada';
+  /** Intentos que terminaron en «sin sesión»: tope para no reintentar para siempre. */
+  intentosSinSesion?: number;
 };
 
 export function readJournal(): DeleteJournal | null {
