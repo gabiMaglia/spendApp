@@ -36,6 +36,7 @@ const ALLOWLIST = new Set<string>([
   'src/sync/confianza/recordCore.ts', // GROUP_SLOTS: mapa de clasificación, no una instancia (T-206-A: mudanza)
   'src/algorithms/buildSplits.ts', // parámetro de función (string[]), no un Group
   'src/algorithms/calculateBalances.ts', // idem
+  'src/algorithms/recurringSplits.ts', // idem: parámetro string[] (T-251)
   'src/components/GroupCard.tsx',  // prop de componente (string[]), no un Group
   'src/screens/expense/hooks/useGuardarGasto.ts', // memberIds de RecurringExpense, otra entidad (T-223: salió de app/expense/new.tsx)
   'src/store/groupStore.ts',       // destructuring para IGNORARLO + el único `rosterDe(...)` del store
