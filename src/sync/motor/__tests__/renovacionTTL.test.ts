@@ -3,6 +3,11 @@
  * aparato publicó pasó la ventana de renovación, el ciclo de sync republica.
  */
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
+const mockRecordError = jest.fn();
+jest.mock('@/src/services/errorLog', () => ({
+  ...jest.requireActual('@/src/services/errorLog'),
+  recordError: (...a: unknown[]) => mockRecordError(...a),
+}));
 jest.mock('@/src/sync/adaptadores/supabase/relay', () => ({
   isRelayConfigured: () => true,
   getRelayClient: () => null,
@@ -111,9 +116,15 @@ describe('T-267 · renovación contra el TTL sin cambios locales', () => {
     expect(mockPublish).toHaveBeenCalledTimes(2);
   });
 
-  it('D2 · renovarSinRomper traga el error en vez de cortar la cadena', async () => {
+  it('D2 · renovarSinRomper traga el error en vez de cortar la cadena, y lo registra', async () => {
     await grupoConLedger('g1', T0 - RENEWAL_WINDOW_MS - DIA);
-    mockPublish.mockRejectedValue(new Error('boom'));
+    // Falla FUERA de publishNow (que ya atrapa sus propios rechazos): así el
+    // test sólo pasa si el try/catch de renovarSinRomper existe.
+    jest.spyOn(useGroupKeyStore.getState(), 'getKey').mockImplementation(() => { throw new Error('boom'); });
+    await expect(renovarGruposVencidos()).rejects.toThrow('boom');
     await expect(renovarSinRomper()).resolves.toBeUndefined();
+    expect(mockRecordError).toHaveBeenCalledWith(
+      expect.objectContaining({ message: expect.stringContaining('sync.renovacion_fallo') }),
+    );
   });
 });
