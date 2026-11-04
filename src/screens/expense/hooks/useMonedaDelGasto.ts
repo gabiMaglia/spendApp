@@ -12,7 +12,12 @@ import { useSettingsStore } from '@/src/store/settingsStore';
  * store y no `useFx()`: es el mismo valor y no hace falta pedir cotizaciones
  * para decidir una moneda.
  */
-export function useMonedaDelGasto(groupId: string, groupCurrency: CurrencyCode | undefined) {
+export function useMonedaDelGasto(
+  groupId: string,
+  groupCurrency: CurrencyCode | undefined,
+  /** Al editar una entrada personal (T-257): su moneda manda sobre el historial. */
+  monedaInicial?: CurrencyCode,
+) {
   const ultima = useSettingsStore(s => s.lastPersonalCurrency);
   const pantalla = useSettingsStore(s => s.displayCurrency);
 
@@ -30,7 +35,7 @@ export function useMonedaDelGasto(groupId: string, groupCurrency: CurrencyCode |
   // (guardar igual queda bloqueado, porque no hay miembros).
   const editable = groupId === '';
   const currency: CurrencyCode = editable
-    ? elegida ?? ultima ?? pantalla
+    ? elegida ?? monedaInicial ?? ultima ?? pantalla
     : groupCurrency ?? pantalla;
 
   return { currency, setCurrency: setElegida, editable };

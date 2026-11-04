@@ -15,6 +15,8 @@ import { useAuthStore } from '@/src/store/authStore';
 import { useTierStore } from '@/src/store/tierStore';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
+import { usePersonalStore } from '@/src/store/personalStore';
+import { isEditable } from '@/src/algorithms/entryOrigin';
 import { useArchiveStore } from '@/src/store/archiveStore';
 import { useGroupExpenseCount } from '@/src/store/selectors';
 import { DetailHeader, useRellenoDetailHeader } from '@/src/components/CollapsibleHeader';
@@ -65,17 +67,25 @@ export default function NewExpenseScreen() {
   const allGroups = useGroupStore(s => s.groups);
   const groups = useMemo(() => allGroups.filter(g => !g.isDeleted), [allGroups]);
 
-  const { groupId: paramGroupId, expenseId, allowIncome, kind: paramKind } =
-    useLocalSearchParams<{ groupId?: string; expenseId?: string; allowIncome?: string; kind?: string }>();
+  const { groupId: paramGroupId, expenseId, personalEntryId, allowIncome, kind: paramKind } =
+    useLocalSearchParams<{
+      groupId?: string; expenseId?: string; personalEntryId?: string; allowIncome?: string; kind?: string;
+    }>();
 
   // En edición: el gasto existente precarga el formulario.
   const existingExpense = useExpenseStore(s =>
     expenseId ? s.expenses.find(e => e.id === expenseId) : undefined,
   );
-  const isEditMode = Boolean(expenseId);
+  // T-257: editar una entrada personal MANUAL. Una derivada (o un id que ya no
+  // existe) no abre edición: el formulario quedaría vacío y guardaría una nueva.
+  const existingEntry = usePersonalStore(s =>
+    personalEntryId ? s.entries.find(e => e.id === personalEntryId && !e.isDeleted) : undefined,
+  );
+  const editingPersonal = Boolean(existingEntry && isEditable(existingEntry));
+  const isEditMode = Boolean(expenseId) || editingPersonal;
 
   // ── Core inputs ────────────────────────────────────────────────────────────
-  const [description, setDescription] = useState(existingExpense?.description ?? '');
+  const [description, setDescription] = useState(existingExpense?.description ?? existingEntry?.description ?? '');
   // Default: SIN grupo (gasto personal). Si viene por deep-link de un grupo
   // (paramGroupId) o en edición, se pre-selecciona ese grupo. (F-G, decisión PO)
   const [groupId, setGroupId] = useState(existingExpense?.groupId ?? paramGroupId ?? '');
@@ -83,21 +93,24 @@ export default function NewExpenseScreen() {
   // menor unidad — ADR-002) la necesita para parsear/formatear correctamente.
   // T-255: con grupo es la del grupo; sin grupo la elige el usuario.
   const { currency, setCurrency, editable: monedaEditable } = useMonedaDelGasto(
-    groupId, groups.find(g => g.id === groupId)?.currency,
+    groupId, groups.find(g => g.id === groupId)?.currency, existingEntry?.currency,
   );
   const {
     text: amountStr, minor: amount, onChangeText: setAmountStr, onBlur: onAmountBlur, setMinor: setAmountMinor,
-  } = useAmountInput(currency, existingExpense?.amount ?? 0);
+  } = useAmountInput(currency, existingExpense?.amount ?? existingEntry?.amount ?? 0);
   const [payerId, setPayerId] = useState(existingExpense?.paidById ?? currentUser?.id ?? '');
-  const [date, setDate] = useState(existingExpense ? new Date(existingExpense.date) : new Date());
+  const [date, setDate] = useState(
+    existingExpense ? new Date(existingExpense.date) : existingEntry ? new Date(existingEntry.date) : new Date(),
+  );
   const [note, setNote] = useState(existingExpense?.note ?? '');
-  const [category, setCategory] = useState<PersonalCategory>(existingExpense?.category ?? 'other');
+  const [category, setCategory] = useState<PersonalCategory>(existingExpense?.category ?? existingEntry?.category ?? 'other');
   // Modo Ingreso: SOLO habilitado cuando se abre desde Personal (allowIncome=1). (F-G2)
   const incomeAllowed = allowIncome === '1' && !isEditMode;
   const [entryKind, setEntryKind] = useState<'expense' | 'income'>(
     incomeAllowed && paramKind === 'income' ? 'income' : 'expense',
   );
-  const isIncome = incomeAllowed && entryKind === 'income';
+  // En edición el tipo es el de la entrada y no se cambia.
+  const isIncome = editingPersonal ? existingEntry!.kind === 'income' : incomeAllowed && entryKind === 'income';
   const [receiptUri, setReceiptUri] = useState<string | undefined>(existingExpense?.receiptImageUri);
   const [hoja, setHoja] = useState<HojaAbierta>(null);
   const [recurrence, setRecurrence] = useState<RecurrenceValue>(null);
@@ -135,7 +148,7 @@ export default function NewExpenseScreen() {
     && (!hasGroup || members.length > 0) && payersOk && !grupoArchivado && !grupoBloqueadoPorLimite;
 
   const guardar = useGuardarGasto({
-    currentUser, isEditMode, expenseId, existingExpense, hasGroup, groupId, group,
+    currentUser, isEditMode, expenseId, personalEntryId: editingPersonal ? personalEntryId : undefined, existingExpense, hasGroup, groupId, group,
     description, amount, currency, category, date, note, receiptUri, isIncome,
     payerId, multiPayer, payers, splits: reparto.splits, splitMode: reparto.splitMode,
     recurrence, needsAd, canSave,
@@ -210,7 +223,7 @@ export default function NewExpenseScreen() {
       <KeyboardAvoidingView style={styles.safe} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <DetailHeader
           icon="close"
-          title={isEditMode ? t('expense.edit_title') : isIncome ? t('expense.new_income_title') : t('expense.new_title')}
+          title={isEditMode ? (isIncome ? t('expense.edit_income_title') : t('expense.edit_title')) : isIncome ? t('expense.new_income_title') : t('expense.new_title')}
           onBack={() => router.back()}
         />
 

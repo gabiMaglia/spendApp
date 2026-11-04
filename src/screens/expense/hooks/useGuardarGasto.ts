@@ -25,6 +25,8 @@ export type FormularioDeGasto = {
   currentUser: User | null;
   isEditMode: boolean;
   expenseId?: string;
+  /** Edición de una entrada personal (T-257): se actualiza esa, no se crea otra. */
+  personalEntryId?: string;
   existingExpense?: Expense;
   hasGroup: boolean;
   groupId: string;
@@ -58,6 +60,7 @@ export function useGuardarGasto(f: FormularioDeGasto): () => void {
   const addExpense = useExpenseStore(s => s.addExpense);
   const updateExpense = useExpenseStore(s => s.updateExpense);
   const addPersonalEntry = usePersonalStore(s => s.addEntry);
+  const updatePersonalEntry = usePersonalStore(s => s.updateEntry);
   const setLastPersonalCurrency = useSettingsStore(s => s.setLastPersonalCurrency);
   const addRecurring = useRecurringStore(st => st.addRecurring);
 
@@ -103,6 +106,17 @@ export function useGuardarGasto(f: FormularioDeGasto): () => void {
   function guardarPersonal() {
     // Sin grupo → entrada PERSONAL (gasto o ingreso). Sin ad gate/splits/pagador. (F-G/F-G2)
     hapticSuccess();
+    if (f.personalEntryId) {
+      updatePersonalEntry(f.personalEntryId, {
+        description: f.description.trim(),
+        amount:      f.amount,
+        currency:    f.currency,
+        category:    f.isIncome ? 'other' : f.category,
+        date:        f.date.getTime(),
+      });
+      router.back();
+      return;
+    }
     addPersonalEntry({
       id:          uuidv4(),
       kind:        f.isIncome ? 'income' : 'expense',

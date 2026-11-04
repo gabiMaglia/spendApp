@@ -205,6 +205,7 @@
   "expense": {
     "new_title": "Nuevo gasto",
     "edit_title": "Editar gasto",
+    "edit_income_title": "Editar ingreso",
     "description_placeholder": "¿En qué gastaron?",
     "payer_label": "Pagó",
     "save": "Guardar",

@@ -5,6 +5,7 @@ import { mergePersonalPure } from './mergePersonalPure';
 import { migratePersonalBudgetAmount, migratePersonalEntryAmounts } from './moneyMigration';
 import type { PersonalEntry, PersonalBudget } from '@/src/types/models';
 import { syncedNow } from '@/src/utils/syncedClock';
+import { isEditable } from '@/src/algorithms/entryOrigin';
 
 const storage = createSecureStorage('personal');
 const ENTRIES_KEY   = 'entries_v1';
@@ -20,11 +21,16 @@ export const DEFAULT_BUDGET: PersonalBudget = {
   includeOwedToMe: false,
 };
 
+/** Lo que el usuario puede cambiar de una entrada: no `id`, `kind` ni `createdAt`. */
+export type EntryChanges = Partial<Pick<PersonalEntry, 'description' | 'amount' | 'currency' | 'category' | 'date'>>;
+
 interface PersonalStoreState {
   entries:        PersonalEntry[];
   budget:         PersonalBudget;
   lastSeenMonth:  string;
   addEntry:               (entry: PersonalEntry) => void;
+  /** Edita una entrada MANUAL; las derivadas no se tocan (ADR-006 d4). */
+  updateEntry:            (id: string, cambios: EntryChanges) => void;
   removeEntry:            (id: string) => void;
   setBudget:              (budget: PersonalBudget) => void;
   setLastSeenMonth:       (month: string) => void;
@@ -60,6 +66,16 @@ export const usePersonalStore = create<PersonalStoreState>((set, get) => ({
 
   addEntry: (entry) => {
     const entries = [...get().entries, entry];
+    persistEntries(entries);
+    set({ entries });
+  },
+
+  // Sube `updatedAt` con el reloj sincronizado para que el LWW de
+  // `mergeEntries` haga ganar la edición sobre la copia vieja de otro dispositivo.
+  updateEntry: (id, cambios) => {
+    const entries = get().entries.map(e =>
+      e.id === id && isEditable(e) ? { ...e, ...cambios, updatedAt: syncedNow() } : e,
+    );
     persistEntries(entries);
     set({ entries });
   },

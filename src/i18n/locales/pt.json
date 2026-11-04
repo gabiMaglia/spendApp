@@ -205,6 +205,7 @@
   "expense": {
     "new_title": "Nova despesa",
     "edit_title": "Editar despesa",
+    "edit_income_title": "Editar receita",
     "description_placeholder": "No que vocês gastaram?",
     "payer_label": "Pagou",
     "save": "Salvar",
