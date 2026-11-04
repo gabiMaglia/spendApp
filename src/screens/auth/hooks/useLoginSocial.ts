@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import * as AppleAuthentication from 'expo-apple-authentication';
 
-import { recordGuestAccount, useAuthStore } from '@/src/store/authStore';
+import { invitadoDelAparato, recordGuestAccount, useAuthStore } from '@/src/store/authStore';
 import { useEntryGateStore } from '@/src/store/entryGateStore';
 import { actualizarMiPerfil } from '@/src/store/miPerfil';
 import { adoptarAvatarDelProveedor } from '@/src/services/avatar';
@@ -35,14 +35,19 @@ export function useLoginSocial() {
    * entra después con una cuenta real, se le ofrece sumar estos datos.
    */
   function entrarComoInvitado() {
-    const id = uuidv4();
+    // T-266: si ya hubo un invitado en este aparato se vuelve a ÉL (la pantalla
+    // de cierre promete que los datos locales se conservan). Su perfil guardado
+    // sobrevive al signOut, así que se reusa tal cual.
+    const previo = invitadoDelAparato();
+    const id = previo ?? uuidv4();
+    const guardado = previo ? getStoredProfile(previo) : null;
     recordGuestAccount(id);
     // T-147 (fila 9a, decisión del PO 2026-09-27): pide la verificación
     // bloqueante ANTES de `setUser` — `AuthGuard` la lee en el mismo tick en
     // que `currentUser` deja de ser `null`, así que nunca hay un instante en
     // el que pudiera mandar directo a tabs sin haber pedido nada.
     useEntryGateStore.getState().pedirVerificacion();
-    setUser({
+    setUser(guardado && guardado.authProvider === 'guest' && !guardado.deletedAt ? guardado : {
       id,
       name:         t('auth.guest_name'),
       email:        '',
