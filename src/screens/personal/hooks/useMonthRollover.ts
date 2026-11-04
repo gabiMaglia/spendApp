@@ -1,14 +1,20 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { usePersonalStore, toMonthKey, currentMonthKey } from '@/src/store/personalStore';
 import { syncedNow } from '@/src/utils/syncedClock';
 import { monthLabel } from '@/src/screens/personal/utils/monthLabel';
+import { calcularArrastre, monedasDelMes } from '@/src/screens/personal/utils/arrastreMensual';
+import { ensureRates, readCache, type FxCache } from '@/src/services/fx';
 import type { PersonalEntry } from '@/src/types/models';
 
 /**
  * Al cruzar de mes, arma la entrada "carryover" con el sobrante (o excedido)
  * del mes anterior. Sin cambios de comportamiento respecto del original
  * (ADR-005/006) — sólo sacado del componente (PO 2026-09-23).
+ *
+ * T-256 · EXCEPCIÓN del PO (2026-11-04) a la regla 7: un mes con movimientos en
+ * varias monedas se arrastra convirtiendo todo a la moneda del presupuesto con
+ * la cotización del cierre («si convertí y llevá»). Sin cotización se pospone.
  *
  * `owedToMe` llega por ref: el efecto sólo debe correr cuando cambia
  * `lastSeenMonth`, no cada vez que cambia la deuda (que se recalcula seguido).
@@ -21,6 +27,9 @@ export function useMonthRollover(
   // T-229: el mes anterior se cierra con guardados + derivados (gastos y pagos).
   const movimientosRef = useRef(movimientos);
   useEffect(() => { movimientosRef.current = movimientos; }, [movimientos]);
+
+  const [fx, setFx] = useState<FxCache | null>(() => readCache());
+  const pidioRef = useRef<string | null>(null);
 
   useEffect(() => {
     const thisMonth = currentMonthKey();
@@ -35,20 +44,20 @@ export function useMonthRollover(
     );
     if (alreadyCarried) { setSeen(thisMonth); return; }
 
-    const prevEntries = allEntries.filter(
-      e => !e.isDeleted && e.currency === cy && toMonthKey(e.date) === lastSeenMonth,
-    );
-
-    const prevIncome   = prevEntries.filter(e => e.kind === 'income' || e.kind === 'payment_in').reduce((s, e) => s + e.amount, 0);
-    const prevExpense  = prevEntries.filter(e => e.kind === 'expense' || e.kind === 'payment_out').reduce((s, e) => s + e.amount, 0);
-    const prevGroup    = prevEntries.filter(e => e.kind === 'group_replicated').reduce((s, e) => s + e.amount, 0);
-    const prevPosCarry = prevEntries.filter(e => e.kind === 'carryover' && e.isPositiveCarryover).reduce((s, e) => s + e.amount, 0);
-    const prevNegCarry = prevEntries.filter(e => e.kind === 'carryover' && !e.isPositiveCarryover).reduce((s, e) => s + e.amount, 0);
-
-    const prevEffective = curBudget.monthlyAmount + prevIncome + prevPosCarry +
-      (curBudget.includeOwedToMe ? owedToMeRef.current : 0);
-    const prevSpent     = prevExpense + prevGroup + prevNegCarry;
-    const prevRemaining = prevEffective - prevSpent;
+    const r = calcularArrastre({
+      entries: allEntries, month: lastSeenMonth, budget: curBudget,
+      owedToMe: owedToMeRef.current, fx,
+    });
+    if (r.status === 'pendiente') {
+      // Sin cotización no se cierra el mes: se pide una vez y, si llega, el
+      // efecto vuelve a correr por el cambio de `fx`.
+      if (pidioRef.current !== lastSeenMonth) {
+        pidioRef.current = lastSeenMonth;
+        void ensureRates([cy, ...monedasDelMes(allEntries, lastSeenMonth)], cy).then(setFx);
+      }
+      return;
+    }
+    const prevRemaining = r.remaining;
 
     if (Math.abs(prevRemaining) >= 0.01) {
       const firstOfMonth = new Date(`${thisMonth}-01T12:00:00`).getTime();
@@ -68,5 +77,5 @@ export function useMonthRollover(
     }
 
     setSeen(thisMonth);
-  }, [lastSeenMonth]);
+  }, [lastSeenMonth, fx]);
 }
