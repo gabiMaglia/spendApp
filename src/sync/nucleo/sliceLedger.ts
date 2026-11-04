@@ -106,6 +106,21 @@ export function registrarCubo(
 }
 
 /**
+ * Instante de publicación del cubo MÁS VIEJO que este `deviceId` tiene
+ * registrado en `topic`, o `null` si no hay ninguno (T-267): decide si hace
+ * falta renovar contra el TTL del buzón aunque no haya cambios.
+ */
+export function publicadoMasViejoEn(almacen: AlmacenPort, topic: string, deviceId: string): number | null {
+  let viejo: number | null = null;
+  for (const e of leerIndice(almacen, topic)) {
+    if (e.deviceId !== deviceId) continue;
+    const l = leerCubo(almacen, topic, deviceId, e.ckey);
+    if (l && (viejo === null || l.publicadaEn < viejo)) viejo = l.publicadaEn;
+  }
+  return viejo;
+}
+
+/**
  * Olvida un cubo puntual — cuando quedó vacío (traspaso, miembro que se va)
  * o su profundidad quedó obsoleta, y ya se publicó `[]` en su lugar (spec
  * §8 C5, corrige la afirmación de §2.1 "un cubo que existió no se vacía").

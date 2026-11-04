@@ -1,6 +1,5 @@
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
-import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { esYo } from '@/src/store/identityAlias';
 import { announce } from '@/src/services/notifications';
 import { isRelayConfigured } from '@/src/sync/adaptadores/supabase/relay';
@@ -10,6 +9,11 @@ import { noticeDeCaida } from '@/src/sync/avisos/syncDownNotices';
 import { noticeDeReloj } from '@/src/sync/avisos/clockNotice';
 import { estaPendienteDeDrenaje } from './pendingDrain';
 import { deviceId } from './cursor';
+import { groupKeyBytes, useGroupKeyStore } from '@/src/store/groupKeyStore';
+import { deriveTopic } from '@/src/sync/nucleo/envelopeCrypto';
+import { publicadoMasViejoEn } from '@/src/sync/nucleo/sliceLedger';
+import { RENEWAL_WINDOW_MS } from '@/src/sync/nucleo/limites';
+import * as adaptador from '@/src/sync/adaptadores/hushsplit/adaptadorHushSplit';
 import {
   marcarPublicacionPendiente, limpiarPublicacionPendiente, versionDePublicacion,
   gruposConPublicacionPendiente,
@@ -212,6 +216,48 @@ export async function reintentarPublicacionesPendientes(): Promise<void> {
     if (!useGroupKeyStore.getState().getKey(groupId)) continue;
     await publishNow(groupId);
   }
+}
+
+// ── renovación contra el TTL (T-267) ────────────────────────────────────────
+
+/** Entre dos intentos de renovar el mismo grupo: no es urgente, no se martilla. */
+const ENFRIAMIENTO_RENOVACION_MS = 60 * 60_000;
+const ultimaRenovacion = new Map<string, number>();
+
+/**
+ * El buzón borra todo a los 30 días (`001_mailbox.sql`) y `publicarPorCubos`
+ * sólo renueva dentro de una publicación, que sólo ocurre por un cambio local:
+ * un grupo quieto vencía aunque todos abrieran la app. Acá, en el ciclo de
+ * sync (arranque y poll, DESPUÉS de drenar: guarda T-089), se mira el cubo
+ * propio más viejo del ledger; si pasó `RENEWAL_WINDOW_MS` (20 d, margen de
+ * 10 d), se publica — `publicarPorCubos` reenvía justo los cubos vencidos y el
+ * manifiesto. Sin tormenta: cada aparato renueva SÓLO sus sobres (la `ckey` es
+ * por aparato) y su reloj es el de su propio ledger, así que los miembros no
+ * se sincronizan entre sí; tras renovar, el ledger se actualiza y no vuelve a
+ * disparar hasta dentro de otros 20 días. No cambia el formato del sobre.
+ */
+export async function renovarGruposVencidos(): Promise<void> {
+  const ahora = Date.now();
+  for (const groupId of syncableGroupIds()) {
+    if (pendientes.has(groupId) || enVuelo.has(groupId)) continue;
+    if (ahora < (backoff.get(groupId)?.hasta ?? 0)) continue;
+    if (ahora - (ultimaRenovacion.get(groupId) ?? -Infinity) < ENFRIAMIENTO_RENOVACION_MS) continue;
+
+    const key = groupKeyBytes(groupId);
+    const record = useGroupKeyStore.getState().getKey(groupId);
+    if (!key || !record) continue;
+    const topic = await deriveTopic(key, record.epoch);
+    const masViejo = publicadoMasViejoEn(adaptador.almacen, topic, deviceId());
+    if (masViejo === null || ahora - masViejo <= RENEWAL_WINDOW_MS) continue;
+
+    ultimaRenovacion.set(groupId, ahora);
+    await publishNow(groupId);
+  }
+}
+
+/** Sólo para tests. */
+export function __resetRenovaciones(): void {
+  ultimaRenovacion.clear();
 }
 
 /** Sólo para tests. */
