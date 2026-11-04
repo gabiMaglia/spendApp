@@ -22,9 +22,13 @@ export type MaterializeResult = {
   /**
    * Plantillas con problemas (T-251). `degradado`: se materializó en partes
    * iguales porque faltaba el reparto. `fallo`: no se pudo materializar y se
-   * salteó. En ningún caso se corta el arranque; el llamador las anota.
+   * salteó. `miembros` (T-262): alguien del reparto ya no está en el grupo y se
+   * repartió en partes iguales entre los vigentes. `omitido` (T-262): no se
+   * materializó (el pagador ya no está o no queda nadie con quien repartir) y
+   * la plantilla NO avanza. En ningún caso se corta el arranque; el llamador
+   * las anota.
    */
-  problems: Array<{ id: string; kind: 'degradado' | 'fallo'; message: string }>;
+  problems: Array<{ id: string; kind: 'degradado' | 'fallo' | 'miembros' | 'omitido'; message: string }>;
 };
 
 function idFor(templateId: string, at: number): string {
@@ -48,9 +52,32 @@ function derivedUpdatedAt(at: number): number {
   return at;
 }
 
+/** Miembros vigentes por grupo (`Group.memberIds`). Un grupo ausente no se filtra. */
+export type Rosters = Record<string, string[]>;
+
+/**
+ * T-262: una plantilla congela `memberIds`/pagadores al crearse; si después
+ * alguien salió o fue expulsado, repartir con él deja una parte que ningún
+ * balance cobra (deuda fantasma) o un pagador que ya no se puede saldar.
+ * Decisión conservadora: se reparte sólo entre los vigentes (en partes iguales
+ * si el reparto original no lo era, porque % y montos a medida dejan de
+ * sumar); si el pagador ya no está o no queda nadie, no se materializa.
+ */
+function ajustarAlRoster(t: RecurringExpense, roster: string[]):
+  { t: RecurringExpense; recortada: boolean } | { omitir: string } {
+  const vigentes = new Set(roster);
+  const pagadores = t.payers && t.payers.length > 0 ? t.payers.map(p => p.userId) : [t.paidById];
+  if (pagadores.some(id => !vigentes.has(id))) return { omitir: 'recurrente omitida: el pagador ya no está en el grupo' };
+  const memberIds = t.memberIds.filter(id => vigentes.has(id));
+  if (memberIds.length === 0) return { omitir: 'recurrente omitida: ningún participante sigue en el grupo' };
+  if (memberIds.length === t.memberIds.length) return { t, recortada: false };
+  return { t: { ...t, memberIds, splitMode: 'equal', splitValues: undefined }, recortada: true };
+}
+
 export function materializeRecurring(
   templates: RecurringExpense[],
   now: number,
+  rosters?: Rosters,
 ): MaterializeResult {
   const expenses: Expense[] = [];
   const personalEntries: PersonalEntry[] = [];
@@ -62,8 +89,26 @@ export function materializeRecurring(
 
     // Una plantilla corrupta no puede llevarse puestas a las demás ni el arranque.
     try {
-      const r = materializeOne(t, now);
+      let plantilla = t;
+      let recortada = false;
+      const roster = t.groupId === '' ? undefined : rosters?.[t.groupId];
+      if (roster) {
+        const aj = ajustarAlRoster(t, roster);
+        if ('omitir' in aj) {
+          // Sólo se anota si había algo vencido; no avanza, así no se pierde.
+          if (dueOccurrences(t.rule, t.lastMaterializedAt, now).length > 0) {
+            problems.push({ id: t.id, kind: 'omitido', message: aj.omitir });
+          }
+          continue;
+        }
+        plantilla = aj.t;
+        recortada = aj.recortada;
+      }
+      const r = materializeOne(plantilla, now);
       if (!r) continue;
+      if (recortada) {
+        problems.push({ id: t.id, kind: 'miembros', message: 'recurrente repartida sólo entre los miembros que siguen en el grupo' });
+      }
       expenses.push(...r.expenses);
       personalEntries.push(...r.personalEntries);
       updatedTemplates.push({ id: t.id, lastMaterializedAt: r.last });

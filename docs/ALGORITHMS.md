@@ -93,6 +93,10 @@ Un grupo avisa a los 350 gastos y bloquea a los 450 (`groupLimits.ts`, techo del
 
 Plantillas con `frequency` semanal/quincenal/mensual/anual ancladas a `startDate` (el 31 cae al 28 en febrero y vuelve al 31). Al abrir la app se materializan TODOS los vencimientos posteriores a `lastMaterializedAt` (recuperación tras meses cerrada), con id determinista `rec_<plantilla>_<vencimiento>` y `updatedAt` = vencimiento (un borrado siempre le gana a una regeneración). Una plantilla sin grupo produce `PersonalEntry`; con grupo produce `Expense`.
 
+**Calendario local (T-263):** el día de cada vencimiento se calcula en hora local del aparato (no UTC), y semanal/quincenal suman días de calendario, no 24 h fijas, así un cambio de horario no corre la cuota. Un aparato en otro huso ve el mismo ancla con otro día local.
+
+**Miembros que ya no están (T-262):** `applyDueRecurring` pasa el roster vigente de cada grupo. La plantilla congela `memberIds`, así que al materializar: si todos siguen, igual que siempre; si alguien salió o fue expulsado, se reparte sólo entre los vigentes (en partes iguales si el reparto era % / porciones / a medida, porque dejan de sumar) y se anota `miembros`; si el pagador (o alguno del desglose) ya no está, o no queda nadie, NO se materializa, la plantilla no avanza y se anota `omitido` (visible en el registro de errores). Un grupo ausente del store no se filtra.
+
 ## 10 · Personal y presupuesto — `personalMonth.ts`, `entryOrigin.ts`
 
 Movimientos `expense` / `income` (manuales, editables), `group_replicated` (derivado de un gasto de grupo que pagué yo: **lo que salió de mi bolsillo**, ADR-006 d3) y `carryover` (sobrante o excedido del mes anterior, generado al cruzar de mes). Gastado = `expense + group + carryover negativo`; disponible = `presupuesto + income + carryover positivo (+ lo que me deben si el usuario lo prende)`. Los derivados no se editan.

@@ -242,6 +242,12 @@ export function subscribeSessionRehydrate(): () => void {
   });
 }
 
+function rostersVigentes(): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (const g of useGroupStore.getState().groups) out[g.id] = g.memberIds;
+  return out;
+}
+
 /**
  * Materializa los gastos recurrentes vencidos de la cuenta activa.
  *
@@ -262,7 +268,7 @@ export function applyDueRecurring(now: number = Date.now()): void {
   const isArchived = useArchiveStore.getState().isArchived;
   const templatesActivas = templates.filter(t => t.groupId === '' || !isArchived(t.groupId));
 
-  const { expenses, personalEntries, updatedTemplates, problems } = materializeRecurring(templatesActivas, now);
+  const { expenses, personalEntries, updatedTemplates, problems } = materializeRecurring(templatesActivas, now, rostersVigentes());
   for (const p of problems) anotarProblemaUnaVez(p);
 
   // mergeXxx en vez de addXxx: los ids son deterministas, así que si el gasto
