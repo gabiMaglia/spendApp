@@ -12,6 +12,7 @@ import { useSkin } from '@/src/skins/useSkin';
 import type { PersonalCategory } from '@/src/types/models';
 import { CATEGORIES } from '@/src/screens/expense/repartoDeGasto';
 import { tinteDeCategoria } from '@/src/screens/expense/components/GrillaCategorias';
+import { ErrorSinDecimales } from '@/src/screens/expense/components/ErrorSinDecimales';
 import { MonedaTocable } from '@/src/screens/expense/components/MonedaTocable';
 
 /**
@@ -20,7 +21,7 @@ import { MonedaTocable } from '@/src/screens/expense/components/MonedaTocable';
  * ingreso el ícono es el de ingreso, en verde.
  */
 export function TarjetaDescripcionMonto({
-  category, isIncome, currency, description, onDescriptionChange, amount, onAmountChange, onAmountBlur, onCurrencyChange,
+  category, isIncome, currency, description, onDescriptionChange, amount, onAmountChange, onAmountBlur, sinDecimales, onCurrencyChange,
 }: {
   category: PersonalCategory;
   isIncome: boolean;
@@ -30,6 +31,8 @@ export function TarjetaDescripcionMonto({
   amount: string;
   onAmountChange: (v: string) => void;
   onAmountBlur: () => void;
+  /** El texto trae centavos y la moneda no los usa (T-258): muestra el aviso. */
+  sinDecimales?: boolean;
   /** Sólo sin grupo: con grupo la moneda es la del grupo y el badge no se toca (regla 7). */
   onCurrencyChange?: (code: CurrencyCode) => void;
 }) {
@@ -103,9 +106,11 @@ export function TarjetaDescripcionMonto({
             placeholderTextColor={c.textDisabled}
             returnKeyType="done"
             style={[Typography.amountXL, styles.monto, {
-              color: isIncome ? c.semantic.positive : c.text, borderBottomColor: subrayado('monto'),
+              color: sinDecimales ? c.semantic.negative : isIncome ? c.semantic.positive : c.text,
+              borderBottomColor: subrayado('monto'),
             }]}
           />
+          {sinDecimales && <ErrorSinDecimales currency={currency} />}
         </View>
       </Pressable>
     </View>

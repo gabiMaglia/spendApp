@@ -23,3 +23,12 @@ describe('badge de moneda del gasto (T-255)', () => {
     expect(onCurrencyChange).toHaveBeenCalledWith('CLP');
   });
 });
+
+describe('monto con centavos en una moneda sin decimales (T-258)', () => {
+  it('muestra el aviso sólo cuando corresponde', () => {
+    const { rerender } = render(<TarjetaDescripcionMonto {...base} currency="CLP" amount="12,50" sinDecimales />);
+    expect(screen.getByTestId('amount-no-decimals')).toBeTruthy();
+    rerender(<TarjetaDescripcionMonto {...base} currency="CLP" amount="12" />);
+    expect(screen.queryByTestId('amount-no-decimals')).toBeNull();
+  });
+});

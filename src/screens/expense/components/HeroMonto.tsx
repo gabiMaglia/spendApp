@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import type { CurrencyCode } from '@/src/constants/currencies';
+import { ErrorSinDecimales } from '@/src/screens/expense/components/ErrorSinDecimales';
 import { MonedaTocable } from '@/src/screens/expense/components/MonedaTocable';
 import { MontoEditable } from '@/src/components/MontoEditable';
 import { FondoMarmol } from '@/src/components/FondoMarmol';
@@ -21,7 +22,7 @@ import { useColors } from '@/src/skins/useSkin';
  * sean `variant="tabs"`). T-223: salió de `app/expense/new.tsx`.
  */
 export function HeroMonto({
-  currency, onCurrencyChange, value, onChangeText, onBlur, incomeAllowed, isIncome, onKindChange,
+  currency, onCurrencyChange, value, onChangeText, onBlur, sinDecimales, incomeAllowed, isIncome, onKindChange,
 }: {
   currency: CurrencyCode;
   /** Sólo sin grupo: con grupo la moneda es la del grupo y no se toca (regla 7). */
@@ -29,6 +30,8 @@ export function HeroMonto({
   value: string;
   onChangeText: (v: string) => void;
   onBlur: () => void;
+  /** El texto trae centavos y la moneda no los usa (T-258): muestra el aviso. */
+  sinDecimales?: boolean;
   incomeAllowed: boolean;
   isIncome: boolean;
   onKindChange: (k: 'expense' | 'income') => void;
@@ -65,7 +68,9 @@ export function HeroMonto({
         value={value}
         onChangeText={onChangeText}
         onBlur={onBlur}
+        error={sinDecimales}
       />
+      {sinDecimales && <ErrorSinDecimales currency={currency} />}
       {incomeAllowed && (
         <View style={[styles.heroToggle, { backgroundColor: c.bgGrouped }]}>
           {(['expense', 'income'] as const).map(k => {

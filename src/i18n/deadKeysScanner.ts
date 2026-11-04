@@ -20,7 +20,7 @@ import * as ts from 'typescript';
  * app/expense/new.tsx. Si aparece un segundo caso, se agrega acá a mano — no
  * hay forma de inferirlo del AST sin falsos negativos.
  */
-export const DYNAMIC_KEY_PREFIXES = ['categories.'] as const;
+export const DYNAMIC_KEY_PREFIXES = ['categories.', 'currency_names.'] as const;
 
 const PLURAL_SUFFIXES = ['_zero', '_one', '_two', '_few', '_many', '_other'] as const;
 
