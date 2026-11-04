@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { readScoped, writeScopedLazy } from './userScope';
+import { leerBlobArreglo } from './leerBlob';
 import { mergeByIdLevels } from './mergeLevels';
 import { siguienteUpdatedAt } from './relojDelMerge';
 import { signOnCreate } from '@/src/sync/confianza/signOnWrite';
@@ -97,12 +98,7 @@ export const useCommentStore = create<CommentStoreState>((set, get) => ({
 
   hydrate: () => {
     const raw = readScoped(storage, KEY);
-    let comments: ExpenseComment[] = [];
-    try {
-      comments = raw ? (JSON.parse(raw) as ExpenseComment[]) : [];
-    } catch {
-      comments = []; // dato corrupto: se arranca vacío en vez de tirar
-    }
+    let comments: ExpenseComment[] = leerBlobArreglo<ExpenseComment>(storage, KEY, raw);
     set({ comments, isLoading: false });
   },
 }));

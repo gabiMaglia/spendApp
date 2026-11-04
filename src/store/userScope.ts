@@ -168,6 +168,20 @@ export function readScopedBool(storage: SimpleStorage, base: string, def: boolea
   return storage.getBoolean(scopedKey(base, uid)) ?? def;
 }
 
+/**
+ * T-264: guarda el crudo de un blob ilegible en `<base>.corrupto::u:<uid>`.
+ * Conserva el sufijo de scope a propósito: así el borrado de cuenta
+ * (`barrerScope`) también se lleva el respaldo. No pisa uno previo: el primero
+ * es el que tiene los datos; los siguientes ya son lo que quedó después.
+ */
+export function respaldarCrudo(storage: SimpleStorage, base: string, raw: string): void {
+  const uid = activeUserId();
+  if (!uid) return;
+  const key = scopedKey(`${base}.corrupto`, uid);
+  if (storage.getString(key) !== undefined) return;
+  storage.set(key, raw);
+}
+
 /** Escribe un booleano en el scope del usuario activo. Sin usuario → no-op. */
 export function writeScopedBool(storage: SimpleStorage, base: string, value: boolean): void {
   const uid = activeUserId();

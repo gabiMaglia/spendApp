@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { createSecureStorage } from '@/src/utils/secureStorage';
 import { readScoped, writeScopedLazy } from './userScope';
+import { leerBlobArreglo } from './leerBlob';
 import { siguienteUpdatedAt } from './relojDelMerge';
 import { mergeGroupsPure } from './mergeGroupsPure';
 import { signOnCreate, signOnEdit } from '@/src/sync/confianza/signOnWrite';
@@ -164,12 +165,7 @@ export const useGroupStore = create<GroupStoreState>((set, get) => ({
     // app (app/_layout.tsx) y una excepción deja isLoading en true para
     // siempre, trabando la pantalla de carga sin salida. Ya pasó con la sesión
     // (T-020); estos 5 stores habían quedado sin la misma protección.
-    let groups: Group[] = [];
-    try {
-      groups = raw ? (JSON.parse(raw) as Group[]) : [];
-    } catch {
-      groups = [];
-    }
+    let groups: Group[] = leerBlobArreglo<Group>(storage, KEY, raw);
     set({ groups, isLoading: false });
   },
 }));
