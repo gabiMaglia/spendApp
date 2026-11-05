@@ -1,5 +1,6 @@
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { useAuthStore } from '@/src/store/authStore';
+import { readJournal } from '@/src/store/deleteJournal';
 import { deriveTopic } from '@/src/sync/nucleo/envelopeCrypto';
 import { fromHex } from '@/src/sync/nucleo/hexBytes';
 import { subscribeTopic, isRelayConfigured } from '@/src/sync/adaptadores/supabase/relay';
@@ -167,10 +168,16 @@ export function stopRelay(): void {
 /** Cambio de cuenta / logout (T-147-b), ANTES de `rehydrateForActiveUser`:
  *  corta el motor, cancela publicaciones debounced, vacía `relayQueue` y
  *  fuerza el cierre de la sesión del buzón — nada diferido de la cuenta
- *  anterior sigue saliendo. */
+ *  anterior sigue saliendo.
+ *
+ *  T-269: si la cuenta que se va quedó pendiente de borrar en el servidor, la
+ *  sesión NO se cierra — `delete_my_account` identifica por `auth.uid()` y el
+ *  reintento al arrancar la necesita. Se cierra cuando ese reintento borra la
+ *  cuenta (`resumePendingDeletion`), o la pisa el próximo login. */
 export function reiniciarSyncPorCambioDeCuenta(): void {
   stopRelay();
   cancelPendingPublishes();
   vaciarCola();
+  if (readJournal()?.cuentaEnServidor === 'pendiente') return;
   void reabrirSesionAnonima();
 }
