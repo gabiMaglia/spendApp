@@ -18,6 +18,8 @@ import { useColors, useSkinTokens } from '@/src/skins/useSkin';
 import { formatMoney } from '@/src/constants/currencies';
 import { useUserStore } from '@/src/store/userStore';
 import type { Payer, PersonalCategory } from '@/src/types/models';
+import { miembrosDelReparto } from '@/src/screens/expense/repartoDeGasto';
+import { esYo } from '@/src/store/identityAlias';
 import { useRepartoDeGasto } from '@/src/screens/expense/hooks/useRepartoDeGasto';
 import { useMonedaDelGasto } from '@/src/screens/expense/hooks/useMonedaDelGasto';
 import { useLimitesDeGasto } from '@/src/screens/expense/hooks/useLimitesDeGasto';
@@ -103,7 +105,9 @@ export default function NewExpenseScreen() {
   // ── Derived ────────────────────────────────────────────────────────────────
   const group   = groups.find(g => g.id === groupId);
   const members = group?.memberIds ?? [];
-  const reparto = useRepartoDeGasto(existingExpense, amount, members);
+  // El % que tipeo es el mío: en el reparto, quien carga el gasto va primero.
+  const miembrosReparto = useMemo(() => miembrosDelReparto(group?.memberIds ?? [], esYo), [group?.memberIds]);
+  const reparto = useRepartoDeGasto(existingExpense, amount, miembrosReparto);
 
   useContadorDeRenders('Nuevo gasto', { amount, groupId, splitMode: reparto.splitMode, description });
 

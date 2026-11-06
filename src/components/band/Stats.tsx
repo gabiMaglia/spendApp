@@ -10,6 +10,7 @@ import { PanelContext } from '@/src/components/skin/PanelContext';
 import { useSkinTokens } from '@/src/skins/useSkin';
 import { StatCards } from '@/src/components/skin/StatCards';
 import { Band, useC } from '@/src/components/band/BandBase';
+import { EtiquetaDeStat, Tocable } from '@/src/components/band/StatTocable';
 
 /**
  * Banda de estadísticas partida por divisores verticales.
@@ -38,6 +39,12 @@ export type StatItem = {
   pending?: boolean;
   /** Texto ya traducido (`t('fx.calculating')`) para el placeholder de `pending`. */
   pendingLabel?: string;
+  /**
+   * El casillero entero se vuelve tocable y lleva una flechita junto a la
+   * etiqueta (PO 2026-11-06: Grupos y Gasto en grupos de Personal llevan a
+   * Grupos). Por ahora sólo lo respeta `StatLead` (y sus tarjetas en Aero).
+   */
+  onPress?: () => void;
 };
 
 export function SplitStat({
@@ -198,17 +205,16 @@ export function StatLead({
   const panel = useContext(PanelContext);
 
   const cuerpo = (it: StatItem, extra?: ViewStyle, testID?: string) => (
-    <View
+    <Tocable
       key={it.label}
+      it={it}
       testID={testID}
       style={[
         { flex: 1, paddingVertical: Spacing[4], paddingHorizontal: Spacing.screenPad },
         extra,
       ]}
     >
-      <Text style={[Typography.label, { color: c.textTertiary, textTransform: 'uppercase' }]}>
-        {it.label}
-      </Text>
+      <EtiquetaDeStat it={it} color={c.textTertiary} />
       <Text
         style={[Typography.amountM, { color: it.color ?? c.text }]}
         numberOfLines={1}
@@ -217,7 +223,7 @@ export function StatLead({
       >
         {it.value}
       </Text>
-    </View>
+    </Tocable>
   );
 
   if (soft && !panel) {

@@ -1,4 +1,6 @@
-import { calcularSplits, estadoInicialPorcentajes, formatDate, roundPct } from '@/src/screens/expense/repartoDeGasto';
+import {
+  calcularSplits, estadoInicialPorcentajes, formatDate, miembrosDelReparto, roundPct,
+} from '@/src/screens/expense/repartoDeGasto';
 import type { Expense } from '@/src/types/models';
 
 /**
@@ -95,6 +97,52 @@ describe('estadoInicialPorcentajes', () => {
 
   it('monto 0: no hay % que reconstruir', () => {
     expect(estadoInicialPorcentajes({ ...gasto([0, 0]), amount: 0 } as Expense).splitMode).toBe('equal');
+  });
+});
+
+describe('miembrosDelReparto — el % que tipeo es el MÍO (PO 2026-11-06)', () => {
+  const esCaro = (uid: string) => uid === 'caro';
+
+  it('quien carga el gasto va primero, el resto conserva el orden del grupo', () => {
+    expect(miembrosDelReparto(MIEMBROS, esCaro)).toEqual(['caro', 'ana', 'beto']);
+  });
+
+  it('grupo de dos, yo al fondo y «Todos igual» 60%: a mí me toca el 60', () => {
+    const members = miembrosDelReparto(['ana', 'caro'], esCaro);
+    const s = calcularSplits({ amount: 1000, members, splitMode: 'percentage', percentSub: 'same', samePercent: '60', customPercents: [] });
+    expect(s.find(x => x.userId === 'caro')).toMatchObject({ amount: 600, percent: 60, isLast: false });
+    expect(s.find(x => x.userId === 'ana')).toMatchObject({ amount: 400, percent: 40, isLast: true });
+  });
+
+  it('si no soy miembro (o no hay sesión), el orden queda como está', () => {
+    expect(miembrosDelReparto(MIEMBROS, () => false)).toEqual(MIEMBROS);
+  });
+
+  it('no muta la lista del grupo', () => {
+    const lista = [...MIEMBROS];
+    miembrosDelReparto(lista, esCaro);
+    expect(lista).toEqual(MIEMBROS);
+  });
+});
+
+describe('estadoInicialPorcentajes — por persona, no por posición', () => {
+  it('reconstruye los % en el orden del reparto aunque el gasto se haya guardado en otro', () => {
+    // Guardado por ana (ana 50, beto 20, caro 30); lo edita caro, que va primera.
+    const g = {
+      amount: 1000, splitMode: 'percentage',
+      splits: [{ userId: 'ana', amount: 500 }, { userId: 'beto', amount: 200 }, { userId: 'caro', amount: 300 }],
+    } as unknown as Expense;
+    expect(estadoInicialPorcentajes(g, ['caro', 'ana', 'beto'])).toEqual({
+      splitMode: 'percentage', percentSub: 'custom', samePercent: '30', customPercents: ['30', '50'],
+    });
+  });
+
+  it('dos personas guardadas al revés: «Todos igual» con MI %', () => {
+    const g = {
+      amount: 1000, splitMode: 'percentage',
+      splits: [{ userId: 'ana', amount: 400 }, { userId: 'caro', amount: 600 }],
+    } as unknown as Expense;
+    expect(estadoInicialPorcentajes(g, ['caro', 'ana'])).toMatchObject({ percentSub: 'same', samePercent: '60' });
   });
 });
 
