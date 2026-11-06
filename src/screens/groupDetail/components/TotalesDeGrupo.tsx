@@ -1,40 +1,35 @@
 import React from 'react';
-import { useTranslation } from 'react-i18next';
 
-import { formatMoney, type CurrencyCode } from '@/src/constants/currencies';
-import { SplitStat } from '@/src/components/Band';
-import { useColors } from '@/src/skins/useSkin';
+import type { CurrencyCode } from '@/src/constants/currencies';
+import { SaldoNeto } from '@/src/components/SaldoNeto';
 
 /**
- * Te deben / Debés de ESTE grupo, sin compensar (T-225, PO 2026-09-29): con
- * 200 a favor y 60 en contra se ven los dos números, no un 140 que esconde
- * los 60. Mismo lenguaje y mismos colores que los casilleros de Grupos
- * (`GroupsSummaryStats`): Debés NO va en rojo, lo pidió el PO.
+ * Saldo de ESTE grupo (PO 2026-11-06, opción A): el neto grande y, debajo,
+ * Te deben / Debés sin compensar (T-225). En un grupo de dos, la etiqueta
+ * nombra a la otra persona («Marina te debe»). Reemplaza a `BalanceDeGrupo`,
+ * el neto que vivía al pie del historial.
  */
 export function TotalesDeGrupo({
-  groupId, currency, owedToYou, youOwe,
+  groupId, currency, owedToYou, youOwe, contraparte,
 }: {
   groupId: string;
   currency: CurrencyCode;
   owedToYou: number;
   youOwe: number;
+  contraparte?: string;
 }) {
-  const { t } = useTranslation();
-  const c = useColors();
-
   return (
-    <SplitStat
+    <SaldoNeto
       noTop
-      items={[
-        {
-          label: t('groups.stat_owed_to_you'), value: formatMoney(owedToYou, currency),
-          color: c.semantic.positive, id: `groupDetail.owedToYou:${groupId}`, minor: owedToYou, code: currency,
-        },
-        {
-          label: t('groups.stat_you_owe'), value: formatMoney(youOwe, currency),
-          color: c.textSecondary, id: `groupDetail.youOwe:${groupId}`, minor: youOwe, code: currency,
-        },
-      ]}
+      owedToYou={owedToYou}
+      youOwe={youOwe}
+      code={currency}
+      contraparte={contraparte}
+      ids={{
+        neto: `groupDetail.balance:${groupId}`,
+        owedToYou: `groupDetail.owedToYou:${groupId}`,
+        youOwe: `groupDetail.youOwe:${groupId}`,
+      }}
     />
   );
 }

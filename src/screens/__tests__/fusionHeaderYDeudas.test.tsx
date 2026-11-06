@@ -65,7 +65,7 @@ describe('fusión Inicio→Personal: header y bloque de deuda arriba de todo', (
     expect(r.getByText('dashboard.greeting({"name":"Vos"})')).toBeTruthy();
   });
 
-  it('el bloque "Te deben" (friends.owed_to_you) es lo primero, antes del navegador de mes', () => {
+  it('el saldo neto (saldo-neto) es lo primero, antes del navegador de mes', () => {
     const r = render(<PersonalScreen />);
 
     // El botón de ajustes se movió al header (PO 2026-09-20); "month-nav" es
@@ -75,7 +75,7 @@ describe('fusión Inicio→Personal: header y bloque de deuda arriba de todo', (
     // únicas en ese JSON es una forma simple y determinística de verificar
     // orden sin depender de una API de traversal más frágil.
     const arbol = JSON.stringify(r.toJSON());
-    const indiceDeuda    = arbol.indexOf('friends.owed_to_you');
+    const indiceDeuda    = arbol.indexOf('"saldo-neto"');
     const indiceMonthNav = arbol.indexOf('month-nav');
 
     expect(indiceDeuda).toBeGreaterThanOrEqual(0);

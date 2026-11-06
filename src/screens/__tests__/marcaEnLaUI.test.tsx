@@ -166,10 +166,10 @@ describe('la marca en la lista del grupo', () => {
     // el usuario ve. Beto no puso nada y le tocan 500 de los 1.000 de Ana.
     // Sin los «,00»: los centavos en cero no se muestran (PO 2026-09-02).
     expect(getAllByText(/\b500\b/).length).toBeGreaterThan(0);
-    // T-225: el balance grande con «debés» se fue; lo que debo lo dice el
-    // casillero Debés de arriba (y el neto de abajo), con el mismo monto.
-    expect(r.UNSAFE_getByProps({ id: 'groupDetail.youOwe:g1' }).props.minor).toBe(50_000);
-    expect(r.UNSAFE_getByProps({ id: 'groupDetail.balance:g1' }).props.minor).toBe(-50_000);
+    // PO 2026-11-06: deuda de un solo lado → el saldo neto lo dice entero
+    // (en positivo, con la etiqueta «en contra») y no hay desglose.
+    expect(r.UNSAFE_getByProps({ id: 'groupDetail.balance:g1' }).props.minor).toBe(50_000);
+    expect(r.queryByTestId('saldo-neto-desglose')).toBeNull();
   });
 
   /**

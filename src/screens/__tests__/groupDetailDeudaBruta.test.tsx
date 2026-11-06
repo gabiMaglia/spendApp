@@ -16,8 +16,8 @@ import type { Expense, Group, User } from '@/src/types/models';
  * T-225 (PO 2026-09-29) — detalle de grupo con la deuda sin compensar.
  *
  * Caso del PO: un grupo con Ana, cuatro gastos a favor (200) y uno en contra
- * (60). Antes se veía «te deben 140» y los 60 que debía desaparecían. Ahora:
- * arriba Te deben 200 · Debés 60; abajo, el balance neto +140; Saldar visible
+ * (60). Antes se veía «te deben 140» y los 60 que debía desaparecían. Ahora
+ * (PO 2026-11-06): arriba «Ana te debe 140» y, debajo, Te deben 200 · Debés 60; Saldar visible
  * porque debo algo; y los avisos de expulsar/salir dicen las dos direcciones.
  */
 
@@ -69,8 +69,14 @@ beforeEach(() => {
 
 afterEach(() => { jest.restoreAllMocks(); });
 
-describe('detalle de grupo: Te deben / Debés arriba, balance neto abajo', () => {
-  it('caso del PO: arriba Te deben 200 · Debés 60, sin compensar', () => {
+describe('detalle de grupo: saldo neto arriba con desglose sin compensar (PO 2026-11-06)', () => {
+  it('caso del PO: el neto +140 es el número grande y nombra a Ana', () => {
+    const r = render(<GroupDetailScreen />);
+    expect(monto(r, 'groupDetail.balance:g1')).toMatchObject({ minor: 14_000, code: 'ARS' });
+    expect(r.getByText('groups.net_they_owe_you({"name":"Ana"})')).toBeTruthy();
+  });
+
+  it('caso del PO: debajo, Te deben 200 · Debés 60, sin compensar', () => {
     const r = render(<GroupDetailScreen />);
     expect(monto(r, 'groupDetail.owedToYou:g1')).toMatchObject({ minor: 20_000, code: 'ARS' });
     expect(monto(r, 'groupDetail.youOwe:g1')).toMatchObject({ minor: 6_000, code: 'ARS' });
@@ -78,42 +84,35 @@ describe('detalle de grupo: Te deben / Debés arriba, balance neto abajo', () =>
     expect(r.getByText('groups.stat_you_owe')).toBeTruthy();
   });
 
-  it('caso del PO: abajo el balance neto es +140 (Te deben − Debés)', () => {
-    const r = render(<GroupDetailScreen />);
-    expect(r.getByTestId('group-net-balance')).toBeTruthy();
-    expect(r.getByText('group_detail.balance_label')).toBeTruthy();
-    expect(monto(r, 'groupDetail.balance:g1')).toMatchObject({ minor: 14_000, code: 'ARS', prefix: '' });
-  });
-
-  it('el balance neto negativo lleva el signo', () => {
+  it('neto en contra: el monto va en positivo y la etiqueta dice a quién le debés', () => {
     useExpenseStore.setState({ expenses: [gasto('b1', 'ana', 12_000)] });
     const r = render(<GroupDetailScreen />);
-    expect(monto(r, 'groupDetail.balance:g1')).toMatchObject({ minor: -6_000, prefix: '-' });
+    expect(monto(r, 'groupDetail.balance:g1').minor).toBe(6_000);
+    expect(r.getByText('groups.net_you_owe_them({"name":"Ana"})')).toBeTruthy();
   });
 
-  it('sin movimientos: los dos casilleros y el balance en cero', () => {
+  it('sin movimientos: Saldado en cero, sin desglose', () => {
     useExpenseStore.setState({ expenses: [] });
     const r = render(<GroupDetailScreen />);
-    expect(monto(r, 'groupDetail.owedToYou:g1').minor).toBe(0);
-    expect(monto(r, 'groupDetail.youOwe:g1').minor).toBe(0);
     expect(monto(r, 'groupDetail.balance:g1').minor).toBe(0);
+    expect(r.getByText('common.settled')).toBeTruthy();
+    expect(r.queryByTestId('saldo-neto-desglose')).toBeNull();
   });
 
-  it('orden: widget → timeline → balance → traspasar, sin pedido de salida', () => {
+  it('con más de dos miembros la etiqueta no nombra a nadie', () => {
+    useGroupStore.setState({ groups: [grupo({ memberIds: ['yo', 'ana', 'beto'] })] });
+    const r = render(<GroupDetailScreen />);
+    expect(r.getByText('groups.net_in_favor')).toBeTruthy();
+  });
+
+  it('orden: saldo → timeline → traspasar; el balance del pie ya no está', () => {
     useGroupStore.setState({ groups: [grupo({ createdById: 'ana' })] });
     const arbol = JSON.stringify(render(<GroupDetailScreen />).toJSON());
-    const posiciones = [
-      'groups.stat_owed_to_you', 'Cena 1', '"group-net-balance"', '"traspaso-manual-btn"',
-    ].map(marca => arbol.indexOf(marca));
+    const posiciones = ['"saldo-neto"', 'Cena 1', '"traspaso-manual-btn"'].map(marca => arbol.indexOf(marca));
     expect(posiciones.every(p => p >= 0)).toBe(true);
     expect([...posiciones].sort((a, b) => a - b)).toEqual(posiciones);
+    expect(arbol).not.toContain('group-net-balance');
     expect(arbol).not.toContain('leave.pending');
-  });
-
-  it('el balance grande de antes ya no está arriba', () => {
-    const r = render(<GroupDetailScreen />);
-    expect(r.queryByText('group_detail.owe_you')).toBeNull();
-    expect(r.queryByText('group_detail.you_owe_short')).toBeNull();
   });
 });
 
