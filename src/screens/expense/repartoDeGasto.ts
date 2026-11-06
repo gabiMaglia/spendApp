@@ -48,14 +48,33 @@ export type EstadoPorcentajes = {
   customPercents: string[];
 };
 
-/** Estado inicial del reparto al EDITAR: reconstruye los % desde los splits guardados. */
-export function estadoInicialPorcentajes(gasto: Expense | undefined): EstadoPorcentajes {
+/**
+ * **El % que tipeo es el mío** (PO 2026-11-06). El reparto por porcentaje le
+ * da el % tipeado a todos menos al último, que recibe el resto; con la lista
+ * en el orden del grupo, quien quedaba al fondo cargaba un 60% y se llevaba
+ * el 40. Quien carga el gasto va primero; los demás conservan su orden.
+ */
+export function miembrosDelReparto(miembros: string[], esYo: (uid: string) => boolean): string[] {
+  const yo = miembros.filter(esYo);
+  return yo.length === 0 ? miembros : [...yo, ...miembros.filter(uid => !esYo(uid))];
+}
+
+/**
+ * Estado inicial del reparto al EDITAR: reconstruye los % desde los splits
+ * guardados, POR PERSONA en el orden de `members` (el orden del reparto de
+ * quien edita, que no tiene por qué ser el de quien lo guardó). Sin
+ * `members`, el orden de los splits guardados.
+ */
+export function estadoInicialPorcentajes(gasto: Expense | undefined, members?: string[]): EstadoPorcentajes {
   if (!gasto || gasto.splitMode !== 'percentage' || gasto.amount <= 0) {
     return { splitMode: 'equal', percentSub: 'same', samePercent: '', customPercents: [] };
   }
   const { amount, splits } = gasto;
-  const firstPct = roundPct((splits[0]?.amount / amount) * 100);
-  const percents = splits.slice(0, -1).map(s => String(roundPct((s.amount / amount) * 100)));
+  const orden = members && members.length > 0 ? members : splits.map(s => s.userId);
+  const montoDe = (uid: string) => splits.find(s => s.userId === uid)?.amount ?? 0;
+  const pctDe = (uid: string | undefined) => (uid ? roundPct((montoDe(uid) / amount) * 100) : 0);
+  const firstPct = pctDe(orden[0]);
+  const percents = orden.slice(0, -1).map(uid => String(pctDe(uid)));
   const allEqual = percents.every(p => parseFloat(p) === firstPct);
   return {
     splitMode: 'percentage',

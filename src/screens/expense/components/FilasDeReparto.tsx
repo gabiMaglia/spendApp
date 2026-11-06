@@ -3,7 +3,7 @@ import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 
-import { Spacing } from '@/src/constants/spacing';
+import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { formatMoney, type CurrencyCode } from '@/src/constants/currencies';
 import { UserAvatar } from '@/src/components/UserAvatar';
@@ -60,24 +60,6 @@ export function FilasDeReparto({
               {name}
             </Text>
 
-            {splitMode === 'percentage' && percentSub === 'custom' && !isLast && (
-              <View style={styles.percentBox}>
-                <TextInput
-                  value={customPercents[i] ?? ''}
-                  onChangeText={v => {
-                    const next = [...customPercents];
-                    next[i] = v;
-                    onCustomPercentsChange(next);
-                  }}
-                  keyboardType="decimal-pad"
-                  placeholder="0"
-                  placeholderTextColor={c.textTertiary}
-                  style={[Typography.amountS, { color: c.text, textAlign: 'right', minWidth: 44 }]}
-                />
-                <Text style={[Typography.bodyM, { color: c.textTertiary }]}>%</Text>
-              </View>
-            )}
-
             {showRest ? (
               <View style={{ alignItems: 'flex-end' }}>
                 <Text style={[Typography.caption, { color: c.brand.primaryOnSoft }]}>
@@ -101,6 +83,33 @@ export function FilasDeReparto({
                 </Text>
               </View>
             )}
+
+            {/* PO 2026-11-06: el % de «Por persona» va al FINAL de la fila y con
+                forma de campo — entre el nombre y el monto no se veía que se
+                pudiera escribir. */}
+            {splitMode === 'percentage' && percentSub === 'custom' && !isLast && (
+              <View
+                testID={`percent-input-${split.userId}`}
+                style={[styles.percentBox, { backgroundColor: c.bgGrouped, borderColor: c.hair }]}
+              >
+                <TextInput
+                  value={customPercents[i] ?? ''}
+                  onChangeText={v => {
+                    const next = [...customPercents];
+                    next[i] = v;
+                    onCustomPercentsChange(next);
+                  }}
+                  keyboardType="decimal-pad"
+                  placeholder="0"
+                  placeholderTextColor={c.textTertiary}
+                  accessibilityLabel={t('expense.percent_of', { name })}
+                  style={[Typography.amountS, { color: c.text, textAlign: 'right', minWidth: 36 }]}
+                />
+                <Text style={[Typography.bodyM, { color: c.textTertiary }]}>%</Text>
+              </View>
+            )}
+            {/* El «resto» no se tipea: un hueco del mismo ancho deja los montos alineados. */}
+            {splitMode === 'percentage' && percentSub === 'custom' && isLast && <View style={styles.percentBoxHueco} />}
           </View>
         );
       })}
@@ -117,12 +126,19 @@ export function FilasDeReparto({
   );
 }
 
+const ANCHO_CAMPO_PCT = 76;
+
 const styles = StyleSheet.create({
   memberRow: {
     flexDirection: 'row', alignItems: 'center', gap: 11,
     paddingHorizontal: Spacing.screenPad, paddingVertical: 13,
   },
-  percentBox: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  percentBox: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    width: ANCHO_CAMPO_PCT, justifyContent: 'flex-end',
+    paddingHorizontal: 10, paddingVertical: 6, borderRadius: Radius.md, borderWidth: 1,
+  },
+  percentBoxHueco: { width: ANCHO_CAMPO_PCT },
   errorRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     paddingHorizontal: Spacing.screenPad, paddingVertical: 13,

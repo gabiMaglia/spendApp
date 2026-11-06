@@ -8,10 +8,11 @@ import {
 /**
  * Estado del reparto de Nuevo gasto (T-223: salió de `app/expense/new.tsx`):
  * modo (iguales / porcentaje), sub-modo del porcentaje, los % tipeados y el
- * reparto calculado.
+ * reparto calculado. `members` llega ya en el orden del reparto
+ * (`miembrosDelReparto`: quien carga el gasto, primero).
  */
 export function useRepartoDeGasto(existente: Expense | undefined, amount: number, members: string[]) {
-  const [inicial] = useState(() => estadoInicialPorcentajes(existente));
+  const [inicial] = useState(() => estadoInicialPorcentajes(existente, members));
   const [splitMode,      setSplitMode]      = useState<SplitMode>(inicial.splitMode);
   const [percentSub,     setPercentSub]     = useState<PercentSub>(inicial.percentSub);
   const [samePercent,    setSamePercent]    = useState(inicial.samePercent);
