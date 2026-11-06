@@ -8,10 +8,9 @@ import { useRellenoBarraPestanas } from '@/src/hooks/useRellenoBarraPestanas';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
-import { formatMoney } from '@/src/constants/currencies';
 import { useAuthStore } from '@/src/store/authStore';
 import { Fab, FabRow } from '@/src/components/Fab';
-import { SplitStat } from '@/src/components/Band';
+import { SaldoNeto } from '@/src/components/SaldoNeto';
 import { TabHeader } from '@/src/components/TabHeader';
 import { useHeaderPadding, useLimiteContenido } from '@/src/components/CollapsibleHeader';
 
@@ -86,20 +85,14 @@ export default function FriendsScreen() {
           ListHeaderComponent={
             <>
               {(owedToYou > 0 || youOwe > 0) && (
-                <SplitStat
+                <SaldoNeto
                   noTop
-                  items={[
-                    {
-                      label: t('friends.owed_to_you'), value: formatMoney(owedToYou, cur), color: c.semantic.positive,
-                      id: 'friends.owedToYou', minor: owedToYou, code: cur,
-                      pending: owedToYouPending, pendingLabel: pendingCalculando,
-                    },
-                    {
-                      label: t('friends.you_owe'), value: formatMoney(youOwe, cur), color: c.textSecondary,
-                      id: 'friends.youOwe', minor: youOwe, code: cur,
-                      pending: youOwePending, pendingLabel: pendingCalculando,
-                    },
-                  ]}
+                  owedToYou={owedToYou}
+                  youOwe={youOwe}
+                  code={cur}
+                  ids={{ neto: 'friends.neto', owedToYou: 'friends.owedToYou', youOwe: 'friends.youOwe' }}
+                  pending={owedToYouPending || youOwePending}
+                  pendingLabel={pendingCalculando}
                 />
               )}
               {contacts.length > 0 && <ContactsCountHeader count={contacts.length} />}

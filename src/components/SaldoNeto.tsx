@@ -23,7 +23,7 @@ import type { MontoRegistry } from '@/src/utils/montoRodanteRegistry';
  * secundario, igual que el casillero que reemplaza.
  */
 export function SaldoNeto({
-  owedToYou, youOwe, code, contraparte, ids, noTop, registry,
+  owedToYou, youOwe, code, contraparte, ids, noTop, registry, pending, pendingLabel,
 }: {
   owedToYou: number;
   youOwe: number;
@@ -35,6 +35,13 @@ export function SaldoNeto({
   noTop?: boolean;
   /** Sólo para tests: registro inyectable de `MontoRodante`. */
   registry?: MontoRegistry;
+  /**
+   * Conversión de moneda en curso (T-109, Amigos): los montos muestran `--`
+   * en vez de animar hacia un total parcial. Sólo con `ids`.
+   */
+  pending?: boolean;
+  /** Texto ya traducido para el placeholder de `pending`. */
+  pendingLabel?: string;
 }) {
   const { t } = useTranslation();
   const c = useC();
@@ -49,7 +56,10 @@ export function SaldoNeto({
 
   const monto = (minor: number, id: string | undefined, style: object, testID?: string) =>
     id ? (
-      <MontoRodante id={id} minor={minor} code={code} style={style} registry={registry} />
+      <MontoRodante
+        id={id} minor={minor} code={code} style={style} registry={registry}
+        pending={pending} pendingAccessibilityLabel={pendingLabel}
+      />
     ) : (
       <Text testID={testID} style={style} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
         {formatMoney(minor, code)}

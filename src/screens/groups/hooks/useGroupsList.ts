@@ -35,7 +35,7 @@ export function useGroupsList() {
   /**
    * Ids de `visibles`, memoizado (T-202, rendimiento en gama baja).
    *
-   * Va a `useGroupsNetTotal`, que arma un `Set` con `useMemo(..., [ids])` y
+   * Iba a `useGroupsNetTotal` (sacado el 2026-11-06 con el Total del pie), que arma un `Set` con `useMemo(..., [ids])` y
    * dispara `calculateBalancesByCurrency` para CADA grupo visible cuando esa
    * referencia "cambia". Sin este memo, `visibles.map(g => g.id)` armaba un
    * array NUEVO en cada render de la pantalla —incluyendo uno que no tiene

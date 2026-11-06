@@ -54,15 +54,15 @@ describe('T-154 — Grupos: agrupación Aero de bloque único', () => {
     useSettingsStore.setState({ skin: 'default' });
   });
 
-  it('con Aero, 3 grupos dan 3 paneles (2 fijos del header + 1 del bloque, no 1 por fila)', () => {
+  it('con Aero, 3 grupos dan 2 paneles (SaldoNeto + el bloque, no 1 por fila)', () => {
     // El header pone sus propios paneles, ajenos a este bug y fijos para
-    // cualquier cantidad de grupos (desde 2026-11-06 suma la tarjeta de
-    // SaldoNeto: 2 paneles + el del bloque = 3). Lo que
+    // cualquier cantidad de grupos (2026-11-06: entra la tarjeta de SaldoNeto
+    // y sale el Total del pie → SaldoNeto + el bloque = 2). Lo que
     // este test cubre es que el BLOQUE de grupos siga siendo UN panel para
     // cualquier cantidad de filas, no uno por fila.
     useSettingsStore.setState({ skin: 'aero' });
     const r = render(<GroupsScreen />);
-    expect(r.getAllByTestId('skin-panel')).toHaveLength(3);
+    expect(r.getAllByTestId('skin-panel')).toHaveLength(2);
   });
 
   it('el contentContainerStyle de la lista incluye flexGrow: 1 (centrado del estado vacío)', () => {

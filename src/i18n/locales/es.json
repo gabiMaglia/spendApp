@@ -123,7 +123,6 @@
     "tab_archived": "Archivados",
     "stat_owed_to_you": "Te deben",
     "stat_you_owe": "Debés",
-    "stat_net_total": "Total",
     "net_in_favor": "A tu favor",
     "net_against": "En contra",
     "net_they_owe_you": "{{name}} te debe",
@@ -573,8 +572,6 @@
   "friends": {
     "add_by_qr": "Agregar por QR",
     "title": "Amigos",
-    "owed_to_you": "Te deben",
-    "you_owe": "Debés",
     "empty_title": "Sin contactos aún",
     "empty_body": "Agregá personas para poder armar grupos y dividir gastos con ellas.",
     "new_contact": "Nuevo contacto",
