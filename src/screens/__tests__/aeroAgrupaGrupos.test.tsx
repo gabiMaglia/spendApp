@@ -54,15 +54,15 @@ describe('T-154 — Grupos: agrupación Aero de bloque único', () => {
     useSettingsStore.setState({ skin: 'default' });
   });
 
-  it('con Aero, 3 grupos dan 2 paneles (1 del header StatGrid + 1 del bloque, no 1 por fila)', () => {
-    // GroupsSummaryStats (StatGrid → Band) ya pone SU propio panel, ajeno a
-    // este bug — se verificó por separado (1 grupo → 2 paneles: header+bloque;
-    // 0 filas extra por el header no cambia con la cantidad de grupos). Lo que
+  it('con Aero, 3 grupos dan 3 paneles (2 fijos del header + 1 del bloque, no 1 por fila)', () => {
+    // El header pone sus propios paneles, ajenos a este bug y fijos para
+    // cualquier cantidad de grupos (desde 2026-11-06 suma la tarjeta de
+    // SaldoNeto: 2 paneles + el del bloque = 3). Lo que
     // este test cubre es que el BLOQUE de grupos siga siendo UN panel para
     // cualquier cantidad de filas, no uno por fila.
     useSettingsStore.setState({ skin: 'aero' });
     const r = render(<GroupsScreen />);
-    expect(r.getAllByTestId('skin-panel')).toHaveLength(2);
+    expect(r.getAllByTestId('skin-panel')).toHaveLength(3);
   });
 
   it('el contentContainerStyle de la lista incluye flexGrow: 1 (centrado del estado vacío)', () => {

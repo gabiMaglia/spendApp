@@ -99,11 +99,11 @@ describe('archivar', () => {
 describe('el encabezado no se mueve al cambiar de pestaña', () => {
   it('los totales siguen ahí con la pestaña de archivados vacía', () => {
     const r = render(<GroupsScreen />);
-    expect(r.getByText('groups.stat_owed_to_you')).toBeTruthy();
+    expect(r.getByTestId('saldo-neto')).toBeTruthy();
 
     fireEvent.press(r.getByText('groups.tab_archived'));
 
-    expect(r.getByText('groups.stat_owed_to_you')).toBeTruthy();
+    expect(r.getByTestId('saldo-neto')).toBeTruthy();
     expect(r.getByText('groups.stat_groups')).toBeTruthy();
     // Y la lista de abajo sí cambió: no hay nada archivado.
     expect(r.getByText('groups.empty_archived_title')).toBeTruthy();

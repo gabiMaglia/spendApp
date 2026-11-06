@@ -15,6 +15,7 @@ import { useFabSkinStyle } from '@/src/components/skin/useFabSkinStyle';
 import { Fab, FabRow, FAB_BOTTOM_GAP, FAB_HEIGHT } from '@/src/components/Fab';
 import { SplitStat, StatLead } from '@/src/components/Band';
 import { BudgetSheet } from '@/src/components/BudgetSheet';
+import { SaldoNeto } from '@/src/components/SaldoNeto';
 import { useHeaderPadding, useLimiteContenido } from '@/src/components/CollapsibleHeader';
 import { usePersonalStore, toMonthKey } from '@/src/store/personalStore';
 import { useTranslation } from 'react-i18next';
@@ -119,17 +120,9 @@ export default function PersonalScreen() {
       >
         <View>
           {/* T-121: migrado de Inicio — reusa owedToMe/youOwe, ya derivados
-              de useDirectedDebts (no se duplica el cálculo). Sin pending: a
-              diferencia de la vieja Inicio, esta fuente no tiene noción de
-              "conversión en vuelo" — igual que el SplitStat de deuda de más
-              abajo, que también convive en esta pantalla. */}
-          <SplitStat
-            noTop
-            items={[
-              { label: t('friends.owed_to_you'), value: formatMoney(owedToMe, cur), color: c.semantic.positive },
-              { label: t('friends.you_owe'),     value: formatMoney(youOwe, cur),   color: c.textSecondary },
-            ]}
-          />
+              de useDirectedDebts (no se duplica el cálculo). PO 2026-11-06
+              (opción A): el neto grande, Te deben / Debés como desglose. */}
+          <SaldoNeto noTop owedToYou={owedToMe} youOwe={youOwe} code={cur} />
 
           <PersonalMonthNav
             activeMonth={activeMonth}

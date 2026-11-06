@@ -26,7 +26,6 @@ import { armarTimeline, deudasDeGrupo, lineasDeDeudas } from '@/src/screens/grou
 import { useAltaDeMiembro } from '@/src/screens/groupDetail/hooks/useAltaDeMiembro';
 import { useAccionesDeGrupo } from '@/src/screens/groupDetail/hooks/useAccionesDeGrupo';
 import { AvisosDeGrupo } from '@/src/screens/groupDetail/components/AvisosDeGrupo';
-import { BalanceDeGrupo } from '@/src/screens/groupDetail/components/BalanceDeGrupo';
 import { TotalesDeGrupo } from '@/src/screens/groupDetail/components/TotalesDeGrupo';
 import { MiembrosDeGrupo } from '@/src/screens/groupDetail/components/MiembrosDeGrupo';
 import { TimelineDeGrupo } from '@/src/screens/groupDetail/components/TimelineDeGrupo';
@@ -106,6 +105,9 @@ export default function GroupDetailScreen() {
   }
 
   const soyMiembro = !!currentUser && group.memberIds.some(esYo);
+  // Grupo de dos: el saldo nombra a la otra persona («Marina te debe»).
+  const otros = group.memberIds.filter(uid => !esYo(uid));
+  const contraparte = soyMiembro && otros.length === 1 ? getUserName(otros[0]).split(' ')[0] : undefined;
   // T-228: borrar el grupo avisa quién le debe a quién.
   const avisoDeDeudas = lineasDeDeudas(
     deudasDeGrupo(allExpenses, allPayments, group), getUserName,
@@ -139,7 +141,9 @@ export default function GroupDetailScreen() {
           onTraspasar={() => setMostrarTraspaso(true)}
         />
 
-        <TotalesDeGrupo groupId={group.id} currency={group.currency} owedToYou={owedToYou} youOwe={youOwe} />
+        <TotalesDeGrupo
+          groupId={group.id} currency={group.currency} owedToYou={owedToYou} youOwe={youOwe} contraparte={contraparte}
+        />
 
         <MiembrosDeGrupo uids={group.memberIds} getUserName={getUserName} onPressMember={handleExpel} />
 
@@ -150,8 +154,6 @@ export default function GroupDetailScreen() {
           marcaDeGasto={marcaDeGasto}
           marcaDePago={marcaDePago}
         />
-
-        <BalanceDeGrupo groupId={group.id} currency={group.currency} neto={owedToYou - youOwe} />
 
         {/* Salvo que el grupo YA esté archivado: re-traspasar uno ya
             traspasado pisaría su `supersededByGroupId` y crearía un duplicado. */}
