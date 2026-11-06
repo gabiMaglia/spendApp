@@ -81,9 +81,11 @@ export default function PersonalScreen() {
     value: `+${formatMoney(totalIncome, cur)}`,
     color: c.semantic.positive,
   };
-  const gruposStat = { label: t('tabs.groups'), value: String(misGrupos.length) };
+  // PO 2026-11-06: Grupos y Gasto en grupos llevan a la pestaña Grupos.
+  const irAGrupos = () => router.navigate('/(tabs)/groups' as never);
+  const gruposStat = { label: t('tabs.groups'), value: String(misGrupos.length), onPress: irAGrupos };
   const personalStat = { label: t('personal.summary_personal'), value: formatMoney(totalExpense, cur) };
-  const gruposGastoStat = { label: t('personal.summary_groups'), value: formatMoney(totalGroup, cur) };
+  const gruposGastoStat = { label: t('personal.summary_groups'), value: formatMoney(totalGroup, cur), onPress: irAGrupos };
 
   // Sin 'bottom': la tab bar ya reserva el inset del sistema (_layout.tsx); contarlo acá dejaba una franja muerta entre el contenido y la barra.
   return (

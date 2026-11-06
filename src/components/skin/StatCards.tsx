@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { Typography } from '@/src/constants/typography';
 import type { StatItem } from '@/src/components/Band';
+import { EtiquetaDeStat, Tocable } from '@/src/components/band/StatTocable';
 import { MontoRodante } from '@/src/components/MontoRodante';
 import type { MontoRegistry } from '@/src/utils/montoRodanteRegistry';
 import { useSkinTokens } from '@/src/skins/useSkin';
@@ -39,10 +40,8 @@ export function StatCards({
               testID="stat-card"
               style={{ flex: 1, marginHorizontal: 0, marginTop: 0 }}
             >
-              <View style={{ padding: skin.space.padPanel, gap: 2 }}>
-                <Text style={[Typography.label, { color: c.textTertiary, textTransform: 'uppercase' }]}>
-                  {it.label}
-                </Text>
+              <Tocable it={it} style={{ padding: skin.space.padPanel, gap: 2 }}>
+                <EtiquetaDeStat it={it} color={c.textTertiary} />
                 {it.id ? (
                   <MontoRodante
                     id={it.id}
@@ -63,7 +62,7 @@ export function StatCards({
                     {it.value}
                   </Text>
                 )}
-              </View>
+              </Tocable>
             </Panel>
           ))}
         </View>
