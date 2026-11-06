@@ -50,6 +50,14 @@ describe('SaldoNeto', () => {
     expect(r.UNSAFE_getByProps({ id: 'x.owe' }).props.minor).toBe(2_000);
   });
 
+  it('pending (Amigos convirtiendo monedas): los tres montos esperan con su placeholder', () => {
+    const ids = { neto: 'f.neto', owedToYou: 'f.owed', youOwe: 'f.owe' };
+    const r = render(<SaldoNeto owedToYou={9_000} youOwe={2_000} code="ARS" ids={ids} pending pendingLabel="calculando" />);
+    for (const id of Object.values(ids)) {
+      expect(r.UNSAFE_getByProps({ id }).props).toMatchObject({ pending: true, pendingAccessibilityLabel: 'calculando' });
+    }
+  });
+
   describe('en los dos skins', () => {
     afterEach(() => { useSettingsStore.setState({ skin: 'default' }); });
 

@@ -123,7 +123,6 @@
     "tab_archived": "Archived",
     "stat_owed_to_you": "Owed to you",
     "stat_you_owe": "You owe",
-    "stat_net_total": "Grand total",
     "net_in_favor": "In your favor",
     "net_against": "You owe",
     "net_they_owe_you": "{{name}} owes you",
@@ -573,8 +572,6 @@
   "friends": {
     "add_by_qr": "Add by QR",
     "title": "Friends",
-    "owed_to_you": "Owed to you",
-    "you_owe": "You owe",
     "empty_title": "No contacts yet",
     "empty_body": "Add people to create groups and split expenses with them.",
     "new_contact": "New contact",

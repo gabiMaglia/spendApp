@@ -16,13 +16,11 @@ import { hapticLight } from '@/src/utils/haptics';
 
 import { useGroupsBalances } from '@/src/screens/groups/hooks/useGroupsBalances';
 import { useGroupsList } from '@/src/screens/groups/hooks/useGroupsList';
-import { useGroupsNetTotal } from '@/src/screens/groups/hooks/useGroupsNetTotal';
 import { GroupsSummaryStats } from '@/src/screens/groups/components/GroupsSummaryStats';
 import { GroupsTabSelector } from '@/src/screens/groups/components/GroupsTabSelector';
 import {
   buildGroupsFlatItems, GroupsList, type GroupsFlatItem,
 } from '@/src/screens/groups/components/GroupsList';
-import { GroupsNetTotal } from '@/src/screens/groups/components/GroupsNetTotal';
 import { useColors } from '@/src/skins/useSkin';
 import { useContadorDeRenders } from '@/src/hooks/useContadorDeRenders';
 
@@ -42,15 +40,10 @@ export default function GroupsScreen() {
   const barra = useRellenoBarraPestanas();
 
   const {
-    currentUser, tabActual, setTab, visibles, visibleGroupIds, idsActivos, gastos,
+    currentUser, tabActual, setTab, visibles, idsActivos, gastos,
     canUnarchive, handleOpenGroup, handleArchiveAction,
   } = useGroupsList();
-  const { cur, fx, owedToYou, youOwe } = useGroupsBalances(currentUser?.id ?? '');
-  const netTotal = useGroupsNetTotal(
-    currentUser?.id ?? '',
-    visibleGroupIds,
-    cur, fx,
-  );
+  const { cur, owedToYou, youOwe } = useGroupsBalances(currentUser?.id ?? '');
 
   useContadorDeRenders('Grupos', { visiblesCount: visibles.length, tabActual, owedToYou, youOwe });
 
@@ -110,9 +103,6 @@ export default function GroupsScreen() {
               title={tabActual === 'archivados' ? t('groups.empty_archived_title') : t('groups.empty_title')}
               body={tabActual === 'archivados' ? t('groups.empty_archived_body') : t('groups.empty_body')}
             />
-          }
-          ListFooterComponent={
-            visibles.length > 0 ? <GroupsNetTotal netTotal={netTotal} cur={cur} /> : undefined
           }
         />
       </View>
