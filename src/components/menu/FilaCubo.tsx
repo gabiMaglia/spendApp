@@ -4,9 +4,12 @@ import Animated, {
   type SharedValue, useAnimatedStyle, useSharedValue, withDelay, withSpring, withTiming,
 } from 'react-native-reanimated';
 
+import { Ionicons } from '@expo/vector-icons';
+
 import { Typography } from '@/src/constants/typography';
 import { CuboIcono } from '@/src/components/CuboIcono';
-import { PASO_CUBOS, GAP_CUBOS } from '@/src/components/menu/calcularAbanico';
+import { PASO_FILA, GAP_CUBOS, PAD_CAPSULA, ALTO_FILA } from '@/src/components/menu/calcularAbanico';
+import { useSkin } from '@/src/skins/useSkin';
 import { FUNDIDO_MS as SALIDA_REDUCIDA_MS, SALIDA_MS } from '@/src/components/menu/useAnimacionMenu';
 import type { OpcionCubo } from '@/src/components/menu/tipos';
 
@@ -16,16 +19,15 @@ const ESCALONADO_MS = 22;
 const DEMORA_ETIQUETA_MS = 70;
 const ETIQUETA_MS = 140;
 const FUNDIDO_MS = 90;
-const TEXTO_SOBRE_VELO = '#FFFFFF';
 
 /**
- * Un cubo con su nombre. Nace en el rect del cubo original (translateY
- * `-indice * PASO`, el slot 0) y baja a su lugar con spring; la etiqueta se
- * funde un poco después. Salida: más corta que `SALIDA_MS`, que es la que
+ * Una cápsula (cubo + nombre, ✓ si es la elegida). Nace sobre el cubo original
+ * (`desdeX` a la izquierda, translateY `-indice * PASO`) y viaja a su lugar con
+ * spring; la etiqueta se funde un poco después. Salida: más corta que `SALIDA_MS`, que es la que
  * desmonta (no depende del callback de cada cubo).
  */
 export function FilaCubo<V>({
-  indice, visible, entrar, sinAnimacion, opcion, seleccionado, onPress, scrollY,
+  indice, visible, entrar, sinAnimacion, opcion, seleccionado, onPress, scrollY, desdeX, testID,
 }: {
   indice: number;
   visible: boolean;
@@ -37,7 +39,13 @@ export function FilaCubo<V>({
   onPress: () => void;
   /** Cuánto scrolleó la columna: al recogerse, el cubo vuelve al original VISIBLE, no al slot 0 del contenido. */
   scrollY: SharedValue<number>;
+  /** Cuánto hay que correr la cápsula (en X) para que caiga sobre el cubo original. */
+  desdeX: number;
+  testID?: string;
 }) {
+  const { skin, degradado } = useSkin();
+  const c = skin.colors;
+  const e = skin.elevation.e2;
   const p = useSharedValue(0);
   const l = useSharedValue(0);
 
@@ -61,7 +69,13 @@ export function FilaCubo<V>({
 
   // El translate va en el contenedor de la fila: el área de toque viaja con el cubo.
   const estiloFila = useAnimatedStyle(() => (
-    sinAnimacion ? {} : { transform: [{ translateY: (1 - p.value) * (scrollY.value - indice * PASO_CUBOS) }] }
+    sinAnimacion ? {} : {
+      opacity: Math.min(1, Math.max(0, p.value * 2.5)),
+      transform: [
+        { translateX: (1 - p.value) * desdeX },
+        { translateY: (1 - p.value) * (scrollY.value - indice * PASO_FILA) },
+      ],
+    }
   ));
   const estiloCubo = useAnimatedStyle(() => ({
     opacity: Math.min(1, Math.max(0, p.value * 2.5)),
@@ -73,9 +87,14 @@ export function FilaCubo<V>({
   }));
 
   return (
-    <Animated.View style={estiloFila}>
+    <Animated.View style={[styles.contenedor, estiloFila]}>
       <Pressable
-        onPress={onPress} style={styles.fila}
+        onPress={onPress}
+        style={[
+          styles.fila,
+          { backgroundColor: c.surface },
+          degradado ? { elevation: e.elevationFallback } : { boxShadow: e.boxShadow },
+        ]}
         accessibilityRole="menuitem" accessibilityLabel={opcion.etiqueta}
         accessibilityState={{ selected: seleccionado }}
       >
@@ -83,14 +102,22 @@ export function FilaCubo<V>({
           <CuboIcono icono={opcion.icono} tinte={opcion.tinte} resaltado={seleccionado} />
         </Animated.View>
         <Animated.View style={[styles.etiqueta, estiloEtiqueta]}>
-          <Text style={[Typography.bodyL, { color: TEXTO_SOBRE_VELO }]} numberOfLines={1}>{opcion.etiqueta}</Text>
+          <Text style={[Typography.bodyL, { color: c.text }]} numberOfLines={1}>{opcion.etiqueta}</Text>
         </Animated.View>
+        {seleccionado && (
+          <Ionicons testID={testID ? `${testID}-check` : undefined} name="checkmark" size={20} color={c.brand.primary} />
+        )}
       </Pressable>
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  fila: { flexDirection: 'row', alignItems: 'center', gap: GAP_CUBOS + 4 },
+  contenedor: { alignSelf: 'flex-start', maxWidth: '100%' },
+  // Radio completo: la píldora mide ALTO_FILA y se redondea a la mitad.
+  fila: {
+    flexDirection: 'row', alignItems: 'center', gap: GAP_CUBOS,
+    padding: PAD_CAPSULA, paddingRight: 16, borderRadius: ALTO_FILA / 2,
+  },
   etiqueta: { flexShrink: 1 },
 });

@@ -75,11 +75,11 @@ describe('AbanicoCubos', () => {
     expect(getByTestId('ab').props.accessibilityLabel).toBe('Categoría');
   });
 
-  it('la columna arranca en el rect del cubo original', () => {
+  it('la columna arranca a la altura del cubo original y 16 a su derecha', () => {
     const { getByTestId } = montar();
     const e = StyleSheet.flatten(getByTestId('ab').props.style);
     const esperado = calcularAbanico(RECT, mockVentana, { top: 0, bottom: 0 }, OPS.length);
-    expect([e.left, e.top]).toEqual([RECT.x, RECT.y]);
+    expect([e.left, e.top]).toEqual([RECT.x + RECT.width + 16, RECT.y]);
     expect([e.left, e.top]).toEqual([esperado.left, esperado.top]);
   });
 

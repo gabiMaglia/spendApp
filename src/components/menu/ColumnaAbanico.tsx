@@ -2,6 +2,7 @@ import React from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSharedValue } from 'react-native-reanimated';
 
+import { FundidoBorde } from '@/src/components/menu/FundidoBorde';
 import { FilaCubo } from '@/src/components/menu/FilaCubo';
 import { GAP_CUBOS, type Abanico } from '@/src/components/menu/calcularAbanico';
 import type { OpcionCubo } from '@/src/components/menu/tipos';
@@ -42,11 +43,16 @@ export function ColumnaAbanico<V>({
       >
         {opciones.map((o, i) => (
           <FilaCubo
-            key={String(o.valor)} indice={i} visible={visible} entrar sinAnimacion={sinAnimacion}
+            key={String(o.valor)} indice={i} desdeX={geo.desdeX} testID={testID} visible={visible} entrar sinAnimacion={sinAnimacion}
             opcion={o} scrollY={scrollY} seleccionado={o.valor === seleccionado} onPress={() => onElegir(o.valor)}
           />
         ))}
       </ScrollView>
+      {geo.scrolla && (
+        <FundidoBorde
+          scrollY={scrollY} maxScroll={geo.altoColumna - geo.alto} testID={testID ? `${testID}-fundido` : undefined}
+        />
+      )}
     </View>
   );
 }
