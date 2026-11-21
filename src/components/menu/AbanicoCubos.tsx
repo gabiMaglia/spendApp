@@ -1,11 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
-import { useSharedValue } from 'react-native-reanimated';
+import { Modal, useWindowDimensions, type View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { FilaCubo } from '@/src/components/menu/FilaCubo';
+import { ColumnaAbanico } from '@/src/components/menu/ColumnaAbanico';
 import { VeloMenu } from '@/src/components/menu/VeloMenu';
-import { GAP_CUBOS, calcularAbanico } from '@/src/components/menu/calcularAbanico';
+import { calcularAbanico } from '@/src/components/menu/calcularAbanico';
 import { useAnimacionMenu } from '@/src/components/menu/useAnimacionMenu';
 import { useEleccionUnica } from '@/src/components/menu/useEleccionUnica';
 import { useRectAncla } from '@/src/components/menu/useRectAncla';
@@ -51,7 +50,9 @@ export function AbanicoCubos<V>({
     return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, !!geo]);
-  const scrollY = useSharedValue(0);
+  // Cuenta de aperturas: la columna lleva esto de `key` y no reusa nada de la anterior.
+  const [{ prev, apertura }, setAp] = useState({ prev: visible, apertura: 0 });
+  if (visible !== prev) setAp({ prev: visible, apertura: visible ? apertura + 1 : apertura });
   const tocable = visible && !!geo && asentado;
   const elegir = useEleccionUnica<V>({ visible, tocable, onElegir, onClose });
 
@@ -67,31 +68,12 @@ export function AbanicoCubos<V>({
         testID={testID ? `${testID}-velo` : undefined}
       />
       {geo && (
-        <View
-          testID={testID} accessibilityRole="menu" accessibilityLabel={accessibilityLabel}
-          onAccessibilityEscape={onClose}
-          pointerEvents={tocable ? 'auto' : 'none'}
-          style={{ position: 'absolute', left: geo.left, top: geo.top, width: geo.ancho }}
-        >
-          <ScrollView
-            scrollEnabled={geo.scrolla} bounces={false} showsVerticalScrollIndicator={false}
-            style={{ maxHeight: geo.alto }}
-            scrollEventThrottle={16}
-            onScroll={e => { scrollY.value = Math.max(0, e.nativeEvent.contentOffset.y); }} contentContainerStyle={styles.columna}
-          >
-            {opciones.map((o, i) => (
-              <FilaCubo
-                key={String(o.valor)} indice={i} visible={visible} entrar sinAnimacion={sinAnimacion}
-                opcion={o} scrollY={scrollY} seleccionado={o.valor === seleccionado} onPress={() => elegir(o.valor)}
-              />
-            ))}
-          </ScrollView>
-        </View>
+        <ColumnaAbanico
+          key={apertura} geo={geo} opciones={opciones} seleccionado={seleccionado}
+          visible={visible} sinAnimacion={sinAnimacion} tocable={tocable}
+          onElegir={elegir} onClose={onClose} accessibilityLabel={accessibilityLabel} testID={testID}
+        />
       )}
     </Modal>
   );
 }
-
-const styles = StyleSheet.create({
-  columna: { gap: GAP_CUBOS },
-});

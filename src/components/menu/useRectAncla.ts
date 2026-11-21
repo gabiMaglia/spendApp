@@ -6,7 +6,7 @@ import type { Rect } from '@/src/components/menu/tipos';
 /**
  * Mide el disparador al abrir (R2: sin teclado, un frame después de bajarlo) y
  * cierra si la ventana cambia, porque entonces el rect medido ya no vale.
- * `null` hasta tener la medida. Al cerrar NO se limpia: la salida animada
+ * `null` hasta tener la medida, y nunca es el de una apertura anterior. Al cerrar NO se limpia: la salida animada
  * necesita seguir en su lugar.
  */
 export function useRectAncla({ visible, ancla, onCerrar }: {
@@ -16,6 +16,11 @@ export function useRectAncla({ visible, ancla, onCerrar }: {
 }) {
   const ventana = useWindowDimensions();
   const [rect, setRect] = useState<Rect | null>(null);
+  // Ajuste durante el render: en el flanco de apertura el rect de la apertura anterior
+  // ya no vale, y no puede verse ni un render (el efecto llega tarde).
+  const [prevVisible, setPrevVisible] = useState(visible);
+  const enFlanco = visible !== prevVisible;
+  if (enFlanco) { setPrevVisible(visible); if (visible) setRect(null); }
   const ventanaAlAbrir = useRef<{ width: number; height: number } | null>(null);
 
   useEffect(() => {
@@ -36,5 +41,5 @@ export function useRectAncla({ visible, ancla, onCerrar }: {
     if (visible && base && (base.width !== ventana.width || base.height !== ventana.height)) onCerrar();
   }, [visible, ventana.width, ventana.height, onCerrar]);
 
-  return rect;
+  return enFlanco && visible ? null : rect;
 }
