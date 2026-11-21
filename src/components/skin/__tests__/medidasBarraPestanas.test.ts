@@ -1,4 +1,4 @@
-import { medidasBarraPestanas, ALTO_PILDORA, HUELLA_MAXIMA_IOS } from '@/src/components/skin/medidasBarraPestanas';
+import { medidasBarraPestanas, baseInferior, ALTO_PILDORA, HUELLA_MAXIMA_IOS } from '@/src/components/skin/medidasBarraPestanas';
 
 describe('medidasBarraPestanas', () => {
   it('iPhone con indicador de inicio (34): huella <= 86 y píldora redonda', () => {
@@ -25,5 +25,28 @@ describe('medidasBarraPestanas', () => {
     const a = medidasBarraPestanas({ insetBottom: 0, plataforma: 'ios', margenLateral: 16 });
     const b = medidasBarraPestanas({ insetBottom: 48, plataforma: 'android', margenLateral: 16 });
     expect(a.altoPildora).toBe(b.altoPildora);
+  });
+});
+
+/** T-281: la base de toda botonera del pie es el `bottom` de la píldora. */
+describe('baseInferior', () => {
+  it.each([
+    [34, 'ios', 22],
+    [48, 'ios', 36],
+    [0, 'ios', 12],
+    [34, 'android', 42],
+    [48, 'android', 56],
+    [0, 'android', 12],
+  ] as const)('inset %i en %s da %i', (insetBottom, plataforma, esperado) => {
+    expect(baseInferior(insetBottom, plataforma)).toBe(esperado);
+  });
+
+  it('coincide con el bottom de la píldora en todos los casos', () => {
+    for (const plataforma of ['ios', 'android'] as const) {
+      for (const insetBottom of [0, 20, 34, 48]) {
+        expect(baseInferior(insetBottom, plataforma))
+          .toBe(medidasBarraPestanas({ insetBottom, plataforma, margenLateral: 16 }).bottom);
+      }
+    }
   });
 });

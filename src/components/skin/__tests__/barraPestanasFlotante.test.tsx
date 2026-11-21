@@ -66,7 +66,7 @@ describe.each(['default', 'aero'] as const)('barra de pestañas con skin %s', sk
 
 describe('separacionInferiorDelFab con barra flotante', () => {
   it('suma el alto de la barra cuando flota', () => {
-    expect(separacionInferiorDelFab({ dentroDePestanas: true, insetInferior: 48, barraFlotante: 90 }))
+    expect(separacionInferiorDelFab({ dentroDePestanas: true, baseInferior: 36, barraFlotante: 90 }))
       .toBe(FAB_BOTTOM_GAP + 90);
   });
 });
