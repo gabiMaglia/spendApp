@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { toMonthKey } from '@/src/store/personalStore';
+import { movimientosDelMes } from '@/src/screens/personal/utils/movimientosDelMes';
 import { useMovimientosPersonales } from '@/src/screens/personal/hooks/useMovimientosPersonales';
 import { repartirDelMes, type BucketPersonal } from '@/src/algorithms/personalMonth';
 import { useFx } from '@/src/store/useFx';
@@ -12,10 +12,7 @@ export function usePersonalMonthTotals(activeMonth: string) {
   const entries = useMovimientosPersonales();
   const { fx, display: cur, loading: fxLoading } = useFx();
 
-  const monthEntries = useMemo(
-    () => entries.filter(e => !e.isDeleted && toMonthKey(e.date) === activeMonth),
-    [entries, activeMonth],
-  );
+  const monthEntries = useMemo(() => movimientosDelMes(entries, activeMonth), [entries, activeMonth]);
 
   // Memoizado (PO 2026-09-22, rendimiento en gama baja): antes se ordenaba
   // en el JSX, en CADA render de la pantalla (cambiar de tema, abrir el

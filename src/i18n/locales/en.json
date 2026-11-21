@@ -514,7 +514,9 @@
     "locked_derived": "Generated automatically, not editable",
     "locked_title": "Can't be edited",
     "locked_closed_month": "It belongs to a closed month: only this month's entries can be changed",
-    "movements_title": "MOVEMENTS"
+    "movements_title": "MOVEMENTS",
+    "see_all": "See all ({{count}})",
+    "all_movements_title": "Movements"
   },
   "contact": {
     "title": "Add contact",

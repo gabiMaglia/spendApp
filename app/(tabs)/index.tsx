@@ -33,6 +33,8 @@ import { PersonalMonthNav } from '@/src/screens/personal/components/PersonalMont
 import { PersonalBudgetMeter } from '@/src/screens/personal/components/PersonalBudgetMeter';
 import { MovimientosHeader } from '@/src/screens/personal/components/MovimientosHeader';
 import { MovimientosList } from '@/src/screens/personal/components/MovimientosList';
+import { MAX_MOVIMIENTOS_PERSONAL } from '@/src/screens/personal/utils/limitarMovimientos';
+import { rutaVerTodos } from '@/src/screens/personal/utils/rutaVerTodos';
 import { useContadorDeRenders } from '@/src/hooks/useContadorDeRenders';
 
 export default function PersonalScreen() {
@@ -82,6 +84,7 @@ export default function PersonalScreen() {
     color: c.semantic.positive,
   };
   // PO 2026-11-06: Grupos y Gasto en grupos llevan a la pestaña Grupos.
+  const irAVerTodos = () => router.push(rutaVerTodos(activeMonth) as never);
   const irAGrupos = () => router.navigate('/(tabs)/groups' as never);
   const gruposStat = { label: t('tabs.groups'), value: String(misGrupos.length), onPress: irAGrupos };
   const personalStat = { label: t('personal.summary_personal'), value: formatMoney(totalExpense, cur) };
@@ -198,6 +201,8 @@ export default function PersonalScreen() {
           entries={entriesOrdenadas}
           monthLabelText={monthLabel(activeMonth)}
           onRemove={handleRemove}
+          limite={MAX_MOVIMIENTOS_PERSONAL}
+          onVerTodos={irAVerTodos}
         />
       </Animated.ScrollView>
 
