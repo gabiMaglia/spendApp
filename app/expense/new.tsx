@@ -30,6 +30,7 @@ import { CategoriaChips, DescripcionCard } from '@/src/screens/expense/component
 import { BloquePagador } from '@/src/screens/expense/components/BloquePagador';
 import { BloqueReparto } from '@/src/screens/expense/components/BloqueReparto';
 import { useBaseInferior } from '@/src/hooks/useBaseInferior';
+import { RecurrencePicker } from '@/src/components/RecurrencePicker';
 import { PieDeGuardar } from '@/src/screens/expense/components/PieDeGuardar';
 import { BarraUtilidades } from '@/src/screens/expense/components/BarraUtilidades';
 import { HojasDeGasto, type HojaAbierta } from '@/src/screens/expense/components/HojasDeGasto';
@@ -167,11 +168,11 @@ export default function NewExpenseScreen() {
     }
   }
 
-  // Aero: Guardar queda fijo sobre la barra, fuera del scroll; en
-  // Clásico sigue al pie del formulario.
+  // Guardar queda fijo sobre la barra, fuera del scroll, en ambos skins
+  // (Repetir de Clásico se queda en el formulario.)
   const pie = (
     <PieDeGuardar
-      conRepetir={!soft}
+      conRepetir={false}
       isEditMode={isEditMode}
       isPro={isPro}
       dailyCount={dailyCount}
@@ -288,12 +289,13 @@ export default function NewExpenseScreen() {
             </>
           )}
 
-          {!soft && pie}
+          {/* Clásico: Repetir queda en el formulario; Guardar sube al pie fijo. */}
+          {!soft && !isEditMode && <RecurrencePicker value={recurrence} onChange={setRecurrence} />}
         </ScrollView>
 
         {/* Guardar arriba y la barra en la base de la píldora (T-281, PO 2026-11-21).
-            Aero lo saca del scroll; en Clásico ya va al final del formulario. */}
-        {soft && <View style={styles.pieAero}>{pie}</View>}
+            Mismo anclaje en los dos skins (PO 2026-11-21). */}
+        <View style={styles.pieAero}>{pie}</View>
         <View style={{ paddingBottom: base }}>
           {soft ? (
             <BarraDeHerramientas

@@ -39,3 +39,25 @@ describe.each(['default', 'aero'] as const)('Nuevo gasto / ingreso (skin %s)', s
     expect(barra).toBeGreaterThan(guardar);
   });
 });
+
+/** ids dentro del scroll del formulario. */
+function idsDentroDelScroll(nodo: unknown, dentro = false, acc: string[] = []): string[] {
+  if (!nodo || typeof nodo !== 'object') return acc;
+  const n = nodo as { type?: string; props?: { testID?: string }; children?: unknown[] | null };
+  const ahora = dentro || n.type === 'RCTScrollView';
+  if (ahora && n.props?.testID) acc.push(n.props.testID);
+  (n.children ?? []).forEach(h => idsDentroDelScroll(h, ahora, acc));
+  return acc;
+}
+
+describe.each(['default', 'aero'] as const)('Guardar y barra fijos al pie (skin %s)', skin => {
+  it.each([{ allowIncome: '1', kind: 'expense' }, { allowIncome: '1', kind: 'income' }])(
+    'no scrollean con el formulario (%j)', params => {
+      useAuthStore.setState({ currentUser: { id: 'u' } as User });
+      useSettingsStore.setState({ skin, displayCurrency: 'ARS' });
+      mockParams = params;
+      const dentro = idsDentroDelScroll(render(<NewExpenseScreen />).toJSON());
+      expect(dentro).not.toContain('expense-save-btn');
+      expect(dentro).not.toContain('barra-herramientas');
+    });
+});
