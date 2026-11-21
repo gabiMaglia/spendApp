@@ -29,18 +29,21 @@ export function useAnimacionMenu({ visible, listo, lado }: {
   const menu = useSharedValue(0);
   const visibleRef = useRef(visible);
   visibleRef.current = visible;
+  // ¿Arrancó alguna vez la entrada? (el valor compartido no se puede leer fiable en tests)
+  const entroRef = useRef(false);
   const vivo = useRef(true);
   useEffect(() => () => { vivo.current = false; }, []);
 
   // Un callback viejo no puede desmontar un menú que ya se reabrió.
   const soltar = useCallback(() => {
-    if (vivo.current && !visibleRef.current) setMontado(false);
+    if (vivo.current && !visibleRef.current) { entroRef.current = false; setMontado(false); }
   }, []);
 
   useEffect(() => {
     if (visible) {
       setMontado(true);
       if (listo) {
+        entroRef.current = true;
         const ms = sinAnimacion ? FUNDIDO_MS : ENTRADA_MS;
         velo.value = withTiming(1, { duration: ms });
         menu.value = withTiming(1, { duration: ms, easing: Easing.out(Easing.cubic) });
@@ -49,7 +52,7 @@ export function useAnimacionMenu({ visible, listo, lado }: {
     }
     // Nunca llegó a mostrarse: withTiming sobre un valor que ya está en 0 no
     // garantiza su callback y el Modal invisible quedaría montado tragándose toques.
-    if (menu.value === 0) { setMontado(false); return; }
+    if (!entroRef.current) { setMontado(false); return; }
     const ms = sinAnimacion ? FUNDIDO_MS : SALIDA_MS;
     velo.value = withTiming(0, { duration: ms });
     menu.value = withTiming(0, { duration: ms, easing: Easing.in(Easing.quad) }, (fin) => {
