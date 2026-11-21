@@ -297,6 +297,7 @@
     "friend_confirm_ok": "Saldar todo"
   },
   "activity": {
+    "see_more": "Ver más ({{count}})",
     "title": "Actividad",
     "filter_all": "Todos",
     "filter_personal": "Personal",

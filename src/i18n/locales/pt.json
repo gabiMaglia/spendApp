@@ -297,6 +297,7 @@
     "friend_confirm_ok": "Quitar tudo"
   },
   "activity": {
+    "see_more": "Ver mais ({{count}})",
     "title": "Atividade",
     "filter_all": "Todos",
     "filter_personal": "Pessoal",
