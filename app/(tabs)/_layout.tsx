@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import { Tabs } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -7,25 +7,10 @@ import { useTranslation } from 'react-i18next';
 import { HapticTab } from '@/components/haptic-tab';
 import { useSkin, useColors } from '@/src/skins/useSkin';
 import { TabBarFondoAero } from '@/src/components/skin/TabBarFondoAero';
+import { TabBarFondoClasico } from '@/src/components/skin/TabBarFondoClasico';
+import { medidasBarraPestanas } from '@/src/components/skin/medidasBarraPestanas';
 
-/**
- * Tab bar del reskin: 70 de contenido + el inset inferior del sistema, hairline superior, ícono 20, label 10/600 y
- * PUNTO activo de 4pt debajo del label (reemplaza la pastilla y el ícono
- * relleno). El label se rinde a mano para poder colgarle el punto.
- */
-/**
- * Alto del contenido de la barra, sin contar lo que ocupa el sistema abajo.
- *
- * Es lo que la pestaña APILA, medido y no elegido: borde 1 + `paddingTop` 11 + padding
- * del ítem 5 + ícono ≈26 + texto ≈13 + separación 5 + punto 4 + padding 5 ≈ **70**.
- * Con el `88` fijo de antes quedaban 54 en iPhone (88 − 34) y el punto se salía por
- * abajo: en iOS no se notaba porque la zona del indicador es transparente, pero en
- * Android esa franja tiene el velo de la barra de tres botones y lo tapaba.
- */
-const ALTO_CONTENIDO = 70;
-/** Aire mínimo abajo en aparatos sin inset (iPhone SE, Android sin barra de navegación). */
-const PISO_INFERIOR = 12;
-
+/** Tab bar: píldora flotante tipo iOS 26 (T-276); medidas en `medidasBarraPestanas`. Ícono 20, label 10/600 y punto activo (sólo Clásico). */
 function TabLabel({ label, focused }: { label: string; focused: boolean }) {
   const c = useColors();
   const { skin } = useSkin();
@@ -49,20 +34,14 @@ export default function TabLayout() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
 
-  /**
-   * ⚠️ **El alto NO puede ser un número fijo.** React Navigation calcula el alto de la barra
-   * sumando `insets.bottom`, y un `height` en `tabBarStyle` pisa ese cálculo. Era `88`:
-   * en iPhone daba justo (54 + 34 del indicador de inicio), pero **en Android con
-   * edge-to-edge la barra de tres botones (≈48dp) tapaba los íconos**. Se suma el inset
-   * real, y `paddingBottom` va con el mismo valor para que el contenido quede encima.
-   */
-  const inferior = Math.max(insets.bottom, PISO_INFERIOR);
   const { skin } = useSkin();
   const soft = skin.flags.soft;
-  // Aero (PO 2026-09-26): la tarjeta flota 8pt por encima de la zona del
-  // sistema (en Android con barra de tres botones quedaba pegada).
-  const separacionAero = soft ? 8 : 0;
-  const bajoTarjeta = inferior + separacionAero;
+  // Clásico tiene inset 0: se usa el margen del Aero para que sean iguales.
+  const medidas = medidasBarraPestanas({
+    insetBottom: insets.bottom,
+    plataforma: Platform.OS === 'ios' ? 'ios' : 'android',
+    margenLateral: Math.max(skin.space.inset, 16),
+  });
 
   const screen = (
     name: string,
@@ -90,23 +69,21 @@ export default function TabLayout() {
         tabBarButton: HapticTab,
         tabBarActiveTintColor:   c.brand.primary,
         tabBarInactiveTintColor: c.textTertiary,
+        // El alto NO es fijo: es la huella de la píldora (alto + distancia al borde).
+        // Flota sobre el contenido; cada pestaña reserva su alto con `useRellenoBarraPestanas`.
         tabBarStyle: {
-          height: ALTO_CONTENIDO + bajoTarjeta,
-          paddingTop: 11,
-          paddingBottom: bajoTarjeta,
-          backgroundColor: c.bg,
-          borderTopWidth: 1,
-          borderTopColor: c.hair,
+          position: 'absolute', left: 0, right: 0, bottom: 0,
+          height: medidas.huella,
+          paddingTop: 6,
+          paddingBottom: medidas.bottom,
+          paddingHorizontal: medidas.margenLateral,
+          backgroundColor: 'transparent',
+          borderTopWidth: 0,
           elevation: 0,
-          // Aero: sin hairline ni fondo propio; la tarjeta y el velo los dibuja
-          // `TabBarFondoAero`. La barra flota sobre el contenido (T-227 punto 9):
-          // cada pestaña deja su alto libre abajo con `useRellenoBarraPestanas`.
-          ...(soft && {
-            borderTopWidth: 0, backgroundColor: 'transparent',
-            position: 'absolute', left: 0, right: 0, bottom: 0,
-          }),
         },
-        ...(soft && { tabBarBackground: () => <TabBarFondoAero inferior={bajoTarjeta} /> }),
+        tabBarBackground: () => soft
+          ? <TabBarFondoAero bottom={medidas.bottom} alto={medidas.altoPildora} margen={medidas.margenLateral} />
+          : <TabBarFondoClasico bottom={medidas.bottom} alto={medidas.altoPildora} margen={medidas.margenLateral} />,
         tabBarItemStyle: { paddingTop: 0 },
         tabBarIconStyle: { marginBottom: -2 },
       }}
