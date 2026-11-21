@@ -31,11 +31,9 @@ export function usePosicionMenu({ visible, ancla, cantidad, onCerrar }: {
   const completo = alturas.length >= filasAMedir && alturas.slice(0, filasAMedir).every(h => h > 0);
 
   useEffect(() => {
-    if (!visible) {
-      ventanaAlAbrir.current = null;
-      setRect(null); setAlturas([]); setSinLayout(false);
-      return;
-    }
+    // Al cerrar NO se limpia: la animación de salida necesita seguir en su lugar.
+    if (!visible) { ventanaAlAbrir.current = null; return; }
+    setRect(null); setAlturas([]); setSinLayout(false);
     // R2: sin teclado, y se mide en el frame siguiente (ya se replegó).
     Keyboard.dismiss();
     ventanaAlAbrir.current = { width: ventana.width, height: ventana.height };

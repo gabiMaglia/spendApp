@@ -18,6 +18,7 @@ jest.mock('react-native-safe-area-context', () => ({
 }));
 
 // Mock local (no global): withTiming corre su callback sincrónico, así la salida es testeable.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock'));
 
 export const anclaFalsa = (r: { x: number; y: number; width: number; height: number }) =>
