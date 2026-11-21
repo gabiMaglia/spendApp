@@ -8,7 +8,7 @@ import { SheetOption, SheetOptionAvatar } from '@/src/components/Sheet';
 import { FilaMenu } from '@/src/components/menu/FilaMenu';
 import { useAnimacionMenu } from '@/src/components/menu/useAnimacionMenu';
 import { usePosicionMenu } from '@/src/components/menu/usePosicionMenu';
-import { MAX_FILAS_COMPLETAS } from '@/src/components/menu/calcularPosicionMenu';
+import { BORDE_MENU, MAX_FILAS_COMPLETAS } from '@/src/components/menu/calcularPosicionMenu';
 import type { OpcionMenu } from '@/src/components/menu/tipos';
 
 const SCRIM = 'rgba(12, 16, 14, 0.5)';
@@ -29,7 +29,7 @@ export function MenuAnclado<V>({
 }: MenuAncladoProps<V>) {
   const c = useColors();
   const { skin, degradado } = useSkin();
-  const { posicion, onLayoutFila, anchoProvisional, rect } = usePosicionMenu({
+  const { posicion, maxHeight, onLayoutFila, anchoProvisional, rect } = usePosicionMenu({
     visible, ancla, cantidad: opciones.length, onCerrar: onClose,
   });
 
@@ -62,7 +62,7 @@ export function MenuAnclado<V>({
             ...(degradado ? { elevation: skin.elevation.e3.elevationFallback } : { boxShadow: skin.elevation.e3.boxShadow }),
           },
           posicion
-            ? { left: posicion.left, top: posicion.top, width: posicion.width, maxHeight: posicion.maxHeight }
+            ? { left: posicion.left, top: posicion.top, width: posicion.width, maxHeight }
             : { left: rect?.x ?? 0, top: 0, width: anchoProvisional },
           estiloMenu,
           { transformOrigin: origen },
@@ -103,5 +103,5 @@ export function MenuAnclado<V>({
 
 const styles = StyleSheet.create({
   // R6: el padding cancela el marginHorizontal negativo de las filas de la hoja.
-  menu: { position: 'absolute', borderRadius: 20, borderWidth: 1, overflow: 'hidden', paddingHorizontal: Spacing.screenPad },
+  menu: { position: 'absolute', borderRadius: 20, borderWidth: BORDE_MENU, overflow: 'hidden', paddingHorizontal: Spacing.screenPad },
 });

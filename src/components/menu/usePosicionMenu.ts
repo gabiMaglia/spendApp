@@ -3,7 +3,7 @@ import { Keyboard, useWindowDimensions, type View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
-  MAX_FILAS_COMPLETAS, altoVisibleMenu, calcularPosicionMenu,
+  BORDE_MENU, MAX_FILAS_COMPLETAS, altoVisibleMenu, calcularPosicionMenu,
 } from '@/src/components/menu/calcularPosicionMenu';
 import type { Posicion, Rect } from '@/src/components/menu/tipos';
 
@@ -66,14 +66,19 @@ export function usePosicionMenu({ visible, ancla, cantidad, onCerrar }: {
     });
   }, []);
 
-  const posicion: Posicion | null = useMemo(() => {
-    if (!rect || !(completo || sinLayout)) return null;
+  // El alto total incluye el borde (border-box); `maxHeight` sólo existe si hay que
+  // recortar: más de 5 opciones, o poco espacio. Con ≤5 el menú mide lo que sus filas.
+  const { posicion, maxHeight } = useMemo(() => {
+    if (!rect || !(completo || sinLayout)) return { posicion: null, maxHeight: undefined };
     const filas = completo ? alturas : Array(filasAMedir).fill(ALTO_FILA_MINIMO);
-    return calcularPosicionMenu(rect, ventana, insets, altoVisibleMenu(filas, cantidad));
+    const total = altoVisibleMenu(filas, cantidad) + 2 * BORDE_MENU;
+    const p: Posicion = calcularPosicionMenu(rect, ventana, insets, total);
+    const recortado = cantidad > MAX_FILAS_COMPLETAS || p.maxHeight < total;
+    return { posicion: p, maxHeight: recortado ? p.maxHeight : undefined };
   }, [rect, completo, sinLayout, alturas, filasAMedir, cantidad, ventana, insets]);
 
   // Ancho provisional para el frame de medición (opacidad 0).
   const anchoProvisional = rect ? calcularPosicionMenu(rect, ventana, insets, 0).width : 0;
 
-  return { posicion, onLayoutFila, anchoProvisional, rect };
+  return { posicion, maxHeight, onLayoutFila, anchoProvisional, rect };
 }

@@ -3,7 +3,7 @@ import { Keyboard, Modal, StyleSheet } from 'react-native';
 import { act, fireEvent, render } from '@testing-library/react-native';
 
 import { MenuAnclado } from '@/src/components/menu/MenuAnclado';
-import { calcularPosicionMenu, altoVisibleMenu } from '@/src/components/menu/calcularPosicionMenu';
+import { calcularPosicionMenu, altoVisibleMenu, BORDE_MENU } from '@/src/components/menu/calcularPosicionMenu';
 import type { OpcionMenu } from '@/src/components/menu/tipos';
 
 // Ventana e insets mutables: R1 (Android edge-to-edge) y R2 (rotación) se simulan cambiándolos.
@@ -147,17 +147,20 @@ describe('MenuAnclado — medición, posición y regla de alto', () => {
 
   it('ancla pegada al borde inferior: el menú queda arriba del ancla', () => {
     const { estilo } = abrir(3, { x: 20, y: 740, width: 300, height: 48 });
-    expect(estilo().top + estilo().maxHeight).toBeLessThanOrEqual(740);
+    // 3 filas + borde, sin maxHeight: termina antes del ancla
+    expect(estilo().top + 3 * 56 + 2 * BORDE_MENU).toBeLessThanOrEqual(740);
   });
 
   it('6 opciones: 4 filas y media; 5 opciones: todas', () => {
-    expect(abrir(6).estilo().maxHeight).toBe(4 * 56 + 28);
-    expect(abrir(5).estilo().maxHeight).toBe(5 * 56);
+    // border-box: el límite incluye el borde, así la media fila no queda recortada
+    expect(abrir(6).estilo().maxHeight).toBe(4 * 56 + 28 + 2 * BORDE_MENU);
+    // ≤5 opciones: sin maxHeight, el menú mide lo que miden sus filas (§CÓMO T3 d)
+    expect(abrir(5).estilo().maxHeight).toBeUndefined();
   });
 
   it('las filas más altas (con sublabel) cambian el alto esperado', () => {
     const alturas = [56, 72, 56, 56, 56];
-    expect(abrir(6, undefined, alturas).estilo().maxHeight).toBe(altoVisibleMenu([...alturas, 56], 6));
+    expect(abrir(6, undefined, alturas).estilo().maxHeight).toBe(altoVisibleMenu([...alturas, 56], 6) + 2 * BORDE_MENU);
   });
 
   it('si cambian las dimensiones con el menú abierto, se cierra', () => {
@@ -176,9 +179,9 @@ describe('MenuAnclado — medición, posición y regla de alto', () => {
     mockInsets = { top: 24, bottom: 48, left: 0, right: 0 };
     const rect = { x: 20, y: 650, width: 300, height: 48 };
     const { estilo } = abrir(5, rect);
-    const esperado = calcularPosicionMenu(rect, { width: 400, height: 800 }, { top: 24, bottom: 48 }, 5 * 56);
+    const esperado = calcularPosicionMenu(rect, { width: 400, height: 800 }, { top: 24, bottom: 48 }, 5 * 56 + 2 * BORDE_MENU);
     expect(estilo().top).toBe(esperado.top);
-    expect(estilo().maxHeight).toBe(esperado.maxHeight);
+    expect(estilo().maxHeight).toBeUndefined();
   });
 
   it('sin layout de filas tras dos frames, cae al alto mínimo y se muestra igual', () => {
@@ -190,6 +193,6 @@ describe('MenuAnclado — medición, posición y regla de alto', () => {
     );
     act(() => { jest.runOnlyPendingTimers(); }); // medir el ancla
     act(() => { jest.runAllTimers(); });         // 2 frames sin layout
-    expect(StyleSheet.flatten(r.getByTestId('m').props.style).maxHeight).toBe(3 * 56);
+    expect(StyleSheet.flatten(r.getByTestId('m').props.style).maxHeight).toBeUndefined();
   });
 });

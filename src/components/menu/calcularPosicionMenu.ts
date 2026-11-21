@@ -5,6 +5,8 @@ export const GAP_ANCLA = Spacing[1];
 export const MARGEN_PANTALLA = Spacing.screenPad;
 export const ANCHO_MINIMO = 220;
 export const MAX_FILAS_COMPLETAS = 5;
+/** Borde del contenedor: Yoga es border-box, el alto del menú lo suma. */
+export const BORDE_MENU = 1;
 
 /**
  * Dónde cae el menú respecto del disparador. Pura a propósito: en Jest
