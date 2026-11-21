@@ -11,6 +11,7 @@ import { CuboIcono } from '@/src/components/CuboIcono';
 import { useSkin } from '@/src/skins/useSkin';
 import type { PersonalCategory } from '@/src/types/models';
 import { CATEGORIES } from '@/src/screens/expense/repartoDeGasto';
+import { CuboCategoria } from '@/src/screens/expense/components/CuboCategoria';
 import { tinteDeCategoria } from '@/src/screens/expense/components/GrillaCategorias';
 import { ErrorSinDecimales } from '@/src/screens/expense/components/ErrorSinDecimales';
 import { MonedaTocable } from '@/src/screens/expense/components/MonedaTocable';
@@ -21,9 +22,11 @@ import { MonedaTocable } from '@/src/screens/expense/components/MonedaTocable';
  * ingreso el ícono es el de ingreso, en verde.
  */
 export function TarjetaDescripcionMonto({
-  category, isIncome, currency, description, onDescriptionChange, amount, onAmountChange, onAmountBlur, sinDecimales, onCurrencyChange,
+  category, onCategoryChange, isIncome, currency, description, onDescriptionChange, amount, onAmountChange, onAmountBlur, sinDecimales, onCurrencyChange,
 }: {
   category: PersonalCategory;
+  /** Sin esto (o en ingreso) el cubo es sólo el ícono: no abre nada. */
+  onCategoryChange?: (c: PersonalCategory) => void;
   isIncome: boolean;
   currency: CurrencyCode;
   description: string;
@@ -61,7 +64,9 @@ export function TarjetaDescripcionMonto({
   return (
     <View style={[styles.tarjeta, { backgroundColor: c.surface, borderRadius: skin.radius.panel, boxShadow: skin.elevation.e2.boxShadow }]}>
       <View style={styles.renglon}>
-        <CuboIcono icono={icono} tinte={tinte} />
+        {!isIncome && onCategoryChange
+          ? <CuboCategoria value={category} onChange={onCategoryChange} />
+          : <CuboIcono icono={icono} tinte={tinte} />}
         <View style={styles.campo}>
           <Text style={[Typography.caption, { color: c.textTertiary }]}>{t('expense.description_label')}</Text>
           <TextInput

@@ -16,7 +16,7 @@ import type { User } from '@/src/types/models';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock'));
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-jest.mock('@/src/components/menu/usePosicionMenu', () => require('@/src/test-utils/menuPosicionado').menuPosicionado);
+jest.mock('@/src/components/menu/useRectAncla', () => require('@/src/test-utils/rectAnclaFalso').rectAnclaFalso);
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
 
 let mockSearchParams: Record<string, string | undefined> = {};
@@ -74,11 +74,11 @@ describe('T-103.A — ingresos sin categoría', () => {
     mockSearchParams = { allowIncome: '1' };
     const addEntry = jest.fn();
     usePersonalStore.setState({ addEntry });
-    const { getByPlaceholderText, getByText, getByTestId } = render(<NewExpenseScreen />);
+    const { getByPlaceholderText, getByText, getByTestId, getByLabelText } = render(<NewExpenseScreen />);
 
     // Elige una categoría de gasto explícita, distinta de "otros" (abre el menú y elige).
     fireEvent.press(getByTestId('selector-categoria-boton'));
-    fireEvent.press(getByText('categories.food'));
+    fireEvent.press(getByLabelText('categories.food'));
     // Cambia a Ingreso.
     fireEvent.press(getByText('expense.kind_income'));
 
