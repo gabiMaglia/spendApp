@@ -20,3 +20,11 @@ export type OpcionMenu<V> = {
   destructive?: boolean;
   testID?: string;
 };
+
+/** Un cubo del abanico: va como dato; el `t()` lo resuelve quien lo arma. */
+export type OpcionCubo<V> = {
+  valor: V;
+  icono: React.ComponentProps<typeof Ionicons>['name'];
+  tinte: string;
+  etiqueta: string;
+};
