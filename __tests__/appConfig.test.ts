@@ -1,6 +1,8 @@
+import type { ExpoConfig } from 'expo/config';
+
 import { aplicarVariante } from '@/app.config';
 
-const base = {
+const base: ExpoConfig = {
   name: 'HushSplit',
   slug: 'spendApp',
   scheme: 'hushsplit',
@@ -40,8 +42,8 @@ describe('aplicarVariante', () => {
 
   it('no muta la config que recibe', () => {
     aplicarVariante(base, 'development');
-    expect(base.ios.bundleIdentifier).toBe('com.splitp2p.app');
-    expect(base.ios.associatedDomains).toEqual(['applinks:hushsplit.github.io']);
+    expect(base.ios?.bundleIdentifier).toBe('com.splitp2p.app');
+    expect(base.ios?.associatedDomains).toEqual(['applinks:hushsplit.github.io']);
   });
 
   it('tolera una config sin ios ni android', () => {

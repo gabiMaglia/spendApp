@@ -6,17 +6,9 @@ import type { ConfigContext, ExpoConfig } from 'expo/config';
  * reemplazaba la de la App Store junto con los datos locales del dueño del teléfono.
  * Doc: https://docs.expo.dev/build-reference/variants/
  */
-type ConfigBase = {
-  name: string;
-  scheme?: string | string[];
-  ios?: { bundleIdentifier?: string; associatedDomains?: string[]; [k: string]: unknown };
-  android?: { package?: string; [k: string]: unknown };
-  [k: string]: unknown;
-};
-
 const SUFIJO_DEV = '.dev';
 
-export function aplicarVariante<T extends ConfigBase>(config: T, variante: string | undefined): T {
+export function aplicarVariante(config: ExpoConfig, variante: string | undefined): ExpoConfig {
   if (variante !== 'development') return config;
 
   const ios = config.ios && { ...config.ios };
