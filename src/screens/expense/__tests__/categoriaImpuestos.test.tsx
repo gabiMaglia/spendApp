@@ -11,6 +11,8 @@ import pt from '@/src/i18n/locales/pt.json';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock'));
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+jest.mock('@/src/components/menu/usePosicionMenu', () => require('@/src/test-utils/menuPosicionado').menuPosicionado);
 
 /** Categoría «Impuestos» (PO 2026-11-03), al lado de «Servicios» en la grilla. */
 describe('categoría Impuestos', () => {

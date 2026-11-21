@@ -40,10 +40,16 @@ function montar(extra: Partial<React.ComponentProps<typeof MenuAnclado<string>>>
       onElegir={onElegir} accessibilityLabel="Menú de prueba" testID="m" {...extra}
     />,
   );
+  // Medido y posicionado: antes de eso el menú es invisible y no recibe toques.
+  act(() => { jest.runOnlyPendingTimers(); });
+  act(() => { jest.runAllTimers(); });
   return { ...r, onClose, onElegir };
 }
 
 describe('MenuAnclado — contenido, selección y cierre', () => {
+  beforeEach(() => { jest.useFakeTimers(); });
+  afterEach(() => { jest.useRealTimers(); });
+
   it('con visible=false no monta nada (ni el Modal)', () => {
     const { UNSAFE_queryByType, queryByText } = montar({ visible: false });
     expect(UNSAFE_queryByType(Modal)).toBeNull();
@@ -194,5 +200,56 @@ describe('MenuAnclado — medición, posición y regla de alto', () => {
     act(() => { jest.runOnlyPendingTimers(); }); // medir el ancla
     act(() => { jest.runAllTimers(); });         // 2 frames sin layout
     expect(StyleSheet.flatten(r.getByTestId('m').props.style).maxHeight).toBeUndefined();
+  });
+});
+
+
+describe('MenuAnclado — no se elige dos veces ni a ciegas', () => {
+  beforeEach(() => { jest.useFakeTimers(); mockVentana = { width: 400, height: 800, scale: 1, fontScale: 1 }; });
+  afterEach(() => { jest.useRealTimers(); });
+
+  const ops: OpcionMenu<string>[] = [{ valor: 'a', label: 'Alfa' }, { valor: 'b', label: 'Beta' }];
+  const ancla = anclaFalsa({ x: 20, y: 100, width: 300, height: 48 });
+  const el = (visible: boolean, onElegir: jest.Mock, onClose: jest.Mock) => (
+    <MenuAnclado
+      visible={visible} onClose={onClose} ancla={ancla} opciones={ops}
+      onElegir={onElegir} accessibilityLabel="m" testID="m"
+    />
+  );
+  /** `listo`: ya medido (posición), o sólo el frame invisible de medición. */
+  function abrir(listo: boolean) {
+    const onElegir = jest.fn(); const onClose = jest.fn();
+    const r = render(el(true, onElegir, onClose));
+    if (listo) {
+      act(() => { jest.runOnlyPendingTimers(); });
+      act(() => { jest.runAllTimers(); });
+    }
+    return { ...r, onElegir, onClose };
+  }
+
+  it('dos toques seguidos eligen una sola vez', () => {
+    const { getByText, onElegir, onClose } = abrir(true);
+    fireEvent.press(getByText('Alfa'));
+    fireEvent.press(getByText('Beta'));
+    expect(onElegir).toHaveBeenCalledTimes(1);
+    expect(onElegir).toHaveBeenCalledWith('a');
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('el frame invisible de medición no recibe toques', () => {
+    const { getByText, onElegir } = abrir(false);
+    fireEvent.press(getByText('Alfa'));
+    expect(onElegir).not.toHaveBeenCalled();
+  });
+
+  it('reabrir tras elegir permite volver a elegir', () => {
+    const { getByText, rerender, onElegir, onClose } = abrir(true);
+    fireEvent.press(getByText('Alfa'));
+    rerender(el(false, onElegir, onClose));
+    rerender(el(true, onElegir, onClose));
+    act(() => { jest.runOnlyPendingTimers(); });
+    act(() => { jest.runAllTimers(); });
+    fireEvent.press(getByText('Beta'));
+    expect(onElegir).toHaveBeenCalledTimes(2);
   });
 });

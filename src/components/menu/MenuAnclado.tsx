@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
@@ -37,16 +37,30 @@ export function MenuAnclado<V>({
     visible, listo: !!posicion, lado: posicion?.lado,
   });
 
+  // Se puede tocar sólo abierto y medido: ni el frame invisible de medición ni la
+  // salida (110 ms montado) eligen, y un doble toque elige una sola vez.
+  const tocable = visible && !!posicion;
+  const elegido = useRef(false);
+  useEffect(() => { if (visible) elegido.current = false; }, [visible]);
+
   if (!montado) return null;
 
-  const elegir = (v: V) => { onElegir(v); onClose(); };
+  const elegir = (v: V) => {
+    if (!tocable || elegido.current) return;
+    elegido.current = true;
+    onElegir(v);
+    onClose();
+  };
 
   return (
     <Modal
       transparent animationType="none" onRequestClose={onClose}
       statusBarTranslucent navigationBarTranslucent
     >
-      <Animated.View style={[StyleSheet.absoluteFillObject, { backgroundColor: SCRIM }, estiloVelo]}>
+      <Animated.View
+        pointerEvents={visible ? 'auto' : 'none'}
+        style={[StyleSheet.absoluteFillObject, { backgroundColor: SCRIM }, estiloVelo]}
+      >
         <Pressable
           testID={testID ? `${testID}-velo` : undefined}
           style={StyleSheet.absoluteFillObject}
@@ -54,6 +68,7 @@ export function MenuAnclado<V>({
         />
       </Animated.View>
       <Animated.View
+        pointerEvents={tocable ? 'auto' : 'none'}
         testID={testID} accessibilityRole="menu" accessibilityLabel={accessibilityLabel}
         style={[
           styles.menu,

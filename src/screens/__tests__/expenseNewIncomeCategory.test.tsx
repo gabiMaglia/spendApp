@@ -15,6 +15,8 @@ import type { User } from '@/src/types/models';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock'));
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+jest.mock('@/src/components/menu/usePosicionMenu', () => require('@/src/test-utils/menuPosicionado').menuPosicionado);
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
 
 let mockSearchParams: Record<string, string | undefined> = {};

@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet } from 'react-native';
-import { act, render } from '@testing-library/react-native';
+import { act, fireEvent, render } from '@testing-library/react-native';
 
 import { MenuAnclado } from '@/src/components/menu/MenuAnclado';
 import { useSettingsStore } from '@/src/store/settingsStore';
@@ -28,10 +28,11 @@ jest.mock('react-native-safe-area-context', () => ({
 
 const ancla = { current: { measureInWindow: (cb: any) => cb(20, 100, 300, 48) } } as any;
 const OPS = [{ valor: 'a', label: 'Alfa' }, { valor: 'b', label: 'Beta' }];
+const mockElegir = jest.fn();
 const menu = (visible: boolean) => (
   <MenuAnclado
     visible={visible} onClose={() => {}} ancla={ancla} opciones={OPS}
-    onElegir={() => {}} accessibilityLabel="m" testID="m"
+    onElegir={mockElegir} accessibilityLabel="m" testID="m"
   />
 );
 /** Abre y deja el menú ya posicionado y mostrándose (medición + 2 frames sin layout). */
@@ -47,6 +48,7 @@ describe('MenuAnclado — animación y desmontaje', () => {
   beforeEach(() => {
     jest.useFakeTimers();
     mockCallbacks.length = 0;
+    mockElegir.mockClear();
     useSettingsStore.setState({ reduceAnimations: false });
   });
   afterEach(() => { jest.useRealTimers(); jest.restoreAllMocks(); });
@@ -75,6 +77,13 @@ describe('MenuAnclado — animación y desmontaje', () => {
     r.rerender(menu(false));
     expect(mockCallbacks).toHaveLength(0);
     expect(r.queryByText('Alfa')).toBeNull();
+  });
+
+  it('durante la animación de salida los toques no eligen nada', () => {
+    const r = abierto();
+    r.rerender(menu(false)); // cerrando: sigue montado hasta que termina el callback
+    fireEvent.press(r.getByText('Alfa'));
+    expect(mockElegir).not.toHaveBeenCalled();
   });
 
   it('con reducir movimiento el menú no escala (sólo fundido)', () => {

@@ -11,6 +11,8 @@ import pt from '@/src/i18n/locales/pt.json';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock'));
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+jest.mock('@/src/components/menu/usePosicionMenu', () => require('@/src/test-utils/menuPosicionado').menuPosicionado);
 jest.mock('@/src/utils/haptics', () => ({ hapticSelection: jest.fn() }));
 
 describe('SelectorCategoria', () => {
