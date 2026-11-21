@@ -13,6 +13,10 @@ import type { User } from '@/src/types/models';
  * ingreso de verdad. El gasto no cambia: sigue mostrando su selector.
  */
 
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock'));
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+jest.mock('@/src/components/menu/usePosicionMenu', () => require('@/src/test-utils/menuPosicionado').menuPosicionado);
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
 
 let mockSearchParams: Record<string, string | undefined> = {};
@@ -37,20 +41,20 @@ beforeEach(() => {
 describe('T-103.A — ingresos sin categoría', () => {
   it('en modo Ingreso NO muestra el selector de categorías', () => {
     mockSearchParams = { allowIncome: '1', kind: 'income' };
-    const { queryByText } = render(<NewExpenseScreen />);
+    const { queryByText, queryByTestId } = render(<NewExpenseScreen />);
 
     // Ninguna pastilla de categoría (ni las de gasto ni las viejas de ingreso)
     // debe estar presente cuando se está cargando un ingreso.
-    expect(queryByText('categories.food')).toBeNull();
+    expect(queryByTestId('selector-categoria-boton')).toBeNull();
     expect(queryByText('categories.salary')).toBeNull();
     expect(queryByText('categories.freelance')).toBeNull();
   });
 
   it('en modo Gasto SÍ muestra el selector de categorías', () => {
     mockSearchParams = { allowIncome: '1' };
-    const { getByText } = render(<NewExpenseScreen />);
+    const { getByTestId } = render(<NewExpenseScreen />);
 
-    expect(getByText('categories.food')).toBeTruthy();
+    expect(getByTestId('selector-categoria-boton')).toBeTruthy();
   });
 
   it('un ingreso se guarda con categoría "otros" (clave other)', () => {
@@ -70,9 +74,10 @@ describe('T-103.A — ingresos sin categoría', () => {
     mockSearchParams = { allowIncome: '1' };
     const addEntry = jest.fn();
     usePersonalStore.setState({ addEntry });
-    const { getByPlaceholderText, getByText } = render(<NewExpenseScreen />);
+    const { getByPlaceholderText, getByText, getByTestId } = render(<NewExpenseScreen />);
 
-    // Elige una categoría de gasto explícita, distinta de "otros".
+    // Elige una categoría de gasto explícita, distinta de "otros" (abre el menú y elige).
+    fireEvent.press(getByTestId('selector-categoria-boton'));
     fireEvent.press(getByText('categories.food'));
     // Cambia a Ingreso.
     fireEvent.press(getByText('expense.kind_income'));

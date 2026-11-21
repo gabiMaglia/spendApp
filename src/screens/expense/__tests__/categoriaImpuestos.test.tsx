@@ -1,12 +1,18 @@
 import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
 import { CATEGORIES } from '@/src/screens/expense/repartoDeGasto';
-import { GrillaCategorias } from '@/src/screens/expense/components/GrillaCategorias';
+import { SelectorCategoria } from '@/src/screens/expense/components/SelectorCategoria';
 import { CategoryIcon } from '@/src/components/CategoryIcon';
 import { Colors } from '@/src/constants/colors';
+import { useSettingsStore } from '@/src/store/settingsStore';
 import es from '@/src/i18n/locales/es.json';
 import en from '@/src/i18n/locales/en.json';
 import pt from '@/src/i18n/locales/pt.json';
+
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock'));
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+jest.mock('@/src/components/menu/usePosicionMenu', () => require('@/src/test-utils/menuPosicionado').menuPosicionado);
 
 /** Categoría «Impuestos» (PO 2026-11-03), al lado de «Servicios» en la grilla. */
 describe('categoría Impuestos', () => {
@@ -26,10 +32,12 @@ describe('categoría Impuestos', () => {
     expect(Colors.dark.category.taxes).toBeDefined();
   });
 
-  it('se puede elegir en la grilla', () => {
+  it('se puede elegir en el selector', () => {
+    useSettingsStore.setState({ skin: 'aero' });
     const onChange = jest.fn();
-    const { getByText } = render(<GrillaCategorias value="food" onChange={onChange} />);
-    fireEvent.press(getByText('categories.taxes'));
+    const { getByRole, getAllByText } = render(<SelectorCategoria value="food" onChange={onChange} />);
+    fireEvent.press(getByRole('button'));
+    fireEvent.press(getAllByText('categories.taxes')[0]);
     expect(onChange).toHaveBeenCalledWith('taxes');
   });
 
