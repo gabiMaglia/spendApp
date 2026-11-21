@@ -7,7 +7,7 @@ import { Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { getCurrency, type CurrencyCode } from '@/src/constants/currencies';
 import { MAX_TEXTO_CORTO } from '@/src/sync/nucleo/topes';
-import { conAlfa } from '@/src/skins/color';
+import { CuboIcono } from '@/src/components/CuboIcono';
 import { useSkin } from '@/src/skins/useSkin';
 import type { PersonalCategory } from '@/src/types/models';
 import { CATEGORIES } from '@/src/screens/expense/repartoDeGasto';
@@ -61,9 +61,7 @@ export function TarjetaDescripcionMonto({
   return (
     <View style={[styles.tarjeta, { backgroundColor: c.surface, borderRadius: skin.radius.panel, boxShadow: skin.elevation.e2.boxShadow }]}>
       <View style={styles.renglon}>
-        <View style={[styles.tile, { backgroundColor: conAlfa(tinte, 0.16) }]}>
-          <Ionicons name={icono} size={28} color={tinte} />
-        </View>
+        <CuboIcono icono={icono} tinte={tinte} />
         <View style={styles.campo}>
           <Text style={[Typography.caption, { color: c.textTertiary }]}>{t('expense.description_label')}</Text>
           <TextInput
