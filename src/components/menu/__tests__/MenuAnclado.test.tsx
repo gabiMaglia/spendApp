@@ -1,9 +1,21 @@
 import React from 'react';
-import { Modal } from 'react-native';
-import { fireEvent, render } from '@testing-library/react-native';
+import { Keyboard, Modal, StyleSheet } from 'react-native';
+import { act, fireEvent, render } from '@testing-library/react-native';
 
 import { MenuAnclado } from '@/src/components/menu/MenuAnclado';
+import { calcularPosicionMenu, altoVisibleMenu } from '@/src/components/menu/calcularPosicionMenu';
 import type { OpcionMenu } from '@/src/components/menu/tipos';
+
+// Ventana e insets mutables: R1 (Android edge-to-edge) y R2 (rotación) se simulan cambiándolos.
+let mockVentana = { width: 400, height: 800, scale: 1, fontScale: 1 };
+let mockInsets = { top: 0, bottom: 0, left: 0, right: 0 };
+jest.mock('react-native/Libraries/Utilities/useWindowDimensions', () => ({
+  __esModule: true, default: () => mockVentana,
+}));
+jest.mock('react-native-safe-area-context', () => ({
+  useSafeAreaInsets: () => mockInsets,
+  SafeAreaProvider: ({ children }: any) => children,
+}));
 
 // Mock local (no global): withTiming corre su callback sincrónico, así la salida es testeable.
 jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock'));
@@ -89,5 +101,94 @@ describe('MenuAnclado — contenido, selección y cierre', () => {
     });
     fireEvent.press(getByText('Ana'));
     expect(onElegir).toHaveBeenCalledWith('u1');
+  });
+});
+
+
+describe('MenuAnclado — medición, posición y regla de alto', () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+    mockVentana = { width: 400, height: 800, scale: 1, fontScale: 1 };
+    mockInsets = { top: 0, bottom: 0, left: 0, right: 0 };
+  });
+  afterEach(() => { jest.useRealTimers(); jest.restoreAllMocks(); });
+
+  const ops = (n: number): OpcionMenu<number>[] =>
+    Array.from({ length: n }, (_, i) => ({ valor: i, label: `Op ${i}` }));
+
+  /** Abre, deja pasar el frame de medición y reporta el alto de cada fila. */
+  function abrir(n: number, anclaRect = { x: 20, y: 100, width: 300, height: 48 }, alturas?: number[]) {
+    const onClose = jest.fn();
+    const ancla = anclaFalsa(anclaRect); // estable, como un ref real
+    const r = render(
+      <MenuAnclado
+        visible onClose={onClose} ancla={ancla} opciones={ops(n)}
+        onElegir={jest.fn()} accessibilityLabel="m" testID="m"
+      />,
+    );
+    act(() => { jest.runOnlyPendingTimers(); });
+    r.getAllByRole('menuitem').slice(0, 5).forEach((fila, i) =>
+      fireEvent(fila, 'layout', { nativeEvent: { layout: { height: alturas?.[i] ?? 56 } } }));
+    const estilo = () => StyleSheet.flatten(r.getByTestId('m').props.style);
+    return { ...r, onClose, ancla, estilo };
+  }
+
+  it('al abrir descarta el teclado', () => {
+    const spy = jest.spyOn(Keyboard, 'dismiss');
+    abrir(3);
+    expect(spy).toHaveBeenCalled();
+  });
+
+  it('ancla arriba: el menú queda debajo', () => {
+    const { estilo } = abrir(3);
+    expect(estilo().top).toBe(100 + 48 + 4);
+  });
+
+  it('ancla pegada al borde inferior: el menú queda arriba del ancla', () => {
+    const { estilo } = abrir(3, { x: 20, y: 740, width: 300, height: 48 });
+    expect(estilo().top + estilo().maxHeight).toBeLessThanOrEqual(740);
+  });
+
+  it('6 opciones: 4 filas y media; 5 opciones: todas', () => {
+    expect(abrir(6).estilo().maxHeight).toBe(4 * 56 + 28);
+    expect(abrir(5).estilo().maxHeight).toBe(5 * 56);
+  });
+
+  it('las filas más altas (con sublabel) cambian el alto esperado', () => {
+    const alturas = [56, 72, 56, 56, 56];
+    expect(abrir(6, undefined, alturas).estilo().maxHeight).toBe(altoVisibleMenu([...alturas, 56], 6));
+  });
+
+  it('si cambian las dimensiones con el menú abierto, se cierra', () => {
+    const { onClose, ancla, rerender } = abrir(3);
+    mockVentana = { ...mockVentana, width: 800, height: 400 };
+    rerender(
+      <MenuAnclado
+        visible onClose={onClose} ancla={ancla}
+        opciones={ops(3)} onElegir={jest.fn()} accessibilityLabel="m" testID="m"
+      />,
+    );
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it('Android edge-to-edge: usa los insets en la posición (coincide con el cálculo puro)', () => {
+    mockInsets = { top: 24, bottom: 48, left: 0, right: 0 };
+    const rect = { x: 20, y: 650, width: 300, height: 48 };
+    const { estilo } = abrir(5, rect);
+    const esperado = calcularPosicionMenu(rect, { width: 400, height: 800 }, { top: 24, bottom: 48 }, 5 * 56);
+    expect(estilo().top).toBe(esperado.top);
+    expect(estilo().maxHeight).toBe(esperado.maxHeight);
+  });
+
+  it('sin layout de filas tras dos frames, cae al alto mínimo y se muestra igual', () => {
+    const r = render(
+      <MenuAnclado
+        visible onClose={jest.fn()} ancla={anclaFalsa({ x: 20, y: 100, width: 300, height: 48 })}
+        opciones={ops(3)} onElegir={jest.fn()} accessibilityLabel="m" testID="m"
+      />,
+    );
+    act(() => { jest.runOnlyPendingTimers(); }); // medir el ancla
+    act(() => { jest.runAllTimers(); });         // 2 frames sin layout
+    expect(StyleSheet.flatten(r.getByTestId('m').props.style).maxHeight).toBe(3 * 56);
   });
 });

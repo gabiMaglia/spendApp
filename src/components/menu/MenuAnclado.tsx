@@ -3,6 +3,8 @@ import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { Spacing } from '@/src/constants/spacing';
 import { SheetOption, SheetOptionAvatar } from '@/src/components/Sheet';
+import { usePosicionMenu } from '@/src/components/menu/usePosicionMenu';
+import { MAX_FILAS_COMPLETAS } from '@/src/components/menu/calcularPosicionMenu';
 import type { OpcionMenu } from '@/src/components/menu/tipos';
 
 const SCRIM = 'rgba(12, 16, 14, 0.5)';
@@ -19,8 +21,12 @@ export type MenuAncladoProps<V> = {
 };
 
 export function MenuAnclado<V>({
-  visible, onClose, opciones, seleccionado, onElegir, accessibilityLabel, testID,
+  visible, onClose, ancla, opciones, seleccionado, onElegir, accessibilityLabel, testID,
 }: MenuAncladoProps<V>) {
+  const { posicion, onLayoutFila, anchoProvisional, rect } = usePosicionMenu({
+    visible, ancla, cantidad: opciones.length, onCerrar: onClose,
+  });
+
   if (!visible) return null;
 
   const elegir = (v: V) => { onElegir(v); onClose(); };
@@ -37,7 +43,13 @@ export function MenuAnclado<V>({
       />
       <View
         testID={testID} accessibilityRole="menu" accessibilityLabel={accessibilityLabel}
-        style={styles.menu}
+        style={[
+          styles.menu,
+          posicion
+            ? { left: posicion.left, top: posicion.top, width: posicion.width, maxHeight: posicion.maxHeight }
+            : { left: rect?.x ?? 0, top: 0, width: anchoProvisional },
+          { opacity: posicion ? 1 : 0 },
+        ]}
       >
         <ScrollView bounces={false} showsVerticalScrollIndicator={false}>
           {opciones.map((o, i) => {
@@ -46,7 +58,9 @@ export function MenuAnclado<V>({
             const press = () => elegir(o.valor);
             return (
               <View
-                key={String(o.valor)} accessible accessibilityRole="menuitem"
+                key={String(o.valor)}
+                onLayout={i < MAX_FILAS_COMPLETAS ? e => onLayoutFila(i, e.nativeEvent.layout.height) : undefined}
+                accessible accessibilityRole="menuitem"
                 accessibilityState={{ selected: sel }} onAccessibilityTap={press}
               >
                 {o.avatar ? (
@@ -71,5 +85,5 @@ export function MenuAnclado<V>({
 
 const styles = StyleSheet.create({
   // R6: el padding cancela el marginHorizontal negativo de las filas de la hoja.
-  menu: { position: 'absolute', left: 20, top: 120, width: 300, paddingHorizontal: Spacing.screenPad },
+  menu: { position: 'absolute', paddingHorizontal: Spacing.screenPad },
 });
