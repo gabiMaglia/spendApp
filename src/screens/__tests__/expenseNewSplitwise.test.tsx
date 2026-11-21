@@ -101,10 +101,10 @@ describe('Alta de gasto estilo Splitwise (Aero)', () => {
     const r = render(<NewExpenseScreen />);
     expect(r.getByText('expense.kind_income')).toBeTruthy();
     expect(r.queryByTestId('con-quien')).toBeNull();
-    expect(r.queryByText('categories.food')).toBeNull();
+    expect(r.queryByTestId('selector-categoria-boton')).toBeNull();
     expect(r.queryByTestId('frase-pagador')).toBeNull();
     fireEvent.press(r.getByText('expense.kind_expense'));
-    expect(r.getByText('categories.food')).toBeTruthy();
+    expect(r.getByTestId('selector-categoria-boton')).toBeTruthy();
   });
 
   it('Clásico conserva su formulario (T-210)', () => {
@@ -112,5 +112,8 @@ describe('Alta de gasto estilo Splitwise (Aero)', () => {
     const r = render(<NewExpenseScreen />);
     expect(r.getByTestId('tarjeta-pago')).toBeTruthy();
     expect(r.queryByTestId('frase-pagador')).toBeNull();
+    // Clásico conserva sus chips inline: sin disparador de menú.
+    expect(r.queryByTestId('selector-categoria-boton')).toBeNull();
+    expect(r.getByText('categories.food')).toBeTruthy();
   });
 });

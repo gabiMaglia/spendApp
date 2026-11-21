@@ -45,6 +45,7 @@ export function SelectorCategoria({
       <Pressable
         ref={ancla}
         collapsable={false}
+        testID="selector-categoria-boton"
         accessibilityRole="button"
         accessibilityLabel={`${t('expense.category_selector_label')}: ${nombre}`}
         accessibilityState={{ expanded: abierto }}
