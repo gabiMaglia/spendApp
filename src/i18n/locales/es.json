@@ -514,7 +514,9 @@
     "locked_derived": "Se generó solo, no se edita",
     "locked_title": "No se puede editar",
     "locked_closed_month": "Es de un mes cerrado: sólo se tocan los movimientos del mes en curso",
-    "movements_title": "MOVIMIENTOS"
+    "movements_title": "MOVIMIENTOS",
+    "see_all": "Ver todos ({{count}})",
+    "all_movements_title": "Movimientos"
   },
   "contact": {
     "title": "Agregar contacto",

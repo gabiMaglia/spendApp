@@ -514,7 +514,9 @@
     "locked_derived": "Gerado automaticamente, não editável",
     "locked_title": "Não pode ser editado",
     "locked_closed_month": "É de um mês fechado: só dá para mexer nos lançamentos do mês atual",
-    "movements_title": "MOVIMENTOS"
+    "movements_title": "MOVIMENTOS",
+    "see_all": "Ver todos ({{count}})",
+    "all_movements_title": "Movimentos"
   },
   "contact": {
     "title": "Adicionar contato",
