@@ -2,7 +2,7 @@ import React from 'react';
 import { Modal, ScrollView, StyleSheet } from 'react-native';
 import { act, fireEvent, render } from '@testing-library/react-native';
 
-import { AbanicoCubos } from '@/src/components/menu/AbanicoCubos';
+import { AbanicoCubos, ASENTAR_MS } from '@/src/components/menu/AbanicoCubos';
 import { calcularAbanico } from '@/src/components/menu/calcularAbanico';
 import type { OpcionCubo } from '@/src/components/menu/tipos';
 import { useSettingsStore } from '@/src/store/settingsStore';
@@ -37,8 +37,8 @@ function montar(extra: Partial<React.ComponentProps<typeof AbanicoCubos<string>>
     accessibilityLabel: 'Categoría', etiquetaCerrar: 'Cerrar', testID: 'ab', ...extra,
   } as React.ComponentProps<typeof AbanicoCubos<string>>;
   const r = render(<AbanicoCubos {...props} />);
-  act(() => { jest.runOnlyPendingTimers(); });
-  act(() => { jest.runAllTimers(); });
+  act(() => { jest.advanceTimersByTime(20); }); // medición (rAF)
+  act(() => { jest.advanceTimersByTime(ASENTAR_MS + 50); });
   return { ...r, onClose, onElegir, props };
 }
 
@@ -157,5 +157,32 @@ describe('AbanicoCubos', () => {
     const reducido = montar();
     expect(reducido.getAllByRole('menuitem')).toHaveLength(3);
     expect(hay(reducido)).toBe(false);
+  });
+
+  it('D1: un toque sobre el ancla durante la apertura no elige nada', () => {
+    const onElegir = jest.fn();
+    const r = render(
+      <AbanicoCubos
+        visible onClose={jest.fn()} ancla={ancla} opciones={OPS} onElegir={onElegir}
+        accessibilityLabel="c" etiquetaCerrar="x" testID="ab"
+      />,
+    );
+    act(() => { jest.advanceTimersByTime(20); }); // medido
+    act(() => { jest.advanceTimersByTime(ASENTAR_MS - 50); }); // pero sin asentar
+    fireEvent.press(r.getByText('Alfa'));
+    expect(onElegir).not.toHaveBeenCalled();
+    act(() => { jest.advanceTimersByTime(100); });
+    fireEvent.press(r.getByText('Alfa'));
+    expect(onElegir).toHaveBeenCalledWith('a');
+  });
+
+  it('D2: el área de toque de cada cubo viaja con él (el translate envuelve la fila)', () => {
+    const { getAllByRole } = montar();
+    let nodo = getAllByRole('menuitem')[1].parent as any;
+    let con = false;
+    for (let i = 0; i < 3 && nodo && !con; i++, nodo = nodo.parent) {
+      con = JSON.stringify(StyleSheet.flatten(nodo.props.style) ?? {}).includes('translateY');
+    }
+    expect(con).toBe(true);
   });
 });

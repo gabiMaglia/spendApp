@@ -1,13 +1,13 @@
 import React, { useEffect } from 'react';
 import { Pressable, StyleSheet, Text } from 'react-native';
 import Animated, {
-  useAnimatedStyle, useSharedValue, withDelay, withSpring, withTiming,
+  type SharedValue, useAnimatedStyle, useSharedValue, withDelay, withSpring, withTiming,
 } from 'react-native-reanimated';
 
 import { Typography } from '@/src/constants/typography';
 import { CuboIcono } from '@/src/components/CuboIcono';
 import { PASO_CUBOS, GAP_CUBOS } from '@/src/components/menu/calcularAbanico';
-import { SALIDA_MS } from '@/src/components/menu/useAnimacionMenu';
+import { FUNDIDO_MS as SALIDA_REDUCIDA_MS, SALIDA_MS } from '@/src/components/menu/useAnimacionMenu';
 import type { OpcionCubo } from '@/src/components/menu/tipos';
 
 // «Sharp, swift and soft»: rigidez alta, amortiguación justa (ζ≈0.8, ~1 % de rebote).
@@ -25,7 +25,7 @@ const TEXTO_SOBRE_VELO = '#FFFFFF';
  * desmonta (no depende del callback de cada cubo).
  */
 export function FilaCubo<V>({
-  indice, visible, entrar, sinAnimacion, opcion, seleccionado, onPress,
+  indice, visible, entrar, sinAnimacion, opcion, seleccionado, onPress, scrollY,
 }: {
   indice: number;
   visible: boolean;
@@ -35,6 +35,8 @@ export function FilaCubo<V>({
   opcion: OpcionCubo<V>;
   seleccionado: boolean;
   onPress: () => void;
+  /** Cuánto scrolleó la columna: al recogerse, el cubo vuelve al original VISIBLE, no al slot 0 del contenido. */
+  scrollY: SharedValue<number>;
 }) {
   const p = useSharedValue(0);
   const l = useSharedValue(0);
@@ -50,16 +52,20 @@ export function FilaCubo<V>({
         l.value = withDelay(demora + DEMORA_ETIQUETA_MS, withTiming(1, { duration: ETIQUETA_MS }));
       }
     } else if (!visible) {
-      p.value = withTiming(0, { duration: SALIDA_MS - 10 });
-      l.value = withTiming(0, { duration: SALIDA_MS - 10 });
+      // Con reducir movimiento el Modal se desmonta a los 90 ms: el fundido dura lo mismo.
+      const ms = sinAnimacion ? SALIDA_REDUCIDA_MS : SALIDA_MS - 10;
+      p.value = withTiming(0, { duration: ms });
+      l.value = withTiming(0, { duration: ms });
     }
   }, [visible, entrar, sinAnimacion, indice, p, l]);
 
+  // El translate va en el contenedor de la fila: el área de toque viaja con el cubo.
+  const estiloFila = useAnimatedStyle(() => (
+    sinAnimacion ? {} : { transform: [{ translateY: (1 - p.value) * (scrollY.value - indice * PASO_CUBOS) }] }
+  ));
   const estiloCubo = useAnimatedStyle(() => ({
     opacity: Math.min(1, Math.max(0, p.value * 2.5)),
-    ...(sinAnimacion ? null : {
-      transform: [{ translateY: (1 - p.value) * -indice * PASO_CUBOS }, { scale: 0.75 + 0.25 * p.value }],
-    }),
+    ...(sinAnimacion ? null : { transform: [{ scale: 0.75 + 0.25 * p.value }] }),
   }));
   const estiloEtiqueta = useAnimatedStyle(() => ({
     opacity: Math.min(1, Math.max(0, l.value)),
@@ -67,18 +73,20 @@ export function FilaCubo<V>({
   }));
 
   return (
-    <Pressable
-      onPress={onPress} style={styles.fila}
-      accessibilityRole="menuitem" accessibilityLabel={opcion.etiqueta}
-      accessibilityState={{ selected: seleccionado }}
-    >
-      <Animated.View style={estiloCubo}>
-        <CuboIcono icono={opcion.icono} tinte={opcion.tinte} resaltado={seleccionado} />
-      </Animated.View>
-      <Animated.View style={[styles.etiqueta, estiloEtiqueta]}>
-        <Text style={[Typography.bodyL, { color: TEXTO_SOBRE_VELO }]} numberOfLines={1}>{opcion.etiqueta}</Text>
-      </Animated.View>
-    </Pressable>
+    <Animated.View style={estiloFila}>
+      <Pressable
+        onPress={onPress} style={styles.fila}
+        accessibilityRole="menuitem" accessibilityLabel={opcion.etiqueta}
+        accessibilityState={{ selected: seleccionado }}
+      >
+        <Animated.View style={estiloCubo}>
+          <CuboIcono icono={opcion.icono} tinte={opcion.tinte} resaltado={seleccionado} />
+        </Animated.View>
+        <Animated.View style={[styles.etiqueta, estiloEtiqueta]}>
+          <Text style={[Typography.bodyL, { color: TEXTO_SOBRE_VELO }]} numberOfLines={1}>{opcion.etiqueta}</Text>
+        </Animated.View>
+      </Pressable>
+    </Animated.View>
   );
 }
 

@@ -1,16 +1,23 @@
 import React from 'react';
+import { ScrollView } from 'react-native';
 import { act, fireEvent, render } from '@testing-library/react-native';
 
 import { AbanicoCubos } from '@/src/components/menu/AbanicoCubos';
+import { FUNDIDO_MS } from '@/src/components/menu/useAnimacionMenu';
+import { useSettingsStore } from '@/src/store/settingsStore';
 
 // withTiming guarda su callback: el test decide cuándo termina la salida.
 const mockCallbacks: ((fin: boolean) => void)[] = [];
+const mockDuraciones: number[] = [];
 jest.mock('react-native-reanimated', () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const base = require('react-native-reanimated/mock');
   return {
     ...base,
-    withTiming: (to: number, _c: unknown, cb?: (fin: boolean) => void) => {
+    // estable entre renders (el del mock crea uno nuevo cada vez)
+    useSharedValue: (v: number) => require('react').useRef({ value: v }).current,
+    withTiming: (to: number, c: { duration: number }, cb?: (fin: boolean) => void) => {
+      if (to === 0) mockDuraciones.push(c.duration);
       if (cb) mockCallbacks.push(cb);
       return to;
     },
@@ -38,13 +45,13 @@ const abanico = (visible: boolean) => (
 );
 
 describe('AbanicoCubos — salida', () => {
-  beforeEach(() => { jest.useFakeTimers(); mockCallbacks.length = 0; onElegir.mockClear(); });
+  beforeEach(() => { jest.useFakeTimers(); mockCallbacks.length = 0; mockDuraciones.length = 0; onElegir.mockClear(); useSettingsStore.setState({ reduceAnimations: false }); });
   afterEach(() => { jest.useRealTimers(); });
 
   function abierto() {
     const r = render(abanico(true));
-    act(() => { jest.runOnlyPendingTimers(); });
-    act(() => { jest.runAllTimers(); });
+    act(() => { jest.advanceTimersByTime(20); });
+    act(() => { jest.advanceTimersByTime(400); });
     return r;
   }
 
@@ -61,5 +68,24 @@ describe('AbanicoCubos — salida', () => {
     r.rerender(abanico(false));
     fireEvent.press(r.getByText('Alfa'));
     expect(onElegir).not.toHaveBeenCalled();
+  });
+
+  it('con reducir movimiento los cubos no se fundido más que lo que tarda en desmontarse el Modal', () => {
+    useSettingsStore.setState({ reduceAnimations: true });
+    const r = abierto();
+    r.rerender(abanico(false));
+    expect(mockDuraciones.length).toBeGreaterThan(0);
+    expect(Math.max(...mockDuraciones)).toBeLessThanOrEqual(FUNDIDO_MS);
+  });
+
+  it('con la columna scrolleada, al recogerse los cubos vuelven al original visible', () => {
+    const r = abierto();
+    act(() => { r.UNSAFE_getByType(ScrollView).props.onScroll({ nativeEvent: { contentOffset: { y: 100 } } }); });
+    r.rerender(abanico(false));
+    r.rerender(abanico(false)); // el estilo se calcula en el render que sigue a la salida
+    const json = JSON.stringify(r.toJSON());
+    // cubo 1: -(1*PASO) + 100 = 28
+    expect(json).toContain('"translateY":100'); // cubo 0 va al original visible
+    expect(json).toContain('"translateY":28');
   });
 });
