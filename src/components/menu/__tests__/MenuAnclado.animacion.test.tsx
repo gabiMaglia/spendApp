@@ -34,10 +34,11 @@ const menu = (visible: boolean) => (
     onElegir={() => {}} accessibilityLabel="m" testID="m"
   />
 );
-/** Abre y deja medido el menú (frame de medición + layout de filas). */
+/** Abre y deja el menú ya posicionado y mostrándose (medición + 2 frames sin layout). */
 function abierto() {
   const r = render(menu(true));
   act(() => { jest.runOnlyPendingTimers(); });
+  act(() => { jest.runAllTimers(); });
   return r;
 }
 const salir = () => act(() => { mockCallbacks.splice(0).forEach(cb => cb(true)); });
@@ -66,6 +67,14 @@ describe('MenuAnclado — animación y desmontaje', () => {
     const antes = lugar();
     r.rerender(menu(false));
     expect(lugar()).toEqual(antes);
+  });
+
+  it('cerrar un menú que nunca llegó a animarse lo desmonta igual (sin callback)', () => {
+    // Reanimated no garantiza el callback de withTiming si el valor ya está en el destino (D4).
+    const r = render(menu(true)); // sin medir: nunca tuvo posición ni entrada
+    r.rerender(menu(false));
+    expect(mockCallbacks).toHaveLength(0);
+    expect(r.queryByText('Alfa')).toBeNull();
   });
 
   it('con reducir movimiento el menú no escala (sólo fundido)', () => {

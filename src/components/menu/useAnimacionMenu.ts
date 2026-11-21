@@ -47,6 +47,9 @@ export function useAnimacionMenu({ visible, listo, lado }: {
       }
       return;
     }
+    // Nunca llegó a mostrarse: withTiming sobre un valor que ya está en 0 no
+    // garantiza su callback y el Modal invisible quedaría montado tragándose toques.
+    if (menu.value === 0) { setMontado(false); return; }
     const ms = sinAnimacion ? FUNDIDO_MS : SALIDA_MS;
     velo.value = withTiming(0, { duration: ms });
     menu.value = withTiming(0, { duration: ms, easing: Easing.in(Easing.quad) }, (fin) => {
