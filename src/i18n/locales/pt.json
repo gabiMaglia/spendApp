@@ -205,6 +205,7 @@
     "groups_in_common_other": "{{count}} grupos em comum"
   },
   "expense": {
+    "category_selector_label": "Categoria",
     "new_title": "Nova despesa",
     "edit_title": "Editar despesa",
     "edit_income_title": "Editar receita",
