@@ -163,7 +163,7 @@ export default function VerifyScreen() {
   const cuerpo = otraCuenta ? t('captcha.other_account') : fallo ? t('captcha.verify_failed') : t('captcha.verify_body');
 
   return (
-    <SafeAreaView style={[styles.root, { backgroundColor: c.bg }]}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={[styles.root, { backgroundColor: c.bg }]}>
       <View style={styles.contenido}>
         <Text style={[Typography.h2, styles.centrado, { color: c.text }]}>
           {t('captcha.verify_title')}
@@ -188,7 +188,7 @@ export default function VerifyScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, justifyContent: 'space-between', padding: Spacing[4] },
+  root: { flex: 1, justifyContent: 'space-between', padding: Spacing[4], paddingBottom: 0 },
   contenido: { flex: 1, justifyContent: 'center', gap: Spacing[2] },
   centrado: { textAlign: 'center' },
   spinner: { marginTop: Spacing[4] },

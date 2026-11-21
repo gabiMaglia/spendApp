@@ -9,6 +9,19 @@ const AIRE_ANDROID = 8;
 /** Cuánto se mete la píldora en la zona del indicador de inicio de iOS. */
 const SOLAPE_INDICADOR_IOS = 12;
 
+export type Plataforma = 'ios' | 'android';
+
+/**
+ * Distancia al borde inferior de la pantalla de la píldora Y de toda botonera
+ * del pie (T-281): una sola cuenta para que queden alineadas. Quien la usa NO
+ * debe sumar además el inset (p. ej. con `SafeAreaView edges=['bottom']`).
+ */
+export function baseInferior(insetBottom: number, plataforma: Plataforma): number {
+  return plataforma === 'ios'
+    ? Math.max(insetBottom - SOLAPE_INDICADOR_IOS, PISO_AIRE)
+    : Math.max(insetBottom + AIRE_ANDROID, PISO_AIRE);
+}
+
 export interface MedidasBarra {
   altoPildora: number;
   radio: number;
@@ -26,11 +39,9 @@ export interface MedidasBarra {
  */
 export function medidasBarraPestanas(
   { insetBottom, plataforma, margenLateral }:
-  { insetBottom: number; plataforma: 'ios' | 'android'; margenLateral: number },
+  { insetBottom: number; plataforma: Plataforma; margenLateral: number },
 ): MedidasBarra {
-  const bottom = plataforma === 'ios'
-    ? Math.max(insetBottom - SOLAPE_INDICADOR_IOS, PISO_AIRE)
-    : Math.max(insetBottom + AIRE_ANDROID, PISO_AIRE);
+  const bottom = baseInferior(insetBottom, plataforma);
   return {
     altoPildora: ALTO_PILDORA,
     radio: ALTO_PILDORA / 2,

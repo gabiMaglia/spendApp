@@ -134,3 +134,17 @@ describe('ActionButton — alineación del contenido', () => {
     expect(justify('con-flecha', true)).not.toBe('center');
   });
 });
+
+/** T-281: la botonera del pie toma su base de la misma función que la píldora. */
+describe('ButtonRack bottom — base inferior', () => {
+  const margen = (inset: number) => {
+    jest.spyOn(require('react-native-safe-area-context'), 'useSafeAreaInsets')
+      .mockReturnValue({ top: 0, left: 0, right: 0, bottom: inset });
+    const r = render(<ButtonRack><ActionButton action={() => {}} label="Ok" /></ButtonRack>);
+    return StyleSheet.flatten(r.UNSAFE_getAllByType(require('react-native').View)[0].props.style).marginBottom;
+  };
+  afterEach(() => jest.restoreAllMocks());
+
+  it('iPhone con inset 34: 22 del borde', () => { expect(margen(34)).toBe(22); });
+  it('sin inset: 12 del borde', () => { expect(margen(0)).toBe(12); });
+});

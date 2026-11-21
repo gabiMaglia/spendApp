@@ -11,6 +11,7 @@ import { hapticSelection, hapticSuccess } from '@/src/utils/haptics';
 import { DetailHeader, useRellenoDetailHeader } from '@/src/components/CollapsibleHeader';
 import { ActionButton } from '@/src/components/ActionButton';
 import { ButtonRack } from '@/src/components/ButtonRack';
+import { useBaseInferior } from '@/src/hooks/useBaseInferior';
 
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
@@ -35,6 +36,7 @@ const PRIMARY_CURRENCIES: CurrencyCode[] = ['ARS', 'USD', 'EUR', 'BRL'];
 export default function NewGroupScreen() {
   const { t } = useTranslation();
   const c = useColors();
+  const base = useBaseInferior();
   // Aero: el header flota y el contenido arranca debajo de su tarjeta (T-227).
   const relleno = useRellenoDetailHeader();
 
@@ -128,7 +130,7 @@ export default function NewGroupScreen() {
   }
 
   return (
-    <SafeAreaView edges={['bottom']} style={[styles.safe, { backgroundColor: c.bg }]}>
+    <SafeAreaView edges={[]} style={[styles.safe, { backgroundColor: c.bg }]}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
 
         <DetailHeader
@@ -236,7 +238,7 @@ export default function NewGroupScreen() {
           {/* Como en Saldar: `inline` (el scroll ya pone el aire lateral; el
               `bottom` por defecto lo duplicaba y el botón salía más angosto
               que los campos) y empujado al fondo con `marginTop: 'auto'`. */}
-          <ButtonRack placement="inline" style={styles.alFondo}>
+          <ButtonRack placement="inline" style={[styles.alFondo, { marginBottom: base }]}>
             <ActionButton
               testID="group-new-save"
               label={t('common.create')}
@@ -288,7 +290,7 @@ function MemberRow({
 const styles = StyleSheet.create({
   safe:         { flex: 1 },
   scroll:       { paddingHorizontal: Spacing.screenPad, paddingTop: Spacing[4], flexGrow: 1 },
-  alFondo:      { marginTop: 'auto', marginBottom: 24 },
+  alFondo:      { marginTop: 'auto', },
   sectionLabel: { marginTop: Spacing[5], marginBottom: Spacing[2] },
   inputCard:    {
     flexDirection: 'row', alignItems: 'center', gap: 10,

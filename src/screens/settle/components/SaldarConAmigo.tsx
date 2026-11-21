@@ -30,7 +30,7 @@ export function SaldarConAmigo({ amigoId }: { amigoId: string }) {
   const { pagos, totales, confirmar, puedeGuardar } = useSaldoConAmigo(amigoId);
 
   return (
-    <SafeAreaView edges={['bottom']} style={[styles.safe, { backgroundColor: c.bg }]}>
+    <SafeAreaView edges={[]} style={[styles.safe, { backgroundColor: c.bg }]}>
       <DetailHeader icon="close" title={t('settle.title')} onBack={() => router.back()} />
       <ScrollView contentContainerStyle={[styles.scroll, { paddingTop: Spacing[4] + relleno }]}>
         <TarjetaTransferencia fromId={yo} toId={amigoId} onPressFrom={undefined} onPressTo={undefined} />

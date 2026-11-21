@@ -46,7 +46,7 @@ export function BarraDeHerramientas({
   const activo = (on: boolean) => (on ? c.brand.primary : c.textSecondary);
 
   return (
-    <View style={[styles.barra, {
+    <View testID="barra-herramientas" style={[styles.barra, {
       backgroundColor: c.surfaceRaised, borderColor: c.edgeLight, borderRadius: skin.radius.panel,
       boxShadow: skin.elevation.e2.boxShadow,
     }]}>
@@ -87,7 +87,7 @@ export function BarraDeHerramientas({
 const styles = StyleSheet.create({
   barra: {
     flexDirection: 'row', alignItems: 'center', gap: 2,
-    marginHorizontal: Spacing.screenPad, marginBottom: Spacing[3], marginTop: Spacing[2],
+    marginHorizontal: Spacing.screenPad, marginTop: Spacing[2],
     height: 56, paddingHorizontal: 6, borderWidth: 1, borderCurve: 'continuous',
   },
   chip: {
