@@ -12,7 +12,7 @@ import { useSkinTokens } from '@/src/skins/useSkin';
  * consumidores no repitan el `if` de skin (T-282). `MenuAnclado` no sabe de skins.
  */
 export function SelectorAdaptativo<V>({
-  visible, onClose, ancla, opciones, seleccionado, onElegir, titulo, accessibilityLabel, testID,
+  visible, onClose, ancla, opciones, seleccionado, onElegir, titulo, accessibilityLabel, etiquetaCerrar, testID,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -23,6 +23,8 @@ export function SelectorAdaptativo<V>({
   /** Sólo lo usa la hoja (Clásico). */
   titulo: string;
   accessibilityLabel?: string;
+  /** Etiqueta ya traducida del velo del menú (sólo Aero). */
+  etiquetaCerrar: string;
   testID?: string;
 }) {
   const soft = useSkinTokens().flags.soft;
@@ -32,7 +34,7 @@ export function SelectorAdaptativo<V>({
       <MenuAnclado
         visible={visible} onClose={onClose} ancla={ancla} opciones={opciones}
         seleccionado={seleccionado} onElegir={onElegir}
-        accessibilityLabel={accessibilityLabel ?? titulo} testID={testID}
+        accessibilityLabel={accessibilityLabel ?? titulo} etiquetaCerrar={etiquetaCerrar} testID={testID}
       />
     );
   }

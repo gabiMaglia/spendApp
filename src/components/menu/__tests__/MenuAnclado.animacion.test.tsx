@@ -32,7 +32,7 @@ const mockElegir = jest.fn();
 const menu = (visible: boolean) => (
   <MenuAnclado
     visible={visible} onClose={() => {}} ancla={ancla} opciones={OPS}
-    onElegir={mockElegir} accessibilityLabel="m" testID="m"
+    onElegir={mockElegir} accessibilityLabel="m" etiquetaCerrar="x" testID="m"
   />
 );
 /** Abre y deja el menú ya posicionado y mostrándose (medición + 2 frames sin layout). */

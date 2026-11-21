@@ -28,12 +28,12 @@ describe('SelectorCategoria', () => {
   });
 
   it('el disparador es un botón con etiqueta y estado expandido', () => {
-    const { getByRole } = render(<SelectorCategoria value="food" onChange={jest.fn()} />);
-    const boton = getByRole('button');
+    const { getByTestId } = render(<SelectorCategoria value="food" onChange={jest.fn()} />);
+    const boton = getByTestId('selector-categoria-boton');
     expect(boton.props.accessibilityLabel).toContain('expense.category_selector_label');
     expect(boton.props.accessibilityState.expanded).toBe(false);
     fireEvent.press(boton);
-    expect(getByRole('button').props.accessibilityState.expanded).toBe(true);
+    expect(getByTestId('selector-categoria-boton').props.accessibilityState.expanded).toBe(true);
   });
 
   it('abre el menú con las categorías de gasto y la actual seleccionada', () => {

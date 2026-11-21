@@ -62,7 +62,8 @@ export function SelectorCategoria({
         visible={abierto} onClose={() => setAbierto(false)} ancla={ancla}
         opciones={opciones} seleccionado={value} onElegir={elegir}
         titulo={t('expense.category_selector_label')}
-        accessibilityLabel={t('expense.category_selector_label')} testID="selector-categoria"
+        accessibilityLabel={t('expense.category_selector_label')} etiquetaCerrar={t('common.close')}
+        testID="selector-categoria"
       />
     </>
   );

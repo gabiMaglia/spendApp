@@ -21,11 +21,13 @@ export type MenuAncladoProps<V> = {
   seleccionado?: V;
   onElegir: (v: V) => void;
   accessibilityLabel: string;
+  /** Etiqueta (ya traducida) del velo, que para el lector de pantalla es el botón «cerrar». */
+  etiquetaCerrar: string;
   testID?: string;
 };
 
 export function MenuAnclado<V>({
-  visible, onClose, ancla, opciones, seleccionado, onElegir, accessibilityLabel, testID,
+  visible, onClose, ancla, opciones, seleccionado, onElegir, accessibilityLabel, etiquetaCerrar, testID,
 }: MenuAncladoProps<V>) {
   const c = useColors();
   const { skin, degradado } = useSkin();
@@ -64,12 +66,14 @@ export function MenuAnclado<V>({
         <Pressable
           testID={testID ? `${testID}-velo` : undefined}
           style={StyleSheet.absoluteFillObject}
+          accessibilityRole="button" accessibilityLabel={etiquetaCerrar}
           onPress={onClose}
         />
       </Animated.View>
       <Animated.View
         pointerEvents={tocable ? 'auto' : 'none'}
         testID={testID} accessibilityRole="menu" accessibilityLabel={accessibilityLabel}
+        onAccessibilityEscape={onClose}
         style={[
           styles.menu,
           {

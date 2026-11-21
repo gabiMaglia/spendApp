@@ -37,7 +37,7 @@ function montar(extra: Partial<React.ComponentProps<typeof MenuAnclado<string>>>
   const r = render(
     <MenuAnclado
       visible onClose={onClose} ancla={ANCLA} opciones={OPCIONES} seleccionado="b"
-      onElegir={onElegir} accessibilityLabel="Menú de prueba" testID="m" {...extra}
+      onElegir={onElegir} accessibilityLabel="Menú de prueba" etiquetaCerrar="Cerrar" testID="m" {...extra}
     />,
   );
   // Medido y posicionado: antes de eso el menú es invisible y no recibe toques.
@@ -89,6 +89,20 @@ describe('MenuAnclado — contenido, selección y cierre', () => {
     expect(onElegir).not.toHaveBeenCalled();
   });
 
+  it('el gesto de escape de VoiceOver cierra el menú', () => {
+    const { getByTestId, onClose, onElegir } = montar();
+    getByTestId('m').props.onAccessibilityEscape();
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onElegir).not.toHaveBeenCalled();
+  });
+
+  it('el velo es un botón con la etiqueta ya traducida', () => {
+    const { getByTestId } = montar({ etiquetaCerrar: 'Cerrar menú' });
+    const velo = getByTestId('m-velo');
+    expect(velo.props.accessibilityRole).toBe('button');
+    expect(velo.props.accessibilityLabel).toBe('Cerrar menú');
+  });
+
   it('el back de Android (onRequestClose) cierra', () => {
     const { UNSAFE_getByType, onClose } = montar();
     UNSAFE_getByType(Modal).props.onRequestClose();
@@ -130,7 +144,7 @@ describe('MenuAnclado — medición, posición y regla de alto', () => {
     const r = render(
       <MenuAnclado
         visible onClose={onClose} ancla={ancla} opciones={ops(n)}
-        onElegir={jest.fn()} accessibilityLabel="m" testID="m"
+        onElegir={jest.fn()} accessibilityLabel="m" etiquetaCerrar="x" testID="m"
       />,
     );
     act(() => { jest.runOnlyPendingTimers(); });
@@ -175,7 +189,7 @@ describe('MenuAnclado — medición, posición y regla de alto', () => {
     rerender(
       <MenuAnclado
         visible onClose={onClose} ancla={ancla}
-        opciones={ops(3)} onElegir={jest.fn()} accessibilityLabel="m" testID="m"
+        opciones={ops(3)} onElegir={jest.fn()} accessibilityLabel="m" etiquetaCerrar="x" testID="m"
       />,
     );
     expect(onClose).toHaveBeenCalled();
@@ -194,7 +208,7 @@ describe('MenuAnclado — medición, posición y regla de alto', () => {
     const r = render(
       <MenuAnclado
         visible onClose={jest.fn()} ancla={anclaFalsa({ x: 20, y: 100, width: 300, height: 48 })}
-        opciones={ops(3)} onElegir={jest.fn()} accessibilityLabel="m" testID="m"
+        opciones={ops(3)} onElegir={jest.fn()} accessibilityLabel="m" etiquetaCerrar="x" testID="m"
       />,
     );
     act(() => { jest.runOnlyPendingTimers(); }); // medir el ancla
@@ -213,7 +227,7 @@ describe('MenuAnclado — no se elige dos veces ni a ciegas', () => {
   const el = (visible: boolean, onElegir: jest.Mock, onClose: jest.Mock) => (
     <MenuAnclado
       visible={visible} onClose={onClose} ancla={ancla} opciones={ops}
-      onElegir={onElegir} accessibilityLabel="m" testID="m"
+      onElegir={onElegir} accessibilityLabel="m" etiquetaCerrar="x" testID="m"
     />
   );
   /** `listo`: ya medido (posición), o sólo el frame invisible de medición. */

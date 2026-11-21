@@ -21,7 +21,7 @@ function montar() {
     <SelectorAdaptativo
       visible onClose={onClose} ancla={{ current: null }} opciones={OPCIONES}
       seleccionado="a" onElegir={onElegir} titulo="Título de hoja"
-      accessibilityLabel="Selector" testID="sel"
+      accessibilityLabel="Selector" etiquetaCerrar="Cerrar" testID="sel"
     />,
   );
   return { ...r, onClose, onElegir };
