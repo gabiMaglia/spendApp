@@ -297,6 +297,7 @@
     "friend_confirm_ok": "Settle all"
   },
   "activity": {
+    "see_more": "See more ({{count}})",
     "title": "Activity",
     "filter_all": "All",
     "filter_personal": "Personal",
