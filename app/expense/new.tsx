@@ -29,6 +29,8 @@ import { HeroMonto } from '@/src/screens/expense/components/HeroMonto';
 import { CategoriaChips, DescripcionCard } from '@/src/screens/expense/components/DescripcionYCategorias';
 import { BloquePagador } from '@/src/screens/expense/components/BloquePagador';
 import { BloqueReparto } from '@/src/screens/expense/components/BloqueReparto';
+import { useBaseInferior } from '@/src/hooks/useBaseInferior';
+import { RecurrencePicker } from '@/src/components/RecurrencePicker';
 import { PieDeGuardar } from '@/src/screens/expense/components/PieDeGuardar';
 import { BarraUtilidades } from '@/src/screens/expense/components/BarraUtilidades';
 import { HojasDeGasto, type HojaAbierta } from '@/src/screens/expense/components/HojasDeGasto';
@@ -51,6 +53,7 @@ import { BarraDeHerramientas } from '@/src/screens/expense/components/BarraDeHer
 export default function NewExpenseScreen() {
   const { t } = useTranslation();
   const c = useColors();
+  const base = useBaseInferior();
   // Aero: alta con la estructura de Splitwise (feat/reskin, variante B4).
   // Clásico conserva su formulario de bloques abiertos (T-210).
   const soft = useSkinTokens().flags.soft;
@@ -165,11 +168,11 @@ export default function NewExpenseScreen() {
     }
   }
 
-  // Aero: Guardar queda fijo debajo de la barra, fuera del scroll; en
-  // Clásico sigue al pie del formulario.
+  // Guardar queda fijo sobre la barra, fuera del scroll, en ambos skins
+  // (Repetir de Clásico se queda en el formulario.)
   const pie = (
     <PieDeGuardar
-      conRepetir={!soft}
+      conRepetir={false}
       isEditMode={isEditMode}
       isPro={isPro}
       dailyCount={dailyCount}
@@ -186,7 +189,7 @@ export default function NewExpenseScreen() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <SafeAreaView edges={['bottom']} style={[styles.safe, { backgroundColor: c.bg }]}>
+    <SafeAreaView edges={[]} style={[styles.safe, { backgroundColor: c.bg }]}>
       {/* B3 (lote 2026-09-28): sin `behavior` en Android — Expo deja
           `windowSoftInputMode` en `adjustResize` y el SO ya redimensiona; sumarle
           `behavior="height"` hacía competir dos mecanismos y la fila de chips
@@ -286,38 +289,41 @@ export default function NewExpenseScreen() {
             </>
           )}
 
-          {!soft && pie}
+          {/* Clásico: Repetir queda en el formulario; Guardar sube al pie fijo. */}
+          {!soft && !isEditMode && <RecurrencePicker value={recurrence} onChange={setRecurrence} />}
         </ScrollView>
 
-        {soft ? (
-          <BarraDeHerramientas
-            date={date}
-            onOpenDate={() => setHoja('fecha')}
-            recurrence={recurrence}
-            onOpenRecurrence={() => setHoja('repetir')}
-            showRecurrence={!isEditMode}
-            receiptUri={receiptUri}
-            onReceiptChange={setReceiptUri}
-            note={note}
-            onOpenNote={() => setHoja('nota')}
-          />
-        ) : (
-          <BarraUtilidades
-            receiptUri={receiptUri}
-            onReceiptChange={setReceiptUri}
-            note={note}
-            onOpenNote={() => setHoja('nota')}
-            isIncome={isIncome}
-            isEditMode={isEditMode}
-            groupName={group?.name ?? t('expense.no_group_short')}
-            onOpenGroup={() => setHoja('grupo')}
-            date={date}
-            onOpenDate={() => setHoja('fecha')}
-          />
-        )}
-        {/* Aero: Guardar va al final, debajo de las herramientas, donde llega
-            el pulgar (PO 2026-10-11). */}
-        {soft && <View style={styles.pieAero}>{pie}</View>}
+        {/* Guardar arriba y la barra en la base de la píldora (T-281, PO 2026-11-21).
+            Mismo anclaje en los dos skins (PO 2026-11-21). */}
+        <View style={styles.pieAero}>{pie}</View>
+        <View style={{ paddingBottom: base }}>
+          {soft ? (
+            <BarraDeHerramientas
+              date={date}
+              onOpenDate={() => setHoja('fecha')}
+              recurrence={recurrence}
+              onOpenRecurrence={() => setHoja('repetir')}
+              showRecurrence={!isEditMode}
+              receiptUri={receiptUri}
+              onReceiptChange={setReceiptUri}
+              note={note}
+              onOpenNote={() => setHoja('nota')}
+            />
+          ) : (
+            <BarraUtilidades
+              receiptUri={receiptUri}
+              onReceiptChange={setReceiptUri}
+              note={note}
+              onOpenNote={() => setHoja('nota')}
+              isIncome={isIncome}
+              isEditMode={isEditMode}
+              groupName={group?.name ?? t('expense.no_group_short')}
+              onOpenGroup={() => setHoja('grupo')}
+              date={date}
+              onOpenDate={() => setHoja('fecha')}
+            />
+          )}
+        </View>
       </KeyboardAvoidingView>
 
       <HojasDeGasto

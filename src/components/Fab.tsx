@@ -2,10 +2,10 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BottomTabBarHeightContext } from '@react-navigation/bottom-tabs';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { hapticLight } from '@/src/utils/haptics';
+import { useBaseInferior } from '@/src/hooks/useBaseInferior';
 import { useRellenoBarraPestanas } from '@/src/hooks/useRellenoBarraPestanas';
 import { useColors } from '@/src/skins/useSkin';
 
@@ -24,30 +24,32 @@ export const FAB_HEIGHT = 48;
 /**
  * Cuánto separar el FAB del borde inferior de la pantalla.
  *
- * ⚠️ **Fuera de las pestañas hay que sumar el inset del sistema.** `FabRow` es absoluto, y
+ * Fuera de las pestañas es la base de la píldora (T-281), que ya cuenta el inset del sistema.
+ * ⚠️ **Hay que usarla en vez de confiar en el SafeAreaView.** `FabRow` es absoluto, y
  * un hijo absoluto se ubica contra el borde del contenedor, NO contra su padding: el
  * `SafeAreaView` de la pantalla no lo corre. En «Agregar contacto» el botón quedaba debajo
  * de la barra de tres botones de Android (2026-09-12). Dentro de las pestañas no pasa: la
  * tab bar ya ocupa esa franja, y sumarlo lo dejaría flotando de más.
  */
 export function separacionInferiorDelFab(
-  { dentroDePestanas, insetInferior, barraFlotante = 0 }: {
+  { dentroDePestanas, baseInferior, barraFlotante = 0 }: {
     dentroDePestanas: boolean;
-    insetInferior: number;
+    /** Base de la píldora (`useBaseInferior`): ya incluye el inset del sistema. */
+    baseInferior: number;
     /** Alto de la barra de pestañas cuando flota sobre el contenido (Aero). */
     barraFlotante?: number;
   },
 ): number {
-  return FAB_BOTTOM_GAP + (dentroDePestanas ? barraFlotante : insetInferior);
+  return dentroDePestanas ? FAB_BOTTOM_GAP + barraFlotante : baseInferior;
 }
 
 /** Posiciona uno o más `<Fab>` abajo: sobre la tab bar, o sobre la barra del sistema. */
 export function FabRow({ children }: { children: React.ReactNode }) {
   // La tab bar publica su alto en este contexto; afuera de las pestañas es `undefined`.
   const dentroDePestanas = React.useContext(BottomTabBarHeightContext) !== undefined;
-  const insets = useSafeAreaInsets();
+  const base = useBaseInferior();
   const barraFlotante = useRellenoBarraPestanas();
-  const bottom = separacionInferiorDelFab({ dentroDePestanas, insetInferior: insets.bottom, barraFlotante });
+  const bottom = separacionInferiorDelFab({ dentroDePestanas, baseInferior: base, barraFlotante });
   return (
     <View testID="fab-row" pointerEvents="box-none" style={[styles.row, { bottom }]}>
       {children}

@@ -8,6 +8,7 @@ import { DetailHeader, useRellenoDetailHeader } from '@/src/components/Collapsib
 import { Spacing } from '@/src/constants/spacing';
 import { ActionButton } from '@/src/components/ActionButton';
 import { ButtonRack } from '@/src/components/ButtonRack';
+import { useBaseInferior } from '@/src/hooks/useBaseInferior';
 import { topeDelSaldo, excedeElTope } from '@/src/algorithms/settleScope';
 import type { CurrencyCode } from '@/src/constants/currencies';
 import { useAmountInput } from '@/src/hooks/useAmountInput';
@@ -47,6 +48,7 @@ export default function SettleNewScreen() {
 function SaldarEnGrupo() {
   const { t } = useTranslation();
   const c = useColors();
+  const base = useBaseInferior();
   // Aero: el header flota y el contenido arranca debajo de su tarjeta (T-227).
   const relleno = useRellenoDetailHeader();
 
@@ -170,7 +172,7 @@ function SaldarEnGrupo() {
   }
 
   return (
-    <SafeAreaView edges={['bottom']} style={[styles.safe, { backgroundColor: c.bg }]}>
+    <SafeAreaView edges={[]} style={[styles.safe, { backgroundColor: c.bg }]}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
 
         <DetailHeader icon="close" title={t('settle.title')} onBack={() => router.back()} />
@@ -220,7 +222,7 @@ function SaldarEnGrupo() {
           {/* El botón de la app, no un Pressable con estilo propio: es la
               regla del proyecto y lo que hace que «guardar» se vea igual en
               todas las pantallas. */}
-          <ButtonRack placement="inline" style={styles.alFondo}>
+          <ButtonRack placement="inline" style={[styles.alFondo, { marginBottom: base }]}>
             <ActionButton
               testID="settle-save"
               label={t('settle.title')}
@@ -258,6 +260,6 @@ const styles = StyleSheet.create({
   // 2026-09-29): `marginTop: 'auto'` absorbe el alto que sobra; necesita el
   // `flexGrow: 1` del contenedor del scroll.
   // `inline`: el scroll ya pone el aire lateral; `bottom` lo sumaba otra vez y
-  // el botón quedaba más angosto que el resto. Los 24 de abajo, a mano.
-  alFondo: { marginTop: 'auto', marginBottom: 24 },
+  // el botón quedaba más angosto que el resto. El margen de abajo es la base de la píldora (T-281).
+  alFondo: { marginTop: 'auto' },
 });
