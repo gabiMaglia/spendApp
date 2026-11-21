@@ -1,5 +1,6 @@
 import React from 'react';
-import { fireEvent, render } from '@testing-library/react-native';
+import { act, fireEvent, render } from '@testing-library/react-native';
+import { ASENTAR_MS } from '@/src/components/menu/AbanicoCubos';
 import NewExpenseScreen from '@/app/expense/new';
 import { useAuthStore } from '@/src/store/authStore';
 import { usePersonalStore } from '@/src/store/personalStore';
@@ -16,7 +17,7 @@ import type { User } from '@/src/types/models';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock'));
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-jest.mock('@/src/components/menu/usePosicionMenu', () => require('@/src/test-utils/menuPosicionado').menuPosicionado);
+jest.mock('@/src/components/menu/useRectAncla', () => require('@/src/test-utils/rectAnclaFalso').rectAnclaFalso);
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
 
 let mockSearchParams: Record<string, string | undefined> = {};
@@ -70,15 +71,34 @@ describe('T-103.A — ingresos sin categoría', () => {
     );
   });
 
+  it('un gasto se guarda con la categoría elegida desde el cubo', () => {
+    mockSearchParams = { allowIncome: '1' };
+    const addEntry = jest.fn();
+    usePersonalStore.setState({ addEntry });
+    const { getByPlaceholderText, getByText, getByTestId, getByLabelText } = render(<NewExpenseScreen />);
+    jest.useFakeTimers();
+    fireEvent.press(getByTestId('selector-categoria-boton'));
+    act(() => { jest.advanceTimersByTime(ASENTAR_MS + 50); });
+    fireEvent.press(getByLabelText('categories.taxes'));
+    jest.useRealTimers();
+
+    llenarYGuardar(getByPlaceholderText, getByText, 'expense.description_placeholder');
+
+    expect(addEntry).toHaveBeenCalledWith(expect.objectContaining({ kind: 'expense', category: 'taxes' }));
+  });
+
   it('elegir una categoría en Gasto y cambiar a Ingreso guarda "otros"', () => {
     mockSearchParams = { allowIncome: '1' };
     const addEntry = jest.fn();
     usePersonalStore.setState({ addEntry });
-    const { getByPlaceholderText, getByText, getByTestId } = render(<NewExpenseScreen />);
+    const { getByPlaceholderText, getByText, getByTestId, getByLabelText } = render(<NewExpenseScreen />);
 
     // Elige una categoría de gasto explícita, distinta de "otros" (abre el menú y elige).
+    jest.useFakeTimers();
     fireEvent.press(getByTestId('selector-categoria-boton'));
-    fireEvent.press(getByText('categories.food'));
+    act(() => { jest.advanceTimersByTime(ASENTAR_MS + 50); });
+    fireEvent.press(getByLabelText('categories.food'));
+    jest.useRealTimers();
     // Cambia a Ingreso.
     fireEvent.press(getByText('expense.kind_income'));
 

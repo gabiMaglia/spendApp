@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Keyboard, useWindowDimensions, type View } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useWindowDimensions, type View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   BORDE_MENU, MAX_FILAS_COMPLETAS, altoVisibleMenu, calcularPosicionMenu,
 } from '@/src/components/menu/calcularPosicionMenu';
-import type { Posicion, Rect } from '@/src/components/menu/tipos';
+import { useRectAncla } from '@/src/components/menu/useRectAncla';
+import type { Posicion } from '@/src/components/menu/tipos';
 
 /** Alto de reserva de una fila si el sistema no reporta layout (Android, primer frame en 0). */
 const ALTO_FILA_MINIMO = 56;
@@ -23,33 +24,13 @@ export function usePosicionMenu({ visible, ancla, cantidad, onCerrar }: {
 }) {
   const ventana = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const [rect, setRect] = useState<Rect | null>(null);
+  const rect = useRectAncla({ visible, ancla, onCerrar });
   const [alturas, setAlturas] = useState<number[]>([]);
   const [sinLayout, setSinLayout] = useState(false);
-  const ventanaAlAbrir = useRef<{ width: number; height: number } | null>(null);
   const filasAMedir = Math.min(cantidad, MAX_FILAS_COMPLETAS);
   const completo = alturas.length >= filasAMedir && alturas.slice(0, filasAMedir).every(h => h > 0);
 
-  useEffect(() => {
-    // Al cerrar NO se limpia: la animación de salida necesita seguir en su lugar.
-    if (!visible) { ventanaAlAbrir.current = null; return; }
-    setRect(null); setAlturas([]); setSinLayout(false);
-    // R2: sin teclado, y se mide en el frame siguiente (ya se replegó).
-    Keyboard.dismiss();
-    ventanaAlAbrir.current = { width: ventana.width, height: ventana.height };
-    const f = requestAnimationFrame(() => {
-      ancla.current?.measureInWindow((x, y, width, height) => setRect({ x, y, width, height }));
-    });
-    return () => cancelAnimationFrame(f);
-    // Sólo al abrir: las dimensiones se vigilan en el efecto de abajo.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible, ancla]);
-
-  // La app es vertical, pero si la ventana cambia el ancla medida ya no vale.
-  useEffect(() => {
-    const base = ventanaAlAbrir.current;
-    if (visible && base && (base.width !== ventana.width || base.height !== ventana.height)) onCerrar();
-  }, [visible, ventana.width, ventana.height, onCerrar]);
+  useEffect(() => { if (visible) { setAlturas([]); setSinLayout(false); } }, [visible]);
 
   // Si en 2 frames no llegó ningún layout, se sigue con el alto mínimo.
   useEffect(() => {

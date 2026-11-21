@@ -1,7 +1,8 @@
 import React from 'react';
-import { fireEvent, render } from '@testing-library/react-native';
+import { act, fireEvent, render } from '@testing-library/react-native';
+import { ASENTAR_MS } from '@/src/components/menu/AbanicoCubos';
 import { CATEGORIES } from '@/src/screens/expense/repartoDeGasto';
-import { SelectorCategoria } from '@/src/screens/expense/components/SelectorCategoria';
+import { TarjetaDescripcionMonto } from '@/src/screens/expense/components/TarjetaDescripcionMonto';
 import { CategoryIcon } from '@/src/components/CategoryIcon';
 import { Colors } from '@/src/constants/colors';
 import { useSettingsStore } from '@/src/store/settingsStore';
@@ -12,7 +13,7 @@ import pt from '@/src/i18n/locales/pt.json';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock'));
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-jest.mock('@/src/components/menu/usePosicionMenu', () => require('@/src/test-utils/menuPosicionado').menuPosicionado);
+jest.mock('@/src/components/menu/useRectAncla', () => require('@/src/test-utils/rectAnclaFalso').rectAnclaFalso);
 
 /** Categoría «Impuestos» (PO 2026-11-03), al lado de «Servicios» en la grilla. */
 describe('categoría Impuestos', () => {
@@ -35,9 +36,17 @@ describe('categoría Impuestos', () => {
   it('se puede elegir en el selector', () => {
     useSettingsStore.setState({ skin: 'aero' });
     const onChange = jest.fn();
-    const { getByRole, getAllByText } = render(<SelectorCategoria value="food" onChange={onChange} />);
-    fireEvent.press(getByRole('button'));
-    fireEvent.press(getAllByText('categories.taxes')[0]);
+    const { getByTestId, getByLabelText } = render(
+      <TarjetaDescripcionMonto
+        category="food" onCategoryChange={onChange} isIncome={false} currency="ARS" description=""
+        onDescriptionChange={jest.fn()} amount="" onAmountChange={jest.fn()} onAmountBlur={jest.fn()}
+      />,
+    );
+    jest.useFakeTimers();
+    fireEvent.press(getByTestId('selector-categoria-boton'));
+    act(() => { jest.advanceTimersByTime(ASENTAR_MS + 50); });
+    fireEvent.press(getByLabelText('categories.taxes'));
+    jest.useRealTimers();
     expect(onChange).toHaveBeenCalledWith('taxes');
   });
 

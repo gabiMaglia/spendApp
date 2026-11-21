@@ -114,6 +114,9 @@ describe('Alta de gasto estilo Splitwise (Aero)', () => {
     expect(r.queryByTestId('frase-pagador')).toBeNull();
     // Clásico conserva sus chips inline: sin disparador de menú.
     expect(r.queryByTestId('selector-categoria-boton')).toBeNull();
-    expect(r.getByText('categories.food')).toBeTruthy();
+    // Los chips siguen ahí y tocar uno no abre ningún abanico.
+    fireEvent.press(r.getByText('categories.food'));
+    expect(r.queryByTestId('selector-categoria-velo')).toBeNull();
+    expect(r.queryAllByRole('menuitem')).toHaveLength(0);
   });
 });

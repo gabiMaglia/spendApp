@@ -8,7 +8,7 @@ import type { Posicion } from '@/src/components/menu/tipos';
 
 export const ENTRADA_MS = 160;
 export const SALIDA_MS = 110;
-const FUNDIDO_MS = 90;
+export const FUNDIDO_MS = 90;
 const ESCALA_INICIAL = 0.92;
 
 /**

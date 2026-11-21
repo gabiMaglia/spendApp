@@ -38,7 +38,6 @@ import { HojasSplitwise } from '@/src/screens/expense/components/HojasSplitwise'
 import { SelectorDeTipo } from '@/src/screens/expense/components/SelectorDeTipo';
 import { ConQuien } from '@/src/screens/expense/components/ConQuien';
 import { TarjetaDescripcionMonto } from '@/src/screens/expense/components/TarjetaDescripcionMonto';
-import { SelectorCategoria } from '@/src/screens/expense/components/SelectorCategoria';
 import { FraseDeReparto } from '@/src/screens/expense/components/FraseDeReparto';
 import { BarraDeHerramientas } from '@/src/screens/expense/components/BarraDeHerramientas';
 
@@ -219,6 +218,7 @@ export default function NewExpenseScreen() {
               )}
               <TarjetaDescripcionMonto
                 category={category}
+                onCategoryChange={setCategory}
                 isIncome={isIncome}
                 currency={currency}
                 onCurrencyChange={monedaEditable ? setCurrency : undefined}
@@ -229,7 +229,6 @@ export default function NewExpenseScreen() {
                 onAmountBlur={onAmountBlur}
                 sinDecimales={decimalesNoAdmitidos}
               />
-              {!isIncome && <SelectorCategoria value={category} onChange={setCategory} />}
               {hasGroup && (
                 <FraseDeReparto
                   payerLabel={payerLabel}

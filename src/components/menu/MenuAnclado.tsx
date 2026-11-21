@@ -1,5 +1,5 @@
-import React, { useEffect, useRef } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import React from 'react';
+import { Modal, ScrollView, StyleSheet, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
 import { Spacing } from '@/src/constants/spacing';
@@ -7,11 +7,11 @@ import { useColors, useSkin } from '@/src/skins/useSkin';
 import { SheetOption, SheetOptionAvatar } from '@/src/components/Sheet';
 import { FilaMenu } from '@/src/components/menu/FilaMenu';
 import { useAnimacionMenu } from '@/src/components/menu/useAnimacionMenu';
+import { VeloMenu } from '@/src/components/menu/VeloMenu';
+import { useEleccionUnica } from '@/src/components/menu/useEleccionUnica';
 import { usePosicionMenu } from '@/src/components/menu/usePosicionMenu';
 import { BORDE_MENU, MAX_FILAS_COMPLETAS } from '@/src/components/menu/calcularPosicionMenu';
 import type { OpcionMenu } from '@/src/components/menu/tipos';
-
-const SCRIM = 'rgba(12, 16, 14, 0.5)';
 
 export type MenuAncladoProps<V> = {
   visible: boolean;
@@ -39,39 +39,21 @@ export function MenuAnclado<V>({
     visible, listo: !!posicion, lado: posicion?.lado,
   });
 
-  // Se puede tocar sólo abierto y medido: ni el frame invisible de medición ni la
-  // salida (110 ms montado) eligen, y un doble toque elige una sola vez.
-  const tocable = visible && !!posicion;
-  const elegido = useRef(false);
-  useEffect(() => { if (visible) elegido.current = false; }, [visible]);
+  const elegir = useEleccionUnica<V>({ visible, tocable: visible && !!posicion, onElegir, onClose });
 
   if (!montado) return null;
-
-  const elegir = (v: V) => {
-    if (!tocable || elegido.current) return;
-    elegido.current = true;
-    onElegir(v);
-    onClose();
-  };
 
   return (
     <Modal
       transparent animationType="none" onRequestClose={onClose}
       statusBarTranslucent navigationBarTranslucent
     >
+      <VeloMenu
+        visible={visible} estilo={estiloVelo} onClose={onClose} etiquetaCerrar={etiquetaCerrar}
+        testID={testID ? `${testID}-velo` : undefined}
+      />
       <Animated.View
-        pointerEvents={visible ? 'auto' : 'none'}
-        style={[StyleSheet.absoluteFillObject, { backgroundColor: SCRIM }, estiloVelo]}
-      >
-        <Pressable
-          testID={testID ? `${testID}-velo` : undefined}
-          style={StyleSheet.absoluteFillObject}
-          accessibilityRole="button" accessibilityLabel={etiquetaCerrar}
-          onPress={onClose}
-        />
-      </Animated.View>
-      <Animated.View
-        pointerEvents={tocable ? 'auto' : 'none'}
+        pointerEvents={visible && posicion ? 'auto' : 'none'}
         testID={testID} accessibilityRole="menu" accessibilityLabel={accessibilityLabel}
         onAccessibilityEscape={onClose}
         style={[
