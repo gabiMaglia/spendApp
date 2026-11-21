@@ -1,8 +1,12 @@
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
 
 import { TarjetaDescripcionMonto } from '../TarjetaDescripcionMonto';
 import { CATEGORIES } from '@/src/screens/expense/repartoDeGasto';
+import { ASENTAR_MS } from '@/src/components/menu/AbanicoCubos';
+import es from '@/src/i18n/locales/es.json';
+import en from '@/src/i18n/locales/en.json';
+import pt from '@/src/i18n/locales/pt.json';
 import { hapticSelection } from '@/src/utils/haptics';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -17,7 +21,14 @@ const base = {
 };
 
 describe('cubo de categoría de la tarjeta (T-283)', () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => { jest.clearAllMocks(); jest.useFakeTimers(); });
+  afterEach(() => { jest.useRealTimers(); });
+
+  /** Abre el cubo y espera a que la entrada asiente (antes no recibe toques). */
+  const abrir = () => {
+    fireEvent.press(screen.getByTestId('selector-categoria-boton'));
+    act(() => { jest.advanceTimersByTime(ASENTAR_MS + 50); });
+  };
 
   it('en gasto el cubo es un botón con la categoría y sin el abanico abierto', () => {
     render(<TarjetaDescripcionMonto {...base} onCategoryChange={jest.fn()} />);
@@ -40,7 +51,7 @@ describe('cubo de categoría de la tarjeta (T-283)', () => {
   it('elegir otra llama onCategoryChange, da háptico y recoge', () => {
     const onCategoryChange = jest.fn();
     render(<TarjetaDescripcionMonto {...base} onCategoryChange={onCategoryChange} />);
-    fireEvent.press(screen.getByTestId('selector-categoria-boton'));
+    abrir();
     fireEvent.press(screen.getByLabelText('categories.taxes'));
     expect(onCategoryChange).toHaveBeenCalledWith('taxes');
     expect(hapticSelection).toHaveBeenCalledTimes(1);
@@ -49,7 +60,7 @@ describe('cubo de categoría de la tarjeta (T-283)', () => {
 
   it('elegir la misma no da háptico', () => {
     render(<TarjetaDescripcionMonto {...base} onCategoryChange={jest.fn()} />);
-    fireEvent.press(screen.getByTestId('selector-categoria-boton'));
+    abrir();
     fireEvent.press(screen.getByLabelText('categories.food'));
     expect(hapticSelection).not.toHaveBeenCalled();
   });
@@ -61,6 +72,18 @@ describe('cubo de categoría de la tarjeta (T-283)', () => {
     fireEvent.press(screen.getByTestId('selector-categoria-velo'));
     expect(onCategoryChange).not.toHaveBeenCalled();
     expect(screen.queryAllByRole('menuitem')).toHaveLength(0);
+  });
+
+  it('un toque durante la apertura (doble toque sobre el cubo) no cambia la categoría', () => {
+    const onCategoryChange = jest.fn();
+    render(<TarjetaDescripcionMonto {...base} category="other" onCategoryChange={onCategoryChange} />);
+    fireEvent.press(screen.getByTestId('selector-categoria-boton'));
+    fireEvent.press(screen.getAllByRole('menuitem')[0]); // cae sobre el ancla, aún sin asentar
+    expect(onCategoryChange).not.toHaveBeenCalled();
+  });
+
+  it('la etiqueta de accesibilidad del cubo existe en es, en y pt', () => {
+    for (const l of [es, en, pt]) expect(l.expense.category_selector_label).toBeTruthy();
   });
 
   it('en ingreso el cubo no abre nada y no es un botón', () => {

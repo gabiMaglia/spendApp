@@ -1,5 +1,6 @@
 import React from 'react';
-import { fireEvent, render } from '@testing-library/react-native';
+import { act, fireEvent, render } from '@testing-library/react-native';
+import { ASENTAR_MS } from '@/src/components/menu/AbanicoCubos';
 import { CATEGORIES } from '@/src/screens/expense/repartoDeGasto';
 import { TarjetaDescripcionMonto } from '@/src/screens/expense/components/TarjetaDescripcionMonto';
 import { CategoryIcon } from '@/src/components/CategoryIcon';
@@ -41,8 +42,11 @@ describe('categoría Impuestos', () => {
         onDescriptionChange={jest.fn()} amount="" onAmountChange={jest.fn()} onAmountBlur={jest.fn()}
       />,
     );
+    jest.useFakeTimers();
     fireEvent.press(getByTestId('selector-categoria-boton'));
+    act(() => { jest.advanceTimersByTime(ASENTAR_MS + 50); });
     fireEvent.press(getByLabelText('categories.taxes'));
+    jest.useRealTimers();
     expect(onChange).toHaveBeenCalledWith('taxes');
   });
 
