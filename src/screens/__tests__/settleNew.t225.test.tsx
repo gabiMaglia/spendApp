@@ -1,6 +1,6 @@
 import React from 'react';
 import { Alert } from 'react-native';
-import { fireEvent, render } from '@testing-library/react-native';
+import { act, fireEvent, render } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import SettleNewScreen from '@/app/settle/new';
 import { useAuthStore } from '@/src/store/authStore';
@@ -156,7 +156,7 @@ describe('Saldar desde Amigos: el total, un pago por grupo compartido', () => {
     expect(alerta).toHaveBeenCalledTimes(1);
 
     const botones = alerta.mock.calls[0][2]!;
-    botones.find(b => b.style !== 'cancel')!.onPress!();
+    act(() => { botones.find(b => b.style !== 'cancel')!.onPress!(); });
 
     const pagos = pagosGuardados().map(p => ({
       groupId: p.groupId, from: p.fromUserId, to: p.toUserId, amount: p.amount, currency: p.currency,
@@ -165,7 +165,10 @@ describe('Saldar desde Amigos: el total, un pago por grupo compartido', () => {
       { groupId: 'g1', from: 'yo', to: 'ana', amount: 600_000, currency: 'ARS' },
       { groupId: 'g2', from: 'yo', to: 'ana', amount: 300_000, currency: 'ARS' },
     ]);
-    expect(router.back).toHaveBeenCalled();
+    // T-290: guardar abre el momento de cierre; recién al terminar (o tocarlo) se vuelve.
+    expect(router.back).not.toHaveBeenCalled();
+    fireEvent.press(r.getByTestId('momento-exito'));
+    expect(router.back).toHaveBeenCalledTimes(1);
   });
 
   it('cancelar el modal no guarda nada', () => {
