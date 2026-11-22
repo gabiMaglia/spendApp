@@ -51,8 +51,13 @@ describe('CategoryIcon (filas y detalle del gasto)', () => {
     expect(getByTestId('icono-categoria-health-a')).toBeTruthy();
   });
 
-  it.each(['salary', 'freelance'])('la categoría personal de ingreso %s sigue mostrando «other», como antes', k => {
+  it.each(['income', 'salary', 'freelance'])('la categoría personal de ingreso %s usa el ícono de ingreso', k => {
     const { getByTestId } = render(<CategoryIcon kind={k as never} />);
+    expect(getByTestId('icono-categoria-income-a')).toBeTruthy();
+  });
+
+  it('una categoría desconocida cae a «other»', () => {
+    const { getByTestId } = render(<CategoryIcon kind={'zzz' as never} />);
     expect(getByTestId('icono-categoria-other-a')).toBeTruthy();
   });
 });
