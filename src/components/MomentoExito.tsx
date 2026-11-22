@@ -1,10 +1,11 @@
 import React, { useEffect, useRef } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   useAnimatedStyle, useSharedValue, withDelay, withSpring, withTiming,
 } from 'react-native-reanimated';
 
 import type { CurrencyCode } from '@/src/constants/currencies';
+import { RESORTE_MARCA } from '@/src/constants/movimiento';
 import { Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { CheckDibujado } from '@/src/components/CheckDibujado';
@@ -16,8 +17,6 @@ import { useColors } from '@/src/skins/useSkin';
 export const MOMENTO_MS = 900;
 /** Con reducir movimiento: el estado final quieto, lo justo para leerse. */
 export const MOMENTO_REDUCIDO_MS = 600;
-// Mismo resorte que el resto de la app; se unifica con los tokens de movimiento.
-const RESORTE = { stiffness: 560, damping: 38, mass: 1 };
 const APARICION_TEXTO_MS = 180;
 const RETRASO_TEXTO_MS = 200;
 
@@ -37,10 +36,24 @@ type Props = {
   onTerminar: () => void;
 };
 
+/** `null` hasta que el sistema contesta si hay un lector de pantalla activo. */
+function useLectorActivo(): boolean | null {
+  const [activo, setActivo] = React.useState<boolean | null>(null);
+  useEffect(() => {
+    let vivo = true;
+    AccessibilityInfo.isScreenReaderEnabled()
+      .then(v => { if (vivo) setActivo(v); })
+      .catch(() => { if (vivo) setActivo(false); });
+    return () => { vivo = false; };
+  }, []);
+  return activo;
+}
+
 /**
  * Cierre de una acción lograda (T-290): cubre la pantalla con un check que se
  * dibuja, el monto girando a su valor final y una línea de texto. Dura
  * ~900 ms y se saltea tocando; con reducir movimiento aparece ya terminado.
+ * Con lector de pantalla se anuncia y NO se cierra solo: queda hasta que se lo toca.
  */
 export function MomentoExito({ momento, onTerminar }: Props) {
   if (!momento) return null;
@@ -50,6 +63,7 @@ export function MomentoExito({ momento, onTerminar }: Props) {
 function Cuerpo({ momento, onTerminar }: { momento: Momento; onTerminar: () => void }) {
   const c = useColors();
   const reducidas = useAnimacionesReducidas();
+  const lector = useLectorActivo();
   const yaTermino = useRef(false);
   const alTerminar = useRef(onTerminar);
   alTerminar.current = onTerminar;
@@ -65,19 +79,29 @@ function Cuerpo({ momento, onTerminar }: { momento: Momento; onTerminar: () => v
   const sello = useSharedValue(quieto ? 1 : 0.6);
   const texto = useSharedValue(quieto ? 1 : 0);
 
+  // Un solo anuncio por momento (el componente se remonta con cada `clave`).
+  useEffect(() => {
+    AccessibilityInfo.announceForAccessibility(`${momento.titulo}. ${momento.detalle}`);
+  }, [momento.titulo, momento.detalle]);
+
   useEffect(() => {
     // Sin saber todavía si hay que reducir, ni se anima ni corre el reloj.
     if (reducidas === null) return;
     if (!reducidas) {
       aparece.value = withTiming(1, { duration: 120 });
-      sello.value = withSpring(1, RESORTE);
+      sello.value = withSpring(1, RESORTE_MARCA);
       texto.value = withDelay(RETRASO_TEXTO_MS, withTiming(1, { duration: APARICION_TEXTO_MS }));
     } else {
       aparece.value = 1; sello.value = 1; texto.value = 1;
     }
+  }, [reducidas, aparece, sello, texto]);
+
+  useEffect(() => {
+    // Sin saber lo de reducir o lo del lector no corre el reloj; con lector activo se cierra tocando.
+    if (reducidas === null || lector !== false) return;
     const id = setTimeout(terminar, reducidas ? MOMENTO_REDUCIDO_MS : MOMENTO_MS);
     return () => clearTimeout(id);
-  }, [reducidas, aparece, sello, texto, terminar]);
+  }, [reducidas, lector, terminar]);
 
   const estiloFondo = useAnimatedStyle(() => ({ opacity: aparece.value }));
   const estiloSello = useAnimatedStyle(() => ({ transform: [{ scale: sello.value }] }));

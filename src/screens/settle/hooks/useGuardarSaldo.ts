@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { CurrencyCode } from '@/src/constants/currencies';
 import { pagosDelReparto, repartoParejo, type Acreedor } from '@/src/algorithms/repartoSaldo';
 import { motivoDeExceso } from '@/src/services/topeDeRegistro';
-import { hapticSuccess, hapticWarning } from '@/src/utils/haptics';
+import { hapticExito, hapticAdvertencia } from '@/src/utils/haptics';
 import { useMomentoExito } from '@/src/hooks/useMomentoExito';
 import { useUserStore } from '@/src/store/userStore';
 import { armarPago } from '@/src/screens/settle/armarPago';
@@ -46,7 +46,7 @@ export function useGuardarSaldo({
 
   function handleSave() {
     if (!canSave || !currentUser) return;
-    if (exceedsMax) { hapticWarning(); return; }
+    if (exceedsMax) { hapticAdvertencia(); return; }
 
     // Modo "todo": un pago por acreedor. Si el monto no cubre la deuda entera,
     // se reparte parejo — la app OFRECE ese reparto, no lo impone: el usuario
@@ -63,7 +63,7 @@ export function useGuardarSaldo({
         Alert.alert(t('sync.record_too_big_title'), t(motivo));
         return;
       }
-      hapticSuccess();
+      hapticExito();
       for (const pago of pagos) addPayment(pago);
       cerrarConMomento(pagos);
       return;
@@ -77,7 +77,7 @@ export function useGuardarSaldo({
       Alert.alert(t('sync.record_too_big_title'), t(motivo));
       return;
     }
-    hapticSuccess();
+    hapticExito();
     addPayment(nuevo);
     cerrarConMomento([nuevo]);
   }

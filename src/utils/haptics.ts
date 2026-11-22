@@ -36,11 +36,3 @@ export const hapticConfirmar   = () => vibrar('confirmar');
 export const hapticExito       = () => vibrar('exito');
 export const hapticAdvertencia = () => vibrar('advertencia');
 export const hapticDestructivo = () => vibrar('destructivo');
-
-/**
- * @deprecated Nombres viejos, sólo para `src/screens/settle` y `app/settle/new.tsx` (T-290 los
- * está reescribiendo en paralelo). Migrarlos a las funciones por intención y borrar esto.
- */
-export const hapticSuccess = hapticExito;
-export const hapticWarning = hapticAdvertencia;
-export const hapticSelection = hapticSeleccionar;

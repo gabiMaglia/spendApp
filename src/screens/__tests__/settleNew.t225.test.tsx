@@ -208,3 +208,19 @@ describe('Saldar desde Amigos: el total, un pago por grupo compartido', () => {
     expect(r.getByText('settle.friend_nothing')).toBeTruthy();
   });
 });
+
+describe('Momento de cierre en un grupo (T-291)', () => {
+  it('guardar un saldo en grupo abre el momento y recién al tocarlo se vuelve', () => {
+    const r = render(<SettleNewScreen />);
+    expect(r.queryByTestId('momento-exito')).toBeNull();
+
+    fireEvent.press(r.getByTestId('settle-save'));
+
+    expect(pagosGuardados()).toHaveLength(1);
+    expect(r.getByTestId('momento-exito')).toBeTruthy();
+    expect(router.back).not.toHaveBeenCalled();
+
+    fireEvent.press(r.getByTestId('momento-exito'));
+    expect(router.back).toHaveBeenCalledTimes(1);
+  });
+});

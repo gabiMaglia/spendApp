@@ -4,14 +4,14 @@ import { act, renderHook } from '@testing-library/react-native';
 import { useGuardarSaldo } from '@/src/screens/settle/hooks/useGuardarSaldo';
 import { useSaldoConAmigo } from '@/src/screens/settle/hooks/useSaldoConAmigo';
 import { useAuthStore } from '@/src/store/authStore';
-import { hapticSuccess } from '@/src/utils/haptics';
+import { hapticExito } from '@/src/utils/haptics';
 import { motivoDeExceso } from '@/src/services/topeDeRegistro';
 import { pagosParaSaldarConAmigo } from '@/src/algorithms/saldoSinCompensar';
 import type { User } from '@/src/types/models';
 
 jest.mock('expo-router', () => ({ router: { back: jest.fn() } }));
 jest.mock('@/src/utils/haptics', () => ({
-  hapticSuccess: jest.fn(), hapticWarning: jest.fn(), hapticSelection: jest.fn(),
+  hapticExito: jest.fn(), hapticAdvertencia: jest.fn(), hapticSeleccionar: jest.fn(),
 }));
 jest.mock('@/src/services/topeDeRegistro', () => ({ motivoDeExceso: jest.fn(() => null) }));
 jest.mock('@/src/algorithms/saldoSinCompensar', () => ({
@@ -46,7 +46,7 @@ describe('momento de cierre — saldo en grupo (T-290)', () => {
     expect(hook.result.current.momento).toBeNull();
     act(() => { hook.result.current.handleSave(); });
     expect(addPayment).toHaveBeenCalledTimes(1);
-    expect(hapticSuccess).toHaveBeenCalledTimes(1);
+    expect(hapticExito).toHaveBeenCalledTimes(1);
     expect(hook.result.current.momento?.montos).toEqual([{ minor: 4200, code: 'ARS' }]);
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     expect(require('expo-router').router.back).not.toHaveBeenCalled();
@@ -68,7 +68,7 @@ describe('momento de cierre — saldo en grupo (T-290)', () => {
     act(() => { hook.result.current.handleSave(); });
     expect(Alert.alert).toHaveBeenCalledTimes(1);
     expect(addPayment).not.toHaveBeenCalled();
-    expect(hapticSuccess).not.toHaveBeenCalled();
+    expect(hapticExito).not.toHaveBeenCalled();
     expect(hook.result.current.momento).toBeNull();
   });
 
@@ -97,7 +97,7 @@ describe('momento de cierre — saldo con un amigo (T-290)', () => {
     mockPagos.mockReturnValue(pagos);
     const hook = renderHook(() => useSaldoConAmigo('ana'));
     confirmarYAceptar(hook);
-    expect(hapticSuccess).toHaveBeenCalledTimes(1);
+    expect(hapticExito).toHaveBeenCalledTimes(1);
     expect(hook.result.current.momento?.montos).toEqual([
       { minor: 1500, code: 'ARS' }, { minor: 7, code: 'USD' },
     ]);
@@ -111,7 +111,7 @@ describe('momento de cierre — saldo con un amigo (T-290)', () => {
     const hook = renderHook(() => useSaldoConAmigo('ana'));
     confirmarYAceptar(hook);
     expect(Alert.alert).toHaveBeenCalledTimes(2);
-    expect(hapticSuccess).not.toHaveBeenCalled();
+    expect(hapticExito).not.toHaveBeenCalled();
     expect(hook.result.current.momento).toBeNull();
   });
 });
