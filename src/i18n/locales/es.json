@@ -679,7 +679,14 @@
     "join_stalled_title": "No pudimos completar tu ingreso",
     "join_stalled_body": "Tu ingreso a «{{group}}» no se completó. Pedile a quien te invitó que te mande un link nuevo.",
     "traspaso_recurring_blocked_title": "Un gasto recurrente de «{{group}}» no se movió",
-    "traspaso_recurring_blocked_body": "El grupo se traspasó, pero esta recurrente quedó en el grupo archivado. Volvé a crearla en el grupo nuevo."
+    "traspaso_recurring_blocked_body": "El grupo se traspasó, pero esta recurrente quedó en el grupo archivado. Volvé a crearla en el grupo nuevo.",
+    "summary_title": "Novedades en HushSplit",
+    "summary_body_group_one": "Tenés {{count}} novedad en «{{group}}»",
+    "summary_body_group_other": "Tenés {{count}} novedades en «{{group}}»",
+    "summary_body_groups_one": "Tenés {{count}} novedad en {{groups}} grupos",
+    "summary_body_groups_other": "Tenés {{count}} novedades en {{groups}} grupos",
+    "summary_body_one": "Tenés {{count}} novedad",
+    "summary_body_other": "Tenés {{count}} novedades"
   },
   "fx": {
     "partial_title": "Hay saldo que no te estamos mostrando",

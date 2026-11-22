@@ -25,7 +25,7 @@ import { registrarVaciadoEnBackground } from '@/src/store/flushOnBackground';
 import { resumePendingDeletion } from '@/src/services/deleteAccount';
 import { tomarEnlacePendiente } from '@/src/utils/enlacePendiente';
 import { useEnlacesEntrantes } from '@/src/hooks/useEnlacesEntrantes';
-import { installNotificationHandler } from '@/src/services/notifications';
+import { installNotificationHandler, onNotificationTap } from '@/src/services/notifications';
 import { installGlobalErrorHandler } from '@/src/services/globalErrorHandler';
 import { ErrorBoundary } from '@/src/components/ErrorBoundary';
 import { exportarDiagnostico } from '@/src/services/exportDiagnostico';
@@ -115,6 +115,9 @@ function AuthGuard() {
   }, []);
 
   const entryGate = useEntryGateStore(s => s.estado);
+
+  // T-295: el tap en el resumen de avisos abre la pestaña Actividad.
+  useEffect(() => onNotificationTap(destino => router.push(destino as any)), []);
 
   useEffect(() => {
     const inAuth = segments[0] === 'auth';

@@ -6,6 +6,10 @@ import { useNoticeInboxStore } from '@/src/store/noticeInboxStore';
 import { claveDeFalloDeSync } from '@/src/sync/motor/publishHealth';
 import { MAX_MIEMBROS } from '@/src/sync/nucleo/topes';
 import { yaSeAviso, marcarAvisado } from './noticeDedupe';
+import { resumirAvisos, UMBRAL_RESUMEN } from './resumirAvisos';
+
+/** Destino general del tap en un resumen: la pestaña Actividad ya existe. */
+const DESTINO_RESUMEN = '/(tabs)/activity';
 
 /**
  * Entrega de notificaciones locales (T-010).
@@ -254,6 +258,34 @@ export function textFor(notice: Notice): { title: string; body: string } {
   }
 }
 
+function textoResumen(notices: Notice[]): { title: string; body: string } {
+  const t = i18n.t.bind(i18n);
+  const { count, groups, groupName } = resumirAvisos(notices);
+  const title = t('notifications.summary_title');
+  if (groups === 1) return { title, body: t('notifications.summary_body_group', { count, group: groupName }) };
+  if (groups > 1) return { title, body: t('notifications.summary_body_groups', { count, groups }) };
+  return { title, body: t('notifications.summary_body', { count }) };
+}
+
+/**
+ * Al tocar una notificación que trae `destino` (hoy sólo el resumen), navega.
+ * Los avisos individuales no lo traen y siguen abriendo la app sin más.
+ * Devuelve la baja de la suscripción.
+ */
+export function onNotificationTap(navegar: (destino: string) => void): () => void {
+  const Notifications = cargarNotificaciones();
+  if (!Notifications) return () => {};
+  try {
+    const sub = Notifications.addNotificationResponseReceivedListener(r => {
+      const destino = r.notification.request.content.data?.destino;
+      if (typeof destino === 'string') navegar(destino);
+    });
+    return () => sub.remove();
+  } catch {
+    return () => {};
+  }
+}
+
 /**
  * Entrega los avisos que el usuario quiera recibir.
  *
@@ -272,6 +304,20 @@ export async function deliver(notices: Notice[]): Promise<number> {
   const Notifications = cargarNotificaciones();
   if (!Notifications) return 0;
   if (!(await ensurePermission())) return 0;
+
+  // T-295: una ráfaga (p. ej. al volver de background) es UNA notificación;
+  // la bandeja ya guardó el detalle en announce().
+  if (queridos.length > UMBRAL_RESUMEN) {
+    try {
+      await Notifications.scheduleNotificationAsync({
+        content: { ...textoResumen(queridos), data: { destino: DESTINO_RESUMEN } },
+        trigger: null,
+      });
+      return 1;
+    } catch {
+      return 0;
+    }
+  }
 
   let entregados = 0;
   for (const notice of queridos) {
