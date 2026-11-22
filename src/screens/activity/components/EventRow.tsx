@@ -8,6 +8,7 @@ import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { formatMoney } from '@/src/constants/currencies';
 import { isMarked, type TrustState } from '@/src/algorithms/recordTrust';
+import { PresionableEscala } from '@/src/components/PresionableEscala';
 import { TrustMark } from '@/src/components/TrustMark';
 import { ActivityLine } from '@/src/components/ActivityLine';
 import { mismaPersona } from '@/src/store/identityAlias';
@@ -107,13 +108,13 @@ export const EventRow = React.memo(function EventRow({
     }
 
     return (
-      <Pressable
+      <PresionableEscala
         testID="activity-row"
         onPress={opts.onPress}
         style={({ pressed }) => [...base, pressed && { backgroundColor: c.bgGrouped }]}
       >
         {contenido}
-      </Pressable>
+      </PresionableEscala>
     );
   };
 

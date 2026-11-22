@@ -1,5 +1,6 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { PresionableEscala } from '@/src/components/PresionableEscala';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { formatMoney } from '@/src/constants/currencies';
@@ -21,6 +22,7 @@ interface ExpenseCardProps {
   splitPeople?: { name: string; hue?: number }[];
   deletionPending?: boolean;
   onPress?: () => void;
+  testID?: string;
 }
 
 export function ExpenseCard({
@@ -34,11 +36,13 @@ export function ExpenseCard({
   splitPeople,
   deletionPending,
   onPress,
+  testID,
 }: ExpenseCardProps) {
   const c = useColors();
 
   return (
-    <Pressable
+    <PresionableEscala
+      testID={testID}
       onPress={onPress}
       style={({ pressed }) => [
         styles.card,
@@ -76,7 +80,7 @@ export function ExpenseCard({
           <AvatarStack people={splitPeople} size={20} max={4} />
         )}
       </View>
-    </Pressable>
+    </PresionableEscala>
   );
 }
 

@@ -1,17 +1,18 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BottomTabBarHeightContext } from '@react-navigation/bottom-tabs';
 
 import { Radius, Spacing } from '@/src/constants/spacing';
-import { hapticLight } from '@/src/utils/haptics';
+import { PresionableEscala } from '@/src/components/PresionableEscala';
+import { hapticAbrir } from '@/src/utils/haptics';
 import { useBaseInferior } from '@/src/hooks/useBaseInferior';
 import { useRellenoBarraPestanas } from '@/src/hooks/useRellenoBarraPestanas';
 import { useColors } from '@/src/skins/useSkin';
 
 /**
- * FAB del reskin: rectángulo redondeado (Radius.lg), no pill, sin escala al
- * tocar. En Clásico la tab bar no es absolute, así que `bottom: 0` ya es su
+ * FAB del reskin: rectángulo redondeado (Radius.lg), no pill, achica un poco al
+ * tocar (`PresionableEscala`). En Clásico la tab bar no es absolute, así que `bottom: 0` ya es su
  * borde superior; en Aero flota (T-227) y `FabRow` suma su alto.
  */
 /** Separación del FAB al borde inferior dentro de las pestañas, y alto de cada
@@ -106,9 +107,9 @@ export function Fab({
   const isPrimary = variant === 'primary';
   const c = useColors();
   return (
-    <Pressable
+    <PresionableEscala
       testID={testID}
-      onPress={() => { hapticLight(); onPress(); }}
+      onPress={() => { hapticAbrir(); onPress(); }}
       style={({ pressed }) => [
         styles.fab,
         isPrimary ? styles.fabPrimary : styles.fabSecondary,
@@ -122,7 +123,7 @@ export function Fab({
       {label ? (
         <Text style={{ color: textColor, fontSize: 14.5, fontWeight: '700' }}>{label}</Text>
       ) : null}
-    </Pressable>
+    </PresionableEscala>
   );
 }
 

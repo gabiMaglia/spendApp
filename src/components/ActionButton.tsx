@@ -1,7 +1,8 @@
 import React from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
+import { PresionableEscala } from '@/src/components/PresionableEscala';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { useColors } from '@/src/skins/useSkin';
@@ -77,7 +78,7 @@ export function ActionButton({
   const p = paleta[variant];
 
   return (
-    <Pressable
+    <PresionableEscala
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}
       accessibilityState={{ disabled: inactivo }}
@@ -123,7 +124,7 @@ export function ActionButton({
       </View>
 
       {arrow && <Ionicons name="arrow-forward" size={size === 'lg' ? 20 : size === 'sm' ? 14 : 18} color={p.fg} />}
-    </Pressable>
+    </PresionableEscala>
   );
 }
 
