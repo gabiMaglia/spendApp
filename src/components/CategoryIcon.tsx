@@ -1,53 +1,23 @@
 import React from 'react';
-import { View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '@/src/constants/colors';
-import type { CategoryKind } from '@/src/constants/colors';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 
-const CATEGORY_META: Record<CategoryKind, { iconName: keyof typeof Ionicons.glyphMap }> = {
-  food:          { iconName: 'restaurant-outline' },
-  transport:     { iconName: 'car-outline' },
-  accommodation: { iconName: 'home-outline' },
-  entertainment: { iconName: 'musical-notes-outline' },
-  utilities:     { iconName: 'flash-outline' },
-  taxes:         { iconName: 'document-text-outline' },
-  health:        { iconName: 'heart-outline' },
-  shopping:      { iconName: 'bag-outline' },
-  other:         { iconName: 'ellipsis-horizontal-outline' },
-};
+import { CuboIcono } from '@/src/components/CuboIcono';
+import { tinteDeCategoria } from '@/src/screens/expense/components/GrillaCategorias';
+import { useColors } from '@/src/skins/useSkin';
+import type { CategoryKind } from '@/src/constants/colors';
+
+const ES_INGRESO: ReadonlySet<string> = new Set(['income', 'salary', 'freelance']);
 
 interface CategoryIconProps {
   kind?: CategoryKind;
   size?: number;
 }
 
+/** Ícono de categoría de las filas y del detalle: cubo de dos tonos con dibujo propio (T-293). */
 export function CategoryIcon({ kind = 'other', size = 40 }: CategoryIconProps) {
-  const scheme = useColorScheme() ?? 'light';
-  // Las categorías de ingreso (sueldo, freelance) no están en este mapa: son
-  // sólo para movimientos personales. Antes, destructurar `undefined` tiraba la
-  // pantalla entera. Un ícono genérico es infinitamente mejor que un crash.
-  const conocida: CategoryKind = kind in CATEGORY_META ? kind : 'other';
-  const color = Colors[scheme].category[conocida];
-  const iconSize = Math.round(size * 0.55);
-  const { iconName } = CATEGORY_META[conocida];
-
-  return (
-    <View
-      style={{
-        width: size,
-        height: size,
-        borderRadius: size / 2,
-        backgroundColor: color,
-        alignItems: 'center',
-        justifyContent: 'center',
-        flexShrink: 0,
-      }}
-    >
-      <Ionicons name={iconName} size={iconSize} color="#fff" />
-    </View>
-  );
+  const c = useColors();
+  // Los ingresos personales comparten el dibujo de ingreso y el verde semántico (PO).
+  if (ES_INGRESO.has(kind)) return <CuboIcono categoria="income" tinte={c.semantic.positive} tamano={size} />;
+  return <CuboIcono categoria={kind} tinte={tinteDeCategoria(c.category, kind)} tamano={size} />;
 }
 
-export { CATEGORY_META };
 export type { CategoryKind };

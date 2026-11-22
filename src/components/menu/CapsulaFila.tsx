@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { Typography } from '@/src/constants/typography';
 import { CuboIcono } from '@/src/components/CuboIcono';
-import { PAD_CAPSULA } from '@/src/components/menu/calcularAbanico';
+import { PAD_CAPSULA, RADIO_CAPSULA } from '@/src/components/menu/calcularAbanico';
 import { ALTO_CAPSULA, ALTO_NOMBRE, ANCHO_CAPSULA, PASO_CAPSULA } from '@/src/components/menu/calcularFila';
 import { useEntradaCapsula } from '@/src/components/menu/useEntradaCapsula';
 import { useSkin } from '@/src/skins/useSkin';
@@ -63,7 +63,7 @@ export function CapsulaFila<V>({
         accessibilityState={{ selected: seleccionado }}
       >
         <CuboIcono
-          icono={opcion.icono} texto={opcion.texto} fecha={opcion.fecha} tinte={opcion.tinte} resaltado={seleccionado}
+          icono={opcion.icono} categoria={opcion.categoria} texto={opcion.texto} fecha={opcion.fecha} tinte={opcion.tinte} resaltado={seleccionado}
         />
         <Animated.View style={[styles.nombre, estiloNombre]}>
           {seleccionado && (
@@ -79,7 +79,7 @@ export function CapsulaFila<V>({
 const styles = StyleSheet.create({
   capsula: {
     width: ANCHO_CAPSULA, height: ALTO_CAPSULA, alignItems: 'center',
-    paddingTop: PAD_CAPSULA, paddingHorizontal: PAD_CAPSULA, borderRadius: 20, borderCurve: 'continuous',
+    paddingTop: PAD_CAPSULA, paddingHorizontal: PAD_CAPSULA, borderRadius: RADIO_CAPSULA, borderCurve: 'continuous',
   },
   nombre: { flexDirection: 'row', alignItems: 'center', gap: 2, height: ALTO_NOMBRE, marginTop: 6 },
 });

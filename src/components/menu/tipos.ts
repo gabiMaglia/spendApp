@@ -27,7 +27,8 @@ export type OpcionCubo<V> = {
   tinte: string;
   etiqueta: string;
 } & (
-  | { icono: React.ComponentProps<typeof Ionicons>['name']; texto?: undefined; fecha?: undefined }
-  | { texto: string; icono?: undefined; fecha?: undefined }
-  | { fecha: { dia: string; mes: string }; icono?: undefined; texto?: undefined }
+  | { icono: React.ComponentProps<typeof Ionicons>['name']; categoria?: undefined; texto?: undefined; fecha?: undefined }
+  | { categoria: string; icono?: undefined; texto?: undefined; fecha?: undefined }
+  | { texto: string; icono?: undefined; categoria?: undefined; fecha?: undefined }
+  | { fecha: { dia: string; mes: string }; icono?: undefined; categoria?: undefined; texto?: undefined }
 );

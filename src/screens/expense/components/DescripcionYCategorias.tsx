@@ -10,6 +10,8 @@ import { hapticSeleccionar } from '@/src/utils/haptics';
 import { useColors } from '@/src/skins/useSkin';
 import type { PersonalCategory } from '@/src/types/models';
 import { CATEGORIES } from '@/src/screens/expense/repartoDeGasto';
+import { CuboIcono } from '@/src/components/CuboIcono';
+import { tinteDeCategoria } from '@/src/screens/expense/components/GrillaCategorias';
 
 /**
  * Descripción: tarjeta propia, mismo lenguaje redondeado que el héroe — ya no
@@ -63,13 +65,11 @@ export function CategoriaChips({
             key={cat.id}
             onPress={() => { hapticSeleccionar(); onChange(cat.id); }}
             style={styles.categoryTile}
+            accessibilityRole="button"
+            accessibilityLabel={t(`categories.${cat.id}`)}
+            accessibilityState={{ selected: active }}
           >
-            <View style={[
-              styles.categoryTileIcon,
-              { backgroundColor: active ? c.brand.primary : c.bgGrouped },
-            ]}>
-              <Ionicons name={cat.icon} size={22} color={active ? '#fff' : c.textSecondary} />
-            </View>
+            <CuboIcono categoria={cat.id} tinte={tinteDeCategoria(c.category, cat.id)} resaltado={active} tamano={52} />
             <Text
               numberOfLines={1}
               style={[Typography.caption, {
@@ -104,8 +104,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   categoryTile: { alignItems: 'center', gap: 6, width: 64 },
-  categoryTileIcon: {
-    width: 52, height: 52, borderRadius: Radius.xl, borderCurve: 'continuous',
-    alignItems: 'center', justifyContent: 'center',
-  },
 });

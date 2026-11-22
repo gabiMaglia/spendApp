@@ -27,7 +27,7 @@ export function CuboCategoria({
   const actual = CATEGORIES.find(x => x.id === value) ?? CATEGORIES[CATEGORIES.length - 1];
   const tinte = (id: string) => tinteDeCategoria(skin.colors.category, id);
   const opciones: OpcionCubo<PersonalCategory>[] = CATEGORIES.map(x => ({
-    valor: x.id, icono: x.icon, tinte: tinte(x.id), etiqueta: t(`categories.${x.id}`),
+    valor: x.id, categoria: x.id, tinte: tinte(x.id), etiqueta: t(`categories.${x.id}`),
   }));
 
   const elegir = (v: PersonalCategory) => {
@@ -46,7 +46,7 @@ export function CuboCategoria({
         accessibilityState={{ expanded: abierto }}
         onPress={abrir}
       >
-        <CuboIcono icono={actual.icon} tinte={tinte(actual.id)} />
+        <CuboIcono categoria={actual.id} tinte={tinte(actual.id)} />
       </Pressable>
       <AbanicoCubos
         visible={abierto} onClose={cerrar} ancla={ancla}
