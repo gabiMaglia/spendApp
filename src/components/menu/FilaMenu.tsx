@@ -4,9 +4,9 @@ import Animated, {
   useAnimatedStyle, useSharedValue, withDelay, withTiming,
 } from 'react-native-reanimated';
 
-const ESCALONADO_MS = 25;
+import { DURACION, ESCALONADO_MS } from '@/src/constants/movimiento';
+
 const FILAS_ESCALONADAS = 6;
-const DURACION_MS = 150;
 const DESPLAZAMIENTO = 6;
 
 /** Envoltorio de una fila: a11y de menuitem y entrada escalonada (las primeras 6). */
@@ -27,7 +27,7 @@ export function FilaMenu({
 
   useEffect(() => {
     if (estatica) { p.value = 1; return; }
-    if (entrar) p.value = withDelay(indice * ESCALONADO_MS, withTiming(1, { duration: DURACION_MS }));
+    if (entrar) p.value = withDelay(indice * ESCALONADO_MS, withTiming(1, { duration: DURACION.corta }));
   }, [entrar, estatica, indice, p]);
 
   const estilo = useAnimatedStyle(() => ({

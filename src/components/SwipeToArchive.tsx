@@ -7,7 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { hapticLight } from '@/src/utils/haptics';
+import { hapticConfirmar } from '@/src/utils/haptics';
 import { useTranslation } from 'react-i18next';
 import { useColors } from '@/src/skins/useSkin';
 
@@ -46,7 +46,7 @@ export function SwipeToArchive({
       overshootRight={false}
       enabled={!disabled}
       onSwipeableOpen={() => {
-        hapticLight();
+        hapticConfirmar();
         onAction();
         row.current?.close();
       }}

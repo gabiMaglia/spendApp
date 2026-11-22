@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { useAuthStore } from '@/src/store/authStore';
-import { hapticLight, hapticSuccess } from '@/src/utils/haptics';
+import { hapticConfirmar, hapticExito } from '@/src/utils/haptics';
 import { contactInviteFromParams, isContactInviteExpired } from '@/src/sync/contactos/contactInvite';
 import { publishContactClaim, processContactInvite } from '@/src/sync/contactos/contactInviteEngine';
 import { deviceId, startRelay } from '@/src/sync/motor/relayEngine';
@@ -42,7 +42,7 @@ export default function ContactClaimScreen() {
 
   async function handleAdd() {
     if (!invite || estado !== 'listo') return;
-    hapticLight();
+    hapticConfirmar();
     setEstado('entrando');
 
     await publishContactClaim(invite, deviceId());
@@ -53,7 +53,7 @@ export default function ContactClaimScreen() {
       const huboNovedad = await processContactInvite(invite, deviceId());
       if (huboNovedad) {
         if (!vivo.current) return;
-        hapticSuccess();
+        hapticExito();
         setEstado('entre');
         return;
       }

@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import type { TextInput } from 'react-native';
 import { v4 as uuidv4 } from 'uuid';
 import { useUserStore } from '@/src/store/userStore';
-import { hapticSuccess } from '@/src/utils/haptics';
+import { hapticExito } from '@/src/utils/haptics';
 import { syncedNow } from '@/src/utils/syncedClock';
 
 /** Estado + acción de la hoja "Nuevo contacto" (alta manual, sin QR). */
@@ -20,7 +20,7 @@ export function useAddContactSheet() {
   function confirm() {
     const clean = name.trim();
     if (!clean) return;
-    hapticSuccess();
+    hapticExito();
     addOrUpdateUser({
       id:           uuidv4(),
       name:         clean,

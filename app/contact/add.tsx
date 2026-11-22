@@ -11,7 +11,7 @@ import { Fab, FabRow } from '@/src/components/Fab';
 
 import { useAuthStore } from '@/src/store/authStore';
 import { useUserStore } from '@/src/store/userStore';
-import { hapticWarning } from '@/src/utils/haptics';
+import { hapticAdvertencia } from '@/src/utils/haptics';
 import {
   buildContactPayload, parseContactPayload, contactFromParams, parseContactLink,
   type ContactPayload,
@@ -88,7 +88,7 @@ export default function AddContactScreen() {
 
     const contact = parseContactPayload(data) ?? parseContactLink(data);
     if (!contact) {
-      hapticWarning();
+      hapticAdvertencia();
       Alert.alert(t('contact.unknown_qr_title'), t('contact.unknown_qr_body'), [
         { text: t('contact.rescan'), onPress: () => setScanned(false) },
         { text: t('common.cancel'), style: 'cancel', onPress: () => router.back() },
@@ -151,6 +151,7 @@ export default function AddContactScreen() {
         <FabRow>
           <Fab
             testID="contact-share-link"
+            haptica="confirmar"
             onPress={handleShare}
             icon="share-outline"
             label={t('contact.share_link')}

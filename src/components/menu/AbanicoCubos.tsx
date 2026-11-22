@@ -11,6 +11,7 @@ import { useAnimacionMenu } from '@/src/components/menu/useAnimacionMenu';
 import { useEleccionUnica } from '@/src/components/menu/useEleccionUnica';
 import { useRectAncla } from '@/src/components/menu/useRectAncla';
 import type { OpcionCubo } from '@/src/components/menu/tipos';
+import { hapticAbrir } from '@/src/utils/haptics';
 
 /** Lo que tarda la entrada en asentar: hasta entonces los cubos no reciben toques. */
 export const ASENTAR_MS = 260;
@@ -63,6 +64,8 @@ export function AbanicoCubos<V>({
   // Cuenta de aperturas: la columna lleva esto de `key` y no reusa nada de la anterior.
   const [{ prev, apertura }, setAp] = useState({ prev: visible, apertura: 0 });
   if (visible !== prev) setAp({ prev: visible, apertura: visible ? apertura + 1 : apertura });
+  // Una vibración «abrir» por apertura (la cuenta sube sólo al abrir), no por cada re-render.
+  useEffect(() => { if (apertura > 0) hapticAbrir(); }, [apertura]);
   const tocable = visible && !!geo && asentado;
   const elegir = useEleccionUnica<V>({ visible, tocable, onElegir, onClose });
 

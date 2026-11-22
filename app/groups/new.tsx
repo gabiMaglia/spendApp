@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { v4 as uuidv4 } from 'uuid';
-import { hapticSelection, hapticSuccess } from '@/src/utils/haptics';
+import { hapticSeleccionar, hapticExito } from '@/src/utils/haptics';
 
 import { DetailHeader, useRellenoDetailHeader } from '@/src/components/CollapsibleHeader';
 import { ActionButton } from '@/src/components/ActionButton';
@@ -74,7 +74,7 @@ export default function NewGroupScreen() {
       Alert.alert(t('group_detail.member_limit_title'), t('group_detail.member_limit_body', { max: MAX_MIEMBROS }));
       return;
     }
-    hapticSelection();
+    hapticSeleccionar();
     setSelectedIds(prev =>
       prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id],
     );
@@ -118,7 +118,7 @@ export default function NewGroupScreen() {
       Alert.alert(t('sync.record_too_big_title'), t(motivo));
       return;
     }
-    hapticSuccess();
+    hapticExito();
     addGroup(nuevo);
 
     // La clave del grupo y su reparto a los contactos que ya escaneaste. Es lo
@@ -167,7 +167,7 @@ export default function NewGroupScreen() {
             {PRIMARY_CURRENCIES.map(code => (
               <Pressable
                 key={code}
-                onPress={() => { hapticSelection(); setCurrency(code); }}
+                onPress={() => { hapticSeleccionar(); setCurrency(code); }}
                 style={[
                   styles.currencyChip,
                   {

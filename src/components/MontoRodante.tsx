@@ -3,7 +3,7 @@ import {
   StyleSheet, Text, View, type StyleProp, type TextStyle,
 } from 'react-native';
 import { NumberFlow } from 'number-flow-react-native';
-import { Easing } from 'react-native-reanimated';
+import { CURVA, DURACION } from '@/src/constants/movimiento';
 
 import {
   formatMoney, getCurrency, getFormatLocale, minorFactor, type CurrencyCode,
@@ -23,7 +23,7 @@ import { useAnimacionesReducidas } from '@/src/hooks/useAnimacionesReducidas';
  * default. Menos tiempo de trabajo por columna sin perder la sensación de
  * "rueda" (T-106).
  */
-const TIMING_RAPIDO = { duration: 350, easing: Easing.out(Easing.cubic) };
+const TIMING_RAPIDO = { duration: DURACION.larga, easing: CURVA.entrar };
 
 /**
  * Semilla NEUTRA (T-109) — a diferencia de `numeroSemilla` (dígitos

@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming,
+  runOnJS, useAnimatedStyle, useSharedValue, withTiming,
 } from 'react-native-reanimated';
 
+import { CURVA, DURACION } from '@/src/constants/movimiento';
 import { useAnimacionesReducidas } from '@/src/hooks/useAnimacionesReducidas';
 import type { Posicion } from '@/src/components/menu/tipos';
 
-export const ENTRADA_MS = 160;
-export const SALIDA_MS = 110;
-export const FUNDIDO_MS = 90;
+export const ENTRADA_MS = DURACION.corta;
+export const SALIDA_MS = DURACION.salida;
+export const FUNDIDO_MS = DURACION.fundido;
 const ESCALA_INICIAL = 0.92;
 
 /**
@@ -46,7 +47,7 @@ export function useAnimacionMenu({ visible, listo, lado }: {
         entroRef.current = true;
         const ms = sinAnimacion ? FUNDIDO_MS : ENTRADA_MS;
         velo.value = withTiming(1, { duration: ms });
-        menu.value = withTiming(1, { duration: ms, easing: Easing.out(Easing.cubic) });
+        menu.value = withTiming(1, { duration: ms, easing: CURVA.entrar });
       }
       return;
     }
@@ -55,7 +56,7 @@ export function useAnimacionMenu({ visible, listo, lado }: {
     if (!entroRef.current) { setMontado(false); return; }
     const ms = sinAnimacion ? FUNDIDO_MS : SALIDA_MS;
     velo.value = withTiming(0, { duration: ms });
-    menu.value = withTiming(0, { duration: ms, easing: Easing.in(Easing.quad) }, (fin) => {
+    menu.value = withTiming(0, { duration: ms, easing: CURVA.salir }, (fin) => {
       if (fin) runOnJS(soltar)();
     });
   }, [visible, listo, sinAnimacion, velo, menu, soltar]);

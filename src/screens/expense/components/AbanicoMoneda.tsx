@@ -6,7 +6,7 @@ import { AbanicoCubos } from '@/src/components/menu/AbanicoCubos';
 import type { OpcionCubo } from '@/src/components/menu/tipos';
 import { SUPPORTED_CURRENCIES, type CurrencyCode } from '@/src/constants/currencies';
 import { useSkin } from '@/src/skins/useSkin';
-import { hapticSelection } from '@/src/utils/haptics';
+import { hapticSeleccionar } from '@/src/utils/haptics';
 
 /**
  * El abanico de monedas del gasto personal (T-286): una cápsula por moneda con
@@ -31,7 +31,7 @@ export function AbanicoMoneda({
   }));
 
   const elegir = (code: CurrencyCode) => {
-    if (code !== value) hapticSelection();
+    if (code !== value) hapticSeleccionar();
     onChange(code);
   };
 

@@ -1,14 +1,9 @@
 import { useEffect } from 'react';
 import { useSharedValue, withDelay, withSpring, withTiming } from 'react-native-reanimated';
 
-import { FUNDIDO_MS as SALIDA_REDUCIDA_MS, SALIDA_MS } from '@/src/components/menu/useAnimacionMenu';
+import { DURACION, ESCALONADO_MS, RESORTE_MARCA } from '@/src/constants/movimiento';
 
-// «Sharp, swift and soft»: rigidez alta, amortiguación justa (ζ≈0.8, ~1 % de rebote).
-const SPRING = { stiffness: 560, damping: 38, mass: 1 };
-export const ESCALONADO_MS = 22;
 const DEMORA_ETIQUETA_MS = 70;
-const ETIQUETA_MS = 140;
-const FUNDIDO_MS = 90;
 
 /**
  * El tiempo de una cápsula del abanico: `p` es el viaje (spring escalonado por índice) y
@@ -24,16 +19,16 @@ export function useEntradaCapsula({ indice, visible, entrar, sinAnimacion }: {
   useEffect(() => {
     if (visible && entrar) {
       if (sinAnimacion) {
-        p.value = withTiming(1, { duration: FUNDIDO_MS });
-        l.value = withTiming(1, { duration: FUNDIDO_MS });
+        p.value = withTiming(1, { duration: DURACION.fundido });
+        l.value = withTiming(1, { duration: DURACION.fundido });
       } else {
         const demora = indice * ESCALONADO_MS;
-        p.value = withDelay(demora, withSpring(1, SPRING));
-        l.value = withDelay(demora + DEMORA_ETIQUETA_MS, withTiming(1, { duration: ETIQUETA_MS }));
+        p.value = withDelay(demora, withSpring(1, RESORTE_MARCA));
+        l.value = withDelay(demora + DEMORA_ETIQUETA_MS, withTiming(1, { duration: DURACION.corta }));
       }
     } else if (!visible) {
       // Con reducir movimiento el Modal se desmonta a los 90 ms: el fundido dura lo mismo.
-      const ms = sinAnimacion ? SALIDA_REDUCIDA_MS : SALIDA_MS - 10;
+      const ms = sinAnimacion ? DURACION.fundido : DURACION.salida - 10;
       p.value = withTiming(0, { duration: ms });
       l.value = withTiming(0, { duration: ms });
     }

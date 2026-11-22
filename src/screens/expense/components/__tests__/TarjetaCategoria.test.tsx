@@ -7,13 +7,13 @@ import { ASENTAR_MS } from '@/src/components/menu/AbanicoCubos';
 import es from '@/src/i18n/locales/es.json';
 import en from '@/src/i18n/locales/en.json';
 import pt from '@/src/i18n/locales/pt.json';
-import { hapticSelection } from '@/src/utils/haptics';
+import { hapticSeleccionar } from '@/src/utils/haptics';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock'));
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 jest.mock('@/src/components/menu/useRectAncla', () => require('@/src/test-utils/rectAnclaFalso').rectAnclaFalso);
-jest.mock('@/src/utils/haptics', () => ({ hapticSelection: jest.fn() }));
+jest.mock('@/src/utils/haptics', () => ({ hapticSeleccionar: jest.fn(), hapticAbrir: jest.fn() }));
 
 const base = {
   category: 'food' as const, isIncome: false, currency: 'ARS' as const, description: '',
@@ -54,7 +54,7 @@ describe('cubo de categoría de la tarjeta (T-283)', () => {
     abrir();
     fireEvent.press(screen.getByLabelText('categories.taxes'));
     expect(onCategoryChange).toHaveBeenCalledWith('taxes');
-    expect(hapticSelection).toHaveBeenCalledTimes(1);
+    expect(hapticSeleccionar).toHaveBeenCalledTimes(1);
     expect(screen.queryAllByRole('menuitem')).toHaveLength(0);
   });
 
@@ -62,7 +62,7 @@ describe('cubo de categoría de la tarjeta (T-283)', () => {
     render(<TarjetaDescripcionMonto {...base} onCategoryChange={jest.fn()} />);
     abrir();
     fireEvent.press(screen.getByLabelText('categories.food'));
-    expect(hapticSelection).not.toHaveBeenCalled();
+    expect(hapticSeleccionar).not.toHaveBeenCalled();
   });
 
   it('el velo cierra sin cambiar la categoría', () => {

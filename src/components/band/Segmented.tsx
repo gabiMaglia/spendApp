@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Spacing } from '@/src/constants/spacing';
 import { useSkinTokens } from '@/src/skins/useSkin';
 import { useC } from '@/src/components/band/BandBase';
-import { hapticSelection } from '@/src/utils/haptics';
+import { hapticSeleccionar } from '@/src/utils/haptics';
 
 /**
  * Control segmentado.
@@ -52,7 +52,7 @@ export function Segmented<T extends string>({
 }) {
   const c = useC();
   // Tic de selección como el control nativo de iOS; la opción ya elegida no lo da.
-  const elegir = (k: T) => { if (k !== value) hapticSelection(); onChange(k); };
+  const elegir = (k: T) => { if (k !== value) hapticSeleccionar(); onChange(k); };
   const skin = useSkinTokens();
 
   // Aero (etapa 2): las pestañas pasan de «T invertida» de borde a borde a un

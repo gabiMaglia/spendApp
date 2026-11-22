@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import { v4 as uuidv4 } from 'uuid';
 import { useTranslation } from 'react-i18next';
 
-import { hapticWarning } from '@/src/utils/haptics';
+import { hapticDestructivo } from '@/src/utils/haptics';
 import { motivoDeExceso } from '@/src/services/topeDeRegistro';
 import { syncedNow } from '@/src/utils/syncedClock';
 import { useExpenseStore } from '@/src/store/expenseStore';
@@ -75,7 +75,7 @@ export function useAccionesDeGasto({
       return;
     }
     if (!currentUser || !expense) return;
-    hapticWarning();
+    hapticDestructivo();
 
     Alert.alert(
       t('expense.delete_title'),

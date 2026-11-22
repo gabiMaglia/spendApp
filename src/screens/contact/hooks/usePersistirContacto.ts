@@ -3,7 +3,7 @@ import { Alert } from 'react-native';
 import { router } from 'expo-router';
 import type { TFunction } from 'i18next';
 
-import { hapticLight, hapticSuccess, hapticWarning } from '@/src/utils/haptics';
+import { hapticAdvertencia, hapticExito } from '@/src/utils/haptics';
 import type { ContactPayload } from '@/src/utils/contactLink';
 import { announceContact, savePeer, hasConflictingPinnedKeys } from '@/src/sync/contactos/contactChannel';
 import { deviceId } from '@/src/sync/motor/relayEngine';
@@ -69,7 +69,7 @@ export function usePersistirContacto({
       wrapPublicKey: contact.wrapPublicKey,
       identityPublicKey: contact.identityPublicKey,
     })) {
-      hapticWarning();
+      hapticAdvertencia();
       Alert.alert(
         t('contact.keys_changed_title'),
         t('contact.keys_changed_body', { name: contact.name }),
@@ -79,14 +79,14 @@ export function usePersistirContacto({
     }
 
     if (getUserById(contact.id) && !getUserById(contact.id)?.isDeleted) {
-      hapticLight();
+      hapticAdvertencia();
       Alert.alert(t('contact.already_title'), t('contact.already_body', { name: contact.name }), [
         { text: 'OK', onPress: volverAContactos },
       ]);
       return;
     }
 
-    hapticSuccess();
+    hapticExito();
     addOrUpdateUser({
       id:           contact.id,
       // El email no viaja más en la tarjeta/código (T-093 / SEC H-1): se conserva el que

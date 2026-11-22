@@ -8,7 +8,7 @@ import type { OpcionCubo } from '@/src/components/menu/tipos';
 import { useAbanicoAnclado } from '@/src/components/menu/useAbanicoAnclado';
 import { useSkin } from '@/src/skins/useSkin';
 import type { PersonalCategory } from '@/src/types/models';
-import { hapticSelection } from '@/src/utils/haptics';
+import { hapticSeleccionar } from '@/src/utils/haptics';
 import { CATEGORIES } from '@/src/screens/expense/repartoDeGasto';
 import { tinteDeCategoria } from '@/src/screens/expense/components/GrillaCategorias';
 
@@ -31,7 +31,7 @@ export function CuboCategoria({
   }));
 
   const elegir = (v: PersonalCategory) => {
-    if (v !== value) hapticSelection();
+    if (v !== value) hapticSeleccionar();
     onChange(v);
   };
 
