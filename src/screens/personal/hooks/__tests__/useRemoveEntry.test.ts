@@ -4,9 +4,10 @@ import { renderHook } from '@testing-library/react-native';
 import { useRemoveEntry } from '../useRemoveEntry';
 import { usePersonalStore } from '@/src/store/personalStore';
 import type { PersonalEntry } from '@/src/types/models';
+import { hapticAdvertencia, hapticDestructivo } from '@/src/utils/haptics';
 
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
-jest.mock('@/src/utils/haptics', () => ({ hapticWarning: jest.fn() }));
+jest.mock('@/src/utils/haptics', () => ({ hapticAdvertencia: jest.fn(), hapticDestructivo: jest.fn() }));
 
 const entry = (over: Partial<PersonalEntry>): PersonalEntry => ({
   id: 'e1', kind: 'expense', description: 'Café', amount: 500, currency: 'ARS',
@@ -19,6 +20,7 @@ describe('borrar una entrada personal (T-259)', () => {
   let alerta: jest.SpyInstance;
   beforeEach(() => { alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => {}); });
   afterEach(() => alerta.mockRestore());
+  beforeEach(() => { jest.clearAllMocks(); });
 
   it('una del mes corriente pide confirmación y borra', () => {
     const removeEntry = jest.fn();
@@ -27,6 +29,9 @@ describe('borrar una entrada personal (T-259)', () => {
     const botones = alerta.mock.calls[0][2] as { onPress?: () => void }[];
     botones[1].onPress?.();
     expect(removeEntry).toHaveBeenCalledWith('e1');
+    // Borrar vibra «destructivo» (T-289).
+    expect(hapticDestructivo).toHaveBeenCalledTimes(1);
+    expect(hapticAdvertencia).not.toHaveBeenCalled();
   });
 
   it('una de un mes cerrado no se borra y dice por qué', () => {
@@ -35,5 +40,7 @@ describe('borrar una entrada personal (T-259)', () => {
     renderHook(() => useRemoveEntry()).result.current(entry({ date: mesPasado }));
     expect(alerta).toHaveBeenCalledWith('personal.locked_title', 'personal.locked_closed_month');
     expect(removeEntry).not.toHaveBeenCalled();
+    expect(hapticAdvertencia).toHaveBeenCalledTimes(1);
+    expect(hapticDestructivo).not.toHaveBeenCalled();
   });
 });

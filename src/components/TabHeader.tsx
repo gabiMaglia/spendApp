@@ -20,7 +20,7 @@ import {
 } from '@/src/store/noticeInboxStore';
 import { esAccionable, type KeyConflictNotice } from '@/src/services/syncNotices';
 import { ofertasDe } from '@/src/sync/invitaciones/groupKeyOffers';
-import { hapticLight } from '@/src/utils/haptics';
+import { hapticAbrir } from '@/src/utils/haptics';
 import { useColors } from '@/src/skins/useSkin';
 import { useContadorDeRenders } from '@/src/hooks/useContadorDeRenders';
 
@@ -168,7 +168,7 @@ export function TabHeader({
             <NoticeBell unread={sinLeer} onPress={abrirCampana} />
             <Pressable
               testID="header-settings-btn"
-              onPress={() => { hapticLight(); router.push('/(tabs)/user' as never); }}
+              onPress={() => { hapticAbrir(); router.push('/(tabs)/user' as never); }}
               accessibilityRole="button"
               accessibilityLabel={t('dashboard.go_to_profile')}
               hitSlop={8}

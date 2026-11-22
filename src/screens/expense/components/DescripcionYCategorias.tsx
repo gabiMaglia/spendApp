@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { MAX_TEXTO_CORTO } from '@/src/sync/nucleo/topes';
-import { hapticSelection } from '@/src/utils/haptics';
+import { hapticSeleccionar } from '@/src/utils/haptics';
 import { useColors } from '@/src/skins/useSkin';
 import type { PersonalCategory } from '@/src/types/models';
 import { CATEGORIES } from '@/src/screens/expense/repartoDeGasto';
@@ -61,7 +61,7 @@ export function CategoriaChips({
         return (
           <Pressable
             key={cat.id}
-            onPress={() => { hapticSelection(); onChange(cat.id); }}
+            onPress={() => { hapticSeleccionar(); onChange(cat.id); }}
             style={styles.categoryTile}
           >
             <View style={[

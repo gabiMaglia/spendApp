@@ -1,7 +1,7 @@
 import { useCallback, type MutableRefObject } from 'react';
 import { Alert } from 'react-native';
 
-import { hapticLight, hapticSuccess, hapticWarning } from '@/src/utils/haptics';
+import { hapticAdvertencia, hapticExito } from '@/src/utils/haptics';
 import type { ContactPayload } from '@/src/utils/contactLink';
 import { announceContact, savePeer, hasConflictingPinnedKeys } from '@/src/sync/contactos/contactChannel';
 import { deviceId } from '@/src/sync/motor/relayEngine';
@@ -56,7 +56,7 @@ export function useProcesarContacto({
     });
     void announceContact(contact.secret, deviceId());
 
-    hapticSuccess();
+    hapticExito();
     setScanned(false);
     Alert.alert(t('contact.replaced_title'), t('contact.replaced_body', { name: contact.name }), [{ text: 'OK' }]);
   }, [addOrUpdateUser, getUserById, t, setScanned]);
@@ -89,7 +89,7 @@ export function useProcesarContacto({
    */
   const procesarContacto = useCallback((contact: ContactPayload, origen: OrigenContacto) => {
     if (esYo(contact.id)) {
-      hapticWarning();
+      hapticAdvertencia();
       Alert.alert(
         t('contact.own_qr_title'),
         t(origen === 'link' ? 'contact.own_link_body' : 'contact.own_qr_body'),
@@ -107,7 +107,7 @@ export function useProcesarContacto({
       wrapPublicKey: contact.wrapPublicKey,
       identityPublicKey: contact.identityPublicKey,
     })) {
-      hapticWarning();
+      hapticAdvertencia();
       if (origen === 'link') {
         Alert.alert(
           t('contact.keys_changed_title'),
@@ -128,7 +128,7 @@ export function useProcesarContacto({
     }
 
     if (getUserById(contact.id) && !getUserById(contact.id)?.isDeleted) {
-      hapticLight();
+      hapticAdvertencia();
       Alert.alert(t('contact.already_title'), t('contact.already_body', { name: contact.name }), [
         { text: 'OK', onPress: volverAContactos },
       ]);

@@ -6,7 +6,7 @@ import i18n from '@/src/i18n';
 
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { hapticLight } from '@/src/utils/haptics';
+import { hapticConfirmar } from '@/src/utils/haptics';
 import { UserAvatar } from './UserAvatar';
 import type { ExpenseComment } from '@/src/types/models';
 import { mismaPersona } from '@/src/store/identityAlias';
@@ -51,7 +51,7 @@ export function CommentThread({
 
   function send() {
     if (!canSend) return;
-    hapticLight();
+    hapticConfirmar();
     onAdd(draft.trim());
     setDraft('');
   }

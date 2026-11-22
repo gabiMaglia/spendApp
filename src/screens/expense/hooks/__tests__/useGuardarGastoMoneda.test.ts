@@ -9,7 +9,7 @@ jest.mock('expo-router', () => ({ router: { back: jest.fn() } }));
 jest.mock('react-i18next', () => ({ useTranslation: () => ({ t: (k: string) => k }) }));
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
 jest.mock('@/src/sync/motor/relayEngine', () => ({ schedulePublish: jest.fn(), startRelay: jest.fn(), deviceId: () => 'dev' }));
-jest.mock('@/src/utils/haptics', () => ({ hapticSuccess: jest.fn() }));
+jest.mock('@/src/utils/haptics', () => ({ hapticExito: jest.fn() }));
 
 function form(over: Partial<FormularioDeGasto>): FormularioDeGasto {
   return {

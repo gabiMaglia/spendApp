@@ -2,7 +2,7 @@ import { Alert, Share } from 'react-native';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
-import { hapticLight, hapticSuccess } from '@/src/utils/haptics';
+import { hapticConfirmar, hapticExito } from '@/src/utils/haptics';
 import { formatMoney } from '@/src/constants/currencies';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
 import { createInvite, inviteToLink } from '@/src/sync/invitaciones/groupInvite';
@@ -53,7 +53,7 @@ export function useAccionesDeGrupo({
 
   async function handleShareInvite() {
     if (!group || !currentUser) return;
-    hapticLight();
+    hapticConfirmar();
     ensureKey(group.id);
     const identidad = ensureIdentity();
     const invite = createInvite(group.id, group.name, identidad.publicKey);
@@ -142,7 +142,7 @@ export function useAccionesDeGrupo({
           text: t('group_detail.expel_confirm'),
           style: 'destructive',
           onPress: () => {
-            if (expulsar(group.id, uid) === 'ok') hapticSuccess();
+            if (expulsar(group.id, uid) === 'ok') hapticExito();
           },
         },
       ],

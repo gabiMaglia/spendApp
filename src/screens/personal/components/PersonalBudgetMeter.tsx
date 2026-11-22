@@ -10,7 +10,7 @@ import { Band } from '@/src/components/Band';
 import { GlowMeter } from '@/src/components/skin/GlowMeter';
 import { MoneyText } from '@/src/components/MoneyText';
 import { formatMoney, type CurrencyCode } from '@/src/constants/currencies';
-import { hapticLight } from '@/src/utils/haptics';
+import { hapticAbrir } from '@/src/utils/haptics';
 
 /** Banda del medidor de presupuesto — con presupuesto configurado, o el estado vacío que ofrece configurarlo. */
 export function PersonalBudgetMeter({
@@ -40,7 +40,7 @@ export function PersonalBudgetMeter({
   if (!hasBudget) {
     return (
       <Band>
-        <Pressable onPress={() => { hapticLight(); onOpenBudgetSheet(); }} style={styles.meterEmpty}>
+        <Pressable onPress={() => { hapticAbrir(); onOpenBudgetSheet(); }} style={styles.meterEmpty}>
           <Ionicons name="bar-chart-outline" size={26} color={c.textTertiary} />
           <Text style={[Typography.bodyM, { color: c.textSecondary, textAlign: 'center' }]}>
             {t('personal.budget_empty')}

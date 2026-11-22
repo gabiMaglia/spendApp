@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
-import { hapticSelection } from '@/src/utils/haptics';
+import { hapticSeleccionar } from '@/src/utils/haptics';
 import type { RecurrenceValue } from '@/src/components/RecurrencePicker';
 import { validatePayers } from '@/src/algorithms/payers';
 import { Spacing } from '@/src/constants/spacing';
@@ -151,7 +151,7 @@ export default function NewExpenseScreen() {
   }
 
   function switchEntryKind(k: 'expense' | 'income') {
-    hapticSelection();
+    hapticSeleccionar();
     setEntryKind(k);
     // Ingreso no tiene selector de categoría (PO 2026-09-13): siempre "otros".
     setCategory('other');

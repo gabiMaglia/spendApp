@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 
 import { usePersonalStore } from '@/src/store/personalStore';
 import { motivoDeBloqueo } from '@/src/screens/personal/utils/bloqueoDeEntrada';
-import { hapticWarning } from '@/src/utils/haptics';
+import { hapticAdvertencia, hapticDestructivo } from '@/src/utils/haptics';
 import type { PersonalEntry } from '@/src/types/models';
 
 /**
@@ -19,11 +19,11 @@ export function useRemoveEntry(): (entry: PersonalEntry) => void {
   return useCallback((entry: PersonalEntry) => {
     const motivo = motivoDeBloqueo(entry);
     if (motivo) {
-      hapticWarning();
+      hapticAdvertencia();
       Alert.alert(t('personal.locked_title'), t(motivo));
       return;
     }
-    hapticWarning();
+    hapticDestructivo();
     Alert.alert(
       t('personal.remove_title'),
       t('personal.remove_body', { desc: entry.description }),

@@ -11,7 +11,7 @@ import es from '@/src/i18n/locales/es.json';
 jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock'));
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 jest.mock('@/src/components/menu/useRectAncla', () => require('@/src/test-utils/rectAnclaFalso').rectAnclaFalso);
-jest.mock('@/src/utils/haptics', () => ({ hapticSelection: jest.fn() }));
+jest.mock('@/src/utils/haptics', () => ({ hapticSeleccionar: jest.fn(), hapticAbrir: jest.fn() }));
 
 const base = {
   category: 'food' as const, isIncome: false, currency: 'ARS' as const, description: '',

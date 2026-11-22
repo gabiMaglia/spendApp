@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import { v4 as uuidv4 } from 'uuid';
 import { useTranslation } from 'react-i18next';
 
-import { hapticSuccess } from '@/src/utils/haptics';
+import { hapticExito } from '@/src/utils/haptics';
 import { normalizePayers } from '@/src/algorithms/payers';
 import type { RecurrenceValue } from '@/src/components/RecurrencePicker';
 import type { CurrencyCode } from '@/src/constants/currencies';
@@ -105,7 +105,7 @@ export function useGuardarGasto(f: FormularioDeGasto): () => void {
 
   function guardarPersonal() {
     // Sin grupo → entrada PERSONAL (gasto o ingreso). Sin ad gate/splits/pagador. (F-G/F-G2)
-    hapticSuccess();
+    hapticExito();
     if (f.personalEntryId) {
       updatePersonalEntry(f.personalEntryId, {
         description: f.description.trim(),
@@ -173,7 +173,7 @@ export function useGuardarGasto(f: FormularioDeGasto): () => void {
     // T-172 (ítem 4): recién ACÁ se sabe que guardó de verdad. Antes el
     // haptic sonaba junto con el gate del anuncio, así que un bloqueo por
     // firma vibraba "éxito" un instante antes del Alert de error.
-    hapticSuccess();
+    hapticExito();
     return true;
   }
 
@@ -207,7 +207,7 @@ export function useGuardarGasto(f: FormularioDeGasto): () => void {
     addExpense(nuevo);
     // Un alta nueva no tiene núcleo previo firmado que re-firmar: no puede
     // bloquearse como una edición (T-152 · D2), así que el haptic va sin gate.
-    hapticSuccess();
+    hapticExito();
     // ADR-006 d3 / T-229: lo que puse se DERIVA en Personal (movimientosDerivados); no se guarda réplica.
     incrementCount(f.currentUser!.id);
     saveRecurringTemplate();

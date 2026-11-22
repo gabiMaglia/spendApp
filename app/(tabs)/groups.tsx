@@ -12,7 +12,7 @@ import { Fab, FabRow } from '@/src/components/Fab';
 import { EmptyState } from '@/src/components/EmptyState';
 import { TabHeader } from '@/src/components/TabHeader';
 import { useHeaderPadding, useLimiteContenido } from '@/src/components/CollapsibleHeader';
-import { hapticLight } from '@/src/utils/haptics';
+import { hapticAbrir } from '@/src/utils/haptics';
 
 import { useGroupsBalances } from '@/src/screens/groups/hooks/useGroupsBalances';
 import { useGroupsList } from '@/src/screens/groups/hooks/useGroupsList';
@@ -112,7 +112,7 @@ export default function GroupsScreen() {
       <FabRow>
         <Fab
           testID="new-group"
-          onPress={() => { hapticLight(); router.push('/groups/new' as any); }}
+          onPress={() => { hapticAbrir(); router.push('/groups/new' as any); }}
           icon="add"
           label={t('groups.new_group')}
           backgroundColor={c.brand.primary}
