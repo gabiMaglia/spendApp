@@ -295,7 +295,10 @@
     "friend_confirm_title": "Quitar tudo com {{name}}?",
     "friend_confirm_body": "Será registrado um pagamento para {{name}} em cada grupo:\n{{detalle}}",
     "friend_confirm_line": "{{group}}: {{amount}}",
-    "friend_confirm_ok": "Quitar tudo"
+    "friend_confirm_ok": "Quitar tudo",
+    "done_title": "Quitado",
+    "done_to": "para {{name}}",
+    "done_to_many": "para {{count}} pessoas"
   },
   "activity": {
     "see_more": "Ver mais ({{count}})",
