@@ -5,7 +5,7 @@ import { BottomTabBarHeightContext } from '@react-navigation/bottom-tabs';
 
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { PresionableEscala } from '@/src/components/PresionableEscala';
-import { hapticAbrir } from '@/src/utils/haptics';
+import { vibrar, type IntencionHaptica } from '@/src/utils/haptics';
 import { useBaseInferior } from '@/src/hooks/useBaseInferior';
 import { useRellenoBarraPestanas } from '@/src/hooks/useRellenoBarraPestanas';
 import { useColors } from '@/src/skins/useSkin';
@@ -90,6 +90,8 @@ interface FabProps {
   textColor?: string;
   testID?: string;
   style?: StyleProp<ViewStyle>;
+  /** Qué vibración da al tocarlo: «abrir» si navega o abre algo; «confirmar» si ejecuta una acción. */
+  haptica?: IntencionHaptica;
 }
 
 export function Fab({
@@ -103,13 +105,14 @@ export function Fab({
   textColor = '#fff',
   testID,
   style,
+  haptica = 'abrir',
 }: FabProps) {
   const isPrimary = variant === 'primary';
   const c = useColors();
   return (
     <PresionableEscala
       testID={testID}
-      onPress={() => { hapticAbrir(); onPress(); }}
+      onPress={() => { vibrar(haptica); onPress(); }}
       style={({ pressed }) => [
         styles.fab,
         isPrimary ? styles.fabPrimary : styles.fabSecondary,

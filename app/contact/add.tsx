@@ -151,6 +151,7 @@ export default function AddContactScreen() {
         <FabRow>
           <Fab
             testID="contact-share-link"
+            haptica="confirmar"
             onPress={handleShare}
             icon="share-outline"
             label={t('contact.share_link')}
