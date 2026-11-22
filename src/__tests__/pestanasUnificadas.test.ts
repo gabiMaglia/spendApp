@@ -41,7 +41,7 @@ describe('pestañas unificadas', () => {
     // Tolera un ternario entre `icon:` y el string (ActivityFilterTabs.tsx
     // arma el ícono con `icon: cond ? 'x-outline' : ...`, no un literal
     // pegado a la clave).
-    expect(src).toMatch(/icon:[\s\S]{0,80}?'[a-z-]+-outline'/);
+    expect(src).toMatch(/(icon|glifo):[\s\S]{0,80}?'[a-z-]+(-outline)?'/);
   });
 
   /**

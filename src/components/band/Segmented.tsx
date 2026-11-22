@@ -1,6 +1,8 @@
 import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { IconoGlifo } from '@/src/components/IconoGlifo';
+import type { IdGlifo } from '@/src/components/glifos';
 
 import { Spacing } from '@/src/constants/spacing';
 import { useSkinTokens } from '@/src/skins/useSkin';
@@ -27,7 +29,7 @@ export function Segmented<T extends string>({
   options, value, onChange, compact, variant = 'control', scroll, borde = 'abajo',
 }: {
   /** `icon` sólo se dibuja en `tabs`; en `control` no hay lugar. */
-  options: { key: T; label: string; icon?: keyof typeof Ionicons.glyphMap }[];
+  options: { key: T; label: string; icon?: keyof typeof Ionicons.glyphMap; /** Glifo propio de trazo; gana sobre `icon`. */ glifo?: IdGlifo }[];
   value: T;
   onChange: (v: T) => void;
   compact?: boolean;
@@ -73,7 +75,7 @@ export function Segmented<T extends string>({
             on && { backgroundColor: c.surface, boxShadow: skin.elevation.e1.boxShadow },
           ]}
         >
-          {o.icon ? <Ionicons name={o.icon} size={compact ? 14 : 16} color={color} /> : null}
+          {iconoDeOpcion(o, compact, color)}
           <Text numberOfLines={1} style={{ fontSize: compact ? 12 : 13.5, fontWeight: on ? '700' : '500', color }}>
             {o.label}
           </Text>
@@ -120,7 +122,7 @@ export function Segmented<T extends string>({
             { backgroundColor: on ? c.bgGrouped : 'transparent' },
           ]}
         >
-          {o.icon ? <Ionicons name={o.icon} size={compact ? 14 : 16} color={color} /> : null}
+          {iconoDeOpcion(o, compact, color)}
           <Text numberOfLines={1} style={{ fontSize: compact ? 12 : 13.5, fontWeight: on ? '700' : '500', color }}>
             {o.label}
           </Text>
@@ -223,3 +225,9 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
 });
+
+function iconoDeOpcion(o: { icon?: keyof typeof Ionicons.glyphMap; glifo?: IdGlifo }, compact: boolean | undefined, color: string) {
+  const tamano = compact ? 14 : 16;
+  if (o.glifo) return <IconoGlifo glifo={o.glifo} color={color} modo="trazo" tamano={tamano} />;
+  return o.icon ? <Ionicons name={o.icon} size={tamano} color={color} /> : null;
+}

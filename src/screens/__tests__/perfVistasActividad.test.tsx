@@ -33,6 +33,8 @@ describe('T-216 — nodos host: Actividad', () => {
     // segmentado, `Panel.tsx`/`segmento`, en vez de un Panel por sección) —
     // la ventana simulada del mock (VENTANA_SIMULADA=20) vuelve a recortar
     // FILAS dentro de la sección "Antes", no sólo secciones completas.
-    expect(nodos).toBeLessThan(400);
+    // T-294 (PO 2026-11-22): íconos propios en Actividad, sello sólo en borrado/restaurado.
+    // Base 386 → 444; tope 450 aprobado por el PO.
+    expect(nodos).toBeLessThan(450);
   });
 });

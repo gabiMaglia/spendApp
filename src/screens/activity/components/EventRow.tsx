@@ -1,13 +1,13 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
-import { Radius, Spacing } from '@/src/constants/spacing';
+import { Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { formatMoney } from '@/src/constants/currencies';
 import { isMarked, type TrustState } from '@/src/algorithms/recordTrust';
+import { EventoIcono } from '@/src/screens/activity/components/EventoIcono';
 import { PresionableEscala } from '@/src/components/PresionableEscala';
 import { TrustMark } from '@/src/components/TrustMark';
 import { ActivityLine } from '@/src/components/ActivityLine';
@@ -58,9 +58,7 @@ export const EventRow = React.memo(function EventRow({
     : null;
 
   const row = (opts: {
-    icon: keyof typeof Ionicons.glyphMap;
-    tint: string;
-    bg: string;
+    icono: React.ComponentProps<typeof EventoIcono>;
     body: React.ReactNode;
     right?: React.ReactNode;
     warn?: boolean;
@@ -92,9 +90,7 @@ export const EventRow = React.memo(function EventRow({
 
     const contenido = (
       <>
-        <View style={[styles.rowIcon, { backgroundColor: opts.bg }]}>
-          <Ionicons name={opts.icon} size={16} color={opts.tint} />
-        </View>
+        <EventoIcono {...opts.icono} />
         <View style={{ flex: 1, minWidth: 0 }}>
           {opts.body}
           {marca}
@@ -130,7 +126,7 @@ export const EventRow = React.memo(function EventRow({
       ? miParteDelGasto(expense, currentUserId)
       : null;
     return row({
-      icon: 'add-outline', tint: c.brand.primary, bg: c.brand.primarySoft,
+      icono: { categoria: expense.category },
       onPress: () => router.push(`/expense/${expense.id}` as any),
       body: <ActivityLine who={who} action={action} subject={`${expense.description} · ${nombreDeGrupo(groupName)}`} ts={relativeTime(expense.date)} />,
       right: (
@@ -157,7 +153,7 @@ export const EventRow = React.memo(function EventRow({
   if (event.kind === 'expense_deleted') {
     const { expense, groupName } = event;
     return row({
-      icon: 'trash-outline', tint: c.textTertiary, bg: c.hair2,
+      icono: { categoria: expense.category, apagado: true, sello: 'tacho', colorSello: c.textTertiary },
       body: (
         <>
           <Text
@@ -189,7 +185,7 @@ export const EventRow = React.memo(function EventRow({
   if (event.kind === 'expense_restored') {
     const { expense, groupName, restoredByName } = event;
     return row({
-      icon: 'arrow-undo-outline', tint: c.textTertiary, bg: c.hair2,
+      icono: { categoria: expense.category, sello: 'deshacer', colorSello: c.brand.primary },
       body: (
         <ActivityLine
           who={restoredByName}
@@ -207,9 +203,7 @@ export const EventRow = React.memo(function EventRow({
     // Mismo verbo que un gasto de grupo propio ("registraste"): el ícono y el
     // color ya distinguen ingreso de gasto, no hace falta un verbo aparte.
     return row({
-      icon: isIncome ? 'trending-up-outline' : 'trending-down-outline',
-      tint: isIncome ? c.brand.primary : c.textSecondary,
-      bg: isIncome ? c.brand.primarySoft : c.hair2,
+      icono: { categoria: isIncome ? 'income' : entry.category },
       // Sin `onPress`: a diferencia de un gasto de grupo, un `PersonalEntry`
       // no tiene pantalla de detalle propia — se edita desde la tab Personal.
       body: <ActivityLine who={t('common.you')} action={t('activity.action_registered_own')} subject={entry.description} ts={relativeTime(entry.date)} />,
@@ -226,7 +220,7 @@ export const EventRow = React.memo(function EventRow({
   const who    = isMe ? t('common.you') : getUserName(payment.fromUserId);
   const toName = getUserName(payment.toUserId);
   return row({
-    icon: 'arrow-forward-outline', tint: c.semantic.positive, bg: c.semantic.positiveSoft,
+    icono: { categoria: 'saldar', tinte: c.semantic.positive },
     body: (
       <>
         <Text style={[Typography.bodyM, { color: c.textSecondary, lineHeight: 20 }]}>
@@ -252,9 +246,5 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row', gap: 13, alignItems: 'flex-start',
     paddingHorizontal: Spacing.screenPad, paddingVertical: 13,
-  },
-  rowIcon: {
-    width: 32, height: 32, borderRadius: Radius.sm,
-    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
 });

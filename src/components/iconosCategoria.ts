@@ -44,6 +44,8 @@ export const DIBUJOS_CATEGORIA = {
     b: 'M4 19.5V15l5.5-5.5 3.5 3.5 7-7v13.5z',
     d: 'M4 15l5.5-5.5 3.5 3.5 7-7M15 6h5v5',
   },
+  // Pago saldado (T-294): círculo con tilde; lo usa la fila de Actividad.
+  saldar: { b: 'M12 3.5a8.5 8.5 0 1 1 0 17 8.5 8.5 0 0 1 0-17z', d: 'M8 12.3l2.7 2.7L16 9.6' },
 } as const satisfies Record<string, DibujoCategoria>;
 
 export type IdIconoCategoria = keyof typeof DIBUJOS_CATEGORIA;

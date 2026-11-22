@@ -2,15 +2,16 @@ import React from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import { Tabs } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
+import { IconoGlifo } from '@/src/components/IconoGlifo';
+import type { IdGlifo } from '@/src/components/glifos';
 import { HapticTab } from '@/components/haptic-tab';
 import { useSkin, useColors } from '@/src/skins/useSkin';
 import { TabBarFondoAero } from '@/src/components/skin/TabBarFondoAero';
 import { TabBarFondoClasico } from '@/src/components/skin/TabBarFondoClasico';
 import { medidasBarraPestanas } from '@/src/components/skin/medidasBarraPestanas';
 
-/** Tab bar: píldora flotante tipo iOS 26 (T-276); medidas en `medidasBarraPestanas`. Ícono 20, label 10/600 y punto activo (sólo Clásico). */
+/** Tab bar: píldora flotante tipo iOS 26 (T-276); medidas en `medidasBarraPestanas`. Ícono 24, label 10/600 y punto activo (sólo Clásico). */
 function TabLabel({ label, focused }: { label: string; focused: boolean }) {
   const c = useColors();
   const { skin } = useSkin();
@@ -46,14 +47,15 @@ export default function TabLayout() {
   const screen = (
     name: string,
     title: string,
-    icon: keyof typeof Ionicons.glyphMap,
+    glifo: IdGlifo,
   ) => (
     <Tabs.Screen
       key={name}
       name={name}
       options={{
         title,
-        tabBarIcon: ({ color }) => <Ionicons name={icon} size={20} color={color} />,
+        // Activa en dos tonos, inactiva sólo trazo; `color` ya viene resuelto por el navegador.
+        tabBarIcon: ({ color, focused }) => <IconoGlifo glifo={glifo} color={color} modo={focused ? 'tonos' : 'trazo'} />,
         tabBarLabel: ({ focused }) => <TabLabel label={title} focused={focused} />,
       }}
     />
@@ -88,11 +90,11 @@ export default function TabLayout() {
         tabBarIconStyle: { marginBottom: -2 },
       }}
     >
-      {screen('index',     t('tabs.personal'), 'analytics-outline')}
+      {screen('index',     t('tabs.personal'), 'personal')}
       {/* Orden del PO (2026-09-29): Personal, Grupos, Amigos, Actividad. */}
-      {screen('groups',    t('tabs.groups'),   'grid-outline')}
-      {screen('friends',   t('tabs.friends'),  'people-outline')}
-      {screen('activity',  t('tabs.activity'), 'pulse-outline')}
+      {screen('groups',    t('tabs.groups'),   'grupos')}
+      {screen('friends',   t('tabs.friends'),  'amigos')}
+      {screen('activity',  t('tabs.activity'), 'actividad')}
       {/*
         T-115 (PO 2026-09-13): "Yo" sale del tab bar — a esa pantalla se llega
         tocando el avatar del header. `href: null` es el mecanismo de

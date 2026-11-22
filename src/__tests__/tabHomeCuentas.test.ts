@@ -11,12 +11,12 @@ const RAIZ = join(__dirname, '..', '..');
 const leer = (rel: string) => readFileSync(join(RAIZ, rel), 'utf8');
 
 describe('T-121 — pestaña index fusionada (Personal)', () => {
-  it('la pestaña index usa la clave i18n tabs.personal con ícono analytics-outline', () => {
+  it('la pestaña index usa la clave i18n tabs.personal con el glifo propio personal', () => {
     const src = leer('app/(tabs)/_layout.tsx');
     const lineaIndex = src.split('\n').find(l => l.includes("screen('index'"));
     expect(lineaIndex).toBeDefined();
     expect(lineaIndex).toMatch(/t\('tabs\.personal'\)/);
-    expect(lineaIndex).toMatch(/'analytics-outline'/);
+    expect(lineaIndex).toMatch(/'personal'/);
   });
 
   it('ya no hay una pestaña separada registrada como personal', () => {
