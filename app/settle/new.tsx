@@ -18,7 +18,7 @@ import { useGroupStore } from '@/src/store/groupStore';
 import { useArchiveStore } from '@/src/store/archiveStore';
 import { usePaymentStore } from '@/src/store/paymentStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
-import { hapticSelection } from '@/src/utils/haptics';
+import { hapticSeleccionar } from '@/src/utils/haptics';
 import { esYo } from '@/src/store/identityAlias';
 import { useColors } from '@/src/skins/useSkin';
 import { hintDe, puedeGuardarSaldo } from '@/src/screens/settle/saldoDeGrupo';
@@ -150,7 +150,7 @@ function SaldarEnGrupo() {
   });
 
   function handleGroupChange(id: string) {
-    hapticSelection();
+    hapticSeleccionar();
     const g = groups.find(x => x.id === id);
     const mems = g?.memberIds ?? [];
     setGroupId(id);
@@ -167,7 +167,7 @@ function SaldarEnGrupo() {
   }
 
   function handleFromChange(id: string) {
-    hapticSelection();
+    hapticSeleccionar();
     setFromId(id);
     if (toId === id) setToId(members.filter(uid => uid !== id)[0] ?? '');
     setShowFrom(false);
@@ -190,8 +190,8 @@ function SaldarEnGrupo() {
               currency={currency}
               modoTodo={modoTodo}
               amount={amount}
-              onTodo={() => { hapticSelection(); setModoTodo(true); setAmountMinor(deudaEnGrupo); }}
-              onUno={() => { hapticSelection(); setModoTodo(false); setAmountMinor(deudaTotal); }}
+              onTodo={() => { hapticSeleccionar(); setModoTodo(true); setAmountMinor(deudaEnGrupo); }}
+              onUno={() => { hapticSeleccionar(); setModoTodo(false); setAmountMinor(deudaTotal); }}
             />
           )}
 
@@ -204,7 +204,7 @@ function SaldarEnGrupo() {
             deudaTotal={deudaTotal}
             todoSaldado={todoSaldado}
             maxAmount={maxAmount}
-            onMax={() => { hapticSelection(); setAmountMinor(tope); }}
+            onMax={() => { hapticSeleccionar(); setAmountMinor(tope); }}
           />
 
           <TarjetaTransferencia
@@ -217,8 +217,8 @@ function SaldarEnGrupo() {
           <FilasGrupoYFecha
             nombreGrupo={group?.name}
             date={date}
-            onPressGrupo={() => { hapticSelection(); setShowGroup(true); }}
-            onPressFecha={() => { hapticSelection(); setShowDate(true); }}
+            onPressGrupo={() => { hapticSeleccionar(); setShowGroup(true); }}
+            onPressFecha={() => { hapticSeleccionar(); setShowDate(true); }}
             anclaFecha={anclaFecha}
           />
 
@@ -248,10 +248,10 @@ function SaldarEnGrupo() {
         members={members} fromId={fromId} onFromChange={handleFromChange}
         showTo={showTo} onCloseTo={() => setShowTo(false)}
         toOptions={toOptions} toId={toId}
-        onToChange={uid => { hapticSelection(); setToId(uid); setShowTo(false); }}
+        onToChange={uid => { hapticSeleccionar(); setToId(uid); setShowTo(false); }}
         showDate={showDate} onCloseDate={() => setShowDate(false)}
         date={date}
-        onDateChange={d => { hapticSelection(); setDate(d); }}
+        onDateChange={d => { hapticSeleccionar(); setDate(d); }}
         anclaFecha={anclaFecha}
         hintDe={uid => hintDe(balancesDelGrupo, uid, currency, t)}
       />

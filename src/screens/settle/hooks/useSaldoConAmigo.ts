@@ -11,7 +11,7 @@ import { useExpenseStore } from '@/src/store/expenseStore';
 import { usePaymentStore } from '@/src/store/paymentStore';
 import { useArchiveStore } from '@/src/store/archiveStore';
 import { useUserStore } from '@/src/store/userStore';
-import { hapticSuccess, hapticWarning } from '@/src/utils/haptics';
+import { hapticExito, hapticAdvertencia } from '@/src/utils/haptics';
 import { useMomentoExito } from '@/src/hooks/useMomentoExito';
 import { armarPago } from '@/src/screens/settle/armarPago';
 
@@ -54,7 +54,7 @@ export function useSaldoConAmigo(amigoId: string) {
       Alert.alert(t('sync.record_too_big_title'), t(motivo));
       return;
     }
-    hapticSuccess();
+    hapticExito();
     for (const pago of nuevos) addPayment(pago);
     mostrar({
       montos: totales.map(x => ({ minor: x.amount, code: x.currency })),
@@ -66,7 +66,7 @@ export function useSaldoConAmigo(amigoId: string) {
   /** Modal antes de tocar deudas (PO): a quién y cuánto se paga en cada grupo. */
   function confirmar() {
     if (pagos.length === 0) return;
-    hapticWarning();
+    hapticAdvertencia();
     const detalle = pagos
       .map(p => t('settle.friend_confirm_line', { group: p.groupName, amount: formatMoney(p.amount, p.currency) }))
       .join('\n');

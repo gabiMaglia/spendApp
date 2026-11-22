@@ -1,4 +1,5 @@
 import React from 'react';
+import { AccessibilityInfo } from 'react-native';
 import { act, fireEvent, render } from '@testing-library/react-native';
 
 import { MomentoExito, type Momento } from '@/src/components/MomentoExito';
@@ -26,15 +27,22 @@ const momento: Momento = {
 };
 
 describe('MomentoExito (T-290)', () => {
-  beforeEach(() => { jest.useFakeTimers(); mockReducidas = false; });
-  afterEach(() => { jest.useRealTimers(); });
+  let anuncio: jest.SpyInstance;
+  let lector: jest.SpyInstance;
+  beforeEach(() => {
+    jest.useFakeTimers(); mockReducidas = false;
+    anuncio = jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation(() => {});
+    anuncio.mockClear();
+    lector = jest.spyOn(AccessibilityInfo, 'isScreenReaderEnabled').mockResolvedValue(false);
+  });
+  afterEach(() => { jest.useRealTimers(); jest.restoreAllMocks(); });
 
   it('sin momento no dibuja nada', () => {
     const { queryByTestId } = render(<MomentoExito momento={null} onTerminar={jest.fn()} />);
     expect(queryByTestId('momento-exito')).toBeNull();
   });
 
-  it('muestra el monto final, el título y el detalle, y navega a los ~900 ms', () => {
+  it('muestra el monto final, el título y el detalle, y navega a los ~900 ms', async () => {
     const onTerminar = jest.fn();
     const { getByText, getByTestId } = render(<MomentoExito momento={momento} onTerminar={onTerminar} />);
     expect(getByTestId('momento-exito')).toBeTruthy();
@@ -42,6 +50,7 @@ describe('MomentoExito (T-290)', () => {
     expect(getByText('settle.done_title')).toBeTruthy();
     expect(getByText('settle.done_to')).toBeTruthy();
 
+    await act(async () => {});
     act(() => { jest.advanceTimersByTime(850); });
     expect(onTerminar).not.toHaveBeenCalled();
     act(() => { jest.advanceTimersByTime(100); });
@@ -68,11 +77,12 @@ describe('MomentoExito (T-290)', () => {
     expect(onTerminar).toHaveBeenCalledTimes(1);
   });
 
-  it('con reducir movimiento muestra el estado final y navega a los ~600 ms', () => {
+  it('con reducir movimiento muestra el estado final y navega a los ~600 ms', async () => {
     mockReducidas = true;
     const onTerminar = jest.fn();
     const { getByText } = render(<MomentoExito momento={momento} onTerminar={onTerminar} />);
     expect(getByText('monto:ARS:12550')).toBeTruthy();
+    await act(async () => {});
     act(() => { jest.advanceTimersByTime(550); });
     expect(onTerminar).not.toHaveBeenCalled();
     act(() => { jest.advanceTimersByTime(100); });
@@ -92,5 +102,45 @@ describe('MomentoExito (T-290)', () => {
       <MomentoExito momento={{ ...momento, detalle: '' }} onTerminar={jest.fn()} />,
     );
     expect(queryByText('settle.done_to')).toBeNull();
+  });
+
+  describe('accesibilidad (T-291)', () => {
+    it('anuncia título y detalle una sola vez al mostrarse', async () => {
+      const { rerender } = render(<MomentoExito momento={momento} onTerminar={jest.fn()} />);
+      await act(async () => {});
+      expect(anuncio).toHaveBeenCalledTimes(1);
+      expect(anuncio).toHaveBeenCalledWith('settle.done_title. settle.done_to');
+      rerender(<MomentoExito momento={momento} onTerminar={jest.fn()} />);
+      expect(anuncio).toHaveBeenCalledTimes(1);
+    });
+
+    it('con lector de pantalla activo no se cierra solo; tocar sí cierra', async () => {
+      lector.mockResolvedValue(true);
+      const onTerminar = jest.fn();
+      const { getByTestId } = render(<MomentoExito momento={momento} onTerminar={onTerminar} />);
+      await act(async () => {});
+      act(() => { jest.advanceTimersByTime(5000); });
+      expect(onTerminar).not.toHaveBeenCalled();
+      fireEvent.press(getByTestId('momento-exito'));
+      expect(onTerminar).toHaveBeenCalledTimes(1);
+    });
+
+    it('con lector activo y reducir movimiento tampoco se cierra solo', async () => {
+      lector.mockResolvedValue(true);
+      mockReducidas = true;
+      const onTerminar = jest.fn();
+      render(<MomentoExito momento={momento} onTerminar={onTerminar} />);
+      await act(async () => {});
+      act(() => { jest.advanceTimersByTime(5000); });
+      expect(onTerminar).not.toHaveBeenCalled();
+    });
+
+    it('sin lector, tras resolver la consulta, se cierra a los ~900 ms', async () => {
+      const onTerminar = jest.fn();
+      render(<MomentoExito momento={momento} onTerminar={onTerminar} />);
+      await act(async () => {});
+      act(() => { jest.advanceTimersByTime(950); });
+      expect(onTerminar).toHaveBeenCalledTimes(1);
+    });
   });
 });
