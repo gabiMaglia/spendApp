@@ -8,6 +8,8 @@ export const MARGEN_ABANICO = Spacing.screenPad;
 export const SEPARACION_ANCLA = 16;
 /** Relleno de la cápsula alrededor del cubo. */
 export const PAD_CAPSULA = 6;
+/** Radio de toda cápsula del abanico (fila y columna): el del calendario, que acompaña la esquina del cubo (PO 2026-11-22). */
+export const RADIO_CAPSULA = 20;
 export const ALTO_FILA = CUBO_TAMANO + 2 * PAD_CAPSULA;
 export const PASO_FILA = ALTO_FILA + GAP_CUBOS;
 /** Aire arriba y abajo de la ventana para que no se corte la sombra; menor que el GAP, así nunca asoma una 5ª fila. */

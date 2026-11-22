@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { Typography } from '@/src/constants/typography';
 import { CuboIcono } from '@/src/components/CuboIcono';
-import { PASO_FILA, GAP_CUBOS, PAD_CAPSULA, ALTO_FILA } from '@/src/components/menu/calcularAbanico';
+import { PASO_FILA, GAP_CUBOS, PAD_CAPSULA, RADIO_CAPSULA } from '@/src/components/menu/calcularAbanico';
 import { useSkin } from '@/src/skins/useSkin';
 import { useEntradaCapsula } from '@/src/components/menu/useEntradaCapsula';
 import type { OpcionCubo } from '@/src/components/menu/tipos';
@@ -86,10 +86,10 @@ export function FilaCubo<V>({
 
 const styles = StyleSheet.create({
   contenedor: { alignSelf: 'flex-start', maxWidth: '100%' },
-  // Radio completo: la píldora mide ALTO_FILA y se redondea a la mitad.
+  // Mismo radio que la cápsula del calendario: la píldora entera chocaba con la esquina del cubo.
   fila: {
     flexDirection: 'row', alignItems: 'center', gap: GAP_CUBOS,
-    padding: PAD_CAPSULA, paddingRight: 16, borderRadius: ALTO_FILA / 2,
+    padding: PAD_CAPSULA, paddingRight: 16, borderRadius: RADIO_CAPSULA, borderCurve: 'continuous',
   },
   etiqueta: { flexShrink: 1 },
 });
