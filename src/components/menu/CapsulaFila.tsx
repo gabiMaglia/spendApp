@@ -63,7 +63,7 @@ export function CapsulaFila<V>({
         accessibilityState={{ selected: seleccionado }}
       >
         <CuboIcono
-          icono={opcion.icono} texto={opcion.texto} fecha={opcion.fecha} tinte={opcion.tinte} resaltado={seleccionado}
+          icono={opcion.icono} categoria={opcion.categoria} texto={opcion.texto} fecha={opcion.fecha} tinte={opcion.tinte} resaltado={seleccionado}
         />
         <Animated.View style={[styles.nombre, estiloNombre]}>
           {seleccionado && (

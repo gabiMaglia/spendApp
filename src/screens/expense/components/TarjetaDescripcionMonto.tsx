@@ -10,7 +10,6 @@ import { MAX_TEXTO_CORTO } from '@/src/sync/nucleo/topes';
 import { CuboIcono } from '@/src/components/CuboIcono';
 import { useSkin } from '@/src/skins/useSkin';
 import type { PersonalCategory } from '@/src/types/models';
-import { CATEGORIES } from '@/src/screens/expense/repartoDeGasto';
 import { CuboCategoria } from '@/src/screens/expense/components/CuboCategoria';
 import { tinteDeCategoria } from '@/src/screens/expense/components/GrillaCategorias';
 import { ErrorSinDecimales } from '@/src/screens/expense/components/ErrorSinDecimales';
@@ -45,7 +44,6 @@ export function TarjetaDescripcionMonto({
   const montoRef = useRef<TextInput>(null);
 
   const tinte = isIncome ? c.semantic.positive : tinteDeCategoria(c.category, category);
-  const icono = isIncome ? 'trending-up-outline' : CATEGORIES.find(x => x.id === category)?.icon ?? 'ellipsis-horizontal-outline';
 
   // PO 2026-11-03 (bordes gruesos): subrayado fino, del color de la marca sólo
   // en el campo que se está escribiendo.
@@ -66,7 +64,7 @@ export function TarjetaDescripcionMonto({
       <View style={styles.renglon}>
         {!isIncome && onCategoryChange
           ? <CuboCategoria value={category} onChange={onCategoryChange} />
-          : <CuboIcono icono={icono} tinte={tinte} />}
+          : <CuboIcono categoria={isIncome ? 'income' : category} tinte={tinte} />}
         <View style={styles.campo}>
           <Text style={[Typography.caption, { color: c.textTertiary }]}>{t('expense.description_label')}</Text>
           <TextInput

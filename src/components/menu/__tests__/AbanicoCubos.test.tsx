@@ -186,3 +186,20 @@ describe('AbanicoCubos', () => {
     expect(con).toBe(true);
   });
 });
+
+describe('abanico de categorías (T-293)', () => {
+  beforeEach(() => { jest.useFakeTimers(); useSettingsStore.setState({ reduceAnimations: false }); });
+  afterEach(() => { jest.useRealTimers(); });
+
+  it('la opción elegida va en variante b y el resto en a', () => {
+    const { getByTestId } = montar({
+      seleccionado: 'taxes',
+      opciones: [
+        { valor: 'food', categoria: 'food', tinte: '#e96', etiqueta: 'Comida' },
+        { valor: 'taxes', categoria: 'taxes', tinte: '#7e9', etiqueta: 'Impuestos' },
+      ],
+    });
+    expect(getByTestId('icono-categoria-taxes').props.accessibilityHint).toBe('variante-b');
+    expect(getByTestId('icono-categoria-food').props.accessibilityHint).toBe('variante-a');
+  });
+});

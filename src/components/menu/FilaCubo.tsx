@@ -71,7 +71,7 @@ export function FilaCubo<V>({
         accessibilityState={{ selected: seleccionado }}
       >
         <Animated.View style={estiloCubo}>
-          <CuboIcono icono={opcion.icono} texto={opcion.texto} fecha={opcion.fecha} tinte={opcion.tinte} resaltado={seleccionado} />
+          <CuboIcono icono={opcion.icono} categoria={opcion.categoria} texto={opcion.texto} fecha={opcion.fecha} tinte={opcion.tinte} resaltado={seleccionado} />
         </Animated.View>
         <Animated.View style={[styles.etiqueta, estiloEtiqueta]}>
           <Text style={[Typography.bodyL, { color: c.text }]} numberOfLines={1}>{opcion.etiqueta}</Text>
