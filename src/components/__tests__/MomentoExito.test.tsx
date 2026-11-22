@@ -105,6 +105,29 @@ describe('MomentoExito (T-290)', () => {
   });
 
   describe('accesibilidad (T-291)', () => {
+    it('detalle vacío: anuncio y label son sólo el título, sin ". " sobrante', async () => {
+      const { getByTestId } = render(
+        <MomentoExito momento={{ ...momento, detalle: '' }} onTerminar={jest.fn()} />,
+      );
+      await act(async () => {});
+      expect(anuncio).toHaveBeenCalledWith('settle.done_title');
+      expect(getByTestId('momento-exito').props.accessibilityLabel).toBe('settle.done_title');
+    });
+
+    it('desmontar antes de que resuelva el lector: sin setState tardío ni timers colgados', async () => {
+      let resolver: (v: boolean) => void = () => {};
+      lector.mockReturnValue(new Promise<boolean>(r => { resolver = r; }));
+      const error = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const onTerminar = jest.fn();
+      const { unmount } = render(<MomentoExito momento={momento} onTerminar={onTerminar} />);
+      unmount();
+      await act(async () => { resolver(false); });
+      act(() => { jest.advanceTimersByTime(5000); });
+      expect(onTerminar).not.toHaveBeenCalled();
+      expect(jest.getTimerCount()).toBe(0);
+      expect(error).not.toHaveBeenCalled();
+    });
+
     it('anuncia título y detalle una sola vez al mostrarse', async () => {
       const { rerender } = render(<MomentoExito momento={momento} onTerminar={jest.fn()} />);
       await act(async () => {});

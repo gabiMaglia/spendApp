@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSharedValue } from 'react-native-reanimated';
 
+import { useColors } from '@/src/skins/useSkin';
 import { Typography } from '@/src/constants/typography';
 import { CapsulaFila } from '@/src/components/menu/CapsulaFila';
 import { FundidoBorde } from '@/src/components/menu/FundidoBorde';
@@ -36,6 +37,7 @@ export function HileraAbanico<V>({
   pie?: string;
   testID?: string;
 }) {
+  const c = useColors();
   const maxScroll = Math.max(0, geo.anchoContenido - geo.anchoVentana);
   const indiceActual = Math.max(0, opciones.findIndex(o => o.valor === seleccionado));
   const inicio = useRef(scrollInicial(geo, indiceActual)).current;
@@ -99,7 +101,7 @@ export function HileraAbanico<V>({
       {pie !== undefined && (
         <Text
           testID={testID ? `${testID}-pie` : undefined}
-          style={[Typography.caption, styles.pie, abajo ? { top: ALTO_CAPSULA + PAD_SOMBRA + 8 } : { bottom: ALTO_CAPSULA + PAD_SOMBRA + 8 }]}
+          style={[Typography.caption, styles.pie, { color: c.sobreVelo }, abajo ? { top: ALTO_CAPSULA + PAD_SOMBRA + 8 } : { bottom: ALTO_CAPSULA + PAD_SOMBRA + 8 }]}
         >
           {pie}
         </Text>
@@ -112,5 +114,5 @@ const styles = StyleSheet.create({
   fila: { gap: GAP_FILA },
   pistaFundido: { position: 'absolute', left: 0, right: 0 },
   // Sobre el velo oscuro: el texto va claro en los dos skins.
-  pie: { position: 'absolute', left: 0, right: 0, color: '#fff', opacity: 0.85, textAlign: 'center' },
+  pie: { position: 'absolute', left: 0, right: 0, opacity: 0.85, textAlign: 'center' },
 });

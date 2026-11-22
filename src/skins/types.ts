@@ -20,6 +20,9 @@ export type SkinColors = Widen<typeof Colors.light> & {
   /** Velo sobre el mármol para que el texto se lea. */
   marmolVeil: string;
   marmolOpacity: number;
+  /** Velo oscuro de los menús flotantes y el texto que se apoya sobre él. */
+  velo: string;
+  sobreVelo: string;
   /** Mármol "detrás de vidrio" (Aero): velo en degradé de arriba a abajo. */
   vidrioVeilTop: string;
   vidrioVeilBottom: string;

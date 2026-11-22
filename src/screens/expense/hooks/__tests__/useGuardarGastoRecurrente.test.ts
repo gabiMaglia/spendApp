@@ -7,7 +7,10 @@ import { calcularSplits } from '../../repartoDeGasto';
 import type { User } from '@/src/types/models';
 
 jest.mock('expo-router', () => ({ router: { back: jest.fn() } }));
-jest.mock('react-i18next', () => ({ useTranslation: () => ({ t: (k: string) => k }) }));
+jest.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (k: string) => k }),
+  initReactI18next: { type: '3rdParty', init: () => {} },
+}));
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
 jest.mock('@/src/sync/motor/relayEngine', () => ({ schedulePublish: jest.fn(), startRelay: jest.fn(), deviceId: () => 'dev' }));
 jest.mock('@/src/utils/haptics', () => ({ hapticExito: jest.fn() }));
