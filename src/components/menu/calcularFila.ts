@@ -52,7 +52,9 @@ export function calcularFila(
 
   const limite = ventana.height - insets.bottom - MARGEN_ABANICO;
   const abajo = ancla.y + ancla.height + SEPARACION_FILA + ALTO_CAPSULA <= limite;
-  const top = abajo ? ancla.y + ancla.height + SEPARACION_FILA : ancla.y - SEPARACION_FILA - ALTO_CAPSULA;
+  // Arriba no puede pisar el notch/barra de estado: si no entra, queda pegada al límite.
+  const topArriba = Math.max(ancla.y - SEPARACION_FILA - ALTO_CAPSULA, insets.top + MARGEN_ABANICO);
+  const top = abajo ? ancla.y + ancla.height + SEPARACION_FILA : topArriba;
 
   const bordeAncla = haciaDerecha ? ancla.x : ancla.x + ancla.width - ANCHO_CAPSULA;
   return {

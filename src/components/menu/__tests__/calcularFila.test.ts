@@ -32,6 +32,25 @@ describe('calcularFila (T-282 t2: fila horizontal anclada)', () => {
     expect(f.top).toBe(740 - SEPARACION_FILA - ALTO_CAPSULA);
   });
 
+  it('arriba: nunca sube por encima de insets.top + margen (ancla cerca del borde superior)', () => {
+    // Ventana baja: no entra abajo y arriba tampoco sin pisar el notch.
+    const insets = { top: 59, bottom: 0 };
+    const f = calcularFila(chip(40, 100, 100, 44), { width: 400, height: 180 }, insets, 3);
+    expect(f.lado).toBe('arriba');
+    expect(f.top).toBeGreaterThanOrEqual(59 + MARGEN_ABANICO);
+  });
+
+  it('arriba: si entra, no se mueve; si no, queda pegada al límite superior y desdeY lo refleja', () => {
+    const insets = { top: 59, bottom: 34 };
+    const holgada = calcularFila(chip(40, 400, 100, 44), { width: 400, height: 440 }, insets, 3);
+    expect(holgada.lado).toBe('arriba');
+    expect(holgada.top).toBe(400 - SEPARACION_FILA - ALTO_CAPSULA);
+    const apretada = calcularFila(chip(40, 90, 100, 44), { width: 400, height: 140 }, insets, 3);
+    expect(apretada.lado).toBe('arriba');
+    expect(apretada.top).toBe(59 + MARGEN_ABANICO);
+    expect(apretada.desdeY).toBe(90 + 22 - (apretada.top + ALTO_CAPSULA / 2));
+  });
+
   it('el borde exacto entra abajo; un punto más ya no', () => {
     const limite = VENTANA.height - MARGEN_ABANICO - ALTO_CAPSULA - SEPARACION_FILA - 44;
     expect(calcularFila(chip(40, limite), VENTANA, SIN_INSETS, 3).lado).toBe('abajo');
@@ -43,6 +62,16 @@ describe('calcularFila (T-282 t2: fila horizontal anclada)', () => {
     expect(VISIBLES).toBe(4);
     expect(f.anchoVentana).toBe(4 * ANCHO_CAPSULA + 3 * GAP_FILA);
     expect(f.anchoContenido).toBe(7 * ANCHO_CAPSULA + 6 * GAP_FILA);
+    expect(f.scrolla).toBe(true);
+  });
+
+  it('ventana ancha: el tope es VISIBLES aunque entrarían más (aísla el 4)', () => {
+    const ancha = { width: 600, height: 800 };
+    const entranMas = Math.floor((ancha.width - 2 * MARGEN_ABANICO + GAP_FILA) / PASO_CAPSULA);
+    expect(entranMas).toBeGreaterThan(4);
+    const f = calcularFila(chip(40, 300), ancha, SIN_INSETS, 7);
+    // 4 literal a propósito: si el tope cambia, este test debe enterarse.
+    expect(f.anchoVentana).toBe(4 * ANCHO_CAPSULA + 3 * GAP_FILA);
     expect(f.scrolla).toBe(true);
   });
 
