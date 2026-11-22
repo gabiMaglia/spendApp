@@ -126,7 +126,7 @@ export const EventRow = React.memo(function EventRow({
       ? miParteDelGasto(expense, currentUserId)
       : null;
     return row({
-      icono: { categoria: expense.category, sello: { glifo: 'mas', color: c.brand.primary } },
+      icono: { categoria: expense.category, sello: 'mas', colorSello: c.brand.primary },
       onPress: () => router.push(`/expense/${expense.id}` as any),
       body: <ActivityLine who={who} action={action} subject={`${expense.description} · ${nombreDeGrupo(groupName)}`} ts={relativeTime(expense.date)} />,
       right: (
@@ -153,7 +153,7 @@ export const EventRow = React.memo(function EventRow({
   if (event.kind === 'expense_deleted') {
     const { expense, groupName } = event;
     return row({
-      icono: { categoria: expense.category, apagado: true, sello: { glifo: 'tacho', color: c.textTertiary } },
+      icono: { categoria: expense.category, apagado: true, sello: 'tacho', colorSello: c.textTertiary },
       body: (
         <>
           <Text
@@ -185,7 +185,7 @@ export const EventRow = React.memo(function EventRow({
   if (event.kind === 'expense_restored') {
     const { expense, groupName, restoredByName } = event;
     return row({
-      icono: { categoria: expense.category, sello: { glifo: 'deshacer', color: c.brand.primary } },
+      icono: { categoria: expense.category, sello: 'deshacer', colorSello: c.brand.primary },
       body: (
         <ActivityLine
           who={restoredByName}
