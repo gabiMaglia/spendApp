@@ -1,10 +1,11 @@
-import React, { useRef, useState } from 'react';
-import { Pressable, type View } from 'react-native';
+import React from 'react';
+import { Pressable } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { CuboIcono } from '@/src/components/CuboIcono';
 import { AbanicoCubos } from '@/src/components/menu/AbanicoCubos';
 import type { OpcionCubo } from '@/src/components/menu/tipos';
+import { useAbanicoAnclado } from '@/src/components/menu/useAbanicoAnclado';
 import { useSkin } from '@/src/skins/useSkin';
 import type { PersonalCategory } from '@/src/types/models';
 import { hapticSelection } from '@/src/utils/haptics';
@@ -21,8 +22,7 @@ export function CuboCategoria({
 }: { value: PersonalCategory; onChange: (c: PersonalCategory) => void }) {
   const { t } = useTranslation();
   const { skin } = useSkin();
-  const ancla = useRef<View>(null);
-  const [abierto, setAbierto] = useState(false);
+  const { ancla, abierto, abrir, cerrar } = useAbanicoAnclado();
 
   const actual = CATEGORIES.find(x => x.id === value) ?? CATEGORIES[CATEGORIES.length - 1];
   const tinte = (id: string) => tinteDeCategoria(skin.colors.category, id);
@@ -44,12 +44,12 @@ export function CuboCategoria({
         accessibilityRole="button"
         accessibilityLabel={`${t('expense.category_selector_label')}: ${t(`categories.${actual.id}`)}`}
         accessibilityState={{ expanded: abierto }}
-        onPress={() => setAbierto(true)}
+        onPress={abrir}
       >
         <CuboIcono icono={actual.icon} tinte={tinte(actual.id)} />
       </Pressable>
       <AbanicoCubos
-        visible={abierto} onClose={() => setAbierto(false)} ancla={ancla}
+        visible={abierto} onClose={cerrar} ancla={ancla}
         opciones={opciones} seleccionado={value} onElegir={elegir}
         accessibilityLabel={t('expense.category_selector_label')} etiquetaCerrar={t('common.close')}
         testID="selector-categoria"

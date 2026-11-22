@@ -16,3 +16,11 @@ describe('CuboIcono', () => {
     expect([e.width, e.height]).toEqual([CUBO_TAMANO, CUBO_TAMANO]);
   });
 });
+
+describe('CuboIcono con texto (T-286)', () => {
+  it('con `texto` dibuja el texto y no el ícono', () => {
+    const { getByText, UNSAFE_queryByProps } = render(<CuboIcono texto="₲" tinte="#123456" />);
+    expect(getByText('₲')).toBeTruthy();
+    expect(UNSAFE_queryByProps({ size: 28 })).toBeNull();
+  });
+});
