@@ -61,7 +61,7 @@ describe('AbanicoCubos — cada apertura nace limpia (N1)', () => {
   const traducciones = (r: ReturnType<typeof render>) =>
     [...JSON.stringify(r.toJSON()).matchAll(/"translateY":(-?\d+)/g)].map(m => Number(m[1]));
 
-  it('(a) scrollear, cerrar, desmontar y reabrir: el cubo 0 nace en 0 y el 1 en -72', () => {
+  it('(a) scrollear, cerrar, desmontar y reabrir: el cubo 0 nace en 0 y el 1 en -84', () => {
     const r = render(abanico(true));
     act(() => { jest.advanceTimersByTime(20); });
     scrollear(r);
@@ -69,7 +69,7 @@ describe('AbanicoCubos — cada apertura nace limpia (N1)', () => {
     act(() => { mockCallbacks.splice(0).forEach(cb => cb(true)); });
     expect(r.queryByText('Alfa')).toBeNull();
     abrir(r);
-    expect(traducciones(r)).toEqual([0, -72]);
+    expect(traducciones(r)).toEqual([0, -84]);
   });
 
   it('(b) reabrir DURANTE la salida tampoco hereda el scroll', () => {
@@ -78,7 +78,7 @@ describe('AbanicoCubos — cada apertura nace limpia (N1)', () => {
     scrollear(r);
     r.rerender(abanico(false)); // sin correr los callbacks: sigue montado
     abrir(r);
-    expect(traducciones(r)).toEqual([0, -72]);
+    expect(traducciones(r)).toEqual([0, -84]);
   });
 
   it('(c) un ancla que se movió nunca muestra la columna en la posición vieja', () => {

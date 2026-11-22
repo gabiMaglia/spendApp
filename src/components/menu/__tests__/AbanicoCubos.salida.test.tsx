@@ -84,8 +84,8 @@ describe('AbanicoCubos — salida', () => {
     r.rerender(abanico(false));
     r.rerender(abanico(false)); // el estilo se calcula en el render que sigue a la salida
     const json = JSON.stringify(r.toJSON());
-    // cubo 1: -(1*PASO) + 100 = 28
+    // cubo 1: -(1*PASO_FILA=84) + 100 = 16
     expect(json).toContain('"translateY":100'); // cubo 0 va al original visible
-    expect(json).toContain('"translateY":28');
+    expect(json).toContain('"translateY":16');
   });
 });
