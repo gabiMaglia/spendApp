@@ -79,10 +79,13 @@ function Cuerpo({ momento, onTerminar }: { momento: Momento; onTerminar: () => v
   const sello = useSharedValue(quieto ? 1 : 0.6);
   const texto = useSharedValue(quieto ? 1 : 0);
 
+  // Sin detalle no hay ". " colgando: sólo el título.
+  const frase = momento.detalle === '' ? momento.titulo : `${momento.titulo}. ${momento.detalle}`;
+
   // Un solo anuncio por momento (el componente se remonta con cada `clave`).
   useEffect(() => {
-    AccessibilityInfo.announceForAccessibility(`${momento.titulo}. ${momento.detalle}`);
-  }, [momento.titulo, momento.detalle]);
+    AccessibilityInfo.announceForAccessibility(frase);
+  }, [frase]);
 
   useEffect(() => {
     // Sin saber todavía si hay que reducir, ni se anima ni corre el reloj.
@@ -114,7 +117,7 @@ function Cuerpo({ momento, onTerminar }: { momento: Momento; onTerminar: () => v
         style={styles.centro}
         onPress={terminar}
         accessibilityRole="button"
-        accessibilityLabel={`${momento.titulo}. ${momento.detalle}`}
+        accessibilityLabel={frase}
       >
         <Animated.View
           style={[
