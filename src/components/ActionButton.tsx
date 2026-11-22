@@ -5,7 +5,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { PresionableEscala } from '@/src/components/PresionableEscala';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { useColors } from '@/src/skins/useSkin';
+import { conAlfa } from '@/src/skins/color';
+import { useSkin } from '@/src/skins/useSkin';
 
 export type ActionButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'plain';
 export type ActionButtonSize = 'sm' | 'md' | 'lg';
@@ -52,7 +53,8 @@ export function ActionButton({
   disabled = false, loading = false, sub,
   testID, accessibilityLabel, style,
 }: ActionButtonProps) {
-  const c = useColors();
+  const { skin, degradado } = useSkin();
+  const c = skin.colors;
   const inactivo = disabled || loading;
 
   const paleta: Record<
@@ -77,6 +79,15 @@ export function ActionButton({
   };
   const p = paleta[variant];
 
+  // Volumen del primario en Aero (T-292): brillo de arriba hacia abajo sobre el
+  // mismo color de marca, filo de luz interior y sombra teñida. Deshabilitado,
+  // o con el skin/dispositivo en modo plano, no lleva nada: cero costo extra.
+  const conVolumen = variant === 'primary' && skin.flags.soft && !degradado && !inactivo;
+  const volumen: ViewStyle | null = conVolumen ? {
+    experimental_backgroundImage: 'linear-gradient(180deg, rgba(255,255,255,0.16), rgba(255,255,255,0))',
+    boxShadow: `inset 0 1px 0 rgba(255,255,255,0.28), 0 4px 12px ${conAlfa(c.brand.primary, 0.32)}`,
+  } : null;
+
   return (
     <PresionableEscala
       accessibilityRole="button"
@@ -98,6 +109,7 @@ export function ActionButton({
         full && { alignSelf: 'stretch' },
         !arrow && styles.centrado,
         { backgroundColor: p.bg, borderColor: p.border },
+        volumen,
         inactivo && styles.inactivo,
         style,
       ]}
