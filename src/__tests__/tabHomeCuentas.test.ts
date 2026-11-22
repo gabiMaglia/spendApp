@@ -16,7 +16,7 @@ describe('T-121 — pestaña index fusionada (Personal)', () => {
     const lineaIndex = src.split('\n').find(l => l.includes("screen('index'"));
     expect(lineaIndex).toBeDefined();
     expect(lineaIndex).toMatch(/t\('tabs\.personal'\)/);
-    expect(lineaIndex).toMatch(/'analytics-outline'/);
+    expect(lineaIndex).toMatch(/'personal'/);
   });
 
   it('ya no hay una pestaña separada registrada como personal', () => {
