@@ -1,7 +1,8 @@
-import { deliver, announce, resetPermissionCache, onNotificationTap } from '../notifications';
+import { deliver, announce, resetPermissionCache, onNotificationTap } from '@/src/services/notifications';
+import i18n from '@/src/i18n';
 import { useSettingsStore } from '@/src/store/settingsStore';
 import { useNoticeInboxStore } from '@/src/store/noticeInboxStore';
-import type { Notice } from '../syncNotices';
+import type { Notice } from '@/src/services/syncNotices';
 
 type Programada = { content: { title: string; body: string; data?: Record<string, unknown> }; trigger: null };
 const mockSchedule = jest.fn(async (_a: Programada) => 'id');
@@ -21,7 +22,8 @@ jest.mock('expo-notifications', () => ({
 const unido = (id: string, name: string): Notice => ({ kind: 'joined', groupId: id, groupName: name });
 const reloj: Notice = { kind: 'clock_off', offsetMs: 5000 };
 
-beforeEach(() => {
+beforeEach(async () => {
+  await i18n.changeLanguage('es');
   mockSchedule.mockClear();
   mockRemove.mockClear();
   listener = null;

@@ -117,7 +117,7 @@ function AuthGuard() {
   const entryGate = useEntryGateStore(s => s.estado);
 
   // T-295: el tap en el resumen de avisos abre la pestaña Actividad.
-  useEffect(() => onNotificationTap(destino => router.push(destino as any)), []);
+  useEffect(() => onNotificationTap(destino => router.push(destino as any)), [router]);
 
   useEffect(() => {
     const inAuth = segments[0] === 'auth';

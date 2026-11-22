@@ -1,5 +1,5 @@
-import { resumirAvisos, UMBRAL_RESUMEN } from '../resumirAvisos';
-import type { Notice } from '../syncNotices';
+import { resumirAvisos, UMBRAL_RESUMEN } from '@/src/services/resumirAvisos';
+import type { Notice } from '@/src/services/syncNotices';
 
 const g = (groupId: string, groupName: string): Notice =>
   ({ kind: 'joined', groupId, groupName });
