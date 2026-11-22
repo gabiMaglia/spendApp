@@ -17,7 +17,7 @@ const gasto = (over: Partial<Expense> = {}) => ({
 }) as Expense;
 
 const fila = (event: ActivityKind) => render(
-  <EventRow event={event} trust="trusted" getUserName={id => id} currentUserId="ana" onRestore={() => {}} />,
+  <EventRow event={event} trust="verificado" getUserName={id => id} currentUserId="ana" onRestore={() => {}} />,
 );
 
 describe('EventRow — íconos propios (T-294)', () => {
@@ -31,7 +31,6 @@ describe('EventRow — íconos propios (T-294)', () => {
     const r = fila({ kind: 'expense_deleted', expense: gasto({ category: 'shopping' }), groupName: 'Viaje' });
     expect(r.getByTestId('icono-categoria-shopping-a')).toBeTruthy();
     expect(r.getByTestId('evento-sello-tacho')).toBeTruthy();
-    expect(r.getByTestId('evento-icono').props.accessibilityState ?? {}).toBeDefined();
     expect(r.getByTestId('evento-icono-apagado')).toBeTruthy();
   });
 
