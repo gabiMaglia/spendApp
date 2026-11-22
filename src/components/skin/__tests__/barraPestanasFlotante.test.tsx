@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet } from 'react-native';
+import { Platform, StyleSheet } from 'react-native';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { render, renderHook, screen } from '@testing-library/react-native';
@@ -22,6 +22,12 @@ jest.mock('expo-router', () => {
   const Tabs = (p: { screenOptions: Record<string, any> }) => { opciones = p.screenOptions; return null; };
   Tabs.Screen = function Screen() { return null; };
   return { Tabs };
+});
+
+jest.mock('expo-blur', () => {
+  const R = require('react');
+  const { View } = require('react-native');
+  return { BlurView: (p: any) => R.createElement(View, { ...p, testID: 'blur-view' }) };
 });
 
 // eslint-disable-next-line import/first
@@ -89,5 +95,27 @@ describe('las cinco pestañas reservan el alto de la barra abajo', () => {
   it.each(['index', 'groups', 'friends', 'activity', 'user'])('%s usa useRellenoBarraPestanas', nombre => {
     const src = readFileSync(join(__dirname, '..', '..', '..', '..', 'app', '(tabs)', `${nombre}.tsx`), 'utf8');
     expect(src).toMatch(/useRellenoBarraPestanas\(\)/);
+  });
+});
+
+/** T-292: el vidrio es caro; en toda la barra hay como mucho UN BlurView y en Android ninguno. */
+describe('vidrio de la barra de pestañas (T-292)', () => {
+  const original = Platform.OS;
+  const enPlataforma = (os: 'ios' | 'android') => { Object.defineProperty(Platform, 'OS', { get: () => os, configurable: true }); };
+  afterEach(() => { Object.defineProperty(Platform, 'OS', { get: () => original, configurable: true }); });
+  beforeEach(() => useSettingsStore.setState({ skin: 'aero', reduceAnimations: false }));
+
+  it('iOS: el fondo de la barra monta un solo BlurView', () => {
+    enPlataforma('ios');
+    render(<TabLayout />);
+    render(<>{opciones.tabBarBackground()}</>);
+    expect(screen.getAllByTestId('blur-view', { includeHiddenElements: true }).length).toBe(1);
+  });
+
+  it('Android: el fondo de la barra no monta BlurView', () => {
+    enPlataforma('android');
+    render(<TabLayout />);
+    render(<>{opciones.tabBarBackground()}</>);
+    expect(screen.queryByTestId('blur-view', { includeHiddenElements: true })).toBeNull();
   });
 });

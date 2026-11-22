@@ -1,49 +1,31 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { FondoMarmol } from '@/src/components/FondoMarmol';
 import { useSkin } from '@/src/skins/useSkin';
-import { VidrioMarmol } from './VidrioMarmol';
+import { SuperficieVidrio } from './SuperficieVidrio';
 
 /**
- * **Fondo de la barra de pestañas en el Aero**: píldora de mármol con vidrio y
- * borde fino que flota sobre el contenido (T-276, estilo iOS 26). Sin velo
- * detrás: la píldora sola es la que flota.
+ * **Fondo de la barra de pestañas en el Aero**: píldora de vidrio con borde
+ * fino que flota sobre el contenido (T-276, estilo iOS 26; vidrio real en T-292).
+ * El contenido de las pestañas pasa por debajo (`useRellenoBarraPestanas`), que
+ * es lo que el blur desenfoca. Sin velo detrás: la píldora sola es la que flota.
  */
 export function TabBarFondoAero({ bottom, alto, margen }: { bottom: number; alto: number; margen: number }) {
   const { skin, degradado } = useSkin();
-  const c = skin.colors;
-  // Sombra corta y suave (T-227 punto 10, PO: «menos altura al shadow»).
+  const radio = alto / 2;
+  // Sombra de dos capas (T-292): apoya la píldora y la despega del contenido.
   const sombra = degradado
-    ? { elevation: skin.elevation.e1.elevationFallback }
-    : { boxShadow: skin.elevation.e1.boxShadow };
+    ? { elevation: skin.elevation.e2.elevationFallback }
+    : { boxShadow: skin.elevation.e2.boxShadow };
   return (
     <View testID="tabbar-aero" style={StyleSheet.absoluteFill} pointerEvents="none">
-      <View
-        style={[
-          styles.tarjeta,
-          {
-            left: margen,
-            right: margen,
-            bottom,
-            height: alto,
-            borderRadius: alto / 2,
-            backgroundColor: c.surface,
-            borderColor: c.bordeMarmol,
-          },
-          sombra,
-        ]}
-      >
-        <FondoMarmol patron="franja" variante />
-        <VidrioMarmol />
+      <View style={[styles.tarjeta, { left: margen, right: margen, bottom, height: alto, borderRadius: radio }, sombra]}>
+        <SuperficieVidrio radio={radio} />
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  tarjeta: {
-    position: 'absolute',
-    borderWidth: 1, overflow: 'hidden',
-  },
+  tarjeta: { position: 'absolute' },
 });

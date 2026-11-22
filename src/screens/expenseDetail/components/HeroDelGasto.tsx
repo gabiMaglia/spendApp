@@ -11,7 +11,7 @@ import { TrustMark } from '@/src/components/TrustMark';
 import { isMarked, type TrustState } from '@/src/algorithms/recordTrust';
 import type { CategoryKind } from '@/src/constants/colors';
 import type { Expense } from '@/src/types/models';
-import { useColors } from '@/src/skins/useSkin';
+import { useColors, useSkin } from '@/src/skins/useSkin';
 
 /**
  * Tarjeta héroe del Detalle de gasto: categoría, descripción, monto y fecha.
@@ -25,9 +25,11 @@ export function HeroDelGasto({ expense, dateStr, marca, nombreDe }: {
 }) {
   const { t } = useTranslation();
   const c = useColors();
+  // PO 2026-11-22: en Aero la tarjeta héroe va lisa, sin mármol; Clásico no cambia.
+  const conMarmol = useSkin().id !== 'aero';
   return (
     <View style={[styles.hero, { borderColor: c.hair, backgroundColor: c.surface }]}>
-      <FondoMarmol patron="distendida" style={styles.heroMarmol} />
+      {conMarmol && <FondoMarmol patron="distendida" style={styles.heroMarmol} />}
       <CategoryIcon kind={expense.category as CategoryKind} size={64} />
       <Text style={[Typography.h1, { color: c.text, textAlign: 'center', marginTop: 12 }]}>
         {expense.description}
@@ -58,7 +60,7 @@ export function HeroDelGasto({ expense, dateStr, marca, nombreDe }: {
 const styles = StyleSheet.create({
   hero: {
     alignItems: 'center', overflow: 'hidden',
-    marginHorizontal: Spacing.screenPad, marginBottom: Spacing[5],
+    marginHorizontal: Spacing.screenPad, marginBottom: Spacing[3],
     paddingHorizontal: Spacing.screenPad, paddingVertical: Spacing[6],
     borderRadius: Radius['2xl'], borderCurve: 'continuous', borderWidth: 1,
   },

@@ -68,8 +68,10 @@ export const AERO_SKIN: SkinDefinition = {
       vidrioMarmolOpacity: 0.55,
     },
     elevation: {
-      e1: { boxShadow: '0 1px 1px rgba(15,23,42,0.04), 0 6px 16px rgba(15,23,42,0.05)', elevationFallback: 1 },
-      e2: { boxShadow: '0 1px 2px rgba(15,23,42,0.05), 0 12px 28px rgba(15,23,42,0.08)', elevationFallback: 2 },
+      // e1 va en filas y chips: UNA capa (la doble es sólo para e2/e3, T-292).
+      e1: { boxShadow: '0 2px 10px rgba(15,23,42,0.06)', elevationFallback: 1 },
+      // Dos capas (T-292): cercana corta y nítida + lejana amplia y suave.
+      e2: { boxShadow: '0 1px 2px rgba(15,23,32,0.06), 0 12px 32px -8px rgba(33,52,73,0.18)', elevationFallback: 2 },
       e3: { boxShadow: '0 4px 10px rgba(33,52,73,0.18), 0 16px 32px rgba(47,71,99,0.26)', elevationFallback: 4 },
     },
     radius: RADIUS,
@@ -140,7 +142,7 @@ export const AERO_SKIN: SkinDefinition = {
     elevation: {
       // Sombras cortas y suaves: la pieza se apoya, no flota (PO 2026-10-11, «más chato»).
       e1: { boxShadow: '0 1px 2px rgba(0,0,0,0.22)', elevationFallback: 1 },
-      e2: { boxShadow: '0 1px 2px rgba(0,0,0,0.22), 0 4px 12px rgba(0,0,0,0.22)', elevationFallback: 2 },
+      e2: { boxShadow: '0 1px 2px rgba(0,0,0,0.30), 0 8px 20px -6px rgba(0,0,0,0.40)', elevationFallback: 2 },
       e3: { boxShadow: '0 4px 10px rgba(0,0,0,0.35), 0 16px 32px rgba(0,0,0,0.45)', elevationFallback: 4 },
     },
     radius: RADIUS,
