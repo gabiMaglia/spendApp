@@ -128,6 +128,16 @@ describe('borrado libre (T-186)', () => {
     expect(render(<ExpenseDetailScreen />).getByText('expense.delete_expense')).toBeTruthy();
   });
 
+  it('«Borrar gasto» va siempre al final, después de los comentarios (PO 2026-11-22)', () => {
+    useExpenseStore.setState({ expenses: [gasto({ createdById: 'ua' })] });
+    const arbol = JSON.stringify(render(<ExpenseDetailScreen />).toJSON());
+    const borrar = arbol.indexOf('expense.delete_expense');
+    const comentarios = arbol.indexOf('comments.placeholder');
+    expect(borrar).toBeGreaterThan(-1);
+    expect(comentarios).toBeGreaterThan(-1);
+    expect(borrar).toBeGreaterThan(comentarios);
+  });
+
   it('quien NO es creador —pero es miembro del grupo— también borra al instante, y queda deletedById', () => {
     useExpenseStore.setState({ expenses: [gasto({ createdById: 'ub' })] });
     const { getByText } = render(<ExpenseDetailScreen />);

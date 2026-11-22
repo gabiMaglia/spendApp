@@ -60,7 +60,7 @@ export function HeroDelGasto({ expense, dateStr, marca, nombreDe }: {
 const styles = StyleSheet.create({
   hero: {
     alignItems: 'center', overflow: 'hidden',
-    marginHorizontal: Spacing.screenPad, marginBottom: Spacing[5],
+    marginHorizontal: Spacing.screenPad, marginBottom: Spacing[3],
     paddingHorizontal: Spacing.screenPad, paddingVertical: Spacing[6],
     borderRadius: Radius['2xl'], borderCurve: 'continuous', borderWidth: 1,
   },

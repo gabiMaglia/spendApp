@@ -167,12 +167,6 @@ export default function ExpenseDetailScreen() {
             />
           )}
 
-          {/* T-186: cualquier miembro borra al instante, sin ronda que abrir —
-              sólo se muestra si el usuario puede borrar. */}
-          {!expense.isDeleted && currentUser && borradoDirecto && (
-            <FilaBorrarGasto onPress={handleRequestDelete} />
-          )}
-
           {/* Comentarios. Con el mismo margen lateral que el resto del contenido: se
               pegaba a los bordes de la pantalla (PO 2026-09-13, T-111). */}
           <View style={{ marginTop: Spacing[6], paddingHorizontal: Spacing.screenPad }}>
@@ -185,6 +179,15 @@ export default function ExpenseDetailScreen() {
               onInputFocus={alEnfocarComentario}
             />
           </View>
+
+          {/* T-186: cualquier miembro borra al instante, sin ronda que abrir —
+              sólo se muestra si el usuario puede borrar. Siempre al final, después
+              de los comentarios (PO 2026-11-22). */}
+          {!expense.isDeleted && currentUser && borradoDirecto && (
+            <View style={{ marginTop: Spacing[6] }}>
+              <FilaBorrarGasto onPress={handleRequestDelete} />
+            </View>
+          )}
 
           <View style={{ height: Spacing[9] }} />
         </ScrollView>
