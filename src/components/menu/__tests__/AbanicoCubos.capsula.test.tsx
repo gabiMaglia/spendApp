@@ -3,7 +3,7 @@ import { ScrollView, StyleSheet } from 'react-native';
 import { act, render } from '@testing-library/react-native';
 
 import { AbanicoCubos, ASENTAR_MS } from '@/src/components/menu/AbanicoCubos';
-import { ALTO_FILA, GAP_CUBOS } from '@/src/components/menu/calcularAbanico';
+import { ALTO_FILA, GAP_CUBOS, PAD_SOMBRA } from '@/src/components/menu/calcularAbanico';
 import { useSettingsStore } from '@/src/store/settingsStore';
 
 // La entrada nunca termina: el estilo inicial de cada cápsula queda a la vista.
@@ -52,9 +52,39 @@ describe('AbanicoCubos — cápsulas (T-285)', () => {
   it('con 9 opciones se ven 4 filas: el alto visible de la columna es el de 4', () => {
     const r = montar(9);
     const sv = r.UNSAFE_getByType(ScrollView);
-    expect(StyleSheet.flatten(sv.props.style).maxHeight).toBe(4 * ALTO_FILA + 3 * GAP_CUBOS);
+    expect(StyleSheet.flatten(r.getByTestId('ab-ventana').props.style).height).toBe(4 * ALTO_FILA + 3 * GAP_CUBOS + 2 * PAD_SOMBRA);
     expect(sv.props.scrollEnabled).toBe(true);
     expect(r.getAllByRole('menuitem')).toHaveLength(9);
+  });
+
+  it('con 12 opciones la ventana mide 4 filas (más el aire de la sombra, menor que el GAP) y recorta', () => {
+    const r = montar(12);
+    const v = StyleSheet.flatten(r.getByTestId('ab-ventana').props.style);
+    expect(v.height).toBe(4 * ALTO_FILA + 3 * GAP_CUBOS + 2 * PAD_SOMBRA);
+    expect(v.overflow).toBe('hidden');
+    // Con el aire menor que el GAP jamás asoma una 5ª fila, ni parcial.
+    expect(PAD_SOMBRA).toBeLessThan(GAP_CUBOS);
+  });
+
+  it('con scroll hay indicador visible y se lo hace destellar al asentar; sin scroll no', () => {
+    const r = render(
+      <AbanicoCubos
+        visible onClose={() => {}} ancla={ancla} opciones={ops(12)}
+        onElegir={() => {}} accessibilityLabel="c" etiquetaCerrar="x" testID="ab"
+      />,
+    );
+    act(() => { jest.advanceTimersByTime(20); });
+    const sv = r.UNSAFE_getByType(ScrollView);
+    const flash = sv.instance.flashScrollIndicators as jest.Mock;
+    flash.mockClear();
+    expect(flash).not.toHaveBeenCalled(); // la entrada todavía no asentó
+    act(() => { jest.advanceTimersByTime(ASENTAR_MS + 50); });
+    expect(sv.props.showsVerticalScrollIndicator).toBe(true);
+    expect(flash).toHaveBeenCalledTimes(1);
+
+    const r2 = montar(3);
+    expect(r2.UNSAFE_getByType(ScrollView).props.showsVerticalScrollIndicator).toBe(false);
+    expect(r2.UNSAFE_getByType(ScrollView).instance.flashScrollIndicators).toHaveBeenCalledTimes(1); // el mismo mock compartido: no sumó
   });
 
   it('el ✓ sólo está en la fila elegida', () => {

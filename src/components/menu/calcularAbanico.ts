@@ -10,6 +10,8 @@ export const SEPARACION_ANCLA = 16;
 export const PAD_CAPSULA = 6;
 export const ALTO_FILA = CUBO_TAMANO + 2 * PAD_CAPSULA;
 export const PASO_FILA = ALTO_FILA + GAP_CUBOS;
+/** Aire arriba y abajo de la ventana para que no se corte la sombra; menor que el GAP, así nunca asoma una 5ª fila. */
+export const PAD_SOMBRA = 6;
 /** Filas que se ven a la vez; el resto, con scroll. */
 export const VISIBLES = 4;
 

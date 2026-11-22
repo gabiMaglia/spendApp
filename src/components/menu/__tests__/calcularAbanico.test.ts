@@ -83,3 +83,11 @@ describe('calcularAbanico (T-285: columna al costado, cápsulas, 4 visibles)', (
     expect([a.altoColumna, a.alto, a.scrolla]).toEqual([0, 0, false]);
   });
 });
+
+describe('calcularAbanico — tope de 4 visibles (T-285 delta)', () => {
+  it('con 12 opciones y lugar de sobra muestra exactamente 4 filas y scrollea', () => {
+    const g = calcularAbanico({ x: 36, y: 100, width: 60, height: 60 }, { width: 400, height: 900 }, { top: 0, bottom: 0 }, 12);
+    expect(g.alto).toBe(4 * ALTO_FILA + 3 * GAP_CUBOS);
+    expect(g.scrolla).toBe(true);
+  });
+});

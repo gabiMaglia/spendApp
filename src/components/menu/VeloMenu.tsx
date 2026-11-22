@@ -2,7 +2,8 @@ import React from 'react';
 import { Pressable, StyleSheet } from 'react-native';
 import Animated from 'react-native-reanimated';
 
-export const SCRIM = 'rgba(12, 16, 14, 0.5)';
+// Sin token en el skin todavía: constante compartida con FundidoBorde.
+export const SCRIM = 'rgba(12, 16, 14, 0.7)';
 
 /** Velo oscuro de los menús flotantes. Para el lector de pantalla es el botón «cerrar». */
 export function VeloMenu({ visible, estilo, onClose, etiquetaCerrar, testID }: {
