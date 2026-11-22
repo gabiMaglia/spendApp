@@ -25,8 +25,8 @@ function IconoCategoriaBase({ categoria, tinte, sobreColor, tamano = 28, variant
   const { b, d } = DIBUJOS_CATEGORIA[id];
   const esB = variante === 'b';
   return (
-    // El hint sólo deja observar la variante: la fila/botón que lo contiene lleva la etiqueta real.
-    <View testID={`icono-categoria-${id}`} accessibilityHint={`variante-${variante}`}>
+    // Decorativo: el label accesible lo da la opción/botón que lo contiene. El testID deja observar la variante.
+    <View testID={`icono-categoria-${id}-${variante}`} accessible={false}>
       <Svg width={tamano} height={tamano} viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round">
         <Path
           d={b}

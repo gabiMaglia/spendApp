@@ -199,7 +199,7 @@ describe('abanico de categorías (T-293)', () => {
         { valor: 'taxes', categoria: 'taxes', tinte: '#7e9', etiqueta: 'Impuestos' },
       ],
     });
-    expect(getByTestId('icono-categoria-taxes').props.accessibilityHint).toBe('variante-b');
-    expect(getByTestId('icono-categoria-food').props.accessibilityHint).toBe('variante-a');
+    expect(getByTestId('icono-categoria-taxes-b')).toBeTruthy();
+    expect(getByTestId('icono-categoria-food-a')).toBeTruthy();
   });
 });
