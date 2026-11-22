@@ -1,5 +1,6 @@
 import React from 'react';
-import { fireEvent, render, within } from '@testing-library/react-native';
+import { act, fireEvent, render, within } from '@testing-library/react-native';
+import { ASENTAR_MS } from '@/src/components/menu/AbanicoCubos';
 import NewExpenseScreen from '@/app/expense/new';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
@@ -17,6 +18,9 @@ import type { Group, User } from '@/src/types/models';
  */
 
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
+// La fila de Repetir necesita la medida del chip, que en Jest no existe (T-282 t2).
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+jest.mock('@/src/components/menu/useRectAncla', () => require('@/src/test-utils/rectAnclaFalso').rectAnclaFalso);
 
 let mockSearchParams: Record<string, string | undefined> = { groupId: 'g1' };
 jest.mock('expo-router', () => ({
@@ -72,11 +76,14 @@ describe('Alta de gasto estilo Splitwise (Aero)', () => {
   });
 
   it('Repetir no está en el formulario: se abre desde la barra', () => {
+    jest.useFakeTimers();
     const r = render(<NewExpenseScreen />);
     expect(r.queryByText('recurrence.weekly')).toBeNull();
     fireEvent.press(r.getByTestId('barra-repetir'));
+    act(() => { jest.advanceTimersByTime(ASENTAR_MS + 50); });
     fireEvent.press(r.getByText('recurrence.weekly'));
     expect(within(r.getByTestId('barra-repetir')).getByText('recurrence.weekly')).toBeTruthy();
+    jest.useRealTimers();
   });
 
   it('Guardar va ARRIBA de la barra de herramientas (PO 2026-11-21, T-281)', () => {

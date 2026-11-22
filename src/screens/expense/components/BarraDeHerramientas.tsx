@@ -18,7 +18,7 @@ import { formatDate } from '@/src/screens/expense/repartoDeGasto';
  */
 export function BarraDeHerramientas({
   date, onOpenDate, recurrence, onOpenRecurrence, showRecurrence,
-  receiptUri, onReceiptChange, note, onOpenNote,
+  receiptUri, onReceiptChange, note, onOpenNote, anclaFecha, anclaRepetir,
 }: {
   date: Date;
   onOpenDate: () => void;
@@ -29,6 +29,9 @@ export function BarraDeHerramientas({
   onReceiptChange: (uri: string) => void;
   note: string;
   onOpenNote: () => void;
+  /** Los chips son el ancla de las filas de cubos de fecha y repetir. */
+  anclaFecha: React.RefObject<View | null>;
+  anclaRepetir: React.RefObject<View | null>;
 }) {
   const { t } = useTranslation();
   const { skin } = useSkin();
@@ -50,13 +53,15 @@ export function BarraDeHerramientas({
       backgroundColor: c.surfaceRaised, borderColor: c.edgeLight, borderRadius: skin.radius.panel,
       boxShadow: skin.elevation.e2.boxShadow,
     }]}>
-      <Pressable testID="barra-fecha" onPress={onOpenDate} accessibilityRole="button" style={styles.chip}>
+      <Pressable ref={anclaFecha} collapsable={false} testID="barra-fecha" onPress={onOpenDate} accessibilityRole="button" style={styles.chip}>
         <Ionicons name="calendar-outline" size={19} color={c.brand.primary} />
         <Text style={[Typography.bodyL, { color: c.text }]}>{formatDate(date)}</Text>
       </Pressable>
       <View style={styles.espacio} />
       {showRecurrence && (
         <Pressable
+          ref={anclaRepetir}
+          collapsable={false}
           testID="barra-repetir"
           onPress={onOpenRecurrence}
           accessibilityRole="button"

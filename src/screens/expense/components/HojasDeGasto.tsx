@@ -1,11 +1,12 @@
 import React from 'react';
+import type { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
+import { HojaFecha } from '@/src/components/HojaFecha';
 import { BottomSheet, SheetActions, SheetButton, SheetInput, SheetOption, SheetOptionAvatar } from '@/src/components/Sheet';
 import { MAX_NOTA } from '@/src/sync/nucleo/topes';
 import { useUserStore } from '@/src/store/userStore';
 import type { Group } from '@/src/types/models';
-import { formatDate } from '@/src/screens/expense/repartoDeGasto';
 
 /** Las de `HojasSplitwise` (pagadores, reparto, repetir) son sólo de Aero. */
 export type HojaAbierta = 'grupo' | 'pagador' | 'fecha' | 'nota' | 'pagadores' | 'reparto' | 'repetir' | null;
@@ -18,7 +19,7 @@ export function HojasDeGasto({
   abierta, onClose, isEditMode,
   groups, groupId, onGroupChange,
   members, payerId, onPayerChange,
-  date, onDateChange, soloMesCorriente = false,
+  date, onDateChange, anclaFecha, soloMesCorriente = false,
   note, onNoteChange,
 }: {
   abierta: HojaAbierta;
@@ -32,6 +33,8 @@ export function HojasDeGasto({
   onPayerChange: (id: string) => void;
   date: Date;
   onDateChange: (d: Date) => void;
+  /** El chip de fecha de la barra: de ahí sale la fila de cubos en Aero. */
+  anclaFecha: React.RefObject<View | null>;
   /** Gasto personal: un mes cerrado ya arrastró su saldo (T-259). */
   soloMesCorriente?: boolean;
   note: string;
@@ -78,24 +81,10 @@ export function HojasDeGasto({
         ))}
       </BottomSheet>
 
-      <BottomSheet visible={abierta === 'fecha'} onClose={onClose} title={t('expense.expense_date')}>
-        {diasElegibles(soloMesCorriente).map((d, i, dias) => {
-          const label   = formatDate(d);
-          const longFmt = i > 1 ? d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' }) : undefined;
-          const isSel   = formatDate(date) === label;
-          return (
-            <SheetOption
-              key={i}
-              icon="calendar-outline"
-              label={label}
-              sublabel={longFmt}
-              selected={isSel}
-              onPress={() => { onDateChange(d); onClose(); }}
-              last={i === dias.length - 1}
-            />
-          );
-        })}
-      </BottomSheet>
+      <HojaFecha
+        visible={abierta === 'fecha'} onClose={onClose} ancla={anclaFecha} date={date} onElegir={onDateChange}
+        titulo={t('expense.expense_date')} soloMesCorriente={soloMesCorriente} testID="selector-fecha"
+      />
 
       <BottomSheet
         visible={abierta === 'nota'}
@@ -115,14 +104,4 @@ export function HojasDeGasto({
       </BottomSheet>
     </>
   );
-}
-
-/** Los últimos 7 días, a mediodía; con `soloMesCorriente`, sin salir del mes. */
-export function diasElegibles(soloMesCorriente: boolean, ahora: Date = new Date()): Date[] {
-  return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(ahora);
-    d.setDate(d.getDate() - i);
-    d.setHours(12, 0, 0, 0);
-    return d;
-  }).filter(d => !soloMesCorriente || d.getMonth() === ahora.getMonth());
 }

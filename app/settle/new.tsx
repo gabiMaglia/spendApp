@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from 'react-native';
+import React, { useMemo, useRef, useState } from 'react';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, type View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -124,6 +124,7 @@ function SaldarEnGrupo() {
   const [showFrom,  setShowFrom]  = useState(false);
   const [showTo,    setShowTo]    = useState(false);
   const [showDate,  setShowDate]  = useState(false);
+  const anclaFecha = useRef<View>(null);
 
   const group    = groups.find(g => g.id === groupId);
   const isArchivedFn  = useArchiveStore(s => s.isArchived);
@@ -217,6 +218,7 @@ function SaldarEnGrupo() {
             date={date}
             onPressGrupo={() => { hapticSelection(); setShowGroup(true); }}
             onPressFecha={() => { hapticSelection(); setShowDate(true); }}
+            anclaFecha={anclaFecha}
           />
 
           {/* El botón de la app, no un Pressable con estilo propio: es la
@@ -246,7 +248,8 @@ function SaldarEnGrupo() {
         onToChange={uid => { hapticSelection(); setToId(uid); setShowTo(false); }}
         showDate={showDate} onCloseDate={() => setShowDate(false)}
         date={date}
-        onDateChange={d => { hapticSelection(); setDate(d); setShowDate(false); }}
+        onDateChange={d => { hapticSelection(); setDate(d); }}
+        anclaFecha={anclaFecha}
         hintDe={uid => hintDe(balancesDelGrupo, uid, currency, t)}
       />
     </SafeAreaView>
