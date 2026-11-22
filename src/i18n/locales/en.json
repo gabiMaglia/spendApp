@@ -679,7 +679,14 @@
     "join_stalled_title": "We couldn't complete your join",
     "join_stalled_body": "Your join to «{{group}}» didn't complete. Ask whoever invited you for a new link.",
     "traspaso_recurring_blocked_title": "A recurring expense from «{{group}}» wasn't moved",
-    "traspaso_recurring_blocked_body": "The group was transferred, but this recurring expense stayed in the archived group. Recreate it in the new group."
+    "traspaso_recurring_blocked_body": "The group was transferred, but this recurring expense stayed in the archived group. Recreate it in the new group.",
+    "summary_title": "News in HushSplit",
+    "summary_body_group_one": "You have {{count}} update in “{{group}}”",
+    "summary_body_group_other": "You have {{count}} updates in “{{group}}”",
+    "summary_body_groups_one": "You have {{count}} update across {{groups}} groups",
+    "summary_body_groups_other": "You have {{count}} updates across {{groups}} groups",
+    "summary_body_one": "You have {{count}} update",
+    "summary_body_other": "You have {{count}} updates"
   },
   "fx": {
     "partial_title": "There's money we're not showing you",
