@@ -1,8 +1,6 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { Pressable, StyleSheet, Text } from 'react-native';
-import Animated, {
-  type SharedValue, useAnimatedStyle, useSharedValue, withDelay, withSpring, withTiming,
-} from 'react-native-reanimated';
+import Animated, { type SharedValue, useAnimatedStyle } from 'react-native-reanimated';
 
 import { Ionicons } from '@expo/vector-icons';
 
@@ -10,15 +8,8 @@ import { Typography } from '@/src/constants/typography';
 import { CuboIcono } from '@/src/components/CuboIcono';
 import { PASO_FILA, GAP_CUBOS, PAD_CAPSULA, ALTO_FILA } from '@/src/components/menu/calcularAbanico';
 import { useSkin } from '@/src/skins/useSkin';
-import { FUNDIDO_MS as SALIDA_REDUCIDA_MS, SALIDA_MS } from '@/src/components/menu/useAnimacionMenu';
+import { useEntradaCapsula } from '@/src/components/menu/useEntradaCapsula';
 import type { OpcionCubo } from '@/src/components/menu/tipos';
-
-// «Sharp, swift and soft»: rigidez alta, amortiguación justa (ζ≈0.8, ~1 % de rebote).
-const SPRING = { stiffness: 560, damping: 38, mass: 1 };
-const ESCALONADO_MS = 22;
-const DEMORA_ETIQUETA_MS = 70;
-const ETIQUETA_MS = 140;
-const FUNDIDO_MS = 90;
 
 /**
  * Una cápsula (cubo + nombre, ✓ si es la elegida). Nace sobre el cubo original
@@ -46,26 +37,7 @@ export function FilaCubo<V>({
   const { skin, degradado } = useSkin();
   const c = skin.colors;
   const e = skin.elevation.e2;
-  const p = useSharedValue(0);
-  const l = useSharedValue(0);
-
-  useEffect(() => {
-    if (visible && entrar) {
-      if (sinAnimacion) {
-        p.value = withTiming(1, { duration: FUNDIDO_MS });
-        l.value = withTiming(1, { duration: FUNDIDO_MS });
-      } else {
-        const demora = indice * ESCALONADO_MS;
-        p.value = withDelay(demora, withSpring(1, SPRING));
-        l.value = withDelay(demora + DEMORA_ETIQUETA_MS, withTiming(1, { duration: ETIQUETA_MS }));
-      }
-    } else if (!visible) {
-      // Con reducir movimiento el Modal se desmonta a los 90 ms: el fundido dura lo mismo.
-      const ms = sinAnimacion ? SALIDA_REDUCIDA_MS : SALIDA_MS - 10;
-      p.value = withTiming(0, { duration: ms });
-      l.value = withTiming(0, { duration: ms });
-    }
-  }, [visible, entrar, sinAnimacion, indice, p, l]);
+  const { p, l } = useEntradaCapsula({ indice, visible, entrar, sinAnimacion });
 
   // El translate va en el contenedor de la fila: el área de toque viaja con el cubo.
   const estiloFila = useAnimatedStyle(() => (
@@ -99,7 +71,7 @@ export function FilaCubo<V>({
         accessibilityState={{ selected: seleccionado }}
       >
         <Animated.View style={estiloCubo}>
-          <CuboIcono icono={opcion.icono} texto={opcion.texto} tinte={opcion.tinte} resaltado={seleccionado} />
+          <CuboIcono icono={opcion.icono} texto={opcion.texto} fecha={opcion.fecha} tinte={opcion.tinte} resaltado={seleccionado} />
         </Animated.View>
         <Animated.View style={[styles.etiqueta, estiloEtiqueta]}>
           <Text style={[Typography.bodyL, { color: c.text }]} numberOfLines={1}>{opcion.etiqueta}</Text>

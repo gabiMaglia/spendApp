@@ -24,3 +24,12 @@ describe('CuboIcono con texto (T-286)', () => {
     expect(UNSAFE_queryByProps({ size: 28 })).toBeNull();
   });
 });
+
+describe('CuboIcono con fecha (T-282 t2)', () => {
+  it('con `fecha` dibuja el día y el mes abreviado, sin ícono', () => {
+    const { getByText, UNSAFE_queryByProps } = render(<CuboIcono fecha={{ dia: '18', mes: 'nov' }} tinte="#123456" />);
+    expect(getByText('18')).toBeTruthy();
+    expect(getByText('nov')).toBeTruthy();
+    expect(UNSAFE_queryByProps({ size: 28 })).toBeNull();
+  });
+});
