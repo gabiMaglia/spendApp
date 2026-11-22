@@ -2,7 +2,7 @@ import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, { type SharedValue, useAnimatedStyle } from 'react-native-reanimated';
 
-import { SCRIM } from '@/src/components/menu/VeloMenu';
+import { useColors } from '@/src/skins/useSkin';
 
 const FRANJAS = 8;
 const ALTO_FRANJA = 4;
@@ -21,6 +21,7 @@ export function FundidoBorde({ scrollY, maxScroll, horizontal, alIzquierda, test
   alIzquierda?: boolean;
   testID?: string;
 }) {
+  const c = useColors();
   const estilo = useAnimatedStyle(() => ({
     opacity: (alIzquierda ? scrollY.value <= 1 : scrollY.value >= maxScroll - 1) ? 0 : 1,
   }));
@@ -35,7 +36,7 @@ export function FundidoBorde({ scrollY, maxScroll, horizontal, alIzquierda, test
         return (
           <View
             key={i}
-            style={[horizontal ? { width: ALTO_FRANJA } : { height: ALTO_FRANJA }, { backgroundColor: SCRIM, opacity: o }]}
+            style={[horizontal ? { width: ALTO_FRANJA } : { height: ALTO_FRANJA }, { backgroundColor: c.velo, opacity: o }]}
           />
         );
       })}

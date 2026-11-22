@@ -26,6 +26,8 @@ function paraEsquema(scheme: ColorScheme): Skin {
       bordeMarmol: c.hair,
       marmolVeil: 'transparent',
       marmolOpacity: 1,
+      velo: 'rgba(12, 16, 14, 0.7)',
+      sobreVelo: '#fff',
       vidrioVeilTop: 'transparent',
       vidrioVeilBottom: 'transparent',
       vidrioGloss: 'transparent',

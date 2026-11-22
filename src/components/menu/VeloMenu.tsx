@@ -2,8 +2,7 @@ import React from 'react';
 import { Pressable, StyleSheet } from 'react-native';
 import Animated from 'react-native-reanimated';
 
-// Sin token en el skin todavía: constante compartida con FundidoBorde.
-export const SCRIM = 'rgba(12, 16, 14, 0.7)';
+import { useColors } from '@/src/skins/useSkin';
 
 /** Velo oscuro de los menús flotantes. Para el lector de pantalla es el botón «cerrar». */
 export function VeloMenu({ visible, estilo, onClose, etiquetaCerrar, testID }: {
@@ -13,10 +12,11 @@ export function VeloMenu({ visible, estilo, onClose, etiquetaCerrar, testID }: {
   etiquetaCerrar: string;
   testID?: string;
 }) {
+  const c = useColors();
   return (
     <Animated.View
       pointerEvents={visible ? 'auto' : 'none'}
-      style={[StyleSheet.absoluteFillObject, { backgroundColor: SCRIM }, estilo]}
+      style={[StyleSheet.absoluteFillObject, { backgroundColor: c.velo }, estilo]}
     >
       <Pressable
         testID={testID}

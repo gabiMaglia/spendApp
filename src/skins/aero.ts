@@ -58,6 +58,8 @@ export const AERO_SKIN: SkinDefinition = {
       // Velo blanco-pizarra (#F1F5F9), no azul — aclara en vez de oscurecer
       // (el tinte azul del 2026-09-26 se descartó por eso).
       marmolVeil: 'rgba(241,245,249,0.50)',
+      velo: 'rgba(12, 16, 14, 0.7)',
+      sobreVelo: '#fff',
       marmolOpacity: 0.55,
       vidrioVeilTop: 'rgba(241,245,249,0.20)',
       vidrioVeilBottom: 'rgba(241,245,249,0.40)',
@@ -126,6 +128,8 @@ export const AERO_SKIN: SkinDefinition = {
       // media 17/255). Velo CLARO y tibio en vez de oscuro: lo levanta hacia la
       // pizarra cálida y deja ver la veta.
       marmolVeil: 'rgba(255,245,230,0.07)',
+      velo: 'rgba(12, 16, 14, 0.7)',
+      sobreVelo: '#fff',
       marmolOpacity: 1,
       vidrioVeilTop: 'rgba(255,245,230,0.08)',
       vidrioVeilBottom: 'rgba(255,245,230,0.04)',
