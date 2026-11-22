@@ -21,10 +21,10 @@ const fila = (event: ActivityKind) => render(
 );
 
 describe('EventRow — íconos propios (T-294)', () => {
-  it('gasto creado: cubo de su categoría + sello «más»', () => {
+  it('gasto creado: cubo de su categoría y sin sello', () => {
     const r = fila({ kind: 'expense_added', expense: gasto({ category: 'transport' }), groupName: 'Viaje' });
     expect(r.getByTestId('icono-categoria-transport-a')).toBeTruthy();
-    expect(r.getByTestId('evento-sello-mas')).toBeTruthy();
+    expect(r.queryByTestId(/evento-sello-/)).toBeNull();
   });
 
   it('gasto borrado: cubo apagado de su categoría + sello «tacho»', () => {

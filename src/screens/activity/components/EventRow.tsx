@@ -126,7 +126,7 @@ export const EventRow = React.memo(function EventRow({
       ? miParteDelGasto(expense, currentUserId)
       : null;
     return row({
-      icono: { categoria: expense.category, sello: 'mas', colorSello: c.brand.primary },
+      icono: { categoria: expense.category },
       onPress: () => router.push(`/expense/${expense.id}` as any),
       body: <ActivityLine who={who} action={action} subject={`${expense.description} · ${nombreDeGrupo(groupName)}`} ts={relativeTime(expense.date)} />,
       right: (
