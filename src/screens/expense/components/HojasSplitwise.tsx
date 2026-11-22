@@ -5,11 +5,13 @@ import { useTranslation } from 'react-i18next';
 import { Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import type { CurrencyCode } from '@/src/constants/currencies';
-import { BottomSheet, SheetActions, SheetButton, SheetOption, SheetOptionAvatar } from '@/src/components/Sheet';
+import { BottomSheet, SheetActions, SheetButton, SheetOptionAvatar } from '@/src/components/Sheet';
 import { PayerSplitter } from '@/src/components/PayerSplitter';
 import { OPCIONES_REPETIR, type RecurrenceValue } from '@/src/components/RecurrencePicker';
 import { useUserStore } from '@/src/store/userStore';
-import { useColors } from '@/src/skins/useSkin';
+import { AbanicoCubos } from '@/src/components/menu/AbanicoCubos';
+import type { OpcionCubo } from '@/src/components/menu/tipos';
+import { useColors, useSkin } from '@/src/skins/useSkin';
 import type { Payer } from '@/src/types/models';
 import type { useRepartoDeGasto } from '@/src/screens/expense/hooks/useRepartoDeGasto';
 import { BloqueReparto } from '@/src/screens/expense/components/BloqueReparto';
@@ -24,7 +26,7 @@ import type { HojaAbierta } from '@/src/screens/expense/components/HojasDeGasto'
 export function HojasSplitwise({
   abierta, onClose,
   members, payerId, onPayerChange, multiPayer, payers, amount, currency, onPayersChange, onTogglePayerMode,
-  reparto, recurrence, onRecurrenceChange,
+  reparto, recurrence, onRecurrenceChange, anclaRepetir,
 }: {
   abierta: HojaAbierta;
   onClose: () => void;
@@ -40,10 +42,16 @@ export function HojasSplitwise({
   reparto: ReturnType<typeof useRepartoDeGasto>;
   recurrence: RecurrenceValue;
   onRecurrenceChange: (v: RecurrenceValue) => void;
+  /** El chip de repetir de la barra: de ahí sale la fila de cubos. */
+  anclaRepetir: React.RefObject<View | null>;
 }) {
   const { t } = useTranslation();
   const c = useColors();
+  const { skin } = useSkin();
   const getUserName = useUserStore(s => s.getUserName);
+  const opcionesRepetir: OpcionCubo<RecurrenceValue>[] = OPCIONES_REPETIR.map(o => ({
+    valor: o.value, icono: o.icon, tinte: skin.colors.brand.primary, etiqueta: t(o.labelKey),
+  }));
 
   const link = (key: string) => (
     <Pressable onPress={onTogglePayerMode} hitSlop={8} style={styles.link}>
@@ -115,21 +123,12 @@ export function HojasSplitwise({
         />
       </BottomSheet>
 
-      <BottomSheet visible={abierta === 'repetir'} onClose={onClose} title={t('recurrence.label')} scroll={false}>
-        {OPCIONES_REPETIR.map((o, i) => (
-          <SheetOption
-            key={o.labelKey}
-            icon={o.icon}
-            label={t(o.labelKey)}
-            selected={o.value === recurrence}
-            onPress={() => { onRecurrenceChange(o.value); onClose(); }}
-            last={i === OPCIONES_REPETIR.length - 1}
-          />
-        ))}
-        {recurrence !== null && (
-          <Text style={[Typography.bodyS, styles.pista, { color: c.textTertiary }]}>{t('recurrence.hint')}</Text>
-        )}
-      </BottomSheet>
+      <AbanicoCubos
+        visible={abierta === 'repetir'} onClose={onClose} ancla={anclaRepetir} orientacion="fila"
+        opciones={opcionesRepetir} seleccionado={recurrence}
+        onElegir={v => onRecurrenceChange(v)} pie={t('recurrence.hint')}
+        accessibilityLabel={t('recurrence.label')} etiquetaCerrar={t('common.close')} testID="menu-repetir"
+      />
     </>
   );
 }
@@ -137,5 +136,4 @@ export function HojasSplitwise({
 const styles = StyleSheet.create({
   columna: { gap: Spacing[2], paddingHorizontal: Spacing.screenPad, paddingVertical: Spacing[2] },
   link: { alignSelf: 'flex-start', paddingHorizontal: Spacing.screenPad, paddingVertical: 14 },
-  pista: { paddingHorizontal: Spacing.screenPad, paddingVertical: 12 },
 });

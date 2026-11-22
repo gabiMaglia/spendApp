@@ -1,4 +1,4 @@
-import { diasElegibles } from '../HojasDeGasto';
+import { diasElegibles } from '@/src/utils/diasElegibles';
 
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
 

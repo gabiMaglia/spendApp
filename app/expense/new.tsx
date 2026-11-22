@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -100,6 +100,9 @@ export default function NewExpenseScreen() {
   const isIncome = ent ? ent.isIncome : incomeAllowed && entryKind === 'income';
   const [receiptUri, setReceiptUri] = useState<string | undefined>(existingExpense?.receiptImageUri);
   const [hoja, setHoja] = useState<HojaAbierta>(null);
+  // Los chips de la barra: de ahí salen las filas de cubos de fecha y repetir (Aero).
+  const anclaFecha = useRef<View>(null);
+  const anclaRepetir = useRef<View>(null);
   const [recurrence, setRecurrence] = useState<RecurrenceValue>(null);
   const [multiPayer, setMultiPayer] = useState(false);
   const [payers, setPayers] = useState<Payer[]>([]);
@@ -307,6 +310,8 @@ export default function NewExpenseScreen() {
               onReceiptChange={setReceiptUri}
               note={note}
               onOpenNote={() => setHoja('nota')}
+              anclaFecha={anclaFecha}
+              anclaRepetir={anclaRepetir}
             />
           ) : (
             <BarraUtilidades
@@ -337,6 +342,7 @@ export default function NewExpenseScreen() {
         onPayerChange={setPayerId}
         date={date}
         onDateChange={setDate}
+        anclaFecha={anclaFecha}
         soloMesCorriente={!hasGroup}
         note={note}
         onNoteChange={setNote}
@@ -357,6 +363,7 @@ export default function NewExpenseScreen() {
           reparto={reparto}
           recurrence={recurrence}
           onRecurrenceChange={setRecurrence}
+          anclaRepetir={anclaRepetir}
         />
       )}
     </SafeAreaView>

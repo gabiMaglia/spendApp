@@ -1,14 +1,13 @@
 import React from 'react';
-import { Text } from 'react-native';
+import { Text, type View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
+import { HojaFecha } from '@/src/components/HojaFecha';
 import { BottomSheet, SheetOption, SheetOptionAvatar } from '@/src/components/Sheet';
 import { Typography } from '@/src/constants/typography';
-import i18n from '@/src/i18n';
 import { useUserStore } from '@/src/store/userStore';
 import { useColors } from '@/src/skins/useSkin';
 import type { Group } from '@/src/types/models';
-import { formatDate } from '@/src/screens/settle/saldoDeGrupo';
 
 /**
  * Las cuatro hojas de Saldar: grupo, quién paga, quién recibe (estas dos sólo
@@ -20,7 +19,7 @@ export function HojasDeSaldo({
   showFrom, onCloseFrom, members, fromId, onFromChange,
   showTo, onCloseTo, toOptions, toId, onToChange,
   showDate, onCloseDate, date, onDateChange,
-  hintDe,
+  anclaFecha, hintDe,
 }: {
   isPrefilled: boolean;
   showGroup: boolean;
@@ -42,6 +41,8 @@ export function HojasDeSaldo({
   onCloseDate: () => void;
   date: Date;
   onDateChange: (d: Date) => void;
+  /** La fila de fecha de la pantalla: de ahí sale la fila de cubos en Aero. */
+  anclaFecha: React.RefObject<View | null>;
   hintDe: (uid: string) => string | undefined;
 }) {
   const { t } = useTranslation();
@@ -98,29 +99,10 @@ export function HojasDeSaldo({
         </BottomSheet>
       )}
 
-      {/* Date picker */}
-      <BottomSheet visible={showDate} onClose={onCloseDate}>
-        <Text style={[Typography.h3, { color: c.text, marginBottom: 16 }]}>{t('settle.payment_date')}</Text>
-        {Array.from({ length: 7 }, (_, i) => {
-          const d = new Date();
-          d.setDate(d.getDate() - i);
-          d.setHours(12, 0, 0, 0);
-          const label   = formatDate(d);
-          const longFmt = i > 1
-            ? d.toLocaleDateString(i18n.language, { weekday: 'long', day: 'numeric', month: 'long' })
-            : undefined;
-          return (
-            <SheetOption
-              key={i}
-              icon="calendar-outline"
-              label={label}
-              sublabel={longFmt}
-              selected={formatDate(date) === label}
-              onPress={() => onDateChange(d)}
-            />
-          );
-        })}
-      </BottomSheet>
+      <HojaFecha
+        visible={showDate} onClose={onCloseDate} ancla={anclaFecha} date={date} onElegir={onDateChange}
+        titulo={t('settle.payment_date')} testID="selector-fecha-saldo"
+      />
     </>
   );
 }
