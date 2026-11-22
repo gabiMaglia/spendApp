@@ -295,7 +295,10 @@
     "friend_confirm_title": "Settle everything with {{name}}?",
     "friend_confirm_body": "A payment to {{name}} will be recorded in each group:\n{{detalle}}",
     "friend_confirm_line": "{{group}}: {{amount}}",
-    "friend_confirm_ok": "Settle all"
+    "friend_confirm_ok": "Settle all",
+    "done_title": "Settled",
+    "done_to": "to {{name}}",
+    "done_to_many": "to {{count}} people"
   },
   "activity": {
     "see_more": "See more ({{count}})",

@@ -1,11 +1,12 @@
 import { Alert } from 'react-native';
-import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
 import type { CurrencyCode } from '@/src/constants/currencies';
 import { pagosDelReparto, repartoParejo, type Acreedor } from '@/src/algorithms/repartoSaldo';
 import { motivoDeExceso } from '@/src/services/topeDeRegistro';
 import { hapticSuccess, hapticWarning } from '@/src/utils/haptics';
+import { useMomentoExito } from '@/src/hooks/useMomentoExito';
+import { useUserStore } from '@/src/store/userStore';
 import { armarPago } from '@/src/screens/settle/armarPago';
 import type { Payment, User } from '@/src/types/models';
 
@@ -31,8 +32,19 @@ export function useGuardarSaldo({
   addPayment: (p: Payment) => void;
 }) {
   const { t } = useTranslation();
+  const { momento, mostrar } = useMomentoExito();
 
-  return function handleSave() {
+  // La pantalla sigue ahí hasta que `MomentoExito` termina y navega (T-290).
+  function cerrarConMomento(pagos: Payment[]) {
+    const total = pagos.reduce((suma, p) => suma + p.amount, 0);
+    const aQuien = pagos.length === 0 ? ''
+      : pagos.length > 1
+        ? t('settle.done_to_many', { count: pagos.length })
+        : t('settle.done_to', { name: useUserStore.getState().getUserName(pagos[0].toUserId) });
+    mostrar({ montos: [{ minor: total, code: currency }], titulo: t('settle.done_title'), detalle: aQuien });
+  }
+
+  function handleSave() {
     if (!canSave || !currentUser) return;
     if (exceedsMax) { hapticWarning(); return; }
 
@@ -53,7 +65,7 @@ export function useGuardarSaldo({
       }
       hapticSuccess();
       for (const pago of pagos) addPayment(pago);
-      router.back();
+      cerrarConMomento(pagos);
       return;
     }
 
@@ -67,6 +79,8 @@ export function useGuardarSaldo({
     }
     hapticSuccess();
     addPayment(nuevo);
-    router.back();
-  };
+    cerrarConMomento([nuevo]);
+  }
+
+  return { handleSave, momento };
 }

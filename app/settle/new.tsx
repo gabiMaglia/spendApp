@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 
 import { DetailHeader, useRellenoDetailHeader } from '@/src/components/CollapsibleHeader';
 import { Spacing } from '@/src/constants/spacing';
+import { MomentoExito } from '@/src/components/MomentoExito';
 import { ActionButton } from '@/src/components/ActionButton';
 import { ButtonRack } from '@/src/components/ButtonRack';
 import { useBaseInferior } from '@/src/hooks/useBaseInferior';
@@ -143,7 +144,7 @@ function SaldarEnGrupo() {
   const exceedsMax = excedeElTope(amount, tope);
   const canSave    = !decimalesNoAdmitidos && puedeGuardarSaldo({ amount, exceedsMax, fromId, toId, groupId, grupoArchivado });
 
-  const handleSave = useGuardarSaldo({
+  const { handleSave, momento } = useGuardarSaldo({
     canSave, exceedsMax, currentUser, modoTodo, acreedores, amount,
     groupId, fromId, toId, currency, date, addPayment,
   });
@@ -236,6 +237,8 @@ function SaldarEnGrupo() {
           </ButtonRack>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <MomentoExito momento={momento} onTerminar={() => router.back()} />
 
       <HojasDeSaldo
         isPrefilled={isPrefilled}

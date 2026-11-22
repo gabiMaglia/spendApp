@@ -1,6 +1,5 @@
 import { useMemo } from 'react';
 import { Alert } from 'react-native';
-import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
 import { formatMoney } from '@/src/constants/currencies';
@@ -13,6 +12,7 @@ import { usePaymentStore } from '@/src/store/paymentStore';
 import { useArchiveStore } from '@/src/store/archiveStore';
 import { useUserStore } from '@/src/store/userStore';
 import { hapticSuccess, hapticWarning } from '@/src/utils/haptics';
+import { useMomentoExito } from '@/src/hooks/useMomentoExito';
 import { armarPago } from '@/src/screens/settle/armarPago';
 
 /**
@@ -22,6 +22,7 @@ import { armarPago } from '@/src/screens/settle/armarPago';
  */
 export function useSaldoConAmigo(amigoId: string) {
   const { t } = useTranslation();
+  const { momento, mostrar } = useMomentoExito();
   const currentUser = useAuthStore(s => s.currentUser);
   const groups      = useGroupStore(s => s.groups);
   const expenses    = useExpenseStore(s => s.expenses);
@@ -55,7 +56,11 @@ export function useSaldoConAmigo(amigoId: string) {
     }
     hapticSuccess();
     for (const pago of nuevos) addPayment(pago);
-    router.back();
+    mostrar({
+      montos: totales.map(x => ({ minor: x.amount, code: x.currency })),
+      titulo: t('settle.done_title'),
+      detalle: t('settle.done_to', { name: nombre }),
+    });
   }
 
   /** Modal antes de tocar deudas (PO): a quién y cuánto se paga en cada grupo. */
@@ -75,5 +80,5 @@ export function useSaldoConAmigo(amigoId: string) {
     );
   }
 
-  return { pagos, totales, confirmar, puedeGuardar: pagos.length > 0 && currentUser !== null };
+  return { pagos, totales, confirmar, momento, puedeGuardar: pagos.length > 0 && currentUser !== null };
 }
