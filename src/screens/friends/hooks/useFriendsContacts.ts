@@ -8,7 +8,7 @@ import { useUserStore } from '@/src/store/userStore';
 import { useContactosConHistorial, useDirectedDebts } from '@/src/store/selectors';
 import { idCanonico } from '@/src/store/identityAlias';
 import { tieneSaldoCon } from '@/src/algorithms/directedDebts';
-import { hapticWarning } from '@/src/utils/haptics';
+import { hapticDestructivo } from '@/src/utils/haptics';
 import { useContacts } from './useContacts';
 
 /** Lista de contactos (sin uno mismo) + acciones estables de borrar/saldar. */
@@ -35,7 +35,7 @@ export function useFriendsContacts() {
   // dentro del `.map()`, así que envolver `ContactRow` en `React.memo`
   // servía de poco — esas props "cambiaban" en cada render igual.
   const handleRemove = useCallback((id: string, name: string) => {
-    hapticWarning();
+    hapticDestructivo();
     // T-239: con saldo pendiente se avisa, pero no se bloquea (el historial queda).
     const conSaldo = tieneSaldoCon(deudas, idCanonico(id));
     Alert.alert(

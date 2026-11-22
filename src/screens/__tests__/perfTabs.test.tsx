@@ -109,12 +109,29 @@ function contadorDeRenders() {
   return { estado, onRender };
 }
 
+/**
+ * T-284: el tope de 3000 ms se medía con reloj de pared (`performance.now`).
+ * Con la suite completa en paralelo el mismo render dio 3035–3249 ms (y
+ * 4900–7800 ms con la máquina saturada) sin ninguna regresión del código: el
+ * proceso esperaba CPU, no la usaba. Ahora el tope se mide en TIEMPO DE CPU
+ * del proceso (`process.cpuUsage`), que no crece por esperar turno. El tope
+ * sigue en 3000 ms y las otras dos aserciones (renders y llamadas a cálculo)
+ * no dependen del reloj.
+ */
+const TOPE_PRIMER_RENDER_MS = 3000;
+
+function cpuMs(): number {
+  const { user, system } = process.cpuUsage();
+  return (user + system) / 1000;
+}
+
 describe('T-202 — medición de perf de Amigos y Grupos (antes de arreglar)', () => {
   it('Grupos: primer render, cantidad de renders y llamadas a calculateBalancesByCurrency', () => {
     const spy = jest.spyOn(calc, 'calculateBalancesByCurrency');
     const { estado, onRender } = contadorDeRenders();
 
     const t0 = performance.now();
+    const cpu0 = cpuMs();
     render(
       <Profiler id="groups" onRender={onRender}>
         <GroupsScreen />
@@ -122,12 +139,13 @@ describe('T-202 — medición de perf de Amigos y Grupos (antes de arreglar)', (
     );
     const t1 = performance.now();
     const primerRenderMs = t1 - t0;
+    const primerRenderCpuMs = cpuMs() - cpu0;
 
-    console.log('[T-202][Grupos] primerRenderMs=%s renders=%s actualDurationTotal=%s calcCalls=%s',
-      primerRenderMs.toFixed(1), estado.renders, estado.actualDurationTotal.toFixed(1), spy.mock.calls.length);
+    console.log('[T-202][Grupos] primerRenderMs=%s cpuMs=%s renders=%s actualDurationTotal=%s calcCalls=%s',
+      primerRenderMs.toFixed(1), primerRenderCpuMs.toFixed(1), estado.renders, estado.actualDurationTotal.toFixed(1), spy.mock.calls.length);
 
     // Umbrales holgados — regresión de orden de magnitud, no frame budget real.
-    expect(primerRenderMs).toBeLessThan(3000);
+    expect(primerRenderCpuMs).toBeLessThan(TOPE_PRIMER_RENDER_MS);
     expect(estado.renders).toBeLessThanOrEqual(6);
     // 20 filas visibles (todas "activos") ⇒ como mínimo 20 llamadas de fila +
     // las de los totales (`useGroupsTotalBalance`/`useGroupsNetBalanceFor`,
@@ -180,6 +198,7 @@ describe('T-202 — medición de perf de Amigos y Grupos (antes de arreglar)', (
     const { estado, onRender } = contadorDeRenders();
 
     const t0 = performance.now();
+    const cpu0 = cpuMs();
     render(
       <Profiler id="friends" onRender={onRender}>
         <FriendsScreen />
@@ -187,11 +206,12 @@ describe('T-202 — medición de perf de Amigos y Grupos (antes de arreglar)', (
     );
     const t1 = performance.now();
     const primerRenderMs = t1 - t0;
+    const primerRenderCpuMs = cpuMs() - cpu0;
 
-    console.log('[T-202][Amigos] primerRenderMs=%s renders=%s actualDurationTotal=%s calcCalls=%s',
-      primerRenderMs.toFixed(1), estado.renders, estado.actualDurationTotal.toFixed(1), spy.mock.calls.length);
+    console.log('[T-202][Amigos] primerRenderMs=%s cpuMs=%s renders=%s actualDurationTotal=%s calcCalls=%s',
+      primerRenderMs.toFixed(1), primerRenderCpuMs.toFixed(1), estado.renders, estado.actualDurationTotal.toFixed(1), spy.mock.calls.length);
 
-    expect(primerRenderMs).toBeLessThan(3000);
+    expect(primerRenderCpuMs).toBeLessThan(TOPE_PRIMER_RENDER_MS);
     expect(estado.renders).toBeLessThanOrEqual(6);
     // Acá el cálculo es UNA pasada por grupo (useGlobalPersonBalances +
     // useContactosConHistorial), no por fila — 20 grupos ⇒ ~40 llamadas.

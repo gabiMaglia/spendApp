@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Spacing } from '@/src/constants/spacing';
 import { useSkinTokens } from '@/src/skins/useSkin';
 import { MarmolPill } from '@/src/components/skin/MarmolPill';
-import { hapticSelection } from '@/src/utils/haptics';
+import { hapticSeleccionar } from '@/src/utils/haptics';
 import { monthLabel, nextMonth, prevMonth } from '@/src/screens/personal/utils/monthLabel';
 
 /**
@@ -25,14 +25,14 @@ export function PersonalMonthNav({
 
   return (
     <MarmolPill testID="month-nav" patron="franja" style={styles.monthNav}>
-      <Pressable onPress={() => { hapticSelection(); onChangeMonth(prevMonth(activeMonth)); }} hitSlop={12}>
+      <Pressable onPress={() => { hapticSeleccionar(); onChangeMonth(prevMonth(activeMonth)); }} hitSlop={12}>
         <Ionicons name="chevron-back" size={19} color={c.textSecondary} />
       </Pressable>
       <Text style={{ fontSize: 15, fontWeight: '700', color: c.text }}>
         {monthLabel(activeMonth)}
       </Text>
       <Pressable
-        onPress={() => { hapticSelection(); onChangeMonth(nextMonth(activeMonth)); }}
+        onPress={() => { hapticSeleccionar(); onChangeMonth(nextMonth(activeMonth)); }}
         disabled={atCurrentMonth}
         hitSlop={12}
         style={{ opacity: atCurrentMonth ? 0.3 : 1 }}

@@ -55,15 +55,15 @@ describe('Fab', () => {
  * ya ocupa esa franja.
  */
 describe('separacionInferiorDelFab', () => {
-  it('dentro de las pestañas no suma el inset: la tab bar ya lo ocupa', () => {
-    expect(separacionInferiorDelFab({ dentroDePestanas: true, insetInferior: 48 })).toBe(16);
+  it('dentro de las pestañas queda sobre la píldora: 16 + su alto', () => {
+    expect(separacionInferiorDelFab({ dentroDePestanas: true, baseInferior: 22, barraFlotante: 84 })).toBe(100);
   });
 
-  it('fuera de las pestañas suma el inset del sistema, para no quedar debajo de la barra', () => {
-    expect(separacionInferiorDelFab({ dentroDePestanas: false, insetInferior: 48 })).toBe(64);
+  it('fuera de las pestañas queda exactamente en la base de la píldora (T-281)', () => {
+    expect(separacionInferiorDelFab({ dentroDePestanas: false, baseInferior: 56 })).toBe(56);
   });
 
-  it('sin barra del sistema (inset 0) queda igual en los dos casos', () => {
-    expect(separacionInferiorDelFab({ dentroDePestanas: false, insetInferior: 0 })).toBe(16);
+  it('sin barra del sistema queda a 12 del borde', () => {
+    expect(separacionInferiorDelFab({ dentroDePestanas: false, baseInferior: 12 })).toBe(12);
   });
 });

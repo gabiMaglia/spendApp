@@ -1,5 +1,6 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { PresionableEscala } from '@/src/components/PresionableEscala';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { formatMoney } from '@/src/constants/currencies';
@@ -16,6 +17,7 @@ interface GroupCardProps {
   onPress?: () => void;
   /** Última fila de la banda: sin divisor inferior. */
   last?: boolean;
+  testID?: string;
   /** Chevron a la derecha (lista de la tab Grupos; en el home no va). */
   chevron?: boolean;
 }
@@ -29,7 +31,7 @@ interface GroupCardProps {
  * y el conteo de miembros ya lo dice el subtítulo.
  */
 export function GroupCard({
-  name, memberIds, balance, currency = 'ARS', subtitle, onPress, last, chevron,
+  name, memberIds, balance, currency = 'ARS', subtitle, onPress, last, chevron, testID,
 }: GroupCardProps) {
   const { t } = useTranslation();
   const c = useColors();
@@ -39,7 +41,8 @@ export function GroupCard({
   const amountColor = settled ? c.textTertiary : positive ? c.semantic.positive : c.semantic.negative;
 
   return (
-    <Pressable
+    <PresionableEscala
+      testID={testID}
       onPress={onPress}
       style={({ pressed }) => [
         styles.row,
@@ -77,7 +80,7 @@ export function GroupCard({
       {chevron && (
         <Text style={{ fontSize: 17, color: c.textTertiary, marginLeft: 2 }}>›</Text>
       )}
-    </Pressable>
+    </PresionableEscala>
   );
 }
 

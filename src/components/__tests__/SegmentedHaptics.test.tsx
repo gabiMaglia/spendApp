@@ -2,9 +2,9 @@ import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
 import { Segmented } from '../Band';
 import { useSettingsStore } from '@/src/store/settingsStore';
-import { hapticSelection } from '@/src/utils/haptics';
+import { hapticSeleccionar } from '@/src/utils/haptics';
 
-jest.mock('@/src/utils/haptics', () => ({ hapticSelection: jest.fn() }));
+jest.mock('@/src/utils/haptics', () => ({ hapticSeleccionar: jest.fn() }));
 
 /**
  * feat/reskin: el control segmentado nativo de iOS da un «tic» de selección al
@@ -17,7 +17,7 @@ describe('Segmented — haptic de selección', () => {
     { key: 'b' as const, label: 'Archivados' },
   ];
 
-  beforeEach(() => { (hapticSelection as jest.Mock).mockClear(); });
+  beforeEach(() => { (hapticSeleccionar as jest.Mock).mockClear(); });
 
   it.each([
     ['default', 'control'],
@@ -29,7 +29,7 @@ describe('Segmented — haptic de selección', () => {
     const onChange = jest.fn();
     const r = render(<Segmented variant={variant} options={opciones} value="a" onChange={onChange} />);
     fireEvent.press(r.getByText('Archivados'));
-    expect(hapticSelection).toHaveBeenCalledTimes(1);
+    expect(hapticSeleccionar).toHaveBeenCalledTimes(1);
     expect(onChange).toHaveBeenCalledWith('b');
   });
 
@@ -37,6 +37,6 @@ describe('Segmented — haptic de selección', () => {
     const onChange = jest.fn();
     const r = render(<Segmented options={opciones} value="a" onChange={onChange} />);
     fireEvent.press(r.getByText('Activos'));
-    expect(hapticSelection).not.toHaveBeenCalled();
+    expect(hapticSeleccionar).not.toHaveBeenCalled();
   });
 });

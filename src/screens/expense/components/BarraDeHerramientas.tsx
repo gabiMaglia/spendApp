@@ -18,7 +18,7 @@ import { formatDate } from '@/src/screens/expense/repartoDeGasto';
  */
 export function BarraDeHerramientas({
   date, onOpenDate, recurrence, onOpenRecurrence, showRecurrence,
-  receiptUri, onReceiptChange, note, onOpenNote,
+  receiptUri, onReceiptChange, note, onOpenNote, anclaFecha, anclaRepetir,
 }: {
   date: Date;
   onOpenDate: () => void;
@@ -29,6 +29,9 @@ export function BarraDeHerramientas({
   onReceiptChange: (uri: string) => void;
   note: string;
   onOpenNote: () => void;
+  /** Los chips son el ancla de las filas de cubos de fecha y repetir. */
+  anclaFecha: React.RefObject<View | null>;
+  anclaRepetir: React.RefObject<View | null>;
 }) {
   const { t } = useTranslation();
   const { skin } = useSkin();
@@ -46,17 +49,19 @@ export function BarraDeHerramientas({
   const activo = (on: boolean) => (on ? c.brand.primary : c.textSecondary);
 
   return (
-    <View style={[styles.barra, {
+    <View testID="barra-herramientas" style={[styles.barra, {
       backgroundColor: c.surfaceRaised, borderColor: c.edgeLight, borderRadius: skin.radius.panel,
       boxShadow: skin.elevation.e2.boxShadow,
     }]}>
-      <Pressable testID="barra-fecha" onPress={onOpenDate} accessibilityRole="button" style={styles.chip}>
+      <Pressable ref={anclaFecha} collapsable={false} testID="barra-fecha" onPress={onOpenDate} accessibilityRole="button" style={styles.chip}>
         <Ionicons name="calendar-outline" size={19} color={c.brand.primary} />
         <Text style={[Typography.bodyL, { color: c.text }]}>{formatDate(date)}</Text>
       </Pressable>
       <View style={styles.espacio} />
       {showRecurrence && (
         <Pressable
+          ref={anclaRepetir}
+          collapsable={false}
           testID="barra-repetir"
           onPress={onOpenRecurrence}
           accessibilityRole="button"
@@ -87,7 +92,7 @@ export function BarraDeHerramientas({
 const styles = StyleSheet.create({
   barra: {
     flexDirection: 'row', alignItems: 'center', gap: 2,
-    marginHorizontal: Spacing.screenPad, marginBottom: Spacing[3], marginTop: Spacing[2],
+    marginHorizontal: Spacing.screenPad, marginTop: Spacing[2],
     height: 56, paddingHorizontal: 6, borderWidth: 1, borderCurve: 'continuous',
   },
   chip: {

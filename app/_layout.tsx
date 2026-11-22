@@ -217,6 +217,7 @@ export default function RootLayout() {
             la pantalla de atrás asomando arriba. Se cierran con la X. */}
         <Stack.Screen name="groups/new"   options={{ presentation: 'fullScreenModal', headerShown: false }} />
         <Stack.Screen name="groups/join"  options={{ presentation: 'fullScreenModal', headerShown: false }} />
+        <Stack.Screen name="personal/movimientos" options={{ headerShown: false }} />
         <Stack.Screen name="expense/new"  options={{ presentation: 'fullScreenModal', headerShown: false }} />
         <Stack.Screen name="expense/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="settle/new"   options={{ presentation: 'fullScreenModal', headerShown: false }} />

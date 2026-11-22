@@ -6,7 +6,7 @@ import { Typography } from '@/src/constants/typography';
 import { useAmountInput } from '@/src/hooks/useAmountInput';
 import { BottomSheet } from '@/src/components/Sheet';
 import { usePersonalStore } from '@/src/store/personalStore';
-import { hapticLight, hapticSelection } from '@/src/utils/haptics';
+import { hapticConfirmar, hapticSeleccionar } from '@/src/utils/haptics';
 import { useTranslation } from 'react-i18next';
 import type { CurrencyCode } from '@/src/constants/currencies';
 import { useColors } from '@/src/skins/useSkin';
@@ -42,7 +42,7 @@ export function BudgetSheet({ visible, onClose }: { visible: boolean; onClose: (
 
   function handleSave() {
     setBudget({ currency: budgetCurrency, monthlyAmount: budgetAmount, includeOwedToMe });
-    hapticLight();
+    hapticConfirmar();
     onClose();
   }
 
@@ -71,7 +71,7 @@ export function BudgetSheet({ visible, onClose }: { visible: boolean; onClose: (
       </View>
 
       <Pressable
-        onPress={() => { hapticSelection(); setIncludeOwedToMe(v => !v); }}
+        onPress={() => { hapticSeleccionar(); setIncludeOwedToMe(v => !v); }}
         style={[styles.toggleRow, { backgroundColor: c.bgGrouped, borderColor: c.hair }]}
       >
         <View style={{ flex: 1, gap: 2 }}>

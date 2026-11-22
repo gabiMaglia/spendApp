@@ -43,7 +43,7 @@ export function BarraUtilidades({
   }
 
   return (
-    <View style={styles.utilityBarWrap}>
+    <View testID="barra-herramientas" style={styles.utilityBarWrap}>
       <View style={[styles.utilityBar, { backgroundColor: c.surface, borderColor: c.hair }]}>
         <Pressable onPress={handleCamera} hitSlop={8} style={styles.utilityIconBtn}>
           <Ionicons
@@ -102,7 +102,7 @@ export function BarraUtilidades({
 }
 
 const styles = StyleSheet.create({
-  utilityBarWrap: { paddingHorizontal: Spacing.screenPad, paddingBottom: Spacing[3], paddingTop: Spacing[2] },
+  utilityBarWrap: { paddingHorizontal: Spacing.screenPad, paddingTop: Spacing[2] },
   utilityBar: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     borderRadius: Radius.full, borderCurve: 'continuous', borderWidth: 1,

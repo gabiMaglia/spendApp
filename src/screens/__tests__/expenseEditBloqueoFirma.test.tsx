@@ -28,13 +28,13 @@ jest.mock('expo-router', () => ({
   useLocalSearchParams: () => mockSearchParams,
 }));
 
-// T-172 (ítem 4): `hapticSuccess` sonaba ANTES de saber si `updateExpense`
+// T-172 (ítem 4): `hapticExito` sonaba ANTES de saber si `updateExpense`
 // bloqueó el guardado. Se mockea para poder afirmar que sólo suena cuando el
 // guardado de verdad se completó.
-const mockHapticSuccess = jest.fn();
+const mockHapticExito = jest.fn();
 jest.mock('@/src/utils/haptics', () => ({
   ...jest.requireActual('@/src/utils/haptics'),
-  hapticSuccess: (...args: unknown[]) => mockHapticSuccess(...args),
+  hapticExito: (...args: unknown[]) => mockHapticExito(...args),
 }));
 
 const USER = { id: 'ua', name: 'Ana' } as User;
@@ -58,7 +58,7 @@ describe('T-152 · D2 — edición bloqueada por firma avisa y no cierra la pant
   beforeEach(() => {
     mockSearchParams = { expenseId: 'e1' };
     mockRouterBack.mockReset();
-    mockHapticSuccess.mockReset();
+    mockHapticExito.mockReset();
     useAuthStore.setState({ currentUser: USER, isPro: false });
     useGroupStore.setState({ groups: [GROUP] });
     useExpenseStore.setState({ expenses: [EXPENSE] });
@@ -94,7 +94,7 @@ describe('T-152 · D2 — edición bloqueada por firma avisa y no cierra la pant
   });
 
   /**
-   * T-172 (ítem 4, hallado en la ronda de QA de T-152): `hapticSuccess()` se
+   * T-172 (ítem 4, hallado en la ronda de QA de T-152): `hapticExito()` se
    * disparaba ANTES de llamar a `updateExpense`, así que un guardado
    * BLOQUEADO por firma vibraba éxito igual que uno que sí guardó — el
    * usuario siente "listo" un instante antes de que aparezca el Alert de
@@ -107,7 +107,7 @@ describe('T-152 · D2 — edición bloqueada por firma avisa y no cierra la pant
 
     fireEvent.press(getByText('expense.save'));
 
-    expect(mockHapticSuccess).not.toHaveBeenCalled();
+    expect(mockHapticExito).not.toHaveBeenCalled();
   });
 
   it('si el guardado sí se completa, vibra éxito', () => {
@@ -117,6 +117,6 @@ describe('T-152 · D2 — edición bloqueada por firma avisa y no cierra la pant
 
     fireEvent.press(getByText('expense.save'));
 
-    expect(mockHapticSuccess).toHaveBeenCalledTimes(1);
+    expect(mockHapticExito).toHaveBeenCalledTimes(1);
   });
 });

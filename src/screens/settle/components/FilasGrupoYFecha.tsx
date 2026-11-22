@@ -1,5 +1,5 @@
 import React from 'react';
-import { Text } from 'react-native';
+import { Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 
@@ -14,12 +14,14 @@ import { estilos } from '@/src/screens/settle/components/estilos';
  * `app/settle/new.tsx`.
  */
 export function FilasGrupoYFecha({
-  nombreGrupo, date, onPressGrupo, onPressFecha,
+  nombreGrupo, date, onPressGrupo, onPressFecha, anclaFecha,
 }: {
   nombreGrupo: string | undefined;
   date: Date;
   onPressGrupo: () => void;
   onPressFecha: () => void;
+  /** La fila de fecha: de ahí sale la fila de cubos en Aero. */
+  anclaFecha: React.RefObject<View | null>;
 }) {
   const { t } = useTranslation();
   const c = useColors();
@@ -37,6 +39,7 @@ export function FilasGrupoYFecha({
         </Text>
         <Ionicons name="chevron-forward" size={16} color={c.textTertiary} />
       </BandRow>
+      <View ref={anclaFecha} collapsable={false}>
       <BandRow last onPress={onPressFecha}>
         <Ionicons name="calendar-outline" size={17} color={c.textSecondary} />
         <Text style={[Typography.bodyM, { color: c.textSecondary, flex: 1 }]}>
@@ -47,6 +50,7 @@ export function FilasGrupoYFecha({
         </Text>
         <Ionicons name="chevron-forward" size={16} color={c.textTertiary} />
       </BandRow>
+      </View>
     </Band>
   );
 }

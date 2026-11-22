@@ -205,6 +205,7 @@
     "groups_in_common_other": "{{count}} grupos en común"
   },
   "expense": {
+    "category_selector_label": "Categoría",
     "new_title": "Nuevo gasto",
     "edit_title": "Editar gasto",
     "edit_income_title": "Editar ingreso",
@@ -294,9 +295,13 @@
     "friend_confirm_title": "¿Saldar todo con {{name}}?",
     "friend_confirm_body": "Se registra un pago a {{name}} en cada grupo:\n{{detalle}}",
     "friend_confirm_line": "{{group}}: {{amount}}",
-    "friend_confirm_ok": "Saldar todo"
+    "friend_confirm_ok": "Saldar todo",
+    "done_title": "Saldado",
+    "done_to": "a {{name}}",
+    "done_to_many": "a {{count}} personas"
   },
   "activity": {
+    "see_more": "Ver más ({{count}})",
     "title": "Actividad",
     "filter_all": "Todos",
     "filter_personal": "Personal",
@@ -514,7 +519,9 @@
     "locked_derived": "Se generó solo, no se edita",
     "locked_title": "No se puede editar",
     "locked_closed_month": "Es de un mes cerrado: sólo se tocan los movimientos del mes en curso",
-    "movements_title": "MOVIMIENTOS"
+    "movements_title": "MOVIMIENTOS",
+    "see_all": "Ver todos ({{count}})",
+    "all_movements_title": "Movimientos"
   },
   "contact": {
     "title": "Agregar contacto",

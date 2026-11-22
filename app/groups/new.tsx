@@ -6,11 +6,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { v4 as uuidv4 } from 'uuid';
-import { hapticSelection, hapticSuccess } from '@/src/utils/haptics';
+import { hapticSeleccionar, hapticExito } from '@/src/utils/haptics';
 
 import { DetailHeader, useRellenoDetailHeader } from '@/src/components/CollapsibleHeader';
 import { ActionButton } from '@/src/components/ActionButton';
 import { ButtonRack } from '@/src/components/ButtonRack';
+import { useBaseInferior } from '@/src/hooks/useBaseInferior';
 
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
@@ -35,6 +36,7 @@ const PRIMARY_CURRENCIES: CurrencyCode[] = ['ARS', 'USD', 'EUR', 'BRL'];
 export default function NewGroupScreen() {
   const { t } = useTranslation();
   const c = useColors();
+  const base = useBaseInferior();
   // Aero: el header flota y el contenido arranca debajo de su tarjeta (T-227).
   const relleno = useRellenoDetailHeader();
 
@@ -72,7 +74,7 @@ export default function NewGroupScreen() {
       Alert.alert(t('group_detail.member_limit_title'), t('group_detail.member_limit_body', { max: MAX_MIEMBROS }));
       return;
     }
-    hapticSelection();
+    hapticSeleccionar();
     setSelectedIds(prev =>
       prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id],
     );
@@ -116,7 +118,7 @@ export default function NewGroupScreen() {
       Alert.alert(t('sync.record_too_big_title'), t(motivo));
       return;
     }
-    hapticSuccess();
+    hapticExito();
     addGroup(nuevo);
 
     // La clave del grupo y su reparto a los contactos que ya escaneaste. Es lo
@@ -128,7 +130,7 @@ export default function NewGroupScreen() {
   }
 
   return (
-    <SafeAreaView edges={['bottom']} style={[styles.safe, { backgroundColor: c.bg }]}>
+    <SafeAreaView edges={[]} style={[styles.safe, { backgroundColor: c.bg }]}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
 
         <DetailHeader
@@ -165,7 +167,7 @@ export default function NewGroupScreen() {
             {PRIMARY_CURRENCIES.map(code => (
               <Pressable
                 key={code}
-                onPress={() => { hapticSelection(); setCurrency(code); }}
+                onPress={() => { hapticSeleccionar(); setCurrency(code); }}
                 style={[
                   styles.currencyChip,
                   {
@@ -236,7 +238,7 @@ export default function NewGroupScreen() {
           {/* Como en Saldar: `inline` (el scroll ya pone el aire lateral; el
               `bottom` por defecto lo duplicaba y el botón salía más angosto
               que los campos) y empujado al fondo con `marginTop: 'auto'`. */}
-          <ButtonRack placement="inline" style={styles.alFondo}>
+          <ButtonRack placement="inline" style={[styles.alFondo, { marginBottom: base }]}>
             <ActionButton
               testID="group-new-save"
               label={t('common.create')}
@@ -288,7 +290,7 @@ function MemberRow({
 const styles = StyleSheet.create({
   safe:         { flex: 1 },
   scroll:       { paddingHorizontal: Spacing.screenPad, paddingTop: Spacing[4], flexGrow: 1 },
-  alFondo:      { marginTop: 'auto', marginBottom: 24 },
+  alFondo:      { marginTop: 'auto', },
   sectionLabel: { marginTop: Spacing[5], marginBottom: Spacing[2] },
   inputCard:    {
     flexDirection: 'row', alignItems: 'center', gap: 10,

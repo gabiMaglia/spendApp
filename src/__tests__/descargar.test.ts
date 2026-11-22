@@ -15,6 +15,7 @@ import { enlaceCompacto, enlaceCompartible } from '@/src/utils/appLink';
  */
 const WEB = join(__dirname, '..', '..', 'docs', 'web');
 const HTML = readFileSync(join(WEB, 'descargar.html'), 'utf8');
+const CANONICAL = '<link rel="canonical" href="https://www.gabrielmaglia.me/apps/hushsplit/">';
 
 const UA_IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1';
 const UA_ANDROID = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Mobile Safari/537.36';
@@ -70,9 +71,16 @@ describe('docs/web/descargar.html — seguridad de la página', () => {
   });
 
   it('no hace pedidos externos al cargar (sin fuentes, sin analítica)', () => {
-    expect(HTML).not.toMatch(/<(script|link)[^>]+(src|href)="https?:/);
+    // rel=canonical no descarga nada: es la única excepción y es exacta (la landing se sirve
+    // también en gabrielmaglia.me/apps/hushsplit/, que es la URL canónica)
+    const sinCanonical = HTML.replace(CANONICAL, '');
+    expect(sinCanonical).not.toMatch(/<(script|link)[^>]+(src|href)="https?:/);
     expect(HTML).not.toMatch(/googleapis|gstatic|analytics/i);
   });
+});
+
+it('declara la URL canónica (gabrielmaglia.me/apps/hushsplit/) una sola vez', () => {
+  expect(HTML.split(CANONICAL).length - 1).toBe(1);
 });
 
 describe('docs/web/descargar.html — idiomas', () => {

@@ -18,6 +18,8 @@ import { TabHeader } from '@/src/components/TabHeader';
 import { useHeaderPadding, useLimiteContenido } from '@/src/components/CollapsibleHeader';
 
 import { useActivityFilter } from '@/src/screens/activity/hooks/useActivityFilter';
+import { useActivityPagination } from '@/src/screens/activity/hooks/useActivityPagination';
+import { VerMasFooter } from '@/src/components/VerMasFooter';
 import { useActivitySections } from '@/src/screens/activity/hooks/useActivitySections';
 import { useActivityTrust } from '@/src/screens/activity/hooks/useActivityTrust';
 import { useRestoreExpense } from '@/src/screens/activity/hooks/useRestoreExpense';
@@ -50,7 +52,10 @@ export default function ActivityScreen() {
   const feed = useActivityFeed(currentUser?.id ?? '');
 
   const { query, setQuery, activeFilter, setActiveFilter, allGroupNames, filteredFeed } = useActivityFilter(feed);
-  const { sections, todayEvents } = useActivitySections(filteredFeed);
+  // Paginado sobre el resultado filtrado: separadores de día se arman con la
+  // porción visible, así nunca queda un encabezado sin ítems.
+  const { visibles, restantes, verMas } = useActivityPagination(filteredFeed, `${activeFilter}|${query}`);
+  const { sections, todayEvents } = useActivitySections(visibles);
   // «N sin ver» (PO 2026-09-29): sólo lo de otros llegado después de la última
   // vez que salí de esta pestaña; se marca al salir (`useMarcarActividadVista`).
   const vistaHasta = useSettingsStore(s => s.actividadVistaHasta);
@@ -110,6 +115,11 @@ export default function ActivityScreen() {
               {/* PO 2026-09-27: la búsqueda va debajo de las pestañas, no arriba. */}
               <ActivitySearchBar value={query} onChangeText={setQuery} />
             </>
+          }
+          ListFooterComponent={
+            restantes > 0
+              ? <VerMasFooter label={t('activity.see_more', { count: restantes })} onPress={verMas} />
+              : null
           }
           ListEmptyComponent={
             <ActivityEmptyState feedIsEmpty={feedIsEmpty} activeFilter={activeFilter} />

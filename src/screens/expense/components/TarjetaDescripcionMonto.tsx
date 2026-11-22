@@ -7,10 +7,11 @@ import { Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { getCurrency, type CurrencyCode } from '@/src/constants/currencies';
 import { MAX_TEXTO_CORTO } from '@/src/sync/nucleo/topes';
-import { conAlfa } from '@/src/skins/color';
+import { CuboIcono } from '@/src/components/CuboIcono';
 import { useSkin } from '@/src/skins/useSkin';
 import type { PersonalCategory } from '@/src/types/models';
 import { CATEGORIES } from '@/src/screens/expense/repartoDeGasto';
+import { CuboCategoria } from '@/src/screens/expense/components/CuboCategoria';
 import { tinteDeCategoria } from '@/src/screens/expense/components/GrillaCategorias';
 import { ErrorSinDecimales } from '@/src/screens/expense/components/ErrorSinDecimales';
 import { MonedaTocable } from '@/src/screens/expense/components/MonedaTocable';
@@ -21,9 +22,11 @@ import { MonedaTocable } from '@/src/screens/expense/components/MonedaTocable';
  * ingreso el ícono es el de ingreso, en verde.
  */
 export function TarjetaDescripcionMonto({
-  category, isIncome, currency, description, onDescriptionChange, amount, onAmountChange, onAmountBlur, sinDecimales, onCurrencyChange,
+  category, onCategoryChange, isIncome, currency, description, onDescriptionChange, amount, onAmountChange, onAmountBlur, sinDecimales, onCurrencyChange,
 }: {
   category: PersonalCategory;
+  /** Sin esto (o en ingreso) el cubo es sólo el ícono: no abre nada. */
+  onCategoryChange?: (c: PersonalCategory) => void;
   isIncome: boolean;
   currency: CurrencyCode;
   description: string;
@@ -61,9 +64,9 @@ export function TarjetaDescripcionMonto({
   return (
     <View style={[styles.tarjeta, { backgroundColor: c.surface, borderRadius: skin.radius.panel, boxShadow: skin.elevation.e2.boxShadow }]}>
       <View style={styles.renglon}>
-        <View style={[styles.tile, { backgroundColor: conAlfa(tinte, 0.16) }]}>
-          <Ionicons name={icono} size={28} color={tinte} />
-        </View>
+        {!isIncome && onCategoryChange
+          ? <CuboCategoria value={category} onChange={onCategoryChange} />
+          : <CuboIcono icono={icono} tinte={tinte} />}
         <View style={styles.campo}>
           <Text style={[Typography.caption, { color: c.textTertiary }]}>{t('expense.description_label')}</Text>
           <TextInput
@@ -85,6 +88,7 @@ export function TarjetaDescripcionMonto({
         <MonedaTocable
           currency={currency}
           onChange={onCurrencyChange}
+          abanico
           label={t('expense.currency_change')}
           title={t('expense.currency_title')}
           style={[styles.tile, { backgroundColor: c.surfaceSunken }]}

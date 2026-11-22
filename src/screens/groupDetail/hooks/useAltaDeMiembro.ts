@@ -2,7 +2,7 @@ import { Alert } from 'react-native';
 import { v4 as uuidv4 } from 'uuid';
 import { useTranslation } from 'react-i18next';
 
-import { hapticSuccess } from '@/src/utils/haptics';
+import { hapticExito } from '@/src/utils/haptics';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useUserStore } from '@/src/store/userStore';
 import { useGroupKeyStore } from '@/src/store/groupKeyStore';
@@ -41,7 +41,7 @@ export function useAltaDeMiembro(group: Group | undefined, cerrarHoja: () => voi
       Alert.alert(t('sync.record_too_big_title'), t(motivo));
       return;
     }
-    hapticSuccess();
+    hapticExito();
     updateGroup(group.id, { miembros: conAltaResult.miembros });
     ensureKey(group.id);
     void announceGroupToContacts(group.id);
@@ -77,7 +77,7 @@ export function useAltaDeMiembro(group: Group | undefined, cerrarHoja: () => voi
     updateGroup(group.id, { miembros: conAltaResult.miembros });
     ensureKey(group.id);
     void announceGroupToContacts(group.id);
-    hapticSuccess();
+    hapticExito();
     cerrarHoja();
     Alert.alert(t('group_detail.member_added_title'), t('group_detail.without_app_warning'));
   }

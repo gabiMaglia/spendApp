@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
+import { CURVA, DURACION } from '@/src/constants/movimiento';
 import { Spacing } from '@/src/constants/spacing';
 import { useAnimacionesReducidas } from '@/src/hooks/useAnimacionesReducidas';
 import { useColors, useSkin } from '@/src/skins/useSkin';
@@ -36,8 +37,8 @@ const SCRIM = 'rgba(12, 16, 14, 0.5)';
  * Acá van separados: el velo hace fade y la hoja sube apenas. El recorrido es
  * corto a propósito; un slide largo se lee como lento aunque dure lo mismo.
  */
-const ENTRADA_MS = 180;
-const SALIDA_MS = 140;
+const ENTRADA_MS = DURACION.media;
+const SALIDA_MS = DURACION.corta;
 /** Cuánto sube la hoja al entrar. Es un acento, no un viaje. */
 const ALZADA = 28;
 
@@ -87,13 +88,13 @@ export function BottomSheet({
       setMontado(true);
       Animated.timing(anim, {
         toValue: 1, duration: sinAnimacion ? 0 : ENTRADA_MS,
-        easing: Easing.out(Easing.quad), useNativeDriver: true,
+        easing: CURVA.entrar, useNativeDriver: true,
       }).start();
       return;
     }
     Animated.timing(anim, {
       toValue: 0, duration: sinAnimacion ? 0 : SALIDA_MS,
-      easing: Easing.in(Easing.quad), useNativeDriver: true,
+      easing: CURVA.salir, useNativeDriver: true,
     }).start(({ finished }) => { if (finished) setMontado(false); });
   }, [visible, anim, sinAnimacion]);
 

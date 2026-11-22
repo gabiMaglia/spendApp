@@ -2,7 +2,7 @@ import React from 'react';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
-import { hapticLight } from '@/src/utils/haptics';
+import { hapticAbrir } from '@/src/utils/haptics';
 import { Fab, FabRow } from '@/src/components/Fab';
 import { useColors } from '@/src/skins/useSkin';
 
@@ -27,7 +27,7 @@ export function BotonesDeGrupo({
           variant="secondary"
           icon="swap-horizontal-outline"
           label={t('group_detail.settle_debts')}
-          onPress={() => { hapticLight(); router.push(`/settle/new?groupId=${groupId}` as any); }}
+          onPress={() => { hapticAbrir(); router.push(`/settle/new?groupId=${groupId}` as any); }}
           backgroundColor={c.brand.primarySoft}
           borderColor={c.hair}
           iconColor={c.brand.primary}
@@ -39,7 +39,7 @@ export function BotonesDeGrupo({
         icon="add"
         label={t('group_detail.add_expense')}
         onPress={() => {
-          hapticLight();
+          hapticAbrir();
           router.push({ pathname: '/expense/new', params: { groupId } } as any);
         }}
         backgroundColor={c.brand.primary}

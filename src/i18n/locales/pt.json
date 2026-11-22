@@ -205,6 +205,7 @@
     "groups_in_common_other": "{{count}} grupos em comum"
   },
   "expense": {
+    "category_selector_label": "Categoria",
     "new_title": "Nova despesa",
     "edit_title": "Editar despesa",
     "edit_income_title": "Editar receita",
@@ -294,9 +295,13 @@
     "friend_confirm_title": "Quitar tudo com {{name}}?",
     "friend_confirm_body": "Será registrado um pagamento para {{name}} em cada grupo:\n{{detalle}}",
     "friend_confirm_line": "{{group}}: {{amount}}",
-    "friend_confirm_ok": "Quitar tudo"
+    "friend_confirm_ok": "Quitar tudo",
+    "done_title": "Quitado",
+    "done_to": "para {{name}}",
+    "done_to_many": "para {{count}} pessoas"
   },
   "activity": {
+    "see_more": "Ver mais ({{count}})",
     "title": "Atividade",
     "filter_all": "Todos",
     "filter_personal": "Pessoal",
@@ -514,7 +519,9 @@
     "locked_derived": "Gerado automaticamente, não editável",
     "locked_title": "Não pode ser editado",
     "locked_closed_month": "É de um mês fechado: só dá para mexer nos lançamentos do mês atual",
-    "movements_title": "MOVIMENTOS"
+    "movements_title": "MOVIMENTOS",
+    "see_all": "Ver todos ({{count}})",
+    "all_movements_title": "Movimentos"
   },
   "contact": {
     "title": "Adicionar contato",

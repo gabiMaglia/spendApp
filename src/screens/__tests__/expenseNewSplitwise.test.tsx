@@ -1,5 +1,6 @@
 import React from 'react';
-import { fireEvent, render, within } from '@testing-library/react-native';
+import { act, fireEvent, render, within } from '@testing-library/react-native';
+import { ASENTAR_MS } from '@/src/components/menu/AbanicoCubos';
 import NewExpenseScreen from '@/app/expense/new';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
@@ -17,6 +18,9 @@ import type { Group, User } from '@/src/types/models';
  */
 
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => null) }));
+// La fila de Repetir necesita la medida del chip, que en Jest no existe (T-282 t2).
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+jest.mock('@/src/components/menu/useRectAncla', () => require('@/src/test-utils/rectAnclaFalso').rectAnclaFalso);
 
 let mockSearchParams: Record<string, string | undefined> = { groupId: 'g1' };
 jest.mock('expo-router', () => ({
@@ -72,20 +76,24 @@ describe('Alta de gasto estilo Splitwise (Aero)', () => {
   });
 
   it('Repetir no está en el formulario: se abre desde la barra', () => {
+    jest.useFakeTimers();
     const r = render(<NewExpenseScreen />);
     expect(r.queryByText('recurrence.weekly')).toBeNull();
     fireEvent.press(r.getByTestId('barra-repetir'));
+    act(() => { jest.advanceTimersByTime(ASENTAR_MS + 50); });
     fireEvent.press(r.getByText('recurrence.weekly'));
     expect(within(r.getByTestId('barra-repetir')).getByText('recurrence.weekly')).toBeTruthy();
+    jest.useRealTimers();
   });
 
-  it('Guardar va al final, debajo de la barra de herramientas (PO 2026-10-11)', () => {
+  it('Guardar va ARRIBA de la barra de herramientas (PO 2026-11-21, T-281)', () => {
     const r = render(<NewExpenseScreen />);
     const arbol = JSON.stringify(r.toJSON());
     const barra = arbol.indexOf('"testID":"barra-fecha"');
     const guardar = arbol.indexOf('"testID":"expense-save-btn"');
     expect(barra).toBeGreaterThan(-1);
-    expect(guardar).toBeGreaterThan(barra);
+    expect(guardar).toBeGreaterThan(-1);
+    expect(guardar).toBeLessThan(barra);
   });
 
   it('gasto personal (sin grupo): «Con vos y» dice sin grupo y no hay frase', () => {
@@ -100,10 +108,10 @@ describe('Alta de gasto estilo Splitwise (Aero)', () => {
     const r = render(<NewExpenseScreen />);
     expect(r.getByText('expense.kind_income')).toBeTruthy();
     expect(r.queryByTestId('con-quien')).toBeNull();
-    expect(r.queryByText('categories.food')).toBeNull();
+    expect(r.queryByTestId('selector-categoria-boton')).toBeNull();
     expect(r.queryByTestId('frase-pagador')).toBeNull();
     fireEvent.press(r.getByText('expense.kind_expense'));
-    expect(r.getByText('categories.food')).toBeTruthy();
+    expect(r.getByTestId('selector-categoria-boton')).toBeTruthy();
   });
 
   it('Clásico conserva su formulario (T-210)', () => {
@@ -111,5 +119,11 @@ describe('Alta de gasto estilo Splitwise (Aero)', () => {
     const r = render(<NewExpenseScreen />);
     expect(r.getByTestId('tarjeta-pago')).toBeTruthy();
     expect(r.queryByTestId('frase-pagador')).toBeNull();
+    // Clásico conserva sus chips inline: sin disparador de menú.
+    expect(r.queryByTestId('selector-categoria-boton')).toBeNull();
+    // Los chips siguen ahí y tocar uno no abre ningún abanico.
+    fireEvent.press(r.getByText('categories.food'));
+    expect(r.queryByTestId('selector-categoria-velo')).toBeNull();
+    expect(r.queryAllByRole('menuitem')).toHaveLength(0);
   });
 });

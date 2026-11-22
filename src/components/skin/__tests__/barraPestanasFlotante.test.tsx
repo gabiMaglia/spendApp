@@ -6,8 +6,8 @@ import { render, renderHook, screen } from '@testing-library/react-native';
 import { BottomTabBarHeightContext } from '@react-navigation/bottom-tabs';
 
 import { Fab, FabRow, FAB_BOTTOM_GAP, separacionInferiorDelFab } from '@/src/components/Fab';
-import { TabBarFondoAero, VELO_BARRA_OPACIDAD } from '@/src/components/skin/TabBarFondoAero';
-import { VELO_OPACIDAD } from '@/src/components/skin/VeloHeader';
+import { TabBarFondoAero } from '@/src/components/skin/TabBarFondoAero';
+import { TabBarFondoClasico } from '@/src/components/skin/TabBarFondoClasico';
 import { useRellenoBarraPestanas } from '@/src/hooks/useRellenoBarraPestanas';
 import { useSettingsStore } from '@/src/store/settingsStore';
 
@@ -33,21 +33,25 @@ const enPestanas = (ui: React.ReactElement) => (
 );
 
 describe.each(['default', 'aero'] as const)('barra de pestañas con skin %s', skinId => {
-  const aero = skinId === 'aero';
   beforeEach(() => useSettingsStore.setState({ skin: skinId, reduceAnimations: true }));
 
-  it(aero ? 'la barra flota (absoluta) sobre el contenido' : 'la barra sigue en el flujo', () => {
+  it('la barra flota (absoluta) sobre el contenido en ambos skins (T-276)', () => {
     render(<TabLayout />);
     const estilo = StyleSheet.flatten(opciones.tabBarStyle);
-    if (aero) expect(estilo.position).toBe('absolute');
-    else expect(estilo.position).toBeUndefined();
+    expect(estilo.position).toBe('absolute');
+    expect(opciones.tabBarBackground).toBeDefined();
   });
 
-  it(aero ? 'las pestañas dejan lugar abajo para la barra' : 'las pestañas no suman nada', () => {
+  it('el alto de la barra es la huella de la píldora, sin pasarse de 86 en iPhone', () => {
+    render(<TabLayout />);
+    expect(StyleSheet.flatten(opciones.tabBarStyle).height).toBeLessThanOrEqual(86);
+  });
+
+  it('las pestañas dejan lugar abajo para la barra en ambos skins', () => {
     const { result } = renderHook(() => useRellenoBarraPestanas(), {
       wrapper: ({ children }) => enPestanas(<>{children}</>),
     });
-    expect(result.current).toBe(aero ? ALTO_BARRA : 0);
+    expect(result.current).toBe(ALTO_BARRA);
   });
 
   it('el FAB de las pestañas queda por encima de la barra', () => {
@@ -56,29 +60,28 @@ describe.each(['default', 'aero'] as const)('barra de pestañas con skin %s', sk
     ));
     const fila = screen.getByTestId('fab-row');
     const bottom = StyleSheet.flatten(fila.props.style).bottom;
-    // En Clásico la barra no es absoluta: `bottom` ya se mide desde su borde.
-    expect(bottom).toBe(aero ? ALTO_BARRA + FAB_BOTTOM_GAP : FAB_BOTTOM_GAP);
+    expect(bottom).toBe(ALTO_BARRA + FAB_BOTTOM_GAP);
   });
 });
 
 describe('separacionInferiorDelFab con barra flotante', () => {
   it('suma el alto de la barra cuando flota', () => {
-    expect(separacionInferiorDelFab({ dentroDePestanas: true, insetInferior: 48, barraFlotante: 90 }))
+    expect(separacionInferiorDelFab({ dentroDePestanas: true, baseInferior: 36, barraFlotante: 90 }))
       .toBe(FAB_BOTTOM_GAP + 90);
   });
 });
 
-describe('TabBarFondoAero', () => {
-  beforeEach(() => useSettingsStore.setState({ skin: 'aero', reduceAnimations: true }));
-
-  it('dibuja el velo denso en vez del fondo opaco', () => {
-    render(<TabBarFondoAero inferior={24} />);
-    expect(screen.getByTestId('velo-barra', { includeHiddenElements: true })).toBeTruthy();
+describe('fondos de la píldora', () => {
+  it('Aero dibuja la píldora', () => {
+    useSettingsStore.setState({ skin: 'aero', reduceAnimations: true });
+    render(<TabBarFondoAero bottom={22} alto={62} margen={16} />);
+    expect(screen.getByTestId('tabbar-aero', { includeHiddenElements: true })).toBeTruthy();
   });
 
-  it('el velo de la barra es mucho más denso que el del header, sin llegar a tapar', () => {
-    expect(VELO_BARRA_OPACIDAD).toBeGreaterThan(VELO_OPACIDAD * 2);
-    expect(VELO_BARRA_OPACIDAD).toBeLessThan(1);
+  it('Clásico dibuja la píldora', () => {
+    useSettingsStore.setState({ skin: 'default', reduceAnimations: true });
+    render(<TabBarFondoClasico bottom={22} alto={62} margen={16} />);
+    expect(screen.getByTestId('tabbar-clasico', { includeHiddenElements: true })).toBeTruthy();
   });
 });
 

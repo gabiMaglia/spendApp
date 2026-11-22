@@ -9,7 +9,7 @@ import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { useAuthStore } from '@/src/store/authStore';
 import { useGroupStore } from '@/src/store/groupStore';
-import { hapticLight, hapticSuccess } from '@/src/utils/haptics';
+import { hapticConfirmar, hapticExito } from '@/src/utils/haptics';
 import { inviteFromParams, isInviteExpired } from '@/src/sync/invitaciones/groupInvite';
 import { publishClaim, processInvite } from '@/src/sync/invitaciones/inviteEngine';
 import { deviceId, drainNow, startRelay } from '@/src/sync/motor/relayEngine';
@@ -59,7 +59,7 @@ export default function JoinGroupScreen() {
 
   async function handleJoin() {
     if (!invite || estado !== 'listo') return;
-    hapticLight();
+    hapticConfirmar();
     setEstado('entrando');
 
     await publishClaim(invite, deviceId());
@@ -73,7 +73,7 @@ export default function JoinGroupScreen() {
       if (adoptados.length > 0) {
         await drainNow(invite.groupId);
         if (!vivo.current) return;
-        hapticSuccess();
+        hapticExito();
         setEstado('entre');
         void startRelay(); // ahora sí, suscripción al grupo nuevo
         return;

@@ -120,7 +120,9 @@ describe('las páginas están completas', () => {
         expect(html).not.toMatch(/<script|gtag\(|googletagmanager|<iframe/i);
       }
       expect(html).not.toMatch(/src\s*=\s*["']https?:/i);
-      expect(html).not.toMatch(/<link[^>]+href\s*=\s*["']https?:/i);
+      // rel=canonical no carga nada; excepción exacta, sólo la de la landing (ver descargar.test)
+      const sinCanonical = html.replace('<link rel="canonical" href="https://www.gabrielmaglia.me/apps/hushsplit/">', '');
+      expect(sinCanonical).not.toMatch(/<link[^>]+href\s*=\s*["']https?:/i);
     }
   });
 

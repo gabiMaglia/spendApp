@@ -1,13 +1,15 @@
-import React, { useMemo, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from 'react-native';
+import React, { useMemo, useRef, useState } from 'react';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, type View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
 import { DetailHeader, useRellenoDetailHeader } from '@/src/components/CollapsibleHeader';
 import { Spacing } from '@/src/constants/spacing';
+import { MomentoExito } from '@/src/components/MomentoExito';
 import { ActionButton } from '@/src/components/ActionButton';
 import { ButtonRack } from '@/src/components/ButtonRack';
+import { useBaseInferior } from '@/src/hooks/useBaseInferior';
 import { topeDelSaldo, excedeElTope } from '@/src/algorithms/settleScope';
 import type { CurrencyCode } from '@/src/constants/currencies';
 import { useAmountInput } from '@/src/hooks/useAmountInput';
@@ -47,6 +49,7 @@ export default function SettleNewScreen() {
 function SaldarEnGrupo() {
   const { t } = useTranslation();
   const c = useColors();
+  const base = useBaseInferior();
   // Aero: el header flota y el contenido arranca debajo de su tarjeta (T-227).
   const relleno = useRellenoDetailHeader();
 
@@ -122,6 +125,7 @@ function SaldarEnGrupo() {
   const [showFrom,  setShowFrom]  = useState(false);
   const [showTo,    setShowTo]    = useState(false);
   const [showDate,  setShowDate]  = useState(false);
+  const anclaFecha = useRef<View>(null);
 
   const group    = groups.find(g => g.id === groupId);
   const isArchivedFn  = useArchiveStore(s => s.isArchived);
@@ -140,7 +144,7 @@ function SaldarEnGrupo() {
   const exceedsMax = excedeElTope(amount, tope);
   const canSave    = !decimalesNoAdmitidos && puedeGuardarSaldo({ amount, exceedsMax, fromId, toId, groupId, grupoArchivado });
 
-  const handleSave = useGuardarSaldo({
+  const { handleSave, momento } = useGuardarSaldo({
     canSave, exceedsMax, currentUser, modoTodo, acreedores, amount,
     groupId, fromId, toId, currency, date, addPayment,
   });
@@ -170,7 +174,7 @@ function SaldarEnGrupo() {
   }
 
   return (
-    <SafeAreaView edges={['bottom']} style={[styles.safe, { backgroundColor: c.bg }]}>
+    <SafeAreaView edges={[]} style={[styles.safe, { backgroundColor: c.bg }]}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
 
         <DetailHeader icon="close" title={t('settle.title')} onBack={() => router.back()} />
@@ -215,12 +219,13 @@ function SaldarEnGrupo() {
             date={date}
             onPressGrupo={() => { hapticSelection(); setShowGroup(true); }}
             onPressFecha={() => { hapticSelection(); setShowDate(true); }}
+            anclaFecha={anclaFecha}
           />
 
           {/* El botón de la app, no un Pressable con estilo propio: es la
               regla del proyecto y lo que hace que «guardar» se vea igual en
               todas las pantallas. */}
-          <ButtonRack placement="inline" style={styles.alFondo}>
+          <ButtonRack placement="inline" style={[styles.alFondo, { marginBottom: base }]}>
             <ActionButton
               testID="settle-save"
               label={t('settle.title')}
@@ -233,6 +238,8 @@ function SaldarEnGrupo() {
         </ScrollView>
       </KeyboardAvoidingView>
 
+      <MomentoExito momento={momento} onTerminar={() => router.back()} />
+
       <HojasDeSaldo
         isPrefilled={isPrefilled}
         showGroup={showGroup} onCloseGroup={() => setShowGroup(false)}
@@ -244,7 +251,8 @@ function SaldarEnGrupo() {
         onToChange={uid => { hapticSelection(); setToId(uid); setShowTo(false); }}
         showDate={showDate} onCloseDate={() => setShowDate(false)}
         date={date}
-        onDateChange={d => { hapticSelection(); setDate(d); setShowDate(false); }}
+        onDateChange={d => { hapticSelection(); setDate(d); }}
+        anclaFecha={anclaFecha}
         hintDe={uid => hintDe(balancesDelGrupo, uid, currency, t)}
       />
     </SafeAreaView>
@@ -258,6 +266,6 @@ const styles = StyleSheet.create({
   // 2026-09-29): `marginTop: 'auto'` absorbe el alto que sobra; necesita el
   // `flexGrow: 1` del contenedor del scroll.
   // `inline`: el scroll ya pone el aire lateral; `bottom` lo sumaba otra vez y
-  // el botón quedaba más angosto que el resto. Los 24 de abajo, a mano.
-  alFondo: { marginTop: 'auto', marginBottom: 24 },
+  // el botón quedaba más angosto que el resto. El margen de abajo es la base de la píldora (T-281).
+  alFondo: { marginTop: 'auto' },
 });

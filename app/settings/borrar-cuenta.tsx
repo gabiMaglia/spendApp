@@ -10,7 +10,7 @@ import { Typography } from '@/src/constants/typography';
 import { DetailHeader, useRellenoDetailHeader } from '@/src/components/CollapsibleHeader';
 import { deleteAccount } from '@/src/services/deleteAccount';
 import { LEGAL_DISPONIBLE, urlDeBorrado } from '@/src/constants/legal';
-import { hapticWarning } from '@/src/utils/haptics';
+import { hapticDestructivo } from '@/src/utils/haptics';
 import { useColors } from '@/src/skins/useSkin';
 
 /**
@@ -44,7 +44,7 @@ export default function BorrarCuentaScreen() {
   }
 
   function confirmar() {
-    void hapticWarning();
+    void hapticDestructivo();
     Alert.alert(
       t('account_delete.confirm_title'),
       t('account_delete.confirm_body'),

@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { DetailHeader, useRellenoDetailHeader } from '@/src/components/CollapsibleHeader';
 import { ActionButton } from '@/src/components/ActionButton';
 import { ButtonRack } from '@/src/components/ButtonRack';
+import { MomentoExito } from '@/src/components/MomentoExito';
 import { Band, BandRow } from '@/src/components/Band';
 import { Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
@@ -27,10 +28,10 @@ export function SaldarConAmigo({ amigoId }: { amigoId: string }) {
   // Aero: el header flota y el contenido arranca debajo de su tarjeta (T-227).
   const relleno = useRellenoDetailHeader();
   const yo = useAuthStore(s => s.currentUser?.id ?? '');
-  const { pagos, totales, confirmar, puedeGuardar } = useSaldoConAmigo(amigoId);
+  const { pagos, totales, confirmar, momento, puedeGuardar } = useSaldoConAmigo(amigoId);
 
   return (
-    <SafeAreaView edges={['bottom']} style={[styles.safe, { backgroundColor: c.bg }]}>
+    <SafeAreaView edges={[]} style={[styles.safe, { backgroundColor: c.bg }]}>
       <DetailHeader icon="close" title={t('settle.title')} onBack={() => router.back()} />
       <ScrollView contentContainerStyle={[styles.scroll, { paddingTop: Spacing[4] + relleno }]}>
         <TarjetaTransferencia fromId={yo} toId={amigoId} onPressFrom={undefined} onPressTo={undefined} />
@@ -76,6 +77,7 @@ export function SaldarConAmigo({ amigoId }: { amigoId: string }) {
           />
         </ButtonRack>
       </ScrollView>
+      <MomentoExito momento={momento} onTerminar={() => router.back()} />
     </SafeAreaView>
   );
 }
