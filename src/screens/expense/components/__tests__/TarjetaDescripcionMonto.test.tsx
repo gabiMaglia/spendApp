@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { render, screen } from '@testing-library/react-native';
 
 import { TarjetaDescripcionMonto } from '../TarjetaDescripcionMonto';
 
@@ -14,13 +14,10 @@ describe('badge de moneda del gasto (T-255)', () => {
     expect(screen.queryByLabelText('expense.currency_change')).toBeNull();
   });
 
-  it('sin grupo abre las 9 monedas y elegir una avisa el código', () => {
-    const onCurrencyChange = jest.fn();
-    render(<TarjetaDescripcionMonto {...base} onCurrencyChange={onCurrencyChange} />);
-    fireEvent.press(screen.getByLabelText('expense.currency_change'));
-    expect(screen.getAllByText(/^\S+\s+(USD|EUR|ARS|BRL|CLP|BOB|PYG|UYU|PEN)$/)).toHaveLength(9);
-    fireEvent.press(screen.getByText('$  CLP'));
-    expect(onCurrencyChange).toHaveBeenCalledWith('CLP');
+  // Aero abre el abanico (T-286); la hoja de siempre queda en Clásico (HeroMonto.test).
+  it('sin grupo es un botón', () => {
+    render(<TarjetaDescripcionMonto {...base} onCurrencyChange={jest.fn()} />);
+    expect(screen.getByLabelText('expense.currency_change').props.accessibilityRole).toBe('button');
   });
 });
 

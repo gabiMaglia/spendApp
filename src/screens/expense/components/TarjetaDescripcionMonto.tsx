@@ -88,6 +88,7 @@ export function TarjetaDescripcionMonto({
         <MonedaTocable
           currency={currency}
           onChange={onCurrencyChange}
+          abanico
           label={t('expense.currency_change')}
           title={t('expense.currency_title')}
           style={[styles.tile, { backgroundColor: c.surfaceSunken }]}
