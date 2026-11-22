@@ -40,16 +40,16 @@ export function FilasGrupoYFecha({
         <Ionicons name="chevron-forward" size={16} color={c.textTertiary} />
       </BandRow>
       <View ref={anclaFecha} collapsable={false}>
-      <BandRow last onPress={onPressFecha}>
-        <Ionicons name="calendar-outline" size={17} color={c.textSecondary} />
-        <Text style={[Typography.bodyM, { color: c.textSecondary, flex: 1 }]}>
-          {t('settle.date_label')}
-        </Text>
-        <Text style={[Typography.bodyM, { color: c.text, fontWeight: '600' }]}>
-          {formatDate(date)}
-        </Text>
-        <Ionicons name="chevron-forward" size={16} color={c.textTertiary} />
-      </BandRow>
+        <BandRow last onPress={onPressFecha}>
+          <Ionicons name="calendar-outline" size={17} color={c.textSecondary} />
+          <Text style={[Typography.bodyM, { color: c.textSecondary, flex: 1 }]}>
+            {t('settle.date_label')}
+          </Text>
+          <Text style={[Typography.bodyM, { color: c.text, fontWeight: '600' }]}>
+            {formatDate(date)}
+          </Text>
+          <Ionicons name="chevron-forward" size={16} color={c.textTertiary} />
+        </BandRow>
       </View>
     </Band>
   );

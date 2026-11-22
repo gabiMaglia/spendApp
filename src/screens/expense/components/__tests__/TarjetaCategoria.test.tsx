@@ -97,3 +97,28 @@ describe('cubo de categoría de la tarjeta (T-283)', () => {
     expect(screen.queryByTestId('selector-categoria-boton')).toBeNull();
   });
 });
+
+describe('íconos propios (T-293)', () => {
+  beforeEach(() => { jest.useFakeTimers(); });
+  afterEach(() => { jest.useRealTimers(); });
+
+  it('el cubo cerrado usa el ícono propio de la categoría en variante a', () => {
+    render(<TarjetaDescripcionMonto {...base} category="health" onCategoryChange={jest.fn()} />);
+    expect(screen.getByTestId('icono-categoria-health-a')).toBeTruthy();
+  });
+
+  it('en el abanico, sólo la elegida va en b', () => {
+    render(<TarjetaDescripcionMonto {...base} category="taxes" onCategoryChange={jest.fn()} />);
+    fireEvent.press(screen.getByTestId('selector-categoria-boton'));
+    act(() => { jest.advanceTimersByTime(ASENTAR_MS + 50); });
+    expect(screen.getAllByTestId('icono-categoria-taxes-b')).toHaveLength(1);
+    expect(screen.queryAllByTestId('icono-categoria-taxes-a')).toHaveLength(1); // el cubo cerrado, que no cambia
+    expect(screen.getAllByTestId('icono-categoria-food-a').length).toBeGreaterThan(0);
+    expect(screen.queryAllByTestId('icono-categoria-food-b')).toHaveLength(0);
+  });
+
+  it('el ingreso usa el ícono propio de ingreso', () => {
+    render(<TarjetaDescripcionMonto {...base} isIncome />);
+    expect(screen.getByTestId('icono-categoria-income-a')).toBeTruthy();
+  });
+});

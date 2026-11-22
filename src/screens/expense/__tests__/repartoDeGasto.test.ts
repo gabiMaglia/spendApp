@@ -1,6 +1,7 @@
 import {
   calcularSplits, estadoInicialPorcentajes, formatDate, miembrosDelReparto, roundPct,
 } from '@/src/screens/expense/repartoDeGasto';
+import i18n from '@/src/i18n';
 import type { Expense } from '@/src/types/models';
 
 /**
@@ -154,5 +155,18 @@ describe('formatDate', () => {
     expect(formatDate(hoy)).toBe('Hoy');
     expect(formatDate(ayer)).toBe('Ayer');
     expect(formatDate(antes)).not.toMatch(/^(Hoy|Ayer)$/);
+  });
+
+  it('usa el idioma activo: en inglés no sale en formato es-AR ni como Hoy/Ayer', async () => {
+    const antes = i18n.language;
+    await i18n.changeLanguage('en');
+    try {
+      const d = new Date(2020, 2, 15);
+      expect(formatDate(d)).not.toBe(d.toLocaleDateString('es-AR', { day: 'numeric', month: 'short' }));
+      expect(formatDate(d)).toBe(d.toLocaleDateString('en', { day: 'numeric', month: 'short' }));
+      expect(formatDate(new Date())).toBe('Today');
+    } finally {
+      await i18n.changeLanguage(antes);
+    }
   });
 });

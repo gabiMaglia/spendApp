@@ -38,6 +38,7 @@ export function StatCards({
             <Panel
               key={it.label}
               testID="stat-card"
+              nivel="e2"
               style={{ flex: 1, marginHorizontal: 0, marginTop: 0 }}
             >
               <Tocable it={it} style={{ padding: skin.space.padPanel, gap: 2 }}>

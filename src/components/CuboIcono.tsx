@@ -3,6 +3,8 @@ import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-na
 import { Ionicons } from '@expo/vector-icons';
 
 import { conAlfa } from '@/src/skins/color';
+import { useSkinTokens } from '@/src/skins/useSkin';
+import { IconoCategoria } from '@/src/components/IconoCategoria';
 
 export const CUBO_TAMANO = 60;
 
@@ -10,8 +12,10 @@ export const CUBO_TAMANO = 60;
  * El cubo de Aero: tile tintado con su ícono (o un texto corto). Lo usan la tarjeta del
  * gasto y el abanico de categorías, que tienen que verse idénticos.
  */
-export function CuboIcono({ icono, texto, fecha, tinte, resaltado, style, testID }: {
+export function CuboIcono({ icono, categoria, texto, fecha, tinte, resaltado, tamano = CUBO_TAMANO, style, testID }: {
   icono?: React.ComponentProps<typeof Ionicons>['name'];
+  /** Ícono propio de una categoría (o `income`). Resaltado se dibuja en variante b (color pleno), sin borde. */
+  categoria?: string;
   /** Contenido de texto en lugar del ícono (el símbolo de una moneda). */
   texto?: string;
   /** Un día: número grande y mes abreviado chico, ya en el idioma activo. */
@@ -19,20 +23,31 @@ export function CuboIcono({ icono, texto, fecha, tinte, resaltado, style, testID
   tinte: string;
   /** Marca el cubo elegido dentro del abanico. */
   resaltado?: boolean;
+  /** Lado del cubo; el dibujo escala con él. */
+  tamano?: number;
   style?: StyleProp<ViewStyle>;
   testID?: string;
 }) {
+  const { colors } = useSkinTokens();
+  const propio = categoria !== undefined;
+  const lleno = propio && resaltado;
   return (
     <View
       testID={testID}
       style={[
         styles.cubo,
-        { backgroundColor: conAlfa(tinte, 0.16) },
-        resaltado && { borderWidth: 2, borderColor: tinte },
+        tamano !== CUBO_TAMANO && { width: tamano, height: tamano, borderRadius: tamano * 0.3 },
+        { backgroundColor: lleno ? tinte : conAlfa(tinte, propio ? 0.14 : 0.16) },
+        resaltado && !propio && { borderWidth: 2, borderColor: tinte },
         style,
       ]}
     >
-      {fecha ? (
+      {propio ? (
+        <IconoCategoria
+          categoria={categoria} tinte={tinte} sobreColor={colors.sobreVelo}
+          tamano={Math.round(tamano * 0.47)} variante={lleno ? 'b' : 'a'}
+        />
+      ) : fecha ? (
         <>
           <Text style={[styles.dia, { color: tinte }]} numberOfLines={1}>{fecha.dia}</Text>
           <Text style={[styles.mes, { color: tinte }]} numberOfLines={1}>{fecha.mes}</Text>

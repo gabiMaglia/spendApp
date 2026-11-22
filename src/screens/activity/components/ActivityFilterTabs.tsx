@@ -1,6 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 
+import type { IdGlifo } from '@/src/components/glifos';
 import { Segmented } from '@/src/components/Band';
 import { PERSONAL_ACTIVITY_KEY } from '@/src/store/selectors';
 import { ALL_FILTER } from '@/src/screens/activity/hooks/useActivityFilter';
@@ -18,14 +19,14 @@ export function ActivityFilterTabs({
       borde="abajo"
       value={value}
       onChange={onChange}
-      options={allGroupNames.map(f => ({
+      options={allGroupNames.map((f): { key: string; label: string; glifo: IdGlifo } => ({
         key: f,
         label: f === ALL_FILTER ? t('activity.filter_all')
           : f === PERSONAL_ACTIVITY_KEY ? t('activity.filter_personal')
           : f,
-        icon: f === ALL_FILTER ? 'apps-outline'
-          : f === PERSONAL_ACTIVITY_KEY ? 'person-outline'
-          : 'people-outline',
+        glifo: f === ALL_FILTER ? 'todos'
+          : f === PERSONAL_ACTIVITY_KEY ? 'personal'
+          : 'amigos',
       }))}
     />
   );

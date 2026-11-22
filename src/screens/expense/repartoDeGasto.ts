@@ -1,6 +1,4 @@
-import type { Ionicons } from '@expo/vector-icons';
-import type React from 'react';
-
+import i18n from '@/src/i18n';
 import { buildSplits } from '@/src/algorithms/buildSplits';
 import { splitsPorPorcentajes } from '@/src/algorithms/recurringSplits';
 import type { Expense, PersonalCategory } from '@/src/types/models';
@@ -12,18 +10,18 @@ import type { Expense, PersonalCategory } from '@/src/types/models';
 export type SplitMode  = 'equal' | 'percentage';
 export type PercentSub = 'same'  | 'custom';
 
-type CatMeta = { id: PersonalCategory; icon: React.ComponentProps<typeof Ionicons>['name']; label: string };
+type CatMeta = { id: PersonalCategory; label: string };
 
 export const CATEGORIES: CatMeta[] = [
-  { id: 'food',          icon: 'restaurant-outline',          label: 'Comida'        },
-  { id: 'transport',     icon: 'car-outline',                 label: 'Transporte'    },
-  { id: 'accommodation', icon: 'home-outline',                label: 'Alojamiento'   },
-  { id: 'entertainment', icon: 'game-controller-outline',     label: 'Ocio'          },
-  { id: 'utilities',     icon: 'flash-outline',               label: 'Servicios'     },
-  { id: 'taxes',         icon: 'document-text-outline',       label: 'Impuestos'     },
-  { id: 'health',        icon: 'medical-outline',             label: 'Salud'         },
-  { id: 'shopping',      icon: 'bag-outline',                 label: 'Compras'       },
-  { id: 'other',         icon: 'ellipsis-horizontal-outline', label: 'Otro'          },
+  { id: 'food',          label: 'Comida'        },
+  { id: 'transport',     label: 'Transporte'    },
+  { id: 'accommodation', label: 'Alojamiento'   },
+  { id: 'entertainment', label: 'Ocio'          },
+  { id: 'utilities',     label: 'Servicios'     },
+  { id: 'taxes',         label: 'Impuestos'     },
+  { id: 'health',        label: 'Salud'         },
+  { id: 'shopping',      label: 'Compras'       },
+  { id: 'other',         label: 'Otro'          },
 ];
 
 // Redondeo de PORCENTAJES para mostrar en UI (no es un monto — ADR-002 no
@@ -36,9 +34,9 @@ export function formatDate(d: Date): string {
   const today     = new Date(); today.setHours(0, 0, 0, 0);
   const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
   const dMid      = new Date(d);    dMid.setHours(0, 0, 0, 0);
-  if (dMid.getTime() === today.getTime())     return 'Hoy';
-  if (dMid.getTime() === yesterday.getTime()) return 'Ayer';
-  return d.toLocaleDateString('es-AR', { day: 'numeric', month: 'short' });
+  if (dMid.getTime() === today.getTime())     return i18n.t('common.today');
+  if (dMid.getTime() === yesterday.getTime()) return i18n.t('common.yesterday');
+  return d.toLocaleDateString(i18n.language, { day: 'numeric', month: 'short' });
 }
 
 export type EstadoPorcentajes = {
