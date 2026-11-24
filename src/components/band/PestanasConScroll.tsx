@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ScrollView, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent, type StyleProp, type ViewStyle,
+  ScrollView, StyleSheet, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent, type StyleProp, type ViewStyle,
 } from 'react-native';
-import { useSharedValue } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { FundidoBorde } from '@/src/components/menu/FundidoBorde';
+import { DURACION } from '@/src/constants/movimiento';
 import { useAnimacionesReducidas } from '@/src/hooks/useAnimacionesReducidas';
 
 type Medida = { x: number; ancho: number };
@@ -77,12 +78,38 @@ export function PestanasConScroll({ value, fondo, contentContainerStyle, childre
       >
         {children(medir)}
       </ScrollView>
-      {hayMas && bordes.izq && (
-        <FundidoBorde horizontal alIzquierda scrollY={x} maxScroll={maxScroll} color={fondo} testID="segmented-fundido-izquierda" />
-      )}
-      {hayMas && bordes.der && (
-        <FundidoBorde horizontal scrollY={x} maxScroll={maxScroll} color={fondo} testID="segmented-fundido-derecha" />
+      {hayMas && (
+        <>
+          <FundidoAnimado visible={bordes.izq} reducidas={reducidas === true} testID="segmented-fundido-izquierda">
+            <FundidoBorde horizontal alIzquierda scrollY={x} maxScroll={maxScroll} color={fondo} />
+          </FundidoAnimado>
+          <FundidoAnimado visible={bordes.der} reducidas={reducidas === true} testID="segmented-fundido-derecha">
+            <FundidoBorde horizontal scrollY={x} maxScroll={maxScroll} color={fondo} />
+          </FundidoAnimado>
+        </>
       )}
     </>
+  );
+}
+
+/**
+ * Prende/apaga el fundido con un fade corto en vez de a golpe. `visible` queda en
+ * `accessibilityElementsHidden` (invertido) para que sea observable sin leer la animación.
+ */
+function FundidoAnimado({ visible, reducidas, testID, children }: {
+  visible: boolean; reducidas: boolean; testID: string; children: React.ReactNode;
+}) {
+  const opacidad = useSharedValue(visible ? 1 : 0);
+  useEffect(() => {
+    opacidad.value = reducidas ? (visible ? 1 : 0) : withTiming(visible ? 1 : 0, { duration: DURACION.corta });
+  }, [visible, reducidas, opacidad]);
+  const estilo = useAnimatedStyle(() => ({ opacity: opacidad.value }));
+  return (
+    <Animated.View
+      testID={testID} pointerEvents="none" accessibilityElementsHidden={!visible}
+      style={[StyleSheet.absoluteFill, estilo]}
+    >
+      {children}
+    </Animated.View>
   );
 }

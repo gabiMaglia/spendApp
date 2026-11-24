@@ -1,5 +1,5 @@
 import React from 'react';
-import { ScrollView, StyleSheet } from 'react-native';
+import { ScrollView } from 'react-native';
 import { act, fireEvent, render } from '@testing-library/react-native';
 import { Segmented } from '../Band';
 import { useSettingsStore } from '@/src/store/settingsStore';
@@ -36,7 +36,7 @@ const desplazar = (t: ReturnType<typeof render>, x: number) =>
 
 const visible = (t: ReturnType<typeof render>, id: string) => {
   const n = t.queryByTestId(id);
-  return !!n && StyleSheet.flatten(n.props.style).opacity !== 0;
+  return !!n && n.props.accessibilityElementsHidden === false;
 };
 
 afterEach(() => { jest.restoreAllMocks(); });
