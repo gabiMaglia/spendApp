@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { textFor } from '@/src/services/notifications';
+import { textFor } from '@/src/services/textoAvisos';
 import { esAccionable, type Notice } from '@/src/services/syncNotices';
 import type { StoredNotice } from '@/src/store/noticeInboxStore';
 import { useGroupStore } from '@/src/store/groupStore';

@@ -1,4 +1,5 @@
-import { deliver, announce, resetPermissionCache, onNotificationTap } from '@/src/services/notifications';
+import { deliver, announce, resetPermissionCache } from '@/src/services/notifications';
+import { onNotificationTap } from '@/src/services/notificacionTap';
 import i18n from '@/src/i18n';
 import { useSettingsStore } from '@/src/store/settingsStore';
 import { useNoticeInboxStore } from '@/src/store/noticeInboxStore';

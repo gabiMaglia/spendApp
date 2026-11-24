@@ -22,7 +22,6 @@ export const GLIFOS = {
   // Filtro «todos»: cuatro casillas, sólo trazo.
   todos: { b: '', d: 'M6 6h4v4H6zM14 6h4v4h-4zM6 14h4v4H6zM14 14h4v4h-4z' },
   // Sellos de acción
-  mas: { b: '', d: 'M12 6v12M6 12h12' },
   tacho: {
     b: 'M6.5 7.5h11l-.8 11.6a1 1 0 0 1-1 .9H8.3a1 1 0 0 1-1-.9z',
     d: 'M4.5 7.5h15M10 4.5h4M10.5 11v5.5M13.5 11v5.5',
