@@ -1,4 +1,5 @@
-import { deliver, isEnabled, textFor, resetPermissionCache } from '../notifications';
+import { deliver, isEnabled, resetPermissionCache } from '../notifications';
+import { textFor } from '../textoAvisos';
 import { useSettingsStore } from '@/src/store/settingsStore';
 import type { Notice } from '../syncNotices';
 

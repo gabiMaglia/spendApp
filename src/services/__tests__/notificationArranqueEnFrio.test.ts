@@ -1,4 +1,4 @@
-import { atenderRespuestaDeArranque, onNotificationTap, olvidarRespuestasAtendidas } from '@/src/services/notifications';
+import { atenderRespuestaDeArranque, onNotificationTap, olvidarRespuestasAtendidas } from '@/src/services/notificacionTap';
 
 let mockUltima: unknown = null;
 let mockListener: ((r: unknown) => void) | null = null;
