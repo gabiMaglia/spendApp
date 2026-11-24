@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { Band, BandRow } from '@/src/components/Band';
 import { Typography } from '@/src/constants/typography';
 import { useColors, useSkinTokens } from '@/src/skins/useSkin';
-import { formatDate } from '@/src/screens/settle/saldoDeGrupo';
+import { fechaCorta } from '@/src/utils/fechaCorta';
 import { estilos } from '@/src/screens/settle/components/estilos';
 
 /**
@@ -46,7 +46,7 @@ export function FilasGrupoYFecha({
             {t('settle.date_label')}
           </Text>
           <Text style={[Typography.bodyM, { color: c.text, fontWeight: '600' }]}>
-            {formatDate(date)}
+            {fechaCorta(date)}
           </Text>
           <Ionicons name="chevron-forward" size={16} color={c.textTertiary} />
         </BandRow>
