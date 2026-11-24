@@ -22,6 +22,7 @@ import { BloqueCuentasConocidas } from '@/src/screens/debug/components/BloqueCue
 import { BloqueLogDeRenders } from '@/src/screens/debug/components/BloqueLogDeRenders';
 import { BloqueEmpezarDeCero } from '@/src/screens/debug/components/BloqueEmpezarDeCero';
 import { BloqueDatosDeDemo } from '@/src/screens/debug/components/BloqueDatosDeDemo';
+import { BloqueNotificacionDePrueba } from '@/src/screens/debug/components/BloqueNotificacionDePrueba';
 
 /**
  * Diagnóstico del índice de identidad (solo DEV).
@@ -62,6 +63,7 @@ function PantallaIdentidad() {
 
       <ScrollView contentContainerStyle={styles.scroll}>
         <BloqueDatosDeDemo c={c} />
+        <BloqueNotificacionDePrueba c={c} />
         <BloqueCuentaActiva accountId={snapshot.activeAccountId} c={c} />
         <BloqueSync incompletos={incompletos} c={c} />
         <AvisoPublicacionBloqueada c={c} />
