@@ -1,7 +1,7 @@
-import { deliver, isEnabled, resetPermissionCache } from '../notifications';
-import { textFor } from '../textoAvisos';
+import { deliver, isEnabled, resetPermissionCache } from '@/src/services/notifications';
+import { textFor } from '@/src/services/textoAvisos';
 import { useSettingsStore } from '@/src/store/settingsStore';
-import type { Notice } from '../syncNotices';
+import type { Notice } from '@/src/services/syncNotices';
 
 type Programada = { content: { title: string; body: string }; trigger: null };
 const mockSchedule = jest.fn(async (_arg: Programada) => 'id');

@@ -1,4 +1,4 @@
-import type { Notice } from '../syncNotices';
+import type { Notice } from '@/src/services/syncNotices';
 import type { User } from '@/src/types/models';
 
 /**
@@ -59,14 +59,14 @@ describe('T-054 · build sin el módulo nativo de notificaciones', () => {
     // no llegaría ni a pintar la primera pantalla.
     comoUnBuildSinElNativo();
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const notif = require('../notifications');
+    const notif = require('@/src/services/notifications');
     expect(() => notif.installNotificationHandler()).not.toThrow();
   });
 
   it('announce deja el aviso en la bandeja y devuelve 0: se pierde el aviso, no el registro', async () => {
     comoUnBuildSinElNativo();
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const notif = require('../notifications');
+    const notif = require('@/src/services/notifications');
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { useNoticeInboxStore } = require('@/src/store/noticeInboxStore');
     // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -90,7 +90,7 @@ describe('T-054 · build sin el módulo nativo de notificaciones', () => {
       setNotificationHandler: () => { throw new Error('módulo a medio enlazar'); },
     }));
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const notif = require('../notifications');
+    const notif = require('@/src/services/notifications');
     expect(() => notif.installNotificationHandler()).not.toThrow();
   });
 
@@ -105,7 +105,7 @@ describe('T-054 · build sin el módulo nativo de notificaciones', () => {
       throw new Error(FALTA_NATIVO);
     });
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const notif = require('../notifications');
+    const notif = require('@/src/services/notifications');
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { useSettingsStore } = require('@/src/store/settingsStore');
     useSettingsStore.setState({ notifExpenses: true });
@@ -119,7 +119,7 @@ describe('T-054 · build sin el módulo nativo de notificaciones', () => {
   it('deliver devuelve 0 sin tirar', async () => {
     comoUnBuildSinElNativo();
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const notif = require('../notifications');
+    const notif = require('@/src/services/notifications');
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { useSettingsStore } = require('@/src/store/settingsStore');
     useSettingsStore.setState({ notifExpenses: true });
@@ -133,7 +133,7 @@ describe('T-054 · build sin el módulo nativo de notificaciones', () => {
     // quedarse en blanco por un binario que no entró al build.
     comoUnBuildSinElNativo();
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const notif = require('../textoAvisos');
+    const notif = require('@/src/services/textoAvisos');
     expect(notif.textFor(gastos).title).toBe('Viaje');
   });
 
@@ -142,7 +142,7 @@ describe('T-054 · build sin el módulo nativo de notificaciones', () => {
     // igual, y sin tirar: es lo que hace que `deliver` corte antes de entregar.
     comoUnBuildSinElNativo();
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const notif = require('../notifications');
+    const notif = require('@/src/services/notifications');
     await expect(notif.ensurePermission()).resolves.toBe(false);
   });
 });
