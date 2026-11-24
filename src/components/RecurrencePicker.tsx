@@ -66,6 +66,8 @@ export function RecurrencePicker({
       // margen, como siempre.
       borde={soft ? 'ambos' : 'ninguno'}
       scroll
+      // Clásico: van dentro de la tarjeta (`surface`), no sobre el fondo de pantalla.
+      fondo={soft ? undefined : c.surface}
       value={toKey(value)}
       onChange={k => onChange(toValue(k))}
       options={OPTIONS.map(o => ({ key: o.key, label: t(o.labelKey), icon: o.icon }))}

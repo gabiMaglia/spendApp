@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { IconoGlifo } from '@/src/components/IconoGlifo';
 import type { IdGlifo } from '@/src/components/glifos';
@@ -7,6 +7,7 @@ import type { IdGlifo } from '@/src/components/glifos';
 import { Spacing } from '@/src/constants/spacing';
 import { useSkinTokens } from '@/src/skins/useSkin';
 import { useC } from '@/src/components/band/BandBase';
+import { PestanasConScroll } from '@/src/components/band/PestanasConScroll';
 import { hapticSeleccionar } from '@/src/utils/haptics';
 
 /**
@@ -26,7 +27,7 @@ import { hapticSeleccionar } from '@/src/utils/haptics';
 export type SegmentedVariant = 'control' | 'tabs';
 
 export function Segmented<T extends string>({
-  options, value, onChange, compact, variant = 'control', scroll, borde = 'abajo',
+  options, value, onChange, compact, variant = 'control', scroll, fondo, borde = 'abajo',
 }: {
   /** `icon` sólo se dibuja en `tabs`; en `control` no hay lugar. */
   options: { key: T; label: string; icon?: keyof typeof Ionicons.glyphMap; /** Glifo propio de trazo; gana sobre `icon`. */ glifo?: IdGlifo }[];
@@ -40,6 +41,12 @@ export function Segmented<T extends string>({
    * que los nombres se cortan.
    */
   scroll?: boolean;
+  /**
+   * Con `scroll`: color del fondo sobre el que están las pestañas, para que el
+   * fundido del borde se confunda con él. Default: el fondo de pantalla (`bg`) en
+   * Clásico y la pista hundida en Aero; quien las pone sobre una tarjeta pasa el de la tarjeta.
+   */
+  fondo?: string;
   /**
    * Sólo aplica a `variant="tabs"`. La "T invertida" nace con el trazo
    * horizontal ABAJO (default `'abajo'`, sin cambios). Grupos (T-108) la pega
@@ -60,7 +67,7 @@ export function Segmented<T extends string>({
   // Aero (etapa 2): las pestañas pasan de «T invertida» de borde a borde a un
   // selector de píldora con margen; la activa, tarjeta blanca con sombra suave.
   if (variant === 'tabs' && skin.flags.soft) {
-    const items = options.map(o => {
+    const items = (medir?: (k: string) => (e: LayoutChangeEvent) => void) => options.map(o => {
       const on = o.key === value;
       const color = on ? c.text : c.textTertiary;
       return (
@@ -69,6 +76,7 @@ export function Segmented<T extends string>({
           accessibilityRole="tab"
           accessibilityState={{ selected: on }}
           onPress={() => elegir(o.key)}
+          onLayout={medir?.(o.key)}
           style={[
             scroll ? styles.pillItemScroll : styles.pillItem,
             compact && styles.pillItemCompact,
@@ -89,14 +97,18 @@ export function Segmented<T extends string>({
     return (
       <View testID="segmented-tabs-wrap" style={pista}>
         {scroll
-          ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillScroll}>{items}</ScrollView>
-          : items}
+          ? (
+            <PestanasConScroll value={value} fondo={fondo ?? c.surfaceSunken} contentContainerStyle={styles.pillScroll}>
+              {medir => items(medir)}
+            </PestanasConScroll>
+          )
+          : items()}
       </View>
     );
   }
 
   if (variant === 'tabs') {
-    const items = options.map((o, i) => {
+    const items = (medir?: (k: string) => (e: LayoutChangeEvent) => void) => options.map((o, i) => {
       const on = o.key === value;
       const color = on ? c.text : c.textTertiary;
       return (
@@ -105,6 +117,7 @@ export function Segmented<T extends string>({
           accessibilityRole="tab"
           accessibilityState={{ selected: on }}
           onPress={() => elegir(o.key)}
+          onLayout={medir?.(o.key)}
           style={[
             scroll ? styles.tabsItemScroll : styles.tabsItem,
             // `compact`: un selector SECUNDARIO (p.ej. el sub-modo de porcentaje
@@ -141,14 +154,14 @@ export function Segmented<T extends string>({
     if (scroll) {
       return (
         <View testID="segmented-tabs-wrap" style={[styles.tabsWrap, estiloBorde]}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {items}
-          </ScrollView>
+          <PestanasConScroll value={value} fondo={fondo ?? c.bg}>
+            {medir => items(medir)}
+          </PestanasConScroll>
         </View>
       );
     }
     return (
-      <View testID="segmented-tabs-wrap" style={[styles.tabsWrap, estiloBorde]}>{items}</View>
+      <View testID="segmented-tabs-wrap" style={[styles.tabsWrap, estiloBorde]}>{items()}</View>
     );
   }
 
