@@ -93,8 +93,9 @@ export function PestanasConScroll({ value, fondo, contentContainerStyle, childre
 }
 
 /**
- * Prende/apaga el fundido con un fade corto en vez de a golpe. `visible` queda en
- * `accessibilityElementsHidden` (invertido) para que sea observable sin leer la animación.
+ * Prende/apaga el fundido con un fade corto en vez de a golpe. Es decorativo: siempre
+ * oculto a lectores de pantalla. Para los tests, el estado se lee del sufijo del testID
+ * (`-on` / `-off`), ya que la opacidad animada no se actualiza en Jest.
  */
 function FundidoAnimado({ visible, reducidas, testID, children }: {
   visible: boolean; reducidas: boolean; testID: string; children: React.ReactNode;
@@ -106,7 +107,8 @@ function FundidoAnimado({ visible, reducidas, testID, children }: {
   const estilo = useAnimatedStyle(() => ({ opacity: opacidad.value }));
   return (
     <Animated.View
-      testID={testID} pointerEvents="none" accessibilityElementsHidden={!visible}
+      testID={`${testID}-${visible ? 'on' : 'off'}`} pointerEvents="none"
+      accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
       style={[StyleSheet.absoluteFill, estilo]}
     >
       {children}

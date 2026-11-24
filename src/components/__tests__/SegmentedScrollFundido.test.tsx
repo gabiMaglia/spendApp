@@ -35,8 +35,7 @@ const desplazar = (t: ReturnType<typeof render>, x: number) =>
   act(() => { fireEvent.scroll(t.getByTestId('segmented-tabs-scroll'), { nativeEvent: { contentOffset: { x } } }); });
 
 const visible = (t: ReturnType<typeof render>, id: string) => {
-  const n = t.queryByTestId(id);
-  return !!n && n.props.accessibilityElementsHidden === false;
+  return !!t.queryByTestId(`${id}-on`, { includeHiddenElements: true });
 };
 
 afterEach(() => { jest.restoreAllMocks(); });
@@ -102,5 +101,33 @@ describe('Segmented scroll: la elegida se trae a la vista', () => {
     const arg = spy.mock.calls[spy.mock.calls.length - 1][0] as { x: number; animated: boolean };
     expect(arg.x).toBeGreaterThan(0);
     expect(arg.animated).toBe(true);
+  });
+});
+
+describe('Segmented scroll: bordes del auto-scroll', () => {
+  it('el destino no pasa del final: contenido 600, ventana 300 => x === 300', () => {
+    const spy = jest.spyOn(ScrollView.prototype, 'scrollTo'); spy.mockClear();
+    montar('f', 600);
+    expect(spy.mock.calls[spy.mock.calls.length - 1][0]).toMatchObject({ x: 300 });
+  });
+
+  it('con «reducir movimiento» el scrollTo al cambiar value va sin animar', async () => {
+    useSettingsStore.setState({ reduceAnimations: true });
+    const spy = jest.spyOn(ScrollView.prototype, 'scrollTo'); spy.mockClear();
+    const t = montar('a');
+    await act(async () => {});
+    spy.mockClear();
+    t.rerender(<Segmented variant="tabs" scroll options={options} value="e" onChange={() => {}} />);
+    expect(spy).toHaveBeenCalled();
+    expect(spy.mock.calls[spy.mock.calls.length - 1][0]).toMatchObject({ animated: false });
+    useSettingsStore.setState({ reduceAnimations: false });
+  });
+
+  it('re-medir sin cambiar value no vuelve a hacer scrollTo', () => {
+    const spy = jest.spyOn(ScrollView.prototype, 'scrollTo'); spy.mockClear();
+    const t = montar('e');
+    spy.mockClear();
+    medir(t, ANCHO_TAB * keys.length);
+    expect(spy).not.toHaveBeenCalled();
   });
 });
