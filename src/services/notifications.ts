@@ -7,7 +7,7 @@ import { cargarNotificaciones } from '@/src/services/nativoNotificaciones';
 import { textFor, textoResumen } from '@/src/services/textoAvisos';
 
 /** Destino general del tap en un resumen: la pestaña Actividad ya existe. */
-const DESTINO_RESUMEN = '/(tabs)/activity';
+export const DESTINO_RESUMEN = '/(tabs)/activity';
 
 /**
  * Entrega de notificaciones locales (T-010).
