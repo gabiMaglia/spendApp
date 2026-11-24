@@ -1,4 +1,5 @@
-import { cargarDatosDeDemo, GRUPO_DEMO_ID } from '../datosDeDemo';
+import { cargarDatosDeDemo, GRUPO_DEMO_ID } from '@/src/screens/debug/datosDeDemo';
+import { GRUPOS_EXTRA } from '@/src/screens/debug/datosDeDemoGrupos';
 import { useGroupStore } from '@/src/store/groupStore';
 import { useExpenseStore } from '@/src/store/expenseStore';
 import { usePaymentStore } from '@/src/store/paymentStore';
@@ -88,7 +89,7 @@ describe('cargarDatosDeDemo', () => {
   it('cargarlo dos veces no duplica nada', () => {
     cargarDatosDeDemo(YO, AHORA, true);
     cargarDatosDeDemo(YO, AHORA, true);
-    expect(useGroupStore.getState().groups).toHaveLength(1);
+    expect(useGroupStore.getState().groups).toHaveLength(1 + GRUPOS_EXTRA.length);
     expect(usePaymentStore.getState().payments).toHaveLength(1);
     const ids = useExpenseStore.getState().expenses.map(e => e.id);
     expect(new Set(ids).size).toBe(ids.length);
@@ -110,6 +111,23 @@ describe('cargarDatosDeDemo', () => {
     expect(comentarios).toHaveLength(1);
     expect(comentarios[0].authorId).toBe('demo-martin');
     expect(useExpenseStore.getState().expenses.some(e => e.id === comentarios[0].expenseId)).toBe(true);
+  });
+
+  it('suma cuatro grupos más, en monedas distintas, cada uno con gastos y su clave (filtro de Actividad con scroll)', () => {
+    cargarDatosDeDemo(YO, AHORA, true);
+    const grupos = useGroupStore.getState().groups;
+    expect(grupos.length).toBeGreaterThanOrEqual(5);
+    expect(new Set(grupos.map(g => g.currency)).size).toBeGreaterThanOrEqual(3);
+    for (const g of grupos) {
+      expect(g.memberIds).toContain(YO);
+      expect(useGroupKeyStore.getState().getKey(g.id)).toBeDefined();
+      const gastos = useExpenseStore.getState().getByGroupId(g.id);
+      expect(gastos.length).toBeGreaterThan(0);
+      for (const e of gastos) {
+        expect(e.currency).toBe(g.currency);
+        expect(e.splits.reduce((s, x) => s + x.amount, 0)).toBe(e.amount);
+      }
+    }
   });
 
   it('fuera de desarrollo no carga nada', () => {
