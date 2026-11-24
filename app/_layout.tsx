@@ -25,7 +25,7 @@ import { registrarVaciadoEnBackground } from '@/src/store/flushOnBackground';
 import { resumePendingDeletion } from '@/src/services/deleteAccount';
 import { tomarEnlacePendiente } from '@/src/utils/enlacePendiente';
 import { useEnlacesEntrantes } from '@/src/hooks/useEnlacesEntrantes';
-import { installNotificationHandler, onNotificationTap } from '@/src/services/notifications';
+import { installNotificationHandler, onNotificationTap, atenderRespuestaDeArranque } from '@/src/services/notifications';
 import { installGlobalErrorHandler } from '@/src/services/globalErrorHandler';
 import { ErrorBoundary } from '@/src/components/ErrorBoundary';
 import { exportarDiagnostico } from '@/src/services/exportDiagnostico';
@@ -140,6 +140,12 @@ function AuthGuard() {
         return;
       }
       case 'ninguna':
+        // Tap con la app cerrada (T-304): sólo con sesión, fuera de auth y con
+        // el router ya andando; sin sesión no se navega y la respuesta queda
+        // sin atender hasta que haya cuenta.
+        if (!isLoading && currentUser && !inAuth) {
+          atenderRespuestaDeArranque(destino => router.push(destino as any));
+        }
         return;
     }
   }, [currentUser, isLoading, segments, entryGate]);
