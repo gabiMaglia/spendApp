@@ -43,6 +43,7 @@ const ALLOWLIST = new Set<string>([
   'app/groups/new.tsx',            // el único `memberIds: rosterDe(miembrosIniciales)` del alta
   'src/services/groupTraspaso.ts', // el único `memberIds: rosterDe(miembrosNuevo)` del traspaso
   'src/screens/debug/datosDeDemo.ts', // `memberIds: rosterDe(miembros)` del grupo de demo (sólo DEV)
+  'src/screens/debug/datosDeDemoGrupos.ts', // `memberIds: rosterDe(miembros)` de los grupos de demo extra (sólo DEV, T-305)
 ]);
 
 function archivosFuenteBajo(dir: string): string[] {
