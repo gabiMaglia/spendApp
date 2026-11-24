@@ -133,7 +133,7 @@ describe('T-054 · build sin el módulo nativo de notificaciones', () => {
     // quedarse en blanco por un binario que no entró al build.
     comoUnBuildSinElNativo();
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const notif = require('../notifications');
+    const notif = require('../textoAvisos');
     expect(notif.textFor(gastos).title).toBe('Viaje');
   });
 
