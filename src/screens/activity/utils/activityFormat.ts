@@ -1,18 +1,20 @@
+import i18n from '@/src/i18n';
 import { mismaPersona } from '@/src/store/identityAlias';
 import type { ActivityKind } from '@/src/store/selectors';
 import type { Expense } from '@/src/types/models';
 
+/** «hace 6 h» / «6 h ago» / «há 6 h» en el idioma activo (T-307: antes, castellano fijo). */
 export function relativeTime(ts: number): string {
   const diffMs  = Date.now() - ts;
   const diffMin = Math.floor(diffMs / 60000);
   const diffH   = Math.floor(diffMs / 3600000);
   const diffD   = Math.floor(diffMs / 86400000);
 
-  if (diffMin < 1)  return 'ahora';
-  if (diffMin < 60) return `hace ${diffMin} min`;
-  if (diffH   < 24) return `hace ${diffH} h`;
-  if (diffD   === 1) return 'ayer';
-  return `hace ${diffD} días`;
+  if (diffMin < 1)  return i18n.t('activity.time_now');
+  if (diffMin < 60) return i18n.t('activity.time_minutes', { count: diffMin });
+  if (diffH   < 24) return i18n.t('activity.time_hours', { count: diffH });
+  if (diffD   === 1) return i18n.t('activity.time_yesterday');
+  return i18n.t('activity.time_days', { count: diffD });
 }
 
 export function getTs(ev: ActivityKind): number {
