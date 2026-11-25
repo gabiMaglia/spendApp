@@ -20,7 +20,7 @@ export function BloqueDatosDeDemo({ c }: { c: any }) {
     <Block title="DATOS DE DEMO" c={c}>
       <Text style={[Typography.bodyS, { color: c.textSecondary }]}>
         Agrega «Viaje a Bariloche» con Sofi y Martín, cinco gastos, un pago,
-        presupuesto y movimientos del mes. Para las capturas de las tiendas.
+        cuatro grupos más en otras monedas, presupuesto y movimientos del mes. Para las capturas de las tiendas.
       </Text>
       <Pressable
         accessibilityRole="button"

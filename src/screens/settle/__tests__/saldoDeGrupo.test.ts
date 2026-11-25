@@ -1,9 +1,8 @@
-import i18n from '@/src/i18n';
 import { formatMoney } from '@/src/constants/currencies';
 import type { CurrencyCode } from '@/src/constants/currencies';
 import type { Expense, Group, Payment } from '@/src/types/models';
 import {
-  balancesEnMoneda, formatDate, hintDe, puedeGuardarSaldo,
+  balancesEnMoneda, hintDe, puedeGuardarSaldo,
 } from '@/src/screens/settle/saldoDeGrupo';
 
 /**
@@ -120,16 +119,5 @@ describe('puedeGuardarSaldo', () => {
     expect(puedeGuardarSaldo({ ...ok, toId: 'ana' })).toBe(false);
     expect(puedeGuardarSaldo({ ...ok, groupId: '' })).toBe(false);
     expect(puedeGuardarSaldo({ ...ok, grupoArchivado: true })).toBe(false);
-  });
-});
-
-describe('formatDate', () => {
-  it('hoy y ayer con nombre traducido; el resto con fecha corta', () => {
-    const hoy = new Date();
-    const ayer = new Date(); ayer.setDate(hoy.getDate() - 1);
-    const antes = new Date(); antes.setDate(hoy.getDate() - 5);
-    expect(formatDate(hoy)).toBe(i18n.t('common.today'));
-    expect(formatDate(ayer)).toBe(i18n.t('common.yesterday'));
-    expect(formatDate(antes)).toBe(antes.toLocaleDateString(i18n.language, { day: 'numeric', month: 'short' }));
   });
 });

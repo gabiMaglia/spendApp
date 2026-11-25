@@ -9,7 +9,7 @@ import { Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import type { RecurrenceValue } from '@/src/components/RecurrencePicker';
 import { useSkin } from '@/src/skins/useSkin';
-import { formatDate } from '@/src/screens/expense/repartoDeGasto';
+import { fechaCorta } from '@/src/utils/fechaCorta';
 
 /**
  * Barra de abajo del alta estilo Splitwise (feat/reskin, B4): fecha a la
@@ -55,7 +55,7 @@ export function BarraDeHerramientas({
     }]}>
       <Pressable ref={anclaFecha} collapsable={false} testID="barra-fecha" onPress={onOpenDate} accessibilityRole="button" style={styles.chip}>
         <Ionicons name="calendar-outline" size={19} color={c.brand.primary} />
-        <Text style={[Typography.bodyL, { color: c.text }]}>{formatDate(date)}</Text>
+        <Text style={[Typography.bodyL, { color: c.text }]}>{fechaCorta(date)}</Text>
       </Pressable>
       <View style={styles.espacio} />
       {showRecurrence && (

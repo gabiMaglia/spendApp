@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { Radius, Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
 import { useColors } from '@/src/skins/useSkin';
-import { formatDate } from '@/src/screens/expense/repartoDeGasto';
+import { fechaCorta } from '@/src/utils/fechaCorta';
 
 /**
  * Barra de utilidades de Nuevo gasto — píldora flotante despegada del borde
@@ -93,7 +93,7 @@ export function BarraUtilidades({
         >
           <Ionicons name="calendar-outline" size={16} color={c.textSecondary} />
           <Text style={[Typography.bodyS, { color: c.text, fontWeight: '600' }]}>
-            {formatDate(date)}
+            {fechaCorta(date)}
           </Text>
         </Pressable>
       </View>

@@ -318,7 +318,12 @@
     "deleted_title": "Deleted: {{desc}}",
     "restore": "Restore",
     "search_placeholder": "Search by description, person or group",
-    "action_restored": "restored"
+    "action_restored": "restored",
+    "time_now": "now",
+    "time_minutes": "{{count}} min ago",
+    "time_hours": "{{count}} h ago",
+    "time_yesterday": "yesterday",
+    "time_days": "{{count}} days ago"
   },
   "settings": {
     "title": "Settings",

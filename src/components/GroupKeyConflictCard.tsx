@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 
 import { Spacing } from '@/src/constants/spacing';
 import { Typography } from '@/src/constants/typography';
-import { textFor } from '@/src/services/notifications';
+import { textFor } from '@/src/services/textoAvisos';
 import { nombreDeGrupoEnConflicto, type KeyConflictNotice } from '@/src/services/syncNotices';
 import { elegirClaveDeGrupo } from '@/src/services/elegirClaveDeGrupo';
 import { purgarGrupoLocalmente } from '@/src/services/salirDelGrupo';

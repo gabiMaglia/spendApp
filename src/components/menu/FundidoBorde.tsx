@@ -15,12 +15,14 @@ const LARGO = 40;
  * derecho, o el izquierdo si la fila crece hacia la izquierda (`alIzquierda`, y entonces
  * el final es el scroll 0).
  */
-export function FundidoBorde({ scrollY, maxScroll, horizontal, alIzquierda, testID }: {
+export function FundidoBorde({ scrollY, maxScroll, horizontal, alIzquierda, color, testID }: {
   /** El valor de scroll en el eje de la lista (se llama `scrollY` por la columna). */
   scrollY: SharedValue<number>;
   maxScroll: number;
   horizontal?: boolean;
   alIzquierda?: boolean;
+  /** Color del fondo sobre el que se funde. Por defecto el velo de los abanicos. */
+  color?: string;
   testID?: string;
 }) {
   const c = useColors();
@@ -31,7 +33,7 @@ export function FundidoBorde({ scrollY, maxScroll, horizontal, alIzquierda, test
   return (
     <Animated.View
       testID={testID} pointerEvents="none"
-      style={[styles[borde], { experimental_backgroundImage: degradeFundido(c.velo, borde) }, estilo]}
+      style={[styles[borde], { experimental_backgroundImage: degradeFundido(color ?? c.velo, borde) }, estilo]}
     />
   );
 }

@@ -1,4 +1,3 @@
-import i18n from '@/src/i18n';
 import { formatMoney } from '@/src/constants/currencies';
 import type { CurrencyCode } from '@/src/constants/currencies';
 import { calculateBalancesByCurrency } from '@/src/algorithms/calculateBalances';
@@ -10,15 +9,6 @@ import type { Balance, Expense, Group, Payment } from '@/src/types/models';
  * Lógica pura de «Saldar deuda». T-223: salió de `app/settle/new.tsx` tal
  * cual; los montos son enteros en menor unidad (ADR-002).
  */
-
-export function formatDate(d: Date): string {
-  const today     = new Date(); today.setHours(0, 0, 0, 0);
-  const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
-  const dMid      = new Date(d);    dMid.setHours(0, 0, 0, 0);
-  if (dMid.getTime() === today.getTime())     return i18n.t('common.today');
-  if (dMid.getTime() === yesterday.getTime()) return i18n.t('common.yesterday');
-  return d.toLocaleDateString(i18n.language, { day: 'numeric', month: 'short' });
-}
 
 /** Balances reales del grupo en esta moneda: gastos MENOS lo ya pagado. */
 export function balancesEnMoneda(

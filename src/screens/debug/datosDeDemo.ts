@@ -9,6 +9,7 @@ import { useUserStore } from '@/src/store/userStore';
 import { useAuthStore } from '@/src/store/authStore';
 import type { ExpenseCategory, Group, PersonalCategory } from '@/src/types/models';
 import { useCommentStore } from '@/src/store/commentStore';
+import { cargarGruposExtra } from '@/src/screens/debug/datosDeDemoGrupos';
 
 /**
  * Datos de demo para las capturas de las tiendas (sólo en desarrollo, se
@@ -105,6 +106,8 @@ export function cargarDatosDeDemo(yoId: string, ahora: number, isDev: boolean = 
       text: '¿La cabaña incluía el desayuno?', createdAt: hace(1), updatedAt: hace(1), isDeleted: false,
     });
   }
+
+  cargarGruposExtra(yoId, ahora);
 
   const personal = usePersonalStore.getState();
   personal.setBudget({ currency: 'ARS', monthlyAmount: centavos(600000), includeOwedToMe: false });
