@@ -318,7 +318,12 @@
     "deleted_title": "Borrado: {{desc}}",
     "restore": "Restaurar",
     "search_placeholder": "Buscar por descripción, persona o grupo",
-    "action_restored": "restauró"
+    "action_restored": "restauró",
+    "time_now": "ahora",
+    "time_minutes": "hace {{count}} min",
+    "time_hours": "hace {{count}} h",
+    "time_yesterday": "ayer",
+    "time_days": "hace {{count}} días"
   },
   "settings": {
     "title": "Ajustes",

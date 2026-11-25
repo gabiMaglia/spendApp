@@ -318,7 +318,12 @@
     "deleted_title": "Apagado: {{desc}}",
     "restore": "Restaurar",
     "search_placeholder": "Buscar por descrição, pessoa ou grupo",
-    "action_restored": "restaurou"
+    "action_restored": "restaurou",
+    "time_now": "agora",
+    "time_minutes": "há {{count}} min",
+    "time_hours": "há {{count}} h",
+    "time_yesterday": "ontem",
+    "time_days": "há {{count}} dias"
   },
   "settings": {
     "title": "Configurações",
